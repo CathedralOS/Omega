@@ -97,12 +97,12 @@ impl WritableRoots<'_, '_> {
                     return false;
                 };
 
-                local_data.name == root_name
+                local_data.name.as_str() == root_name
             })
             || self
                 .parameters
                 .iter()
-                .any(|parameter| parameter.is_mutable && parameter.name == root_name)
+                .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
     }
 }
 
@@ -482,7 +482,7 @@ fn validate_type_reference_handle(
                 )));
             }
 
-            if base_name != "IndexOf" {
+            if base_name.as_str() != "IndexOf" {
                 for argument in program
                     .type_reference_table
                     .type_reference_handles(*arguments)
@@ -519,7 +519,7 @@ fn validate_type_constraints_node(
 
     for constraint in program.type_reference_table.constraints(constraints) {
         match constraint {
-            TypeConstraintNode::Named(name) if name == "finite" => {
+            TypeConstraintNode::Named(name) if name.as_str() == "finite" => {
                 let Some(primitive_type) = primitive_type else {
                     continue;
                 };
@@ -552,7 +552,7 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
     let Some(main_machine) = program
         .machines()
         .iter()
-        .find(|machine| machine.name == "main")
+        .find(|machine| machine.name.as_str() == "main")
     else {
         diagnostics.push(Diagnostic::error("missing machine main"));
         return;
@@ -561,7 +561,7 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
     if !program
         .machine_states(main_machine)
         .iter()
-        .any(|state| state.name == "entry")
+        .any(|state| state.name.as_str() == "entry")
     {
         diagnostics.push(Diagnostic::error("machine main is missing state entry"));
     }
@@ -729,7 +729,9 @@ fn validate_call_node(
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
 
-    if receiver_members.is_empty() || receiver_members == ["self"] {
+    if receiver_members.is_empty()
+        || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
+    {
         let Some(state) = machine_symbols.state(&call.target) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
@@ -1098,7 +1100,7 @@ fn argument_matches_type_reference_handle(
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Name(_)
         ),
-        TypeReferenceNode::Generic { base_name, .. } if base_name == "IndexOf" => {
+        TypeReferenceNode::Generic { base_name, .. } if base_name.as_str() == "IndexOf" => {
             matches!(
                 argument_node,
                 ExpressionNode::Integer(_)
@@ -1227,7 +1229,7 @@ fn validate_transition_target_node(
         return;
     }
 
-    if path.len() == 2 && path[0] == "self" {
+    if path.len() == 2 && path[0].as_str() == "self" {
         let Some(state) = machine_symbols.state(path[1].as_str()) else {
             return;
         };

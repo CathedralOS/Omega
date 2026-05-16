@@ -649,7 +649,7 @@ fn field_layout<'plan>(
         .fields
         .span(fields)?
         .iter()
-        .find(|field| field.name == field_name)
+        .find(|field| field.name.as_str() == field_name)
 }
 
 fn field_layout_by_symbol_or_name<'plan>(
@@ -659,7 +659,8 @@ fn field_layout_by_symbol_or_name<'plan>(
     field_name: &str,
 ) -> Option<&'plan FieldLayout> {
     layouts.fields.span(fields)?.iter().find(|field| {
-        (field_symbol.is_valid() && field.symbol == field_symbol) || field.name == field_name
+        (field_symbol.is_valid() && field.symbol == field_symbol)
+            || field.name.as_str() == field_name
     })
 }
 

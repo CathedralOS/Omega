@@ -707,7 +707,7 @@ fn table_transition_target_state_and_arguments<'program>(
     let path_members = program.statement_table.name_path_members(path.members);
 
     state_by_symbol(program, path.symbol)
-        .or_else(|| (path_members == ["self"]).then_some(state))
+        .or_else(|| matches!(path_members, [member] if member.as_str() == "self").then_some(state))
         .map(|target_state| {
             (
                 target_state,
@@ -850,7 +850,12 @@ fn expression_constraints(
         ExpressionNode::Float(value) => float_literal_constraints(*value),
         ExpressionNode::Integer(value) => integer_literal_constraints(*value),
         ExpressionNode::Name(path)
-            if program.expression_table.name_path_members(path.members) == ["u32", "MAX"] =>
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str())
+                .eq(["u32", "MAX"]) =>
         {
             integer_literal_constraints(u32::MAX as i64)
         }
@@ -886,7 +891,7 @@ fn expression_type_reference(
 
             let name = match program.expression_table.name_path_members(path.members) {
                 [name] => name,
-                [receiver, name] if receiver == "self" => name,
+                [receiver, name] if receiver.as_str() == "self" => name,
                 _ => return None,
             };
 
@@ -989,7 +994,7 @@ fn index_of_constraints(
         return None;
     };
 
-    if base_name != "IndexOf" {
+    if base_name.as_str() != "IndexOf" {
         return None;
     }
 
@@ -1521,11 +1526,16 @@ fn is_real_from_call(
     receiver: ExpressionHandle,
     target: &ProgramName,
 ) -> bool {
-    target == "from"
+    target.as_str() == "from"
         && matches!(
             receiver.is_valid().then(|| program.expression_table.expression(receiver)),
             Some(ExpressionNode::Name(path))
-                if program.expression_table.name_path_members(path.members) == ["Real"]
+                if program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["Real"])
         )
 }
 
@@ -1572,7 +1582,10 @@ fn integer_constraints_are_wrapping(constraints: &[ProofConstraint]) -> bool {
 
 fn has_named_constraint(constraints: &[ProofConstraint], name: &str) -> bool {
     constraints.iter().any(|constraint| {
-        matches!(constraint, ProofConstraint::Named(constraint_name) if constraint_name == name)
+        matches!(
+            constraint,
+            ProofConstraint::Named(constraint_name) if constraint_name.as_str() == name
+        )
     })
 }
 
@@ -1778,7 +1791,12 @@ fn integer_constant_value_from_node(
     match expression {
         ExpressionNode::Integer(value) => Some(*value),
         ExpressionNode::Name(path)
-            if program.expression_table.name_path_members(path.members) == ["u32", "MAX"] =>
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str())
+                .eq(["u32", "MAX"]) =>
         {
             Some(u32::MAX as i64)
         }
@@ -1794,7 +1812,12 @@ fn float_constant_value_from_node(
         ExpressionNode::Float(value) => Some(value.value()),
         ExpressionNode::Integer(value) => Some(*value as f64),
         ExpressionNode::Name(path)
-            if program.expression_table.name_path_members(path.members) == ["u32", "MAX"] =>
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str())
+                .eq(["u32", "MAX"]) =>
         {
             Some(u32::MAX as f64)
         }

@@ -583,7 +583,11 @@ fn resolve_state_call_target(
     receiver: Option<&[ProgramName]>,
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
-    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+    if receiver.is_none()
+        || receiver_symbol == machine.symbol
+        || receiver
+            .is_some_and(|receiver| matches!(receiver, [member] if member.as_str() == "self"))
+    {
         return resolve_state_key_in_machine(
             control_flow,
             machine.symbol,
@@ -696,7 +700,11 @@ fn receiver_can_dispatch_to_machine(
     receiver_symbol: SymbolHandle,
     receiver: Option<&[ProgramName]>,
 ) -> bool {
-    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+    if receiver.is_none()
+        || receiver_symbol == machine.symbol
+        || receiver
+            .is_some_and(|receiver| matches!(receiver, [member] if member.as_str() == "self"))
+    {
         return false;
     }
 

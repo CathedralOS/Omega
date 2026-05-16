@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use omega_checked_trees::{Program, machine::Machine, platform::Platform};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::{NativeTarget, ObjectFormat};
-use omega_checked_trees::{Program, machine::Machine, platform::Platform};
 
 pub struct ArtifactWriter {
     root: PathBuf,
@@ -829,11 +829,11 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine
         states: program.machine_states(machine).len(),
     });
 
-    if machine.name == "main"
+    if machine.name.as_str() == "main"
         && program
             .machine_states(machine)
             .iter()
-            .any(|state| state.name == "entry")
+            .any(|state| state.name.as_str() == "entry")
     {
         report.entry_points.insert(BackendEntryPoint {
             machine: "main".to_owned(),
@@ -913,14 +913,14 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use omega_core::arena::HandleSpan;
-    use omega_core::symbols::SymbolHandle;
     use omega_checked_trees::Program;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::platform::Platform;
     use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
+    use omega_core::arena::HandleSpan;
+    use omega_core::symbols::SymbolHandle;
 
     use super::build_backend_surface_report;
 

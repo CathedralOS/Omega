@@ -642,7 +642,9 @@ fn integer_literal_handle(proof_plan: &ProofPlan, expression: ExpressionHandle) 
                 .program
                 .expression_table
                 .name_path_members(path.members)
-                == ["u32", "MAX"] =>
+                .iter()
+                .map(|member| member.as_str())
+                .eq(["u32", "MAX"]) =>
         {
             Some(u32::MAX as i64)
         }
@@ -1146,7 +1148,8 @@ fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constra
     if constraints.iter().any(|argument_constraint| {
         matches!(
             argument_constraint,
-            ProofConstraint::Named(argument_constraint) if argument_constraint == constraint
+            ProofConstraint::Named(argument_constraint)
+                if argument_constraint.as_str() == constraint
         )
     }) {
         return true;

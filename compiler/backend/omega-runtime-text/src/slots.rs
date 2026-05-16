@@ -1,9 +1,9 @@
-use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
 };
 use omega_checked_trees::name::ProgramName;
+use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 
 use super::places::expression_place_eq_in_table;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};
@@ -122,15 +122,13 @@ fn text_place_for_buffer_target(
     target: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match *expressions.expression(target) {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Indexed(_)
-        | ExpressionNode::Member(_) => Some(expressions.insert(ExpressionNode::Member(
-            TableMemberExpression {
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => Some(
+            expressions.insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: target,
                 member_symbol: SymbolHandle::invalid(),
                 member: ProgramName::generated("text"),
-            },
-        ))),
+            })),
+        ),
         ExpressionNode::Mutable(inner) => text_place_for_buffer_target(expressions, inner),
         _ => None,
     }
