@@ -8,6 +8,7 @@ pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
+use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{RuntimeFlowPlan, RuntimeTransitionTarget};
 use std::sync::Arc;
@@ -45,7 +46,9 @@ pub fn build_state_dispatch_plan_with_workers(
     let mut plan = StateDispatchPlan::default();
 
     for dispatch_state in dispatch_states {
-        let edges = plan.edges.insert_many(dispatch_state.edges);
+        let edges = plan
+            .edges
+            .insert_many(dispatch_state.edges.iter().map(|(_, edge)| edge.clone()));
 
         plan.states.insert(DispatchState {
             key: dispatch_state.key,
@@ -63,18 +66,21 @@ struct CollectedDispatchState {
     key: StateKey,
     dispatch_index: u32,
     label: String,
-    edges: Vec<DispatchEdge>,
+    edges: Arena<DispatchEdge>,
 }
 
 fn build_dispatch_state(
     context: &StateDispatchContext,
     runtime_state: &RuntimeStateInput,
 ) -> CollectedDispatchState {
-    let edges = context
+    let mut edges = Arena::new();
+
+    for edge in context
         .edges
         .iter()
         .filter(|edge| edge.from == runtime_state.key)
-        .map(|edge| DispatchEdge {
+    {
+        edges.insert(DispatchEdge {
             statement_index: edge.statement_index,
             target_dispatch_index: target_dispatch_index(context, &edge.target),
             target: edge.target.clone(),
@@ -83,9 +89,10 @@ fn build_dispatch_state(
             guard: edge.guard.clone(),
             expressions: edge.expressions,
             forms_cycle: edge.forms_cycle,
-        })
-        .chain(terminal_continuation_edges(context, runtime_state))
-        .collect();
+        });
+    }
+
+    append_terminal_continuation_edges(context, runtime_state, &mut edges);
 
     CollectedDispatchState {
         key: runtime_state.key,
@@ -103,19 +110,19 @@ fn dispatch_label(key: StateKey) -> String {
     )
 }
 
-fn terminal_continuation_edges(
+fn append_terminal_continuation_edges(
     context: &StateDispatchContext,
     runtime_state: &RuntimeStateInput,
-) -> Vec<DispatchEdge> {
+    edges: &mut Arena<DispatchEdge>,
+) {
     let has_outgoing_edges = context
         .edges
         .iter()
         .any(|edge| edge.from == runtime_state.key);
     if has_outgoing_edges {
-        return Vec::new();
+        return;
     }
 
-    let mut edges = Vec::new();
     for edge in &context.edges {
         let RuntimeTransitionTarget::State { key, .. } = &edge.target else {
             continue;
@@ -126,14 +133,14 @@ fn terminal_continuation_edges(
         let RuntimeTransitionTarget::State { .. } = &edge.continuation else {
             continue;
         };
-        if edges.iter().any(|existing: &DispatchEdge| {
+        if edges.iter().any(|(_, existing)| {
             existing.continuation_dispatch_index
                 == target_dispatch_index(context, &edge.continuation)
         }) {
             continue;
         }
 
-        edges.push(DispatchEdge {
+        edges.insert(DispatchEdge {
             statement_index: 0,
             target_dispatch_index: target_dispatch_index(context, &edge.continuation),
             target: edge.continuation.clone(),
@@ -144,8 +151,6 @@ fn terminal_continuation_edges(
             forms_cycle: false,
         });
     }
-
-    edges
 }
 
 fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransitionTarget) -> u32 {

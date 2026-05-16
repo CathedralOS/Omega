@@ -1,5 +1,5 @@
-use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_checked_trees::statement::TransitionGuard;
+use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 
