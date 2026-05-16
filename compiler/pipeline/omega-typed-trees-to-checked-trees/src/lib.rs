@@ -36,10 +36,10 @@ fn build_proof_facts(
     _program: &omega_typed_trees::TypedTrees,
     proof_plan: &omega_proof::obligations::ProofPlan,
 ) -> ProofFacts {
-    let obligations = proof_plan
-        .obligations
-        .iter()
-        .map(|(_, obligation)| match obligation {
+    let mut obligations = omega_core::arena::Arena::new();
+
+    for (_, obligation) in proof_plan.obligations.iter() {
+        obligations.append(match obligation {
             omega_proof::obligations::ProofObligation::BoundedAssignment(obligation) => {
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedAssignment,
@@ -114,37 +114,27 @@ fn build_proof_facts(
                     ),
                 }
             }
-        })
-        .collect::<Vec<_>>();
-
-    let mut stored = omega_core::arena::Arena::new();
-    stored.insert_many(obligations);
-
-    ProofFacts {
-        obligations: stored,
+        });
     }
+
+    ProofFacts { obligations }
 }
 
 fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {
-    let definitions = program
-        .invariant_definitions()
-        .iter()
-        .map(|definition| InvariantFact {
+    let mut definitions = omega_core::arena::Arena::new();
+
+    for definition in program.invariant_definitions() {
+        definitions.append(InvariantFact {
             symbol: definition.symbol,
             name: definition.name.clone(),
             constraint_count: program
                 .type_constraints
                 .span_or_empty(definition.constraints)
                 .len(),
-        })
-        .collect::<Vec<_>>();
-
-    let mut stored = omega_core::arena::Arena::new();
-    stored.insert_many(definitions);
-
-    InvariantFacts {
-        definitions: stored,
+        });
     }
+
+    InvariantFacts { definitions }
 }
 
 fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
@@ -155,43 +145,48 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let state_writable_roots = program
-                .machine_owned_data(machine)
-                .iter()
-                .map(|owned| BorrowWritableRootFact {
-                    symbol: owned.symbol,
-                    name: owned.name.clone(),
-                    kind: BorrowRootKind::OwnedData,
-                })
-                .chain(
-                    program
-                        .state_statements(state)
-                        .iter()
-                        .filter_map(|statement| {
-                            let Statement::LocalData(local_data) = statement else {
-                                return None;
-                            };
-                            Some(BorrowWritableRootFact {
-                                symbol: local_data.symbol,
-                                name: local_data.name.clone(),
-                                kind: BorrowRootKind::LocalData,
-                            })
-                        }),
-                )
-                .chain(
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .filter(|parameter| parameter.is_mutable)
-                        .map(|parameter| BorrowWritableRootFact {
-                            symbol: parameter.symbol,
-                            name: parameter.name.clone(),
-                            kind: BorrowRootKind::MutableParameter,
-                        }),
-                )
-                .collect::<Vec<_>>();
+            let mut writable_roots_span = omega_core::arena::HandleSpan::empty();
+            for owned in program.machine_owned_data(machine) {
+                writable_roots.append_to_span(
+                    &mut writable_roots_span,
+                    BorrowWritableRootFact {
+                        symbol: owned.symbol,
+                        name: owned.name.clone(),
+                        kind: BorrowRootKind::OwnedData,
+                    },
+                );
+            }
 
-            let mut state_calls = Vec::new();
+            for statement in program.state_statements(state) {
+                let Statement::LocalData(local_data) = statement else {
+                    continue;
+                };
+                writable_roots.append_to_span(
+                    &mut writable_roots_span,
+                    BorrowWritableRootFact {
+                        symbol: local_data.symbol,
+                        name: local_data.name.clone(),
+                        kind: BorrowRootKind::LocalData,
+                    },
+                );
+            }
+
+            for parameter in program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| parameter.is_mutable)
+            {
+                writable_roots.append_to_span(
+                    &mut writable_roots_span,
+                    BorrowWritableRootFact {
+                        symbol: parameter.symbol,
+                        name: parameter.name.clone(),
+                        kind: BorrowRootKind::MutableParameter,
+                    },
+                );
+            }
+
+            let mut calls_span = omega_core::arena::HandleSpan::empty();
             for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
                 let mut call_ordinal = 0usize;
                 collect_statement_borrow_calls(
@@ -201,29 +196,12 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     statement_index,
                     statement,
                     &mut call_ordinal,
-                    &mut state_calls,
+                    &mut argument_accesses,
+                    &mut calls,
+                    &mut calls_span,
                 );
             }
 
-            let state_calls = state_calls
-                .into_iter()
-                .map(|call| {
-                    let accesses = argument_accesses.insert_many(call.accesses);
-
-                    BorrowCallFact {
-                        statement_index: call.statement_index,
-                        call_ordinal: call.call_ordinal,
-                        receiver_symbol: call.receiver_symbol,
-                        target_symbol: call.target_symbol,
-                        receiver: call.receiver,
-                        target: call.target,
-                        accesses,
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let writable_roots_span = writable_roots.insert_many(state_writable_roots);
-            let calls_span = calls.insert_many(state_calls);
             let mutable_parameter_count = program
                 .state_parameters(state)
                 .iter()
@@ -250,17 +228,6 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     }
 }
 
-#[derive(Debug, Clone)]
-struct BorrowCallDraft {
-    statement_index: usize,
-    call_ordinal: usize,
-    receiver_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    receiver: Option<omega_checked_trees::expression::NamePath>,
-    target: ProgramName,
-    accesses: Vec<BorrowArgumentAccessFact>,
-}
-
 fn collect_statement_borrow_calls(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
@@ -268,7 +235,9 @@ fn collect_statement_borrow_calls(
     statement_index: usize,
     statement: &Statement,
     call_ordinal: &mut usize,
-    calls: &mut Vec<BorrowCallDraft>,
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    calls: &mut omega_core::arena::Arena<BorrowCallFact>,
+    state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
     match statement {
         Statement::Assignment(assignment) => collect_expression_borrow_calls(
@@ -278,19 +247,24 @@ fn collect_statement_borrow_calls(
             statement_index,
             call_ordinal,
             &assignment.value,
+            argument_accesses,
             calls,
+            state_calls,
         ),
         Statement::Call(call) => {
             if statement_call_can_dispatch_to_machine(program, machine, state, call) {
-                calls.push(BorrowCallDraft {
+                append_borrow_call(
+                    argument_accesses,
+                    calls,
+                    state_calls,
                     statement_index,
-                    call_ordinal: *call_ordinal,
-                    receiver_symbol: call.receiver_symbol,
-                    target_symbol: call.target_symbol,
-                    receiver: statement_call_receiver_path(program, call),
-                    target: call.target.clone(),
-                    accesses: collect_call_argument_accesses(program.call_arguments(call)),
-                });
+                    *call_ordinal,
+                    call.receiver_symbol,
+                    call.target_symbol,
+                    statement_call_receiver_path(program, call),
+                    call.target.clone(),
+                    collect_call_argument_accesses(program.call_arguments(call)),
+                );
                 *call_ordinal += 1;
             }
 
@@ -302,7 +276,9 @@ fn collect_statement_borrow_calls(
                     statement_index,
                     call_ordinal,
                     argument,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
@@ -313,7 +289,9 @@ fn collect_statement_borrow_calls(
             statement_index,
             call_ordinal,
             expression,
+            argument_accesses,
             calls,
+            state_calls,
         ),
         Statement::LocalData(local_data) => {
             if let Some(initial_value) = &local_data.initial_value {
@@ -324,7 +302,9 @@ fn collect_statement_borrow_calls(
                     statement_index,
                     call_ordinal,
                     initial_value,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
@@ -337,7 +317,9 @@ fn collect_statement_borrow_calls(
                     statement_index,
                     call_ordinal,
                     expression,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
 
@@ -348,7 +330,9 @@ fn collect_statement_borrow_calls(
                 statement_index,
                 call_ordinal,
                 &transition.target,
+                argument_accesses,
                 calls,
+                state_calls,
             );
 
             if let Some(continuation) = &transition.continuation {
@@ -359,7 +343,9 @@ fn collect_statement_borrow_calls(
                     statement_index,
                     call_ordinal,
                     continuation,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
@@ -373,7 +359,9 @@ fn collect_transition_target_borrow_calls(
     statement_index: usize,
     call_ordinal: &mut usize,
     target: &TransitionTarget,
-    calls: &mut Vec<BorrowCallDraft>,
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    calls: &mut omega_core::arena::Arena<BorrowCallFact>,
+    state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
     match target {
         TransitionTarget::Named { .. } => {
@@ -385,7 +373,9 @@ fn collect_transition_target_borrow_calls(
                     statement_index,
                     call_ordinal,
                     argument,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
@@ -396,10 +386,39 @@ fn collect_transition_target_borrow_calls(
             statement_index,
             call_ordinal,
             expression,
+            argument_accesses,
             calls,
+            state_calls,
         ),
         TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
     }
+}
+
+fn append_borrow_call(
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    calls: &mut omega_core::arena::Arena<BorrowCallFact>,
+    state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
+    statement_index: usize,
+    call_ordinal: usize,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    receiver: Option<NamePath>,
+    target: ProgramName,
+    accesses: Vec<BorrowArgumentAccessFact>,
+) {
+    let accesses = argument_accesses.insert_many(accesses);
+    calls.append_to_span(
+        state_calls,
+        BorrowCallFact {
+            statement_index,
+            call_ordinal,
+            receiver_symbol,
+            target_symbol,
+            receiver,
+            target,
+            accesses,
+        },
+    );
 }
 
 fn collect_expression_borrow_calls(
@@ -409,7 +428,9 @@ fn collect_expression_borrow_calls(
     statement_index: usize,
     call_ordinal: &mut usize,
     expression: &Expression,
-    calls: &mut Vec<BorrowCallDraft>,
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    calls: &mut omega_core::arena::Arena<BorrowCallFact>,
+    state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
     match expression {
         Expression::ArrayLiteral(values) => {
@@ -421,7 +442,9 @@ fn collect_expression_borrow_calls(
                     statement_index,
                     call_ordinal,
                     value,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
@@ -433,7 +456,9 @@ fn collect_expression_borrow_calls(
                 statement_index,
                 call_ordinal,
                 &binary.left,
+                argument_accesses,
                 calls,
+                state_calls,
             );
             collect_expression_borrow_calls(
                 program,
@@ -442,7 +467,9 @@ fn collect_expression_borrow_calls(
                 statement_index,
                 call_ordinal,
                 &binary.right,
+                argument_accesses,
                 calls,
+                state_calls,
             );
         }
         Expression::Call(call) => {
@@ -466,15 +493,18 @@ fn collect_expression_borrow_calls(
                 );
 
             if is_machine_call {
-                calls.push(BorrowCallDraft {
+                append_borrow_call(
+                    argument_accesses,
+                    calls,
+                    state_calls,
                     statement_index,
-                    call_ordinal: *call_ordinal,
+                    *call_ordinal,
                     receiver_symbol,
-                    target_symbol: call.target_symbol,
-                    receiver: receiver_path,
-                    target: call.target.clone(),
-                    accesses: collect_call_argument_accesses(&call.arguments),
-                });
+                    call.target_symbol,
+                    receiver_path,
+                    call.target.clone(),
+                    collect_call_argument_accesses(&call.arguments),
+                );
                 *call_ordinal += 1;
             }
 
@@ -486,7 +516,9 @@ fn collect_expression_borrow_calls(
                     statement_index,
                     call_ordinal,
                     receiver,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
             for argument in &call.arguments {
@@ -497,7 +529,9 @@ fn collect_expression_borrow_calls(
                     statement_index,
                     call_ordinal,
                     argument,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
@@ -508,7 +542,9 @@ fn collect_expression_borrow_calls(
             statement_index,
             call_ordinal,
             &cast.value,
+            argument_accesses,
             calls,
+            state_calls,
         ),
         Expression::Indexed(indexed) => {
             collect_expression_borrow_calls(
@@ -518,7 +554,9 @@ fn collect_expression_borrow_calls(
                 statement_index,
                 call_ordinal,
                 &indexed.collection,
+                argument_accesses,
                 calls,
+                state_calls,
             );
             collect_expression_borrow_calls(
                 program,
@@ -527,7 +565,9 @@ fn collect_expression_borrow_calls(
                 statement_index,
                 call_ordinal,
                 &indexed.index,
+                argument_accesses,
                 calls,
+                state_calls,
             );
         }
         Expression::Member(member) => collect_expression_borrow_calls(
@@ -537,7 +577,9 @@ fn collect_expression_borrow_calls(
             statement_index,
             call_ordinal,
             &member.receiver,
+            argument_accesses,
             calls,
+            state_calls,
         ),
         Expression::Mutable(inner_expression) => collect_expression_borrow_calls(
             program,
@@ -546,7 +588,9 @@ fn collect_expression_borrow_calls(
             statement_index,
             call_ordinal,
             inner_expression,
+            argument_accesses,
             calls,
+            state_calls,
         ),
         Expression::StructLiteral(struct_literal) => {
             for field in &struct_literal.fields {
@@ -557,7 +601,9 @@ fn collect_expression_borrow_calls(
                     statement_index,
                     call_ordinal,
                     &field.value,
+                    argument_accesses,
                     calls,
+                    state_calls,
                 );
             }
         }
