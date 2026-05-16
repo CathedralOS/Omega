@@ -16,7 +16,6 @@ pub struct TypedTrees {
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub type_reference_arguments: Arena<types::TypeReference>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -194,27 +193,6 @@ impl TypedTrees {
         signature: &signature::StateSignature,
     ) -> &[signature::StateParameter] {
         self.state_parameters.span_or_empty(signature.parameters)
-    }
-
-    pub fn push_type_reference_argument(
-        &mut self,
-        arguments: &mut HandleSpan<types::TypeReference>,
-        argument: types::TypeReference,
-    ) {
-        self.type_reference_arguments
-            .append_to_span(arguments, argument);
-    }
-
-    pub fn type_reference_arguments(
-        &self,
-        type_reference: &types::TypeReference,
-    ) -> &[types::TypeReference] {
-        match type_reference {
-            types::TypeReference::Generic { arguments, .. } => {
-                self.type_reference_arguments.span_or_empty(*arguments)
-            }
-            _ => &[],
-        }
     }
 
     pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {

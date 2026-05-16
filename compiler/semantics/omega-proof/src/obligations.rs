@@ -11,7 +11,7 @@ use omega_typed_trees::statement::{
     TransitionGuardNode, TransitionTarget, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{
-    TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode,
+    TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceHandle, TypeReferenceNode,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -28,6 +28,20 @@ impl ProofPlan {
     fn store_constraints(&mut self, constraints: &[TypeConstraint]) -> HandleSpan<TypeConstraint> {
         self.type_constraints
             .insert_many(constraints.iter().cloned())
+    }
+
+    fn store_constraint_nodes(
+        &mut self,
+        program: &TypedTrees,
+        constraints: HandleSpan<TypeConstraintNode>,
+    ) -> HandleSpan<TypeConstraint> {
+        self.type_constraints.insert_many(
+            program
+                .type_reference_table
+                .constraints(constraints)
+                .iter()
+                .map(|constraint| constraint.to_tree(&program.expression_table)),
+        )
     }
 }
 
@@ -154,11 +168,10 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 "machine `{}` owned data `{}`",
                 machine.name, owned_data.name
             );
-            let type_reference = table_type_reference_to_tree(program, owned_data.type_reference);
             collect_bounded_value_obligation(
                 program,
                 owner.clone(),
-                &type_reference,
+                owned_data.type_reference,
                 &mut proof_plan,
             );
             if owned_data.initial_value.is_valid() {
@@ -166,7 +179,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 collect_bounded_initializer_obligation(
                     program,
                     owner,
-                    &type_reference,
+                    owned_data.type_reference,
                     &initial_value,
                     &mut proof_plan,
                 );
@@ -175,35 +188,32 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
 
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
-                let type_reference =
-                    table_type_reference_to_tree(program, parameter.type_reference);
                 collect_bounded_value_obligation(
                     program,
                     format!(
                         "machine `{}` state `{}` parameter `{}`",
                         machine.name, state.name, parameter.name
                     ),
-                    &type_reference,
+                    parameter.type_reference,
                     &mut proof_plan,
                 );
             }
 
             if state.return_type.is_valid() {
-                let return_type = table_type_reference_to_tree(program, state.return_type);
                 collect_bounded_value_obligation(
                     program,
                     format!(
                         "machine `{}` state `{}` return value",
                         machine.name, state.name
                     ),
-                    &return_type,
+                    state.return_type,
                     &mut proof_plan,
                 );
                 collect_bounded_state_return_obligation(
                     program,
                     machine,
                     state,
-                    &return_type,
+                    state.return_type,
                     &mut proof_plan,
                 );
             }
@@ -269,84 +279,102 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
 fn collect_bounded_value_obligation(
     program: &TypedTrees,
     owner: String,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
     proof_plan: &mut ProofPlan,
 ) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            collect_bounded_value_obligation(program, owner, referee, proof_plan);
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_bounded_value_obligation(program, owner, *referee, proof_plan);
         }
-        TypeReference::Constrained {
+        TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+            let constraints = proof_plan.store_constraint_nodes(program, *constraints);
             proof_plan.push_obligation(ProofObligation::BoundedValue(BoundedValueObligation {
                 owner,
-                base_type: base_type.as_ref().clone(),
+                base_type: table_type_reference_to_tree(program, *base_type),
                 constraints,
             }));
         }
-        TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_value_obligation(program, owner, element_type, proof_plan);
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_bounded_value_obligation(program, owner, *element_type, proof_plan);
         }
-        TypeReference::Slice { element_type } => {
-            collect_bounded_value_obligation(program, owner, element_type, proof_plan);
+        TypeReferenceNode::Slice { element_type } => {
+            collect_bounded_value_obligation(program, owner, *element_type, proof_plan);
         }
-        TypeReference::Generic { .. } => {
-            for argument in program.type_reference_arguments(type_reference) {
-                collect_bounded_value_obligation(program, owner.clone(), argument, proof_plan);
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                collect_bounded_value_obligation(program, owner.clone(), *argument, proof_plan);
             }
         }
-        TypeReference::Named { name: _, .. } => {}
-        TypeReference::Unit => {}
+        TypeReferenceNode::Named { name: _, .. } => {}
+        TypeReferenceNode::Unit => {}
     }
 }
 
 fn collect_bounded_initializer_obligation(
     program: &TypedTrees,
     owner: String,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
     value: &Expression,
     proof_plan: &mut ProofPlan,
 ) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            collect_bounded_initializer_obligation(program, owner, referee, value, proof_plan);
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_bounded_initializer_obligation(program, owner, *referee, value, proof_plan);
         }
-        TypeReference::Constrained {
+        TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+            let constraints = proof_plan.store_constraint_nodes(program, *constraints);
             proof_plan.push_obligation(ProofObligation::BoundedInitializer(
                 BoundedInitializerObligation {
                     owner,
                     value: value.clone(),
-                    base_type: base_type.as_ref().clone(),
+                    base_type: table_type_reference_to_tree(program, *base_type),
                     constraints,
                 },
             ));
         }
-        TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_initializer_obligation(program, owner, element_type, value, proof_plan);
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_bounded_initializer_obligation(
+                program,
+                owner,
+                *element_type,
+                value,
+                proof_plan,
+            );
         }
-        TypeReference::Slice { element_type } => {
-            collect_bounded_initializer_obligation(program, owner, element_type, value, proof_plan);
+        TypeReferenceNode::Slice { element_type } => {
+            collect_bounded_initializer_obligation(
+                program,
+                owner,
+                *element_type,
+                value,
+                proof_plan,
+            );
         }
-        TypeReference::Generic { .. } => {
-            for argument in program.type_reference_arguments(type_reference) {
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
                 collect_bounded_initializer_obligation(
                     program,
                     owner.clone(),
-                    argument,
+                    *argument,
                     value,
                     proof_plan,
                 );
             }
         }
-        TypeReference::Named { name: _, .. } => {}
-        TypeReference::Unit => {}
+        TypeReferenceNode::Named { name: _, .. } => {}
+        TypeReferenceNode::Unit => {}
     }
 }
 
@@ -358,10 +386,9 @@ fn collect_bounded_assignment_obligation(
     proof_plan: &mut ProofPlan,
 ) {
     let target = program.expression_table.to_tree(assignment.target);
-    let Some(TypeReference::Constrained {
-        base_type,
-        constraints,
-    }) = expression_type_reference(program, machine, state, &target)
+    let Some((base_type, constraints)) =
+        expression_type_reference(program, machine, state, &target)
+            .and_then(|type_reference| constrained_type_reference(program, type_reference))
     else {
         return;
     };
@@ -369,7 +396,7 @@ fn collect_bounded_assignment_obligation(
     let value = program.expression_table.to_tree(assignment.value);
     let value_constraints = expression_constraints(program, machine, state, &value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
-    let constraints = proof_plan.store_constraints(type_constraints(program, constraints));
+    let constraints = proof_plan.store_constraint_nodes(program, constraints);
     let state_guard = incoming_state_guard(program, machine, state);
 
     proof_plan.push_obligation(ProofObligation::BoundedAssignment(
@@ -382,7 +409,7 @@ fn collect_bounded_assignment_obligation(
             target,
             value,
             value_constraints,
-            base_type: base_type.as_ref().clone(),
+            base_type: table_type_reference_to_tree(program, base_type),
             constraints,
         },
     ));
@@ -407,11 +434,8 @@ fn collect_bounded_transition_argument_obligations(
     };
 
     for (parameter, argument) in callable_parameters(program, target_state).zip(arguments.iter()) {
-        let type_reference = table_type_reference_to_tree(program, parameter.type_reference);
-        let TypeReference::Constrained {
-            base_type,
-            constraints,
-        } = &type_reference
+        let Some((base_type, constraints)) =
+            constrained_type_reference(program, parameter.type_reference)
         else {
             continue;
         };
@@ -419,7 +443,7 @@ fn collect_bounded_transition_argument_obligations(
         let argument = program.expression_table.to_tree(*argument);
         let argument_constraints = expression_constraints(program, machine, state, &argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
-        let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+        let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
         proof_plan.push_obligation(ProofObligation::BoundedTransitionArgument(
             BoundedTransitionArgumentObligation {
@@ -431,7 +455,7 @@ fn collect_bounded_transition_argument_obligations(
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
-                base_type: base_type.as_ref().clone(),
+                base_type: table_type_reference_to_tree(program, base_type),
                 constraints,
                 guard: transition_guard.clone(),
             },
@@ -460,11 +484,8 @@ fn collect_bounded_call_argument_obligations(
                 .iter(),
         )
     {
-        let type_reference = table_type_reference_to_tree(program, parameter.type_reference);
-        let TypeReference::Constrained {
-            base_type,
-            constraints,
-        } = &type_reference
+        let Some((base_type, constraints)) =
+            constrained_type_reference(program, parameter.type_reference)
         else {
             continue;
         };
@@ -472,7 +493,7 @@ fn collect_bounded_call_argument_obligations(
         let argument = program.expression_table.to_tree(*argument);
         let argument_constraints = expression_constraints(program, machine, state, &argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
-        let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+        let constraints = proof_plan.store_constraint_nodes(program, constraints);
         let receiver = program.statement_table.name_path_members(call.receiver);
 
         proof_plan.push_obligation(ProofObligation::BoundedCallArgument(
@@ -486,7 +507,7 @@ fn collect_bounded_call_argument_obligations(
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
-                base_type: base_type.as_ref().clone(),
+                base_type: table_type_reference_to_tree(program, base_type),
                 constraints,
             },
         ));
@@ -497,14 +518,10 @@ fn collect_bounded_state_return_obligation(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    return_type: &TypeReference,
+    return_type: TypeReferenceHandle,
     proof_plan: &mut ProofPlan,
 ) {
-    let TypeReference::Constrained {
-        base_type,
-        constraints,
-    } = return_type
-    else {
+    let Some((base_type, constraints)) = constrained_type_reference(program, return_type) else {
         return;
     };
     let Some(omega_typed_trees::statement::StatementNode::Expression(value)) = program
@@ -518,7 +535,7 @@ fn collect_bounded_state_return_obligation(
 
     let value_constraints = expression_constraints(program, machine, state, &value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
-    let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+    let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
     proof_plan.push_obligation(ProofObligation::BoundedStateReturn(
         BoundedStateReturnObligation {
@@ -528,7 +545,7 @@ fn collect_bounded_state_return_obligation(
             state: state.name.to_string(),
             value,
             value_constraints,
-            base_type: base_type.as_ref().clone(),
+            base_type: table_type_reference_to_tree(program, base_type),
             constraints,
         },
     ));
@@ -749,7 +766,7 @@ fn expression_constraints(
             {
                 let mut constraints = call_expression_return_type(program, machine, state, call)
                     .map(|return_type| {
-                        collect_constraints_in_state(program, machine, state, &return_type)
+                        collect_constraints_in_state(program, machine, state, return_type)
                     })
                     .unwrap_or_default();
                 let argument_constraints =
@@ -762,7 +779,7 @@ fn expression_constraints(
             }
 
             if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
-                return collect_constraints_in_state(program, machine, state, &return_type);
+                return collect_constraints_in_state(program, machine, state, return_type);
             }
 
             Vec::new()
@@ -776,7 +793,7 @@ fn expression_constraints(
         Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
             expression_type_reference(program, machine, state, expression)
                 .map(|type_reference| {
-                    collect_constraints_in_state(program, machine, state, &type_reference)
+                    collect_constraints_in_state(program, machine, state, type_reference)
                 })
                 .unwrap_or_default()
         }
@@ -793,7 +810,7 @@ fn expression_type_reference(
     machine: &Machine,
     state: &State,
     expression: &Expression,
-) -> Option<TypeReference> {
+) -> Option<TypeReferenceHandle> {
     match expression {
         Expression::Mutable(inner) => expression_type_reference(program, machine, state, inner),
         Expression::Name(path) => {
@@ -811,20 +828,17 @@ fn expression_type_reference(
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.name == *name)
-                .map(|parameter| table_type_reference_to_tree(program, parameter.type_reference))
+                .map(|parameter| parameter.type_reference)
                 .or_else(|| {
-                    local_data_by_name(program, state, name).map(|local_data| {
-                        table_type_reference_to_tree(program, local_data.type_reference)
-                    })
+                    local_data_by_name(program, state, name)
+                        .map(|local_data| local_data.type_reference)
                 })
                 .or_else(|| {
                     program
                         .machine_owned_data(machine)
                         .iter()
                         .find(|owned_data| owned_data.name == *name)
-                        .map(|owned_data| {
-                            table_type_reference_to_tree(program, owned_data.type_reference)
-                        })
+                        .map(|owned_data| owned_data.type_reference)
                 })
         }
         Expression::Member(member) => {
@@ -832,7 +846,7 @@ fn expression_type_reference(
                 .and_then(|receiver_type| {
                     data_field_type_reference(
                         program,
-                        &receiver_type,
+                        receiver_type,
                         member.member_symbol,
                         &member.member,
                     )
@@ -847,30 +861,37 @@ fn expression_type_reference(
 
 fn collect_constraints(
     program: &TypedTrees,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
 ) -> Vec<TypeConstraint> {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => collect_constraints(program, referee),
-        TypeReference::Constrained {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => collect_constraints(program, *referee),
+        TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            let mut derived = collect_constraints(program, base_type);
-            derived.extend(type_constraints(program, *constraints).iter().cloned());
+            let mut derived = collect_constraints(program, *base_type);
+            derived.extend(
+                program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .map(|constraint| constraint.to_tree(&program.expression_table)),
+            );
             augment_constraints_with_named_facts(&mut derived);
             derived
         }
-        TypeReference::FixedArray { element_type, .. } => {
-            collect_constraints(program, element_type)
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_constraints(program, *element_type)
         }
-        TypeReference::Generic { .. } => program
-            .type_reference_arguments(type_reference)
+        TypeReferenceNode::Generic { arguments, .. } => program
+            .type_reference_table
+            .type_reference_handles(*arguments)
             .iter()
-            .flat_map(|argument| collect_constraints(program, argument))
+            .flat_map(|argument| collect_constraints(program, *argument))
             .collect(),
-        TypeReference::Slice { element_type } => collect_constraints(program, element_type),
-        TypeReference::Named { name, .. } => primitive_constraints(name),
-        TypeReference::Unit => Vec::new(),
+        TypeReferenceNode::Slice { element_type } => collect_constraints(program, *element_type),
+        TypeReferenceNode::Named { name, .. } => primitive_constraints(name),
+        TypeReferenceNode::Unit => Vec::new(),
     }
 }
 
@@ -878,7 +899,7 @@ fn collect_constraints_in_state(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
 ) -> Vec<TypeConstraint> {
     if let Some(constraints) = index_of_constraints(program, machine, state, type_reference) {
         return constraints;
@@ -891,9 +912,14 @@ fn index_of_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
 ) -> Option<Vec<TypeConstraint>> {
-    let TypeReference::Generic { base_name, .. } = type_reference else {
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
         return None;
     };
 
@@ -901,12 +927,15 @@ fn index_of_constraints(
         return None;
     }
 
-    let [collection] = program.type_reference_arguments(type_reference) else {
+    let [collection] = program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
         return None;
     };
 
-    let collection_name = match collection {
-        TypeReference::Named { name, .. } => name,
+    let collection_name = match program.type_reference_table.type_reference(*collection) {
+        TypeReferenceNode::Named { name, .. } => name,
         _ => return None,
     };
 
@@ -979,40 +1008,14 @@ fn collection_length_from_expression(
             collection_length_from_expression(program, machine, state, receiver).or_else(|| {
                 expression_type_reference(program, machine, state, receiver).and_then(
                     |type_reference| {
-                        collection_length_from_type_reference(
-                            program,
-                            machine,
-                            state,
-                            &type_reference,
-                        )
+                        collection_length_from_type_reference_handle(program, type_reference)
                     },
                 )
             })
         }
         _ => expression_type_reference(program, machine, state, expression).and_then(
-            |type_reference| {
-                collection_length_from_type_reference(program, machine, state, &type_reference)
-            },
+            |type_reference| collection_length_from_type_reference_handle(program, type_reference),
         ),
-    }
-}
-
-fn collection_length_from_type_reference(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    type_reference: &TypeReference,
-) -> Option<usize> {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            collection_length_from_type_reference(program, machine, state, referee)
-        }
-        TypeReference::Constrained { base_type, .. } => {
-            collection_length_from_type_reference(program, machine, state, base_type)
-        }
-        TypeReference::FixedArray { length, .. } => Some(*length),
-        TypeReference::Slice { .. } => None,
-        TypeReference::Generic { .. } | TypeReference::Named { .. } | TypeReference::Unit => None,
     }
 }
 
@@ -1074,12 +1077,12 @@ fn type_reference_for_symbol(
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
-) -> Option<TypeReference> {
+) -> Option<TypeReferenceHandle> {
     program
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == symbol)
-        .map(|parameter| table_type_reference_to_tree(program, parameter.type_reference))
+        .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
                 .statement_table
@@ -1090,8 +1093,7 @@ fn type_reference_for_symbol(
                         return None;
                     };
 
-                    (local_data.symbol == symbol)
-                        .then(|| table_type_reference_to_tree(program, local_data.type_reference))
+                    (local_data.symbol == symbol).then_some(local_data.type_reference)
                 })
         })
         .or_else(|| {
@@ -1099,7 +1101,7 @@ fn type_reference_for_symbol(
                 .machine_owned_data(machine)
                 .iter()
                 .find(|owned_data| owned_data.symbol == symbol)
-                .map(|owned_data| table_type_reference_to_tree(program, owned_data.type_reference))
+                .map(|owned_data| owned_data.type_reference)
         })
         .or_else(|| {
             program
@@ -1114,9 +1116,7 @@ fn type_reference_for_symbol(
                                 return None;
                             };
 
-                            (field.symbol == symbol).then(|| {
-                                table_type_reference_to_tree(program, field.type_reference)
-                            })
+                            (field.symbol == symbol).then_some(field.type_reference)
                         })
                 })
         })
@@ -1136,18 +1136,18 @@ fn table_type_reference_to_tree(
 
 fn data_field_type_reference(
     program: &TypedTrees,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
-) -> Option<TypeReference> {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            data_field_type_reference(program, referee, member_symbol, member_name)
+) -> Option<TypeReferenceHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            data_field_type_reference(program, *referee, member_symbol, member_name)
         }
-        TypeReference::Constrained { base_type, .. } => {
-            data_field_type_reference(program, base_type, member_symbol, member_name)
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            data_field_type_reference(program, *base_type, member_symbol, member_name)
         }
-        TypeReference::Generic {
+        TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             ..
@@ -1156,14 +1156,14 @@ fn data_field_type_reference(
                 data_field_in_definition(program, data_definition, member_symbol, member_name)
             },
         ),
-        TypeReference::Named { symbol, name } => {
+        TypeReferenceNode::Named { symbol, name } => {
             data_definition_by_symbol_or_name(program, *symbol, name).and_then(|data_definition| {
                 data_field_in_definition(program, data_definition, member_symbol, member_name)
             })
         }
-        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => {
-            None
-        }
+        TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => None,
     }
 }
 
@@ -1182,7 +1182,7 @@ fn data_field_in_definition(
     data_definition: &omega_typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
-) -> Option<TypeReference> {
+) -> Option<TypeReferenceHandle> {
     program
         .data_members(data_definition)
         .iter()
@@ -1193,7 +1193,7 @@ fn data_field_in_definition(
 
             ((member_symbol.is_valid() && field.symbol == member_symbol)
                 || field.name == *member_name)
-                .then(|| table_type_reference_to_tree(program, field.type_reference))
+                .then_some(field.type_reference)
         })
 }
 
@@ -1412,14 +1412,14 @@ fn call_expression_return_type(
     _machine: &Machine,
     _state: &State,
     call: &omega_typed_trees::expression::CallExpression,
-) -> Option<TypeReference> {
+) -> Option<TypeReferenceHandle> {
     callable_return_type_by_symbol(program, call.target_symbol)
 }
 
 fn callable_return_type_by_symbol(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
-) -> Option<TypeReference> {
+) -> Option<TypeReferenceHandle> {
     if !target_symbol.is_valid() {
         return None;
     }
@@ -1433,7 +1433,7 @@ fn callable_return_type_by_symbol(
             candidate
                 .return_type
                 .is_valid()
-                .then(|| table_type_reference_to_tree(program, candidate.return_type))
+                .then_some(candidate.return_type)
         })
         .or_else(|| {
             program
@@ -1445,7 +1445,7 @@ fn callable_return_type_by_symbol(
                     candidate
                         .return_type
                         .is_valid()
-                        .then(|| table_type_reference_to_tree(program, candidate.return_type))
+                        .then_some(candidate.return_type)
                 })
         })
 }
@@ -1719,9 +1719,22 @@ fn float_constant_value(expression: &Expression) -> Option<f64> {
     }
 }
 
-fn type_constraints(
+fn constrained_type_reference(
     program: &TypedTrees,
-    constraints: omega_core::arena::HandleSpan<TypeConstraint>,
-) -> &[TypeConstraint] {
-    program.type_constraints.span(constraints).unwrap_or(&[])
+    type_reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, HandleSpan<TypeConstraintNode>)> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            constrained_type_reference(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => Some((*base_type, *constraints)),
+        TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => None,
+    }
 }
