@@ -266,6 +266,7 @@ dependencies = [
 name = "omega-control-flow"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-core",
  "omega-typed-trees",
 ]
@@ -631,6 +632,7 @@ dependencies = [
 name = "omega-state-graph"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-typed-trees",

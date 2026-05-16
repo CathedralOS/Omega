@@ -1,29 +1,9 @@
-use crate::expression::Expression;
 use crate::name::ProgramName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TransitionGuard {
-    Always,
-    When(Expression),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TransitionTarget {
-    Named {
-        path: HandleSpan<ProgramName>,
-        head_symbol: SymbolHandle,
-        symbol: SymbolHandle,
-        arguments: HandleSpan<Expression>,
-    },
-    Value(Expression),
-    SelfTarget,
-    Terminal,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementTable {

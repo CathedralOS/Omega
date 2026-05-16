@@ -1,11 +1,36 @@
 pub use omega_typed_trees::{
-    data, expression, identity, invariant, machine, name, platform, signature, state, statement,
-    types,
+    data, expression, identity, invariant, machine, name, platform, signature, state, types,
 };
 
 use omega_core::arena::Arena;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
+
+pub mod statement {
+    pub use omega_typed_trees::statement::*;
+
+    use omega_core::arena::HandleSpan;
+    use omega_core::symbols::SymbolHandle;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum TransitionGuard {
+        Always,
+        When(crate::expression::Expression),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum TransitionTarget {
+        Named {
+            path: crate::expression::NamePath,
+            head_symbol: SymbolHandle,
+            symbol: SymbolHandle,
+            arguments: HandleSpan<crate::expression::Expression>,
+        },
+        Value(crate::expression::Expression),
+        SelfTarget,
+        Terminal,
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum BorrowRootKind {
