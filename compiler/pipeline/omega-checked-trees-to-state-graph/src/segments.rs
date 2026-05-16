@@ -32,7 +32,6 @@ pub(super) enum SegmentTransition<'program> {
         table: TableTransition,
     },
     BranchCall {
-        call: &'program Call,
         table: TableCall,
         has_continuation_segment: bool,
     },
@@ -87,7 +86,6 @@ pub(super) fn split_state_segments<'program>(
                 ),
                 operations,
                 transitions: vec![SegmentTransition::BranchCall {
-                    call,
                     table: table_call.clone(),
                     has_continuation_segment: statement_index + 1 < state_statements.len(),
                 }],

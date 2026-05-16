@@ -1,5 +1,7 @@
 use omega_checked_trees::Program;
-use omega_checked_trees::statement::{Call, TransitionTarget};
+use omega_checked_trees::statement::{
+    TableCall, TransitionTargetHandle, TransitionTargetNode,
+};
 use omega_core::diagnostics::Diagnostic;
 
 use crate::segments::{
@@ -40,11 +42,11 @@ pub(super) fn plan_transition(
             });
 
             Ok(TransitionEdge {
-                target: plan_transition_target(state_indexes, &tree.target, program)?,
+                target: plan_transition_target(state_indexes, table.target, program)?,
                 continuation: tree
                     .continuation
                     .as_ref()
-                    .map(|target| plan_transition_target(state_indexes, target, program))
+                    .map(|_| plan_transition_target(state_indexes, table.continuation, program))
                     .transpose()?,
                 guard: tree.guard.clone(),
                 expressions: TransitionExpressionRefs {
@@ -57,11 +59,10 @@ pub(super) fn plan_transition(
             })
         }
         SegmentTransition::BranchCall {
-            call,
             table,
             has_continuation_segment,
         } => Ok(TransitionEdge {
-            target: plan_call_target(state_indexes, call, program)?,
+            target: plan_call_target(state_indexes, table, program)?,
             continuation: has_continuation_segment
                 .then(|| next_segment_target(source_key, state_indexes))
                 .transpose()?,
@@ -129,22 +130,24 @@ fn table_transition_target_value(
 
 fn plan_transition_target(
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
-    target: &TransitionTarget,
+    target: TransitionTargetHandle,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
-    match target {
-        TransitionTarget::Named {
+    if !target.is_valid() {
+        return Ok(PlannedTransitionTarget::Terminal);
+    }
+
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named {
             path,
-            symbol,
             arguments: _,
-            ..
-        } if is_local_transition_path(program.statement_path_members(*path)) => {
-            let members = program.statement_path_members(*path);
+        } if is_local_transition_path(program.statement_table.name_path_members(path.members)) => {
+            let members = program.statement_table.name_path_members(path.members);
             let name = members
                 .last()
                 .expect("named transition has a state")
                 .clone();
-            let symbol = *symbol;
+            let symbol = path.symbol;
             let target = symbol
                 .is_valid()
                 .then(|| {
@@ -168,18 +171,15 @@ fn plan_transition_target(
                 name,
             })
         }
-        TransitionTarget::Named {
+        TransitionTargetNode::Named {
             path,
-            head_symbol,
-            symbol,
             arguments: _,
-            ..
         } => {
-            let members = program.statement_path_members(*path);
+            let members = program.statement_table.name_path_members(path.members);
             if members.len() == 2 {
                 return Ok(PlannedTransitionTarget::Nested {
-                    receiver_symbol: *head_symbol,
-                    state_symbol: *symbol,
+                    receiver_symbol: path.head_symbol,
+                    state_symbol: path.symbol,
                     receiver: members[0].clone(),
                     state: members[1].clone(),
                 });
@@ -190,8 +190,8 @@ fn plan_transition_target(
                 display_transition_path(members)
             )))
         }
-        TransitionTarget::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
-        TransitionTarget::Terminal | TransitionTarget::Value(_) => {
+        TransitionTargetNode::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
+        TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
             Ok(PlannedTransitionTarget::Terminal)
         }
     }
@@ -199,10 +199,10 @@ fn plan_transition_target(
 
 fn plan_call_target(
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
-    call: &Call,
+    call: &TableCall,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
-    let receiver = program.statement_path_members(call.receiver);
+    let receiver = program.statement_table.name_path_members(call.receiver);
 
     if receiver.is_empty() || receiver.len() == 1 && receiver[0] == "self" {
         let name = call.target.clone();
