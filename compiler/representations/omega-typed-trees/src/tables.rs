@@ -46,6 +46,7 @@ impl TypedProgramTables {
                 typed_trees.machine_owned_data(machine),
                 typed_trees.machine_states(machine),
                 typed_trees,
+                &typed_trees.expression_table,
                 &typed_trees.type_constraints,
                 &typed_trees.type_reference_arguments,
                 &typed_trees.statement_expressions,
@@ -77,6 +78,7 @@ impl TypedProgramTables {
             platforms,
             platform_state_signatures,
             type_constraints,
+            expression_table,
             ..
         } = typed_trees;
 
@@ -103,9 +105,10 @@ impl TypedProgramTables {
 
         for machine in machines.span_mut_or_empty(*root_machines) {
             tables.insert_machine_with_state_spans(
-                machine_owned_data.span_or_empty(machine.owned_data),
+                machine_owned_data.span_mut_or_empty(machine.owned_data),
                 machine_states.span_mut_or_empty(machine.states),
                 state_parameters,
+                expression_table,
                 state_statements,
                 type_constraints,
                 type_reference_arguments,
@@ -173,13 +176,19 @@ impl TypedProgramTables {
         owned_data: &[OwnedData],
         states: &[State],
         typed_trees: &TypedTrees,
+        expression_table: &ExpressionTable,
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
         statement_expressions: &Arena<Expression>,
         statement_path_members: &Arena<ProgramName>,
     ) {
         for owned_data in owned_data {
-            self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
+            self.insert_owned_data(
+                owned_data,
+                expression_table,
+                type_constraints,
+                type_reference_arguments,
+            );
         }
 
         for state in states {
@@ -197,9 +206,10 @@ impl TypedProgramTables {
 
     fn insert_machine_with_state_spans(
         &mut self,
-        owned_data: &[OwnedData],
+        owned_data: &mut [OwnedData],
         states: &mut [State],
         state_parameters: &Arena<StateParameter>,
+        source_expressions: &ExpressionTable,
         state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
@@ -207,7 +217,12 @@ impl TypedProgramTables {
         statement_path_members: &Arena<ProgramName>,
     ) {
         for owned_data in owned_data {
-            self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
+            owned_data.initial_value = self.insert_owned_data(
+                owned_data,
+                source_expressions,
+                type_constraints,
+                type_reference_arguments,
+            );
         }
 
         for state in states {
@@ -226,17 +241,21 @@ impl TypedProgramTables {
     fn insert_owned_data(
         &mut self,
         owned_data: &OwnedData,
+        source_expressions: &ExpressionTable,
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
-    ) {
+    ) -> crate::expression::ExpressionHandle {
         self.insert_type_reference(
             &owned_data.type_reference,
             type_constraints,
             type_reference_arguments,
         );
 
-        if let Some(initial_value) = &owned_data.initial_value {
-            self.insert_expression(initial_value);
+        if owned_data.initial_value.is_valid() {
+            self.expressions
+                .copy_from(source_expressions, owned_data.initial_value)
+        } else {
+            crate::expression::ExpressionHandle::invalid()
         }
     }
 

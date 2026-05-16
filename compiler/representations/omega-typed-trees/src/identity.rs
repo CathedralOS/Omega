@@ -84,7 +84,13 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         for owned_data in typed_trees.machine_owned_data(machine) {
             count_declaration_name(&owned_data.name, &mut counts);
             count_type_reference(typed_trees, &owned_data.type_reference, &mut counts);
-            count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
+            if owned_data.initial_value.is_valid() {
+                count_expression_handle(
+                    &typed_trees.expression_table,
+                    owned_data.initial_value,
+                    &mut counts,
+                );
+            }
         }
         for state in typed_trees.machine_states(machine) {
             count_declaration_name(&state.name, &mut counts);
@@ -362,12 +368,6 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
             }
         }
         Expression::String(_) => counts.string_literals += 1,
-    }
-}
-
-fn count_optional_expression(expression: Option<&Expression>, counts: &mut IdentityStorageCounts) {
-    if let Some(expression) = expression {
-        count_expression(expression, counts);
     }
 }
 

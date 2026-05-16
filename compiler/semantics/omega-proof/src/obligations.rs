@@ -160,7 +160,8 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 &owned_data.type_reference,
                 &mut proof_plan,
             );
-            if let Some(initial_value) = &owned_data.initial_value {
+            if owned_data.initial_value.is_valid() {
+                let initial_value = program.expression_table.to_tree(owned_data.initial_value);
                 collect_bounded_initializer_obligation(
                     program,
                     format!(
@@ -168,7 +169,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                         machine.name, owned_data.name
                     ),
                     &owned_data.type_reference,
-                    initial_value,
+                    &initial_value,
                     &mut proof_plan,
                 );
             }

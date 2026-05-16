@@ -1,8 +1,6 @@
 use crate::place_keys::PlaceKey;
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{TableAssignment, TableCall};
 
@@ -22,11 +20,18 @@ pub(crate) fn initial_static_values(
         .machine_owned_data(machine)
         .iter()
         .filter_map(|owned_data| {
-            let value = match owned_data.initial_value.as_ref()? {
-                Expression::Integer(value) => StaticValue::Integer(*value),
-                Expression::String(value) => StaticValue::Text(value.clone()),
-                Expression::Name(path) if is_static_symbol_path(path) => StaticValue::Expression(
-                    expressions.insert_tree(&Expression::Name(path.clone())),
+            if !owned_data.initial_value.is_valid() {
+                return None;
+            }
+
+            let value = match program
+                .expression_table
+                .expression(owned_data.initial_value)
+            {
+                ExpressionNode::Integer(value) => StaticValue::Integer(*value),
+                ExpressionNode::String(value) => StaticValue::Text(value.clone()),
+                ExpressionNode::Name(path) if path.symbol.is_valid() => StaticValue::Expression(
+                    expressions.copy_from(&program.expression_table, owned_data.initial_value),
                 ),
                 _ => return None,
             };
@@ -144,10 +149,6 @@ fn static_place_key_handle(program: &Program, expression: ExpressionHandle) -> O
         }
         _ => None,
     }
-}
-
-fn is_static_symbol_path(path: &omega_checked_trees::expression::NamePath) -> bool {
-    path.symbol().is_valid()
 }
 
 fn set_static_value(
