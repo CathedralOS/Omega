@@ -329,10 +329,13 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     let [root_name, suffix @ ..] = path.members() else {
         return None;
     };
-    let root_path = NamePath::unresolved(vec![root_name.clone()]);
-    let root_expression = Expression::Name(root_path);
-    let place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", &root_expression)?;
+    let place = resolve_runtime_frame_root_place(
+        input,
+        dispatch_index,
+        source_key,
+        path.head_symbol(),
+        root_name,
+    )?;
     if place.region != RuntimeStorageRegion::RuntimeFrame
         || place.byte_count != input.target.pointer_size
     {
@@ -365,6 +368,35 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     })
 }
 
+fn resolve_runtime_frame_root_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    root_symbol: SymbolHandle,
+    root_name: &ProgramName,
+) -> Option<RuntimeStoragePlace> {
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find(|(_, slot)| {
+            slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot_matches_root(slot.symbol, root_symbol, root_name, slot.name.as_str())
+        })
+        .or_else(|| {
+            input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
+                slot.dispatch_index == dispatch_index
+                    && slot_matches_root(slot.symbol, root_symbol, root_name, slot.name.as_str())
+            })
+        })
+        .map(|(_, slot)| RuntimeStoragePlace {
+            region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RuntimePointeeTarget {
     pub(super) pointer_byte_offset: usize,
@@ -373,12 +405,11 @@ pub(super) struct RuntimePointeeTarget {
 }
 
 fn slot_matches_path(slot_symbol: SymbolHandle, path: &NamePath, slot_name: &str) -> bool {
-    if slot_symbol.is_valid() && path.head_symbol().is_valid() {
-        return slot_symbol == path.head_symbol();
-    }
+    let Some(root_name) = path.first() else {
+        return false;
+    };
 
-    path.first()
-        .is_some_and(|root_name| root_name.as_str() == slot_name)
+    slot_matches_root(slot_symbol, path.head_symbol(), root_name, slot_name)
 }
 
 fn slot_matches_table_path(
@@ -386,12 +417,24 @@ fn slot_matches_table_path(
     path: &StorageNamePath<'_>,
     slot_name: &str,
 ) -> bool {
-    if slot_symbol.is_valid() && path.head_symbol().is_valid() {
-        return slot_symbol == path.head_symbol();
+    let Some(root_name) = path.first() else {
+        return false;
+    };
+
+    slot_matches_root(slot_symbol, path.head_symbol(), root_name, slot_name)
+}
+
+fn slot_matches_root(
+    slot_symbol: SymbolHandle,
+    root_symbol: SymbolHandle,
+    root_name: &ProgramName,
+    slot_name: &str,
+) -> bool {
+    if slot_symbol.is_valid() && root_symbol.is_valid() {
+        return slot_symbol == root_symbol;
     }
 
-    path.first()
-        .is_some_and(|root_name| root_name.as_str() == slot_name)
+    root_name.as_str() == slot_name
 }
 
 fn runtime_frame_slot_for_expression<'plan>(
