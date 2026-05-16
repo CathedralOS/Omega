@@ -66,10 +66,7 @@ impl RuntimeAliasBuffer {
             return;
         }
 
-        let existing = self.bindings().to_vec();
-        self.scope = self
-            .aliases
-            .insert_many(existing.into_iter().chain([alias]));
+        self.aliases.append_to_span(&mut self.scope, alias);
     }
 }
 
