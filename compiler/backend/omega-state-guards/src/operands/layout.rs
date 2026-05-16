@@ -1,6 +1,6 @@
 use crate::StateGuardOperandStorage;
 use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableIndexedExpression,
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
     TableMemberExpression,
 };
 use omega_checked_trees::name::ProgramName;
@@ -136,7 +136,7 @@ pub(super) fn resolve_guard_operand_layout(
         );
     }
 
-    fallback_machine_named_path_layout(layouts, entry_machine, &path).map(
+    fallback_machine_named_path_layout(layouts, entry_machine, path.members()).map(
         |(byte_offset, layout)| ResolvedOperandLayout {
             storage: StateGuardOperandStorage::MachineOwned,
             byte_offset,
@@ -254,32 +254,30 @@ fn resolve_nested_slot_layout(
     }
 }
 
-fn normalized_guard_name_path(
-    table: &ExpressionTable,
+fn normalized_guard_name_path<'table>(
+    table: &'table ExpressionTable,
     expression: ExpressionHandle,
-) -> Option<NamePath> {
+) -> Option<NormalizedGuardNamePath<'table>> {
     match table.expression(expression) {
         ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target),
         ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed),
         ExpressionNode::Member(member) => member_expression_path_in_table(table, member),
-        ExpressionNode::Name(path) => Some(NamePath::resolved(
-            table.name_path_members(path.members).to_vec(),
+        ExpressionNode::Name(path) => Some(NormalizedGuardNamePath::borrowed(
+            table.name_path_members(path.members),
             path.head_symbol,
-            path.symbol,
         )),
         _ => None,
     }
 }
 
-fn member_expression_path_in_table(
-    table: &ExpressionTable,
+fn member_expression_path_in_table<'table>(
+    table: &'table ExpressionTable,
     member: &TableMemberExpression,
-) -> Option<NamePath> {
-    let mut path = match table.expression(member.receiver) {
-        ExpressionNode::Name(path) => NamePath::resolved(
-            table.name_path_members(path.members).to_vec(),
+) -> Option<NormalizedGuardNamePath<'table>> {
+    let path = match table.expression(member.receiver) {
+        ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
+            table.name_path_members(path.members),
             path.head_symbol,
-            path.symbol,
         ),
         ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed)?,
         ExpressionNode::Member(inner_member) => {
@@ -288,31 +286,91 @@ fn member_expression_path_in_table(
         ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target)?,
         _ => return None,
     };
-    path.push(member.member.clone());
-    Some(path)
+    let (mut members, head_symbol) = path.into_owned_parts();
+    members.push(member.member.clone());
+    Some(NormalizedGuardNamePath::owned(members, head_symbol))
 }
 
-fn indexed_expression_path_in_table(
-    table: &ExpressionTable,
+fn indexed_expression_path_in_table<'table>(
+    table: &'table ExpressionTable,
     indexed: &TableIndexedExpression,
-) -> Option<NamePath> {
+) -> Option<NormalizedGuardNamePath<'table>> {
     let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
         return None;
     };
-    let mut path = match table.expression(indexed.collection) {
-        ExpressionNode::Name(path) => NamePath::resolved(
-            table.name_path_members(path.members).to_vec(),
+    let path = match table.expression(indexed.collection) {
+        ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
+            table.name_path_members(path.members),
             path.head_symbol,
-            path.symbol,
         ),
         ExpressionNode::Indexed(inner_indexed) => {
             indexed_expression_path_in_table(table, inner_indexed)?
         }
         _ => return None,
     };
-    let last_segment = path.last_mut()?;
+    let (mut members, head_symbol) = path.into_owned_parts();
+    let last_segment = members.last_mut()?;
     *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
-    Some(path)
+    Some(NormalizedGuardNamePath::owned(members, head_symbol))
+}
+
+enum NormalizedGuardNamePath<'table> {
+    Borrowed {
+        members: &'table [ProgramName],
+        head_symbol: SymbolHandle,
+    },
+    Owned {
+        members: Vec<ProgramName>,
+        head_symbol: SymbolHandle,
+    },
+}
+
+impl<'table> NormalizedGuardNamePath<'table> {
+    fn borrowed(members: &'table [ProgramName], head_symbol: SymbolHandle) -> Self {
+        Self::Borrowed {
+            members,
+            head_symbol,
+        }
+    }
+
+    fn owned(members: Vec<ProgramName>, head_symbol: SymbolHandle) -> Self {
+        Self::Owned {
+            members,
+            head_symbol,
+        }
+    }
+
+    fn head_symbol(&self) -> SymbolHandle {
+        match self {
+            Self::Borrowed { head_symbol, .. } | Self::Owned { head_symbol, .. } => *head_symbol,
+        }
+    }
+
+    fn members(&self) -> &[ProgramName] {
+        match self {
+            Self::Borrowed { members, .. } => members,
+            Self::Owned { members, .. } => members,
+        }
+    }
+
+    fn first(&self) -> Option<&ProgramName> {
+        self.members().first()
+    }
+
+    fn into_owned_parts(self) -> (Vec<ProgramName>, SymbolHandle) {
+        match self {
+            Self::Borrowed {
+                members,
+                head_symbol,
+                ..
+            } => (members.to_vec(), head_symbol),
+            Self::Owned {
+                members,
+                head_symbol,
+                ..
+            } => (members, head_symbol),
+        }
+    }
 }
 
 fn machine_storage_offset(
@@ -533,9 +591,9 @@ fn field_layout_by_symbol_or_name<'plan>(
 fn fallback_machine_named_path_layout(
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
-    path: &NamePath,
+    path_members: &[ProgramName],
 ) -> Option<(usize, TypeLayout)> {
-    let mut segments = path.members();
+    let mut segments = path_members;
     if matches!(segments.first(), Some(name) if name.as_str() == "self") {
         segments = segments.get(1..)?;
     }
