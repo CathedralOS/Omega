@@ -1,9 +1,9 @@
 use super::{StateMutationKind, StateMutationLowering};
 use crate::StateStoragePlanningContext;
-use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression, TableNamePath,
 };
+use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
 pub(super) fn mutation_lowering(
@@ -31,12 +31,6 @@ pub(super) fn mutation_kind(
     target: ExpressionHandle,
 ) -> StateMutationKind {
     let Some(place) = place_symbols(expressions, target) else {
-        if let Some(root_name) = root_place_name(expressions, target) {
-            if let Some(kind) = context.borrow_root_kind_by_name(source_key, root_name) {
-                return mutation_kind_for_borrow_root(kind);
-            }
-        }
-
         return StateMutationKind::Unknown;
     };
 
@@ -78,10 +72,7 @@ fn place_symbols(table: &ExpressionTable, expression: ExpressionHandle) -> Optio
     }
 }
 
-fn member_symbols(
-    table: &ExpressionTable,
-    member: &TableMemberExpression,
-) -> Option<PlaceSymbols> {
+fn member_symbols(table: &ExpressionTable, member: &TableMemberExpression) -> Option<PlaceSymbols> {
     let mut place = place_symbols(table, member.receiver)?;
     if member.member_symbol.is_valid() {
         place.symbol = member.member_symbol;
@@ -99,17 +90,4 @@ fn name_path_symbols(path: &TableNamePath) -> Option<PlaceSymbols> {
         head_symbol,
         symbol: path.symbol,
     })
-}
-
-fn root_place_name(table: &ExpressionTable, expression: ExpressionHandle) -> Option<&str> {
-    match table.expression(expression) {
-        ExpressionNode::Name(path) => table
-            .name_path_members(path.members)
-            .first()
-            .map(|name| name.as_str()),
-        ExpressionNode::Member(member) => root_place_name(table, member.receiver),
-        ExpressionNode::Indexed(indexed) => root_place_name(table, indexed.collection),
-        ExpressionNode::Mutable(expression) => root_place_name(table, *expression),
-        _ => None,
-    }
 }
