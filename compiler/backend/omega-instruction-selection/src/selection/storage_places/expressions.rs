@@ -117,15 +117,12 @@ fn indexed_expression_path_in_table<'table>(
         }
         _ => return None,
     };
-    let (mut members, member_symbols, head_symbol, final_symbol) = path.into_owned_parts();
-    let last_segment = members.last_mut()?;
-    *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
-    Some(StorageNamePath::owned(
-        members,
-        member_symbols,
-        head_symbol,
-        final_symbol,
-    ))
+    let last_segment = path.members().last()?.clone();
+    Some(
+        path.replace_last_preserving_symbol(ProgramName::generated(format!(
+            "{last_segment}[{index}]"
+        )))?,
+    )
 }
 
 pub(in crate::selection) enum StorageNamePath<'table> {
@@ -207,6 +204,18 @@ impl<'table> StorageNamePath<'table> {
                 .copied()
                 .unwrap_or_else(SymbolHandle::invalid),
         }
+    }
+
+    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
+        let (mut members, member_symbols, head_symbol, final_symbol) = self.into_owned_parts();
+        let last = members.last_mut()?;
+        *last = member;
+        Some(Self::owned(
+            members,
+            member_symbols,
+            head_symbol,
+            final_symbol,
+        ))
     }
 
     fn into_owned_parts(
