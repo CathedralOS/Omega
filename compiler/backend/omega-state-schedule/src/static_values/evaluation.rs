@@ -2,7 +2,6 @@ use super::aliases::{PlaceKey, canonical_place_key};
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::TransitionFlow;
 
 pub(crate) fn resolve_static_value(
@@ -53,11 +52,10 @@ fn guard_matches(
     aliases: &[(PlaceKey, PlaceKey)],
     values: &[(PlaceKey, String)],
 ) -> Option<bool> {
-    match transition.guard {
-        TransitionGuard::Always => Some(true),
-        TransitionGuard::When(_) => {
-            evaluate_boolean(table, transition.expressions.guard?, aliases, values)
-        }
+    if let Some(guard) = transition.expressions.guard {
+        evaluate_boolean(table, guard, aliases, values)
+    } else {
+        Some(true)
     }
 }
 
