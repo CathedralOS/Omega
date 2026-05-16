@@ -583,11 +583,7 @@ fn resolve_state_call_target(
     receiver: Option<&[ProgramName]>,
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
-    if receiver.is_none()
-        || receiver_symbol == machine.symbol
-        || receiver
-            .is_some_and(|receiver| matches!(receiver, [member] if member.as_str() == "self"))
-    {
+    if receiver.is_none() || receiver_symbol == machine.symbol {
         return resolve_state_key_in_machine(
             control_flow,
             machine.symbol,
@@ -600,14 +596,10 @@ fn resolve_state_call_target(
         });
     }
 
-    let receiver_name = receiver.and_then(|receiver| receiver.last());
     if let Some(contained) = control_flow
         .machine_contains(machine)
         .iter()
-        .find(|contained| {
-            (receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
-                || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-        })
+        .find(|contained| receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
     {
         return resolve_state_key_in_machine(
             control_flow,
@@ -700,32 +692,18 @@ fn receiver_can_dispatch_to_machine(
     receiver_symbol: SymbolHandle,
     receiver: Option<&[ProgramName]>,
 ) -> bool {
-    if receiver.is_none()
-        || receiver_symbol == machine.symbol
-        || receiver
-            .is_some_and(|receiver| matches!(receiver, [member] if member.as_str() == "self"))
-    {
+    if receiver.is_none() || receiver_symbol == machine.symbol {
         return false;
     }
 
     if !receiver_symbol.is_valid() {
-        let receiver_name = receiver.and_then(|receiver| receiver.last());
-        return control_flow
-            .machine_contains(machine)
-            .iter()
-            .any(|contained| {
-                receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-            });
+        return false;
     }
 
-    let receiver_name = receiver.and_then(|receiver| receiver.last());
     if control_flow
         .machine_contains(machine)
         .iter()
-        .any(|contained| {
-            contained.symbol == receiver_symbol
-                || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-        })
+        .any(|contained| contained.symbol == receiver_symbol)
     {
         return true;
     }
