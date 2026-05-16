@@ -38,7 +38,7 @@ fn collect_state_host_calls(
     state: &State,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    let mut static_values = initial_static_values(program, machine);
+    let mut static_values = initial_static_values(program, machine, &mut plan.expressions);
 
     for (statement_index, statement) in program
         .statement_table
@@ -48,7 +48,12 @@ fn collect_state_host_calls(
     {
         match statement {
             StatementNode::Assignment(assignment) => {
-                apply_static_assignment(&mut static_values, program, *assignment);
+                apply_static_assignment(
+                    &mut static_values,
+                    program,
+                    &mut plan.expressions,
+                    *assignment,
+                );
                 continue;
             }
             StatementNode::Call(table_call) => {
@@ -109,7 +114,13 @@ fn collect_call_host_lowering(
             )
         })
         .unwrap_or_else(HandleSpan::empty);
-    let arguments = lower_host_call_arguments(program, call, static_values, &mut plan.arguments);
+    let arguments = lower_host_call_arguments(
+        program,
+        call,
+        static_values,
+        &mut plan.expressions,
+        &mut plan.arguments,
+    );
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
         statement_index,

@@ -143,7 +143,7 @@ fn write_host_call(output: &mut String, backend_plan: &BackendReportInput<'_>, c
         Some(arguments) => {
             output.push_str("  arguments:\n");
             for argument in arguments {
-                write_host_call_argument(output, argument);
+                write_host_call_argument(output, backend_plan, argument);
             }
         }
         None => output.push_str("  arguments: invalid span\n"),
@@ -161,13 +161,21 @@ fn write_host_call(output: &mut String, backend_plan: &BackendReportInput<'_>, c
     }
 }
 
-fn write_host_call_argument(output: &mut String, argument: &HostCallArgument) {
+fn write_host_call_argument(
+    output: &mut String,
+    backend_plan: &BackendReportInput<'_>,
+    argument: &HostCallArgument,
+) {
     let argument_name = match &argument.kind {
         HostCallArgumentKind::Text(text) => format!("text {text:?}"),
         HostCallArgumentKind::Integer(value) => format!("integer {value}"),
-        HostCallArgumentKind::Expression(expression) => {
-            format!("expression {}", expression.display_name())
-        }
+        HostCallArgumentKind::Expression(expression) => format!(
+            "expression {}",
+            backend_plan
+                .host_calls
+                .expressions
+                .display_name(*expression)
+        ),
     };
 
     output.push_str(&format!("  - {argument_name}\n"));

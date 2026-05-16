@@ -1,5 +1,5 @@
 use omega_calling_conventions::{HostOperationKey, PlatformCallData};
-use omega_checked_trees::expression::Expression;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -11,6 +11,7 @@ pub use place_keys::PlaceKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {
+    pub expressions: ExpressionTable,
     pub calls: Arena<HostCall>,
     pub unsupported_calls: Arena<UnsupportedHostCall>,
     pub operations: Arena<LoweredHostOperation>,
@@ -20,6 +21,7 @@ pub struct HostCallPlan {
 impl Default for HostCallPlan {
     fn default() -> Self {
         Self {
+            expressions: ExpressionTable::new(),
             calls: Arena::new(),
             unsupported_calls: Arena::new(),
             operations: Arena::new(),
@@ -80,7 +82,7 @@ pub struct HostCallArgument {
 impl Default for HostCallArgument {
     fn default() -> Self {
         Self {
-            kind: HostCallArgumentKind::Expression(Expression::Integer(0)),
+            kind: HostCallArgumentKind::Expression(ExpressionHandle::invalid()),
         }
     }
 }
@@ -89,5 +91,5 @@ impl Default for HostCallArgument {
 pub enum HostCallArgumentKind {
     Text(String),
     Integer(i64),
-    Expression(Expression),
+    Expression(ExpressionHandle),
 }

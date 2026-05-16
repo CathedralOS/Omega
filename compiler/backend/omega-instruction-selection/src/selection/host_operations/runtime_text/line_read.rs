@@ -112,17 +112,18 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
     else {
         return None;
     };
+    let expression = input.host_calls.expressions.to_tree(*expression);
     let (resolved_source_key, resolved_expression) = alias_context
         .map(|context| {
             let resolved = resolve_runtime_alias_binding(
-                expression,
+                &expression,
                 host_call.source_key,
                 context.aliases,
                 context.alias_expressions,
             );
             (resolved.source_key, resolved.expression)
         })
-        .unwrap_or((host_call.source_key, expression.clone()));
+        .unwrap_or((host_call.source_key, expression));
     let (resolved_source_key, resolved_expression) =
         resolve_host_call_alias_expression(input, resolved_source_key, &resolved_expression);
     let source_machine = input

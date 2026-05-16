@@ -1,19 +1,22 @@
 use crate::place_keys::PlaceKey;
-use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
+use omega_checked_trees::Program;
+use omega_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{TableAssignment, TableCall};
-use omega_checked_trees::Program;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StaticValue {
     Integer(i64),
-    Expression(Expression),
+    Expression(ExpressionHandle),
     Text(String),
 }
 
 pub(crate) fn initial_static_values(
     program: &Program,
     machine: &Machine,
+    expressions: &mut ExpressionTable,
 ) -> Vec<(PlaceKey, StaticValue)> {
     program
         .machine_owned_data(machine)
@@ -22,9 +25,9 @@ pub(crate) fn initial_static_values(
             let value = match owned_data.initial_value.as_ref()? {
                 Expression::Integer(value) => StaticValue::Integer(*value),
                 Expression::String(value) => StaticValue::Text(value.clone()),
-                Expression::Name(path) if is_static_symbol_path(path) => {
-                    StaticValue::Expression(Expression::Name(path.clone()))
-                }
+                Expression::Name(path) if is_static_symbol_path(path) => StaticValue::Expression(
+                    expressions.insert_tree(&Expression::Name(path.clone())),
+                ),
                 _ => return None,
             };
 
@@ -39,6 +42,7 @@ pub(crate) fn initial_static_values(
 pub(crate) fn apply_static_assignment(
     static_values: &mut Vec<(PlaceKey, StaticValue)>,
     program: &Program,
+    expressions: &mut ExpressionTable,
     assignment: TableAssignment,
 ) {
     let Some(target_key) = static_place_key_handle(program, assignment.target) else {
@@ -48,9 +52,12 @@ pub(crate) fn apply_static_assignment(
     if let ExpressionNode::StructLiteral(struct_literal) =
         program.expression_table.expression(assignment.value)
     {
-        for field in program.expression_table.struct_fields(struct_literal.fields) {
+        for field in program
+            .expression_table
+            .struct_fields(struct_literal.fields)
+        {
             if let Some(field_value) =
-                resolve_static_value_handle(program, field.value, static_values)
+                resolve_static_value_handle(program, expressions, field.value, static_values)
             {
                 set_static_value(
                     static_values,
@@ -66,7 +73,9 @@ pub(crate) fn apply_static_assignment(
         copy_static_prefix(static_values, &source_key, &target_key);
     }
 
-    let Some(value) = resolve_static_value_handle(program, assignment.value, static_values) else {
+    let Some(value) =
+        resolve_static_value_handle(program, expressions, assignment.value, static_values)
+    else {
         return;
     };
 
@@ -93,6 +102,7 @@ pub(crate) fn apply_call_static_effects(
 
 pub(crate) fn resolve_static_value_handle(
     program: &Program,
+    expressions: &mut ExpressionTable,
     expression: ExpressionHandle,
     static_values: &[(PlaceKey, StaticValue)],
 ) -> Option<StaticValue> {
@@ -108,7 +118,7 @@ pub(crate) fn resolve_static_value_handle(
                 .or_else(|| {
                     if path.symbol.is_valid() {
                         Some(StaticValue::Expression(
-                            program.expression_table.to_tree(expression),
+                            expressions.copy_from(&program.expression_table, expression),
                         ))
                     } else {
                         None
@@ -121,7 +131,12 @@ pub(crate) fn resolve_static_value_handle(
 
 fn static_place_key_handle(program: &Program, expression: ExpressionHandle) -> Option<PlaceKey> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) if !program.expression_table.name_path_members(path.members).is_empty() => {
+        ExpressionNode::Name(path)
+            if !program
+                .expression_table
+                .name_path_members(path.members)
+                .is_empty() =>
+        {
             PlaceKey::from_expression_handle(&program.expression_table, expression)
         }
         ExpressionNode::Indexed(_) => {
