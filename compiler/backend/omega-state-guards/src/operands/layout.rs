@@ -56,7 +56,6 @@ pub(super) fn resolve_guard_operand_layout(
         source_key,
         source_dispatch_index,
         root_symbol,
-        &root_name,
         suffix,
     ) {
         return Some(slot_layout);
@@ -153,11 +152,10 @@ fn runtime_frame_operand_layout(
     source_key: StateKey,
     source_dispatch_index: u32,
     root_symbol: SymbolHandle,
-    root_name: &ProgramName,
     suffix: &[ProgramName],
 ) -> Option<ResolvedOperandLayout> {
     let slot_matches_symbol = |slot: &omega_runtime_storage::RuntimeFrameSlot| {
-        (root_symbol.is_valid() && slot.symbol == root_symbol) || slot.name == *root_name
+        root_symbol.is_valid() && slot.symbol == root_symbol
     };
     let same_state_without_segment = |slot_key: StateKey| {
         slot_key.machine == source_key.machine && slot_key.state == source_key.state
