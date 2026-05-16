@@ -62,7 +62,7 @@ pub(super) fn resolve_guard_operand_layout(
         return Some(slot_layout);
     }
 
-    if root_name.as_str() == "self" {
+    if root_symbol == source_machine {
         let [field_name, rest @ ..] = suffix else {
             return None;
         };
@@ -136,7 +136,7 @@ pub(super) fn resolve_guard_operand_layout(
         );
     }
 
-    fallback_machine_named_path_layout(layouts, entry_machine, path.members()).map(
+    fallback_machine_named_path_layout(layouts, entry_machine, root_symbol, path.members()).map(
         |(byte_offset, layout)| ResolvedOperandLayout {
             storage: StateGuardOperandStorage::MachineOwned,
             byte_offset,
@@ -591,10 +591,16 @@ fn field_layout_by_symbol_or_name<'plan>(
 fn fallback_machine_named_path_layout(
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
+    root_symbol: SymbolHandle,
     path_members: &[ProgramName],
 ) -> Option<(usize, TypeLayout)> {
     let mut segments = path_members;
-    if matches!(segments.first(), Some(name) if name.as_str() == "self") {
+    if root_symbol.is_valid()
+        && layouts
+            .machine_layouts
+            .iter()
+            .any(|(_, machine_layout)| machine_layout.symbol == root_symbol)
+    {
         segments = segments.get(1..)?;
     }
     let [root_name, suffix @ ..] = segments else {
