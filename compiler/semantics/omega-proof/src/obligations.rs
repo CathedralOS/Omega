@@ -11,7 +11,7 @@ use omega_typed_trees::statement::{
     TransitionGuardNode, TransitionTarget, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{
-    TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceHandle, TypeReferenceNode,
+    TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -60,7 +60,7 @@ impl Default for ProofObligation {
     fn default() -> Self {
         Self::BoundedValue(BoundedValueObligation {
             owner: String::new(),
-            base_type: TypeReference::Unit,
+            base_type: TypeReferenceHandle::invalid(),
             constraints: HandleSpan::empty(),
         })
     }
@@ -69,7 +69,7 @@ impl Default for ProofObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedValueObligation {
     pub owner: String,
-    pub base_type: TypeReference,
+    pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
 }
 
@@ -93,7 +93,7 @@ pub struct BoundedAssignmentObligation {
     pub target: Expression,
     pub value: Expression,
     pub value_constraints: HandleSpan<TypeConstraint>,
-    pub base_type: TypeReference,
+    pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
 }
 
@@ -108,7 +108,7 @@ pub struct BoundedCallArgumentObligation {
     pub parameter: String,
     pub argument: Expression,
     pub argument_constraints: HandleSpan<TypeConstraint>,
-    pub base_type: TypeReference,
+    pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
 }
 
@@ -116,7 +116,7 @@ pub struct BoundedCallArgumentObligation {
 pub struct BoundedInitializerObligation {
     pub owner: String,
     pub value: Expression,
-    pub base_type: TypeReference,
+    pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
 }
 
@@ -128,7 +128,7 @@ pub struct BoundedStateReturnObligation {
     pub state: String,
     pub value: Expression,
     pub value_constraints: HandleSpan<TypeConstraint>,
-    pub base_type: TypeReference,
+    pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
 }
 
@@ -142,7 +142,7 @@ pub struct BoundedTransitionArgumentObligation {
     pub parameter: String,
     pub argument: Expression,
     pub argument_constraints: HandleSpan<TypeConstraint>,
-    pub base_type: TypeReference,
+    pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
     pub guard: TransitionGuard,
 }
@@ -293,7 +293,7 @@ fn collect_bounded_value_obligation(
             let constraints = proof_plan.store_constraint_nodes(program, *constraints);
             proof_plan.push_obligation(ProofObligation::BoundedValue(BoundedValueObligation {
                 owner,
-                base_type: table_type_reference_to_tree(program, *base_type),
+                base_type: *base_type,
                 constraints,
             }));
         }
@@ -336,7 +336,7 @@ fn collect_bounded_initializer_obligation(
                 BoundedInitializerObligation {
                     owner,
                     value: value.clone(),
-                    base_type: table_type_reference_to_tree(program, *base_type),
+                    base_type: *base_type,
                     constraints,
                 },
             ));
@@ -409,7 +409,7 @@ fn collect_bounded_assignment_obligation(
             target,
             value,
             value_constraints,
-            base_type: table_type_reference_to_tree(program, base_type),
+            base_type,
             constraints,
         },
     ));
@@ -455,7 +455,7 @@ fn collect_bounded_transition_argument_obligations(
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
-                base_type: table_type_reference_to_tree(program, base_type),
+                base_type,
                 constraints,
                 guard: transition_guard.clone(),
             },
@@ -507,7 +507,7 @@ fn collect_bounded_call_argument_obligations(
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
-                base_type: table_type_reference_to_tree(program, base_type),
+                base_type,
                 constraints,
             },
         ));
@@ -545,7 +545,7 @@ fn collect_bounded_state_return_obligation(
             state: state.name.to_string(),
             value,
             value_constraints,
-            base_type: table_type_reference_to_tree(program, base_type),
+            base_type,
             constraints,
         },
     ));
@@ -1120,18 +1120,6 @@ fn type_reference_for_symbol(
                         })
                 })
         })
-}
-
-fn table_type_reference_to_tree(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> TypeReference {
-    program.type_reference_table.to_tree(
-        type_reference,
-        &program.expression_table,
-        &mut Arena::new(),
-        &mut Arena::new(),
-    )
 }
 
 fn data_field_type_reference(
