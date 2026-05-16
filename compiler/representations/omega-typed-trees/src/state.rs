@@ -9,7 +9,7 @@ pub struct State {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameter>,
-    pub return_type: Option<crate::types::TypeReference>,
+    pub return_type: crate::types::TypeReferenceHandle,
     pub statement_nodes: HandleSpan<StatementNode>,
 }
 
@@ -19,7 +19,7 @@ impl Default for State {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             parameters: HandleSpan::empty(),
-            return_type: None,
+            return_type: crate::types::TypeReferenceHandle::invalid(),
             statement_nodes: HandleSpan::empty(),
         }
     }

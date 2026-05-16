@@ -1,11 +1,11 @@
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::RuntimeDispatchBody;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
@@ -17,8 +17,7 @@ pub struct RuntimeStoragePlan {
 
 impl RuntimeStoragePlan {
     fn source_matches(expected: StateKey, actual: StateKey) -> bool {
-        expected == actual
-            || (expected.machine == actual.machine && expected.state == actual.state)
+        expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
     }
 
     pub fn call_result_slot(

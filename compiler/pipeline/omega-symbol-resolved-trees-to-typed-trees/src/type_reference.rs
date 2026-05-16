@@ -6,20 +6,6 @@ use omega_symbol_resolved_trees as resolved;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees as typed;
 
-pub(crate) fn lower_type_reference(
-    lowerer: &mut Lowerer,
-    type_reference: &resolved::types::TypeReference,
-) -> Result<typed::types::TypeReference, Diagnostic> {
-    let type_reference = lower_type_reference_into_table(lowerer, type_reference)?;
-
-    Ok(lowerer.typed_trees.type_reference_table.to_tree(
-        type_reference,
-        &lowerer.typed_trees.expression_table,
-        &mut lowerer.typed_trees.type_constraints,
-        &mut lowerer.typed_trees.type_reference_arguments,
-    ))
-}
-
 pub(crate) fn lower_type_reference_into_table(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
