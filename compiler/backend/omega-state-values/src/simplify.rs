@@ -1,11 +1,14 @@
+use crate::StateValueRole;
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::{BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField};
+use omega_checked_trees::expression::{
+    BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, NamePath,
+    StructLiteral, StructLiteralField,
+};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
-use omega_checked_trees::statement::{Statement, StatementNode, TransitionGuard, TransitionTarget};
+use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_core::symbols::SymbolHandle;
-use crate::StateValueRole;
 
 pub fn simplify_expression(
     program: &Program,
@@ -58,11 +61,7 @@ struct Binding {
     value: Expression,
 }
 
-fn simple_local_bindings(
-    program: &Program,
-    state: &State,
-    statement_index: usize,
-) -> Vec<Binding> {
+fn simple_local_bindings(program: &Program, state: &State, statement_index: usize) -> Vec<Binding> {
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -126,9 +125,7 @@ fn simple_local_binding_value(expression: &Expression) -> Option<Expression> {
                 member: member.member.clone(),
             })))
         }
-        Expression::ArrayLiteral(_)
-        | Expression::Cast(_)
-        | Expression::StructLiteral(_) => None,
+        Expression::ArrayLiteral(_) | Expression::Cast(_) | Expression::StructLiteral(_) => None,
     }
 }
 
@@ -154,13 +151,9 @@ fn simplify_expression_with_bindings(
                 })
                 .collect(),
         ),
-        Expression::Binary(binary) => simplify_binary_expression(
-            program,
-            machine,
-            binary,
-            bindings,
-            preserve_call_locals,
-        ),
+        Expression::Binary(binary) => {
+            simplify_binary_expression(program, machine, binary, bindings, preserve_call_locals)
+        }
         Expression::Boolean(_)
         | Expression::Float(_)
         | Expression::Integer(_)
@@ -168,8 +161,8 @@ fn simplify_expression_with_bindings(
         Expression::Call(call) => {
             simplify_call_expression(program, machine, call, bindings, preserve_call_locals)
         }
-        Expression::Cast(cast) => Expression::Cast(Box::new(
-            omega_checked_trees::expression::CastExpression {
+        Expression::Cast(cast) => {
+            Expression::Cast(Box::new(omega_checked_trees::expression::CastExpression {
                 value: simplify_expression_with_bindings(
                     program,
                     machine,
@@ -178,8 +171,8 @@ fn simplify_expression_with_bindings(
                     preserve_call_locals,
                 ),
                 target_type: cast.target_type.clone(),
-            },
-        )),
+            }))
+        }
         Expression::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
             collection: simplify_expression_with_bindings(
                 program,
@@ -207,15 +200,15 @@ fn simplify_expression_with_bindings(
             member_symbol: member.member_symbol,
             member: member.member.clone(),
         })),
-        Expression::Mutable(inner) => Expression::Mutable(Box::new(
-            simplify_expression_with_bindings(
+        Expression::Mutable(inner) => {
+            Expression::Mutable(Box::new(simplify_expression_with_bindings(
                 program,
                 machine,
                 inner,
                 bindings,
                 preserve_call_locals,
-            ),
-        )),
+            )))
+        }
         Expression::Name(path) => bindings
             .iter()
             .find(|binding| {
@@ -224,10 +217,9 @@ fn simplify_expression_with_bindings(
                     && binding.symbol == path.head_symbol())
                     || (!path.head_symbol().is_valid()
                         && path.len() == 1
-                        && binding
-                            .name
-                            .as_ref()
-                            .is_some_and(|name| path.first().is_some_and(|segment| segment == name)))
+                        && binding.name.as_ref().is_some_and(|name| {
+                            path.first().is_some_and(|segment| segment == name)
+                        }))
             })
             .and_then(|binding| {
                 if preserve_call_locals && matches!(binding.value, Expression::Call(_)) {
@@ -236,25 +228,23 @@ fn simplify_expression_with_bindings(
                 Some(append_name_suffix(&binding.value, &path[1..]))
             })
             .unwrap_or_else(|| expression.clone()),
-        Expression::StructLiteral(struct_literal) => {
-            Expression::StructLiteral(StructLiteral {
-                type_name: struct_literal.type_name.clone(),
-                fields: struct_literal
-                    .fields
-                    .iter()
-                    .map(|field| StructLiteralField {
-                        name: field.name.clone(),
-                        value: simplify_expression_with_bindings(
-                            program,
-                            machine,
-                            &field.value,
-                            bindings,
-                            preserve_call_locals,
-                        ),
-                    })
-                    .collect(),
-            })
-        }
+        Expression::StructLiteral(struct_literal) => Expression::StructLiteral(StructLiteral {
+            type_name: struct_literal.type_name.clone(),
+            fields: struct_literal
+                .fields
+                .iter()
+                .map(|field| StructLiteralField {
+                    name: field.name.clone(),
+                    value: simplify_expression_with_bindings(
+                        program,
+                        machine,
+                        &field.value,
+                        bindings,
+                        preserve_call_locals,
+                    ),
+                })
+                .collect(),
+        }),
     }
 }
 
@@ -280,9 +270,14 @@ fn simplify_binary_expression(
         preserve_call_locals,
     );
 
-    if let Some(expression) =
-        simplify_guarded_helper_comparison(program, machine, binary.operator, &left, &right, bindings)
-    {
+    if let Some(expression) = simplify_guarded_helper_comparison(
+        program,
+        machine,
+        binary.operator,
+        &left,
+        &right,
+        bindings,
+    ) {
         return simplify_expression_with_bindings(
             program,
             machine,
@@ -302,18 +297,15 @@ fn simplify_call_expression(
     bindings: &[Binding],
     preserve_call_locals: bool,
 ) -> Expression {
-    let receiver = call
-        .receiver
-        .as_ref()
-        .map(|receiver| {
-            simplify_expression_with_bindings(
-                program,
-                machine,
-                receiver,
-                bindings,
-                preserve_call_locals,
-            )
-        });
+    let receiver = call.receiver.as_ref().map(|receiver| {
+        simplify_expression_with_bindings(
+            program,
+            machine,
+            receiver,
+            bindings,
+            preserve_call_locals,
+        )
+    });
     let simplified_arguments: Vec<_> = call
         .arguments
         .iter()
@@ -333,9 +325,12 @@ fn simplify_call_expression(
     {
         match call.target.as_str() {
             "is_some" => {
-                if let Some(is_none) =
-                    expression_match_condition(program, machine, receiver, &none_expression(program))
-                {
+                if let Some(is_none) = expression_match_condition(
+                    program,
+                    machine,
+                    receiver,
+                    &none_expression(program),
+                ) {
                     return simplify_expression_with_bindings(
                         program,
                         machine,
@@ -351,9 +346,12 @@ fn simplify_call_expression(
                 }));
             }
             "is_none" => {
-                if let Some(is_none) =
-                    expression_match_condition(program, machine, receiver, &none_expression(program))
-                {
+                if let Some(is_none) = expression_match_condition(
+                    program,
+                    machine,
+                    receiver,
+                    &none_expression(program),
+                ) {
                     return simplify_expression_with_bindings(
                         program,
                         machine,
@@ -372,11 +370,7 @@ fn simplify_call_expression(
         }
     }
 
-    if let Some(target_machine) = resolve_call_target_machine(
-        program,
-        machine,
-        receiver.as_ref(),
-    )
+    if let Some(target_machine) = resolve_call_target_machine(program, machine, receiver.as_ref())
         && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
         let argument_bindings: Vec<_> = program
@@ -389,7 +383,8 @@ fn simplify_call_expression(
                 value: argument.clone(),
             })
             .collect();
-        if let Some(value) = helper_state_value(state, program, target_machine, &argument_bindings) {
+        if let Some(value) = helper_state_value(state, program, target_machine, &argument_bindings)
+        {
             return simplify_expression_with_bindings(
                 program,
                 machine,
@@ -454,12 +449,9 @@ fn simplify_helper_call_comparison(
     expected: &Expression,
     bindings: &[Binding],
 ) -> Option<Expression> {
-    let receiver = call
-        .receiver
-        .as_ref()
-        .map(|receiver| {
-            simplify_expression_with_bindings(program, machine, receiver, bindings, false)
-        });
+    let receiver = call.receiver.as_ref().map(|receiver| {
+        simplify_expression_with_bindings(program, machine, receiver, bindings, false)
+    });
     let target_machine = resolve_call_target_machine(program, machine, receiver.as_ref())?;
     let state = resolve_call_target_state(program, target_machine, call)?;
     let argument_values: Vec<_> = call
@@ -480,13 +472,7 @@ fn simplify_helper_call_comparison(
         })
         .collect();
 
-    helper_state_match_condition(
-        state,
-        program,
-        target_machine,
-        &argument_bindings,
-        expected,
-    )
+    helper_state_match_condition(state, program, target_machine, &argument_bindings, expected)
 }
 
 fn resolve_call_target_machine<'program>(
@@ -551,7 +537,10 @@ fn expression_is_self_reference(expression: &Expression) -> bool {
     match expression {
         Expression::Mutable(inner) => expression_is_self_reference(inner),
         Expression::Name(path) => {
-            path.len() == 1 && path.first().is_some_and(|segment| segment.as_str() == "self")
+            path.len() == 1
+                && path
+                    .first()
+                    .is_some_and(|segment| segment.as_str() == "self")
         }
         _ => false,
     }
@@ -582,7 +571,14 @@ fn helper_state_match_condition(
     bindings: &[Binding],
     expected: &Expression,
 ) -> Option<Expression> {
-    helper_state_match_condition_with_stack(state, program, machine, bindings, expected, &mut Vec::new())
+    helper_state_match_condition_with_stack(
+        state,
+        program,
+        machine,
+        bindings,
+        expected,
+        &mut Vec::new(),
+    )
 }
 
 fn helper_state_match_condition_with_stack(
@@ -615,9 +611,13 @@ fn helper_state_match_condition_with_stack(
 
     for transition in &helper.transitions {
         let effective_guard = boolean_and(boolean_not(covered.clone()), transition.guard.clone());
-        if let Some(value_matches) =
-            expression_match_condition_with_stack(program, machine, &transition.value, expected, stack)
-        {
+        if let Some(value_matches) = expression_match_condition_with_stack(
+            program,
+            machine,
+            &transition.value,
+            expected,
+            stack,
+        ) {
             matched = boolean_or(matched, boolean_and(effective_guard.clone(), value_matches));
         }
         covered = boolean_or(covered, effective_guard);
@@ -718,17 +718,20 @@ fn helper_state_model(
     let mut transitions = Vec::new();
     let mut saw_terminal_expression = false;
 
-    for statement in program.state_statements(state) {
+    for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
-            Statement::LocalData(local) => {
+            StatementNode::LocalData(local) => {
                 if saw_terminal_expression {
                     return None;
                 }
-                let initial_value = local.initial_value.as_ref()?;
+                if !local.initial_value.is_valid() {
+                    return None;
+                }
+                let initial_value = program.expression_table.to_tree(local.initial_value);
                 let value = simplify_expression_with_bindings(
                     program,
                     machine,
-                    initial_value,
+                    &initial_value,
                     &bindings,
                     false,
                 );
@@ -738,42 +741,42 @@ fn helper_state_model(
                     value,
                 });
             }
-            Statement::Transition(transition) => {
+            StatementNode::Transition(transition) => {
                 if saw_terminal_expression {
                     return None;
                 }
-                if transition.continuation.is_some() {
+                if transition.continuation.is_valid() {
                     return None;
                 }
-                let guard = match &transition.guard {
-                    TransitionGuard::Always => Expression::Boolean(true),
-                    TransitionGuard::When(expression) => {
+                let guard = match transition.guard {
+                    TransitionGuardNode::Always => Expression::Boolean(true),
+                    TransitionGuardNode::When(expression) => {
+                        let expression = program.expression_table.to_tree(expression);
                         simplify_expression_with_bindings(
                             program,
                             machine,
-                            expression,
+                            &expression,
                             &bindings,
                             false,
                         )
                     }
                 };
-                let TransitionTarget::Value(value) = &transition.target else {
+                let TransitionTargetNode::Value(value) =
+                    program.statement_table.transition_target(transition.target)
+                else {
                     return None;
                 };
-                let value = simplify_expression_with_bindings(
-                    program,
-                    machine,
-                    value,
-                    &bindings,
-                    false,
-                );
+                let value = program.expression_table.to_tree(*value);
+                let value =
+                    simplify_expression_with_bindings(program, machine, &value, &bindings, false);
                 transitions.push(HelperTransition { guard, value });
             }
-            Statement::Expression(expression) => {
+            StatementNode::Expression(expression) => {
+                let expression = program.expression_table.to_tree(*expression);
                 let value = simplify_expression_with_bindings(
                     program,
                     machine,
-                    expression,
+                    &expression,
                     &bindings,
                     false,
                 );
@@ -783,7 +786,7 @@ fn helper_state_model(
                 });
                 saw_terminal_expression = true;
             }
-            Statement::Assignment(_) | Statement::Call(_) => {
+            StatementNode::Assignment(_) | StatementNode::Call(_) => {
                 return None;
             }
         }
@@ -796,7 +799,10 @@ fn helper_state_model(
     Some(HelperStateModel { transitions })
 }
 
-fn append_name_suffix(base: &Expression, suffix: &[omega_checked_trees::name::ProgramName]) -> Expression {
+fn append_name_suffix(
+    base: &Expression,
+    suffix: &[omega_checked_trees::name::ProgramName],
+) -> Expression {
     let mut expression = base.clone();
 
     for member in suffix {
@@ -836,14 +842,22 @@ fn fold_binary_expression(
             (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a == b),
             (Expression::String(a), Expression::String(b)) => Expression::Boolean(a == b),
             _ if left == right => Expression::Boolean(true),
-            _ => Expression::Binary(Box::new(BinaryExpression { left, operator, right })),
+            _ => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
         },
         Op::NotEqual => match (&left, &right) {
             (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a != b),
             (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a != b),
             (Expression::String(a), Expression::String(b)) => Expression::Boolean(a != b),
             _ if left == right => Expression::Boolean(false),
-            _ => Expression::Binary(Box::new(BinaryExpression { left, operator, right })),
+            _ => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
         },
         Op::Greater => fold_integer_compare(left, right, |a, b| a > b, operator),
         Op::GreaterOrEqual => fold_integer_compare(left, right, |a, b| a >= b, operator),
@@ -854,17 +868,33 @@ fn fold_binary_expression(
         Op::Multiply => fold_integer_math(left, right, |a, b| a * b, operator),
         Op::Divide => match (&left, &right) {
             (Expression::Integer(_), Expression::Integer(0)) => {
-                Expression::Binary(Box::new(BinaryExpression { left, operator, right }))
+                Expression::Binary(Box::new(BinaryExpression {
+                    left,
+                    operator,
+                    right,
+                }))
             }
             (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(a / b),
-            _ => Expression::Binary(Box::new(BinaryExpression { left, operator, right })),
+            _ => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
         },
         Op::Modulo => match (&left, &right) {
             (Expression::Integer(_), Expression::Integer(0)) => {
-                Expression::Binary(Box::new(BinaryExpression { left, operator, right }))
+                Expression::Binary(Box::new(BinaryExpression {
+                    left,
+                    operator,
+                    right,
+                }))
             }
             (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(a % b),
-            _ => Expression::Binary(Box::new(BinaryExpression { left, operator, right })),
+            _ => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
         },
         Op::ShiftLeft => fold_integer_math(left, right, |a, b| a << b, operator),
         Op::ShiftRight => fold_integer_math(left, right, |a, b| a >> b, operator),
@@ -879,7 +909,11 @@ fn fold_integer_math(
 ) -> Expression {
     match (&left, &right) {
         (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(operation(*a, *b)),
-        _ => Expression::Binary(Box::new(BinaryExpression { left, operator, right })),
+        _ => Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator,
+            right,
+        })),
     }
 }
 
@@ -891,7 +925,11 @@ fn fold_integer_compare(
 ) -> Expression {
     match (&left, &right) {
         (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(comparison(*a, *b)),
-        _ => Expression::Binary(Box::new(BinaryExpression { left, operator, right })),
+        _ => Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator,
+            right,
+        })),
     }
 }
 
@@ -919,7 +957,9 @@ fn boolean_and(left: Expression, right: Expression) -> Expression {
     }
 
     match (&left, &right) {
-        (Expression::Boolean(false), _) | (_, Expression::Boolean(false)) => Expression::Boolean(false),
+        (Expression::Boolean(false), _) | (_, Expression::Boolean(false)) => {
+            Expression::Boolean(false)
+        }
         (Expression::Boolean(true), _) => right,
         (_, Expression::Boolean(true)) => left,
         _ if left == right => left,
@@ -933,7 +973,9 @@ fn boolean_and(left: Expression, right: Expression) -> Expression {
 
 fn boolean_or(left: Expression, right: Expression) -> Expression {
     match (&left, &right) {
-        (Expression::Boolean(true), _) | (_, Expression::Boolean(true)) => Expression::Boolean(true),
+        (Expression::Boolean(true), _) | (_, Expression::Boolean(true)) => {
+            Expression::Boolean(true)
+        }
         (Expression::Boolean(false), _) => right,
         (_, Expression::Boolean(false)) => left,
         _ if left == right => left,
@@ -953,7 +995,8 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
         return None;
     }
 
-    if left_compare.operator == right_compare.operator && left_compare.value == right_compare.value {
+    if left_compare.operator == right_compare.operator && left_compare.value == right_compare.value
+    {
         return Some(left.clone());
     }
 
@@ -981,8 +1024,8 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
     if let (Some((lower, lower_inclusive)), Some((upper, upper_inclusive))) =
         (lower_bound, upper_bound)
     {
-        let impossible = lower > upper
-            || (lower == upper && (!lower_inclusive || !upper_inclusive));
+        let impossible =
+            lower > upper || (lower == upper && (!lower_inclusive || !upper_inclusive));
         if impossible {
             return Some(Expression::Boolean(false));
         }
@@ -1129,7 +1172,13 @@ fn boolean_not(expression: Expression) -> Expression {
                 Op::Or => {
                     return boolean_and(boolean_not(binary.left), boolean_not(binary.right));
                 }
-                Op::Add | Op::Divide | Op::Modulo | Op::Multiply | Op::ShiftLeft | Op::ShiftRight | Op::Subtract => None,
+                Op::Add
+                | Op::Divide
+                | Op::Modulo
+                | Op::Multiply
+                | Op::ShiftLeft
+                | Op::ShiftRight
+                | Op::Subtract => None,
             };
 
             if let Some(operator) = inverted {
@@ -1155,9 +1204,10 @@ fn boolean_not(expression: Expression) -> Expression {
 }
 
 fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
-    if let (Some(left_path), Some(right_path)) =
-        (expression_path_segments(left), expression_path_segments(right))
-    {
+    if let (Some(left_path), Some(right_path)) = (
+        expression_path_segments(left),
+        expression_path_segments(right),
+    ) {
         return left_path == right_path;
     }
 
@@ -1201,8 +1251,7 @@ fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
         }
         (Expression::Integer(left), Expression::Integer(right)) => left == right,
         (Expression::Member(left), Expression::Member(right)) => {
-            left.member == right.member
-                && expressions_equivalent(&left.receiver, &right.receiver)
+            left.member == right.member && expressions_equivalent(&left.receiver, &right.receiver)
         }
         (Expression::Mutable(left), Expression::Mutable(right)) => {
             expressions_equivalent(left, right)
@@ -1211,9 +1260,13 @@ fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
         (Expression::StructLiteral(left), Expression::StructLiteral(right)) => {
             left.type_name == right.type_name
                 && left.fields.len() == right.fields.len()
-                && left.fields.iter().zip(right.fields.iter()).all(|(left, right)| {
-                    left.name == right.name && expressions_equivalent(&left.value, &right.value)
-                })
+                && left
+                    .fields
+                    .iter()
+                    .zip(right.fields.iter())
+                    .all(|(left, right)| {
+                        left.name == right.name && expressions_equivalent(&left.value, &right.value)
+                    })
         }
         (Expression::String(left), Expression::String(right)) => left == right,
         _ => false,
@@ -1235,15 +1288,19 @@ fn expression_path_segments(expression: &Expression) -> Option<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::simplify_expression;
-    use omega_core::symbols::SymbolHandle;
     use omega_checked_trees::Program;
-    use omega_checked_trees::expression::{BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath};
+    use omega_checked_trees::expression::{
+        BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
+    };
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::signature::StateParameter;
     use omega_checked_trees::state::State;
-    use omega_checked_trees::statement::{LocalData, Statement, Transition, TransitionGuard, TransitionTarget};
+    use omega_checked_trees::statement::{
+        LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+    };
     use omega_checked_trees::types::TypeReference;
+    use omega_core::symbols::SymbolHandle;
 
     #[test]
     fn simplifies_guarded_helper_call_comparison_to_guard_expression() {
@@ -1320,12 +1377,18 @@ mod tests {
                     guard: TransitionGuard::When(name("is_quiet", is_quiet_symbol)),
                 }),
                 Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Fountain"])),
+                    target: TransitionTarget::Value(path_expression(&[
+                        "RoomEventAction",
+                        "Fountain",
+                    ])),
                     continuation: None,
                     guard: TransitionGuard::When(name("is_fountain", is_fountain_symbol)),
                 }),
                 Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Reward"])),
+                    target: TransitionTarget::Value(path_expression(&[
+                        "RoomEventAction",
+                        "Reward",
+                    ])),
                     continuation: None,
                     guard: TransitionGuard::When(name("is_reward", is_reward_symbol)),
                 }),
@@ -1566,6 +1629,16 @@ mod tests {
         statements: [Statement; N],
     ) {
         for statement in statements {
+            let statement_node = program.typed.statement_table.insert_tree(
+                &statement,
+                &mut program.typed.expression_table,
+                &mut program.typed.type_reference_table,
+                &program.typed.type_constraints,
+                &program.typed.type_reference_arguments,
+                &program.typed.statement_expressions,
+                &program.typed.statement_path_members,
+            );
+            state.statement_nodes.push_contiguous(statement_node);
             program.typed.push_state_statement(state, statement);
         }
     }
@@ -1586,5 +1659,4 @@ mod tests {
                 .collect(),
         )
     }
-
 }

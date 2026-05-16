@@ -1,5 +1,5 @@
-use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
