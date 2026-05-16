@@ -523,13 +523,12 @@ fn resolve_runtime_value_operand(
         });
     }
 
-    if let Expression::Call(call) = expression
+    if matches!(expression, Expression::Call(_))
         && let Some(place) = resolve_runtime_transition_guard_call_result_place(
             input,
             dispatch_index,
             source_key,
             statement_index,
-            call,
         )
     {
         return Some(RuntimeValueOperand::Storage {

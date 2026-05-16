@@ -40,14 +40,12 @@ fn resolve_runtime_call_result_source_place(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
     resolve_runtime_assignment_value_call_result_place(
         input,
         dispatch_index,
         source_key,
         statement_index,
-        call,
     )
     .or_else(|| {
         resolve_runtime_transition_argument_call_result_place(
@@ -55,7 +53,6 @@ fn resolve_runtime_call_result_source_place(
             dispatch_index,
             source_key,
             statement_index,
-            call,
         )
     })
 }
@@ -308,13 +305,12 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    if let Expression::Call(call) = &resolved_value.expression
+    if matches!(&resolved_value.expression, Expression::Call(_))
         && let Some(source_place) = resolve_runtime_call_result_source_place(
             input,
             dispatch_index,
             value_source_key,
             statement_index,
-            call,
         )
     {
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
@@ -733,13 +729,12 @@ fn resolve_runtime_value_operand(
         });
     }
 
-    if let Expression::Call(call) = expression
+    if matches!(expression, Expression::Call(_))
         && let Some(place) = resolve_runtime_call_result_source_place(
             input,
             dispatch_index,
             source_key,
             statement_index,
-            call,
         )
     {
         return Some(RuntimeValueOperand::Storage {
