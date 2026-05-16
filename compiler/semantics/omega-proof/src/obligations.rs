@@ -255,6 +255,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                     machine,
                     state,
                     transition,
+                    table_statements.get(statement_index),
                     &mut proof_plan,
                 );
             }
@@ -389,10 +390,14 @@ fn collect_bounded_transition_argument_obligations(
     machine: &Machine,
     state: &State,
     transition: &Transition,
+    table_statement: Option<&StatementNode>,
     proof_plan: &mut ProofPlan,
 ) {
+    let Some(StatementNode::Transition(table_transition)) = table_statement else {
+        return;
+    };
     let Some((target_state, arguments)) =
-        transition_target_state_and_arguments(program, state, &transition.target)
+        table_transition_target_state_and_arguments(program, state, table_transition.target)
     else {
         return;
     };
@@ -406,7 +411,8 @@ fn collect_bounded_transition_argument_obligations(
             continue;
         };
 
-        let argument_constraints = expression_constraints(program, machine, state, argument);
+        let argument = program.expression_table.to_tree(*argument);
+        let argument_constraints = expression_constraints(program, machine, state, &argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
         let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
 
@@ -418,7 +424,7 @@ fn collect_bounded_transition_argument_obligations(
                 state: state.name.to_string(),
                 target: transition.target.clone(),
                 parameter: parameter.name.to_string(),
-                argument: argument.clone(),
+                argument,
                 argument_constraints,
                 base_type: base_type.as_ref().clone(),
                 constraints,
@@ -540,21 +546,6 @@ fn display_name_path(path: &[ProgramName]) -> String {
     }
 
     display
-}
-
-fn transition_target_state_and_arguments<'program>(
-    program: &'program TypedTrees,
-    state: &'program State,
-    target: &'program TransitionTarget,
-) -> Option<(&'program State, &'program [Expression])> {
-    let TransitionTarget::Named { path, symbol, .. } = target else {
-        return None;
-    };
-    let path = program.statement_path_members(*path);
-
-    state_by_symbol(program, *symbol)
-        .or_else(|| (path == ["self"]).then_some(state))
-        .map(|target_state| (target_state, program.transition_target_arguments(target)))
 }
 
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
