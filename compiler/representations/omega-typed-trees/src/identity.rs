@@ -3,9 +3,7 @@ use crate::expression::{Expression, ExpressionHandle, ExpressionNode, Expression
 use crate::name::ProgramName;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
 use crate::typed_trees::TypedTrees;
-use crate::types::{
-    TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
-};
+use crate::types::{TypeConstraint, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
@@ -71,7 +69,13 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_declaration_name(&platform.name, &mut counts);
         for signature in typed_trees.platform_state_signatures(platform) {
             count_declaration_name(&signature.name, &mut counts);
-            count_optional_type_reference(typed_trees, signature.return_type.as_ref(), &mut counts);
+            if signature.return_type.is_valid() {
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    signature.return_type,
+                    &mut counts,
+                );
+            }
             for parameter in typed_trees.state_signature_parameters(signature) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference_handle(
@@ -106,7 +110,13 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
         for state in typed_trees.machine_states(machine) {
             count_declaration_name(&state.name, &mut counts);
-            count_optional_type_reference(typed_trees, state.return_type.as_ref(), &mut counts);
+            if state.return_type.is_valid() {
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    state.return_type,
+                    &mut counts,
+                );
+            }
             for parameter in typed_trees.state_parameters(state) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference_handle(
@@ -384,45 +394,6 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
             }
         }
         Expression::String(_) => counts.string_literals += 1,
-    }
-}
-
-fn count_optional_type_reference(
-    typed_trees: &TypedTrees,
-    type_reference: Option<&TypeReference>,
-    counts: &mut IdentityStorageCounts,
-) {
-    if let Some(type_reference) = type_reference {
-        count_type_reference(typed_trees, type_reference, counts);
-    }
-}
-
-fn count_type_reference(
-    typed_trees: &TypedTrees,
-    type_reference: &TypeReference,
-    counts: &mut IdentityStorageCounts,
-) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            count_type_reference(typed_trees, referee, counts)
-        }
-        TypeReference::Constrained { base_type, .. } => {
-            count_type_reference(typed_trees, base_type, counts)
-        }
-        TypeReference::FixedArray { element_type, .. } => {
-            count_type_reference(typed_trees, element_type, counts);
-        }
-        TypeReference::Slice { element_type } => {
-            count_type_reference(typed_trees, element_type, counts);
-        }
-        TypeReference::Generic { base_name, .. } => {
-            count_type_name(base_name, counts);
-            for argument in typed_trees.type_reference_arguments(type_reference) {
-                count_type_reference(typed_trees, argument, counts);
-            }
-        }
-        TypeReference::Named { name, .. } => count_type_name(name, counts),
-        TypeReference::Unit => {}
     }
 }
 

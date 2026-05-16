@@ -10,8 +10,7 @@ use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{
-    PrimitiveType, TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceHandle,
-    TypeReferenceNode,
+    PrimitiveType, TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -176,18 +175,18 @@ fn validate_state_statement_node(
                 return;
             };
 
-            let Some(return_type) = &state.return_type else {
+            if !state.return_type.is_valid() {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{state_name}` has a terminal expression but no return type",
                     machine.name
                 )));
                 return;
-            };
+            }
 
             validate_expression_type_handle(
                 program,
                 *expression,
-                return_type,
+                state.return_type,
                 diagnostics,
                 format!(
                     "machine `{}` state `{state_name}` terminal expression",
@@ -267,7 +266,7 @@ fn validate_callable_state_signatures(
                 .map(|state| StateSignatureView {
                     name: state.name.as_str(),
                     parameters: program.state_parameters(state),
-                    return_type: state.return_type.as_ref(),
+                    return_type: state.return_type,
                 }),
             program,
             symbols,
@@ -283,7 +282,7 @@ fn validate_callable_state_signatures(
             platform_states.iter().map(|state| StateSignatureView {
                 name: state.name.as_str(),
                 parameters: program.state_signature_parameters(state),
-                return_type: state.return_type.as_ref(),
+                return_type: state.return_type,
             }),
             program,
             symbols,
@@ -297,7 +296,7 @@ fn validate_callable_state_signatures(
 struct StateSignatureView<'program> {
     name: &'program str,
     parameters: &'program [StateParameter],
-    return_type: Option<&'program TypeReference>,
+    return_type: TypeReferenceHandle,
 }
 
 fn validate_state_signature_types<'program>(
@@ -327,10 +326,10 @@ fn validate_state_signature_types<'program>(
             );
         }
 
-        if let Some(return_type) = signature.return_type {
-            validate_type_reference(
+        if signature.return_type.is_valid() {
+            validate_type_reference_handle(
                 program,
-                return_type,
+                signature.return_type,
                 symbols,
                 diagnostics,
                 format!("{owner} state `{}` return type", signature.name),
@@ -442,60 +441,6 @@ fn validate_data_member_names(
     }
 }
 
-fn validate_type_reference(
-    program: &TypedTrees,
-    type_reference: &TypeReference,
-    symbols: &ProgramSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
-) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            validate_type_reference(program, referee, symbols, diagnostics, owner);
-        }
-        TypeReference::Constrained {
-            base_type,
-            constraints,
-        } => {
-            validate_type_reference(program, base_type, symbols, diagnostics, owner.clone());
-            validate_type_constraints(program, base_type, *constraints, diagnostics, owner);
-        }
-        TypeReference::FixedArray { element_type, .. } => {
-            validate_type_reference(program, element_type, symbols, diagnostics, owner);
-        }
-        TypeReference::Slice { element_type } => {
-            validate_type_reference(program, element_type, symbols, diagnostics, owner);
-        }
-        TypeReference::Generic { base_name, .. } => {
-            if !symbols.has_type(base_name) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown generic type `{base_name}`"
-                )));
-            }
-
-            if base_name != "IndexOf" {
-                for argument in program.type_reference_arguments(type_reference) {
-                    validate_type_reference(
-                        program,
-                        argument,
-                        symbols,
-                        diagnostics,
-                        format!("{owner} generic argument"),
-                    );
-                }
-            }
-        }
-        TypeReference::Named { name, .. } => {
-            if !symbols.has_type(name) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown data type `{name}`"
-                )));
-            }
-        }
-        TypeReference::Unit => {}
-    }
-}
-
 fn validate_type_reference_handle(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -560,52 +505,6 @@ fn validate_type_reference_handle(
             }
         }
         TypeReferenceNode::Unit => {}
-    }
-}
-
-fn validate_type_constraints(
-    program: &TypedTrees,
-    base_type: &TypeReference,
-    constraints: omega_core::arena::HandleSpan<TypeConstraint>,
-    diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
-) {
-    let primitive_type = base_type.primitive_type();
-    let Some(constraints) = program.type_constraints.span(constraints) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} references invalid constraint storage"
-        )));
-        return;
-    };
-
-    for constraint in constraints {
-        match constraint {
-            TypeConstraint::Named(name) if name == "finite" => {
-                let Some(primitive_type) = primitive_type else {
-                    continue;
-                };
-
-                if !primitive_type.accepts_finite_constraint() {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{owner} uses `finite` on `{}`, but `finite` is only valid on floats",
-                        primitive_type.name()
-                    )));
-                }
-            }
-            TypeConstraint::Named(_) => {}
-            TypeConstraint::Range { .. } => {
-                let Some(primitive_type) = primitive_type else {
-                    continue;
-                };
-
-                if !primitive_type.accepts_range_constraint() {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{owner} uses `range` on `{}`, but `range` is only valid on numeric types",
-                        primitive_type.name()
-                    )));
-                }
-            }
-        }
     }
 }
 
@@ -1258,110 +1157,17 @@ fn argument_matches_type_reference_handle(
     }
 }
 
-fn argument_matches_type_handle(
-    program: &TypedTrees,
-    argument: ExpressionHandle,
-    type_reference: &TypeReference,
-) -> bool {
-    if let ExpressionNode::Mutable(inner_expression) = program.expression_table.expression(argument)
-    {
-        return argument_matches_type_handle(program, *inner_expression, type_reference);
-    }
-
-    let argument_node = program.expression_table.expression(argument);
-
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            argument_matches_type_handle(program, argument, referee)
-        }
-        TypeReference::Constrained { base_type, .. } => {
-            argument_matches_type_handle(program, argument, base_type)
-        }
-        TypeReference::FixedArray { .. } => matches!(
-            argument_node,
-            ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        ),
-        TypeReference::Slice { .. } => matches!(
-            argument_node,
-            ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        ),
-        TypeReference::Generic { base_name, .. } if base_name == "IndexOf" => {
-            matches!(
-                argument_node,
-                ExpressionNode::Integer(_)
-                    | ExpressionNode::Indexed(_)
-                    | ExpressionNode::Member(_)
-                    | ExpressionNode::Name(_)
-            )
-        }
-        TypeReference::Generic { .. } => matches!(
-            argument_node,
-            ExpressionNode::Binary(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Cast(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Integer(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-                | ExpressionNode::StructLiteral(_)
-        ),
-        TypeReference::Named {
-            name: type_name, ..
-        } => {
-            if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
-                return matches!(argument_node, ExpressionNode::Boolean(_))
-                    && primitive_type == PrimitiveType::Bool
-                    || matches!(argument_node, ExpressionNode::String(_))
-                        && primitive_type == PrimitiveType::String
-                    || matches!(argument_node, ExpressionNode::Float(_))
-                        && primitive_type.accepts_float_literal()
-                    || matches!(argument_node, ExpressionNode::Integer(_))
-                        && primitive_type.accepts_integer_literal()
-                    || matches!(
-                        argument_node,
-                        ExpressionNode::Binary(_)
-                            | ExpressionNode::Call(_)
-                            | ExpressionNode::Cast(_)
-                            | ExpressionNode::Indexed(_)
-                            | ExpressionNode::Member(_)
-                            | ExpressionNode::Name(_)
-                            | ExpressionNode::StructLiteral(_)
-                    );
-            }
-
-            matches!(
-                argument_node,
-                ExpressionNode::Binary(_)
-                    | ExpressionNode::Call(_)
-                    | ExpressionNode::Cast(_)
-                    | ExpressionNode::Indexed(_)
-                    | ExpressionNode::Member(_)
-                    | ExpressionNode::Name(_)
-                    | ExpressionNode::StructLiteral(_)
-            )
-        }
-        TypeReference::Unit => false,
-    }
-}
-
 fn validate_expression_type_handle(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    type_reference: &TypeReference,
+    type_reference: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
-    if !argument_matches_type_handle(program, expression, type_reference) {
+    if !argument_matches_type_reference_handle(program, expression, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} expects `{}`, got `{}`",
-            type_reference.display_name_with_constraints(&program.type_constraints),
+            program.display_type_reference_with_constraints(type_reference),
             expression_type_name_handle(program, expression)
         )));
     }

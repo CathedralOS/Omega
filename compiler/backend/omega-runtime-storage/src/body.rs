@@ -1,15 +1,12 @@
-use super::{
-    RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, RuntimeStoragePlan,
-};
+use super::{RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
+use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::name::ProgramName;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutation, StateMutationLowering};
-use omega_checked_trees::types::TypeReference;
 
 use super::layout::{align_to, layout_for_type};
 
@@ -19,12 +16,7 @@ pub(super) fn build_runtime_storage_body_plan(
 ) -> RuntimeStoragePlan {
     let mut plan = RuntimeStoragePlan::default();
     let mut next_frame_offset = 0usize;
-    append_parameter_slots(
-        context,
-        body_input,
-        &mut plan,
-        &mut next_frame_offset,
-    );
+    append_parameter_slots(context, body_input, &mut plan, &mut next_frame_offset);
     let Some(operations) = context
         .runtime_bodies
         .operations
@@ -231,20 +223,12 @@ fn state_return_type(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == target_key.state)?;
-    let return_type = state.return_type.as_ref()?;
-    Some((type_reference_symbol(return_type), return_type.display_name()))
-}
-
-fn type_reference_symbol(type_reference: &TypeReference) -> SymbolHandle {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => type_reference_symbol(referee),
-        TypeReference::Constrained { base_type, .. } => type_reference_symbol(base_type),
-        TypeReference::Generic { base_symbol, .. } => *base_symbol,
-        TypeReference::Named { symbol, .. } => *symbol,
-        TypeReference::FixedArray { .. }
-        | TypeReference::Slice { .. }
-        | TypeReference::Unit => SymbolHandle::invalid(),
-    }
+    state.return_type.is_valid().then(|| {
+        (
+            context.program.type_reference_symbol(state.return_type),
+            context.program.display_type_reference(state.return_type),
+        )
+    })
 }
 
 fn mutation_for_operation<'plan>(

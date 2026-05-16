@@ -188,21 +188,22 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 );
             }
 
-            if let Some(return_type) = &state.return_type {
+            if state.return_type.is_valid() {
+                let return_type = table_type_reference_to_tree(program, state.return_type);
                 collect_bounded_value_obligation(
                     program,
                     format!(
                         "machine `{}` state `{}` return value",
                         machine.name, state.name
                     ),
-                    return_type,
+                    &return_type,
                     &mut proof_plan,
                 );
                 collect_bounded_state_return_obligation(
                     program,
                     machine,
                     state,
-                    return_type,
+                    &return_type,
                     &mut proof_plan,
                 );
             }
@@ -748,7 +749,7 @@ fn expression_constraints(
             {
                 let mut constraints = call_expression_return_type(program, machine, state, call)
                     .map(|return_type| {
-                        collect_constraints_in_state(program, machine, state, return_type)
+                        collect_constraints_in_state(program, machine, state, &return_type)
                     })
                     .unwrap_or_default();
                 let argument_constraints =
@@ -761,7 +762,7 @@ fn expression_constraints(
             }
 
             if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
-                return collect_constraints_in_state(program, machine, state, return_type);
+                return collect_constraints_in_state(program, machine, state, &return_type);
             }
 
             Vec::new()
@@ -1406,19 +1407,19 @@ fn derived_range_call_constraints(
     Some(constraints)
 }
 
-fn call_expression_return_type<'program>(
-    program: &'program TypedTrees,
-    _machine: &'program Machine,
-    _state: &'program State,
-    call: &'program omega_typed_trees::expression::CallExpression,
-) -> Option<&'program TypeReference> {
+fn call_expression_return_type(
+    program: &TypedTrees,
+    _machine: &Machine,
+    _state: &State,
+    call: &omega_typed_trees::expression::CallExpression,
+) -> Option<TypeReference> {
     callable_return_type_by_symbol(program, call.target_symbol)
 }
 
 fn callable_return_type_by_symbol(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
-) -> Option<&TypeReference> {
+) -> Option<TypeReference> {
     if !target_symbol.is_valid() {
         return None;
     }
@@ -1428,14 +1429,24 @@ fn callable_return_type_by_symbol(
         .iter()
         .flat_map(|machine| program.machine_states(machine).iter())
         .find(|candidate| candidate.symbol == target_symbol)
-        .and_then(|candidate| candidate.return_type.as_ref())
+        .and_then(|candidate| {
+            candidate
+                .return_type
+                .is_valid()
+                .then(|| table_type_reference_to_tree(program, candidate.return_type))
+        })
         .or_else(|| {
             program
                 .platforms()
                 .iter()
                 .flat_map(|platform| program.platform_state_signatures(platform).iter())
                 .find(|candidate| candidate.symbol == target_symbol)
-                .and_then(|candidate| candidate.return_type.as_ref())
+                .and_then(|candidate| {
+                    candidate
+                        .return_type
+                        .is_valid()
+                        .then(|| table_type_reference_to_tree(program, candidate.return_type))
+                })
         })
 }
 
