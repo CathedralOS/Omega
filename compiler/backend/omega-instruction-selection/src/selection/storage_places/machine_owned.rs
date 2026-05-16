@@ -67,7 +67,7 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
         source_machine,
         path.members(),
         path.head_symbol(),
-        SymbolHandle::invalid(),
+        path.member_symbol(1),
     )
 }
 
