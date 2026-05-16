@@ -12,15 +12,13 @@ use omega_typed_trees::statement::{
     StatementNode, TableAssignment, TableCall, TableLocalData, TransitionGuardNode,
     TransitionTargetHandle, TransitionTargetNode,
 };
-use omega_typed_trees::types::{
-    TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
     pub program: &'program TypedTrees,
     pub obligations: Arena<ProofObligation>,
-    pub type_constraints: Arena<TypeConstraint>,
+    pub type_constraints: Arena<ProofConstraint>,
 }
 
 impl<'program> ProofPlan<'program> {
@@ -36,7 +34,10 @@ impl<'program> ProofPlan<'program> {
         self.obligations.append(obligation);
     }
 
-    fn store_constraints(&mut self, constraints: &[TypeConstraint]) -> HandleSpan<TypeConstraint> {
+    fn store_constraints(
+        &mut self,
+        constraints: &[ProofConstraint],
+    ) -> HandleSpan<ProofConstraint> {
         self.type_constraints
             .insert_many(constraints.iter().cloned())
     }
@@ -45,14 +46,68 @@ impl<'program> ProofPlan<'program> {
         &mut self,
         program: &TypedTrees,
         constraints: HandleSpan<TypeConstraintNode>,
-    ) -> HandleSpan<TypeConstraint> {
+    ) -> HandleSpan<ProofConstraint> {
         self.type_constraints.insert_many(
             program
                 .type_reference_table
                 .constraints(constraints)
                 .iter()
-                .map(|constraint| constraint.to_tree(&program.expression_table)),
+                .filter_map(|constraint| ProofConstraint::from_node(program, constraint)),
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProofConstraint {
+    Named(ProgramName),
+    IntegerRange {
+        minimum: i64,
+        maximum: i64,
+    },
+    FloatRange {
+        minimum: FloatLiteral,
+        maximum: FloatLiteral,
+    },
+}
+
+impl Default for ProofConstraint {
+    fn default() -> Self {
+        Self::Named(ProgramName::default())
+    }
+}
+
+impl ProofConstraint {
+    fn from_node(program: &TypedTrees, constraint: &TypeConstraintNode) -> Option<Self> {
+        match constraint {
+            TypeConstraintNode::Named(name) => Some(Self::Named(name.clone())),
+            TypeConstraintNode::Range { minimum, maximum } => {
+                Self::range_from_expression_handles(program, *minimum, *maximum)
+            }
+        }
+    }
+
+    fn range_from_expression_handles(
+        program: &TypedTrees,
+        minimum: ExpressionHandle,
+        maximum: ExpressionHandle,
+    ) -> Option<Self> {
+        if let (Some(minimum), Some(maximum)) = (
+            integer_constant_value_from_node(program, program.expression_table.expression(minimum)),
+            integer_constant_value_from_node(program, program.expression_table.expression(maximum)),
+        ) {
+            return Some(Self::IntegerRange { minimum, maximum });
+        }
+
+        Some(Self::FloatRange {
+            minimum: FloatLiteral::new(float_constant_value_from_node(
+                program,
+                program.expression_table.expression(minimum),
+            )?),
+            maximum: FloatLiteral::new(float_constant_value_from_node(
+                program,
+                program.expression_table.expression(maximum),
+            )?),
+        })
     }
 }
 
@@ -81,7 +136,7 @@ impl Default for ProofObligation {
 pub struct BoundedValueObligation {
     pub owner: String,
     pub base_type: TypeReferenceHandle,
-    pub constraints: HandleSpan<TypeConstraint>,
+    pub constraints: HandleSpan<ProofConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,9 +157,9 @@ pub struct BoundedAssignmentObligation {
     pub state_guard: Option<TransitionGuardNode>,
     pub target: ExpressionHandle,
     pub value: ExpressionHandle,
-    pub value_constraints: HandleSpan<TypeConstraint>,
+    pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
-    pub constraints: HandleSpan<TypeConstraint>,
+    pub constraints: HandleSpan<ProofConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,9 +172,9 @@ pub struct BoundedCallArgumentObligation {
     pub target: String,
     pub parameter: String,
     pub argument: ExpressionHandle,
-    pub argument_constraints: HandleSpan<TypeConstraint>,
+    pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
-    pub constraints: HandleSpan<TypeConstraint>,
+    pub constraints: HandleSpan<ProofConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,7 +182,7 @@ pub struct BoundedInitializerObligation {
     pub owner: String,
     pub value: ExpressionHandle,
     pub base_type: TypeReferenceHandle,
-    pub constraints: HandleSpan<TypeConstraint>,
+    pub constraints: HandleSpan<ProofConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,9 +192,9 @@ pub struct BoundedStateReturnObligation {
     pub state_symbol: SymbolHandle,
     pub state: String,
     pub value: ExpressionHandle,
-    pub value_constraints: HandleSpan<TypeConstraint>,
+    pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
-    pub constraints: HandleSpan<TypeConstraint>,
+    pub constraints: HandleSpan<ProofConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,9 +205,9 @@ pub struct BoundedTransitionArgumentObligation {
     pub state: String,
     pub parameter: String,
     pub argument: ExpressionHandle,
-    pub argument_constraints: HandleSpan<TypeConstraint>,
+    pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
-    pub constraints: HandleSpan<TypeConstraint>,
+    pub constraints: HandleSpan<ProofConstraint>,
     pub guard: TransitionGuardNode,
 }
 
@@ -760,7 +815,7 @@ fn expression_constraints(
     machine: &Machine,
     state: &State,
     expression: &Expression,
-) -> Vec<TypeConstraint> {
+) -> Vec<ProofConstraint> {
     match expression {
         Expression::Binary(binary) => {
             let left = expression_constraints(program, machine, state, &binary.left);
@@ -875,7 +930,7 @@ fn expression_type_reference(
 fn collect_constraints(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Vec<TypeConstraint> {
+) -> Vec<ProofConstraint> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => collect_constraints(program, *referee),
         TypeReferenceNode::Constrained {
@@ -888,7 +943,7 @@ fn collect_constraints(
                     .type_reference_table
                     .constraints(*constraints)
                     .iter()
-                    .map(|constraint| constraint.to_tree(&program.expression_table)),
+                    .filter_map(|constraint| ProofConstraint::from_node(program, constraint)),
             );
             augment_constraints_with_named_facts(&mut derived);
             derived
@@ -913,7 +968,7 @@ fn collect_constraints_in_state(
     machine: &Machine,
     state: &State,
     type_reference: TypeReferenceHandle,
-) -> Vec<TypeConstraint> {
+) -> Vec<ProofConstraint> {
     if let Some(constraints) = index_of_constraints(program, machine, state, type_reference) {
         return constraints;
     }
@@ -926,7 +981,7 @@ fn index_of_constraints(
     machine: &Machine,
     state: &State,
     type_reference: TypeReferenceHandle,
-) -> Option<Vec<TypeConstraint>> {
+) -> Option<Vec<ProofConstraint>> {
     let TypeReferenceNode::Generic {
         base_name,
         arguments,
@@ -957,9 +1012,9 @@ fn index_of_constraints(
         return None;
     }
 
-    let mut constraints = vec![TypeConstraint::Range {
-        minimum: Expression::Integer(0),
-        maximum: Expression::Integer((length - 1) as i64),
+    let mut constraints = vec![ProofConstraint::IntegerRange {
+        minimum: 0,
+        maximum: (length - 1) as i64,
     }];
     augment_constraints_with_named_facts(&mut constraints);
     Some(constraints)
@@ -1069,15 +1124,15 @@ fn local_data_by_name<'program>(
         })
 }
 
-fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
+fn primitive_constraints(name: &ProgramName) -> Vec<ProofConstraint> {
     let mut constraints = match name.as_str() {
-        "u32" => vec![TypeConstraint::Range {
-            minimum: Expression::Integer(0),
-            maximum: Expression::Integer(u32::MAX as i64),
+        "u32" => vec![ProofConstraint::IntegerRange {
+            minimum: 0,
+            maximum: u32::MAX as i64,
         }],
-        "usize" => vec![TypeConstraint::Range {
-            minimum: Expression::Integer(0),
-            maximum: Expression::Integer(i64::MAX),
+        "usize" => vec![ProofConstraint::IntegerRange {
+            minimum: 0,
+            maximum: i64::MAX,
         }],
         _ => Vec::new(),
     };
@@ -1198,48 +1253,48 @@ fn data_field_in_definition(
         })
 }
 
-fn integer_literal_constraints(value: i64) -> Vec<TypeConstraint> {
+fn integer_literal_constraints(value: i64) -> Vec<ProofConstraint> {
     let mut constraints = vec![
-        TypeConstraint::Named(ProgramName::generated("exact")),
-        TypeConstraint::Range {
-            minimum: Expression::Integer(value),
-            maximum: Expression::Integer(value),
+        ProofConstraint::Named(ProgramName::generated("exact")),
+        ProofConstraint::IntegerRange {
+            minimum: value,
+            maximum: value,
         },
     ];
 
     if value >= 0 {
-        constraints.push(TypeConstraint::Named(ProgramName::generated(
+        constraints.push(ProofConstraint::Named(ProgramName::generated(
             "non_negative",
         )));
     }
 
     if value > 0 {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated("positive")));
     }
 
     constraints
 }
 
-fn float_literal_constraints(value: FloatLiteral) -> Vec<TypeConstraint> {
+fn float_literal_constraints(value: FloatLiteral) -> Vec<ProofConstraint> {
     let value = value.value();
     if !value.is_finite() {
         return Vec::new();
     }
 
     vec![
-        TypeConstraint::Named(ProgramName::generated("finite")),
-        TypeConstraint::Range {
-            minimum: Expression::Float(FloatLiteral::new(value)),
-            maximum: Expression::Float(FloatLiteral::new(value)),
+        ProofConstraint::Named(ProgramName::generated("finite")),
+        ProofConstraint::FloatRange {
+            minimum: FloatLiteral::new(value),
+            maximum: FloatLiteral::new(value),
         },
     ]
 }
 
 fn derived_binary_constraints(
     operator: BinaryOperator,
-    left_constraints: &[TypeConstraint],
-    right_constraints: &[TypeConstraint],
-) -> Vec<TypeConstraint> {
+    left_constraints: &[ProofConstraint],
+    right_constraints: &[ProofConstraint],
+) -> Vec<ProofConstraint> {
     let mut constraints = Vec::new();
 
     if integer_constraints_are_exact(left_constraints)
@@ -1254,7 +1309,7 @@ fn derived_binary_constraints(
                 | BinaryOperator::Subtract
         )
     {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("exact")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated("exact")));
     }
 
     if integer_constraints_are_wrapping(left_constraints)
@@ -1268,7 +1323,7 @@ fn derived_binary_constraints(
                 | BinaryOperator::Subtract
         )
     {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("wrapping")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated("wrapping")));
     }
 
     if let (Some(left_range), Some(right_range)) = (
@@ -1276,17 +1331,17 @@ fn derived_binary_constraints(
         integer_range_from_constraints(right_constraints),
     ) && let Some(range) = integer_binary_range(operator, left_range, right_range)
     {
-        constraints.push(TypeConstraint::Range {
-            minimum: Expression::Integer(range.minimum),
-            maximum: Expression::Integer(range.maximum),
+        constraints.push(ProofConstraint::IntegerRange {
+            minimum: range.minimum,
+            maximum: range.maximum,
         });
         if range.minimum >= 0 {
-            constraints.push(TypeConstraint::Named(ProgramName::generated(
+            constraints.push(ProofConstraint::Named(ProgramName::generated(
                 "non_negative",
             )));
         }
         if range.minimum > 0 {
-            constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
+            constraints.push(ProofConstraint::Named(ProgramName::generated("positive")));
         }
     }
 
@@ -1295,26 +1350,26 @@ fn derived_binary_constraints(
         float_range_from_constraints(right_constraints),
     ) && let Some(range) = float_binary_range(operator, left_range, right_range)
     {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("finite")));
-        constraints.push(TypeConstraint::Range {
-            minimum: Expression::Float(FloatLiteral::new(range.minimum)),
-            maximum: Expression::Float(FloatLiteral::new(range.maximum)),
+        constraints.push(ProofConstraint::Named(ProgramName::generated("finite")));
+        constraints.push(ProofConstraint::FloatRange {
+            minimum: FloatLiteral::new(range.minimum),
+            maximum: FloatLiteral::new(range.maximum),
         });
     }
 
     constraints
 }
 
-fn derived_real_from_constraints(argument_constraints: &[TypeConstraint]) -> Vec<TypeConstraint> {
+fn derived_real_from_constraints(argument_constraints: &[ProofConstraint]) -> Vec<ProofConstraint> {
     let Some(range) = integer_range_from_constraints(argument_constraints) else {
         return Vec::new();
     };
 
     vec![
-        TypeConstraint::Named(ProgramName::generated("finite")),
-        TypeConstraint::Range {
-            minimum: Expression::Float(FloatLiteral::new(range.minimum as f64)),
-            maximum: Expression::Float(FloatLiteral::new(range.maximum as f64)),
+        ProofConstraint::Named(ProgramName::generated("finite")),
+        ProofConstraint::FloatRange {
+            minimum: FloatLiteral::new(range.minimum as f64),
+            maximum: FloatLiteral::new(range.maximum as f64),
         },
     ]
 }
@@ -1324,7 +1379,7 @@ fn derived_builtin_call_constraints(
     machine: &Machine,
     state: &State,
     call: &omega_typed_trees::expression::CallExpression,
-) -> Option<Vec<TypeConstraint>> {
+) -> Option<Vec<ProofConstraint>> {
     match call.target.as_str() {
         "max" => derived_extrema_call_constraints(program, machine, state, call, true),
         "min" => derived_extrema_call_constraints(program, machine, state, call, false),
@@ -1339,7 +1394,7 @@ fn derived_extrema_call_constraints(
     state: &State,
     call: &omega_typed_trees::expression::CallExpression,
     is_max: bool,
-) -> Option<Vec<TypeConstraint>> {
+) -> Option<Vec<ProofConstraint>> {
     let [left, right] = call.arguments.as_slice() else {
         return None;
     };
@@ -1351,7 +1406,7 @@ fn derived_extrema_call_constraints(
     if integer_constraints_are_exact(&left_constraints)
         && integer_constraints_are_exact(&right_constraints)
     {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("exact")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated("exact")));
     }
 
     if let (Some(left_range), Some(right_range)) = (
@@ -1370,9 +1425,9 @@ fn derived_extrema_call_constraints(
             }
         };
 
-        constraints.push(TypeConstraint::Range {
-            minimum: Expression::Integer(range.minimum),
-            maximum: Expression::Integer(range.maximum),
+        constraints.push(ProofConstraint::IntegerRange {
+            minimum: range.minimum,
+            maximum: range.maximum,
         });
     }
 
@@ -1389,18 +1444,18 @@ fn derived_range_call_constraints(
     machine: &Machine,
     state: &State,
     call: &omega_typed_trees::expression::CallExpression,
-) -> Option<Vec<TypeConstraint>> {
+) -> Option<Vec<ProofConstraint>> {
     let [_, exclusive_max] = call.arguments.as_slice() else {
         return None;
     };
 
     let upper_constraints = expression_constraints(program, machine, state, exclusive_max);
-    let mut constraints = vec![TypeConstraint::Named(ProgramName::generated("exact"))];
+    let mut constraints = vec![ProofConstraint::Named(ProgramName::generated("exact"))];
 
     if let Some(upper_range) = integer_range_from_constraints(&upper_constraints) {
-        constraints.push(TypeConstraint::Range {
-            minimum: Expression::Integer(0),
-            maximum: Expression::Integer(upper_range.maximum),
+        constraints.push(ProofConstraint::IntegerRange {
+            minimum: 0,
+            maximum: upper_range.maximum,
         });
     }
 
@@ -1459,62 +1514,64 @@ fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> boo
         )
 }
 
-fn augment_constraints_with_named_facts(constraints: &mut Vec<TypeConstraint>) {
+fn augment_constraints_with_named_facts(constraints: &mut Vec<ProofConstraint>) {
     if constraints.iter().any(|constraint| {
-        matches!(constraint, TypeConstraint::Range { minimum, maximum } if minimum == maximum)
+        matches!(
+            constraint,
+            ProofConstraint::IntegerRange { minimum, maximum } if minimum == maximum
+        ) || matches!(
+            constraint,
+            ProofConstraint::FloatRange { minimum, maximum } if minimum == maximum
+        )
     }) && !has_named_constraint(constraints, "exact")
     {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("exact")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated("exact")));
     }
 
     if let Some(range) = integer_range_from_constraints(constraints) {
         if range.minimum >= 0 && !has_named_constraint(constraints, "non_negative") {
-            constraints.push(TypeConstraint::Named(ProgramName::generated(
+            constraints.push(ProofConstraint::Named(ProgramName::generated(
                 "non_negative",
             )));
         }
         if range.minimum > 0 && !has_named_constraint(constraints, "positive") {
-            constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
+            constraints.push(ProofConstraint::Named(ProgramName::generated("positive")));
         }
     }
 
     if float_range_from_constraints(constraints).is_some()
         && !has_named_constraint(constraints, "finite")
     {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("finite")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated("finite")));
     }
 }
 
-fn integer_constraints_are_exact(constraints: &[TypeConstraint]) -> bool {
+fn integer_constraints_are_exact(constraints: &[ProofConstraint]) -> bool {
     has_named_constraint(constraints, "exact")
         || integer_range_from_constraints(constraints).is_some()
 }
 
-fn integer_constraints_are_wrapping(constraints: &[TypeConstraint]) -> bool {
+fn integer_constraints_are_wrapping(constraints: &[ProofConstraint]) -> bool {
     has_named_constraint(constraints, "wrapping")
 }
 
-fn has_named_constraint(constraints: &[TypeConstraint], name: &str) -> bool {
+fn has_named_constraint(constraints: &[ProofConstraint], name: &str) -> bool {
     constraints.iter().any(|constraint| {
-        matches!(constraint, TypeConstraint::Named(constraint_name) if constraint_name == name)
+        matches!(constraint, ProofConstraint::Named(constraint_name) if constraint_name == name)
     })
 }
 
-fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<IntegerRange> {
+fn integer_range_from_constraints(constraints: &[ProofConstraint]) -> Option<IntegerRange> {
     let mut range: Option<IntegerRange> = None;
 
     for constraint in constraints {
-        let TypeConstraint::Range { minimum, maximum } = constraint else {
+        let ProofConstraint::IntegerRange { minimum, maximum } = constraint else {
             continue;
         };
 
-        let Some(candidate) = (|| {
-            Some(IntegerRange {
-                minimum: integer_constant_value(minimum)?,
-                maximum: integer_constant_value(maximum)?,
-            })
-        })() else {
-            continue;
+        let candidate = IntegerRange {
+            minimum: *minimum,
+            maximum: *maximum,
         };
 
         range = Some(match range {
@@ -1527,7 +1584,7 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
     }
 
     for constraint in constraints {
-        let TypeConstraint::Named(name) = constraint else {
+        let ProofConstraint::Named(name) = constraint else {
             continue;
         };
 
@@ -1559,21 +1616,17 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
     range
 }
 
-fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
+fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<FloatRange> {
     let mut range: Option<FloatRange> = None;
 
     for constraint in constraints {
-        let TypeConstraint::Range { minimum, maximum } = constraint else {
+        let ProofConstraint::FloatRange { minimum, maximum } = constraint else {
             continue;
         };
 
-        let Some(candidate) = (|| {
-            Some(FloatRange {
-                minimum: float_constant_value(minimum)?,
-                maximum: float_constant_value(maximum)?,
-            })
-        })() else {
-            continue;
+        let candidate = FloatRange {
+            minimum: minimum.value(),
+            maximum: maximum.value(),
         };
 
         range = Some(match range {
@@ -1703,19 +1756,33 @@ fn float_binary_range(
     }
 }
 
-fn integer_constant_value(expression: &Expression) -> Option<i64> {
+fn integer_constant_value_from_node(
+    program: &TypedTrees,
+    expression: &ExpressionNode,
+) -> Option<i64> {
     match expression {
-        Expression::Integer(value) => Some(*value),
-        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as i64),
+        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Name(path)
+            if program.expression_table.name_path_members(path.members) == ["u32", "MAX"] =>
+        {
+            Some(u32::MAX as i64)
+        }
         _ => None,
     }
 }
 
-fn float_constant_value(expression: &Expression) -> Option<f64> {
+fn float_constant_value_from_node(
+    program: &TypedTrees,
+    expression: &ExpressionNode,
+) -> Option<f64> {
     match expression {
-        Expression::Float(value) => Some(value.value()),
-        Expression::Integer(value) => Some(*value as f64),
-        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as f64),
+        ExpressionNode::Float(value) => Some(value.value()),
+        ExpressionNode::Integer(value) => Some(*value as f64),
+        ExpressionNode::Name(path)
+            if program.expression_table.name_path_members(path.members) == ["u32", "MAX"] =>
+        {
+            Some(u32::MAX as f64)
+        }
         _ => None,
     }
 }
