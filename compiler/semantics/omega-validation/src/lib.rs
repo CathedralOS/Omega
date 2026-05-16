@@ -787,11 +787,12 @@ fn validate_owned_data(
             ),
         );
 
-        if let Some(initial_value) = &owned_data.initial_value {
+        if owned_data.initial_value.is_valid() {
+            let initial_value = program.expression_table.to_tree(owned_data.initial_value);
             validate_initial_value(
                 program,
                 &owned_data.type_reference,
-                initial_value,
+                &initial_value,
                 diagnostics,
                 format!(
                     "machine `{}` owned data `{}`",
