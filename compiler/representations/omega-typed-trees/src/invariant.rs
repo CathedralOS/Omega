@@ -6,7 +6,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct InvariantDefinition {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub constraints: HandleSpan<crate::types::TypeConstraint>,
+    pub constraints: HandleSpan<crate::types::TypeConstraintNode>,
 }
 
 impl Default for InvariantDefinition {

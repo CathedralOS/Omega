@@ -10,7 +10,7 @@ use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{
-    PrimitiveType, TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -76,8 +76,8 @@ fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Di
 
         for constraint in constraints {
             match constraint {
-                TypeConstraint::Named(_) => {}
-                TypeConstraint::Range { .. } => {}
+                TypeConstraintNode::Named(_) => {}
+                TypeConstraintNode::Range { .. } => {}
             }
         }
     }
