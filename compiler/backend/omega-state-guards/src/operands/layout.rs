@@ -80,13 +80,14 @@ pub(super) fn resolve_guard_operand_layout(
                     field_symbol,
                     field_name.as_str(),
                 ) {
-                    return resolve_nested_field_layout(layouts, root_field, rest).map(
-                        |(byte_offset, layout)| ResolvedOperandLayout {
-                            storage: StateGuardOperandStorage::MachineOwned,
-                            byte_offset: machine_base_offset + byte_offset,
-                            layout,
-                        },
-                    );
+                    return resolve_nested_field_layout_with_symbols(
+                        layouts, root_field, rest, &path, 2,
+                    )
+                    .map(|(byte_offset, layout)| ResolvedOperandLayout {
+                        storage: StateGuardOperandStorage::MachineOwned,
+                        byte_offset: machine_base_offset + byte_offset,
+                        layout,
+                    });
                 }
             }
         }
@@ -104,7 +105,7 @@ pub(super) fn resolve_guard_operand_layout(
                     field_name.as_str(),
                 )?;
 
-                resolve_nested_field_layout(layouts, root_field, rest).map(
+                resolve_nested_field_layout_with_symbols(layouts, root_field, rest, &path, 2).map(
                     |(byte_offset, layout)| ResolvedOperandLayout {
                         storage: StateGuardOperandStorage::MachineOwned,
                         byte_offset: candidate_base_offset + byte_offset,
@@ -128,13 +129,12 @@ pub(super) fn resolve_guard_operand_layout(
     );
 
     if let Some(root_field) = root_field {
-        return resolve_nested_field_layout(layouts, root_field, suffix).map(
-            |(byte_offset, layout)| ResolvedOperandLayout {
+        return resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, &path, 1)
+            .map(|(byte_offset, layout)| ResolvedOperandLayout {
                 storage: StateGuardOperandStorage::MachineOwned,
                 byte_offset: machine_base_offset + byte_offset,
                 layout,
-            },
-        );
+            });
     }
 
     fallback_machine_named_path_layout(layouts, entry_machine, root_symbol, &path).map(
@@ -529,20 +529,35 @@ fn field_machine_layout<'plan>(
         .map(|(_, machine_layout)| machine_layout)
 }
 
-fn resolve_nested_field_layout(
+fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
     suffix: &[ProgramName],
+    path: &NormalizedGuardNamePath<'_>,
+    suffix_start_index: usize,
+) -> Option<(usize, TypeLayout)> {
+    resolve_nested_field_layout_by_symbol(layouts, root_field, suffix, |offset, _| {
+        path.member_symbol(suffix_start_index + offset)
+    })
+}
+
+fn resolve_nested_field_layout_by_symbol(
+    layouts: &LayoutPlan,
+    root_field: &FieldLayout,
+    suffix: &[ProgramName],
+    mut field_symbol_at: impl FnMut(usize, &FieldSegment<'_>) -> SymbolHandle,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
     let mut type_name = root_field.type_name.as_str();
     let mut layout = root_field.layout;
 
-    for segment in suffix {
+    for (offset, segment) in suffix.iter().enumerate() {
         let field_segment = parse_field_segment(segment)?;
         let fields = record_fields(layouts, type_symbol, type_name)?;
-        let field = field_layout(layouts, fields, field_segment.name)?;
+        let field_symbol = field_symbol_at(offset, &field_segment);
+        let field =
+            field_layout_by_symbol_or_name(layouts, fields, field_symbol, field_segment.name)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         type_name = &field.type_name;
@@ -700,7 +715,13 @@ fn fallback_machine_named_path_layout(
                 root_field_symbol,
                 root_name.as_str(),
             )?;
-            let (byte_offset, layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+            let (byte_offset, layout) = resolve_nested_field_layout_with_symbols(
+                layouts,
+                root_field,
+                suffix,
+                path,
+                root_index + 1,
+            )?;
             Some((machine_base_offset + byte_offset, layout))
         })
 }
