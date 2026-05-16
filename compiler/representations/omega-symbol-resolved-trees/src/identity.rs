@@ -1,3 +1,4 @@
+use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::DiagnosticName;
@@ -5,7 +6,6 @@ use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, Trans
 use crate::types::{
     TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
 };
-use crate::SymbolResolvedTrees;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
