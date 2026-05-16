@@ -9,8 +9,7 @@ pub fn expression_place_eq(left: &Expression, right: &Expression) -> bool {
             expression_place_eq(&left.collection, &right.collection) && left.index == right.index
         }
         (Expression::Member(left), Expression::Member(right)) => {
-            left.member == right.member
-                && expression_place_eq(&left.receiver, &right.receiver)
+            left.member == right.member && expression_place_eq(&left.receiver, &right.receiver)
         }
         (Expression::Mutable(left), right) => expression_place_eq(left, right),
         (left, Expression::Mutable(right)) => expression_place_eq(left, right),
@@ -93,9 +92,32 @@ pub fn expression_name_with_suffix_eq_tree(
         }
         (_, Expression::Member(member)) => {
             member.member.as_str() == suffix
-                && expression_place_eq(&table.to_tree(base), &member.receiver)
+                && expression_place_eq_table_tree(table, base, &member.receiver)
         }
         _ => false,
+    }
+}
+
+fn expression_place_eq_table_tree(
+    table: &ExpressionTable,
+    left: ExpressionHandle,
+    right: &Expression,
+) -> bool {
+    match (table.expression(left), right) {
+        (ExpressionNode::Name(left), Expression::Name(right)) => {
+            table_name_path_tree_eq(table, left, right)
+        }
+        (ExpressionNode::Indexed(left), Expression::Indexed(right)) => {
+            expression_place_eq_table_tree(table, left.collection, &right.collection)
+                && expression_eq_table_tree(table, left.index, &right.index)
+        }
+        (ExpressionNode::Member(left), Expression::Member(right)) => {
+            left.member == right.member
+                && expression_place_eq_table_tree(table, left.receiver, &right.receiver)
+        }
+        (ExpressionNode::Mutable(left), _) => expression_place_eq_table_tree(table, *left, right),
+        (_, Expression::Mutable(right)) => expression_place_eq_table_tree(table, left, right),
+        _ => expression_eq_table_tree(table, left, right),
     }
 }
 
@@ -142,6 +164,31 @@ fn table_name_path_eq(
     left_members
         .iter()
         .zip(right_members.iter())
+        .all(|(left, right)| left == right)
+}
+
+fn table_name_path_tree_eq(
+    table: &ExpressionTable,
+    left: &TableNamePath,
+    right: &NamePath,
+) -> bool {
+    let left_members = table.name_path_members(left.members);
+    if left_members.len() != right.len() {
+        return false;
+    }
+
+    if left.head_symbol.is_valid() && right.head_symbol().is_valid() {
+        return left.head_symbol == right.head_symbol()
+            && left_members
+                .iter()
+                .skip(1)
+                .zip(right.iter().skip(1))
+                .all(|(left, right)| left == right);
+    }
+
+    left_members
+        .iter()
+        .zip(right.iter())
         .all(|(left, right)| left == right)
 }
 
@@ -259,6 +306,59 @@ fn expression_eq_across_tables(
                     })
         }
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
+        _ => false,
+    }
+}
+
+fn expression_eq_table_tree(
+    table: &ExpressionTable,
+    left: ExpressionHandle,
+    right: &Expression,
+) -> bool {
+    match (table.expression(left), right) {
+        (ExpressionNode::ArrayLiteral(left), Expression::ArrayLiteral(right)) => {
+            let left = table.expression_handles(*left);
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right.iter())
+                    .all(|(left, right)| expression_eq_table_tree(table, *left, right))
+        }
+        (ExpressionNode::Binary(left), Expression::Binary(right)) => {
+            left.operator == right.operator
+                && expression_eq_table_tree(table, left.left, &right.left)
+                && expression_eq_table_tree(table, left.right, &right.right)
+        }
+        (ExpressionNode::Boolean(left), Expression::Boolean(right)) => left == right,
+        (ExpressionNode::Float(left), Expression::Float(right)) => left == right,
+        (ExpressionNode::Indexed(left), Expression::Indexed(right)) => {
+            expression_eq_table_tree(table, left.collection, &right.collection)
+                && expression_eq_table_tree(table, left.index, &right.index)
+        }
+        (ExpressionNode::Integer(left), Expression::Integer(right)) => left == right,
+        (ExpressionNode::Member(left), Expression::Member(right)) => {
+            left.member == right.member
+                && expression_eq_table_tree(table, left.receiver, &right.receiver)
+        }
+        (ExpressionNode::Mutable(left), Expression::Mutable(right)) => {
+            expression_eq_table_tree(table, *left, right)
+        }
+        (ExpressionNode::Name(left), Expression::Name(right)) => {
+            table_name_path_tree_eq(table, left, right)
+        }
+        (ExpressionNode::StructLiteral(left), Expression::StructLiteral(right)) => {
+            let left_fields = table.struct_fields(left.fields);
+            left.type_name == right.type_name
+                && left_fields.len() == right.fields.len()
+                && left_fields
+                    .iter()
+                    .zip(right.fields.iter())
+                    .all(|(left, right)| {
+                        left.name == right.name
+                            && expression_eq_table_tree(table, left.value, &right.value)
+                    })
+        }
+        (ExpressionNode::String(left), Expression::String(right)) => left == right,
         _ => false,
     }
 }
