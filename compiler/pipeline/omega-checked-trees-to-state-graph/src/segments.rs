@@ -380,17 +380,13 @@ fn branch_call_target_with_visited<'program>(
     visiting: &mut Vec<(SymbolHandle, SymbolHandle)>,
 ) -> Option<&'program State> {
     let receiver = program.statement_table.name_path_members(call.receiver);
-    let target_machine = if receiver.is_empty() || receiver.len() == 1 && receiver[0] == "self" {
+    let target_machine = if receiver.is_empty() || call.receiver_symbol == current_machine.symbol {
         current_machine
     } else {
-        let receiver_name = receiver.last();
         let contained_symbol = program
             .machine_contained_objects(current_machine)
             .iter()
-            .find(|contained| {
-                contained.symbol == call.receiver_symbol
-                    || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-            })
+            .find(|contained| contained.symbol == call.receiver_symbol)
             .map(|contained| contained.type_symbol)
             .or_else(|| {
                 program
@@ -406,9 +402,7 @@ fn branch_call_target_with_visited<'program>(
                                 else {
                                     return None;
                                 };
-                                let matches_receiver = field.symbol == call.receiver_symbol
-                                    || receiver_name.is_some_and(|name| field.name == *name);
-                                if !matches_receiver {
+                                if field.symbol != call.receiver_symbol {
                                     return None;
                                 }
                                 let field_type_name =
