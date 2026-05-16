@@ -10,7 +10,7 @@ pub(super) fn machine_flow<'plan>(
         .control_flow
         .machines
         .iter()
-        .find(|(_, machine)| machine.name == machine_name)
+        .find(|(_, machine)| machine.name.as_str() == machine_name)
         .map(|(_, machine)| machine)
         .ok_or_else(|| format!("machine `{machine_name}` was not present in the control-flow plan"))
 }
@@ -42,7 +42,11 @@ pub(super) fn state_flow<'plan>(
         .control_flow
         .states
         .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .and_then(|states| {
+            states
+                .iter()
+                .find(|state| state.name.as_str() == state_name)
+        })
         .ok_or_else(|| {
             format!(
                 "state {}.{} was not present in the control-flow plan",

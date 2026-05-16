@@ -96,11 +96,7 @@ fn bind_state_call_arguments_by_key(
     values: &mut Vec<(PlaceKey, String)>,
 ) -> Result<(), String> {
     let state = state_flow_by_key(context, state_key)?;
-    let arguments = context
-        .state_calls
-        .arguments
-        .span(arguments)
-        .unwrap_or(&[]);
+    let arguments = context.state_calls.arguments.span(arguments).unwrap_or(&[]);
 
     for (parameter, argument) in context
         .control_flow
@@ -108,8 +104,11 @@ fn bind_state_call_arguments_by_key(
         .iter()
         .zip(arguments)
     {
-        let canonical_argument =
-            argument_binding_place_key(&context.state_calls.expressions, argument.expression, aliases);
+        let canonical_argument = argument_binding_place_key(
+            &context.state_calls.expressions,
+            argument.expression,
+            aliases,
+        );
         if let Some(canonical_argument) = canonical_argument {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());

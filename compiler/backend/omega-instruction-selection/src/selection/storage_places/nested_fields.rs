@@ -69,7 +69,7 @@ pub(in crate::selection) fn field_layout<'plan>(
         .fields
         .span(fields)?
         .iter()
-        .find(|field| field.name == field_name)
+        .find(|field| field.name.as_str() == field_name)
 }
 
 struct FieldSegment<'name> {

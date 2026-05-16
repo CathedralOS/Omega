@@ -64,21 +64,3 @@ impl PartialEq for ProgramName {
         self.as_str() == other.as_str()
     }
 }
-
-impl PartialEq<&str> for ProgramName {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-impl PartialEq<str> for ProgramName {
-    fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
-    }
-}
-
-impl PartialEq<ProgramName> for &str {
-    fn eq(&self, other: &ProgramName) -> bool {
-        *self == other.as_str()
-    }
-}

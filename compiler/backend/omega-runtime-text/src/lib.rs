@@ -185,7 +185,7 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
                 && is_runtime_text_segment_like(table, binary.left)
                 && is_runtime_text_segment_like(table, binary.right)
         }
-        ExpressionNode::Call(call) => call.target == "to_string",
+        ExpressionNode::Call(call) => call.target.as_str() == "to_string",
         ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
@@ -203,7 +203,7 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
             contains_runtime_text_anchor(table, binary.left)
                 || contains_runtime_text_anchor(table, binary.right)
         }
-        ExpressionNode::Call(call) => call.target == "to_string",
+        ExpressionNode::Call(call) => call.target.as_str() == "to_string",
         ExpressionNode::Mutable(inner) => contains_runtime_text_anchor(table, *inner),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
@@ -220,7 +220,7 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
 fn is_text_place(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
     match table.expression(expression) {
         ExpressionNode::Member(member) => {
-            if member.member == "text" {
+            if member.member.as_str() == "text" {
                 return true;
             }
 
@@ -229,7 +229,7 @@ fn is_text_place(table: &ExpressionTable, expression: ExpressionHandle) -> bool 
         ExpressionNode::Name(path) => table
             .name_path_members(path.members)
             .last()
-            .is_some_and(|segment| segment == "text"),
+            .is_some_and(|segment| segment.as_str() == "text"),
         ExpressionNode::Indexed(indexed) => is_text_place(table, indexed.collection),
         ExpressionNode::Mutable(expression) => is_text_place(table, *expression),
         _ => false,

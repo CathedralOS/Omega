@@ -125,7 +125,7 @@ fn output_buffer_target_for_text_expression(
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match host_calls.expressions.expression(expression) {
-        ExpressionNode::Member(member) if member.member == "text" => Some(
+        ExpressionNode::Member(member) if member.member.as_str() == "text" => Some(
             plan.expressions
                 .copy_from(&host_calls.expressions, member.receiver),
         ),
