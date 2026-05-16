@@ -370,49 +370,6 @@ fn simplify_call_expression(
         })
         .collect();
 
-    if let Some(receiver) = receiver.as_ref()
-        && call.arguments.is_empty()
-    {
-        let none = none_expression(program);
-        match (call.target.as_str(), none.as_ref()) {
-            ("is_some", Some(none)) => {
-                if let Some(is_none) = expression_match_condition(program, machine, receiver, none)
-                {
-                    return simplify_expression_with_bindings(
-                        program,
-                        machine,
-                        &boolean_not(is_none),
-                        bindings,
-                        preserve_call_locals,
-                    );
-                }
-                return Expression::Binary(Box::new(BinaryExpression {
-                    left: receiver.clone(),
-                    operator: omega_checked_trees::expression::BinaryOperator::NotEqual,
-                    right: none.clone(),
-                }));
-            }
-            ("is_none", Some(none)) => {
-                if let Some(is_none) = expression_match_condition(program, machine, receiver, none)
-                {
-                    return simplify_expression_with_bindings(
-                        program,
-                        machine,
-                        &is_none,
-                        bindings,
-                        preserve_call_locals,
-                    );
-                }
-                return Expression::Binary(Box::new(BinaryExpression {
-                    left: receiver.clone(),
-                    operator: omega_checked_trees::expression::BinaryOperator::Equal,
-                    right: none.clone(),
-                }));
-            }
-            _ => {}
-        }
-    }
-
     if let Some(target_machine) = resolve_call_target_machine(program, machine, receiver.as_ref())
         && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
@@ -671,15 +628,6 @@ fn helper_state_match_condition_with_stack(
     Some(matched)
 }
 
-fn expression_match_condition(
-    program: &Program,
-    machine: &Machine,
-    expression: &Expression,
-    expected: &Expression,
-) -> Option<Expression> {
-    expression_match_condition_with_stack(program, machine, expression, expected, &mut Vec::new())
-}
-
 fn expression_match_condition_with_stack(
     program: &Program,
     machine: &Machine,
@@ -718,31 +666,6 @@ fn expression_match_condition_with_stack(
         expected,
         stack,
     )
-}
-
-fn none_expression(program: &Program) -> Option<Expression> {
-    let option = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Option")?;
-
-    let variant = program
-        .data_members(option)
-        .iter()
-        .find_map(|member| match member {
-            omega_checked_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == "None" =>
-            {
-                Some(variant)
-            }
-            _ => None,
-        })?;
-
-    Some(Expression::Name(NamePath::resolved(
-        vec![option.name.clone(), variant.name.clone()],
-        option.symbol,
-        variant.symbol,
-    )))
 }
 
 fn helper_state_model(
@@ -1367,7 +1290,6 @@ fn expression_path_segment(expression: &Expression, index: usize) -> Option<&Pro
 mod tests {
     use super::simplify_expression;
     use omega_checked_trees::Program;
-    use omega_checked_trees::data::{DataDefinition, DataMember, DataVariant};
     use omega_checked_trees::expression::{
         BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
     };
@@ -1611,82 +1533,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn simplifies_option_is_some_over_non_recursive_helper() {
-        let machine_symbol = SymbolHandle::from_arena_index(20);
-        let find_symbol = SymbolHandle::from_arena_index(21);
-        let found_symbol = SymbolHandle::from_arena_index(22);
-        let option_symbol = SymbolHandle::from_arena_index(23);
-        let none_symbol = SymbolHandle::from_arena_index(24);
-
-        let mut find = State {
-            symbol: find_symbol,
-            name: "find_item".into(),
-            parameters: Default::default(),
-            return_type: TypeReferenceHandle::invalid(),
-            statement_nodes: Default::default(),
-        };
-
-        let mut machine = Machine {
-            symbol: machine_symbol,
-            name: "InventorySystem".into(),
-            contains: Default::default(),
-            owned_data: Default::default(),
-            states: Default::default(),
-        };
-        let mut program = Program::default();
-        push_option_data_definition(&mut program, option_symbol, none_symbol);
-        push_state_statements(
-            &mut program,
-            &mut find,
-            [
-                TestStatement::TransitionValue {
-                    target: Expression::Integer(1),
-                    guard: Some(name("found", found_symbol)),
-                },
-                TestStatement::TransitionValue {
-                    target: option_none_expression(option_symbol, none_symbol),
-                    guard: None,
-                },
-            ],
-        );
-        let found_type = named_type_reference(&mut program, "bool");
-        program.typed.push_state_parameter(
-            &mut find,
-            StateParameter {
-                symbol: found_symbol,
-                name: "found".into(),
-                type_reference: found_type,
-                is_const: true,
-                is_mutable: false,
-                is_self: false,
-            },
-        );
-        program.typed.push_machine_state(&mut machine, find);
-        program.typed.push_machine(machine.clone());
-
-        let is_some_guard = Expression::Call(Box::new(CallExpression {
-            receiver: Some(Box::new(Expression::Call(Box::new(CallExpression {
-                receiver: None,
-                target_symbol: find_symbol,
-                target: "find_item".into(),
-                arguments: vec![name("found", found_symbol)],
-            })))),
-            target_symbol: SymbolHandle::invalid(),
-            target: "is_some".into(),
-            arguments: vec![],
-        }));
-
-        assert_eq!(
-            simplify_expression(&program, &machine, &is_some_guard),
-            Expression::Binary(Box::new(BinaryExpression {
-                left: name("found", found_symbol),
-                operator: BinaryOperator::NotEqual,
-                right: Expression::Boolean(false),
-            }))
-        );
-    }
-
     enum TestStatement {
         LocalData {
             symbol: SymbolHandle,
@@ -1758,37 +1604,6 @@ mod tests {
 
     fn name(name: &str, symbol: SymbolHandle) -> Expression {
         Expression::Name(NamePath::resolved(vec![name.into()], symbol, symbol))
-    }
-
-    fn option_none_expression(
-        option_symbol: SymbolHandle,
-        none_symbol: SymbolHandle,
-    ) -> Expression {
-        Expression::Name(NamePath::resolved(
-            vec!["Option".into(), "None".into()],
-            option_symbol,
-            none_symbol,
-        ))
-    }
-
-    fn push_option_data_definition(
-        program: &mut Program,
-        option_symbol: SymbolHandle,
-        none_symbol: SymbolHandle,
-    ) {
-        let mut option = DataDefinition {
-            symbol: option_symbol,
-            name: "Option".into(),
-            ..DataDefinition::default()
-        };
-        program.typed.push_data_member(
-            &mut option,
-            DataMember::Variant(DataVariant {
-                symbol: none_symbol,
-                name: "None".into(),
-            }),
-        );
-        program.typed.push_data_definition(option);
     }
 
     fn named_type_reference(program: &mut Program, name: &str) -> TypeReferenceHandle {
