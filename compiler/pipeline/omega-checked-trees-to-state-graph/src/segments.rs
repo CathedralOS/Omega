@@ -4,8 +4,8 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{
-    Assignment, Call, Statement, StatementNode, TableCall, TableTransition, Transition,
-    TransitionGuard, TransitionGuardNode,
+    Assignment, Statement, StatementNode, TableCall, TableTransition, Transition, TransitionGuard,
+    TransitionGuardNode,
 };
 use omega_checked_trees::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
@@ -67,9 +67,9 @@ pub(super) fn split_state_segments<'program>(
             continue;
         }
 
-        if let Statement::Call(call) = statement
+        if let Statement::Call(_) = statement
             && let Some(StatementNode::Call(table_call)) = table_statement
-            && branch_call_target(program, machine, call).is_some()
+            && branch_call_target(program, machine, table_call).is_some()
         {
             segments.push(StateSegment {
                 key: StateKey {
@@ -126,7 +126,7 @@ pub(super) fn split_state_segments<'program>(
 
         operations.push(Operation {
             statement_index,
-            kind: operation_kind(program, statement),
+            kind: operation_kind(program, statement, table_statement),
             expressions: table_statement
                 .map(|statement| {
                     operation_expression_refs(
@@ -218,7 +218,11 @@ fn state_parameters_for_segment(
     parameters
 }
 
-fn operation_kind(program: &Program, statement: &Statement) -> OperationKind {
+fn operation_kind(
+    program: &Program,
+    statement: &Statement,
+    table_statement: Option<&StatementNode>,
+) -> OperationKind {
     match statement {
         Statement::Assignment(assignment) if is_static_assignment(assignment) => {
             OperationKind::StaticAssignment
@@ -227,20 +231,31 @@ fn operation_kind(program: &Program, statement: &Statement) -> OperationKind {
             OperationKind::ConstantIntegerAssignment
         }
         Statement::Assignment(_) => OperationKind::Assignment,
-        Statement::Call(call) => OperationKind::Call {
-            receiver_symbol: call.receiver_symbol,
-            target_symbol: call.target_symbol,
-            receiver: statement_call_receiver_path(program, call),
-            target: call.target.clone(),
-        },
+        Statement::Call(call) => {
+            if let Some(StatementNode::Call(table_call)) = table_statement {
+                return OperationKind::Call {
+                    receiver_symbol: table_call.receiver_symbol,
+                    target_symbol: table_call.target_symbol,
+                    receiver: statement_call_receiver_path(program, table_call),
+                    target: table_call.target.clone(),
+                };
+            }
+
+            OperationKind::Call {
+                receiver_symbol: call.receiver_symbol,
+                target_symbol: call.target_symbol,
+                receiver: None,
+                target: call.target.clone(),
+            }
+        }
         Statement::Expression(_) => OperationKind::Expression,
         Statement::LocalData(_) => OperationKind::LocalData,
         Statement::Transition(_) => unreachable!("transitions are not operations"),
     }
 }
 
-fn statement_call_receiver_path(program: &Program, call: &Call) -> Option<NamePath> {
-    let receiver = program.statement_path_members(call.receiver);
+fn statement_call_receiver_path(program: &Program, call: &TableCall) -> Option<NamePath> {
+    let receiver = program.statement_table.name_path_members(call.receiver);
     if receiver.is_empty() {
         return None;
     }
@@ -333,7 +348,7 @@ fn is_constant_integer_assignment(assignment: &Assignment) -> bool {
 fn branch_call_target<'program>(
     program: &'program Program,
     current_machine: &'program Machine,
-    call: &'program Call,
+    call: &'program TableCall,
 ) -> Option<&'program State> {
     branch_call_target_with_visited(program, current_machine, call, &mut Vec::new())
 }
@@ -341,10 +356,10 @@ fn branch_call_target<'program>(
 fn branch_call_target_with_visited<'program>(
     program: &'program Program,
     current_machine: &'program Machine,
-    call: &'program Call,
+    call: &'program TableCall,
     visiting: &mut Vec<(SymbolHandle, SymbolHandle)>,
 ) -> Option<&'program State> {
-    let receiver = program.statement_path_members(call.receiver);
+    let receiver = program.statement_table.name_path_members(call.receiver);
     let target_machine = if receiver.is_empty() || receiver.len() == 1 && receiver[0] == "self" {
         current_machine
     } else {
@@ -465,18 +480,17 @@ fn state_has_branching_flow(
     }
     visiting.push(visit_key);
 
-    let has_branching_flow =
-        program
-            .state_statements(state)
-            .iter()
-            .any(|statement| match statement {
-                Statement::Transition(_) => true,
-                Statement::Call(call) => {
-                    branch_call_target_with_visited(program, current_machine, call, visiting)
-                        .is_some()
-                }
-                _ => false,
-            });
+    let has_branching_flow = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| match statement {
+            StatementNode::Transition(_) => true,
+            StatementNode::Call(call) => {
+                branch_call_target_with_visited(program, current_machine, call, visiting).is_some()
+            }
+            _ => false,
+        });
 
     visiting.pop();
     has_branching_flow
