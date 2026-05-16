@@ -7,10 +7,13 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
-    Assignment, StatementNode, TableCall, TableTransition, Transition, TransitionGuard,
-    TransitionGuardNode, TransitionTarget, TransitionTargetHandle, TransitionTargetNode,
+    Assignment, StatementNode, TableCall, TableLocalData, TableTransition, Transition,
+    TransitionGuard, TransitionGuardNode, TransitionTarget, TransitionTargetHandle,
+    TransitionTargetNode,
 };
-use omega_typed_trees::types::{TypeConstraint, TypeReference};
+use omega_typed_trees::types::{
+    TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofPlan {
@@ -930,34 +933,21 @@ fn collection_length_for_binding(
             )
         })
         .or_else(|| {
-            program
-                .state_statements(state)
-                .iter()
-                .find_map(|statement| {
-                    let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
-                    else {
-                        return None;
-                    };
-
-                    if local_data.name != *name {
-                        return None;
-                    }
-
-                    local_data
-                        .initial_value
-                        .as_ref()
-                        .and_then(|value| {
-                            collection_length_from_expression(program, machine, state, value)
-                        })
-                        .or_else(|| {
-                            collection_length_from_type_reference(
-                                program,
-                                machine,
-                                state,
-                                &local_data.type_reference,
-                            )
-                        })
-                })
+            local_data_by_name(program, state, name).and_then(|local_data| {
+                local_data
+                    .initial_value
+                    .is_valid()
+                    .then(|| program.expression_table.to_tree(local_data.initial_value))
+                    .and_then(|value| {
+                        collection_length_from_expression(program, machine, state, &value)
+                    })
+                    .or_else(|| {
+                        collection_length_from_type_reference_handle(
+                            program,
+                            local_data.type_reference,
+                        )
+                    })
+            })
         })
         .or_else(|| {
             program
@@ -1025,6 +1015,43 @@ fn collection_length_from_type_reference(
         TypeReference::Slice { .. } => None,
         TypeReference::Generic { .. } | TypeReference::Named { .. } | TypeReference::Unit => None,
     }
+}
+
+fn collection_length_from_type_reference_handle(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collection_length_from_type_reference_handle(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            collection_length_from_type_reference_handle(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { length, .. } => Some(*length),
+        TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => None,
+    }
+}
+
+fn local_data_by_name<'program>(
+    program: &'program TypedTrees,
+    state: &State,
+    name: &ProgramName,
+) -> Option<&'program TableLocalData> {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            let StatementNode::LocalData(local_data) = statement else {
+                return None;
+            };
+
+            (local_data.name == *name).then_some(local_data)
+        })
 }
 
 fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
