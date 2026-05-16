@@ -5,7 +5,7 @@ use crate::obligations::{
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionNode};
-use omega_typed_trees::statement::TransitionGuard;
+use omega_typed_trees::statement::TransitionGuardNode;
 use omega_typed_trees::types::TypeConstraint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +63,7 @@ fn check_bounded_assignment(
     {
         let Some(value_range) = guarded_integer_range_for_assignment(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_assignment_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -72,6 +73,7 @@ fn check_bounded_assignment(
         if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_assignment_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -83,6 +85,7 @@ fn check_bounded_assignment(
     {
         let Some(value_range) = float_range_for_assignment(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_assignment_float(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -92,6 +95,7 @@ fn check_bounded_assignment(
         if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_assignment_float(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -273,6 +277,7 @@ fn check_bounded_transition_argument(
             || argument_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_transition_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -285,6 +290,7 @@ fn check_bounded_transition_argument(
         let Some(argument_range) = float_range_for_transition_argument(proof_plan, obligation)
         else {
             diagnostics.push(cannot_prove_bounded_transition_float(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -295,6 +301,7 @@ fn check_bounded_transition_argument(
             || argument_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_transition_float(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -306,8 +313,12 @@ fn integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<IntegerRange> {
-    match &obligation.argument {
-        Expression::Integer(value) => Some(IntegerRange {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.argument)
+    {
+        ExpressionNode::Integer(value) => Some(IntegerRange {
             minimum: *value,
             maximum: *value,
         }),
@@ -328,15 +339,19 @@ fn guarded_integer_range_for_transition_argument(
             maximum: i64::MAX,
         });
 
-    apply_guard(base, &obligation.argument, &obligation.guard)
+    apply_handle_guard(proof_plan, base, obligation.argument, &obligation.guard)
 }
 
 fn float_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<FloatRange> {
-    match &obligation.argument {
-        Expression::Float(value) => {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.argument)
+    {
+        ExpressionNode::Float(value) => {
             let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
@@ -354,8 +369,12 @@ fn float_range_for_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
 ) -> Option<FloatRange> {
-    match &obligation.value {
-        Expression::Float(value) => {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.value)
+    {
+        ExpressionNode::Float(value) => {
             let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
@@ -457,8 +476,12 @@ fn integer_range_for_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
 ) -> Option<IntegerRange> {
-    match &obligation.value {
-        Expression::Integer(value) => Some(IntegerRange {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.value)
+    {
+        ExpressionNode::Integer(value) => Some(IntegerRange {
             minimum: *value,
             maximum: *value,
         }),
@@ -476,7 +499,7 @@ fn guarded_integer_range_for_assignment(
     let mut range = integer_range_for_assignment(proof_plan, obligation)?;
 
     if let Some(guard) = &obligation.state_guard {
-        range = apply_assignment_guard(range, &obligation.value, guard);
+        range = apply_assignment_guard(proof_plan, range, obligation.value, guard);
     }
 
     Some(range)
@@ -639,51 +662,85 @@ fn finite_float_literal(value: omega_typed_trees::expression::FloatLiteral) -> O
     value.is_finite().then_some(value)
 }
 
-fn apply_guard(
+fn integer_literal_handle(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<i64> {
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Name(path)
+            if proof_plan
+                .program
+                .expression_table
+                .name_path_members(path.members)
+                == ["u32", "MAX"] =>
+        {
+            Some(u32::MAX as i64)
+        }
+        _ => None,
+    }
+}
+
+fn apply_handle_guard(
+    proof_plan: &ProofPlan,
     range: IntegerRange,
-    argument: &Expression,
-    guard: &TransitionGuard,
+    argument: ExpressionHandle,
+    guard: &TransitionGuardNode,
 ) -> IntegerRange {
     match guard {
-        TransitionGuard::Always => range,
-        TransitionGuard::When(condition) => apply_condition(range, argument, condition),
+        TransitionGuardNode::Always => range,
+        TransitionGuardNode::When(condition) => {
+            apply_handle_condition(proof_plan, range, argument, *condition)
+        }
     }
 }
 
 fn apply_assignment_guard(
+    proof_plan: &ProofPlan,
     range: IntegerRange,
-    value: &Expression,
-    guard: &TransitionGuard,
+    value: ExpressionHandle,
+    guard: &TransitionGuardNode,
 ) -> IntegerRange {
-    let range = apply_guard(range, value, guard);
+    let range = apply_handle_guard(proof_plan, range, value, guard);
 
-    let Expression::Binary(value_binary) = value else {
+    let ExpressionNode::Binary(value_binary) =
+        proof_plan.program.expression_table.expression(value)
+    else {
         return range;
     };
     if value_binary.operator != BinaryOperator::Subtract {
         return range;
     }
 
-    let TransitionGuard::When(condition) = guard else {
+    let TransitionGuardNode::When(condition) = guard else {
         return range;
     };
-    let condition = unwrap_true_guard_condition(condition);
-    let Expression::Binary(condition_binary) = condition else {
+    let condition = unwrap_true_guard_condition(proof_plan, *condition);
+    let ExpressionNode::Binary(condition_binary) =
+        proof_plan.program.expression_table.expression(condition)
+    else {
         return range;
     };
 
     let lower_bound =
-        if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.left)
-            && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.right)
+        if expressions_equivalent_for_proof(proof_plan, value_binary.left, condition_binary.left)
+            && expressions_equivalent_for_proof(
+                proof_plan,
+                value_binary.right,
+                condition_binary.right,
+            )
         {
             match condition_binary.operator {
                 BinaryOperator::Greater => Some(1),
                 BinaryOperator::GreaterOrEqual => Some(0),
                 _ => None,
             }
-        } else if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.right)
-            && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.left)
-        {
+        } else if expressions_equivalent_for_proof(
+            proof_plan,
+            value_binary.left,
+            condition_binary.right,
+        ) && expressions_equivalent_for_proof(
+            proof_plan,
+            value_binary.right,
+            condition_binary.left,
+        ) {
             match condition_binary.operator {
                 BinaryOperator::Less => Some(1),
                 BinaryOperator::LessOrEqual => Some(0),
@@ -703,98 +760,152 @@ fn apply_assignment_guard(
     }
 }
 
-fn unwrap_true_guard_condition<'a>(condition: &'a Expression) -> &'a Expression {
-    let Expression::Binary(binary) = condition else {
+fn unwrap_true_guard_condition(
+    proof_plan: &ProofPlan,
+    condition: ExpressionHandle,
+) -> ExpressionHandle {
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    else {
         return condition;
     };
 
     if binary.operator == BinaryOperator::Equal {
-        if matches!(binary.right, Expression::Boolean(true)) {
-            return &binary.left;
+        if matches!(
+            proof_plan.program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(true)
+        ) {
+            return binary.left;
         }
 
-        if matches!(binary.left, Expression::Boolean(true)) {
-            return &binary.right;
+        if matches!(
+            proof_plan.program.expression_table.expression(binary.left),
+            ExpressionNode::Boolean(true)
+        ) {
+            return binary.right;
         }
     }
 
     condition
 }
 
-fn apply_condition(
+fn apply_handle_condition(
+    proof_plan: &ProofPlan,
     range: IntegerRange,
-    argument: &Expression,
-    condition: &Expression,
+    argument: ExpressionHandle,
+    condition: ExpressionHandle,
 ) -> IntegerRange {
-    let Expression::Binary(binary) = condition else {
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    else {
         return range;
     };
 
     if binary.operator == BinaryOperator::Equal {
-        if matches!(binary.right, Expression::Boolean(true)) {
-            return apply_condition(range, argument, &binary.left);
+        if matches!(
+            proof_plan.program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(true)
+        ) {
+            return apply_handle_condition(proof_plan, range, argument, binary.left);
         }
 
-        if matches!(binary.left, Expression::Boolean(true)) {
-            return apply_condition(range, argument, &binary.right);
+        if matches!(
+            proof_plan.program.expression_table.expression(binary.left),
+            ExpressionNode::Boolean(true)
+        ) {
+            return apply_handle_condition(proof_plan, range, argument, binary.right);
         }
     }
 
     if binary.operator == BinaryOperator::And {
-        let range = apply_condition(range, argument, &binary.left);
-        return apply_condition(range, argument, &binary.right);
+        let range = apply_handle_condition(proof_plan, range, argument, binary.left);
+        return apply_handle_condition(proof_plan, range, argument, binary.right);
     }
 
-    if expressions_equivalent_for_proof(&binary.left, argument) {
-        return apply_right_literal_guard(range, binary.operator, &binary.right);
+    if expressions_equivalent_for_proof(proof_plan, binary.left, argument) {
+        return apply_right_literal_guard(proof_plan, range, binary.operator, binary.right);
     }
 
-    if expressions_equivalent_for_proof(&binary.right, argument) {
-        return apply_left_literal_guard(range, &binary.left, binary.operator);
+    if expressions_equivalent_for_proof(proof_plan, binary.right, argument) {
+        return apply_left_literal_guard(proof_plan, range, binary.left, binary.operator);
     }
 
     range
 }
 
-fn expressions_equivalent_for_proof(left: &Expression, right: &Expression) -> bool {
+fn expressions_equivalent_for_proof(
+    proof_plan: &ProofPlan,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
     if left == right {
         return true;
     }
 
-    match (left, right) {
-        (Expression::Mutable(left), _) => expressions_equivalent_for_proof(left, right),
-        (_, Expression::Mutable(right)) => expressions_equivalent_for_proof(left, right),
-        (Expression::Name(left), Expression::Name(right)) => left.members() == right.members(),
-        (Expression::Call(left), Expression::Call(right)) => {
+    match (
+        proof_plan.program.expression_table.expression(left),
+        proof_plan.program.expression_table.expression(right),
+    ) {
+        (ExpressionNode::Mutable(left), _) => {
+            expressions_equivalent_for_proof(proof_plan, *left, right)
+        }
+        (_, ExpressionNode::Mutable(right)) => {
+            expressions_equivalent_for_proof(proof_plan, left, *right)
+        }
+        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
+            proof_plan
+                .program
+                .expression_table
+                .name_path_members(left.members)
+                == proof_plan
+                    .program
+                    .expression_table
+                    .name_path_members(right.members)
+        }
+        (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
             left.target == right.target
-                && left.arguments.len() == right.arguments.len()
-                && match (left.receiver.as_deref(), right.receiver.as_deref()) {
-                    (Some(left_receiver), Some(right_receiver)) => {
-                        expressions_equivalent_for_proof(left_receiver, right_receiver)
+                && left.target_symbol == right.target_symbol
+                && left.arguments.count() == right.arguments.count()
+                && match (left.receiver.is_valid(), right.receiver.is_valid()) {
+                    (true, true) => {
+                        expressions_equivalent_for_proof(proof_plan, left.receiver, right.receiver)
                     }
-                    (None, None) => true,
+                    (false, false) => true,
                     _ => false,
                 }
-                && left.arguments.iter().zip(&right.arguments).all(
-                    |(left_argument, right_argument)| {
-                        expressions_equivalent_for_proof(left_argument, right_argument)
-                    },
-                )
+                && proof_plan
+                    .program
+                    .expression_table
+                    .expression_handles(left.arguments)
+                    .iter()
+                    .zip(
+                        proof_plan
+                            .program
+                            .expression_table
+                            .expression_handles(right.arguments),
+                    )
+                    .all(|(left_argument, right_argument)| {
+                        expressions_equivalent_for_proof(
+                            proof_plan,
+                            *left_argument,
+                            *right_argument,
+                        )
+                    })
         }
-        (Expression::Member(left), Expression::Member(right)) => {
+        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
             left.member == right.member
-                && expressions_equivalent_for_proof(&left.receiver, &right.receiver)
+                && left.member_symbol == right.member_symbol
+                && expressions_equivalent_for_proof(proof_plan, left.receiver, right.receiver)
         }
         _ => false,
     }
 }
 
 fn apply_right_literal_guard(
+    proof_plan: &ProofPlan,
     mut range: IntegerRange,
     operator: BinaryOperator,
-    right: &Expression,
+    right: ExpressionHandle,
 ) -> IntegerRange {
-    let Some(value) = integer_literal(right) else {
+    let Some(value) = integer_literal_handle(proof_plan, right) else {
         return range;
     };
 
@@ -823,11 +934,12 @@ fn apply_right_literal_guard(
 }
 
 fn apply_left_literal_guard(
+    proof_plan: &ProofPlan,
     mut range: IntegerRange,
-    left: &Expression,
+    left: ExpressionHandle,
     operator: BinaryOperator,
 ) -> IntegerRange {
-    let Some(value) = integer_literal(left) else {
+    let Some(value) = integer_literal_handle(proof_plan, left) else {
         return range;
     };
 
@@ -882,7 +994,7 @@ fn check_assignment_named_constraints(
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !assignment_satisfies_named_constraint(proof_plan, obligation, constraint) {
             diagnostics.push(cannot_prove_assignment_named_constraint(
-                obligation, constraint,
+                proof_plan, obligation, constraint,
             ));
         }
     }
@@ -896,7 +1008,7 @@ fn check_transition_named_constraints(
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !transition_argument_satisfies_named_constraint(proof_plan, obligation, constraint) {
             diagnostics.push(cannot_prove_transition_named_constraint(
-                obligation, constraint,
+                proof_plan, obligation, constraint,
             ));
         }
     }
@@ -967,24 +1079,6 @@ fn argument_handle_satisfies_named_constraint(
         }
 }
 
-fn argument_satisfies_named_constraint(
-    proof_plan: &ProofPlan,
-    argument: &Expression,
-    argument_constraints: HandleSpan<TypeConstraint>,
-    constraint: &str,
-) -> bool {
-    let constraints = type_constraints(proof_plan, argument_constraints);
-
-    constraints_satisfy_named_constraint(constraints, constraint)
-        || match constraint {
-            "exact" => matches!(argument, Expression::Integer(_)),
-            "finite" => expression_is_finite_literal(argument),
-            "non_negative" => matches!(argument, Expression::Integer(value) if *value >= 0),
-            "positive" => matches!(argument, Expression::Integer(value) if *value > 0),
-            _ => false,
-        }
-}
-
 fn transition_argument_satisfies_named_constraint(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
@@ -1012,9 +1106,9 @@ fn transition_argument_satisfies_named_constraint(
         return true;
     }
 
-    argument_satisfies_named_constraint(
+    argument_handle_satisfies_named_constraint(
         proof_plan,
-        &obligation.argument,
+        obligation.argument,
         obligation.argument_constraints,
         constraint,
     )
@@ -1048,9 +1142,9 @@ fn assignment_satisfies_named_constraint(
         return true;
     }
 
-    argument_satisfies_named_constraint(
+    argument_handle_satisfies_named_constraint(
         proof_plan,
-        &obligation.value,
+        obligation.value,
         obligation.value_constraints,
         constraint,
     )
@@ -1103,21 +1197,14 @@ fn constraints_satisfy_named_constraint(constraints: &[TypeConstraint], constrai
     }
 }
 
-fn expression_is_finite_literal(expression: &Expression) -> bool {
-    match expression {
-        Expression::Float(value) => finite_float_literal(*value).is_some(),
-        Expression::Integer(_) => true,
-        _ => false,
-    }
-}
-
 fn cannot_prove_bounded_transition_integer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
-        obligation.argument.display_name(),
+        expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         obligation.machine,
         obligation.state,
@@ -1127,13 +1214,14 @@ fn cannot_prove_bounded_transition_integer(
 }
 
 fn cannot_prove_bounded_assignment_integer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected range<{}, {}>",
-        obligation.value.display_name(),
-        obligation.target.display_name(),
+        expression_display_name(proof_plan, obligation.value),
+        expression_display_name(proof_plan, obligation.target),
         obligation.machine,
         obligation.state,
         target_range.minimum,
@@ -1171,12 +1259,13 @@ fn cannot_prove_bounded_initializer_integer(
 }
 
 fn cannot_prove_bounded_transition_float(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
-        obligation.argument.display_name(),
+        expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         obligation.machine,
         obligation.state,
@@ -1186,13 +1275,14 @@ fn cannot_prove_bounded_transition_float(
 }
 
 fn cannot_prove_bounded_assignment_float(
+    proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected range<{}, {}>",
-        obligation.value.display_name(),
-        obligation.target.display_name(),
+        expression_display_name(proof_plan, obligation.value),
+        expression_display_name(proof_plan, obligation.target),
         obligation.machine,
         obligation.state,
         target_range.minimum,
@@ -1230,12 +1320,13 @@ fn cannot_prove_bounded_initializer_float(
 }
 
 fn cannot_prove_transition_named_constraint(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
     constraint: &str,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove transition argument `{}` satisfies `{}` for bounded parameter `{}` in `{}.{}`",
-        obligation.argument.display_name(),
+        expression_display_name(proof_plan, obligation.argument),
         constraint,
         obligation.parameter,
         obligation.machine,
@@ -1244,14 +1335,15 @@ fn cannot_prove_transition_named_constraint(
 }
 
 fn cannot_prove_assignment_named_constraint(
+    proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     constraint: &str,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove assignment value `{}` satisfies `{}` for bounded target `{}` in `{}.{}`",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         constraint,
-        obligation.target.display_name(),
+        expression_display_name(proof_plan, obligation.target),
         obligation.machine,
         obligation.state
     ))
