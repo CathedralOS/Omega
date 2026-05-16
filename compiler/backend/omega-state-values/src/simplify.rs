@@ -373,14 +373,11 @@ fn simplify_call_expression(
     if let Some(receiver) = receiver.as_ref()
         && call.arguments.is_empty()
     {
-        match call.target.as_str() {
-            "is_some" => {
-                if let Some(is_none) = expression_match_condition(
-                    program,
-                    machine,
-                    receiver,
-                    &none_expression(program),
-                ) {
+        let none = none_expression(program);
+        match (call.target.as_str(), none.as_ref()) {
+            ("is_some", Some(none)) => {
+                if let Some(is_none) = expression_match_condition(program, machine, receiver, none)
+                {
                     return simplify_expression_with_bindings(
                         program,
                         machine,
@@ -392,16 +389,12 @@ fn simplify_call_expression(
                 return Expression::Binary(Box::new(BinaryExpression {
                     left: receiver.clone(),
                     operator: omega_checked_trees::expression::BinaryOperator::NotEqual,
-                    right: none_expression(program),
+                    right: none.clone(),
                 }));
             }
-            "is_none" => {
-                if let Some(is_none) = expression_match_condition(
-                    program,
-                    machine,
-                    receiver,
-                    &none_expression(program),
-                ) {
+            ("is_none", Some(none)) => {
+                if let Some(is_none) = expression_match_condition(program, machine, receiver, none)
+                {
                     return simplify_expression_with_bindings(
                         program,
                         machine,
@@ -413,7 +406,7 @@ fn simplify_call_expression(
                 return Expression::Binary(Box::new(BinaryExpression {
                     left: receiver.clone(),
                     operator: omega_checked_trees::expression::BinaryOperator::Equal,
-                    right: none_expression(program),
+                    right: none.clone(),
                 }));
             }
             _ => {}
@@ -727,16 +720,13 @@ fn expression_match_condition_with_stack(
     )
 }
 
-fn none_expression(program: &Program) -> Expression {
-    let Some(option) = program
+fn none_expression(program: &Program) -> Option<Expression> {
+    let option = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == "Option")
-    else {
-        return Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]));
-    };
+        .find(|definition| definition.name.as_str() == "Option")?;
 
-    let Some(variant) = program
+    let variant = program
         .data_members(option)
         .iter()
         .find_map(|member| match member {
@@ -746,16 +736,13 @@ fn none_expression(program: &Program) -> Expression {
                 Some(variant)
             }
             _ => None,
-        })
-    else {
-        return Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]));
-    };
+        })?;
 
-    Expression::Name(NamePath::resolved(
+    Some(Expression::Name(NamePath::resolved(
         vec![option.name.clone(), variant.name.clone()],
         option.symbol,
         variant.symbol,
-    ))
+    )))
 }
 
 fn helper_state_model(
@@ -1380,6 +1367,7 @@ fn expression_path_segment(expression: &Expression, index: usize) -> Option<&Pro
 mod tests {
     use super::simplify_expression;
     use omega_checked_trees::Program;
+    use omega_checked_trees::data::{DataDefinition, DataMember, DataVariant};
     use omega_checked_trees::expression::{
         BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
     };
@@ -1628,6 +1616,8 @@ mod tests {
         let machine_symbol = SymbolHandle::from_arena_index(20);
         let find_symbol = SymbolHandle::from_arena_index(21);
         let found_symbol = SymbolHandle::from_arena_index(22);
+        let option_symbol = SymbolHandle::from_arena_index(23);
+        let none_symbol = SymbolHandle::from_arena_index(24);
 
         let mut find = State {
             symbol: find_symbol,
@@ -1645,6 +1635,7 @@ mod tests {
             states: Default::default(),
         };
         let mut program = Program::default();
+        push_option_data_definition(&mut program, option_symbol, none_symbol);
         push_state_statements(
             &mut program,
             &mut find,
@@ -1654,7 +1645,7 @@ mod tests {
                     guard: Some(name("found", found_symbol)),
                 },
                 TestStatement::TransitionValue {
-                    target: path_expression(&["None"]),
+                    target: option_none_expression(option_symbol, none_symbol),
                     guard: None,
                 },
             ],
@@ -1767,6 +1758,37 @@ mod tests {
 
     fn name(name: &str, symbol: SymbolHandle) -> Expression {
         Expression::Name(NamePath::resolved(vec![name.into()], symbol, symbol))
+    }
+
+    fn option_none_expression(
+        option_symbol: SymbolHandle,
+        none_symbol: SymbolHandle,
+    ) -> Expression {
+        Expression::Name(NamePath::resolved(
+            vec!["Option".into(), "None".into()],
+            option_symbol,
+            none_symbol,
+        ))
+    }
+
+    fn push_option_data_definition(
+        program: &mut Program,
+        option_symbol: SymbolHandle,
+        none_symbol: SymbolHandle,
+    ) {
+        let mut option = DataDefinition {
+            symbol: option_symbol,
+            name: "Option".into(),
+            ..DataDefinition::default()
+        };
+        program.typed.push_data_member(
+            &mut option,
+            DataMember::Variant(DataVariant {
+                symbol: none_symbol,
+                name: "None".into(),
+            }),
+        );
+        program.typed.push_data_definition(option);
     }
 
     fn named_type_reference(program: &mut Program, name: &str) -> TypeReferenceHandle {
