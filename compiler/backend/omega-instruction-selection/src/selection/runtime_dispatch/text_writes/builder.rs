@@ -4,13 +4,15 @@ use crate::selection::bindings::{
 };
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
 };
+use omega_checked_trees::expression::{Expression, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
-use omega_target_operations::{RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle};
-use omega_checked_trees::expression::{Expression, ExpressionTable};
+use omega_target_operations::{
+    RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn runtime_text_builder_write_emit(
@@ -173,13 +175,15 @@ fn runtime_text_builder_write_without_aliases_emit(
                         target_offset: target_place.byte_offset,
                     });
                 } else if let Some(target) = target_pointee.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
-                        buffer,
-                        source_region: source_place.region,
-                        source_offset: source_place.byte_offset,
-                        pointer_byte_offset: target.pointer_byte_offset,
-                        field_byte_offset: target.field_byte_offset,
-                    });
+                    emit(
+                        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+                            buffer,
+                            source_region: source_place.region,
+                            source_offset: source_place.byte_offset,
+                            pointer_byte_offset: target.pointer_byte_offset,
+                            field_byte_offset: target.field_byte_offset,
+                        },
+                    );
                 } else if let Some(target) = target_indexed.as_ref() {
                     emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
                         buffer,
@@ -212,21 +216,25 @@ fn runtime_text_builder_write_without_aliases_emit(
                         literal,
                     });
                 } else if let Some(target) = target_pointee.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
-                        buffer,
-                        pointer_byte_offset: target.pointer_byte_offset,
-                        field_byte_offset: target.field_byte_offset,
-                        literal,
-                    });
+                    emit(
+                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+                            buffer,
+                            pointer_byte_offset: target.pointer_byte_offset,
+                            field_byte_offset: target.field_byte_offset,
+                            literal,
+                        },
+                    );
                 } else if let Some(target) = target_indexed.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-                        buffer,
-                        descriptor_offset: target.descriptor_offset,
-                        index_offset: target.index_offset,
-                        element_byte_size: target.element_byte_size,
-                        field_byte_offset: target.field_byte_offset,
-                        literal,
-                    });
+                    emit(
+                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+                            buffer,
+                            descriptor_offset: target.descriptor_offset,
+                            index_offset: target.index_offset,
+                            element_byte_size: target.element_byte_size,
+                            field_byte_offset: target.field_byte_offset,
+                            literal,
+                        },
+                    );
                 } else {
                     return false;
                 }
@@ -364,13 +372,15 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                         target_offset: target_place.byte_offset,
                     });
                 } else if let Some(target) = target_pointee.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
-                        buffer,
-                        source_region: source_place.region,
-                        source_offset: source_place.byte_offset,
-                        pointer_byte_offset: target.pointer_byte_offset,
-                        field_byte_offset: target.field_byte_offset,
-                    });
+                    emit(
+                        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+                            buffer,
+                            source_region: source_place.region,
+                            source_offset: source_place.byte_offset,
+                            pointer_byte_offset: target.pointer_byte_offset,
+                            field_byte_offset: target.field_byte_offset,
+                        },
+                    );
                 } else if let Some(target) = target_indexed.as_ref() {
                     emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
                         buffer,
@@ -403,21 +413,25 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                         literal,
                     });
                 } else if let Some(target) = target_pointee.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
-                        buffer,
-                        pointer_byte_offset: target.pointer_byte_offset,
-                        field_byte_offset: target.field_byte_offset,
-                        literal,
-                    });
+                    emit(
+                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+                            buffer,
+                            pointer_byte_offset: target.pointer_byte_offset,
+                            field_byte_offset: target.field_byte_offset,
+                            literal,
+                        },
+                    );
                 } else if let Some(target) = target_indexed.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-                        buffer,
-                        descriptor_offset: target.descriptor_offset,
-                        index_offset: target.index_offset,
-                        element_byte_size: target.element_byte_size,
-                        field_byte_offset: target.field_byte_offset,
-                        literal,
-                    });
+                    emit(
+                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+                            buffer,
+                            descriptor_offset: target.descriptor_offset,
+                            index_offset: target.index_offset,
+                            element_byte_size: target.element_byte_size,
+                            field_byte_offset: target.field_byte_offset,
+                            literal,
+                        },
+                    );
                 } else {
                     return false;
                 }

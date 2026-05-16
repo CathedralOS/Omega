@@ -5,21 +5,21 @@ use omega_checked_trees::statement::TransitionGuard;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
 use omega_state_guards::StateGuardOperator;
 
-use omega_runtime_text::places::expression_name_with_suffix_eq_tree;
 use super::super::storage_places::{
-    enum_variant_value, resolve_runtime_frame_indexed_target, resolve_runtime_storage_place,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_guard_call_result_place,
+    enum_variant_value, resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_storage_place, resolve_runtime_transition_guard_call_result_place,
 };
-use omega_target_operations::{RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle};
+use omega_runtime_text::places::expression_name_with_suffix_eq_tree;
+use omega_target_operations::{
+    RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle,
+};
 
 pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let normalized_guard =
-        normalized_boolean_wrapped_guard(&expansion.resolved_guard).unwrap_or_else(|| {
-            expansion.resolved_guard.clone()
-        });
+    let normalized_guard = normalized_boolean_wrapped_guard(&expansion.resolved_guard)
+        .unwrap_or_else(|| expansion.resolved_guard.clone());
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         expansion.dispatch_index,
@@ -68,10 +68,8 @@ pub(super) fn select_runtime_straight_line_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let normalized_guard =
-        normalized_boolean_wrapped_guard(&expansion.resolved_guard).unwrap_or_else(|| {
-            expansion.resolved_guard.clone()
-        });
+    let normalized_guard = normalized_boolean_wrapped_guard(&expansion.resolved_guard)
+        .unwrap_or_else(|| expansion.resolved_guard.clone());
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         expansion.dispatch_index,
@@ -261,8 +259,7 @@ fn runtime_text_literal_guard(
     source_key: omega_control_flow::StateKey,
     guard: &TransitionGuard,
 ) -> Option<(TargetDataObjectHandle, String)> {
-    let TransitionGuard::When(Expression::Binary(binary)) = guard
-    else {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return None;
     };
     if binary.operator != BinaryOperator::Equal {
@@ -275,8 +272,12 @@ fn runtime_text_literal_guard(
         _ => return None,
     };
 
-    let (buffer, _) =
-        runtime_text_input_buffer_data_for_text_place_in_state(input, dispatch_index, source_key, text_place)?;
+    let (buffer, _) = runtime_text_input_buffer_data_for_text_place_in_state(
+        input,
+        dispatch_index,
+        source_key,
+        text_place,
+    )?;
     Some((buffer, literal.clone()))
 }
 
@@ -286,8 +287,7 @@ fn runtime_text_storage_guard(
     source_key: omega_control_flow::StateKey,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
-    let TransitionGuard::When(Expression::Binary(binary)) = guard
-    else {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return None;
     };
     if binary.operator != BinaryOperator::Equal {
@@ -313,10 +313,18 @@ fn runtime_text_storage_guard(
         &source_state,
         &binary.right,
     );
-    let left_buffer =
-        runtime_text_input_buffer_data_for_text_place_in_state(input, dispatch_index, source_key, &binary.left);
-    let right_buffer =
-        runtime_text_input_buffer_data_for_text_place_in_state(input, dispatch_index, source_key, &binary.right);
+    let left_buffer = runtime_text_input_buffer_data_for_text_place_in_state(
+        input,
+        dispatch_index,
+        source_key,
+        &binary.left,
+    );
+    let right_buffer = runtime_text_input_buffer_data_for_text_place_in_state(
+        input,
+        dispatch_index,
+        source_key,
+        &binary.right,
+    );
     let string_descriptor_size = input.target.pointer_size * 2;
 
     if let (Some(source_place), Some((buffer, _))) = (left_place.clone(), right_buffer)
@@ -350,8 +358,7 @@ fn runtime_storage_guard(
     source_key: omega_control_flow::StateKey,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
-    let TransitionGuard::When(Expression::Binary(binary)) = guard
-    else {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return None;
     };
     let operator = match binary.operator {
@@ -394,8 +401,8 @@ fn runtime_storage_guard(
     }
 
     if let Some(place) = left
-        && let Some(expected_value) =
-            enum_variant_value(&input.layouts, &binary.right).or_else(|| static_guard_value(&binary.right))
+        && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.right)
+            .or_else(|| static_guard_value(&binary.right))
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
             region: place.region,
@@ -407,8 +414,8 @@ fn runtime_storage_guard(
     }
 
     if let Some(place) = right
-        && let Some(expected_value) =
-            enum_variant_value(&input.layouts, &binary.left).or_else(|| static_guard_value(&binary.left))
+        && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.left)
+            .or_else(|| static_guard_value(&binary.left))
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
             region: place.region,
@@ -429,33 +436,32 @@ fn runtime_value_guard(
     statement_index: usize,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
-    let TransitionGuard::When(Expression::Binary(binary)) = guard
-    else {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return None;
     };
     let operator = runtime_compare_operator(binary.operator)?;
     let source_machine = source_machine_name(input, source_key);
     let source_state = source_state_name(input, source_key);
-        let left = resolve_runtime_value_operand(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-            &source_machine,
-            &source_state,
-            &binary.left,
+    let left = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        &source_machine,
+        &source_state,
+        &binary.left,
     )?;
-        let right = resolve_runtime_value_operand(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-            &source_machine,
-            &source_state,
-            &binary.right,
+    let right = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        &source_machine,
+        &source_state,
+        &binary.right,
     )?;
-    let byte_size = runtime_value_operand_byte_size(&left)
-        .max(runtime_value_operand_byte_size(&right));
+    let byte_size =
+        runtime_value_operand_byte_size(&left).max(runtime_value_operand_byte_size(&right));
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
@@ -484,8 +490,8 @@ fn resolve_runtime_value_operand(
     source_state: &str,
     expression: &Expression,
 ) -> Option<RuntimeValueOperand> {
-    if let Some(value) = enum_variant_value(&input.layouts, expression)
-        .or_else(|| static_guard_value(expression))
+    if let Some(value) =
+        enum_variant_value(&input.layouts, expression).or_else(|| static_guard_value(expression))
     {
         return Some(RuntimeValueOperand::Immediate(value));
     }
@@ -582,9 +588,7 @@ fn runtime_value_operand_byte_size(operand: &RuntimeValueOperand) -> usize {
     }
 }
 
-fn runtime_compare_operator(
-    operator: BinaryOperator,
-) -> Option<StateGuardOperator> {
+fn runtime_compare_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
         BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
@@ -604,9 +608,7 @@ fn runtime_compare_operator(
     }
 }
 
-fn runtime_arithmetic_operator(
-    operator: BinaryOperator,
-) -> Option<StateGuardOperator> {
+fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),

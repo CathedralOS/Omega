@@ -59,6 +59,29 @@ impl ExpressionTable {
         self.expression_handles.insert_many(expressions)
     }
 
+    pub fn reserve_expression_handles(&mut self, count: u32) -> HandleSpan<ExpressionHandle> {
+        self.expression_handles.insert_many(
+            std::iter::repeat_with(ExpressionHandle::invalid)
+                .take(usize::try_from(count).expect("expression handle span count overflow")),
+        )
+    }
+
+    pub fn set_expression_handle_at_offset(
+        &mut self,
+        expressions: HandleSpan<ExpressionHandle>,
+        offset: u32,
+        expression: ExpressionHandle,
+    ) {
+        *self.expression_handles.get_mut(Handle::from_parts(
+            expressions
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("expression handle index overflow"),
+            expressions.start().generation(),
+        )) = expression;
+    }
+
     pub fn push_expression_handle(
         &mut self,
         span: &mut HandleSpan<ExpressionHandle>,
@@ -72,6 +95,29 @@ impl ExpressionTable {
         fields: impl IntoIterator<Item = TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
         self.struct_fields.insert_many(fields)
+    }
+
+    pub fn reserve_struct_fields(&mut self, count: u32) -> HandleSpan<TableStructLiteralField> {
+        self.struct_fields.insert_many(
+            std::iter::repeat_with(TableStructLiteralField::default)
+                .take(usize::try_from(count).expect("struct literal field span count overflow")),
+        )
+    }
+
+    pub fn set_struct_field_at_offset(
+        &mut self,
+        fields: HandleSpan<TableStructLiteralField>,
+        offset: u32,
+        field: TableStructLiteralField,
+    ) {
+        *self.struct_fields.get_mut(Handle::from_parts(
+            fields
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("struct literal field index overflow"),
+            fields.start().generation(),
+        )) = field;
     }
 
     pub fn push_struct_field(
@@ -312,7 +358,7 @@ impl ExpressionTable {
         let mut copied = HandleSpan::empty();
 
         for offset in 0..expressions.count() {
-            let expression = *self.expression_handle_at_offset(expressions, offset);
+            let expression = self.expression_handle_at_offset(expressions, offset);
             let expression = self.insert_copy(expression);
             self.expression_handles
                 .append_to_span(&mut copied, expression);
@@ -342,12 +388,12 @@ impl ExpressionTable {
         copied
     }
 
-    fn expression_handle_at_offset(
+    pub fn expression_handle_at_offset(
         &self,
         expressions: HandleSpan<ExpressionHandle>,
         offset: u32,
-    ) -> &ExpressionHandle {
-        self.expression_handles.get(Handle::from_parts(
+    ) -> ExpressionHandle {
+        *self.expression_handles.get(Handle::from_parts(
             expressions
                 .start()
                 .arena_index()
@@ -357,7 +403,7 @@ impl ExpressionTable {
         ))
     }
 
-    fn struct_field_at_offset(
+    pub fn struct_field_at_offset(
         &self,
         fields: HandleSpan<TableStructLiteralField>,
         offset: u32,

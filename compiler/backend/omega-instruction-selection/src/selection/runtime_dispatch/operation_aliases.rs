@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
-use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_checked_trees::expression::ExpressionTable;
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 
 use super::super::bindings::{
@@ -32,19 +32,13 @@ pub(super) fn bind_runtime_operation_aliases(
 
     let (role, call_ordinal) = match &operation.kind {
         RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
-            role,
-            call_ordinal,
-            ..
+            role, call_ordinal, ..
         }
         | RuntimeDispatchBodyOperationKind::InlineStateCall {
-            role,
-            call_ordinal,
-            ..
+            role, call_ordinal, ..
         }
         | RuntimeDispatchBodyOperationKind::StateCall {
-            role,
-            call_ordinal,
-            ..
+            role, call_ordinal, ..
         } => (*role, *call_ordinal),
         _ => unreachable!(),
     };
@@ -53,16 +47,15 @@ pub(super) fn bind_runtime_operation_aliases(
         StateCallRole::Statement => {
             state_call_for_statement(input, operation.source_key, operation.statement_index)
         }
-        StateCallRole::AssignmentValue => {
-            state_assignment_value_call_by_ordinal(
-                input,
-                operation.source_key,
-                operation.statement_index,
-                call_ordinal,
-            ).or_else(|| {
-                state_assignment_value_call(input, operation.source_key, operation.statement_index)
-            })
-        }
+        StateCallRole::AssignmentValue => state_assignment_value_call_by_ordinal(
+            input,
+            operation.source_key,
+            operation.statement_index,
+            call_ordinal,
+        )
+        .or_else(|| {
+            state_assignment_value_call(input, operation.source_key, operation.statement_index)
+        }),
         StateCallRole::TransitionGuard => {
             state_transition_guard_call(input, operation.source_key, operation.statement_index)
         }
@@ -95,14 +88,12 @@ pub(super) fn bind_runtime_operation_aliases(
         );
         let expression =
             strip_mutable_expression_handle(alias_expressions, resolved_expression.expression);
-        aliases.set_alias(
-            RuntimeAliasBinding {
-                source_key: state_call.target_key,
-                parameter_symbol: argument.parameter_symbol,
-                parameter_name: argument.parameter_name.clone(),
-                expression_source_key: resolved_expression.source_key,
-                expression,
-            },
-        );
+        aliases.set_alias(RuntimeAliasBinding {
+            source_key: state_call.target_key,
+            parameter_symbol: argument.parameter_symbol,
+            parameter_name: argument.parameter_name.clone(),
+            expression_source_key: resolved_expression.source_key,
+            expression,
+        });
     }
 }

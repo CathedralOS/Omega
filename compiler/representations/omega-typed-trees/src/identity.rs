@@ -93,7 +93,10 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(typed_trees, &parameter.type_reference, &mut counts);
             }
-            for statement in typed_trees.statement_table.statements(state.statement_nodes) {
+            for statement in typed_trees
+                .statement_table
+                .statements(state.statement_nodes)
+            {
                 count_statement_node(
                     &typed_trees.statement_table,
                     &typed_trees.expression_table,
@@ -396,10 +399,7 @@ fn count_type_reference(
         TypeReference::Slice { element_type } => {
             count_type_reference(typed_trees, element_type, counts);
         }
-        TypeReference::Generic {
-            base_name,
-            ..
-        } => {
+        TypeReference::Generic { base_name, .. } => {
             count_type_name(base_name, counts);
             for argument in typed_trees.type_reference_arguments(type_reference) {
                 count_type_reference(typed_trees, argument, counts);

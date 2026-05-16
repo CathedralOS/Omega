@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
-use omega_core::arena::Arena;
 use omega_checked_trees::expression::ExpressionTable;
+use omega_core::arena::Arena;
 use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
 
 mod bindings;
@@ -11,13 +11,13 @@ mod runtime_dispatch;
 mod state_bodies;
 mod storage_places;
 
+use self::bindings::RuntimeAliasBuffer;
 use instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{
     FunctionInstructionPlan, InstructionOperand, InstructionPlan, SelectedInstruction,
     SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
-use self::bindings::RuntimeAliasBuffer;
 use state_bodies::{runtime_reachable_states, select_state_body_instructions};
 
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
@@ -60,9 +60,8 @@ fn select_entry_instructions(
 
     let schedule_context =
         StateScheduleContext::new(&input.control_flow, &input.host_calls, &input.state_calls);
-    let _state_schedule =
-        build_entry_state_schedule(&schedule_context, input.entry_key)
-            .unwrap_or_else(|_| runtime_reachable_states(input));
+    let _state_schedule = build_entry_state_schedule(&schedule_context, input.entry_key)
+        .unwrap_or_else(|_| runtime_reachable_states(input));
 
     let empty_aliases = RuntimeAliasBuffer::default();
     select_state_body_instructions(

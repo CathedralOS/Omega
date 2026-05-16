@@ -13,12 +13,12 @@ pub(super) use static_values::{enum_variant_value, static_integer_value};
 use crate::InstructionSelectionInput;
 use expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use nested_fields::resolve_nested_field_layout;
-use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{
     CallExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::PrimitiveType;
+use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
 use omega_state_calls::StateCallRole;
@@ -175,7 +175,9 @@ fn resolve_runtime_call_result_place(
         }
         _ => return None,
     };
-    let state_call = input.state_calls.call_for_role(source_key, statement_index, role)?;
+    let state_call = input
+        .state_calls
+        .call_for_role(source_key, statement_index, role)?;
     if state_call.target_key != target_key {
         return None;
     }
@@ -327,14 +329,8 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     };
     let root_path = NamePath::unresolved(vec![root_name.clone()]);
     let root_expression = Expression::Name(root_path);
-    let place = resolve_runtime_storage_place(
-        input,
-        dispatch_index,
-        source_key,
-        "",
-        "",
-        &root_expression,
-    )?;
+    let place =
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", &root_expression)?;
     if place.region != RuntimeStorageRegion::RuntimeFrame
         || place.byte_count != input.target.pointer_size
     {
@@ -394,12 +390,16 @@ fn runtime_frame_slot_for_expression<'plan>(
         return None;
     };
 
-    input.runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
-        (slot.dispatch_index == dispatch_index
-            && slot.source_key == source_key
-            && slot_matches_path(slot.symbol, path, slot.name.as_str()))
-        .then_some(slot)
-    })
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot_matches_path(slot.symbol, path, slot.name.as_str()))
+            .then_some(slot)
+        })
 }
 
 fn resolve_runtime_fixed_indexed_place(
@@ -448,8 +448,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
 ) -> Option<RuntimeStoragePlace> {
     let fixed = fixed_indexed_target_path_in_table(expressions, expression)?;
     let collection = expressions.to_tree(fixed.collection);
-    let slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, &collection)?;
+    let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, &collection)?;
     let element_layout = indexed_element_layout(input, slot.type_symbol)?;
     let element_type_name = indexed_element_type_name(&slot.type_name)?;
     let index = usize::try_from(fixed.index).ok()?;
@@ -601,14 +600,18 @@ fn indexed_element_type_name(type_name: &str) -> Option<&str> {
                 .and_then(|inner| inner.strip_suffix(']'))
         })
         .or_else(|| {
-            type_name
-                .strip_prefix("&mut [")
-                .and_then(|inner| inner.split_once(';').map(|(element, _)| element.trim_end_matches(']').trim()))
+            type_name.strip_prefix("&mut [").and_then(|inner| {
+                inner
+                    .split_once(';')
+                    .map(|(element, _)| element.trim_end_matches(']').trim())
+            })
         })
         .or_else(|| {
-            type_name
-                .strip_prefix("&[")
-                .and_then(|inner| inner.split_once(';').map(|(element, _)| element.trim_end_matches(']').trim()))
+            type_name.strip_prefix("&[").and_then(|inner| {
+                inner
+                    .split_once(';')
+                    .map(|(element, _)| element.trim_end_matches(']').trim())
+            })
         })
 }
 

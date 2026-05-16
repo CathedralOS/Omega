@@ -1,9 +1,13 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath,
+};
 use omega_control_flow::StateKey;
-use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator};
-use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_state_calls::StateCallRole;
+use omega_target_operations::{
+    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
+};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
@@ -106,19 +110,18 @@ pub(super) fn select_runtime_state_call_result_write(
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(slot) = input
-        .runtime_storage
-        .call_result_slot_by_ordinal(
-            dispatch_index,
-            operation_source_key,
-            statement_index,
-            role,
-            call_ordinal,
-        )
-    else {
+    let Some(slot) = input.runtime_storage.call_result_slot_by_ordinal(
+        dispatch_index,
+        operation_source_key,
+        statement_index,
+        role,
+        call_ordinal,
+    ) else {
         return;
     };
-    let (value_machine, value_state) = input.control_flow.state_names_by_key_cloned(value_source_key);
+    let (value_machine, value_state) = input
+        .control_flow
+        .state_names_by_key_cloned(value_source_key);
     let target = Expression::Name(NamePath::unresolved(vec![slot.name.clone()]));
     let value = input.runtime_bodies.expressions.to_tree(value);
 
@@ -182,16 +185,18 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     }
 
     if let Expression::String(value) = value {
-        if let Some((pointer_byte_offset, field_byte_offset, data)) = resolve_runtime_pointee_slot_offset(
-            input,
-            dispatch_index,
-            target_source_key,
-            resolved_target,
-        ).and_then(|target| {
-            string_literal_data_handle(input, operation_source_key, statement_index, value).map(
-                |data| (target.pointer_byte_offset, target.field_byte_offset, data),
+        if let Some((pointer_byte_offset, field_byte_offset, data)) =
+            resolve_runtime_pointee_slot_offset(
+                input,
+                dispatch_index,
+                target_source_key,
+                resolved_target,
             )
-        }) {
+            .and_then(|target| {
+                string_literal_data_handle(input, operation_source_key, statement_index, value)
+                    .map(|data| (target.pointer_byte_offset, target.field_byte_offset, data))
+            })
+        {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimePointeeString {
                     pointer_byte_offset,
@@ -437,13 +442,14 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
 
         if supports_scalar_integer_write(indexed_target.byte_count)
             && let Some(value) = resolve_runtime_static_integer_value(
-            input,
-            operation_source_key,
-            value,
-            aliases,
-            alias_expressions,
-            static_values,
-        ) {
+                input,
+                operation_source_key,
+                value,
+                aliases,
+                alias_expressions,
+                static_values,
+            )
+        {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
                     descriptor_offset: indexed_target.descriptor_offset,

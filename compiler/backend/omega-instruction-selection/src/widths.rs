@@ -135,10 +135,12 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
     field_byte_offset: usize,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -157,11 +159,13 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     literal: &str,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_text_literal_append_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-            literal,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_literal_append_to_runtime_frame_indexed_width(
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            )
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -179,10 +183,12 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
     field_byte_offset: usize,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -236,7 +242,9 @@ pub fn runtime_value_compare_width(
     right: &RuntimeValueOperand,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(byte_size, left, right),
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_binary_write_width(byte_size, left, right)
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -363,10 +371,7 @@ pub fn runtime_storage_copy_to_runtime_pointee_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_to_runtime_pointee_width(
-                field_byte_offset,
-                byte_count,
-            )
+            aarch64::runtime_storage_copy_to_runtime_pointee_width(field_byte_offset, byte_count)
         }
         Architecture::X86_64 => 0,
     }

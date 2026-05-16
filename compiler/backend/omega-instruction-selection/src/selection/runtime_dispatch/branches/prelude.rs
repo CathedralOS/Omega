@@ -5,13 +5,13 @@ use crate::selection::bindings::{
 };
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperationKind,
 };
 use omega_target_operations::InstructionOperand;
-use omega_checked_trees::name::ProgramName;
 
 use super::super::super::lookups::host_call_for_statement;
 use super::mutation::select_runtime_resolved_mutation_write;
@@ -115,15 +115,13 @@ fn prelude_alias_bindings(
     target_key: omega_control_flow::StateKey,
     bindings: &[RuntimeBranchPreludeBinding],
 ) -> RuntimeAliasBuffer {
-    RuntimeAliasBuffer::from_iter(
-        bindings.iter().map(|binding| RuntimeAliasBinding {
-            source_key: target_key,
-            parameter_symbol: binding.parameter_symbol,
-            parameter_name: binding.parameter_name.clone(),
-            expression_source_key: target_key,
-            expression: binding.expression,
-        })
-    )
+    RuntimeAliasBuffer::from_iter(bindings.iter().map(|binding| RuntimeAliasBinding {
+        source_key: target_key,
+        parameter_symbol: binding.parameter_symbol,
+        parameter_name: binding.parameter_name.clone(),
+        expression_source_key: target_key,
+        expression: binding.expression,
+    }))
 }
 
 fn state_names(

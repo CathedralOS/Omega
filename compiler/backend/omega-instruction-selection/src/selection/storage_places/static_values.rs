@@ -1,5 +1,5 @@
-use omega_layout::{DataShape, LayoutPlan};
 use omega_checked_trees::expression::Expression;
+use omega_layout::{DataShape, LayoutPlan};
 
 pub(in crate::selection) fn enum_variant_value(
     layouts: &LayoutPlan,

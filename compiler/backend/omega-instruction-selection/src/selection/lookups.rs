@@ -29,7 +29,9 @@ pub(super) fn state_call_for_statement<'plan>(
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
-    input.state_calls.statement_call(source_key, statement_index)
+    input
+        .state_calls
+        .statement_call(source_key, statement_index)
 }
 
 pub(super) fn state_assignment_value_call<'plan>(

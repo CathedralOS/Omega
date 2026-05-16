@@ -10,8 +10,7 @@ mod text_writes;
 mod writes;
 
 use super::host_operations::{
-    runtime_string_descriptor_place, runtime_text_literal_write_for_host_call,
-    select_host_call,
+    runtime_string_descriptor_place, runtime_text_literal_write_for_host_call, select_host_call,
 };
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
