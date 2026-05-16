@@ -148,9 +148,13 @@ fn append_remapped_states(
     let mut count = 0u32;
 
     for state in source.states.span_or_empty(states) {
-        let parameters = target
-            .state_parameters
-            .insert_many(source.state_parameters(state).iter().cloned());
+        let mut parameters = HandleSpan::empty();
+        for parameter in source.state_parameters(state) {
+            target
+                .state_parameters
+                .append_to_span(&mut parameters, parameter.clone());
+        }
+
         let operations = append_remapped_operations(target, source, state.operations);
         let transitions = append_remapped_transitions(target, source, state.transitions);
         let borrow = remap_state_borrow_summary(target, source, &state.borrow);
@@ -423,9 +427,13 @@ fn append_machine_states(
         .flat_map(|state_segments| state_segments.iter())
         .enumerate()
     {
-        let operations = state_graph
-            .operations
-            .insert_many(segment.operations.iter().cloned());
+        let mut operations = HandleSpan::empty();
+        for operation in &segment.operations {
+            state_graph
+                .operations
+                .append_to_span(&mut operations, operation.clone());
+        }
+
         let transitions = append_segment_transitions(state_graph, program, segment, state_indexes)?;
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         let handle = state_graph.states.append(StateNode {
