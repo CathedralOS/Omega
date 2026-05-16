@@ -1388,8 +1388,7 @@ mod tests {
     use omega_checked_trees::statement::{
         StatementNode, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
-    use omega_checked_trees::types::{TypeReference, TypeReferenceHandle};
-    use omega_core::arena::Arena;
+    use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -1424,7 +1423,7 @@ mod tests {
                 TestStatement::LocalData {
                     symbol: is_quiet_symbol,
                     name: "is_quiet".into(),
-                    type_reference: TypeReference::Named {
+                    type_reference: TypeReferenceNode::Named {
                         symbol: SymbolHandle::invalid(),
                         name: "bool".into(),
                     },
@@ -1437,7 +1436,7 @@ mod tests {
                 TestStatement::LocalData {
                     symbol: is_fountain_symbol,
                     name: "is_fountain".into(),
-                    type_reference: TypeReference::Named {
+                    type_reference: TypeReferenceNode::Named {
                         symbol: SymbolHandle::invalid(),
                         name: "bool".into(),
                     },
@@ -1450,7 +1449,7 @@ mod tests {
                 TestStatement::LocalData {
                     symbol: is_reward_symbol,
                     name: "is_reward".into(),
-                    type_reference: TypeReference::Named {
+                    type_reference: TypeReferenceNode::Named {
                         symbol: SymbolHandle::invalid(),
                         name: "bool".into(),
                     },
@@ -1699,7 +1698,7 @@ mod tests {
         LocalData {
             symbol: SymbolHandle,
             name: ProgramName,
-            type_reference: TypeReference,
+            type_reference: TypeReferenceNode,
             initial_value: Option<Expression>,
         },
         TransitionValue {
@@ -1721,12 +1720,7 @@ mod tests {
                     type_reference,
                     initial_value,
                 } => {
-                    let type_reference = program.typed.type_reference_table.insert_tree(
-                        &type_reference,
-                        &mut program.typed.expression_table,
-                        &program.typed.type_constraints,
-                        &Arena::new(),
-                    );
+                    let type_reference = program.typed.type_reference_table.insert(type_reference);
                     let initial_value = initial_value
                         .as_ref()
                         .map(|value| program.typed.expression_table.insert_tree(value))
@@ -1774,15 +1768,13 @@ mod tests {
     }
 
     fn named_type_reference(program: &mut Program, name: &str) -> TypeReferenceHandle {
-        program.typed.type_reference_table.insert_tree(
-            &TypeReference::Named {
+        program
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
                 name: name.into(),
-            },
-            &mut program.typed.expression_table,
-            &program.typed.type_constraints,
-            &Arena::new(),
-        )
+            })
     }
 
     fn path_expression(segments: &[&str]) -> Expression {
