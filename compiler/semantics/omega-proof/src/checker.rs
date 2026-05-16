@@ -214,14 +214,22 @@ fn check_bounded_call_argument(
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         let Some(argument_range) = integer_range_for_call_argument(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_call_integer(obligation, target_range));
+            diagnostics.push(cannot_prove_bounded_call_integer(
+                proof_plan,
+                obligation,
+                target_range,
+            ));
             return;
         };
 
         if argument_range.minimum < target_range.minimum
             || argument_range.maximum > target_range.maximum
         {
-            diagnostics.push(cannot_prove_bounded_call_integer(obligation, target_range));
+            diagnostics.push(cannot_prove_bounded_call_integer(
+                proof_plan,
+                obligation,
+                target_range,
+            ));
         }
     }
 
@@ -229,14 +237,22 @@ fn check_bounded_call_argument(
         float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         let Some(argument_range) = float_range_for_call_argument(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_call_float(obligation, target_range));
+            diagnostics.push(cannot_prove_bounded_call_float(
+                proof_plan,
+                obligation,
+                target_range,
+            ));
             return;
         };
 
         if argument_range.minimum < target_range.minimum
             || argument_range.maximum > target_range.maximum
         {
-            diagnostics.push(cannot_prove_bounded_call_float(obligation, target_range));
+            diagnostics.push(cannot_prove_bounded_call_float(
+                proof_plan,
+                obligation,
+                target_range,
+            ));
         }
     }
 }
@@ -356,8 +372,12 @@ fn float_range_for_call_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<FloatRange> {
-    match &obligation.argument {
-        Expression::Float(value) => {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.argument)
+    {
+        ExpressionNode::Float(value) => {
             let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
@@ -417,8 +437,12 @@ fn integer_range_for_call_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
-    match &obligation.argument {
-        Expression::Integer(value) => Some(IntegerRange {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.argument)
+    {
+        ExpressionNode::Integer(value) => Some(IntegerRange {
             minimum: *value,
             maximum: *value,
         }),
@@ -837,13 +861,15 @@ fn check_call_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !argument_satisfies_named_constraint(
+        if !argument_handle_satisfies_named_constraint(
             proof_plan,
-            &obligation.argument,
+            obligation.argument,
             obligation.argument_constraints,
             constraint,
         ) {
-            diagnostics.push(cannot_prove_call_named_constraint(obligation, constraint));
+            diagnostics.push(cannot_prove_call_named_constraint(
+                proof_plan, obligation, constraint,
+            ));
         }
     }
 }
@@ -1263,6 +1289,7 @@ fn expression_display_name(proof_plan: &ProofPlan, expression: ExpressionHandle)
 }
 
 fn cannot_prove_bounded_call_integer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
@@ -1274,7 +1301,7 @@ fn cannot_prove_bounded_call_integer(
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
-        obligation.argument.display_name(),
+        expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         target,
         obligation.machine,
@@ -1285,6 +1312,7 @@ fn cannot_prove_bounded_call_integer(
 }
 
 fn cannot_prove_bounded_call_float(
+    proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
     target_range: FloatRange,
 ) -> Diagnostic {
@@ -1296,7 +1324,7 @@ fn cannot_prove_bounded_call_float(
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
-        obligation.argument.display_name(),
+        expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         target,
         obligation.machine,
@@ -1307,6 +1335,7 @@ fn cannot_prove_bounded_call_float(
 }
 
 fn cannot_prove_call_named_constraint(
+    proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
     constraint: &str,
 ) -> Diagnostic {
@@ -1318,7 +1347,7 @@ fn cannot_prove_call_named_constraint(
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies `{}` for bounded parameter `{}` for `{}` in `{}.{}`",
-        obligation.argument.display_name(),
+        expression_display_name(proof_plan, obligation.argument),
         constraint,
         obligation.parameter,
         target,
