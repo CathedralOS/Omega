@@ -10,7 +10,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::Program;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
-use omega_checked_trees::statement::{Statement, StatementNode, TableCall};
+use omega_checked_trees::statement::{StatementNode, TableCall};
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -40,18 +40,18 @@ fn collect_state_host_calls(
 ) -> Result<(), Diagnostic> {
     let mut static_values = initial_static_values(program, machine);
 
-    let table_statements = program.statement_table.statements(state.statement_nodes);
-    for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
-        let table_statement = table_statements.get(statement_index);
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
         match statement {
-            Statement::Assignment(assignment) => {
-                apply_static_assignment(&mut static_values, &assignment.target, &assignment.value);
+            StatementNode::Assignment(assignment) => {
+                apply_static_assignment(&mut static_values, program, *assignment);
                 continue;
             }
-            Statement::Call(_) => {
-                let Some(StatementNode::Call(table_call)) = table_statement else {
-                    continue;
-                };
+            StatementNode::Call(table_call) => {
                 collect_call_host_lowering(
                     program,
                     target,

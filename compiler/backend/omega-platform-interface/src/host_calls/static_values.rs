@@ -1,7 +1,7 @@
 use crate::place_keys::PlaceKey;
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::TableCall;
+use omega_checked_trees::statement::{TableAssignment, TableCall};
 use omega_checked_trees::Program;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,16 +38,20 @@ pub(crate) fn initial_static_values(
 
 pub(crate) fn apply_static_assignment(
     static_values: &mut Vec<(PlaceKey, StaticValue)>,
-    target: &Expression,
-    value: &Expression,
+    program: &Program,
+    assignment: TableAssignment,
 ) {
-    let Some(target_key) = static_place_key(target) else {
+    let Some(target_key) = static_place_key_handle(program, assignment.target) else {
         return;
     };
 
-    if let Expression::StructLiteral(struct_literal) = value {
-        for field in &struct_literal.fields {
-            if let Some(field_value) = resolve_static_value(&field.value, static_values) {
+    if let ExpressionNode::StructLiteral(struct_literal) =
+        program.expression_table.expression(assignment.value)
+    {
+        for field in program.expression_table.struct_fields(struct_literal.fields) {
+            if let Some(field_value) =
+                resolve_static_value_handle(program, field.value, static_values)
+            {
                 set_static_value(
                     static_values,
                     target_key.append_member(field.name.clone()),
@@ -58,11 +62,11 @@ pub(crate) fn apply_static_assignment(
         return;
     }
 
-    if let Some(source_key) = static_place_key(value) {
+    if let Some(source_key) = static_place_key_handle(program, assignment.value) {
         copy_static_prefix(static_values, &source_key, &target_key);
     }
 
-    let Some(value) = resolve_static_value(value, static_values) else {
+    let Some(value) = resolve_static_value_handle(program, assignment.value, static_values) else {
         return;
     };
 
@@ -84,31 +88,6 @@ pub(crate) fn apply_call_static_effects(
         };
 
         invalidate_static_prefix(static_values, &target_key);
-    }
-}
-
-pub(crate) fn resolve_static_value(
-    expression: &Expression,
-    static_values: &[(PlaceKey, StaticValue)],
-) -> Option<StaticValue> {
-    match expression {
-        Expression::Integer(value) => Some(StaticValue::Integer(*value)),
-        Expression::String(value) => Some(StaticValue::Text(value.clone())),
-        Expression::Name(path) => {
-            let key = static_place_key(expression)?;
-            static_values
-                .iter()
-                .find(|(target, _)| target == &key)
-                .map(|(_, value)| value.clone())
-                .or_else(|| {
-                    if is_static_symbol_path(path) {
-                        Some(StaticValue::Expression(Expression::Name(path.clone())))
-                    } else {
-                        None
-                    }
-                })
-        }
-        _ => None,
     }
 }
 
@@ -136,14 +115,6 @@ pub(crate) fn resolve_static_value_handle(
                     }
                 })
         }
-        _ => None,
-    }
-}
-
-fn static_place_key(expression: &Expression) -> Option<PlaceKey> {
-    match expression {
-        Expression::Name(path) if !path.is_empty() => PlaceKey::from_expression(expression),
-        Expression::Indexed(_) => PlaceKey::from_expression(expression),
         _ => None,
     }
 }
