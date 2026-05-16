@@ -1,3 +1,7 @@
+use omega_checked_trees::Program;
+use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -8,10 +12,6 @@ use omega_state_graph::{
     StateBorrowWritableRoot, StateGraph, StateKey, StateNode, TransitionEdge,
     TransitionExpressionRefs,
 };
-use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::TransitionGuard;
-use omega_checked_trees::Program;
 use std::sync::Arc;
 
 mod segments;
@@ -56,8 +56,14 @@ pub fn build_state_graph_with_workers(
 
     state_graph.proof_obligations =
         remap_proof_obligations(program.facts.proof.obligations.iter().map(|(_, fact)| fact));
-    state_graph.invariants =
-        remap_invariants(program.facts.invariants.definitions.iter().map(|(_, fact)| fact));
+    state_graph.invariants = remap_invariants(
+        program
+            .facts
+            .invariants
+            .definitions
+            .iter()
+            .map(|(_, fact)| fact),
+    );
 
     Ok(state_graph)
 }
@@ -82,9 +88,7 @@ fn remap_proof_obligations<'a>(
                 omega_checked_trees::ProofFactKind::BoundedStateReturn => {
                     ProofFactKind::BoundedStateReturn
                 }
-                omega_checked_trees::ProofFactKind::BoundedValue => {
-                    ProofFactKind::BoundedValue
-                }
+                omega_checked_trees::ProofFactKind::BoundedValue => ProofFactKind::BoundedValue,
                 omega_checked_trees::ProofFactKind::BoundedTransitionArgument => {
                     ProofFactKind::BoundedTransitionArgument
                 }
@@ -117,11 +121,7 @@ fn remap_invariants<'a>(
     invariants
 }
 
-fn merge_machine_graph(
-    target: &mut StateGraph,
-    source: &StateGraph,
-    machine_graph: &MachineGraph,
-) {
+fn merge_machine_graph(target: &mut StateGraph, source: &StateGraph, machine_graph: &MachineGraph) {
     let states = append_remapped_states(target, source, machine_graph.states);
 
     let contains = target.contained_machines.insert_many(
@@ -181,10 +181,16 @@ fn remap_state_borrow_summary(
     source: &StateGraph,
     borrow: &StateBorrowSummary,
 ) -> StateBorrowSummary {
-    let writable_roots =
+    let mut writable_roots = HandleSpan::empty();
+    for root in source
+        .borrow_writable_roots
+        .span_or_empty(borrow.writable_roots)
+    {
         target
             .borrow_writable_roots
-            .insert_many(source.borrow_writable_roots.span_or_empty(borrow.writable_roots).iter().cloned());
+            .append_to_span(&mut writable_roots, root.clone());
+    }
+
     let calls = append_remapped_borrow_calls(target, source, borrow.calls);
 
     StateBorrowSummary {
@@ -203,13 +209,13 @@ fn append_remapped_borrow_calls(
     let mut count = 0u32;
 
     for call in source.borrow_calls.span_or_empty(calls) {
-        let accesses = target.borrow_argument_accesses.insert_many(
-            source
+        let mut accesses = HandleSpan::empty();
+        for access in source.borrow_argument_accesses.span_or_empty(call.accesses) {
+            target
                 .borrow_argument_accesses
-                .span_or_empty(call.accesses)
-                .iter()
-                .cloned(),
-        );
+                .append_to_span(&mut accesses, access.clone());
+        }
+
         let handle = target.borrow_calls.append(StateBorrowCall {
             accesses,
             ..call.clone()
@@ -420,8 +426,7 @@ fn append_machine_states(
         let operations = state_graph
             .operations
             .insert_many(segment.operations.iter().cloned());
-        let transitions =
-            append_segment_transitions(state_graph, program, segment, state_indexes)?;
+        let transitions = append_segment_transitions(state_graph, program, segment, state_indexes)?;
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         let handle = state_graph.states.append(StateNode {
             key: segment.key,
@@ -465,65 +470,69 @@ fn state_borrow_summary(
         return StateBorrowSummary::default();
     };
 
-    let writable_roots = state_graph.borrow_writable_roots.insert_many(
-        program
-            .facts
-            .borrow
-            .writable_roots
-            .span_or_empty(state_borrow.writable_roots)
-            .iter()
-            .map(|root| StateBorrowWritableRoot {
+    let mut writable_roots = HandleSpan::empty();
+    for root in program
+        .facts
+        .borrow
+        .writable_roots
+        .span_or_empty(state_borrow.writable_roots)
+    {
+        state_graph.borrow_writable_roots.append_to_span(
+            &mut writable_roots,
+            StateBorrowWritableRoot {
                 symbol: root.symbol,
                 name: root.name.clone(),
                 kind: match root.kind {
-                    omega_checked_trees::BorrowRootKind::OwnedData => StateBorrowRootKind::OwnedData,
-                    omega_checked_trees::BorrowRootKind::LocalData => StateBorrowRootKind::LocalData,
+                    omega_checked_trees::BorrowRootKind::OwnedData => {
+                        StateBorrowRootKind::OwnedData
+                    }
+                    omega_checked_trees::BorrowRootKind::LocalData => {
+                        StateBorrowRootKind::LocalData
+                    }
                     omega_checked_trees::BorrowRootKind::MutableParameter => {
                         StateBorrowRootKind::MutableParameter
                     }
                 },
-            }),
-    );
+            },
+        );
+    }
 
-    let calls = state_graph.borrow_calls.insert_many(
-        program
+    let mut calls = HandleSpan::empty();
+    for call in program.facts.borrow.calls.span_or_empty(state_borrow.calls) {
+        let mut accesses = HandleSpan::empty();
+        for access in program
             .facts
             .borrow
-            .calls
-            .span_or_empty(state_borrow.calls)
-            .iter()
-            .map(|call| {
-                let accesses = state_graph.borrow_argument_accesses.insert_many(
-                    program
-                        .facts
-                        .borrow
-                        .argument_accesses
-                        .span_or_empty(call.accesses)
-                        .iter()
-                        .map(|access| StateBorrowArgumentAccess {
-                            root_name: access.root_name.clone(),
-                            kind: match access.kind {
-                                omega_checked_trees::BorrowAccessKind::Read => {
-                                    StateBorrowAccessKind::Read
-                                }
-                                omega_checked_trees::BorrowAccessKind::Mutable => {
-                                    StateBorrowAccessKind::Mutable
-                                }
-                            },
-                        }),
-                );
+            .argument_accesses
+            .span_or_empty(call.accesses)
+        {
+            state_graph.borrow_argument_accesses.append_to_span(
+                &mut accesses,
+                StateBorrowArgumentAccess {
+                    root_name: access.root_name.clone(),
+                    kind: match access.kind {
+                        omega_checked_trees::BorrowAccessKind::Read => StateBorrowAccessKind::Read,
+                        omega_checked_trees::BorrowAccessKind::Mutable => {
+                            StateBorrowAccessKind::Mutable
+                        }
+                    },
+                },
+            );
+        }
 
-                StateBorrowCall {
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
-                    receiver_symbol: call.receiver_symbol,
-                    target_symbol: call.target_symbol,
-                    receiver: call.receiver.clone(),
-                    target: call.target.clone(),
-                    accesses,
-                }
-            }),
-    );
+        state_graph.borrow_calls.append_to_span(
+            &mut calls,
+            StateBorrowCall {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                receiver_symbol: call.receiver_symbol,
+                target_symbol: call.target_symbol,
+                receiver: call.receiver.clone(),
+                target: call.target.clone(),
+                accesses,
+            },
+        );
+    }
 
     StateBorrowSummary {
         writable_roots,
