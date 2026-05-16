@@ -135,7 +135,7 @@ pub struct BoundedStateReturnObligation {
     pub machine: String,
     pub state_symbol: SymbolHandle,
     pub state: String,
-    pub value: Expression,
+    pub value: ExpressionHandle,
     pub value_constraints: HandleSpan<TypeConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
@@ -539,9 +539,10 @@ fn collect_bounded_state_return_obligation(
     else {
         return;
     };
-    let value = program.expression_table.to_tree(*value);
+    let value = *value;
+    let value_tree = program.expression_table.to_tree(value);
 
-    let value_constraints = expression_constraints(program, machine, state, &value);
+    let value_constraints = expression_constraints(program, machine, state, &value_tree);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
