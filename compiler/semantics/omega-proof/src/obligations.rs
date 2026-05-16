@@ -7,9 +7,8 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
-    Assignment, StatementNode, TableCall, TableLocalData, TableTransition, Transition,
-    TransitionGuard, TransitionGuardNode, TransitionTarget, TransitionTargetHandle,
-    TransitionTargetNode,
+    StatementNode, TableAssignment, TableCall, TableLocalData, TableTransition, TransitionGuard,
+    TransitionGuardNode, TransitionTarget, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{
     TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode,
@@ -208,9 +207,9 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
             }
 
             let table_statements = program.statement_table.statements(state.statement_nodes);
-            for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
+            for (statement_index, statement) in table_statements.iter().enumerate() {
                 let transition = match statement {
-                    omega_typed_trees::statement::Statement::Assignment(assignment) => {
+                    StatementNode::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
                             program,
                             machine,
@@ -220,33 +219,31 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                         );
                         continue;
                     }
-                    omega_typed_trees::statement::Statement::Call(_) => {
-                        if let Some(omega_typed_trees::statement::StatementNode::Call(table_call)) =
-                            table_statements.get(statement_index)
-                        {
-                            collect_bounded_call_argument_obligations(
-                                program,
-                                machine,
-                                state,
-                                table_call,
-                                &mut proof_plan,
-                            );
-                        }
+                    StatementNode::Call(table_call) => {
+                        collect_bounded_call_argument_obligations(
+                            program,
+                            machine,
+                            state,
+                            table_call,
+                            &mut proof_plan,
+                        );
                         continue;
                     }
-                    omega_typed_trees::statement::Statement::Transition(transition) => transition,
+                    StatementNode::Transition(transition) => transition,
                     _ => continue,
                 };
 
-                if let TransitionGuard::When(_) = &transition.guard {
+                let transition_guard = table_transition_guard(program, *transition);
+                let transition_target = table_transition_target(program, transition.target);
+                if let TransitionGuard::When(_) = &transition_guard {
                     proof_plan.push_obligation(ProofObligation::GuardedTransition(
                         GuardedTransitionObligation {
                             machine_symbol: machine.symbol,
                             machine: machine.name.to_string(),
                             state_symbol: state.symbol,
                             state: state.name.to_string(),
-                            target: transition.target.clone(),
-                            guard: transition.guard.clone(),
+                            target: transition_target.clone(),
+                            guard: transition_guard.clone(),
                         },
                     ));
                 }
@@ -255,7 +252,8 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                     program,
                     machine,
                     state,
-                    transition,
+                    transition_target,
+                    transition_guard,
                     table_statements.get(statement_index),
                     &mut proof_plan,
                 );
@@ -354,20 +352,22 @@ fn collect_bounded_assignment_obligation(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    assignment: &Assignment,
+    assignment: &TableAssignment,
     proof_plan: &mut ProofPlan,
 ) {
+    let target = program.expression_table.to_tree(assignment.target);
     let Some(TypeReference::Constrained {
         base_type,
         constraints,
-    }) = expression_type_reference(program, machine, state, &assignment.target)
+    }) = expression_type_reference(program, machine, state, &target)
     else {
         return;
     };
 
-    let value_constraints = expression_constraints(program, machine, state, &assignment.value);
+    let value = program.expression_table.to_tree(assignment.value);
+    let value_constraints = expression_constraints(program, machine, state, &value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
-    let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+    let constraints = proof_plan.store_constraints(type_constraints(program, constraints));
     let state_guard = incoming_state_guard(program, machine, state);
 
     proof_plan.push_obligation(ProofObligation::BoundedAssignment(
@@ -377,8 +377,8 @@ fn collect_bounded_assignment_obligation(
             state_symbol: state.symbol,
             state: state.name.to_string(),
             state_guard,
-            target: assignment.target.clone(),
-            value: assignment.value.clone(),
+            target,
+            value,
             value_constraints,
             base_type: base_type.as_ref().clone(),
             constraints,
@@ -390,7 +390,8 @@ fn collect_bounded_transition_argument_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    transition: &Transition,
+    transition_target: TransitionTarget,
+    transition_guard: TransitionGuard,
     table_statement: Option<&StatementNode>,
     proof_plan: &mut ProofPlan,
 ) {
@@ -423,13 +424,13 @@ fn collect_bounded_transition_argument_obligations(
                 machine: machine.name.to_string(),
                 state_symbol: state.symbol,
                 state: state.name.to_string(),
-                target: transition.target.clone(),
+                target: transition_target.clone(),
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
                 base_type: base_type.as_ref().clone(),
                 constraints,
-                guard: transition.guard.clone(),
+                guard: transition_guard.clone(),
             },
         ));
     }
@@ -618,6 +619,25 @@ fn table_transition_guard(program: &TypedTrees, transition: TableTransition) -> 
     }
 }
 
+fn table_transition_target(
+    program: &TypedTrees,
+    target: TransitionTargetHandle,
+) -> TransitionTarget {
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, arguments: _ } => TransitionTarget::Named {
+            path: path.members,
+            head_symbol: path.head_symbol,
+            symbol: path.symbol,
+            arguments: HandleSpan::empty(),
+        },
+        TransitionTargetNode::Value(expression) => {
+            TransitionTarget::Value(program.expression_table.to_tree(*expression))
+        }
+        TransitionTargetNode::SelfTarget => TransitionTarget::SelfTarget,
+        TransitionTargetNode::Terminal => TransitionTarget::Terminal,
+    }
+}
+
 fn table_transition_target_state_and_arguments<'program>(
     program: &'program TypedTrees,
     state: &'program State,
@@ -752,7 +772,7 @@ fn expression_constraints(
         Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
             expression_type_reference(program, machine, state, expression)
                 .map(|type_reference| {
-                    collect_constraints_in_state(program, machine, state, type_reference)
+                    collect_constraints_in_state(program, machine, state, &type_reference)
                 })
                 .unwrap_or_default()
         }
@@ -764,12 +784,12 @@ fn expression_constraints(
     }
 }
 
-fn expression_type_reference<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-    state: &'program State,
+fn expression_type_reference(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     expression: &Expression,
-) -> Option<&'program TypeReference> {
+) -> Option<TypeReference> {
     match expression {
         Expression::Mutable(inner) => expression_type_reference(program, machine, state, inner),
         Expression::Name(path) => {
@@ -787,27 +807,18 @@ fn expression_type_reference<'program>(
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.name == *name)
-                .map(|parameter| &parameter.type_reference)
+                .map(|parameter| parameter.type_reference.clone())
                 .or_else(|| {
-                    program
-                        .state_statements(state)
-                        .iter()
-                        .find_map(|statement| {
-                            let omega_typed_trees::statement::Statement::LocalData(local_data) =
-                                statement
-                            else {
-                                return None;
-                            };
-
-                            (local_data.name == *name).then_some(&local_data.type_reference)
-                        })
+                    local_data_by_name(program, state, name).map(|local_data| {
+                        table_type_reference_to_tree(program, local_data.type_reference)
+                    })
                 })
                 .or_else(|| {
                     program
                         .machine_owned_data(machine)
                         .iter()
                         .find(|owned_data| owned_data.name == *name)
-                        .map(|owned_data| &owned_data.type_reference)
+                        .map(|owned_data| owned_data.type_reference.clone())
                 })
         }
         Expression::Member(member) => {
@@ -815,10 +826,11 @@ fn expression_type_reference<'program>(
                 .and_then(|receiver_type| {
                     data_field_type_reference(
                         program,
-                        receiver_type,
+                        &receiver_type,
                         member.member_symbol,
                         &member.member,
                     )
+                    .cloned()
                 })
                 .or_else(|| {
                     type_reference_for_symbol(program, machine, state, member.member_symbol)
@@ -976,7 +988,7 @@ fn collection_length_from_expression(
                             program,
                             machine,
                             state,
-                            type_reference,
+                            &type_reference,
                         )
                     },
                 )
@@ -984,7 +996,7 @@ fn collection_length_from_expression(
         }
         _ => expression_type_reference(program, machine, state, expression).and_then(
             |type_reference| {
-                collection_length_from_type_reference(program, machine, state, type_reference)
+                collection_length_from_type_reference(program, machine, state, &type_reference)
             },
         ),
     }
@@ -1062,28 +1074,29 @@ fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
     constraints
 }
 
-fn type_reference_for_symbol<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-    state: &'program State,
+fn type_reference_for_symbol(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     symbol: SymbolHandle,
-) -> Option<&'program TypeReference> {
+) -> Option<TypeReference> {
     program
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == symbol)
-        .map(|parameter| &parameter.type_reference)
+        .map(|parameter| parameter.type_reference.clone())
         .or_else(|| {
             program
-                .state_statements(state)
+                .statement_table
+                .statements(state.statement_nodes)
                 .iter()
                 .find_map(|statement| {
-                    let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
-                    else {
+                    let StatementNode::LocalData(local_data) = statement else {
                         return None;
                     };
 
-                    (local_data.symbol == symbol).then_some(&local_data.type_reference)
+                    (local_data.symbol == symbol)
+                        .then(|| table_type_reference_to_tree(program, local_data.type_reference))
                 })
         })
         .or_else(|| {
@@ -1091,7 +1104,7 @@ fn type_reference_for_symbol<'program>(
                 .machine_owned_data(machine)
                 .iter()
                 .find(|owned_data| owned_data.symbol == symbol)
-                .map(|owned_data| &owned_data.type_reference)
+                .map(|owned_data| owned_data.type_reference.clone())
         })
         .or_else(|| {
             program
@@ -1106,10 +1119,22 @@ fn type_reference_for_symbol<'program>(
                                 return None;
                             };
 
-                            (field.symbol == symbol).then_some(&field.type_reference)
+                            (field.symbol == symbol).then_some(field.type_reference.clone())
                         })
                 })
         })
+}
+
+fn table_type_reference_to_tree(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> TypeReference {
+    program.type_reference_table.to_tree(
+        type_reference,
+        &program.expression_table,
+        &mut Arena::new(),
+        &mut Arena::new(),
+    )
 }
 
 fn data_field_type_reference<'program>(
