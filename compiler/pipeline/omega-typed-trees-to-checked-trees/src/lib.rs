@@ -980,7 +980,7 @@ mod tests {
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::signature::StateParameter;
     use omega_checked_trees::state::State;
-    use omega_checked_trees::statement::{Call, Statement};
+    use omega_checked_trees::statement::{StatementNode, TableCall};
     use omega_checked_trees::types::TypeReference;
     use omega_core::symbols::SymbolHandle;
 
@@ -1006,8 +1006,11 @@ mod tests {
         }));
 
         let mut program = omega_typed_trees::TypedTrees::default();
+        let nested_call = program.expression_table.insert_tree(&nested_call);
         let mut outer_arguments = Default::default();
-        program.push_statement_expression(&mut outer_arguments, nested_call);
+        program
+            .statement_table
+            .push_expression_handle(&mut outer_arguments, nested_call);
         let mut machine = Machine {
             symbol: machine_symbol,
             name: ProgramName::generated("Game"),
@@ -1020,12 +1023,11 @@ mod tests {
             name: ProgramName::generated("entry"),
             parameters: Default::default(),
             return_type: None,
-            statements: Default::default(),
             statement_nodes: Default::default(),
         };
-        program.push_state_statement(
-            &mut entry_state,
-            Statement::Call(Call {
+        program.statement_table.push_statement(
+            &mut entry_state.statement_nodes,
+            StatementNode::Call(TableCall {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: outer_symbol,
                 receiver: Default::default(),
@@ -1052,7 +1054,6 @@ mod tests {
                 name: ProgramName::generated("outer"),
                 parameters: Default::default(),
                 return_type: None,
-                statements: Default::default(),
                 statement_nodes: Default::default(),
             },
         );
@@ -1063,12 +1064,10 @@ mod tests {
                 name: ProgramName::generated("inner"),
                 parameters: Default::default(),
                 return_type: None,
-                statements: Default::default(),
                 statement_nodes: Default::default(),
             },
         );
         program.push_machine(machine);
-        program.rebuild_tables();
 
         let facts = build_borrow_facts(&program);
         let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
