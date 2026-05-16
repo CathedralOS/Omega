@@ -238,12 +238,22 @@ impl ExpressionTable {
         source: &ExpressionTable,
         expressions: &[ExpressionHandle],
     ) -> HandleSpan<ExpressionHandle> {
-        let mut copied = HandleSpan::empty();
+        let copied = self.reserve_expression_handles(
+            expressions
+                .len()
+                .try_into()
+                .expect("expression handle span count overflow"),
+        );
 
-        for expression in expressions {
+        for (offset, expression) in expressions.iter().enumerate() {
             let expression = self.copy_from(source, *expression);
-            self.expression_handles
-                .append_to_span(&mut copied, expression);
+            self.set_expression_handle_at_offset(
+                copied,
+                offset
+                    .try_into()
+                    .expect("expression handle span count overflow"),
+                expression,
+            );
         }
 
         copied
@@ -355,13 +365,12 @@ impl ExpressionTable {
         &mut self,
         expressions: HandleSpan<ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
-        let mut copied = HandleSpan::empty();
+        let copied = self.reserve_expression_handles(expressions.count());
 
         for offset in 0..expressions.count() {
             let expression = self.expression_handle_at_offset(expressions, offset);
             let expression = self.insert_copy(expression);
-            self.expression_handles
-                .append_to_span(&mut copied, expression);
+            self.set_expression_handle_at_offset(copied, offset, expression);
         }
 
         copied
@@ -371,13 +380,14 @@ impl ExpressionTable {
         &mut self,
         fields: HandleSpan<TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
-        let mut copied = HandleSpan::empty();
+        let copied = self.reserve_struct_fields(fields.count());
 
         for offset in 0..fields.count() {
             let field = self.struct_field_at_offset(fields, offset).clone();
             let value = self.insert_copy(field.value);
-            self.struct_fields.append_to_span(
-                &mut copied,
+            self.set_struct_field_at_offset(
+                copied,
+                offset,
                 TableStructLiteralField {
                     name: field.name,
                     value,
@@ -418,16 +428,26 @@ impl ExpressionTable {
         ))
     }
 
-    fn insert_expression_handle_span_from_trees<'expression>(
+    fn insert_expression_handle_span_from_trees(
         &mut self,
-        expressions: impl IntoIterator<Item = &'expression Expression>,
+        expressions: &[Expression],
     ) -> HandleSpan<ExpressionHandle> {
-        let mut handles = HandleSpan::empty();
+        let handles = self.reserve_expression_handles(
+            expressions
+                .len()
+                .try_into()
+                .expect("expression handle span count overflow"),
+        );
 
-        for expression in expressions {
+        for (offset, expression) in expressions.iter().enumerate() {
             let expression = self.insert_tree(expression);
-            self.expression_handles
-                .append_to_span(&mut handles, expression);
+            self.set_expression_handle_at_offset(
+                handles,
+                offset
+                    .try_into()
+                    .expect("expression handle span count overflow"),
+                expression,
+            );
         }
 
         handles
@@ -437,12 +457,20 @@ impl ExpressionTable {
         &mut self,
         fields: &[StructLiteralField],
     ) -> HandleSpan<TableStructLiteralField> {
-        let mut field_span = HandleSpan::empty();
+        let field_span = self.reserve_struct_fields(
+            fields
+                .len()
+                .try_into()
+                .expect("struct literal field span count overflow"),
+        );
 
-        for field in fields {
+        for (offset, field) in fields.iter().enumerate() {
             let value = self.insert_tree(&field.value);
-            self.struct_fields.append_to_span(
-                &mut field_span,
+            self.set_struct_field_at_offset(
+                field_span,
+                offset
+                    .try_into()
+                    .expect("struct literal field span count overflow"),
                 TableStructLiteralField {
                     name: field.name.clone(),
                     value,
