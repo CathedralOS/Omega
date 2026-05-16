@@ -3,9 +3,11 @@ use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::Program;
 use omega_checked_trees::machine::Machine;
+use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_control_flow::StateKey;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
 use omega_state_values::simplify_state_expression;
@@ -112,8 +114,10 @@ fn build_machine_state_storage_plan(
                         name: local_data.name.clone(),
                         type_symbol: program.type_reference_symbol(local_data.type_reference),
                         type_name: program.display_type_reference(local_data.type_reference),
-                        invariant_names: plan.invariant_names.insert_many(
-                            type_reference_invariant_names(program, local_data.type_reference),
+                        invariant_names: append_type_reference_invariant_names(
+                            program,
+                            local_data.type_reference,
+                            &mut plan.invariant_names,
                         ),
                         required,
                     });
@@ -215,29 +219,31 @@ fn assignment_target_head_symbol(
     }
 }
 
-fn type_reference_invariant_names(
+fn append_type_reference_invariant_names(
     program: &Program,
     type_reference: TypeReferenceHandle,
-) -> impl Iterator<Item = omega_checked_trees::name::ProgramName> + use<> {
-    let mut names = Vec::new();
-    collect_type_reference_invariant_names(program, type_reference, &mut names);
-    names.into_iter()
+    names: &mut Arena<ProgramName>,
+) -> HandleSpan<ProgramName> {
+    let mut span = HandleSpan::empty();
+    collect_type_reference_invariant_names(program, type_reference, names, &mut span);
+    span
 }
 
 fn collect_type_reference_invariant_names(
     program: &Program,
     type_reference: TypeReferenceHandle,
-    names: &mut Vec<omega_checked_trees::name::ProgramName>,
+    names: &mut Arena<ProgramName>,
+    span: &mut HandleSpan<ProgramName>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            collect_type_reference_invariant_names(program, *referee, names)
+            collect_type_reference_invariant_names(program, *referee, names, span)
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            collect_type_reference_invariant_names(program, *base_type, names);
+            collect_type_reference_invariant_names(program, *base_type, names, span);
 
             for constraint in program.type_reference_table.constraints(*constraints) {
                 let omega_checked_trees::types::TypeConstraintNode::Named(name) = constraint else {
@@ -250,24 +256,27 @@ fn collect_type_reference_invariant_names(
                     .definitions
                     .iter()
                     .any(|(_, invariant)| invariant.name == *name)
-                    && !names.iter().any(|existing| existing == name)
+                    && !names
+                        .span_or_empty(*span)
+                        .iter()
+                        .any(|existing| existing == name)
                 {
-                    names.push(name.clone());
+                    names.append_to_span(span, name.clone());
                 }
             }
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            collect_type_reference_invariant_names(program, *element_type, names)
+            collect_type_reference_invariant_names(program, *element_type, names, span)
         }
         TypeReferenceNode::Slice { element_type } => {
-            collect_type_reference_invariant_names(program, *element_type, names)
+            collect_type_reference_invariant_names(program, *element_type, names, span)
         }
         TypeReferenceNode::Generic { arguments, .. } => {
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
-                collect_type_reference_invariant_names(program, *argument, names);
+                collect_type_reference_invariant_names(program, *argument, names, span);
             }
         }
         TypeReferenceNode::Named { .. } | TypeReferenceNode::Unit => {}
