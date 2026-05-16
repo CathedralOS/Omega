@@ -6,12 +6,13 @@ pub use model::{
     StateGuard, StateGuardKind, StateGuardOperand, StateGuardOperandKind, StateGuardOperandStorage,
     StateGuardPlan,
 };
+use normalize::normalize_guard_expression;
+use omega_checked_trees::Program;
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::TransitionGuard;
-use omega_checked_trees::Program;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
@@ -20,7 +21,6 @@ use omega_runtime_storage::RuntimeStoragePlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 use omega_state_values::simplify_expression;
 pub use omega_target_operations::{StateGuardLowering, StateGuardOperator};
-use normalize::normalize_guard_expression;
 use operands::{GuardOperands, guard_operands};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -100,9 +100,7 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
                 | BinaryOperator::Or
                 | BinaryOperator::ShiftLeft
                 | BinaryOperator::ShiftRight
-                | BinaryOperator::Subtract => {
-                    StateGuardKind::RuntimeExpression
-                }
+                | BinaryOperator::Subtract => StateGuardKind::RuntimeExpression,
             },
             _ => StateGuardKind::RuntimeExpression,
         },
@@ -134,9 +132,7 @@ pub fn classify_transition_guard_expression(
             | BinaryOperator::Or
             | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight
-            | BinaryOperator::Subtract => {
-                StateGuardKind::RuntimeExpression
-            }
+            | BinaryOperator::Subtract => StateGuardKind::RuntimeExpression,
         },
         _ => StateGuardKind::RuntimeExpression,
     }
@@ -159,19 +155,12 @@ fn build_state_guard(
 ) -> StateGuard {
     let source_guard = edge.expressions.guard;
     let simplified_guard = source_guard.map(|guard| {
-        simplify_expression(
-            program,
-            source_machine,
-            &source_expressions.to_tree(guard),
-        )
+        simplify_expression(program, source_machine, &source_expressions.to_tree(guard))
     });
     let mut normalized_expressions = ExpressionTable::new();
-    let normalized_guard = normalize_guard_expression(
-        source_expressions,
-        simplified_guard.as_ref(),
-        source_guard,
-    )
-        .map(|guard| normalized_expressions.insert_tree(&guard));
+    let normalized_guard =
+        normalize_guard_expression(source_expressions, simplified_guard.as_ref(), source_guard)
+            .map(|guard| normalized_expressions.insert_tree(&guard));
     let kind = classify_transition_guard_expression(&normalized_expressions, normalized_guard);
     let operator = normalized_guard
         .map(|guard| guard_operator(&normalized_expressions, guard))
@@ -202,39 +191,39 @@ fn build_state_guard(
             source,
             statement_index,
         ) {
-            let operands = GuardOperands {
-                left: StateGuardOperand {
-                    expression,
-                    kind: StateGuardOperandKind::Place,
-                    storage: StateGuardOperandStorage::RuntimeFrame,
-                    byte_offset: slot.byte_offset,
-                    byte_size: slot.byte_size,
-                    resolved_value: 0,
-                    has_resolved_value: false,
-                },
-                right: StateGuardOperand {
-                    expression,
-                    kind: StateGuardOperandKind::Literal,
-                    storage: StateGuardOperandStorage::Unknown,
-                    byte_offset: 0,
-                    byte_size: slot.byte_size,
-                    resolved_value: i64::from(expected),
-                    has_resolved_value: true,
-                },
-            };
-            (
-                StateGuardKind::RuntimeEquality,
-                StateGuardOperator::Equal,
-                StateGuardLowering::CompareStaticValue,
-                operands.insert_into(operand_arena),
-            )
-        } else {
-            let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
-            let operands = guard_operands
-                .map(|operands| operands.insert_into(operand_arena))
-                .unwrap_or_default();
-            (kind, operator, lowering, operands)
+        let operands = GuardOperands {
+            left: StateGuardOperand {
+                expression,
+                kind: StateGuardOperandKind::Place,
+                storage: StateGuardOperandStorage::RuntimeFrame,
+                byte_offset: slot.byte_offset,
+                byte_size: slot.byte_size,
+                resolved_value: 0,
+                has_resolved_value: false,
+            },
+            right: StateGuardOperand {
+                expression,
+                kind: StateGuardOperandKind::Literal,
+                storage: StateGuardOperandStorage::Unknown,
+                byte_offset: 0,
+                byte_size: slot.byte_size,
+                resolved_value: i64::from(expected),
+                has_resolved_value: true,
+            },
         };
+        (
+            StateGuardKind::RuntimeEquality,
+            StateGuardOperator::Equal,
+            StateGuardLowering::CompareStaticValue,
+            operands.insert_into(operand_arena),
+        )
+    } else {
+        let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
+        let operands = guard_operands
+            .map(|operands| operands.insert_into(operand_arena))
+            .unwrap_or_default();
+        (kind, operator, lowering, operands)
+    };
 
     StateGuard {
         source,
@@ -343,77 +332,61 @@ pub fn lower_guard_conjunction(
         return None;
     }
 
-    let mut leaves = Vec::new();
-    flatten_guard_conjunction(&plan.expressions, expression, &mut leaves)?;
-
-    let mut clauses = Vec::with_capacity(leaves.len());
-    for leaf in leaves {
-        let kind = classify_transition_guard_expression(&plan.expressions, Some(leaf));
-        let operator = guard_operator(&plan.expressions, leaf);
-        let mut scratch = ExpressionTable::new();
-        let operands = guard_operands(
-            &plan.expressions,
-            &mut scratch,
-            layouts,
-            runtime_storage,
-            entry_machine,
-            source_key,
-            source_machine,
-            source_dispatch_index,
-            guard.statement_index,
-            Some(leaf),
-        )?;
-        let lowering = guard_lowering(kind, operator, Some(&operands));
-        if matches!(lowering, StateGuardLowering::NeedsRuntimeExpression | StateGuardLowering::NoOp)
-        {
-            return None;
-        }
-
-        let mut place_operands = [&operands.left, &operands.right]
-            .into_iter()
-            .filter(|operand| {
-                operand.kind == StateGuardOperandKind::Place
-                    && operand.storage != StateGuardOperandStorage::Unknown
-            });
-        let place_operand = place_operands.next()?;
-        let right_place_operand = place_operands.next();
-        let expected_value = [&operands.left, &operands.right]
-            .into_iter()
-            .find(|operand| operand.has_resolved_value)
-            .map(|operand| operand.resolved_value)
-            .unwrap_or(0);
-
-        clauses.push(StateGuardClause {
-            lowering,
-            operator,
-            storage: place_operand.storage,
-            byte_offset: place_operand.byte_offset,
-            right_storage: right_place_operand
-                .map(|operand| operand.storage)
-                .unwrap_or(StateGuardOperandStorage::Unknown),
-            right_byte_offset: right_place_operand
-                .map(|operand| operand.byte_offset)
-                .unwrap_or(0),
-            byte_size: place_operand.byte_size,
-            expected_value,
-            has_storage: true,
-            has_right_storage: right_place_operand.is_some(),
-        });
-    }
+    let mut clauses = Vec::new();
+    lower_guard_conjunction_expression(
+        plan,
+        layouts,
+        runtime_storage,
+        entry_machine,
+        source_key,
+        source_machine,
+        source_dispatch_index,
+        guard.statement_index,
+        expression,
+        &mut clauses,
+    )?;
 
     Some(clauses)
 }
 
-fn flatten_guard_conjunction(
-    table: &ExpressionTable,
+fn lower_guard_conjunction_expression(
+    plan: &StateGuardPlan,
+    layouts: &LayoutPlan,
+    runtime_storage: &RuntimeStoragePlan,
+    entry_machine: SymbolHandle,
+    source_key: StateKey,
+    source_machine: SymbolHandle,
+    source_dispatch_index: u32,
+    statement_index: usize,
     expression: ExpressionHandle,
-    leaves: &mut Vec<ExpressionHandle>,
+    clauses: &mut Vec<StateGuardClause>,
 ) -> Option<()> {
-    match table.expression(expression) {
+    match plan.expressions.expression(expression) {
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            flatten_guard_conjunction(table, binary.left, leaves)?;
-            flatten_guard_conjunction(table, binary.right, leaves)?;
-            Some(())
+            lower_guard_conjunction_expression(
+                plan,
+                layouts,
+                runtime_storage,
+                entry_machine,
+                source_key,
+                source_machine,
+                source_dispatch_index,
+                statement_index,
+                binary.left,
+                clauses,
+            )?;
+            lower_guard_conjunction_expression(
+                plan,
+                layouts,
+                runtime_storage,
+                entry_machine,
+                source_key,
+                source_machine,
+                source_dispatch_index,
+                statement_index,
+                binary.right,
+                clauses,
+            )
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -426,9 +399,88 @@ fn flatten_guard_conjunction(
                     | BinaryOperator::LessOrEqual
             ) =>
         {
-            leaves.push(expression);
-            Some(())
+            lower_guard_leaf(
+                plan,
+                layouts,
+                runtime_storage,
+                entry_machine,
+                source_key,
+                source_machine,
+                source_dispatch_index,
+                statement_index,
+                expression,
+                clauses,
+            )
         }
         _ => None,
     }
+}
+
+fn lower_guard_leaf(
+    plan: &StateGuardPlan,
+    layouts: &LayoutPlan,
+    runtime_storage: &RuntimeStoragePlan,
+    entry_machine: SymbolHandle,
+    source_key: StateKey,
+    source_machine: SymbolHandle,
+    source_dispatch_index: u32,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    clauses: &mut Vec<StateGuardClause>,
+) -> Option<()> {
+    let kind = classify_transition_guard_expression(&plan.expressions, Some(expression));
+    let operator = guard_operator(&plan.expressions, expression);
+    let mut scratch = ExpressionTable::new();
+    let operands = guard_operands(
+        &plan.expressions,
+        &mut scratch,
+        layouts,
+        runtime_storage,
+        entry_machine,
+        source_key,
+        source_machine,
+        source_dispatch_index,
+        statement_index,
+        Some(expression),
+    )?;
+    let lowering = guard_lowering(kind, operator, Some(&operands));
+    if matches!(
+        lowering,
+        StateGuardLowering::NeedsRuntimeExpression | StateGuardLowering::NoOp
+    ) {
+        return None;
+    }
+
+    let mut place_operands = [&operands.left, &operands.right]
+        .into_iter()
+        .filter(|operand| {
+            operand.kind == StateGuardOperandKind::Place
+                && operand.storage != StateGuardOperandStorage::Unknown
+        });
+    let place_operand = place_operands.next()?;
+    let right_place_operand = place_operands.next();
+    let expected_value = [&operands.left, &operands.right]
+        .into_iter()
+        .find(|operand| operand.has_resolved_value)
+        .map(|operand| operand.resolved_value)
+        .unwrap_or(0);
+
+    clauses.push(StateGuardClause {
+        lowering,
+        operator,
+        storage: place_operand.storage,
+        byte_offset: place_operand.byte_offset,
+        right_storage: right_place_operand
+            .map(|operand| operand.storage)
+            .unwrap_or(StateGuardOperandStorage::Unknown),
+        right_byte_offset: right_place_operand
+            .map(|operand| operand.byte_offset)
+            .unwrap_or(0),
+        byte_size: place_operand.byte_size,
+        expected_value,
+        has_storage: true,
+        has_right_storage: right_place_operand.is_some(),
+    });
+
+    Some(())
 }
