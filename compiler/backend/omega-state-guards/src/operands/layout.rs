@@ -66,6 +66,7 @@ pub(super) fn resolve_guard_operand_layout(
         let [field_name, rest @ ..] = suffix else {
             return None;
         };
+        let field_symbol = path.member_symbol(1);
         if let Some((_, machine_layout)) = layouts
             .machine_layouts
             .iter()
@@ -74,12 +75,12 @@ pub(super) fn resolve_guard_operand_layout(
             if let Some(machine_base_offset) =
                 machine_storage_offset(layouts, entry_machine, source_machine)
             {
-                if let Some(root_field) = layouts
-                    .fields
-                    .span(machine_layout.fields)?
-                    .iter()
-                    .find(|field| field.name.as_str() == field_name.as_str())
-                {
+                if let Some(root_field) = field_layout_by_symbol_or_name(
+                    layouts,
+                    machine_layout.fields,
+                    field_symbol,
+                    field_name.as_str(),
+                ) {
                     return resolve_nested_field_layout(layouts, root_field, rest).map(
                         |(byte_offset, layout)| ResolvedOperandLayout {
                             storage: StateGuardOperandStorage::MachineOwned,
@@ -97,11 +98,12 @@ pub(super) fn resolve_guard_operand_layout(
             .find_map(|(_, candidate_layout)| {
                 let candidate_base_offset =
                     machine_storage_offset(layouts, entry_machine, candidate_layout.symbol)?;
-                let root_field = layouts
-                    .fields
-                    .span(candidate_layout.fields)?
-                    .iter()
-                    .find(|field| field.name.as_str() == field_name.as_str())?;
+                let root_field = field_layout_by_symbol_or_name(
+                    layouts,
+                    candidate_layout.fields,
+                    field_symbol,
+                    field_name.as_str(),
+                )?;
 
                 resolve_nested_field_layout(layouts, root_field, rest).map(
                     |(byte_offset, layout)| ResolvedOperandLayout {
@@ -136,7 +138,7 @@ pub(super) fn resolve_guard_operand_layout(
         );
     }
 
-    fallback_machine_named_path_layout(layouts, entry_machine, root_symbol, path.members()).map(
+    fallback_machine_named_path_layout(layouts, entry_machine, root_symbol, &path).map(
         |(byte_offset, layout)| ResolvedOperandLayout {
             storage: StateGuardOperandStorage::MachineOwned,
             byte_offset,
@@ -265,6 +267,7 @@ fn normalized_guard_name_path<'table>(
         ExpressionNode::Name(path) => Some(NormalizedGuardNamePath::borrowed(
             table.name_path_members(path.members),
             path.head_symbol,
+            path.symbol,
         )),
         _ => None,
     }
@@ -278,6 +281,7 @@ fn member_expression_path_in_table<'table>(
         ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
             table.name_path_members(path.members),
             path.head_symbol,
+            path.symbol,
         ),
         ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed)?,
         ExpressionNode::Member(inner_member) => {
@@ -286,9 +290,15 @@ fn member_expression_path_in_table<'table>(
         ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target)?,
         _ => return None,
     };
-    let (mut members, head_symbol) = path.into_owned_parts();
+    let (mut members, mut member_symbols, head_symbol, _) = path.into_owned_parts();
     members.push(member.member.clone());
-    Some(NormalizedGuardNamePath::owned(members, head_symbol))
+    member_symbols.push(member.member_symbol);
+    Some(NormalizedGuardNamePath::owned(
+        members,
+        member_symbols,
+        head_symbol,
+        member.member_symbol,
+    ))
 }
 
 fn indexed_expression_path_in_table<'table>(
@@ -302,41 +312,62 @@ fn indexed_expression_path_in_table<'table>(
         ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
             table.name_path_members(path.members),
             path.head_symbol,
+            path.symbol,
         ),
         ExpressionNode::Indexed(inner_indexed) => {
             indexed_expression_path_in_table(table, inner_indexed)?
         }
         _ => return None,
     };
-    let (mut members, head_symbol) = path.into_owned_parts();
+    let (mut members, member_symbols, head_symbol, final_symbol) = path.into_owned_parts();
     let last_segment = members.last_mut()?;
     *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
-    Some(NormalizedGuardNamePath::owned(members, head_symbol))
+    Some(NormalizedGuardNamePath::owned(
+        members,
+        member_symbols,
+        head_symbol,
+        final_symbol,
+    ))
 }
 
 enum NormalizedGuardNamePath<'table> {
     Borrowed {
         members: &'table [ProgramName],
         head_symbol: SymbolHandle,
+        final_symbol: SymbolHandle,
     },
     Owned {
         members: Vec<ProgramName>,
+        member_symbols: Vec<SymbolHandle>,
         head_symbol: SymbolHandle,
+        final_symbol: SymbolHandle,
     },
 }
 
 impl<'table> NormalizedGuardNamePath<'table> {
-    fn borrowed(members: &'table [ProgramName], head_symbol: SymbolHandle) -> Self {
+    fn borrowed(
+        members: &'table [ProgramName],
+        head_symbol: SymbolHandle,
+        final_symbol: SymbolHandle,
+    ) -> Self {
         Self::Borrowed {
             members,
             head_symbol,
+            final_symbol,
         }
     }
 
-    fn owned(members: Vec<ProgramName>, head_symbol: SymbolHandle) -> Self {
+    fn owned(
+        members: Vec<ProgramName>,
+        member_symbols: Vec<SymbolHandle>,
+        head_symbol: SymbolHandle,
+        final_symbol: SymbolHandle,
+    ) -> Self {
         Self::Owned {
             members,
+            member_symbols,
             head_symbol,
+            final_symbol,
         }
     }
 
@@ -357,18 +388,62 @@ impl<'table> NormalizedGuardNamePath<'table> {
         self.members().first()
     }
 
-    fn into_owned_parts(self) -> (Vec<ProgramName>, SymbolHandle) {
+    fn member_symbol(&self, index: usize) -> SymbolHandle {
         match self {
             Self::Borrowed {
                 members,
                 head_symbol,
+                final_symbol,
                 ..
-            } => (members.to_vec(), head_symbol),
-            Self::Owned {
+            } => {
+                if index == 0 {
+                    *head_symbol
+                } else if index + 1 == members.len() {
+                    *final_symbol
+                } else {
+                    SymbolHandle::invalid()
+                }
+            }
+            Self::Owned { member_symbols, .. } => member_symbols
+                .get(index)
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid),
+        }
+    }
+
+    fn into_owned_parts(
+        self,
+    ) -> (
+        Vec<ProgramName>,
+        Vec<SymbolHandle>,
+        SymbolHandle,
+        SymbolHandle,
+    ) {
+        match self {
+            Self::Borrowed {
                 members,
                 head_symbol,
+                final_symbol,
                 ..
-            } => (members, head_symbol),
+            } => {
+                let mut member_symbols = vec![SymbolHandle::invalid(); members.len()];
+                if let Some(root_symbol) = member_symbols.first_mut() {
+                    *root_symbol = head_symbol;
+                }
+                if members.len() > 1
+                    && let Some(last_symbol) = member_symbols.last_mut()
+                {
+                    *last_symbol = final_symbol;
+                }
+                (members.to_vec(), member_symbols, head_symbol, final_symbol)
+            }
+            Self::Owned {
+                members,
+                member_symbols,
+                head_symbol,
+                final_symbol,
+                ..
+            } => (members, member_symbols, head_symbol, final_symbol),
         }
     }
 }
@@ -592,8 +667,10 @@ fn fallback_machine_named_path_layout(
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
     root_symbol: SymbolHandle,
-    path_members: &[ProgramName],
+    path: &NormalizedGuardNamePath<'_>,
 ) -> Option<(usize, TypeLayout)> {
+    let path_members = path.members();
+    let mut root_index = 0;
     let mut segments = path_members;
     if root_symbol.is_valid()
         && layouts
@@ -602,10 +679,12 @@ fn fallback_machine_named_path_layout(
             .any(|(_, machine_layout)| machine_layout.symbol == root_symbol)
     {
         segments = segments.get(1..)?;
+        root_index = 1;
     }
     let [root_name, suffix @ ..] = segments else {
         return None;
     };
+    let root_field_symbol = path.member_symbol(root_index);
 
     layouts
         .machine_layouts
@@ -613,11 +692,12 @@ fn fallback_machine_named_path_layout(
         .find_map(|(_, machine_layout)| {
             let machine_base_offset =
                 machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
-            let root_field = layouts
-                .fields
-                .span(machine_layout.fields)?
-                .iter()
-                .find(|field| field.name.as_str() == root_name.as_str())?;
+            let root_field = field_layout_by_symbol_or_name(
+                layouts,
+                machine_layout.fields,
+                root_field_symbol,
+                root_name.as_str(),
+            )?;
             let (byte_offset, layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
             Some((machine_base_offset + byte_offset, layout))
         })
