@@ -6,7 +6,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::Expression;
 use omega_typed_trees::signature::StateParameter;
-use omega_typed_trees::statement::{Statement, TransitionTarget};
+use omega_typed_trees::statement::{Statement, StatementNode, TransitionTarget};
 use omega_typed_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -26,7 +26,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
         for state in program.machine_states(machine) {
             validate_local_data_names(
-                program.state_statements(state),
+                program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,
                 program.state_parameters(state),
                 format!("machine `{}` state `{}`", machine.name, state.name),
@@ -34,7 +34,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             );
             let writable_roots = WritableRoots {
                 machine_symbols: &machine_symbols,
-                statements: program.state_statements(state),
+                statements: program.statement_table.statements(state.statement_nodes),
                 parameters: program.state_parameters(state),
             };
 
@@ -81,7 +81,7 @@ fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Di
 
 struct WritableRoots<'program, 'state> {
     machine_symbols: &'state MachineSymbols<'program>,
-    statements: &'state [Statement],
+    statements: &'state [StatementNode],
     parameters: &'state [StateParameter],
 }
 
@@ -89,7 +89,7 @@ impl WritableRoots<'_, '_> {
     fn contains(&self, root_name: &str) -> bool {
         self.machine_symbols.has_owned_data(root_name)
             || self.statements.iter().any(|statement| {
-                let Statement::LocalData(local_data) = statement else {
+                let StatementNode::LocalData(local_data) = statement else {
                     return false;
                 };
 
@@ -103,7 +103,7 @@ impl WritableRoots<'_, '_> {
 }
 
 fn validate_local_data_names(
-    statements: &[Statement],
+    statements: &[StatementNode],
     machine_symbols: &MachineSymbols<'_>,
     parameters: &[StateParameter],
     owner: String,
@@ -112,7 +112,7 @@ fn validate_local_data_names(
     let mut local_names = Vec::new();
 
     for statement in statements {
-        let Statement::LocalData(local_data) = statement else {
+        let StatementNode::LocalData(local_data) = statement else {
             continue;
         };
 
