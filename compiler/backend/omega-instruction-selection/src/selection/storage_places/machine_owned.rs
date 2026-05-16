@@ -1,7 +1,7 @@
 use super::expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
-use super::nested_fields::resolve_nested_field_layout;
+use super::nested_fields::resolve_nested_field_layout_with_symbols;
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::ProgramName;
 use omega_core::symbols::SymbolHandle;
@@ -17,9 +17,12 @@ pub(in crate::selection) fn resolve_machine_owned_place(
     let Expression::Name(path) = &normalized_expression else {
         return None;
     };
-    let (machine_base_offset, root_field, suffix) =
+    let (machine_base_offset, root_field, suffix, suffix_start_index) =
         root_machine_field_layout_from_path(layouts, entry_machine, source_machine, path)?;
-    let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+    let (field_offset, field_layout) =
+        resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, |index| {
+            path.member_symbol(suffix_start_index + index)
+        })?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
 }
@@ -32,9 +35,12 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
     expression: ExpressionHandle,
 ) -> Option<(usize, usize)> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
-    let (machine_base_offset, root_field, suffix) =
+    let (machine_base_offset, root_field, suffix, suffix_start_index) =
         root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
-    let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+    let (field_offset, field_layout) =
+        resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, |index| {
+            path.member_symbol(suffix_start_index + index)
+        })?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
 }
@@ -44,7 +50,7 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path StorageNamePath<'_>,
-) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
+) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName], usize)> {
     root_machine_field_layout_from_parts(
         layouts,
         entry_machine,
@@ -60,7 +66,7 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path NamePath,
-) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
+) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName], usize)> {
     root_machine_field_layout_from_parts(
         layouts,
         entry_machine,
@@ -78,7 +84,7 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
     members: &'path [ProgramName],
     root_symbol: SymbolHandle,
     self_field_symbol: SymbolHandle,
-) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
+) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName], usize)> {
     let [root_name, suffix @ ..] = members else {
         return None;
     };
@@ -99,7 +105,7 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
             self_field_symbol,
             field_name.as_str(),
         )?;
-        return Some((machine_base_offset, root_field, rest));
+        return Some((machine_base_offset, root_field, rest, 2));
     }
 
     let (machine_base_offset, root_field) = root_machine_field_layout(
@@ -109,7 +115,7 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
         root_symbol,
         root_name,
     )?;
-    Some((machine_base_offset, root_field, suffix))
+    Some((machine_base_offset, root_field, suffix, 1))
 }
 
 fn root_machine_field_layout<'plan>(
