@@ -536,12 +536,14 @@ fn resolve_call_target_machine<'program>(
         return Some(current_machine);
     };
     let receiver = strip_mutable_expression_ref(receiver);
-    if expression_is_self_reference(receiver) {
+    if expression_is_self_reference(current_machine, receiver) {
         return Some(current_machine);
     }
 
     let contained_symbol = match receiver {
-        Expression::Member(member) if expression_is_self_reference(&member.receiver) => {
+        Expression::Member(member)
+            if expression_is_self_reference(current_machine, &member.receiver) =>
+        {
             member.member_symbol
         }
         Expression::Name(path) => path.symbol(),
@@ -585,15 +587,10 @@ fn resolve_call_target_state<'machine>(
         .find(|state| state.symbol == call.target_symbol)
 }
 
-fn expression_is_self_reference(expression: &Expression) -> bool {
+fn expression_is_self_reference(machine: &Machine, expression: &Expression) -> bool {
     match expression {
-        Expression::Mutable(inner) => expression_is_self_reference(inner),
-        Expression::Name(path) => {
-            path.len() == 1
-                && path
-                    .first()
-                    .is_some_and(|segment| segment.as_str() == "self")
-        }
+        Expression::Mutable(inner) => expression_is_self_reference(machine, inner),
+        Expression::Name(path) => path.len() == 1 && path.symbol() == machine.symbol,
         _ => false,
     }
 }
