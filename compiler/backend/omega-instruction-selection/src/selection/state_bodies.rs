@@ -3,6 +3,7 @@ use omega_checked_trees::expression::ExpressionTable;
 use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
 use omega_core::arena::Arena;
 use omega_state_schedule::ScheduledState;
+use std::collections::HashSet;
 
 use super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
@@ -198,9 +199,10 @@ pub(super) fn runtime_reachable_states(
     input: &InstructionSelectionInput<'_>,
 ) -> Vec<ScheduledState> {
     let mut states = Vec::new();
+    let mut state_set = HashSet::new();
 
     for (_, state) in input.runtime_flow.states.iter() {
-        push_scheduled_state_key(&mut states, state.key);
+        push_scheduled_state_key(&mut states, &mut state_set, state.key);
     }
 
     for (_, state_call) in input.state_calls.calls.iter() {
@@ -208,25 +210,34 @@ pub(super) fn runtime_reachable_states(
             continue;
         }
 
-        push_scheduled_state_key(&mut states, state_call.source_key);
+        push_scheduled_state_key(&mut states, &mut state_set, state_call.source_key);
 
         if state_call.target_key.is_valid() {
-            push_scheduled_state_key(&mut states, state_call.target_key);
+            push_scheduled_state_key(&mut states, &mut state_set, state_call.target_key);
         }
     }
 
     states
 }
 
-fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control_flow::StateKey) {
-    if states
-        .iter()
-        .any(|scheduled_state| scheduled_state.key == key)
-    {
-        return;
+fn push_scheduled_state_key(
+    states: &mut Vec<ScheduledState>,
+    state_set: &mut HashSet<StateKeyId>,
+    key: StateKey,
+) {
+    if state_set.insert(state_key_id(key)) {
+        states.push(ScheduledState { key });
     }
+}
 
-    states.push(ScheduledState { key });
+type StateKeyId = (u32, u32, usize);
+
+fn state_key_id(key: StateKey) -> StateKeyId {
+    (
+        key.machine.arena_index(),
+        key.state.arena_index(),
+        key.segment_index,
+    )
 }
 
 fn bind_state_call_aliases(
