@@ -47,8 +47,10 @@ pub(in crate::selection) fn indexed_expression_path(
         Expression::Indexed(inner_indexed) => indexed_expression_path(inner_indexed)?,
         _ => return None,
     };
-    let last_segment = path.last_mut()?;
-    *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
+    let last_segment = path.last()?.clone();
+    path.replace_last_preserving_symbol(ProgramName::generated(format!(
+        "{last_segment}[{index}]"
+    )))?;
     Some(path)
 }
 
