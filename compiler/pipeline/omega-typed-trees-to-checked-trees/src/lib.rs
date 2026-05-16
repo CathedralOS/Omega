@@ -1,6 +1,8 @@
-use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
 use omega_checked_trees::name::ProgramName;
-use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
+use omega_checked_trees::statement::{
+    StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode,
+};
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckFacts, InvariantFact, InvariantFacts, Program, ProofFactKind,
@@ -157,8 +159,8 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                 );
             }
 
-            for statement in program.state_statements(state) {
-                let Statement::LocalData(local_data) = statement else {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local_data) = statement else {
                     continue;
                 };
                 writable_roots.append_to_span(
@@ -187,7 +189,12 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
             }
 
             let mut calls_span = omega_core::arena::HandleSpan::empty();
-            for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 let mut call_ordinal = 0usize;
                 collect_statement_borrow_calls(
                     program,
@@ -233,25 +240,25 @@ fn collect_statement_borrow_calls(
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     statement_index: usize,
-    statement: &Statement,
+    statement: &StatementNode,
     call_ordinal: &mut usize,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     calls: &mut omega_core::arena::Arena<BorrowCallFact>,
     state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
     match statement {
-        Statement::Assignment(assignment) => collect_expression_borrow_calls(
+        StatementNode::Assignment(assignment) => collect_expression_borrow_calls(
             program,
             machine,
             state,
             statement_index,
             call_ordinal,
-            &assignment.value,
+            assignment.value,
             argument_accesses,
             calls,
             state_calls,
         ),
-        Statement::Call(call) => {
+        StatementNode::Call(call) => {
             if statement_call_can_dispatch_to_machine(program, machine, state, call) {
                 append_borrow_call(
                     calls,
@@ -262,53 +269,57 @@ fn collect_statement_borrow_calls(
                     call.target_symbol,
                     statement_call_receiver_path(program, call),
                     call.target.clone(),
-                    collect_call_argument_accesses(argument_accesses, program.call_arguments(call)),
+                    collect_call_argument_accesses(
+                        argument_accesses,
+                        &program.expression_table,
+                        program.statement_table.expression_handles(call.arguments),
+                    ),
                 );
                 *call_ordinal += 1;
             }
 
-            for argument in program.call_arguments(call) {
+            for argument in program.statement_table.expression_handles(call.arguments) {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    argument,
+                    *argument,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
         }
-        Statement::Expression(expression) => collect_expression_borrow_calls(
+        StatementNode::Expression(expression) => collect_expression_borrow_calls(
             program,
             machine,
             state,
             statement_index,
             call_ordinal,
-            expression,
+            *expression,
             argument_accesses,
             calls,
             state_calls,
         ),
-        Statement::LocalData(local_data) => {
-            if let Some(initial_value) = &local_data.initial_value {
+        StatementNode::LocalData(local_data) => {
+            if local_data.initial_value.is_valid() {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    initial_value,
+                    local_data.initial_value,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
         }
-        Statement::Transition(transition) => {
-            if let TransitionGuard::When(expression) = &transition.guard {
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(expression) = transition.guard {
                 collect_expression_borrow_calls(
                     program,
                     machine,
@@ -328,20 +339,20 @@ fn collect_statement_borrow_calls(
                 state,
                 statement_index,
                 call_ordinal,
-                &transition.target,
+                transition.target,
                 argument_accesses,
                 calls,
                 state_calls,
             );
 
-            if let Some(continuation) = &transition.continuation {
+            if transition.continuation.is_valid() {
                 collect_transition_target_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    continuation,
+                    transition.continuation,
                     argument_accesses,
                     calls,
                     state_calls,
@@ -357,39 +368,39 @@ fn collect_transition_target_borrow_calls(
     state: &omega_typed_trees::state::State,
     statement_index: usize,
     call_ordinal: &mut usize,
-    target: &TransitionTarget,
+    target: omega_typed_trees::statement::TransitionTargetHandle,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     calls: &mut omega_core::arena::Arena<BorrowCallFact>,
     state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
-    match target {
-        TransitionTarget::Named { .. } => {
-            for argument in program.transition_target_arguments(target) {
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. } => {
+            for argument in program.statement_table.expression_handles(*arguments) {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    argument,
+                    *argument,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
         }
-        TransitionTarget::Value(expression) => collect_expression_borrow_calls(
+        TransitionTargetNode::Value(expression) => collect_expression_borrow_calls(
             program,
             machine,
             state,
             statement_index,
             call_ordinal,
-            expression,
+            *expression,
             argument_accesses,
             calls,
             state_calls,
         ),
-        TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
 }
 
@@ -424,35 +435,35 @@ fn collect_expression_borrow_calls(
     state: &omega_typed_trees::state::State,
     statement_index: usize,
     call_ordinal: &mut usize,
-    expression: &Expression,
+    expression: ExpressionHandle,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     calls: &mut omega_core::arena::Arena<BorrowCallFact>,
     state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    value,
+                    *value,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
         }
-        Expression::Binary(binary) => {
+        ExpressionNode::Binary(binary) => {
             collect_expression_borrow_calls(
                 program,
                 machine,
                 state,
                 statement_index,
                 call_ordinal,
-                &binary.left,
+                binary.left,
                 argument_accesses,
                 calls,
                 state_calls,
@@ -463,14 +474,14 @@ fn collect_expression_borrow_calls(
                 state,
                 statement_index,
                 call_ordinal,
-                &binary.right,
+                binary.right,
                 argument_accesses,
                 calls,
                 state_calls,
             );
         }
-        Expression::Call(call) => {
-            let (receiver_symbol, receiver_path) = call_receiver_parts(call.receiver.as_deref());
+        ExpressionNode::Call(call) => {
+            let (receiver_symbol, receiver_path) = call_receiver_parts(program, call.receiver);
             let is_machine_call = resolve_state_call_target(
                 program,
                 machine,
@@ -499,57 +510,61 @@ fn collect_expression_borrow_calls(
                     call.target_symbol,
                     receiver_path,
                     call.target.clone(),
-                    collect_call_argument_accesses(argument_accesses, &call.arguments),
+                    collect_call_argument_accesses(
+                        argument_accesses,
+                        &program.expression_table,
+                        program.expression_table.expression_handles(call.arguments),
+                    ),
                 );
                 *call_ordinal += 1;
             }
 
-            if let Some(receiver) = &call.receiver {
+            if call.receiver.is_valid() {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    receiver,
+                    call.receiver,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
-            for argument in &call.arguments {
+            for argument in program.expression_table.expression_handles(call.arguments) {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    argument,
+                    *argument,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
         }
-        Expression::Cast(cast) => collect_expression_borrow_calls(
+        ExpressionNode::Cast(cast) => collect_expression_borrow_calls(
             program,
             machine,
             state,
             statement_index,
             call_ordinal,
-            &cast.value,
+            cast.value,
             argument_accesses,
             calls,
             state_calls,
         ),
-        Expression::Indexed(indexed) => {
+        ExpressionNode::Indexed(indexed) => {
             collect_expression_borrow_calls(
                 program,
                 machine,
                 state,
                 statement_index,
                 call_ordinal,
-                &indexed.collection,
+                indexed.collection,
                 argument_accesses,
                 calls,
                 state_calls,
@@ -560,54 +575,57 @@ fn collect_expression_borrow_calls(
                 state,
                 statement_index,
                 call_ordinal,
-                &indexed.index,
+                indexed.index,
                 argument_accesses,
                 calls,
                 state_calls,
             );
         }
-        Expression::Member(member) => collect_expression_borrow_calls(
+        ExpressionNode::Member(member) => collect_expression_borrow_calls(
             program,
             machine,
             state,
             statement_index,
             call_ordinal,
-            &member.receiver,
+            member.receiver,
             argument_accesses,
             calls,
             state_calls,
         ),
-        Expression::Mutable(inner_expression) => collect_expression_borrow_calls(
+        ExpressionNode::Mutable(inner_expression) => collect_expression_borrow_calls(
             program,
             machine,
             state,
             statement_index,
             call_ordinal,
-            inner_expression,
+            *inner_expression,
             argument_accesses,
             calls,
             state_calls,
         ),
-        Expression::StructLiteral(struct_literal) => {
-            for field in &struct_literal.fields {
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 collect_expression_borrow_calls(
                     program,
                     machine,
                     state,
                     statement_index,
                     call_ordinal,
-                    &field.value,
+                    field.value,
                     argument_accesses,
                     calls,
                     state_calls,
                 );
             }
         }
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::Name(_)
-        | Expression::String(_) => {}
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
     }
 }
 
@@ -615,7 +633,7 @@ fn statement_call_can_dispatch_to_machine(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
-    call: &omega_checked_trees::statement::Call,
+    call: &TableCall,
 ) -> bool {
     resolve_state_call_target(
         program,
@@ -638,14 +656,14 @@ fn statement_call_can_dispatch_to_machine(
 
 fn statement_call_receiver_members<'a>(
     program: &'a omega_typed_trees::TypedTrees,
-    call: &omega_checked_trees::statement::Call,
+    call: &TableCall,
 ) -> Option<&'a [ProgramName]> {
-    (!call.receiver.is_empty()).then(|| program.statement_path_members(call.receiver))
+    (!call.receiver.is_empty()).then(|| program.statement_table.name_path_members(call.receiver))
 }
 
 fn statement_call_receiver_path(
     program: &omega_typed_trees::TypedTrees,
-    call: &omega_checked_trees::statement::Call,
+    call: &TableCall,
 ) -> Option<NamePath> {
     let members = statement_call_receiver_members(program, call)?;
 
@@ -657,20 +675,32 @@ fn statement_call_receiver_path(
 }
 
 fn call_receiver_parts(
-    receiver: Option<&Expression>,
+    program: &omega_typed_trees::TypedTrees,
+    receiver: ExpressionHandle,
 ) -> (
     SymbolHandle,
     Option<omega_checked_trees::expression::NamePath>,
 ) {
-    let Some(receiver) = receiver else {
+    if !receiver.is_valid() {
         return (SymbolHandle::invalid(), None);
-    };
+    }
 
-    match receiver {
-        Expression::Mutable(inner) => call_receiver_parts(Some(inner)),
-        Expression::Name(path) => (path.symbol(), Some(path.clone())),
-        Expression::Member(member) => {
-            let (_, path) = call_receiver_parts(Some(&member.receiver));
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Mutable(inner) => call_receiver_parts(program, *inner),
+        ExpressionNode::Name(path) => (
+            path.symbol,
+            Some(NamePath::resolved_from_iter(
+                program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .iter()
+                    .cloned(),
+                path.head_symbol,
+                path.symbol,
+            )),
+        ),
+        ExpressionNode::Member(member) => {
+            let (_, path) = call_receiver_parts(program, member.receiver);
             let mut path = path.unwrap_or_default();
             path.push(member.member.clone());
             (member.member_symbol, Some(path))
@@ -815,25 +845,27 @@ fn machine_symbol_from_type_reference(
 
 fn collect_call_argument_accesses(
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
-    arguments: &[Expression],
+    expressions: &omega_typed_trees::expression::ExpressionTable,
+    arguments: &[ExpressionHandle],
 ) -> omega_core::arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = omega_core::arena::HandleSpan::empty();
 
     for argument in arguments {
-        collect_argument_accesses(argument, argument_accesses, &mut accesses);
+        collect_argument_accesses(*argument, expressions, argument_accesses, &mut accesses);
     }
 
     accesses
 }
 
 fn collect_argument_accesses(
-    expression: &Expression,
+    expression: ExpressionHandle,
+    expressions: &omega_typed_trees::expression::ExpressionTable,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {
-    match expression {
-        Expression::Mutable(inner_expression) => {
-            if let Some(root_name) = expression_root_name(inner_expression) {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner_expression) => {
+            if let Some(root_name) = expression_root_name(*inner_expression, expressions) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -843,37 +875,40 @@ fn collect_argument_accesses(
                 );
             }
         }
-        other_expression => collect_read_accesses(other_expression, argument_accesses, accesses),
+        _ => collect_read_accesses(expression, expressions, argument_accesses, accesses),
     }
 }
 
 fn collect_read_accesses(
-    expression: &Expression,
+    expression: ExpressionHandle,
+    expressions: &omega_typed_trees::expression::ExpressionTable,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
-                collect_read_accesses(value, argument_accesses, accesses);
+    match expressions.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in expressions.expression_handles(*values) {
+                collect_read_accesses(*value, expressions, argument_accesses, accesses);
             }
         }
-        Expression::Binary(binary) => {
-            collect_read_accesses(&binary.left, argument_accesses, accesses);
-            collect_read_accesses(&binary.right, argument_accesses, accesses);
+        ExpressionNode::Binary(binary) => {
+            collect_read_accesses(binary.left, expressions, argument_accesses, accesses);
+            collect_read_accesses(binary.right, expressions, argument_accesses, accesses);
         }
-        Expression::Call(call) => {
-            if let Some(receiver) = &call.receiver {
-                collect_read_accesses(receiver, argument_accesses, accesses);
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                collect_read_accesses(call.receiver, expressions, argument_accesses, accesses);
             }
 
-            for argument in &call.arguments {
-                collect_read_accesses(argument, argument_accesses, accesses);
+            for argument in expressions.expression_handles(call.arguments) {
+                collect_read_accesses(*argument, expressions, argument_accesses, accesses);
             }
         }
-        Expression::Cast(cast) => collect_read_accesses(&cast.value, argument_accesses, accesses),
-        Expression::Indexed(indexed) => {
-            if let Some(root_name) = expression_root_name(&indexed.collection) {
+        ExpressionNode::Cast(cast) => {
+            collect_read_accesses(cast.value, expressions, argument_accesses, accesses)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            if let Some(root_name) = expression_root_name(indexed.collection, expressions) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -883,13 +918,13 @@ fn collect_read_accesses(
                 );
             }
 
-            collect_read_accesses(&indexed.index, argument_accesses, accesses);
+            collect_read_accesses(indexed.index, expressions, argument_accesses, accesses);
         }
-        Expression::Member(member) => {
-            collect_read_accesses(&member.receiver, argument_accesses, accesses)
+        ExpressionNode::Member(member) => {
+            collect_read_accesses(member.receiver, expressions, argument_accesses, accesses)
         }
-        Expression::Name(path) => {
-            if let Some(root_name) = path.first() {
+        ExpressionNode::Name(path) => {
+            if let Some(root_name) = expressions.name_path_members(path.members).first() {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -899,33 +934,40 @@ fn collect_read_accesses(
                 );
             }
         }
-        Expression::Mutable(inner_expression) => {
-            collect_read_accesses(inner_expression, argument_accesses, accesses)
+        ExpressionNode::Mutable(inner_expression) => {
+            collect_read_accesses(*inner_expression, expressions, argument_accesses, accesses)
         }
-        Expression::StructLiteral(struct_literal) => {
-            for field in &struct_literal.fields {
-                collect_read_accesses(&field.value, argument_accesses, accesses);
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in expressions.struct_fields(struct_literal.fields) {
+                collect_read_accesses(field.value, expressions, argument_accesses, accesses);
             }
         }
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::String(_) => {}
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => {}
     }
 }
 
-fn expression_root_name(expression: &Expression) -> Option<ProgramName> {
-    match expression {
-        Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
-        Expression::Member(member) => match &member.receiver {
-            Expression::Name(path)
-                if path.len() == 1 && path.first().is_some_and(|name| name.as_str() == "self") =>
+fn expression_root_name(
+    expression: ExpressionHandle,
+    expressions: &omega_typed_trees::expression::ExpressionTable,
+) -> Option<ProgramName> {
+    match expressions.expression(expression) {
+        ExpressionNode::Indexed(indexed) => expression_root_name(indexed.collection, expressions),
+        ExpressionNode::Member(member) => match expressions.expression(member.receiver) {
+            ExpressionNode::Name(path)
+                if path.members.count() == 1
+                    && expressions
+                        .name_path_members(path.members)
+                        .first()
+                        .is_some_and(|name| name.as_str() == "self") =>
             {
                 Some(member.member.clone())
             }
-            other => expression_root_name(other),
+            _ => expression_root_name(member.receiver, expressions),
         },
-        Expression::Name(path) => path.first().cloned(),
+        ExpressionNode::Name(path) => expressions.name_path_members(path.members).first().cloned(),
         _ => None,
     }
 }
