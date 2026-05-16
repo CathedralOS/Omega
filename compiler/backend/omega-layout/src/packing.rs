@@ -1,5 +1,6 @@
 use crate::{FieldLayout, TypeLayout};
 use omega_checked_trees::name::ProgramName;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug)]
@@ -11,24 +12,29 @@ pub(super) struct PlannedField {
     pub layout: TypeLayout,
 }
 
-pub(super) fn pack_fields(fields: Vec<PlannedField>) -> (Vec<FieldLayout>, TypeLayout) {
+pub(super) fn pack_fields(
+    field_storage: &mut Arena<FieldLayout>,
+    fields: impl IntoIterator<Item = PlannedField>,
+) -> (HandleSpan<FieldLayout>, TypeLayout) {
     let mut offset = 0;
     let mut max_alignment = 1;
-    let mut packed_fields = Vec::new();
 
-    for field in fields {
+    let packed_fields = field_storage.insert_many(fields.into_iter().map(|field| {
         offset = align_to(offset, field.layout.alignment);
         max_alignment = max_alignment.max(field.layout.alignment);
-        packed_fields.push(FieldLayout {
+        let field_offset = offset;
+        let layout = field.layout;
+        offset += layout.size;
+
+        FieldLayout {
             symbol: field.symbol,
             name: field.name,
-            offset,
+            offset: field_offset,
             type_symbol: field.type_symbol,
             type_name: field.type_name,
-            layout: field.layout,
-        });
-        offset += field.layout.size;
-    }
+            layout,
+        }
+    }));
 
     let size = align_to(offset, max_alignment);
 
