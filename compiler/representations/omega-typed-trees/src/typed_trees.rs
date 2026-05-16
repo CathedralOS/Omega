@@ -280,6 +280,25 @@ impl TypedTrees {
         }
     }
 
+    pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {
+        self.type_reference_table.display_name(type_reference)
+    }
+
+    pub fn display_type_reference_with_constraints(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> String {
+        self.type_reference_table
+            .display_name_with_constraints(type_reference, &self.expression_table)
+    }
+
+    pub fn primitive_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<types::PrimitiveType> {
+        self.type_reference_table.primitive_type(type_reference)
+    }
+
     pub fn rebuild_tables(&mut self) {
         let tables = tables::TypedProgramTables::from_typed_trees_with_state_spans(self);
         self.expression_table = tables.expressions;
