@@ -1,8 +1,8 @@
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
 use omega_state_calls::{StateCallLowering, StateCallRole};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
 
