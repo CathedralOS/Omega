@@ -10,7 +10,7 @@ use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableAssignment, TableCall, TableLocalData, TransitionGuardNode,
-    TransitionTarget, TransitionTargetHandle, TransitionTargetNode,
+    TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{
     TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -90,7 +90,6 @@ pub struct GuardedTransitionObligation {
     pub machine: String,
     pub state_symbol: SymbolHandle,
     pub state: String,
-    pub target: TransitionTarget,
     pub guard: TransitionGuardNode,
 }
 
@@ -149,7 +148,6 @@ pub struct BoundedTransitionArgumentObligation {
     pub machine: String,
     pub state_symbol: SymbolHandle,
     pub state: String,
-    pub target: TransitionTarget,
     pub parameter: String,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<TypeConstraint>,
@@ -256,7 +254,6 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                 };
 
                 let transition_guard = transition.guard;
-                let transition_target = table_transition_target(program, transition.target);
                 if let TransitionGuardNode::When(_) = &transition_guard {
                     proof_plan.push_obligation(ProofObligation::GuardedTransition(
                         GuardedTransitionObligation {
@@ -264,7 +261,6 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                             machine: machine.name.to_string(),
                             state_symbol: state.symbol,
                             state: state.name.to_string(),
-                            target: transition_target.clone(),
                             guard: transition_guard,
                         },
                     ));
@@ -274,7 +270,6 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                     program,
                     machine,
                     state,
-                    transition_target,
                     transition_guard,
                     table_statements.get(statement_index),
                     &mut proof_plan,
@@ -431,7 +426,6 @@ fn collect_bounded_transition_argument_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    transition_target: TransitionTarget,
     transition_guard: TransitionGuardNode,
     table_statement: Option<&StatementNode>,
     proof_plan: &mut ProofPlan<'_>,
@@ -464,7 +458,6 @@ fn collect_bounded_transition_argument_obligations(
                 machine: machine.name.to_string(),
                 state_symbol: state.symbol,
                 state: state.name.to_string(),
-                target: transition_target.clone(),
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
@@ -648,25 +641,6 @@ fn incoming_state_guard(
     }
 
     guard
-}
-
-fn table_transition_target(
-    program: &TypedTrees,
-    target: TransitionTargetHandle,
-) -> TransitionTarget {
-    match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { path, arguments: _ } => TransitionTarget::Named {
-            path: path.members,
-            head_symbol: path.head_symbol,
-            symbol: path.symbol,
-            arguments: HandleSpan::empty(),
-        },
-        TransitionTargetNode::Value(expression) => {
-            TransitionTarget::Value(program.expression_table.to_tree(*expression))
-        }
-        TransitionTargetNode::SelfTarget => TransitionTarget::SelfTarget,
-        TransitionTargetNode::Terminal => TransitionTarget::Terminal,
-    }
 }
 
 fn table_transition_target_state_and_arguments<'program>(
