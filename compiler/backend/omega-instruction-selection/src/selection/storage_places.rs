@@ -16,7 +16,7 @@ use expressions::{
 };
 use nested_fields::resolve_nested_field_layout;
 use omega_checked_trees::expression::{
-    CallExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::PrimitiveType;
@@ -101,7 +101,6 @@ pub(super) fn resolve_runtime_assignment_value_call_result_place(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    _expression: &CallExpression,
 ) -> Option<RuntimeStoragePlace> {
     resolve_runtime_call_result_place(
         input,
@@ -118,7 +117,6 @@ pub(super) fn resolve_runtime_transition_guard_call_result_place(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    _expression: &CallExpression,
 ) -> Option<RuntimeStoragePlace> {
     resolve_runtime_call_result_place(
         input,
@@ -145,7 +143,6 @@ pub(super) fn resolve_runtime_transition_argument_call_result_place(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
-    _expression: &CallExpression,
 ) -> Option<RuntimeStoragePlace> {
     resolve_runtime_call_result_place(
         input,
