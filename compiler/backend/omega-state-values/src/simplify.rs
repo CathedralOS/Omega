@@ -1215,7 +1215,9 @@ fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
                     .all(|(left, right)| expressions_equivalent(left, right))
         }
         (Expression::Cast(left), Expression::Cast(right)) => {
-            left.target_type.members() == right.target_type.members()
+            left.target_type.symbol().is_valid()
+                && right.target_type.symbol().is_valid()
+                && left.target_type.symbol() == right.target_type.symbol()
                 && expressions_equivalent(&left.value, &right.value)
         }
         (Expression::Float(left), Expression::Float(right)) => left == right,
