@@ -5,13 +5,13 @@ use super::lookups::{
     state_operations,
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
+use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
-use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_state_calls::{StateCall, StateCallLowering};
 use omega_state_dispatch::DispatchState;
-use omega_checked_trees::name::ProgramName;
-use omega_checked_trees::expression::ExpressionTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
@@ -19,14 +19,14 @@ pub(super) struct CollectedRuntimeDispatchBody {
     pub dispatch_index: u32,
     pub expressions: ExpressionTable,
     pub invariant_names: Arena<ProgramName>,
-    pub operations: Vec<RuntimeDispatchBodyOperation>,
+    pub operations: Arena<RuntimeDispatchBodyOperation>,
 }
 
 pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
-    let mut operations = Vec::new();
+    let mut operations = Arena::new();
     let mut expressions = ExpressionTable::new();
     let mut invariant_names = Arena::new();
     append_state_body_operations(
@@ -50,7 +50,7 @@ pub(super) fn build_dispatch_body(
 fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
     state_key: StateKey,
-    operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
     visiting: &mut Vec<StateKey>,
@@ -69,7 +69,7 @@ fn append_state_body_operations(
         if let Some(host_call) =
             host_call_for_statement(context, state_key, operation.statement_index)
         {
-            operations.push(body_operation(
+            operations.insert(body_operation(
                 state_key,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::HostCall {
@@ -109,7 +109,7 @@ fn append_state_body_operations(
         if let Some(local_storage) =
             local_storage_for_statement(context, state_key, operation.statement_index)
         {
-            operations.push(body_operation(
+            operations.insert(body_operation(
                 state_key,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::LocalStorage {
@@ -133,7 +133,7 @@ fn append_state_body_operations(
         if let Some(mutation) =
             mutation_for_statement(context, state_key, operation.statement_index)
         {
-            operations.push(body_operation(
+            operations.insert(body_operation(
                 state_key,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::Mutation {
@@ -145,7 +145,7 @@ fn append_state_body_operations(
         }
 
         if !matches!(operation.kind, OperationKind::LocalData) {
-            operations.push(body_operation(
+            operations.insert(body_operation(
                 state_key,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::Other,
@@ -178,13 +178,13 @@ fn append_state_body_operations(
 fn append_state_call_body_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
-    operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
     visiting: &mut Vec<StateKey>,
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
-        operations.push(body_operation(
+        operations.insert(body_operation(
             state_call.source_key,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
@@ -207,7 +207,7 @@ fn append_state_call_body_operation(
     }
 
     if state_has_no_transitions(context, state_call.target_key) {
-        operations.push(body_operation(
+        operations.insert(body_operation(
             state_call.source_key,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
@@ -230,7 +230,7 @@ fn append_state_call_body_operation(
         return;
     }
 
-    operations.push(body_operation(
+    operations.insert(body_operation(
         state_call.source_key,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
@@ -246,7 +246,7 @@ fn append_state_call_body_operation(
 fn append_state_call_result_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
-    operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
 ) {
     if !matches!(
@@ -263,7 +263,7 @@ fn append_state_call_result_operation(
     };
     let value = expressions.copy_from(&context.program.expression_table, value);
 
-    operations.push(body_operation(
+    operations.insert(body_operation(
         state_call.source_key,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCallResult {
@@ -289,7 +289,10 @@ fn terminal_state_value_expression(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == target_key.state)?;
-    let statements = context.program.statement_table.statements(state.statement_nodes);
+    let statements = context
+        .program
+        .statement_table
+        .statements(state.statement_nodes);
     let statement = statements.last()?;
     match statement {
         StatementNode::Expression(expression) => Some(*expression),
@@ -297,7 +300,11 @@ fn terminal_state_value_expression(
             if !transition.continuation.is_valid()
                 && matches!(transition.guard, TransitionGuardNode::Always) =>
         {
-            match context.program.statement_table.transition_target(transition.target) {
+            match context
+                .program
+                .statement_table
+                .transition_target(transition.target)
+            {
                 TransitionTargetNode::Value(expression) => Some(*expression),
                 _ => None,
             }
