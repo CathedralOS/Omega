@@ -108,6 +108,32 @@ impl StatementTable {
         self.expression_handles.append_to_span(span, expression);
     }
 
+    pub fn reserve_expression_handles(
+        &mut self,
+        count: u32,
+    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        self.expression_handles.insert_many(
+            std::iter::repeat_with(crate::expression::ExpressionHandle::invalid)
+                .take(usize::try_from(count).expect("expression handle span count overflow")),
+        )
+    }
+
+    pub fn set_expression_handle_at_offset(
+        &mut self,
+        expressions: HandleSpan<crate::expression::ExpressionHandle>,
+        offset: u32,
+        expression: crate::expression::ExpressionHandle,
+    ) {
+        *self.expression_handles.get_mut(Handle::from_parts(
+            expressions
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("expression handle index overflow"),
+            expressions.start().generation(),
+        )) = expression;
+    }
+
     pub fn push_name_path_member(
         &mut self,
         span: &mut HandleSpan<ProgramName>,
@@ -264,12 +290,23 @@ impl StatementTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_statement_expressions: &Arena<Expression>,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        let mut handles = HandleSpan::empty();
+        let source = source_statement_expressions.span_or_empty(arguments);
+        let handles = self.reserve_expression_handles(
+            source
+                .len()
+                .try_into()
+                .expect("expression handle span count overflow"),
+        );
 
-        for argument in source_statement_expressions.span_or_empty(arguments) {
+        for (offset, argument) in source.iter().enumerate() {
             let argument = expressions.insert_tree(argument);
-            self.expression_handles
-                .append_to_span(&mut handles, argument);
+            self.set_expression_handle_at_offset(
+                handles,
+                offset
+                    .try_into()
+                    .expect("expression handle span count overflow"),
+                argument,
+            );
         }
 
         handles
