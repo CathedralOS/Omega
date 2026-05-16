@@ -4,6 +4,7 @@ mod generational_paged_arena;
 mod handle;
 mod handle_span;
 mod hierarchy_arena;
+mod ordered_root_arena;
 mod paged_arena;
 
 pub use arena::{Arena, ArenaIter};
@@ -13,4 +14,5 @@ pub use handle_span::HandleSpan;
 pub use hierarchy_arena::{
     HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles, HierarchyNode,
 };
+pub use ordered_root_arena::{OrderedRootArena, OrderedRootArenaIter};
 pub use paged_arena::{PagedArena, PagedArenaIter, PagedSlice, PagedSliceIter};
