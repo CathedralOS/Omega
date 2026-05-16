@@ -744,7 +744,9 @@ fn resolve_state_call_target(
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == receiver_symbol)
-        .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
+        .and_then(|parameter| {
+            machine_symbol_from_type_reference_handle(program, parameter.type_reference)
+        })
         && let Some(target_machine) = machine_by_symbol(program, type_symbol)
     {
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
@@ -791,7 +793,9 @@ fn receiver_can_dispatch_to_machine(
             .state_parameters(state)
             .iter()
             .find(|parameter| parameter.symbol == receiver_symbol)
-            .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
+            .and_then(|parameter| {
+                machine_symbol_from_type_reference_handle(program, parameter.type_reference)
+            })
             .and_then(|type_symbol| machine_by_symbol(program, type_symbol))
             .is_some()
 }
@@ -822,24 +826,25 @@ fn machine_by_symbol(
         .find(|machine| machine.symbol == symbol)
 }
 
-fn machine_symbol_from_type_reference(
-    type_reference: &omega_typed_trees::types::TypeReference,
+fn machine_symbol_from_type_reference_handle(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    match type_reference {
-        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
-            machine_symbol_from_type_reference(referee)
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            machine_symbol_from_type_reference_handle(program, *referee)
         }
-        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
-            machine_symbol_from_type_reference(base_type)
+        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            machine_symbol_from_type_reference_handle(program, *base_type)
         }
-        omega_typed_trees::types::TypeReference::Generic { base_symbol, .. }
-        | omega_typed_trees::types::TypeReference::Named {
+        omega_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+        | omega_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..
         } => Some(*base_symbol),
-        omega_typed_trees::types::TypeReference::FixedArray { .. }
-        | omega_typed_trees::types::TypeReference::Slice { .. }
-        | omega_typed_trees::types::TypeReference::Unit => None,
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Unit => None,
     }
 }
 
@@ -981,7 +986,7 @@ mod tests {
     use omega_checked_trees::signature::StateParameter;
     use omega_checked_trees::state::State;
     use omega_checked_trees::statement::{StatementNode, TableCall};
-    use omega_checked_trees::types::TypeReference;
+    use omega_checked_trees::types::TypeReferenceNode;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -1006,6 +1011,7 @@ mod tests {
         }));
 
         let mut program = omega_typed_trees::TypedTrees::default();
+        let unit_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
         let nested_call = program.expression_table.insert_tree(&nested_call);
         let mut outer_arguments = Default::default();
         program
@@ -1040,7 +1046,7 @@ mod tests {
             StateParameter {
                 symbol: item_symbol,
                 name: ProgramName::generated("item"),
-                type_reference: TypeReference::Unit,
+                type_reference: unit_type,
                 is_const: false,
                 is_mutable: true,
                 is_self: false,

@@ -315,9 +315,9 @@ fn validate_state_signature_types<'program>(
                 continue;
             }
 
-            validate_type_reference(
+            validate_type_reference_handle(
                 program,
-                &parameter.type_reference,
+                parameter.type_reference,
                 symbols,
                 diagnostics,
                 format!(
@@ -952,11 +952,10 @@ fn validate_call_arguments_handles(
             continue;
         }
 
-        let expected_type = parameter
-            .type_reference
-            .display_name_with_constraints(&program.type_constraints);
+        let expected_type =
+            program.display_type_reference_with_constraints(parameter.type_reference);
 
-        if !argument_matches_type_handle(program, *argument, &parameter.type_reference) {
+        if !argument_matches_type_reference_handle(program, *argument, parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,

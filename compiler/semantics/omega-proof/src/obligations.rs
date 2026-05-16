@@ -175,13 +175,15 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
 
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
+                let type_reference =
+                    table_type_reference_to_tree(program, parameter.type_reference);
                 collect_bounded_value_obligation(
                     program,
                     format!(
                         "machine `{}` state `{}` parameter `{}`",
                         machine.name, state.name, parameter.name
                     ),
-                    &parameter.type_reference,
+                    &type_reference,
                     &mut proof_plan,
                 );
             }
@@ -404,10 +406,11 @@ fn collect_bounded_transition_argument_obligations(
     };
 
     for (parameter, argument) in callable_parameters(program, target_state).zip(arguments.iter()) {
+        let type_reference = table_type_reference_to_tree(program, parameter.type_reference);
         let TypeReference::Constrained {
             base_type,
             constraints,
-        } = &parameter.type_reference
+        } = &type_reference
         else {
             continue;
         };
@@ -456,10 +459,11 @@ fn collect_bounded_call_argument_obligations(
                 .iter(),
         )
     {
+        let type_reference = table_type_reference_to_tree(program, parameter.type_reference);
         let TypeReference::Constrained {
             base_type,
             constraints,
-        } = &parameter.type_reference
+        } = &type_reference
         else {
             continue;
         };
@@ -806,7 +810,7 @@ fn expression_type_reference(
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.name == *name)
-                .map(|parameter| parameter.type_reference.clone())
+                .map(|parameter| table_type_reference_to_tree(program, parameter.type_reference))
                 .or_else(|| {
                     local_data_by_name(program, state, name).map(|local_data| {
                         table_type_reference_to_tree(program, local_data.type_reference)
@@ -930,12 +934,7 @@ fn collection_length_for_binding(
         .iter()
         .find(|parameter| parameter.name == *name)
         .and_then(|parameter| {
-            collection_length_from_type_reference(
-                program,
-                machine,
-                state,
-                &parameter.type_reference,
-            )
+            collection_length_from_type_reference_handle(program, parameter.type_reference)
         })
         .or_else(|| {
             local_data_by_name(program, state, name).and_then(|local_data| {
@@ -1080,7 +1079,7 @@ fn type_reference_for_symbol(
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == symbol)
-        .map(|parameter| parameter.type_reference.clone())
+        .map(|parameter| table_type_reference_to_tree(program, parameter.type_reference))
         .or_else(|| {
             program
                 .statement_table
