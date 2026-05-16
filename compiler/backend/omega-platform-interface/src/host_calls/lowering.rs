@@ -5,6 +5,7 @@ use omega_checked_trees::Program;
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::Call;
+use omega_core::arena::{Arena, HandleSpan};
 
 pub(crate) fn platform_call_receiver_type(
     program: &Program,
@@ -124,14 +125,20 @@ pub(crate) fn lower_host_call_arguments(
     program: &Program,
     call: &Call,
     static_values: &[(PlaceKey, StaticValue)],
-) -> Vec<HostCallArgument> {
-    program
-        .call_arguments(call)
-        .iter()
-        .map(|argument| HostCallArgument {
-            kind: lower_host_call_argument(argument, static_values),
-        })
-        .collect()
+    arguments: &mut Arena<HostCallArgument>,
+) -> HandleSpan<HostCallArgument> {
+    let mut argument_span = HandleSpan::empty();
+
+    for argument in program.call_arguments(call) {
+        arguments.append_to_span(
+            &mut argument_span,
+            HostCallArgument {
+                kind: lower_host_call_argument(argument, static_values),
+            },
+        );
+    }
+
+    argument_span
 }
 
 pub(crate) fn platform_call_name(program: &Program, call: &Call) -> String {
