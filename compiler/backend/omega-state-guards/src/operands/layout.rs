@@ -55,7 +55,7 @@ pub(super) fn resolve_guard_operand_layout(
         runtime_storage,
         source_key,
         source_dispatch_index,
-        root_symbol,
+        &path,
         suffix,
     ) {
         return Some(slot_layout);
@@ -151,9 +151,10 @@ fn runtime_frame_operand_layout(
     runtime_storage: &RuntimeStoragePlan,
     source_key: StateKey,
     source_dispatch_index: u32,
-    root_symbol: SymbolHandle,
+    path: &NormalizedGuardNamePath<'_>,
     suffix: &[ProgramName],
 ) -> Option<ResolvedOperandLayout> {
+    let root_symbol = path.head_symbol();
     let slot_matches_symbol = |slot: &omega_runtime_storage::RuntimeFrameSlot| {
         root_symbol.is_valid() && slot.symbol == root_symbol
     };
@@ -198,6 +199,7 @@ fn runtime_frame_operand_layout(
             slot.type_symbol,
             &slot.type_name,
             suffix,
+            |offset, _| path.member_symbol(1 + offset),
         )?
     };
 
@@ -214,6 +216,7 @@ fn resolve_nested_slot_layout(
     root_type_symbol: SymbolHandle,
     root_type_name: &str,
     suffix: &[ProgramName],
+    mut field_symbol_at: impl FnMut(usize, &FieldSegment<'_>) -> SymbolHandle,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_byte_offset;
     let mut type_symbol = root_type_symbol;
@@ -223,10 +226,12 @@ fn resolve_nested_slot_layout(
         alignment: 1,
     };
 
-    for segment in suffix {
+    for (offset, segment) in suffix.iter().enumerate() {
         let field_segment = parse_field_segment(segment)?;
         let fields = record_fields(layouts, type_symbol, type_name)?;
-        let field = field_layout(layouts, fields, field_segment.name)?;
+        let field_symbol = field_symbol_at(offset, &field_segment);
+        let field =
+            field_layout_by_symbol_or_name(layouts, fields, field_symbol, field_segment.name)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         type_name = &field.type_name;
@@ -651,18 +656,6 @@ fn parse_array_type_name(type_name: &str) -> Option<ArrayTypeName<'_>> {
         element_type_name: element_type_name.trim(),
         length: length.trim().parse::<usize>().ok()?,
     })
-}
-
-fn field_layout<'plan>(
-    layouts: &'plan LayoutPlan,
-    fields: HandleSpan<FieldLayout>,
-    field_name: &str,
-) -> Option<&'plan FieldLayout> {
-    layouts
-        .fields
-        .span(fields)?
-        .iter()
-        .find(|field| field.name.as_str() == field_name)
 }
 
 fn field_layout_by_symbol_or_name<'plan>(
