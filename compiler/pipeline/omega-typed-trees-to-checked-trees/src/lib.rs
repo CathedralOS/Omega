@@ -1,14 +1,16 @@
+use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckFacts, InvariantFact, InvariantFacts, Program, ProofFactKind,
     ProofFacts, ProofObligationFact, StateBorrowFact,
 };
-use omega_checked_trees::expression::Expression;
-use omega_checked_trees::name::ProgramName;
-use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_core::symbols::SymbolHandle;
 
-pub fn lower_typed_trees(program: &omega_typed_trees::TypedTrees) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
+pub fn lower_typed_trees(
+    program: &omega_typed_trees::TypedTrees,
+) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_program(program)?;
 
     let proof_plan = omega_proof::obligations::build_proof_plan(program);
@@ -43,7 +45,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedAssignment,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!("machine `{}` state `{}`", obligation.machine, obligation.state),
+                    owner: format!(
+                        "machine `{}` state `{}`",
+                        obligation.machine, obligation.state
+                    ),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedCallArgument(obligation) => {
@@ -53,7 +58,10 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: format!(
                         "machine `{}` state `{}` call `{}` parameter `{}`",
-                        obligation.machine, obligation.state, obligation.target, obligation.parameter
+                        obligation.machine,
+                        obligation.state,
+                        obligation.target,
+                        obligation.parameter
                     ),
                 }
             }
@@ -70,7 +78,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedStateReturn,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!("machine `{}` state `{}` return", obligation.machine, obligation.state),
+                    owner: format!(
+                        "machine `{}` state `{}` return",
+                        obligation.machine, obligation.state
+                    ),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedValue(obligation) => {
@@ -97,7 +108,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::GuardedTransition,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!("machine `{}` state `{}` guard", obligation.machine, obligation.state),
+                    owner: format!(
+                        "machine `{}` state `{}` guard",
+                        obligation.machine, obligation.state
+                    ),
                 }
             }
         })
@@ -118,7 +132,10 @@ fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFa
         .map(|definition| InvariantFact {
             symbol: definition.symbol,
             name: definition.name.clone(),
-            constraint_count: program.type_constraints.span_or_empty(definition.constraints).len(),
+            constraint_count: program
+                .type_constraints
+                .span_or_empty(definition.constraints)
+                .len(),
         })
         .collect::<Vec<_>>();
 
@@ -146,16 +163,21 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     name: owned.name.clone(),
                     kind: BorrowRootKind::OwnedData,
                 })
-                .chain(program.state_statements(state).iter().filter_map(|statement| {
-                    let Statement::LocalData(local_data) = statement else {
-                        return None;
-                    };
-                    Some(BorrowWritableRootFact {
-                        symbol: local_data.symbol,
-                        name: local_data.name.clone(),
-                        kind: BorrowRootKind::LocalData,
-                    })
-                }))
+                .chain(
+                    program
+                        .state_statements(state)
+                        .iter()
+                        .filter_map(|statement| {
+                            let Statement::LocalData(local_data) = statement else {
+                                return None;
+                            };
+                            Some(BorrowWritableRootFact {
+                                symbol: local_data.symbol,
+                                name: local_data.name.clone(),
+                                kind: BorrowRootKind::LocalData,
+                            })
+                        }),
+                )
                 .chain(
                     program
                         .state_parameters(state)
@@ -170,9 +192,7 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                 .collect::<Vec<_>>();
 
             let mut state_calls = Vec::new();
-            for (statement_index, statement) in
-                program.state_statements(state).iter().enumerate()
-            {
+            for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
                 let mut call_ordinal = 0usize;
                 collect_statement_borrow_calls(
                     program,
@@ -267,7 +287,7 @@ fn collect_statement_borrow_calls(
                     call_ordinal: *call_ordinal,
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
-                    receiver: call.receiver.clone(),
+                    receiver: statement_call_receiver_path(program, call),
                     target: call.target.clone(),
                     accesses: collect_call_argument_accesses(program.call_arguments(call)),
                 });
@@ -561,7 +581,7 @@ fn statement_call_can_dispatch_to_machine(
         state,
         call.receiver_symbol,
         call.target_symbol,
-        call.receiver.as_ref().map(|receiver| receiver.members()),
+        statement_call_receiver_members(program, call),
         &call.target,
     )
     .is_some()
@@ -570,13 +590,36 @@ fn statement_call_can_dispatch_to_machine(
             machine,
             state,
             call.receiver_symbol,
-            call.receiver.as_ref().map(|receiver| receiver.members()),
+            statement_call_receiver_members(program, call),
         )
+}
+
+fn statement_call_receiver_members<'a>(
+    program: &'a omega_typed_trees::TypedTrees,
+    call: &omega_checked_trees::statement::Call,
+) -> Option<&'a [ProgramName]> {
+    (!call.receiver.is_empty()).then(|| program.statement_path_members(call.receiver))
+}
+
+fn statement_call_receiver_path(
+    program: &omega_typed_trees::TypedTrees,
+    call: &omega_checked_trees::statement::Call,
+) -> Option<NamePath> {
+    let members = statement_call_receiver_members(program, call)?;
+
+    Some(NamePath::resolved(
+        members.iter().cloned().collect(),
+        call.receiver_symbol,
+        call.receiver_symbol,
+    ))
 }
 
 fn call_receiver_parts(
     receiver: Option<&Expression>,
-) -> (SymbolHandle, Option<omega_checked_trees::expression::NamePath>) {
+) -> (
+    SymbolHandle,
+    Option<omega_checked_trees::expression::NamePath>,
+) {
     let Some(receiver) = receiver else {
         return (SymbolHandle::invalid(), None);
     };
@@ -616,10 +659,9 @@ fn resolve_state_call_target(
         .iter()
         .find(|contained| contained.symbol == receiver_symbol)
     {
-        return machine_by_symbol(program, contained.type_symbol)
-            .and_then(|target_machine| {
-                resolve_state_symbol_in_machine(program, target_machine, target_symbol)
-            });
+        return machine_by_symbol(program, contained.type_symbol).and_then(|target_machine| {
+            resolve_state_symbol_in_machine(program, target_machine, target_symbol)
+        });
     }
 
     if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
@@ -702,7 +744,10 @@ fn machine_by_symbol(
     program: &omega_typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&omega_typed_trees::machine::Machine> {
-    program.machines().iter().find(|machine| machine.symbol == symbol)
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
 }
 
 fn machine_symbol_from_type_reference(
@@ -717,7 +762,8 @@ fn machine_symbol_from_type_reference(
         }
         omega_typed_trees::types::TypeReference::Generic { base_symbol, .. }
         | omega_typed_trees::types::TypeReference::Named {
-            symbol: base_symbol, ..
+            symbol: base_symbol,
+            ..
         } => Some(*base_symbol),
         omega_typed_trees::types::TypeReference::FixedArray { .. }
         | omega_typed_trees::types::TypeReference::Slice { .. }
@@ -725,9 +771,7 @@ fn machine_symbol_from_type_reference(
     }
 }
 
-fn collect_call_argument_accesses(
-    arguments: &[Expression],
-) -> Vec<BorrowArgumentAccessFact> {
+fn collect_call_argument_accesses(arguments: &[Expression]) -> Vec<BorrowArgumentAccessFact> {
     let mut accesses = Vec::new();
 
     for argument in arguments {
@@ -754,10 +798,7 @@ fn collect_argument_accesses(
     }
 }
 
-fn collect_read_accesses(
-    expression: &Expression,
-    accesses: &mut Vec<BorrowArgumentAccessFact>,
-) {
+fn collect_read_accesses(expression: &Expression, accesses: &mut Vec<BorrowArgumentAccessFact>) {
     match expression {
         Expression::ArrayLiteral(values) => {
             for value in values {
@@ -777,9 +818,7 @@ fn collect_read_accesses(
                 collect_read_accesses(argument, accesses);
             }
         }
-        Expression::Cast(cast) => {
-            collect_read_accesses(&cast.value, accesses)
-        }
+        Expression::Cast(cast) => collect_read_accesses(&cast.value, accesses),
         Expression::Indexed(indexed) => {
             if let Some(root_name) = expression_root_name(&indexed.collection) {
                 accesses.push(BorrowArgumentAccessFact {
@@ -790,9 +829,7 @@ fn collect_read_accesses(
 
             collect_read_accesses(&indexed.index, accesses);
         }
-        Expression::Member(member) => {
-            collect_read_accesses(&member.receiver, accesses)
-        }
+        Expression::Member(member) => collect_read_accesses(&member.receiver, accesses),
         Expression::Name(path) => {
             if let Some(root_name) = path.first() {
                 accesses.push(BorrowArgumentAccessFact {
@@ -801,9 +838,7 @@ fn collect_read_accesses(
                 });
             }
         }
-        Expression::Mutable(inner_expression) => {
-            collect_read_accesses(inner_expression, accesses)
-        }
+        Expression::Mutable(inner_expression) => collect_read_accesses(inner_expression, accesses),
         Expression::StructLiteral(struct_literal) => {
             for field in &struct_literal.fields {
                 collect_read_accesses(&field.value, accesses);
@@ -816,15 +851,12 @@ fn collect_read_accesses(
     }
 }
 
-fn expression_root_name(
-    expression: &Expression,
-) -> Option<ProgramName> {
+fn expression_root_name(expression: &Expression) -> Option<ProgramName> {
     match expression {
         Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
         Expression::Member(member) => match &member.receiver {
             Expression::Name(path)
-                if path.len() == 1
-                    && path.first().is_some_and(|name| name.as_str() == "self") =>
+                if path.len() == 1 && path.first().is_some_and(|name| name.as_str() == "self") =>
             {
                 Some(member.member.clone())
             }
@@ -891,7 +923,7 @@ mod tests {
             Statement::Call(Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: outer_symbol,
-                receiver: None,
+                receiver: Default::default(),
                 target: ProgramName::generated("outer"),
                 arguments: outer_arguments,
             }),

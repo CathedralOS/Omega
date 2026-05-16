@@ -1,6 +1,7 @@
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::OwnedData;
+use crate::name::ProgramName;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
@@ -48,6 +49,7 @@ impl TypedProgramTables {
                 &typed_trees.type_constraints,
                 &typed_trees.type_reference_arguments,
                 &typed_trees.statement_expressions,
+                &typed_trees.statement_path_members,
             );
         }
 
@@ -69,6 +71,7 @@ impl TypedProgramTables {
             state_parameters,
             state_statements,
             statement_expressions,
+            statement_path_members,
             type_reference_arguments,
             root_platforms,
             platforms,
@@ -107,6 +110,7 @@ impl TypedProgramTables {
                 type_constraints,
                 type_reference_arguments,
                 statement_expressions,
+                statement_path_members,
             );
         }
 
@@ -172,6 +176,7 @@ impl TypedProgramTables {
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
         statement_expressions: &Arena<Expression>,
+        statement_path_members: &Arena<ProgramName>,
     ) {
         for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
@@ -185,6 +190,7 @@ impl TypedProgramTables {
                 type_constraints,
                 type_reference_arguments,
                 statement_expressions,
+                statement_path_members,
             );
         }
     }
@@ -198,6 +204,7 @@ impl TypedProgramTables {
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
         statement_expressions: &Arena<Expression>,
+        statement_path_members: &Arena<ProgramName>,
     ) {
         for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
@@ -211,6 +218,7 @@ impl TypedProgramTables {
                 type_constraints,
                 type_reference_arguments,
                 statement_expressions,
+                statement_path_members,
             );
         }
     }
@@ -240,6 +248,7 @@ impl TypedProgramTables {
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
         statement_expressions: &Arena<Expression>,
+        statement_path_members: &Arena<ProgramName>,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
@@ -259,6 +268,7 @@ impl TypedProgramTables {
                 type_constraints,
                 type_reference_arguments,
                 statement_expressions,
+                statement_path_members,
             );
         }
     }
@@ -271,6 +281,7 @@ impl TypedProgramTables {
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
         statement_expressions: &Arena<Expression>,
+        statement_path_members: &Arena<ProgramName>,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
@@ -293,6 +304,7 @@ impl TypedProgramTables {
                 type_constraints,
                 type_reference_arguments,
                 statement_expressions,
+                statement_path_members,
             );
             statement_nodes.push_contiguous(handle);
         }
@@ -326,6 +338,7 @@ impl TypedProgramTables {
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
         statement_expressions: &Arena<Expression>,
+        statement_path_members: &Arena<ProgramName>,
     ) {
         self.statements.insert_tree(
             statement,
@@ -334,6 +347,7 @@ impl TypedProgramTables {
             type_constraints,
             type_reference_arguments,
             statement_expressions,
+            statement_path_members,
         );
     }
 

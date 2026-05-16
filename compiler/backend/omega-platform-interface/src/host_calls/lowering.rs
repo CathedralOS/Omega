@@ -1,17 +1,19 @@
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
 use omega_calling_conventions::{HostAbiPlan, HostOperationKey, PlatformCallLowering};
+use omega_checked_trees::Program;
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::Call;
-use omega_checked_trees::Program;
 
 pub(crate) fn platform_call_receiver_type(
     program: &Program,
     machine: &Machine,
     call: &Call,
 ) -> Option<String> {
-    call.receiver.as_ref()?;
+    if call.receiver.is_empty() {
+        return None;
+    }
 
     if !call.receiver_symbol.is_valid() {
         return None;
@@ -28,36 +30,45 @@ pub(crate) fn platform_call_receiver_type(
                 .iter()
                 .find(|data_definition| data_definition.name == machine.name)
                 .and_then(|data_definition| {
-                    program.data_members(data_definition).iter().find_map(|member| match member {
-                        omega_checked_trees::data::DataMember::Field(field)
-                            if field.symbol == call.receiver_symbol =>
-                        {
-                            type_reference_symbol(&field.type_reference)
-                        }
-                        _ => None,
-                    })
+                    program
+                        .data_members(data_definition)
+                        .iter()
+                        .find_map(|member| match member {
+                            omega_checked_trees::data::DataMember::Field(field)
+                                if field.symbol == call.receiver_symbol =>
+                            {
+                                type_reference_symbol(&field.type_reference)
+                            }
+                            _ => None,
+                        })
                 })
         })
         .or_else(|| {
-            program.machine_owned_data(machine).iter().find_map(|field| {
-                (field.symbol == call.receiver_symbol)
-                    .then(|| type_reference_symbol(&field.type_reference))
-                    .flatten()
-            })
+            program
+                .machine_owned_data(machine)
+                .iter()
+                .find_map(|field| {
+                    (field.symbol == call.receiver_symbol)
+                        .then(|| type_reference_symbol(&field.type_reference))
+                        .flatten()
+                })
         })
         .or_else(|| {
-            call.target_symbol.is_valid().then(|| {
-                program
-                    .platforms()
-                    .iter()
-                    .find(|platform| {
-                        program
-                            .platform_state_signatures(platform)
-                            .iter()
-                            .any(|state| state.symbol == call.target_symbol)
-                    })
-                    .map(|platform| platform.symbol)
-            }).flatten()
+            call.target_symbol
+                .is_valid()
+                .then(|| {
+                    program
+                        .platforms()
+                        .iter()
+                        .find(|platform| {
+                            program
+                                .platform_state_signatures(platform)
+                                .iter()
+                                .any(|state| state.symbol == call.target_symbol)
+                        })
+                        .map(|platform| platform.symbol)
+                })
+                .flatten()
         })?;
 
     program
@@ -123,20 +134,27 @@ pub(crate) fn lower_host_call_arguments(
         .collect()
 }
 
-pub(crate) fn platform_call_name(call: &Call) -> String {
-    match call.receiver.as_ref() {
-        Some(receiver) => format!(
-            "{}.{}",
-            receiver
-                .members()
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("."),
-            call.target
-        ),
-        None => call.target.to_string(),
+pub(crate) fn platform_call_name(program: &Program, call: &Call) -> String {
+    let receiver = program.statement_path_members(call.receiver);
+
+    if receiver.is_empty() {
+        return call.target.to_string();
     }
+
+    format!("{}.{}", display_path(receiver), call.target)
+}
+
+fn display_path(path: &[omega_checked_trees::name::ProgramName]) -> String {
+    let mut display = String::new();
+
+    for member in path {
+        if !display.is_empty() {
+            display.push('.');
+        }
+        display.push_str(member.as_str());
+    }
+
+    display
 }
 
 fn lowering_matches(

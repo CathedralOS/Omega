@@ -18,6 +18,7 @@ pub struct TypedTrees {
     pub state_parameters: Arena<signature::StateParameter>,
     pub state_statements: Arena<crate::statement::Statement>,
     pub statement_expressions: Arena<expression::Expression>,
+    pub statement_path_members: Arena<crate::name::ProgramName>,
     pub type_reference_arguments: Arena<types::TypeReference>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
@@ -165,10 +166,7 @@ impl TypedTrees {
         self.machine_states.span_or_empty(machine.states)
     }
 
-    pub fn machine_states_mut(
-        &mut self,
-        machine: &machine::Machine,
-    ) -> &mut [crate::state::State] {
+    pub fn machine_states_mut(&mut self, machine: &machine::Machine) -> &mut [crate::state::State] {
         self.machine_states.span_mut_or_empty(machine.states)
     }
 
@@ -181,10 +179,7 @@ impl TypedTrees {
             .append_to_span(&mut state.parameters, parameter);
     }
 
-    pub fn state_parameters(
-        &self,
-        state: &crate::state::State,
-    ) -> &[signature::StateParameter] {
+    pub fn state_parameters(&self, state: &crate::state::State) -> &[signature::StateParameter] {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
@@ -213,10 +208,7 @@ impl TypedTrees {
             .append_to_span(&mut state.statements, statement);
     }
 
-    pub fn state_statements(
-        &self,
-        state: &crate::state::State,
-    ) -> &[crate::statement::Statement] {
+    pub fn state_statements(&self, state: &crate::state::State) -> &[crate::statement::Statement] {
         self.state_statements.span_or_empty(state.statements)
     }
 
@@ -236,10 +228,22 @@ impl TypedTrees {
         self.statement_expressions.span_or_empty(expressions)
     }
 
-    pub fn call_arguments(
+    pub fn push_statement_path_member(
+        &mut self,
+        path: &mut HandleSpan<crate::name::ProgramName>,
+        member: crate::name::ProgramName,
+    ) {
+        self.statement_path_members.append_to_span(path, member);
+    }
+
+    pub fn statement_path_members(
         &self,
-        call: &crate::statement::Call,
-    ) -> &[expression::Expression] {
+        path: HandleSpan<crate::name::ProgramName>,
+    ) -> &[crate::name::ProgramName] {
+        self.statement_path_members.span_or_empty(path)
+    }
+
+    pub fn call_arguments(&self, call: &crate::statement::Call) -> &[expression::Expression] {
         self.statement_expressions(call.arguments)
     }
 

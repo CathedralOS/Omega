@@ -70,12 +70,12 @@ fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Di
             continue;
         };
 
-    for constraint in constraints {
-        match constraint {
-            TypeConstraint::Named(_) => {}
-            TypeConstraint::Range { .. } => {}
+        for constraint in constraints {
+            match constraint {
+                TypeConstraint::Named(_) => {}
+                TypeConstraint::Range { .. } => {}
+            }
         }
-    }
     }
 }
 
@@ -254,11 +254,14 @@ fn validate_callable_state_signatures(
 ) {
     for machine in program.machines() {
         validate_state_signature_types(
-            program.machine_states(machine).iter().map(|state| StateSignatureView {
-                name: state.name.as_str(),
-                parameters: program.state_parameters(state),
-                return_type: state.return_type.as_ref(),
-            }),
+            program
+                .machine_states(machine)
+                .iter()
+                .map(|state| StateSignatureView {
+                    name: state.name.as_str(),
+                    parameters: program.state_parameters(state),
+                    return_type: state.return_type.as_ref(),
+                }),
             program,
             symbols,
             diagnostics,
@@ -554,8 +557,8 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
 #[cfg(test)]
 mod tests {
     use super::validate_program;
-    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -567,7 +570,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
@@ -598,7 +603,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
@@ -698,7 +705,9 @@ fn validate_call(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(receiver_path) = call.receiver.as_ref() else {
+    let receiver_members = program.statement_path_members(call.receiver);
+
+    if receiver_members.is_empty() {
         let Some(state) = machine_symbols.state(&call.target) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
@@ -716,9 +725,7 @@ fn validate_call(
             diagnostics,
         );
         return;
-    };
-
-    let receiver_members = receiver_path.members();
+    }
 
     if receiver_members == ["self"] {
         let Some(state) = machine_symbols.state(&call.target) else {
@@ -797,7 +804,7 @@ fn validate_call(
         return;
     }
 
-    let _ = (receiver_path, diagnostics);
+    let _ = diagnostics;
 }
 
 fn validate_call_arguments(
@@ -1041,7 +1048,10 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
         ),
         TypeReference::Slice { .. } => matches!(
             argument,
-            Expression::Call(_) | Expression::Indexed(_) | Expression::Member(_) | Expression::Name(_)
+            Expression::Call(_)
+                | Expression::Indexed(_)
+                | Expression::Member(_)
+                | Expression::Name(_)
         ),
         TypeReference::Generic { base_name, .. } if base_name == "IndexOf" => {
             matches!(
@@ -1063,7 +1073,9 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
                 | Expression::Name(_)
                 | Expression::StructLiteral(_)
         ),
-        TypeReference::Named { name: type_name, .. } => {
+        TypeReference::Named {
+            name: type_name, ..
+        } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
                 return matches!(argument, Expression::Boolean(_))
                     && primitive_type == PrimitiveType::Bool
@@ -1142,9 +1154,14 @@ fn validate_transition_target(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let TransitionTarget::Named { path, arguments } = target else {
+    let TransitionTarget::Named {
+        path, arguments, ..
+    } = target
+    else {
         return;
     };
+
+    let path = program.statement_path_members(*path);
 
     if path.len() == 1 {
         let Some(state) = machine_symbols.state(path[0].as_str()) else {

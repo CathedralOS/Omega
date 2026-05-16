@@ -1,4 +1,4 @@
-use crate::expression::{Expression, NamePath};
+use crate::expression::Expression;
 use crate::name::ProgramName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -39,7 +39,7 @@ pub struct LocalData {
 pub struct Call {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: Option<NamePath>,
+    pub receiver: HandleSpan<ProgramName>,
     pub target: ProgramName,
     pub arguments: HandleSpan<Expression>,
 }
@@ -60,7 +60,9 @@ pub enum TransitionGuard {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
     Named {
-        path: NamePath,
+        path: HandleSpan<ProgramName>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
         arguments: HandleSpan<Expression>,
     },
     Value(Expression),
@@ -129,6 +131,7 @@ impl StatementTable {
         source_constraints: &Arena<crate::types::TypeConstraint>,
         source_type_reference_arguments: &Arena<crate::types::TypeReference>,
         source_statement_expressions: &Arena<Expression>,
+        source_statement_path_members: &Arena<ProgramName>,
     ) -> StatementHandle {
         match statement {
             Statement::Assignment(assignment) => {
@@ -142,11 +145,9 @@ impl StatementTable {
                     expressions,
                     source_statement_expressions,
                 );
-                let receiver = call
-                    .receiver
-                    .as_ref()
-                    .map(|path| self.insert_name_path_members(path))
-                    .unwrap_or_else(HandleSpan::empty);
+                let receiver = self.insert_name_path_members(
+                    source_statement_path_members.span_or_empty(call.receiver),
+                );
                 self.insert(StatementNode::Call(TableCall {
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
@@ -183,6 +184,7 @@ impl StatementTable {
                     &transition.target,
                     expressions,
                     source_statement_expressions,
+                    source_statement_path_members,
                 );
                 let continuation = transition
                     .continuation
@@ -192,6 +194,7 @@ impl StatementTable {
                             target,
                             expressions,
                             source_statement_expressions,
+                            source_statement_path_members,
                         )
                     })
                     .unwrap_or_else(TransitionTargetHandle::invalid);
@@ -227,10 +230,10 @@ impl StatementTable {
         handles
     }
 
-    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
+    fn insert_name_path_members(&mut self, path: &[ProgramName]) -> HandleSpan<ProgramName> {
         let mut members = HandleSpan::empty();
 
-        for member in path.members() {
+        for member in path {
             self.name_path_members
                 .append_to_span(&mut members, member.clone());
         }
@@ -243,13 +246,21 @@ impl StatementTable {
         target: &TransitionTarget,
         expressions: &mut crate::expression::ExpressionTable,
         source_statement_expressions: &Arena<Expression>,
+        source_statement_path_members: &Arena<ProgramName>,
     ) -> TransitionTargetHandle {
         let target = match target {
-            TransitionTarget::Named { path, arguments } => TransitionTargetNode::Named {
+            TransitionTarget::Named {
+                path,
+                head_symbol,
+                symbol,
+                arguments,
+            } => TransitionTargetNode::Named {
                 path: TableNamePath {
-                    members: self.insert_name_path_members(path),
-                    head_symbol: path.head_symbol(),
-                    symbol: path.symbol(),
+                    members: self.insert_name_path_members(
+                        source_statement_path_members.span_or_empty(*path),
+                    ),
+                    head_symbol: *head_symbol,
+                    symbol: *symbol,
                 },
                 arguments: self.insert_expression_handle_span_from_trees(
                     *arguments,
@@ -388,7 +399,7 @@ mod tests {
         Statement, StatementNode, StatementTable, Transition, TransitionGuard, TransitionTarget,
         TransitionTargetNode,
     };
-    use crate::expression::{Expression, ExpressionTable, NamePath};
+    use crate::expression::{Expression, ExpressionTable};
     use crate::name::ProgramName;
     use crate::types::TypeReferenceTable;
     use omega_core::arena::Arena;
@@ -398,15 +409,15 @@ mod tests {
     fn statement_table_stores_transition_payloads_as_handles() {
         let target_symbol = SymbolHandle::from_arena_index(7);
         let mut source_statement_expressions = Arena::<Expression>::new();
+        let mut source_statement_path_members = Arena::<ProgramName>::new();
         let arguments = source_statement_expressions
             .insert_many([Expression::Integer(1), Expression::Integer(2)]);
+        let path = source_statement_path_members.insert_many([ProgramName::generated("next")]);
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named {
-                path: NamePath::resolved(
-                    vec![ProgramName::generated("next")],
-                    target_symbol,
-                    target_symbol,
-                ),
+                path,
+                head_symbol: target_symbol,
+                symbol: target_symbol,
                 arguments,
             },
             continuation: None,
@@ -425,6 +436,7 @@ mod tests {
             &type_constraints,
             &type_reference_arguments,
             &source_statement_expressions,
+            &source_statement_path_members,
         );
 
         let StatementNode::Transition(transition) = statements.statement(statement) else {
