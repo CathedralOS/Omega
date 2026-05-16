@@ -98,7 +98,7 @@ pub fn expression_name_with_suffix_eq_tree(
     }
 }
 
-fn expression_place_eq_table_tree(
+pub fn expression_place_eq_table_tree(
     table: &ExpressionTable,
     left: ExpressionHandle,
     right: &Expression,
