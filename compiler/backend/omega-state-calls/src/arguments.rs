@@ -1,7 +1,7 @@
 use crate::StateCallPlanningContext;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
@@ -26,8 +26,11 @@ pub(crate) fn build_call_arguments(
         .expressions
         .expression_handles(raw_arguments);
 
-    output_arguments.insert_many(raw_arguments.iter().enumerate().map(
-        move |(index, expression)| {
+    let mut arguments = HandleSpan::empty();
+
+    for (index, expression) in raw_arguments.iter().enumerate() {
+        output_arguments.append_to_span(
+            &mut arguments,
             StateCallArgument {
                 index,
                 parameter_symbol: parameters
@@ -57,9 +60,11 @@ pub(crate) fn build_call_arguments(
                     StateCallArgumentKind::Value
                 },
                 required,
-            }
-        },
-    ))
+            },
+        );
+    }
+
+    arguments
 }
 
 fn state_parameters(
