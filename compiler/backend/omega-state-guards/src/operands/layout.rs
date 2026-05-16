@@ -1,10 +1,10 @@
 use crate::StateGuardOperandStorage;
-use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableIndexedExpression,
     TableMemberExpression,
 };
 use omega_checked_trees::name::ProgramName;
+use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
@@ -91,23 +91,26 @@ pub(super) fn resolve_guard_operand_layout(
             }
         }
 
-        return layouts.machine_layouts.iter().find_map(|(_, candidate_layout)| {
-            let candidate_base_offset =
-                machine_storage_offset(layouts, entry_machine, candidate_layout.symbol)?;
-            let root_field = layouts
-                .fields
-                .span(candidate_layout.fields)?
-                .iter()
-                .find(|field| field.name.as_str() == field_name.as_str())?;
+        return layouts
+            .machine_layouts
+            .iter()
+            .find_map(|(_, candidate_layout)| {
+                let candidate_base_offset =
+                    machine_storage_offset(layouts, entry_machine, candidate_layout.symbol)?;
+                let root_field = layouts
+                    .fields
+                    .span(candidate_layout.fields)?
+                    .iter()
+                    .find(|field| field.name.as_str() == field_name.as_str())?;
 
-            resolve_nested_field_layout(layouts, root_field, rest).map(|(byte_offset, layout)| {
-                ResolvedOperandLayout {
-                    storage: StateGuardOperandStorage::MachineOwned,
-                    byte_offset: candidate_base_offset + byte_offset,
-                    layout,
-                }
-            })
-        });
+                resolve_nested_field_layout(layouts, root_field, rest).map(
+                    |(byte_offset, layout)| ResolvedOperandLayout {
+                        storage: StateGuardOperandStorage::MachineOwned,
+                        byte_offset: candidate_base_offset + byte_offset,
+                        layout,
+                    },
+                )
+            });
     }
 
     let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
@@ -124,22 +127,22 @@ pub(super) fn resolve_guard_operand_layout(
     );
 
     if let Some(root_field) = root_field {
-        return resolve_nested_field_layout(layouts, root_field, suffix).map(|(byte_offset, layout)| {
-            ResolvedOperandLayout {
+        return resolve_nested_field_layout(layouts, root_field, suffix).map(
+            |(byte_offset, layout)| ResolvedOperandLayout {
                 storage: StateGuardOperandStorage::MachineOwned,
                 byte_offset: machine_base_offset + byte_offset,
                 layout,
-            }
-        });
+            },
+        );
     }
 
-    fallback_machine_named_path_layout(layouts, entry_machine, &path).map(|(byte_offset, layout)| {
-        ResolvedOperandLayout {
+    fallback_machine_named_path_layout(layouts, entry_machine, &path).map(
+        |(byte_offset, layout)| ResolvedOperandLayout {
             storage: StateGuardOperandStorage::MachineOwned,
             byte_offset,
             layout,
-        }
-    })
+        },
+    )
 }
 
 fn runtime_frame_operand_layout(
@@ -189,7 +192,13 @@ fn runtime_frame_operand_layout(
             },
         )
     } else {
-        resolve_nested_slot_layout(layouts, slot.byte_offset, slot.type_symbol, &slot.type_name, suffix)?
+        resolve_nested_slot_layout(
+            layouts,
+            slot.byte_offset,
+            slot.type_symbol,
+            &slot.type_name,
+            suffix,
+        )?
     };
 
     Some(ResolvedOperandLayout {
@@ -273,7 +282,9 @@ fn member_expression_path_in_table(
             path.symbol,
         ),
         ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed)?,
-        ExpressionNode::Member(inner_member) => member_expression_path_in_table(table, inner_member)?,
+        ExpressionNode::Member(inner_member) => {
+            member_expression_path_in_table(table, inner_member)?
+        }
         ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target)?,
         _ => return None,
     };
@@ -333,7 +344,8 @@ fn nested_machine_storage_offset(
     for field in fields {
         let field_offset = base_offset + field.offset;
 
-        let nested_machine_layout = field_machine_layout(layouts, field.type_symbol, &field.type_name);
+        let nested_machine_layout =
+            field_machine_layout(layouts, field.type_symbol, &field.type_name);
 
         if nested_machine_layout
             .is_some_and(|nested_machine_layout| nested_machine_layout.symbol == target_machine)
@@ -531,14 +543,18 @@ fn fallback_machine_named_path_layout(
         return None;
     };
 
-    layouts.machine_layouts.iter().find_map(|(_, machine_layout)| {
-        let machine_base_offset = machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
-        let root_field = layouts
-            .fields
-            .span(machine_layout.fields)?
-            .iter()
-            .find(|field| field.name.as_str() == root_name.as_str())?;
-        let (byte_offset, layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
-        Some((machine_base_offset + byte_offset, layout))
-    })
+    layouts
+        .machine_layouts
+        .iter()
+        .find_map(|(_, machine_layout)| {
+            let machine_base_offset =
+                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+            let root_field = layouts
+                .fields
+                .span(machine_layout.fields)?
+                .iter()
+                .find(|field| field.name.as_str() == root_name.as_str())?;
+            let (byte_offset, layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+            Some((machine_base_offset + byte_offset, layout))
+        })
 }

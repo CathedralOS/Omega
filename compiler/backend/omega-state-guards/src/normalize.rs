@@ -54,7 +54,10 @@ fn normalize_guard_expression_tree(expression: Expression) -> Expression {
 }
 
 fn normalize_binary_expression(binary: BinaryExpression) -> Expression {
-    if matches!(binary.operator, BinaryOperator::Equal | BinaryOperator::NotEqual) {
+    if matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
         if let Expression::Boolean(flag) = &binary.right {
             return normalize_boolean_condition(
                 binary.left,
