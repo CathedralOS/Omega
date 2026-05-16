@@ -922,8 +922,10 @@ impl ExpressionTable {
             }
             _ => return None,
         };
-        let last_segment = path.last_mut()?;
-        *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
+        let last_segment = path.last()?.clone();
+        path.replace_last_preserving_symbol(ProgramName::generated(format!(
+            "{last_segment}[{index}]"
+        )))?;
         Some(path)
     }
 
@@ -1148,6 +1150,12 @@ impl NamePath {
             *last_symbol = SymbolHandle::invalid();
         }
         self.members.last_mut()
+    }
+
+    pub fn replace_last_preserving_symbol(&mut self, member: ProgramName) -> Option<()> {
+        let last = self.members.last_mut()?;
+        *last = member;
+        Some(())
     }
 
     pub fn push(&mut self, member: ProgramName) {
