@@ -1,7 +1,7 @@
 use crate::place_keys::PlaceKey;
-use omega_checked_trees::expression::Expression;
+use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::Call;
+use omega_checked_trees::statement::TableCall;
 use omega_checked_trees::Program;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,14 +72,14 @@ pub(crate) fn apply_static_assignment(
 pub(crate) fn apply_call_static_effects(
     static_values: &mut Vec<(PlaceKey, StaticValue)>,
     program: &Program,
-    call: &Call,
+    call: &TableCall,
 ) {
-    for argument in program.call_arguments(call) {
-        let Expression::Mutable(target) = argument else {
+    for argument in program.statement_table.expression_handles(call.arguments) {
+        let ExpressionNode::Mutable(target) = program.expression_table.expression(*argument) else {
             continue;
         };
 
-        let Some(target_key) = static_place_key(target) else {
+        let Some(target_key) = static_place_key_handle(program, *target) else {
             continue;
         };
 
@@ -112,10 +112,50 @@ pub(crate) fn resolve_static_value(
     }
 }
 
+pub(crate) fn resolve_static_value_handle(
+    program: &Program,
+    expression: ExpressionHandle,
+    static_values: &[(PlaceKey, StaticValue)],
+) -> Option<StaticValue> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => Some(StaticValue::Integer(*value)),
+        ExpressionNode::String(value) => Some(StaticValue::Text(value.clone())),
+        ExpressionNode::Name(path) => {
+            let key = static_place_key_handle(program, expression)?;
+            static_values
+                .iter()
+                .find(|(target, _)| target == &key)
+                .map(|(_, value)| value.clone())
+                .or_else(|| {
+                    if path.symbol.is_valid() {
+                        Some(StaticValue::Expression(
+                            program.expression_table.to_tree(expression),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+        }
+        _ => None,
+    }
+}
+
 fn static_place_key(expression: &Expression) -> Option<PlaceKey> {
     match expression {
         Expression::Name(path) if !path.is_empty() => PlaceKey::from_expression(expression),
         Expression::Indexed(_) => PlaceKey::from_expression(expression),
+        _ => None,
+    }
+}
+
+fn static_place_key_handle(program: &Program, expression: ExpressionHandle) -> Option<PlaceKey> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if !program.expression_table.name_path_members(path.members).is_empty() => {
+            PlaceKey::from_expression_handle(&program.expression_table, expression)
+        }
+        ExpressionNode::Indexed(_) => {
+            PlaceKey::from_expression_handle(&program.expression_table, expression)
+        }
         _ => None,
     }
 }
