@@ -357,7 +357,7 @@ fn machine_contains(
             continue;
         };
 
-        let field_type_name = type_reference_name(&field.type_reference);
+        let field_type_name = type_reference_name_handle(program, field.type_reference);
         let Some(target_machine) = program
             .machines()
             .iter()
@@ -389,25 +389,28 @@ fn machine_contains(
     contains
 }
 
-fn type_reference_name(
-    type_reference: &omega_checked_trees::types::TypeReference,
+fn type_reference_name_handle(
+    program: &Program,
+    type_reference: omega_checked_trees::types::TypeReferenceHandle,
 ) -> omega_checked_trees::name::ProgramName {
-    match type_reference {
-        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
-            type_reference_name(referee)
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_name_handle(program, *referee)
         }
-        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
-            type_reference_name(base_type)
+        omega_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_name_handle(program, *base_type)
         }
-        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            type_reference_name(element_type)
+        omega_checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_reference_name_handle(program, *element_type)
         }
-        omega_checked_trees::types::TypeReference::Slice { element_type } => {
-            type_reference_name(element_type)
+        omega_checked_trees::types::TypeReferenceNode::Slice { element_type } => {
+            type_reference_name_handle(program, *element_type)
         }
-        omega_checked_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
-        omega_checked_trees::types::TypeReference::Named { name, .. } => name.clone(),
-        omega_checked_trees::types::TypeReference::Unit => {
+        omega_checked_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
+            base_name.clone()
+        }
+        omega_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.clone(),
+        omega_checked_trees::types::TypeReferenceNode::Unit => {
             omega_checked_trees::name::ProgramName::default()
         }
     }

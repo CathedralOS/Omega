@@ -56,7 +56,11 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
             match member {
                 DataMember::Field(field) => {
                     count_declaration_name(&field.name, &mut counts);
-                    count_type_reference(typed_trees, &field.type_reference, &mut counts);
+                    count_type_reference_handle(
+                        &typed_trees.type_reference_table,
+                        field.type_reference,
+                        &mut counts,
+                    );
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }
