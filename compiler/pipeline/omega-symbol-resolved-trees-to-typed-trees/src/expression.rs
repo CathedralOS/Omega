@@ -3,145 +3,176 @@ use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
 
+pub(crate) fn lower_expression_handle_from_table(
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    match source.expression(expression) {
+        resolved::expression::ExpressionNode::ArrayLiteral(values) => {
+            let values = lower_expression_handle_span_from_table(source, target, *values)?;
+            Ok(target.insert(typed::expression::ExpressionNode::ArrayLiteral(values)))
+        }
+        resolved::expression::ExpressionNode::Binary(binary) => {
+            let left = lower_expression_handle_from_table(source, target, binary.left)?;
+            let right = lower_expression_handle_from_table(source, target, binary.right)?;
+            Ok(target.insert(typed::expression::ExpressionNode::Binary(
+                typed::expression::TableBinaryExpression {
+                    left,
+                    operator: lower_binary_operator(binary.operator),
+                    right,
+                },
+            )))
+        }
+        resolved::expression::ExpressionNode::Boolean(value) => {
+            Ok(target.insert(typed::expression::ExpressionNode::Boolean(*value)))
+        }
+        resolved::expression::ExpressionNode::Cast(cast) => {
+            let value = lower_expression_handle_from_table(source, target, cast.value)?;
+            let target_type = lower_name_path_members_into_table(source, target, cast.target_type);
+            Ok(target.insert(typed::expression::ExpressionNode::Cast(
+                typed::expression::TableCastExpression { value, target_type },
+            )))
+        }
+        resolved::expression::ExpressionNode::Call(call) => {
+            let receiver = call
+                .receiver
+                .is_valid()
+                .then(|| lower_expression_handle_from_table(source, target, call.receiver))
+                .transpose()?
+                .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+            let arguments =
+                lower_expression_handle_span_from_table(source, target, call.arguments)?;
+            Ok(target.insert(typed::expression::ExpressionNode::Call(
+                typed::expression::TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: lower_name(&call.target),
+                    arguments,
+                },
+            )))
+        }
+        resolved::expression::ExpressionNode::Float(value) => {
+            Ok(target.insert(typed::expression::ExpressionNode::Float(
+                typed::expression::FloatLiteral::new(value.value()),
+            )))
+        }
+        resolved::expression::ExpressionNode::Indexed(indexed) => {
+            let collection =
+                lower_expression_handle_from_table(source, target, indexed.collection)?;
+            let index = lower_expression_handle_from_table(source, target, indexed.index)?;
+            Ok(target.insert(typed::expression::ExpressionNode::Indexed(
+                typed::expression::TableIndexedExpression { collection, index },
+            )))
+        }
+        resolved::expression::ExpressionNode::Integer(value) => {
+            Ok(target.insert(typed::expression::ExpressionNode::Integer(*value)))
+        }
+        resolved::expression::ExpressionNode::Member(member) => {
+            let receiver = lower_expression_handle_from_table(source, target, member.receiver)?;
+            Ok(target.insert(typed::expression::ExpressionNode::Member(
+                typed::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: lower_name(&member.member),
+                },
+            )))
+        }
+        resolved::expression::ExpressionNode::Mutable(expression) => {
+            let expression = lower_expression_handle_from_table(source, target, *expression)?;
+            Ok(target.insert(typed::expression::ExpressionNode::Mutable(expression)))
+        }
+        resolved::expression::ExpressionNode::Name(path) => {
+            let path = lower_table_name_path_node_into_table(source, target, path);
+            Ok(target.insert(typed::expression::ExpressionNode::Name(path)))
+        }
+        resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            let fields =
+                lower_struct_literal_field_span_from_table(source, target, struct_literal.fields)?;
+            Ok(
+                target.insert(typed::expression::ExpressionNode::StructLiteral(
+                    typed::expression::TableStructLiteral {
+                        type_name: lower_name(&struct_literal.type_name),
+                        fields,
+                    },
+                )),
+            )
+        }
+        resolved::expression::ExpressionNode::String(value) => Ok(target.insert(
+            typed::expression::ExpressionNode::String(value.as_str().to_owned()),
+        )),
+    }
+}
+
+fn lower_expression_handle_span_from_table(
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
+) -> Result<omega_core::arena::HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
+    let mut lowered = omega_core::arena::HandleSpan::empty();
+
+    for expression in source.expression_handles(expressions) {
+        let expression = lower_expression_handle_from_table(source, target, *expression)?;
+        target.push_expression_handle(&mut lowered, expression);
+    }
+
+    Ok(lowered)
+}
+
+fn lower_struct_literal_field_span_from_table(
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    fields: omega_core::arena::HandleSpan<resolved::expression::TableStructLiteralField>,
+) -> Result<omega_core::arena::HandleSpan<typed::expression::TableStructLiteralField>, Diagnostic> {
+    let mut lowered = omega_core::arena::HandleSpan::empty();
+
+    for field in source.struct_fields(fields) {
+        let value = lower_expression_handle_from_table(source, target, field.value)?;
+        target.push_struct_field(
+            &mut lowered,
+            typed::expression::TableStructLiteralField {
+                name: lower_name(&field.name),
+                value,
+            },
+        );
+    }
+
+    Ok(lowered)
+}
+
+fn lower_name_path_members_into_table(
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    members: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
+) -> omega_core::arena::HandleSpan<typed::name::ProgramName> {
+    let mut lowered = omega_core::arena::HandleSpan::empty();
+
+    for member in source.name_path_members(members) {
+        target.push_name_path_member(&mut lowered, lower_name(member));
+    }
+
+    lowered
+}
+
+fn lower_table_name_path_node_into_table(
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    path: &resolved::expression::TableNamePath,
+) -> typed::expression::TableNamePath {
+    typed::expression::TableNamePath {
+        members: lower_name_path_members_into_table(source, target, path.members),
+        head_symbol: path.head_symbol,
+        symbol: path.symbol,
+    }
+}
+
 pub(crate) fn lower_expression_from_table(
     table: &resolved::expression::ExpressionTable,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::Expression, Diagnostic> {
-    match table.expression(expression) {
-        resolved::expression::ExpressionNode::ArrayLiteral(values) => {
-            let mut lowered = Vec::new();
-            for value in table.expression_handles(*values) {
-                lowered.push(lower_expression_from_table(table, *value)?);
-            }
-            Ok(typed::expression::Expression::ArrayLiteral(lowered))
-        }
-        resolved::expression::ExpressionNode::Binary(binary) => Ok(
-            typed::expression::Expression::Binary(Box::new(typed::expression::BinaryExpression {
-                left: lower_expression_from_table(table, binary.left)?,
-                operator: lower_binary_operator(binary.operator),
-                right: lower_expression_from_table(table, binary.right)?,
-            })),
-        ),
-        resolved::expression::ExpressionNode::Boolean(value) => {
-            Ok(typed::expression::Expression::Boolean(*value))
-        }
-        resolved::expression::ExpressionNode::Cast(cast) => Ok(
-            typed::expression::Expression::Cast(Box::new(typed::expression::CastExpression {
-                value: lower_expression_from_table(table, cast.value)?,
-                target_type: lower_table_name_path(table, cast.target_type),
-            })),
-        ),
-        resolved::expression::ExpressionNode::Call(call) => Ok(
-            typed::expression::Expression::Call(Box::new(typed::expression::CallExpression {
-                receiver: call
-                    .receiver
-                    .is_valid()
-                    .then(|| lower_expression_from_table(table, call.receiver))
-                    .transpose()?
-                    .map(Box::new),
-                target_symbol: call.target_symbol,
-                target: lower_name(&call.target),
-                arguments: lower_expression_span_from_table(table, call.arguments)?,
-            })),
-        ),
-        resolved::expression::ExpressionNode::Float(value) => {
-            Ok(typed::expression::Expression::Float(
-                typed::expression::FloatLiteral::new(value.value()),
-            ))
-        }
-        resolved::expression::ExpressionNode::Indexed(indexed) => {
-            Ok(typed::expression::Expression::Indexed(Box::new(
-                typed::expression::IndexedExpression {
-                    collection: lower_expression_from_table(table, indexed.collection)?,
-                    index: lower_expression_from_table(table, indexed.index)?,
-                },
-            )))
-        }
-        resolved::expression::ExpressionNode::Integer(value) => {
-            Ok(typed::expression::Expression::Integer(*value))
-        }
-        resolved::expression::ExpressionNode::Member(member) => Ok(
-            typed::expression::Expression::Member(Box::new(typed::expression::MemberExpression {
-                receiver: lower_expression_from_table(table, member.receiver)?,
-                member_symbol: member.member_symbol,
-                member: lower_name(&member.member),
-            })),
-        ),
-        resolved::expression::ExpressionNode::Mutable(expression) => {
-            Ok(typed::expression::Expression::Mutable(Box::new(
-                lower_expression_from_table(table, *expression)?,
-            )))
-        }
-        resolved::expression::ExpressionNode::Name(path) => Ok(
-            typed::expression::Expression::Name(lower_table_name_path_node(table, path)),
-        ),
-        resolved::expression::ExpressionNode::StructLiteral(struct_literal) => Ok(
-            typed::expression::Expression::StructLiteral(typed::expression::StructLiteral {
-                type_name: lower_name(&struct_literal.type_name),
-                fields: lower_struct_literal_fields_from_table(table, struct_literal.fields)?,
-            }),
-        ),
-        resolved::expression::ExpressionNode::String(value) => Ok(
-            typed::expression::Expression::String(value.as_str().to_owned()),
-        ),
-    }
-}
-
-fn lower_expression_span_from_table(
-    table: &resolved::expression::ExpressionTable,
-    expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
-) -> Result<Vec<typed::expression::Expression>, Diagnostic> {
-    let mut lowered = Vec::new();
-
-    for expression in table.expression_handles(expressions) {
-        lowered.push(lower_expression_from_table(table, *expression)?);
-    }
-
-    Ok(lowered)
-}
-
-fn lower_struct_literal_fields_from_table(
-    table: &resolved::expression::ExpressionTable,
-    fields: omega_core::arena::HandleSpan<resolved::expression::TableStructLiteralField>,
-) -> Result<Vec<typed::expression::StructLiteralField>, Diagnostic> {
-    let mut lowered = Vec::new();
-
-    for field in table.struct_fields(fields) {
-        lowered.push(typed::expression::StructLiteralField {
-            name: lower_name(&field.name),
-            value: lower_expression_from_table(table, field.value)?,
-        });
-    }
-
-    Ok(lowered)
-}
-
-fn lower_table_name_path(
-    table: &resolved::expression::ExpressionTable,
-    members: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
-) -> typed::expression::NamePath {
-    typed::expression::NamePath::unresolved(
-        table
-            .name_path_members(members)
-            .iter()
-            .map(lower_name)
-            .collect(),
-    )
-}
-
-fn lower_table_name_path_node(
-    table: &resolved::expression::ExpressionTable,
-    path: &resolved::expression::TableNamePath,
-) -> typed::expression::NamePath {
-    typed::expression::NamePath::resolved(
-        table
-            .name_path_members(path.members)
-            .iter()
-            .map(lower_name)
-            .collect(),
-        path.head_symbol,
-        path.symbol,
-    )
+    let mut expressions = typed::expression::ExpressionTable::new();
+    let expression = lower_expression_handle_from_table(table, &mut expressions, expression)?;
+    Ok(expressions.to_tree(expression))
 }
 
 fn lower_binary_operator(
@@ -177,5 +208,58 @@ fn lower_binary_operator(
         resolved::expression::BinaryOperator::Subtract => {
             typed::expression::BinaryOperator::Subtract
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lower_expression_handle_from_table;
+    use omega_core::arena::HandleSpan;
+    use omega_symbol_resolved_trees as resolved;
+    use omega_typed_trees as typed;
+
+    #[test]
+    fn lowers_binary_expression_directly_into_typed_table() {
+        let mut source = resolved::expression::ExpressionTable::new();
+        let left = source.insert(resolved::expression::ExpressionNode::Integer(1));
+        let right = source.insert(resolved::expression::ExpressionNode::Integer(2));
+        let expression = source.insert(resolved::expression::ExpressionNode::Binary(
+            resolved::expression::TableBinaryExpression {
+                left,
+                operator: resolved::expression::BinaryOperator::Add,
+                right,
+            },
+        ));
+
+        let mut target = typed::expression::ExpressionTable::new();
+        let lowered = lower_expression_handle_from_table(&source, &mut target, expression)
+            .expect("direct lowering should succeed");
+
+        assert_eq!(target.display_name(lowered), "1 + 2");
+        assert_eq!(target.expression_count(), 3);
+    }
+
+    #[test]
+    fn lowers_expression_spans_directly_into_typed_table() {
+        let mut source = resolved::expression::ExpressionTable::new();
+        let mut values = HandleSpan::empty();
+        let one = source.insert(resolved::expression::ExpressionNode::Integer(1));
+        let two = source.insert(resolved::expression::ExpressionNode::Integer(2));
+        source.push_expression_handle(&mut values, one);
+        source.push_expression_handle(&mut values, two);
+        let expression = source.insert(resolved::expression::ExpressionNode::ArrayLiteral(values));
+
+        let mut target = typed::expression::ExpressionTable::new();
+        let lowered = lower_expression_handle_from_table(&source, &mut target, expression)
+            .expect("direct lowering should succeed");
+
+        let typed::expression::ExpressionNode::ArrayLiteral(values) = target.expression(lowered)
+        else {
+            panic!("root should lower to array literal");
+        };
+
+        assert_eq!(values.count(), 2);
+        assert_eq!(target.display_name(lowered), "[1, 2]");
+        assert_eq!(target.expression_count(), 3);
     }
 }
