@@ -1,8 +1,8 @@
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateCallPlan {
@@ -13,8 +13,7 @@ pub struct StateCallPlan {
 
 impl StateCallPlan {
     fn source_matches(expected: StateKey, actual: StateKey) -> bool {
-        expected == actual
-            || (expected.machine == actual.machine && expected.state == actual.state)
+        expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
     }
 
     pub fn calls_for_statement(
@@ -61,10 +60,11 @@ impl StateCallPlan {
         statement_index: usize,
         call_ordinal: usize,
     ) -> Option<&StateCall> {
-        self.calls_for_statement(source_key, statement_index).find(|state_call| {
-            state_call.role == StateCallRole::AssignmentValue
-                && state_call.call_ordinal == call_ordinal
-        })
+        self.calls_for_statement(source_key, statement_index)
+            .find(|state_call| {
+                state_call.role == StateCallRole::AssignmentValue
+                    && state_call.call_ordinal == call_ordinal
+            })
     }
 
     pub fn transition_guard_call(
@@ -80,7 +80,11 @@ impl StateCallPlan {
         source_key: StateKey,
         statement_index: usize,
     ) -> Option<&StateCall> {
-        self.call_for_role(source_key, statement_index, StateCallRole::TransitionArgument)
+        self.call_for_role(
+            source_key,
+            statement_index,
+            StateCallRole::TransitionArgument,
+        )
     }
 
     pub fn transition_argument_call_by_ordinal(
@@ -89,10 +93,11 @@ impl StateCallPlan {
         statement_index: usize,
         call_ordinal: usize,
     ) -> Option<&StateCall> {
-        self.calls_for_statement(source_key, statement_index).find(|state_call| {
-            state_call.role == StateCallRole::TransitionArgument
-                && state_call.call_ordinal == call_ordinal
-        })
+        self.calls_for_statement(source_key, statement_index)
+            .find(|state_call| {
+                state_call.role == StateCallRole::TransitionArgument
+                    && state_call.call_ordinal == call_ordinal
+            })
     }
 
     pub fn required_source_or_target(&self, state_key: StateKey) -> bool {

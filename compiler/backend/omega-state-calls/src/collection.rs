@@ -1,10 +1,10 @@
 use crate::StateCallPlanningContext;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::name::ProgramName;
 use omega_control_flow::{
     ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, StateKey,
     TransitionExpressionRefs,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
@@ -48,7 +48,9 @@ pub(crate) fn collect_machine_state_calls(
                 target,
             } = &operation.kind
             {
-                if context.state_statement_has_host_call_by_key(state.key, operation.statement_index) {
+                if context
+                    .state_statement_has_host_call_by_key(state.key, operation.statement_index)
+                {
                     continue;
                 }
 
@@ -143,7 +145,11 @@ fn collect_expression_state_calls_for_operation(
             calls,
         ),
         OperationExpressionRefs::Call { arguments } => {
-            for argument in context.control_flow.expressions.expression_handles(arguments) {
+            for argument in context
+                .control_flow
+                .expressions
+                .expression_handles(arguments)
+            {
                 collect_expression_state_calls(
                     context,
                     machine,
@@ -285,7 +291,12 @@ fn collect_expression_state_calls_in_table(
     expression: ExpressionHandle,
     calls: &mut Vec<CollectedStateCall>,
 ) {
-    match context.control_flow.expressions.expression(expression).clone() {
+    match context
+        .control_flow
+        .expressions
+        .expression(expression)
+        .clone()
+    {
         ExpressionNode::ArrayLiteral(values) => {
             for value in context.control_flow.expressions.expression_handles(values) {
                 collect_expression_state_calls_in_table(
@@ -325,13 +336,14 @@ fn collect_expression_state_calls_in_table(
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(&context.control_flow.expressions, call.receiver);
+            let receiver_members = receiver_path.as_ref().map(ReceiverPath::members);
             let resolved_target = resolve_state_call_target(
                 &context.control_flow,
                 machine,
                 source_key,
                 receiver_symbol,
                 call.target_symbol,
-                receiver_path.as_deref(),
+                receiver_members,
                 &call.target,
             );
             let is_machine_call = resolved_target.is_some()
@@ -340,7 +352,7 @@ fn collect_expression_state_calls_in_table(
                     machine,
                     source_key,
                     receiver_symbol,
-                    receiver_path.as_deref(),
+                    receiver_members,
                 );
             if !is_machine_call {
                 if call.receiver.is_valid() {
@@ -355,7 +367,11 @@ fn collect_expression_state_calls_in_table(
                         calls,
                     );
                 }
-                for argument in context.control_flow.expressions.expression_handles(call.arguments) {
+                for argument in context
+                    .control_flow
+                    .expressions
+                    .expression_handles(call.arguments)
+                {
                     collect_expression_state_calls_in_table(
                         context,
                         machine,
@@ -376,7 +392,7 @@ fn collect_expression_state_calls_in_table(
                 role,
                 receiver: receiver_path
                     .as_ref()
-                    .and_then(|receiver: &Vec<ProgramName>| receiver.last().cloned())
+                    .and_then(|receiver| receiver.members().last().cloned())
                     .unwrap_or_else(|| ProgramName::generated("self")),
                 target_key: resolved_target
                     .as_ref()
@@ -403,7 +419,11 @@ fn collect_expression_state_calls_in_table(
                     calls,
                 );
             }
-            for argument in context.control_flow.expressions.expression_handles(call.arguments) {
+            for argument in context
+                .control_flow
+                .expressions
+                .expression_handles(call.arguments)
+            {
                 collect_expression_state_calls_in_table(
                     context,
                     machine,
@@ -497,24 +517,55 @@ fn collect_expression_state_calls_in_table(
 fn call_receiver_parts(
     expressions: &ExpressionTable,
     receiver: ExpressionHandle,
-) -> (SymbolHandle, Option<Vec<ProgramName>>) {
+) -> (SymbolHandle, Option<ReceiverPath<'_>>) {
     if !receiver.is_valid() {
         return (SymbolHandle::invalid(), None);
     }
 
-    match expressions.expression(receiver).clone() {
-        ExpressionNode::Mutable(inner) => call_receiver_parts(expressions, inner),
+    match expressions.expression(receiver) {
+        ExpressionNode::Mutable(inner) => call_receiver_parts(expressions, *inner),
         ExpressionNode::Name(path) => (
             path.symbol,
-            Some(expressions.name_path_members(path.members).to_vec()),
+            Some(ReceiverPath::borrowed(
+                expressions.name_path_members(path.members),
+            )),
         ),
         ExpressionNode::Member(member) => {
             let (_, path) = call_receiver_parts(expressions, member.receiver);
-            let mut path = path.unwrap_or_default();
-            path.push(member.member.clone());
-            (member.member_symbol, Some(path))
+            let mut members = path.map(ReceiverPath::into_owned).unwrap_or_default();
+            members.push(member.member.clone());
+            (member.member_symbol, Some(ReceiverPath::owned(members)))
         }
         _ => (SymbolHandle::invalid(), None),
+    }
+}
+
+enum ReceiverPath<'table> {
+    Borrowed(&'table [ProgramName]),
+    Owned(Vec<ProgramName>),
+}
+
+impl<'table> ReceiverPath<'table> {
+    fn borrowed(members: &'table [ProgramName]) -> Self {
+        Self::Borrowed(members)
+    }
+
+    fn owned(members: Vec<ProgramName>) -> Self {
+        Self::Owned(members)
+    }
+
+    fn members(&self) -> &[ProgramName] {
+        match self {
+            Self::Borrowed(members) => members,
+            Self::Owned(members) => members,
+        }
+    }
+
+    fn into_owned(self) -> Vec<ProgramName> {
+        match self {
+            Self::Borrowed(members) => members.to_vec(),
+            Self::Owned(members) => members,
+        }
     }
 }
 
@@ -546,10 +597,14 @@ fn resolve_state_call_target(
     }
 
     let receiver_name = receiver.and_then(|receiver| receiver.last());
-    if let Some(contained) = control_flow.machine_contains(machine).iter().find(|contained| {
-        (receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
-            || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-    }) {
+    if let Some(contained) = control_flow
+        .machine_contains(machine)
+        .iter()
+        .find(|contained| {
+            (receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
+                || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+        })
+    {
         return resolve_state_key_in_machine(
             control_flow,
             contained.type_symbol,
@@ -650,7 +705,9 @@ fn receiver_can_dispatch_to_machine(
         return control_flow
             .machine_contains(machine)
             .iter()
-            .any(|contained| receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name));
+            .any(|contained| {
+                receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+            });
     }
 
     let receiver_name = receiver.and_then(|receiver| receiver.last());
@@ -676,9 +733,10 @@ fn source_state_parameter_machine_symbol(
     source_key: StateKey,
     receiver_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
-    let state = control_flow.states.iter().find_map(|(_, state)| {
-        (state.key == source_key).then_some(state)
-    })?;
+    let state = control_flow
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.key == source_key).then_some(state))?;
     control_flow
         .state_parameters(state)
         .iter()
@@ -695,8 +753,8 @@ mod tests {
     use omega_source_files_to_tokens::Lexer;
     use omega_state_graph::build_runtime_flow_plan;
     use omega_state_graph_to_control_flow::build_control_flow_plan;
-    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
     use omega_typed_trees_to_checked_trees::lower_typed_trees;
 
