@@ -23,7 +23,7 @@ struct FloatRange {
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
-    for obligation in &proof_plan.obligations {
+    for (_, obligation) in proof_plan.obligations.iter() {
         match obligation {
             ProofObligation::BoundedAssignment(obligation) => {
                 check_bounded_assignment(proof_plan, obligation, &mut diagnostics);

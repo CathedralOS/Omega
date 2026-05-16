@@ -39,7 +39,7 @@ fn build_proof_facts(
     let obligations = proof_plan
         .obligations
         .iter()
-        .map(|obligation| match obligation {
+        .map(|(_, obligation)| match obligation {
             omega_proof::obligations::ProofObligation::BoundedAssignment(obligation) => {
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedAssignment,
