@@ -706,16 +706,6 @@ impl TypeConstraintNode {
         }
     }
 
-    pub fn to_tree(&self, expressions: &crate::expression::ExpressionTable) -> TypeConstraint {
-        match self {
-            TypeConstraintNode::Named(name) => TypeConstraint::Named(name.clone()),
-            TypeConstraintNode::Range { minimum, maximum } => TypeConstraint::Range {
-                minimum: expressions.to_tree(*minimum),
-                maximum: expressions.to_tree(*maximum),
-            },
-        }
-    }
-
     pub fn display_name(&self, expressions: &crate::expression::ExpressionTable) -> String {
         match self {
             TypeConstraintNode::Named(name) => name.to_string(),
