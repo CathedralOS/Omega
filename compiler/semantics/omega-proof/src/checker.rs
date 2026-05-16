@@ -163,6 +163,7 @@ fn check_bounded_state_return(
     {
         let Some(value_range) = integer_range_for_return_value(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_return_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -172,6 +173,7 @@ fn check_bounded_state_return(
         if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_return_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -182,13 +184,21 @@ fn check_bounded_state_return(
         float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
         let Some(value_range) = float_range_for_return_value(proof_plan, obligation) else {
-            diagnostics.push(cannot_prove_bounded_return_float(obligation, target_range));
+            diagnostics.push(cannot_prove_bounded_return_float(
+                proof_plan,
+                obligation,
+                target_range,
+            ));
             return;
         };
 
         if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
         {
-            diagnostics.push(cannot_prove_bounded_return_float(obligation, target_range));
+            diagnostics.push(cannot_prove_bounded_return_float(
+                proof_plan,
+                obligation,
+                target_range,
+            ));
         }
     }
 }
@@ -365,8 +375,12 @@ fn float_range_for_return_value(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
 ) -> Option<FloatRange> {
-    match &obligation.value {
-        Expression::Float(value) => {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.value)
+    {
+        ExpressionNode::Float(value) => {
             let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
@@ -448,8 +462,12 @@ fn integer_range_for_return_value(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
 ) -> Option<IntegerRange> {
-    match &obligation.value {
-        Expression::Integer(value) => Some(IntegerRange {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.value)
+    {
+        ExpressionNode::Integer(value) => Some(IntegerRange {
             minimum: *value,
             maximum: *value,
         }),
@@ -864,13 +882,15 @@ fn check_return_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !argument_satisfies_named_constraint(
+        if !argument_handle_satisfies_named_constraint(
             proof_plan,
-            &obligation.value,
+            obligation.value,
             obligation.value_constraints,
             constraint,
         ) {
-            diagnostics.push(cannot_prove_return_named_constraint(obligation, constraint));
+            diagnostics.push(cannot_prove_return_named_constraint(
+                proof_plan, obligation, constraint,
+            ));
         }
     }
 }
@@ -897,6 +917,28 @@ fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &st
 
         Some(name.as_str())
     })
+}
+
+fn argument_handle_satisfies_named_constraint(
+    proof_plan: &ProofPlan,
+    argument: ExpressionHandle,
+    argument_constraints: HandleSpan<TypeConstraint>,
+    constraint: &str,
+) -> bool {
+    let constraints = type_constraints(proof_plan, argument_constraints);
+
+    constraints_satisfy_named_constraint(constraints, constraint)
+        || match (
+            constraint,
+            proof_plan.program.expression_table.expression(argument),
+        ) {
+            ("exact", ExpressionNode::Integer(_)) => true,
+            ("finite", ExpressionNode::Float(value)) => finite_float_literal(*value).is_some(),
+            ("finite", ExpressionNode::Integer(_)) => true,
+            ("non_negative", ExpressionNode::Integer(value)) => *value >= 0,
+            ("positive", ExpressionNode::Integer(value)) => *value > 0,
+            _ => false,
+        }
 }
 
 fn argument_satisfies_named_constraint(
@@ -1074,12 +1116,13 @@ fn cannot_prove_bounded_assignment_integer(
 }
 
 fn cannot_prove_bounded_return_integer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected range<{}, {}>",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         obligation.machine,
         obligation.state,
         target_range.minimum,
@@ -1132,12 +1175,13 @@ fn cannot_prove_bounded_assignment_float(
 }
 
 fn cannot_prove_bounded_return_float(
+    proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected range<{}, {}>",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         obligation.machine,
         obligation.state,
         target_range.minimum,
@@ -1188,12 +1232,13 @@ fn cannot_prove_assignment_named_constraint(
 }
 
 fn cannot_prove_return_named_constraint(
+    proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
     constraint: &str,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove return value `{}` satisfies `{}` for bounded return type in `{}.{}`",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         constraint,
         obligation.machine,
         obligation.state
