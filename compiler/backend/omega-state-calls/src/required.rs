@@ -1,6 +1,9 @@
 use crate::StateCallPlanningContext;
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use omega_state_graph::RuntimeTransitionTarget;
+use std::collections::HashSet;
+
+type StateKeyId = (u32, u32, usize);
 
 use super::collection::CollectedStateCall;
 use super::lookups::state_key_is_valid;
@@ -15,13 +18,18 @@ pub(crate) fn mark_required_state_calls(
         .iter()
         .map(|(_, state)| state.key)
         .collect::<Vec<_>>();
+    let mut required_state_set = required_states
+        .iter()
+        .copied()
+        .map(state_key_id)
+        .collect::<HashSet<_>>();
     let mut changed = true;
 
     while changed {
         changed = false;
 
         for call in calls.iter_mut() {
-            let source_is_required = required_states.contains(&call.source_key);
+            let source_is_required = required_state_set.contains(&state_key_id(call.source_key));
 
             if !source_is_required {
                 continue;
@@ -36,7 +44,11 @@ pub(crate) fn mark_required_state_calls(
                 continue;
             }
 
-            changed |= push_required_state(&mut required_states, call.target_key);
+            changed |= push_required_state(
+                &mut required_states,
+                &mut required_state_set,
+                call.target_key,
+            );
         }
 
         let mut required_index = 0;
@@ -45,7 +57,8 @@ pub(crate) fn mark_required_state_calls(
 
             for_each_transition_target_from(context, state_key, |target| {
                 if let RuntimeTransitionTarget::State { key, .. } = *target {
-                    changed |= push_required_state(&mut required_states, key);
+                    changed |=
+                        push_required_state(&mut required_states, &mut required_state_set, key);
                 }
             });
 
@@ -54,9 +67,7 @@ pub(crate) fn mark_required_state_calls(
     }
 
     for call in calls {
-        call.required = required_states
-            .iter()
-            .any(|required_key| *required_key == call.source_key);
+        call.required = required_state_set.contains(&state_key_id(call.source_key));
     }
 }
 
@@ -145,11 +156,23 @@ fn runtime_transition_target(
     }
 }
 
-fn push_required_state(required_states: &mut Vec<StateKey>, state_key: StateKey) -> bool {
-    if required_states.contains(&state_key) {
-        false
-    } else {
+fn push_required_state(
+    required_states: &mut Vec<StateKey>,
+    required_state_set: &mut HashSet<StateKeyId>,
+    state_key: StateKey,
+) -> bool {
+    if required_state_set.insert(state_key_id(state_key)) {
         required_states.push(state_key);
-        true
+        return true;
     }
+
+    false
+}
+
+fn state_key_id(state_key: StateKey) -> StateKeyId {
+    (
+        state_key.machine.arena_index(),
+        state_key.state.arena_index(),
+        state_key.segment_index,
+    )
 }
