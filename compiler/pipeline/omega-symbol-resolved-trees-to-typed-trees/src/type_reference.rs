@@ -10,11 +10,7 @@ pub(crate) fn lower_type_reference(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
 ) -> Result<typed::types::TypeReference, Diagnostic> {
-    let type_reference = lower_type_reference_handle_with_context(
-        lowerer.source_trees,
-        &mut lowerer.typed_trees,
-        type_reference,
-    )?;
+    let type_reference = lower_type_reference_into_table(lowerer, type_reference)?;
 
     Ok(lowerer.typed_trees.type_reference_table.to_tree(
         type_reference,
@@ -22,6 +18,17 @@ pub(crate) fn lower_type_reference(
         &mut lowerer.typed_trees.type_constraints,
         &mut lowerer.typed_trees.type_reference_arguments,
     ))
+}
+
+pub(crate) fn lower_type_reference_into_table(
+    lowerer: &mut Lowerer,
+    type_reference: &resolved::types::TypeReference,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    lower_type_reference_handle_with_context(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        type_reference,
+    )
 }
 
 pub(crate) fn lower_type_reference_handle_from_table(

@@ -1,7 +1,7 @@
 use crate::expression::lower_expression_handle_from_table;
 use crate::program::Lowerer;
 use crate::state::lower_state;
-use crate::type_reference::lower_type_reference;
+use crate::type_reference::lower_type_reference_into_table;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
@@ -37,7 +37,7 @@ pub(crate) fn lower_machine(
         let owned_data = typed::machine::OwnedData {
             symbol: owned_data.symbol,
             name: crate::name::lower_name(&owned_data.name),
-            type_reference: lower_type_reference(lowerer, &owned_data.type_reference)?,
+            type_reference: lower_type_reference_into_table(lowerer, &owned_data.type_reference)?,
             initial_value: owned_data
                 .initial_value
                 .map(|initial_value| {

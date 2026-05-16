@@ -49,9 +49,12 @@ pub(crate) fn platform_call_receiver_type(
                 .machine_owned_data(machine)
                 .iter()
                 .find_map(|field| {
-                    (field.symbol == call.receiver_symbol)
-                        .then(|| type_reference_symbol(&field.type_reference))
-                        .flatten()
+                    if field.symbol != call.receiver_symbol {
+                        return None;
+                    }
+
+                    let type_symbol = program.type_reference_symbol(field.type_reference);
+                    type_symbol.is_valid().then_some(type_symbol)
                 })
         })
         .or_else(|| {

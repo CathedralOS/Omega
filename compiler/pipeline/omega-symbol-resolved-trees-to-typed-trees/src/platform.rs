@@ -14,7 +14,10 @@ pub(crate) fn lower_platform(
         states: omega_core::arena::HandleSpan::empty(),
     };
 
-    for signature in lowerer.source_trees.platform_state_signatures(platform.states) {
+    for signature in lowerer
+        .source_trees
+        .platform_state_signatures(platform.states)
+    {
         let signature = lower_state_signature(lowerer, signature)?;
         lowerer
             .typed_trees
