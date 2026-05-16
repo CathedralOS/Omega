@@ -17,46 +17,6 @@ pub struct TypedProgramTables {
 }
 
 impl TypedProgramTables {
-    pub fn from_typed_trees(typed_trees: &TypedTrees) -> Self {
-        let mut tables = Self::default();
-
-        for invariant in typed_trees.invariant_definitions() {
-            tables.insert_type_constraints(invariant.constraints, &typed_trees.type_constraints);
-        }
-
-        for data_definition in typed_trees.data_definitions() {
-            tables.insert_data_definition(
-                typed_trees.data_members(data_definition),
-                &typed_trees.type_constraints,
-                &typed_trees.type_reference_arguments,
-            );
-        }
-
-        for platform in typed_trees.platforms() {
-            tables.insert_platform(
-                typed_trees.platform_state_signatures(platform),
-                typed_trees,
-                &typed_trees.type_constraints,
-                &typed_trees.type_reference_arguments,
-            );
-        }
-
-        for machine in typed_trees.machines() {
-            tables.insert_machine(
-                typed_trees.machine_owned_data(machine),
-                typed_trees.machine_states(machine),
-                typed_trees,
-                &typed_trees.expression_table,
-                &typed_trees.type_constraints,
-                &typed_trees.type_reference_arguments,
-                &typed_trees.statement_expressions,
-                &typed_trees.statement_path_members,
-            );
-        }
-
-        tables
-    }
-
     pub fn from_typed_trees_with_state_spans(typed_trees: &mut TypedTrees) -> Self {
         let mut tables = Self::default();
         let TypedTrees {
@@ -137,23 +97,6 @@ impl TypedProgramTables {
         }
     }
 
-    fn insert_platform(
-        &mut self,
-        states: &[StateSignature],
-        typed_trees: &TypedTrees,
-        type_constraints: &Arena<TypeConstraint>,
-        type_reference_arguments: &Arena<TypeReference>,
-    ) {
-        for state in states {
-            self.insert_state_signature(
-                state,
-                typed_trees.state_signature_parameters(state),
-                type_constraints,
-                type_reference_arguments,
-            );
-        }
-    }
-
     fn insert_platform_with_parameter_arena(
         &mut self,
         states: &[StateSignature],
@@ -167,39 +110,6 @@ impl TypedProgramTables {
                 state_parameters.span_or_empty(state.parameters),
                 type_constraints,
                 type_reference_arguments,
-            );
-        }
-    }
-
-    fn insert_machine(
-        &mut self,
-        owned_data: &[OwnedData],
-        states: &[State],
-        typed_trees: &TypedTrees,
-        expression_table: &ExpressionTable,
-        type_constraints: &Arena<TypeConstraint>,
-        type_reference_arguments: &Arena<TypeReference>,
-        statement_expressions: &Arena<Expression>,
-        statement_path_members: &Arena<ProgramName>,
-    ) {
-        for owned_data in owned_data {
-            self.insert_owned_data(
-                owned_data,
-                expression_table,
-                type_constraints,
-                type_reference_arguments,
-            );
-        }
-
-        for state in states {
-            self.insert_state(
-                state,
-                typed_trees.state_parameters(state),
-                typed_trees.state_statements(state),
-                type_constraints,
-                type_reference_arguments,
-                statement_expressions,
-                statement_path_members,
             );
         }
     }
@@ -256,39 +166,6 @@ impl TypedProgramTables {
                 .copy_from(source_expressions, owned_data.initial_value)
         } else {
             crate::expression::ExpressionHandle::invalid()
-        }
-    }
-
-    fn insert_state(
-        &mut self,
-        state: &State,
-        parameters: &[StateParameter],
-        statements: &[Statement],
-        type_constraints: &Arena<TypeConstraint>,
-        type_reference_arguments: &Arena<TypeReference>,
-        statement_expressions: &Arena<Expression>,
-        statement_path_members: &Arena<ProgramName>,
-    ) {
-        for parameter in parameters {
-            self.insert_type_reference(
-                &parameter.type_reference,
-                type_constraints,
-                type_reference_arguments,
-            );
-        }
-
-        if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(return_type, type_constraints, type_reference_arguments);
-        }
-
-        for statement in statements {
-            self.insert_statement(
-                statement,
-                type_constraints,
-                type_reference_arguments,
-                statement_expressions,
-                statement_path_members,
-            );
         }
     }
 
@@ -349,25 +226,6 @@ impl TypedProgramTables {
         if let Some(return_type) = &signature.return_type {
             self.insert_type_reference(return_type, type_constraints, type_reference_arguments);
         }
-    }
-
-    fn insert_statement(
-        &mut self,
-        statement: &Statement,
-        type_constraints: &Arena<TypeConstraint>,
-        type_reference_arguments: &Arena<TypeReference>,
-        statement_expressions: &Arena<Expression>,
-        statement_path_members: &Arena<ProgramName>,
-    ) {
-        self.statements.insert_tree(
-            statement,
-            &mut self.expressions,
-            &mut self.type_references,
-            type_constraints,
-            type_reference_arguments,
-            statement_expressions,
-            statement_path_members,
-        );
     }
 
     fn insert_type_reference(

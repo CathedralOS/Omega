@@ -208,10 +208,6 @@ impl TypedTrees {
             .append_to_span(&mut state.statements, statement);
     }
 
-    pub fn state_statements(&self, state: &crate::state::State) -> &[crate::statement::Statement] {
-        self.state_statements.span_or_empty(state.statements)
-    }
-
     pub fn push_statement_expression(
         &mut self,
         expressions: &mut HandleSpan<expression::Expression>,
@@ -241,22 +237,6 @@ impl TypedTrees {
         path: HandleSpan<crate::name::ProgramName>,
     ) -> &[crate::name::ProgramName] {
         self.statement_path_members.span_or_empty(path)
-    }
-
-    pub fn call_arguments(&self, call: &crate::statement::Call) -> &[expression::Expression] {
-        self.statement_expressions(call.arguments)
-    }
-
-    pub fn transition_target_arguments(
-        &self,
-        target: &crate::statement::TransitionTarget,
-    ) -> &[expression::Expression] {
-        match target {
-            crate::statement::TransitionTarget::Named { arguments, .. } => {
-                self.statement_expressions(*arguments)
-            }
-            _ => &[],
-        }
     }
 
     pub fn push_type_reference_argument(
