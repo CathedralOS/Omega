@@ -1,6 +1,6 @@
 use crate::program::Lowerer;
 use crate::statement::lower_statement_node;
-use crate::type_reference::lower_type_reference;
+use crate::type_reference::{lower_type_reference, lower_type_reference_into_table};
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
@@ -77,7 +77,7 @@ fn lower_state_parameter(
     Ok(typed::signature::StateParameter {
         symbol: parameter.symbol,
         name: crate::name::lower_name(&parameter.name),
-        type_reference: lower_type_reference(lowerer, &parameter.type_reference)?,
+        type_reference: lower_type_reference_into_table(lowerer, &parameter.type_reference)?,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
         is_self: parameter.is_self,

@@ -9,7 +9,6 @@ use omega_checked_trees::statement::{
     StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuard,
     TransitionGuardNode,
 };
-use omega_checked_trees::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
 
 use omega_core::arena::{Arena, HandleSpan};
@@ -212,11 +211,15 @@ fn state_parameters_for_segment(
             StateParameterNode {
                 symbol: parameter.symbol,
                 name: parameter.name.clone(),
-                type_symbol: type_reference_symbol(&parameter.type_reference),
-                type_name: ProgramName::generated(parameter.type_reference.display_name()),
+                type_symbol: program.type_reference_symbol(parameter.type_reference),
+                type_name: ProgramName::generated(
+                    program.display_type_reference(parameter.type_reference),
+                ),
                 is_mutable_reference: matches!(
-                    parameter.type_reference,
-                    TypeReference::Reference {
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    omega_checked_trees::types::TypeReferenceNode::Reference {
                         is_mutable: true,
                         ..
                     }
@@ -460,28 +463,6 @@ fn type_reference_name(
         omega_checked_trees::types::TypeReference::Unit => {
             omega_checked_trees::name::ProgramName::default()
         }
-    }
-}
-
-fn type_reference_symbol(
-    type_reference: &omega_checked_trees::types::TypeReference,
-) -> SymbolHandle {
-    match type_reference {
-        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
-            type_reference_symbol(referee)
-        }
-        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
-            type_reference_symbol(base_type)
-        }
-        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            type_reference_symbol(element_type)
-        }
-        omega_checked_trees::types::TypeReference::Slice { element_type } => {
-            type_reference_symbol(element_type)
-        }
-        omega_checked_trees::types::TypeReference::Generic { base_symbol, .. } => *base_symbol,
-        omega_checked_trees::types::TypeReference::Named { symbol, .. } => *symbol,
-        omega_checked_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
     }
 }
 

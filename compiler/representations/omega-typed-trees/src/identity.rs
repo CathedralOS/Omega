@@ -70,7 +70,11 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
             count_optional_type_reference(typed_trees, signature.return_type.as_ref(), &mut counts);
             for parameter in typed_trees.state_signature_parameters(signature) {
                 count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(typed_trees, &parameter.type_reference, &mut counts);
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    parameter.type_reference,
+                    &mut counts,
+                );
             }
         }
     }
@@ -101,7 +105,11 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
             count_optional_type_reference(typed_trees, state.return_type.as_ref(), &mut counts);
             for parameter in typed_trees.state_parameters(state) {
                 count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(typed_trees, &parameter.type_reference, &mut counts);
+                count_type_reference_handle(
+                    &typed_trees.type_reference_table,
+                    parameter.type_reference,
+                    &mut counts,
+                );
             }
             for statement in typed_trees
                 .statement_table

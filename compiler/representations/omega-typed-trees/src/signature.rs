@@ -1,5 +1,5 @@
 use crate::name::ProgramName;
-use crate::types::TypeReference;
+use crate::types::{TypeReference, TypeReferenceHandle};
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
@@ -26,7 +26,7 @@ impl Default for StateSignature {
 pub struct StateParameter {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub type_reference: TypeReference,
+    pub type_reference: TypeReferenceHandle,
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,
@@ -37,7 +37,7 @@ impl Default for StateParameter {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            type_reference: TypeReference::Unit,
+            type_reference: TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: false,
             is_self: false,
