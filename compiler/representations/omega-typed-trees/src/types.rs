@@ -159,6 +159,133 @@ impl TypeReferenceTable {
         self.type_reference(handle).type_symbol(self)
     }
 
+    pub fn copy_from(
+        &mut self,
+        source: &TypeReferenceTable,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+        type_reference: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        match source.type_reference(type_reference) {
+            TypeReferenceNode::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let referee =
+                    self.copy_from(source, source_expressions, target_expressions, *referee);
+                self.insert(TypeReferenceNode::Reference {
+                    referee,
+                    is_mutable: *is_mutable,
+                })
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let base_type =
+                    self.copy_from(source, source_expressions, target_expressions, *base_type);
+                let constraints = self.copy_constraints_from(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *constraints,
+                );
+                self.insert(TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                })
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let element_type = self.copy_from(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *element_type,
+                );
+                self.insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: *length,
+                })
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                let element_type = self.copy_from(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *element_type,
+                );
+                self.insert(TypeReferenceNode::Slice { element_type })
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                arguments,
+            } => {
+                let arguments = self.copy_type_reference_handles_from(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *arguments,
+                );
+                self.insert(TypeReferenceNode::Generic {
+                    base_symbol: *base_symbol,
+                    base_name: base_name.clone(),
+                    arguments,
+                })
+            }
+            TypeReferenceNode::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
+                symbol: *symbol,
+                name: name.clone(),
+            }),
+            TypeReferenceNode::Unit => self.insert(TypeReferenceNode::Unit),
+        }
+    }
+
+    fn copy_type_reference_handles_from(
+        &mut self,
+        source: &TypeReferenceTable,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+        type_references: HandleSpan<TypeReferenceHandle>,
+    ) -> HandleSpan<TypeReferenceHandle> {
+        let mut copied = HandleSpan::empty();
+
+        for type_reference in source.type_reference_handles(type_references) {
+            let type_reference = self.copy_from(
+                source,
+                source_expressions,
+                target_expressions,
+                *type_reference,
+            );
+            self.type_reference_handles
+                .append_to_span(&mut copied, type_reference);
+        }
+
+        copied
+    }
+
+    fn copy_constraints_from(
+        &mut self,
+        source: &TypeReferenceTable,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+        constraints: HandleSpan<TypeConstraintNode>,
+    ) -> HandleSpan<TypeConstraintNode> {
+        let mut copied = HandleSpan::empty();
+
+        for constraint in source.constraints(constraints) {
+            self.constraints.append_to_span(
+                &mut copied,
+                constraint.copy_from(source_expressions, target_expressions),
+            );
+        }
+
+        copied
+    }
+
     pub fn insert_tree(
         &mut self,
         type_reference: &TypeReference,
@@ -478,6 +605,20 @@ impl TypeConstraintNode {
                     expressions.display_name(*maximum)
                 )
             }
+        }
+    }
+
+    fn copy_from(
+        &self,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+    ) -> Self {
+        match self {
+            TypeConstraintNode::Named(name) => Self::Named(name.clone()),
+            TypeConstraintNode::Range { minimum, maximum } => Self::Range {
+                minimum: target_expressions.copy_from(source_expressions, *minimum),
+                maximum: target_expressions.copy_from(source_expressions, *maximum),
+            },
         }
     }
 }
@@ -800,5 +941,56 @@ mod tests {
         );
         assert_eq!(types.primitive_type(root), Some(PrimitiveType::I32));
         assert_eq!(types.type_symbol(root), SymbolHandle::invalid());
+    }
+
+    #[test]
+    fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
+        let mut source_constraints = Arena::<TypeConstraint>::new();
+        let constraints = source_constraints.insert_many([TypeConstraint::Range {
+            minimum: Expression::Integer(1),
+            maximum: Expression::Integer(8),
+        }]);
+        let type_reference = TypeReference::Constrained {
+            base_type: Box::new(TypeReference::FixedArray {
+                element_type: Box::new(TypeReference::Named {
+                    symbol: SymbolHandle::from_arena_index(11),
+                    name: ProgramName::generated("u8"),
+                }),
+                length: 8,
+            }),
+            constraints,
+        };
+
+        let mut source_expressions = ExpressionTable::new();
+        let mut source_types = TypeReferenceTable::new();
+        let source_arguments = Arena::<TypeReference>::new();
+        let source_root = source_types.insert_tree(
+            &type_reference,
+            &mut source_expressions,
+            &source_constraints,
+            &source_arguments,
+        );
+
+        let mut copied_expressions = ExpressionTable::new();
+        let mut copied_types = TypeReferenceTable::new();
+        let copied_root = copied_types.copy_from(
+            &source_types,
+            &source_expressions,
+            &mut copied_expressions,
+            source_root,
+        );
+
+        assert_eq!(
+            copied_types.display_name_with_constraints(copied_root, &copied_expressions),
+            "[u8; 8][range<1, 8>]"
+        );
+        assert_eq!(
+            copied_types.type_reference_count(),
+            source_types.type_reference_count()
+        );
+        assert_eq!(
+            copied_expressions.expression_count(),
+            source_expressions.expression_count()
+        );
     }
 }
