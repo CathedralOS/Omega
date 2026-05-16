@@ -236,18 +236,16 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<LibraryFunction>,
     ) -> HandleSpan<LibraryFunction> {
-        let mut copied = Vec::new();
-        for function in other.items.library_functions(span) {
-            copied.push(LibraryFunction {
-                signature: self.copy_state_signature_value(other, &function.signature),
+        self.copy_mapped_span(
+            other.items.library_functions(span),
+            |this, function| LibraryFunction {
+                signature: this.copy_state_signature_value(other, &function.signature),
                 symbol: function.symbol.clone(),
                 calling_convention: function.calling_convention.clone(),
-                trusts: self.copy_trust_level_span(other, function.trusts),
-            });
-        }
-        self.copy_span(copied, |this, function| {
-            this.items.append_library_function(function)
-        })
+                trusts: this.copy_trust_level_span(other, function.trusts),
+            },
+            |this, function| this.items.append_library_function(function),
+        )
     }
 
     fn copy_capability_member_span(
@@ -255,22 +253,20 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<CapabilityMember>,
     ) -> HandleSpan<CapabilityMember> {
-        let mut copied = Vec::new();
-        for member in other.items.capability_members(span) {
-            copied.push(match member {
+        self.copy_mapped_span(
+            other.items.capability_members(span),
+            |this, member| match member {
                 CapabilityMember::Field(field) => CapabilityMember::Field(CapabilityField {
                     name: field.name.clone(),
-                    type_reference: self.copy_type_reference_handle(other, field.type_reference),
+                    type_reference: this.copy_type_reference_handle(other, field.type_reference),
                 }),
                 CapabilityMember::State(state) => CapabilityMember::State(CapabilityState {
-                    signature: self.copy_state_signature_value(other, &state.signature),
-                    contracts: self.copy_capability_contract_span(other, state.contracts),
+                    signature: this.copy_state_signature_value(other, &state.signature),
+                    contracts: this.copy_capability_contract_span(other, state.contracts),
                 }),
-            });
-        }
-        self.copy_span(copied, |this, member| {
-            this.items.append_capability_member(member)
-        })
+            },
+            |this, member| this.items.append_capability_member(member),
+        )
     }
 
     fn copy_capability_contract_span(
@@ -305,20 +301,20 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<DataMember>,
     ) -> HandleSpan<DataMember> {
-        let mut copied = Vec::new();
-        for member in other.items.data_members(span) {
-            copied.push(match member {
+        self.copy_mapped_span(
+            other.items.data_members(span),
+            |this, member| match member {
                 DataMember::Field(field) => DataMember::Field(DataField {
                     name: field.name.clone(),
-                    type_reference: self.copy_type_reference_handle(other, field.type_reference),
-                    initial_value: self.copy_expression_handle(other, field.initial_value),
+                    type_reference: this.copy_type_reference_handle(other, field.type_reference),
+                    initial_value: this.copy_expression_handle(other, field.initial_value),
                 }),
                 DataMember::Variant(variant) => DataMember::Variant(DataVariant {
                     name: variant.name.clone(),
                 }),
-            });
-        }
-        self.copy_span(copied, |this, member| this.items.append_data_member(member))
+            },
+            |this, member| this.items.append_data_member(member),
+        )
     }
 
     fn copy_target_host_setting_span(
@@ -355,19 +351,17 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TrustPolicy>,
     ) -> HandleSpan<TrustPolicy> {
-        let mut copied = Vec::new();
-        for policy in other.items.trust_policies(span) {
-            copied.push(TrustPolicy {
+        self.copy_mapped_span(
+            other.items.trust_policies(span),
+            |this, policy| TrustPolicy {
                 mode: match policy.mode {
                     TrustMode::Checked => TrustMode::Checked,
                     TrustMode::Unchecked => TrustMode::Unchecked,
                 },
-                path: self.copy_item_identifier_span(other, policy.path),
-            });
-        }
-        self.copy_span(copied, |this, policy| {
-            this.items.append_trust_policy(policy)
-        })
+                path: this.copy_item_identifier_span(other, policy.path),
+            },
+            |this, policy| this.items.append_trust_policy(policy),
+        )
     }
 
     fn copy_state_handle_span(
@@ -619,19 +613,15 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TypeReferenceHandle>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        let mut copied = Vec::new();
-        for handle in other
-            .type_references
-            .type_reference_handles(span)
-            .iter()
-            .copied()
-        {
-            let handle = self.copy_type_reference_handle(other, handle);
-            copied.push(handle);
-        }
-        self.copy_span(copied, |this, handle| {
-            this.type_references.append_type_reference_handle(handle)
-        })
+        self.copy_mapped_span(
+            other
+                .type_references
+                .type_reference_handles(span)
+                .iter()
+                .copied(),
+            |this, handle| this.copy_type_reference_handle(other, handle),
+            |this, handle| this.type_references.append_type_reference_handle(handle),
+        )
     }
 
     fn copy_constraint_span(
@@ -639,19 +629,17 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<TypeConstraintNode> {
-        let mut copied = Vec::new();
-        for constraint in other.type_references.constraints(span) {
-            copied.push(match constraint {
+        self.copy_mapped_span(
+            other.type_references.constraints(span),
+            |this, constraint| match constraint {
                 TypeConstraintNode::Named(name) => TypeConstraintNode::Named(name.clone()),
                 TypeConstraintNode::Range { minimum, maximum } => TypeConstraintNode::Range {
-                    minimum: self.copy_expression_handle(other, *minimum),
-                    maximum: self.copy_expression_handle(other, *maximum),
+                    minimum: this.copy_expression_handle(other, *minimum),
+                    maximum: this.copy_expression_handle(other, *maximum),
                 },
-            });
-        }
-        self.copy_span(copied, |this, constraint| {
-            this.type_references.append_constraint(constraint)
-        })
+            },
+            |this, constraint| this.type_references.append_constraint(constraint),
+        )
     }
 
     fn copy_expression_handle(
@@ -716,13 +704,11 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
-        let mut copied = Vec::new();
-        for handle in other.expressions.expression_handles(span).iter().copied() {
-            copied.push(self.copy_expression_handle(other, handle));
-        }
-        self.copy_span(copied, |this, handle| {
-            this.expressions.append_expression_handle(handle)
-        })
+        self.copy_mapped_span(
+            other.expressions.expression_handles(span).iter().copied(),
+            |this, handle| this.copy_expression_handle(other, handle),
+            |this, handle| this.expressions.append_expression_handle(handle),
+        )
     }
 
     fn copy_struct_field_span(
@@ -730,16 +716,14 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
-        let mut copied = Vec::new();
-        for field in other.expressions.struct_fields(span) {
-            copied.push(TableStructLiteralField {
+        self.copy_mapped_span(
+            other.expressions.struct_fields(span),
+            |this, field| TableStructLiteralField {
                 name: field.name.clone(),
-                value: self.copy_expression_handle(other, field.value),
-            });
-        }
-        self.copy_span(copied, |this, field| {
-            this.expressions.append_struct_field(field)
-        })
+                value: this.copy_expression_handle(other, field.value),
+            },
+            |this, field| this.expressions.append_struct_field(field),
+        )
     }
 
     fn copy_item_identifier_span(
@@ -788,13 +772,36 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
-        let mut copied = Vec::new();
-        for handle in other.statements.expression_handles(span).iter().copied() {
-            copied.push(self.copy_expression_handle(other, handle));
+        self.copy_mapped_span(
+            other.statements.expression_handles(span).iter().copied(),
+            |this, handle| this.copy_expression_handle(other, handle),
+            |this, handle| this.statements.append_expression_handle(handle),
+        )
+    }
+
+    fn copy_mapped_span<S, T>(
+        &mut self,
+        values: impl IntoIterator<Item = S>,
+        mut map: impl FnMut(&mut Self, S) -> T,
+        mut append: impl FnMut(&mut Self, T) -> Handle<T>,
+    ) -> HandleSpan<T> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for value in values {
+            let value = map(self, value);
+            let handle = append(self, value);
+            if count == 0 {
+                start = handle;
+            }
+            count = count.checked_add(1).expect("copied span count overflow");
         }
-        self.copy_span(copied, |this, handle| {
-            this.statements.append_expression_handle(handle)
-        })
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
     }
 
     fn copy_span<T>(
