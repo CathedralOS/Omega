@@ -1,8 +1,6 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::{
-    count_control_flow_expression_strings, count_expression_strings,
-};
+use crate::identity::expressions::count_control_flow_expression_strings;
 use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
@@ -20,7 +18,11 @@ pub(in crate::identity) fn count_host_call_strings(
         match &argument.kind {
             HostCallArgumentKind::Text(value) => storage.count_payload(&value),
             HostCallArgumentKind::Expression(expression) => {
-                count_expression_strings(&expression, storage);
+                count_control_flow_expression_strings(
+                    &backend_plan.host_calls.expressions,
+                    *expression,
+                    storage,
+                );
             }
             HostCallArgumentKind::Integer(_) => {}
         }

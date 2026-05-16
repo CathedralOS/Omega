@@ -62,7 +62,7 @@ pub(super) fn collect_host_argument_blockers(
                             "{} statement {} text argument `{}`{} needs runtime text lowering",
                             source_name,
                             host_call.statement_index,
-                            expression.display_name(),
+                            input.host_calls.expressions.display_name(*expression),
                             proof_scope_suffix(input, host_call.source_key)
                         )
                     }),

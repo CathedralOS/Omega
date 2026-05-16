@@ -2,7 +2,7 @@ use crate::host_calls::static_values::{StaticValue, resolve_static_value_handle}
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
 use omega_calling_conventions::{HostAbiPlan, HostOperationKey, PlatformCallLowering};
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::TableCall;
 use omega_core::arena::{Arena, HandleSpan};
@@ -125,6 +125,7 @@ pub(crate) fn lower_host_call_arguments(
     program: &Program,
     call: &TableCall,
     static_values: &[(PlaceKey, StaticValue)],
+    expressions: &mut ExpressionTable,
     arguments: &mut Arena<HostCallArgument>,
 ) -> HandleSpan<HostCallArgument> {
     let mut argument_span = HandleSpan::empty();
@@ -133,7 +134,7 @@ pub(crate) fn lower_host_call_arguments(
         arguments.append_to_span(
             &mut argument_span,
             HostCallArgument {
-                kind: lower_host_call_argument(program, *argument, static_values),
+                kind: lower_host_call_argument(program, *argument, static_values, expressions),
             },
         );
     }
@@ -176,16 +177,23 @@ fn lower_host_call_argument(
     program: &Program,
     argument: ExpressionHandle,
     static_values: &[(PlaceKey, StaticValue)],
+    expressions: &mut ExpressionTable,
 ) -> HostCallArgumentKind {
     match program.expression_table.expression(argument) {
         ExpressionNode::String(value) => HostCallArgumentKind::Text(value.clone()),
         ExpressionNode::Integer(value) => HostCallArgumentKind::Integer(*value),
-        ExpressionNode::Name(_) => resolve_static_value_handle(program, argument, static_values)
-            .map(host_argument_from_static_value)
-            .unwrap_or_else(|| {
-                HostCallArgumentKind::Expression(program.expression_table.to_tree(argument))
-            }),
-        _ => HostCallArgumentKind::Expression(program.expression_table.to_tree(argument)),
+        ExpressionNode::Name(_) => {
+            resolve_static_value_handle(program, expressions, argument, static_values)
+                .map(|value| host_argument_from_static_value(value))
+                .unwrap_or_else(|| {
+                    HostCallArgumentKind::Expression(
+                        expressions.copy_from(&program.expression_table, argument),
+                    )
+                })
+        }
+        _ => HostCallArgumentKind::Expression(
+            expressions.copy_from(&program.expression_table, argument),
+        ),
     }
 }
 

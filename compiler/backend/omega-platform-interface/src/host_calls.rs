@@ -9,7 +9,7 @@ mod collection;
 mod lowering;
 mod static_values;
 
-use crate::{HostCall, HostCallPlan};
+use crate::{HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan};
 use collection::collect_machine_host_calls;
 
 pub fn build_host_call_plan(
@@ -76,7 +76,23 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
                 .arguments
                 .span_or_empty(call.arguments)
                 .iter()
-                .cloned(),
+                .map(|argument| HostCallArgument {
+                    kind: match &argument.kind {
+                        HostCallArgumentKind::Text(value) => {
+                            HostCallArgumentKind::Text(value.clone())
+                        }
+                        HostCallArgumentKind::Integer(value) => {
+                            HostCallArgumentKind::Integer(*value)
+                        }
+                        HostCallArgumentKind::Expression(expression) => {
+                            HostCallArgumentKind::Expression(
+                                target
+                                    .expressions
+                                    .copy_from(&source.expressions, *expression),
+                            )
+                        }
+                    },
+                }),
         );
 
         target.calls.insert(HostCall {

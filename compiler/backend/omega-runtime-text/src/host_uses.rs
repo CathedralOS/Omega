@@ -1,7 +1,7 @@
 use omega_calling_conventions::PlatformCallData;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
+use omega_core::arena::HandleSpan;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
-use omega_checked_trees::expression::{Expression, NamePath};
-use omega_checked_trees::name::ProgramName;
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 
@@ -34,8 +34,10 @@ fn collect_runtime_text_use(
     };
 
     if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
-        let expression_handle = plan.expressions.insert_tree(expression);
-        let source = classify_runtime_text_source(expression);
+        let expression_handle = plan
+            .expressions
+            .copy_from(&host_calls.expressions, *expression);
+        let source = classify_runtime_text_source(host_calls, *expression);
         plan.uses.insert(RuntimeTextUse {
             source_key: host_call.source_key,
             statement_index: host_call.statement_index,
@@ -46,13 +48,14 @@ fn collect_runtime_text_use(
         });
 
         if source == RuntimeTextSource::StoredPlace
-            && let Some(target) = output_buffer_target_for_text_expression(expression)
+            && let Some(target) =
+                output_buffer_target_for_text_expression(host_calls, plan, *expression)
         {
             plan.buffers.insert(RuntimeTextBuffer {
                 source_key: host_call.source_key,
                 statement_index: host_call.statement_index,
                 platform_call: host_call.platform_call.clone(),
-                target: plan.expressions.insert_tree(&target),
+                target,
                 byte_capacity: DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY,
             });
         }
@@ -69,7 +72,10 @@ fn collect_runtime_text_buffer(
         return;
     };
 
-    let HostCallArgumentKind::Expression(Expression::Mutable(target)) = &first_argument.kind else {
+    let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
+        return;
+    };
+    let ExpressionNode::Mutable(target) = host_calls.expressions.expression(*expression) else {
         return;
     };
 
@@ -77,7 +83,7 @@ fn collect_runtime_text_buffer(
         source_key: host_call.source_key,
         statement_index: host_call.statement_index,
         platform_call: host_call.platform_call.clone(),
-        target: plan.expressions.insert_tree(target),
+        target: plan.expressions.copy_from(&host_calls.expressions, *target),
         byte_capacity,
     });
 }
@@ -92,44 +98,62 @@ fn first_host_argument<'plan>(
         .and_then(|arguments| arguments.first())
 }
 
-fn classify_runtime_text_source(expression: &Expression) -> RuntimeTextSource {
-    match expression {
-        Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
+fn classify_runtime_text_source(
+    host_calls: &HostCallPlan,
+    expression: ExpressionHandle,
+) -> RuntimeTextSource {
+    match host_calls.expressions.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
             RuntimeTextSource::StoredPlace
         }
-        Expression::Binary(_) => RuntimeTextSource::GeneratedString,
-        Expression::Mutable(_) => RuntimeTextSource::MutablePlace,
-        Expression::ArrayLiteral(_)
-        | Expression::Boolean(_)
-        | Expression::Call(_)
-        | Expression::Cast(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::StructLiteral(_)
-        | Expression::String(_) => RuntimeTextSource::OtherExpression,
+        ExpressionNode::Binary(_) => RuntimeTextSource::GeneratedString,
+        ExpressionNode::Mutable(_) => RuntimeTextSource::MutablePlace,
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::String(_) => RuntimeTextSource::OtherExpression,
     }
 }
 
-fn output_buffer_target_for_text_expression(expression: &Expression) -> Option<Expression> {
-    match expression {
-        Expression::Member(member) if member.member == "text" => Some(member.receiver.clone()),
-        Expression::Name(path)
-            if path.len() > 1 && path.last().is_some_and(|member| member.as_str() == "text") =>
-        {
-            let members = path
-                .members()
-                .iter()
-                .take(path.len() - 1)
-                .cloned()
-                .collect::<Vec<ProgramName>>();
-            Some(Expression::Name(NamePath::resolved(
+fn output_buffer_target_for_text_expression(
+    host_calls: &HostCallPlan,
+    plan: &mut RuntimeTextPlan,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    match host_calls.expressions.expression(expression) {
+        ExpressionNode::Member(member) if member.member == "text" => Some(
+            plan.expressions
+                .copy_from(&host_calls.expressions, member.receiver),
+        ),
+        ExpressionNode::Name(path) => {
+            let source_members = host_calls.expressions.name_path_members(path.members);
+            if source_members.len() <= 1
+                || !source_members
+                    .last()
+                    .is_some_and(|member| member.as_str() == "text")
+            {
+                return None;
+            }
+
+            let mut members = HandleSpan::empty();
+            for member in source_members.iter().take(source_members.len() - 1) {
+                plan.expressions
+                    .push_name_path_member(&mut members, member.clone());
+            }
+            Some(plan.expressions.insert(ExpressionNode::Name(TableNamePath {
                 members,
-                path.head_symbol(),
-                path.head_symbol(),
-            )))
+                head_symbol: path.head_symbol,
+                symbol: path.head_symbol,
+            })))
         }
-        Expression::Mutable(inner) => output_buffer_target_for_text_expression(inner)
-            .map(|target| Expression::Mutable(Box::new(target))),
+        ExpressionNode::Mutable(inner) => {
+            let target = output_buffer_target_for_text_expression(host_calls, plan, *inner)?;
+            Some(plan.expressions.insert(ExpressionNode::Mutable(target)))
+        }
         _ => None,
     }
 }
