@@ -416,7 +416,7 @@ fn type_reference_name(
 fn append_machine_states(
     state_graph: &mut StateGraph,
     program: &Program,
-    segments: &[Vec<crate::segments::StateSegment<'_>>],
+    segments: &[Vec<crate::segments::StateSegment>],
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
     let mut start = Handle::invalid();
@@ -552,7 +552,7 @@ fn state_borrow_summary(
 fn append_segment_transitions(
     state_graph: &mut StateGraph,
     program: &Program,
-    segment: &crate::segments::StateSegment<'_>,
+    segment: &crate::segments::StateSegment,
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
     let mut start = Handle::invalid();

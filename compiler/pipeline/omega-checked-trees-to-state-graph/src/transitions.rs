@@ -1,7 +1,5 @@
 use omega_checked_trees::Program;
-use omega_checked_trees::statement::{
-    TableCall, TransitionTargetHandle, TransitionTargetNode,
-};
+use omega_checked_trees::statement::{TableCall, TransitionTargetHandle, TransitionTargetNode};
 use omega_core::diagnostics::Diagnostic;
 
 use crate::segments::{
@@ -14,12 +12,12 @@ use omega_state_graph::{
 pub(super) fn plan_transition(
     source_key: StateKey,
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
-    transition: &SegmentTransition<'_>,
+    transition: &SegmentTransition,
     program: &Program,
     state_graph: &mut StateGraph,
 ) -> Result<TransitionEdge, Diagnostic> {
     match transition {
-        SegmentTransition::Tree { tree, table } => {
+        SegmentTransition::Tree { guard, table } => {
             let target_arguments =
                 table_transition_target_arguments(table.target, program, state_graph);
             let target_value = table_transition_target_value(table.target, program, state_graph);
@@ -35,7 +33,7 @@ pub(super) fn plan_transition(
                 .is_valid()
                 .then(|| table_transition_target_value(table.continuation, program, state_graph))
                 .flatten();
-            let guard = table_transition_guard_expression(*table).map(|guard| {
+            let guard_expression = table_transition_guard_expression(*table).map(|guard| {
                 state_graph
                     .expressions
                     .copy_from(&program.expression_table, guard)
@@ -43,18 +41,18 @@ pub(super) fn plan_transition(
 
             Ok(TransitionEdge {
                 target: plan_transition_target(state_indexes, table.target, program)?,
-                continuation: tree
+                continuation: table
                     .continuation
-                    .as_ref()
-                    .map(|_| plan_transition_target(state_indexes, table.continuation, program))
+                    .is_valid()
+                    .then(|| plan_transition_target(state_indexes, table.continuation, program))
                     .transpose()?,
-                guard: tree.guard.clone(),
+                guard: guard.clone(),
                 expressions: TransitionExpressionRefs {
                     target_arguments,
                     target_value,
                     continuation_arguments,
                     continuation_value,
-                    guard,
+                    guard: guard_expression,
                 },
             })
         }
@@ -138,10 +136,11 @@ fn plan_transition_target(
     }
 
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named {
-            path,
-            arguments: _,
-        } if is_local_transition_path(program.statement_table.name_path_members(path.members)) => {
+        TransitionTargetNode::Named { path, arguments: _ }
+            if is_local_transition_path(
+                program.statement_table.name_path_members(path.members),
+            ) =>
+        {
             let members = program.statement_table.name_path_members(path.members);
             let name = members
                 .last()
@@ -171,10 +170,7 @@ fn plan_transition_target(
                 name,
             })
         }
-        TransitionTargetNode::Named {
-            path,
-            arguments: _,
-        } => {
+        TransitionTargetNode::Named { path, arguments: _ } => {
             let members = program.statement_table.name_path_members(path.members);
             if members.len() == 2 {
                 return Ok(PlannedTransitionTarget::Nested {
