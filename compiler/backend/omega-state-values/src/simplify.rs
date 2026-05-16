@@ -5,7 +5,6 @@ use omega_checked_trees::expression::{
     StructLiteral, StructLiteralField,
 };
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_core::arena::Arena;
@@ -1226,12 +1225,17 @@ fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
         }
         (Expression::Integer(left), Expression::Integer(right)) => left == right,
         (Expression::Member(left), Expression::Member(right)) => {
-            left.member == right.member && expressions_equivalent(&left.receiver, &right.receiver)
+            left.member_symbol.is_valid()
+                && right.member_symbol.is_valid()
+                && left.member_symbol == right.member_symbol
+                && expressions_equivalent(&left.receiver, &right.receiver)
         }
         (Expression::Mutable(left), Expression::Mutable(right)) => {
             expressions_equivalent(left, right)
         }
-        (Expression::Name(left), Expression::Name(right)) => left.members() == right.members(),
+        (Expression::Name(left), Expression::Name(right)) => {
+            left.symbol().is_valid() && right.symbol().is_valid() && left.symbol() == right.symbol()
+        }
         (Expression::StructLiteral(left), Expression::StructLiteral(right)) => {
             left.type_name == right.type_name
                 && left.fields.len() == right.fields.len()
@@ -1256,11 +1260,11 @@ fn expression_paths_equivalent(left: &Expression, right: &Expression) -> Option<
         return Some(false);
     }
 
-    Some(
-        (0..left_count).all(|index| {
-            expression_path_segment(left, index) == expression_path_segment(right, index)
-        }),
-    )
+    Some((0..left_count).all(|index| {
+        let left_symbol = expression_path_segment_symbol(left, index);
+        let right_symbol = expression_path_segment_symbol(right, index);
+        left_symbol.is_valid() && right_symbol.is_valid() && left_symbol == right_symbol
+    }))
 }
 
 fn expression_path_segment_count(expression: &Expression) -> Option<usize> {
@@ -1271,18 +1275,20 @@ fn expression_path_segment_count(expression: &Expression) -> Option<usize> {
     }
 }
 
-fn expression_path_segment(expression: &Expression, index: usize) -> Option<&ProgramName> {
+fn expression_path_segment_symbol(expression: &Expression, index: usize) -> SymbolHandle {
     match expression {
-        Expression::Name(path) => path.get(index),
+        Expression::Name(path) => path.member_symbol(index),
         Expression::Member(member) => {
-            let receiver_count = expression_path_segment_count(&member.receiver)?;
+            let Some(receiver_count) = expression_path_segment_count(&member.receiver) else {
+                return SymbolHandle::invalid();
+            };
             if index == receiver_count {
-                Some(&member.member)
+                member.member_symbol
             } else {
-                expression_path_segment(&member.receiver, index)
+                expression_path_segment_symbol(&member.receiver, index)
             }
         }
-        _ => None,
+        _ => SymbolHandle::invalid(),
     }
 }
 
@@ -1311,6 +1317,11 @@ mod tests {
         let is_quiet_symbol = SymbolHandle::from_arena_index(4);
         let is_fountain_symbol = SymbolHandle::from_arena_index(5);
         let is_reward_symbol = SymbolHandle::from_arena_index(6);
+        let event_action_symbol = SymbolHandle::from_arena_index(7);
+        let quiet_symbol = SymbolHandle::from_arena_index(8);
+        let fountain_symbol = SymbolHandle::from_arena_index(9);
+        let reward_symbol = SymbolHandle::from_arena_index(10);
+        let enemy_symbol = SymbolHandle::from_arena_index(11);
 
         let mut helper = State {
             symbol: helper_symbol,
@@ -1372,19 +1383,35 @@ mod tests {
                     }))),
                 },
                 TestStatement::TransitionValue {
-                    target: path_expression(&["RoomEventAction", "Quiet"]),
+                    target: resolved_path_expression(
+                        &["RoomEventAction", "Quiet"],
+                        event_action_symbol,
+                        quiet_symbol,
+                    ),
                     guard: Some(name("is_quiet", is_quiet_symbol)),
                 },
                 TestStatement::TransitionValue {
-                    target: path_expression(&["RoomEventAction", "Fountain"]),
+                    target: resolved_path_expression(
+                        &["RoomEventAction", "Fountain"],
+                        event_action_symbol,
+                        fountain_symbol,
+                    ),
                     guard: Some(name("is_fountain", is_fountain_symbol)),
                 },
                 TestStatement::TransitionValue {
-                    target: path_expression(&["RoomEventAction", "Reward"]),
+                    target: resolved_path_expression(
+                        &["RoomEventAction", "Reward"],
+                        event_action_symbol,
+                        reward_symbol,
+                    ),
                     guard: Some(name("is_reward", is_reward_symbol)),
                 },
                 TestStatement::TransitionValue {
-                    target: path_expression(&["RoomEventAction", "Enemy"]),
+                    target: resolved_path_expression(
+                        &["RoomEventAction", "Enemy"],
+                        event_action_symbol,
+                        enemy_symbol,
+                    ),
                     guard: None,
                 },
             ],
@@ -1412,7 +1439,11 @@ mod tests {
                 arguments: vec![name("roll", roll_symbol)],
             })),
             operator: BinaryOperator::Equal,
-            right: path_expression(&["RoomEventAction", "Quiet"]),
+            right: resolved_path_expression(
+                &["RoomEventAction", "Quiet"],
+                event_action_symbol,
+                quiet_symbol,
+            ),
         }));
 
         let fountain_guard = Expression::Binary(Box::new(BinaryExpression {
@@ -1423,7 +1454,11 @@ mod tests {
                 arguments: vec![name("roll", roll_symbol)],
             })),
             operator: BinaryOperator::Equal,
-            right: path_expression(&["RoomEventAction", "Fountain"]),
+            right: resolved_path_expression(
+                &["RoomEventAction", "Fountain"],
+                event_action_symbol,
+                fountain_symbol,
+            ),
         }));
 
         assert_eq!(
@@ -1443,7 +1478,11 @@ mod tests {
                 arguments: vec![name("roll", roll_symbol)],
             })),
             operator: BinaryOperator::Equal,
-            right: path_expression(&["RoomEventAction", "Reward"]),
+            right: resolved_path_expression(
+                &["RoomEventAction", "Reward"],
+                event_action_symbol,
+                reward_symbol,
+            ),
         }));
 
         let enemy_guard = Expression::Binary(Box::new(BinaryExpression {
@@ -1454,7 +1493,11 @@ mod tests {
                 arguments: vec![name("roll", roll_symbol)],
             })),
             operator: BinaryOperator::Equal,
-            right: path_expression(&["RoomEventAction", "Enemy"]),
+            right: resolved_path_expression(
+                &["RoomEventAction", "Enemy"],
+                event_action_symbol,
+                enemy_symbol,
+            ),
         }));
 
         assert_eq!(
@@ -1616,16 +1659,18 @@ mod tests {
             })
     }
 
-    fn path_expression(segments: &[&str]) -> Expression {
-        Expression::Name(path(segments))
-    }
-
-    fn path(segments: &[&str]) -> NamePath {
-        NamePath::unresolved(
+    fn resolved_path_expression(
+        segments: &[&str],
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Expression {
+        Expression::Name(NamePath::resolved(
             segments
                 .iter()
                 .map(|segment| ProgramName::from(*segment))
                 .collect(),
-        )
+            head_symbol,
+            symbol,
+        ))
     }
 }
