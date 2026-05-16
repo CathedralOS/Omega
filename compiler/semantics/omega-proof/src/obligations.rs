@@ -2,7 +2,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, FloatLiteral,
+    BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral,
 };
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::ProgramName;
@@ -446,17 +446,14 @@ fn collect_bounded_assignment_obligation(
     proof_plan: &mut ProofPlan<'_>,
 ) {
     let target = assignment.target;
-    let target_tree = program.expression_table.to_tree(target);
-    let Some((base_type, constraints)) =
-        expression_type_reference(program, machine, state, &target_tree)
-            .and_then(|type_reference| constrained_type_reference(program, type_reference))
+    let Some((base_type, constraints)) = expression_type_reference(program, machine, state, target)
+        .and_then(|type_reference| constrained_type_reference(program, type_reference))
     else {
         return;
     };
 
     let value = assignment.value;
-    let value_tree = program.expression_table.to_tree(value);
-    let value_constraints = expression_constraints(program, machine, state, &value_tree);
+    let value_constraints = expression_constraints(program, machine, state, value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
     let state_guard = incoming_state_guard(program, machine, state);
@@ -502,8 +499,7 @@ fn collect_bounded_transition_argument_obligations(
         };
 
         let argument = *argument;
-        let argument_tree = program.expression_table.to_tree(argument);
-        let argument_constraints = expression_constraints(program, machine, state, &argument_tree);
+        let argument_constraints = expression_constraints(program, machine, state, argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
@@ -552,8 +548,7 @@ fn collect_bounded_call_argument_obligations(
         };
 
         let argument = *argument;
-        let argument_tree = program.expression_table.to_tree(argument);
-        let argument_constraints = expression_constraints(program, machine, state, &argument_tree);
+        let argument_constraints = expression_constraints(program, machine, state, argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
         let receiver = program.statement_table.name_path_members(call.receiver);
@@ -594,9 +589,7 @@ fn collect_bounded_state_return_obligation(
         return;
     };
     let value = *value;
-    let value_tree = program.expression_table.to_tree(value);
-
-    let value_constraints = expression_constraints(program, machine, state, &value_tree);
+    let value_constraints = expression_constraints(program, machine, state, value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
@@ -814,23 +807,24 @@ fn expression_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    expression: &Expression,
+    expression: ExpressionHandle,
 ) -> Vec<ProofConstraint> {
-    match expression {
-        Expression::Binary(binary) => {
-            let left = expression_constraints(program, machine, state, &binary.left);
-            let right = expression_constraints(program, machine, state, &binary.right);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let left = expression_constraints(program, machine, state, binary.left);
+            let right = expression_constraints(program, machine, state, binary.right);
             derived_binary_constraints(binary.operator, &left, &right)
         }
-        Expression::Call(call) => {
+        ExpressionNode::Call(call) => {
             if let Some(constraints) =
                 derived_builtin_call_constraints(program, machine, state, call)
             {
                 return constraints;
             }
 
-            if is_real_from_call(call.receiver.as_deref(), &call.target)
-                && let [argument] = call.arguments.as_slice()
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            if is_real_from_call(program, call.receiver, &call.target)
+                && let [argument] = arguments
             {
                 let mut constraints = call_expression_return_type(program, machine, state, call)
                     .map(|return_type| {
@@ -838,7 +832,7 @@ fn expression_constraints(
                     })
                     .unwrap_or_default();
                 let argument_constraints =
-                    expression_constraints(program, machine, state, argument);
+                    expression_constraints(program, machine, state, *argument);
                 constraints.extend(derived_real_from_constraints(&argument_constraints));
 
                 if !constraints.is_empty() {
@@ -852,24 +846,26 @@ fn expression_constraints(
 
             Vec::new()
         }
-        Expression::Cast(cast) => expression_constraints(program, machine, state, &cast.value),
-        Expression::Float(value) => float_literal_constraints(*value),
-        Expression::Integer(value) => integer_literal_constraints(*value),
-        Expression::Name(path) if path.members() == ["u32", "MAX"] => {
+        ExpressionNode::Cast(cast) => expression_constraints(program, machine, state, cast.value),
+        ExpressionNode::Float(value) => float_literal_constraints(*value),
+        ExpressionNode::Integer(value) => integer_literal_constraints(*value),
+        ExpressionNode::Name(path)
+            if program.expression_table.name_path_members(path.members) == ["u32", "MAX"] =>
+        {
             integer_literal_constraints(u32::MAX as i64)
         }
-        Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
+        ExpressionNode::Member(_) | ExpressionNode::Mutable(_) | ExpressionNode::Name(_) => {
             expression_type_reference(program, machine, state, expression)
                 .map(|type_reference| {
                     collect_constraints_in_state(program, machine, state, type_reference)
                 })
                 .unwrap_or_default()
         }
-        Expression::ArrayLiteral(_)
-        | Expression::Boolean(_)
-        | Expression::Indexed(_)
-        | Expression::String(_)
-        | Expression::StructLiteral(_) => Vec::new(),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::StructLiteral(_) => Vec::new(),
     }
 }
 
@@ -877,16 +873,18 @@ fn expression_type_reference(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    expression: &Expression,
+    expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    match expression {
-        Expression::Mutable(inner) => expression_type_reference(program, machine, state, inner),
-        Expression::Name(path) => {
-            if path.symbol().is_valid() {
-                return type_reference_for_symbol(program, machine, state, path.symbol());
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            expression_type_reference(program, machine, state, *inner)
+        }
+        ExpressionNode::Name(path) => {
+            if path.symbol.is_valid() {
+                return type_reference_for_symbol(program, machine, state, path.symbol);
             }
 
-            let name = match path.members() {
+            let name = match program.expression_table.name_path_members(path.members) {
                 [name] => name,
                 [receiver, name] if receiver == "self" => name,
                 _ => return None,
@@ -909,8 +907,8 @@ fn expression_type_reference(
                         .map(|owned_data| owned_data.type_reference)
                 })
         }
-        Expression::Member(member) => {
-            expression_type_reference(program, machine, state, &member.receiver)
+        ExpressionNode::Member(member) => {
+            expression_type_reference(program, machine, state, member.receiver)
                 .and_then(|receiver_type| {
                     data_field_type_reference(
                         program,
@@ -1038,10 +1036,15 @@ fn collection_length_for_binding(
                 local_data
                     .initial_value
                     .is_valid()
-                    .then(|| program.expression_table.to_tree(local_data.initial_value))
-                    .and_then(|value| {
-                        collection_length_from_expression(program, machine, state, &value)
+                    .then(|| {
+                        collection_length_from_expression(
+                            program,
+                            machine,
+                            state,
+                            local_data.initial_value,
+                        )
                     })
+                    .flatten()
                     .or_else(|| {
                         collection_length_from_type_reference_handle(
                             program,
@@ -1065,21 +1068,28 @@ fn collection_length_from_expression(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    expression: &Expression,
+    expression: ExpressionHandle,
 ) -> Option<usize> {
-    match expression {
-        Expression::Mutable(inner) => {
-            collection_length_from_expression(program, machine, state, inner)
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            collection_length_from_expression(program, machine, state, *inner)
         }
-        Expression::Call(call) if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") => {
-            let receiver = call.receiver.as_deref()?;
-            collection_length_from_expression(program, machine, state, receiver).or_else(|| {
-                expression_type_reference(program, machine, state, receiver).and_then(
-                    |type_reference| {
-                        collection_length_from_type_reference_handle(program, type_reference)
-                    },
-                )
-            })
+        ExpressionNode::Call(call)
+            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
+        {
+            if !call.receiver.is_valid() {
+                return None;
+            }
+
+            collection_length_from_expression(program, machine, state, call.receiver).or_else(
+                || {
+                    expression_type_reference(program, machine, state, call.receiver).and_then(
+                        |type_reference| {
+                            collection_length_from_type_reference_handle(program, type_reference)
+                        },
+                    )
+                },
+            )
         }
         _ => expression_type_reference(program, machine, state, expression).and_then(
             |type_reference| collection_length_from_type_reference_handle(program, type_reference),
@@ -1378,7 +1388,7 @@ fn derived_builtin_call_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &omega_typed_trees::expression::CallExpression,
+    call: &omega_typed_trees::expression::TableCallExpression,
 ) -> Option<Vec<ProofConstraint>> {
     match call.target.as_str() {
         "max" => derived_extrema_call_constraints(program, machine, state, call, true),
@@ -1392,15 +1402,15 @@ fn derived_extrema_call_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &omega_typed_trees::expression::CallExpression,
+    call: &omega_typed_trees::expression::TableCallExpression,
     is_max: bool,
 ) -> Option<Vec<ProofConstraint>> {
-    let [left, right] = call.arguments.as_slice() else {
+    let [left, right] = program.expression_table.expression_handles(call.arguments) else {
         return None;
     };
 
-    let left_constraints = expression_constraints(program, machine, state, left);
-    let right_constraints = expression_constraints(program, machine, state, right);
+    let left_constraints = expression_constraints(program, machine, state, *left);
+    let right_constraints = expression_constraints(program, machine, state, *right);
     let mut constraints = Vec::new();
 
     if integer_constraints_are_exact(&left_constraints)
@@ -1443,13 +1453,13 @@ fn derived_range_call_constraints(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &omega_typed_trees::expression::CallExpression,
+    call: &omega_typed_trees::expression::TableCallExpression,
 ) -> Option<Vec<ProofConstraint>> {
-    let [_, exclusive_max] = call.arguments.as_slice() else {
+    let [_, exclusive_max] = program.expression_table.expression_handles(call.arguments) else {
         return None;
     };
 
-    let upper_constraints = expression_constraints(program, machine, state, exclusive_max);
+    let upper_constraints = expression_constraints(program, machine, state, *exclusive_max);
     let mut constraints = vec![ProofConstraint::Named(ProgramName::generated("exact"))];
 
     if let Some(upper_range) = integer_range_from_constraints(&upper_constraints) {
@@ -1467,7 +1477,7 @@ fn call_expression_return_type(
     program: &TypedTrees,
     _machine: &Machine,
     _state: &State,
-    call: &omega_typed_trees::expression::CallExpression,
+    call: &omega_typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     callable_return_type_by_symbol(program, call.target_symbol)
 }
@@ -1506,11 +1516,16 @@ fn callable_return_type_by_symbol(
         })
 }
 
-fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> bool {
+fn is_real_from_call(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    target: &ProgramName,
+) -> bool {
     target == "from"
         && matches!(
-            receiver,
-            Some(Expression::Name(path)) if path.members() == ["Real"]
+            receiver.is_valid().then(|| program.expression_table.expression(receiver)),
+            Some(ExpressionNode::Name(path))
+                if program.expression_table.name_path_members(path.members) == ["Real"]
         )
 }
 
