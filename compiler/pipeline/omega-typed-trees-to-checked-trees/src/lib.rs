@@ -254,7 +254,6 @@ fn collect_statement_borrow_calls(
         Statement::Call(call) => {
             if statement_call_can_dispatch_to_machine(program, machine, state, call) {
                 append_borrow_call(
-                    argument_accesses,
                     calls,
                     state_calls,
                     statement_index,
@@ -263,7 +262,7 @@ fn collect_statement_borrow_calls(
                     call.target_symbol,
                     statement_call_receiver_path(program, call),
                     call.target.clone(),
-                    collect_call_argument_accesses(program.call_arguments(call)),
+                    collect_call_argument_accesses(argument_accesses, program.call_arguments(call)),
                 );
                 *call_ordinal += 1;
             }
@@ -395,7 +394,6 @@ fn collect_transition_target_borrow_calls(
 }
 
 fn append_borrow_call(
-    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     calls: &mut omega_core::arena::Arena<BorrowCallFact>,
     state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
     statement_index: usize,
@@ -404,9 +402,8 @@ fn append_borrow_call(
     target_symbol: SymbolHandle,
     receiver: Option<NamePath>,
     target: ProgramName,
-    accesses: Vec<BorrowArgumentAccessFact>,
+    accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {
-    let accesses = argument_accesses.insert_many(accesses);
     calls.append_to_span(
         state_calls,
         BorrowCallFact {
@@ -494,7 +491,6 @@ fn collect_expression_borrow_calls(
 
             if is_machine_call {
                 append_borrow_call(
-                    argument_accesses,
                     calls,
                     state_calls,
                     statement_index,
@@ -503,7 +499,7 @@ fn collect_expression_borrow_calls(
                     call.target_symbol,
                     receiver_path,
                     call.target.clone(),
-                    collect_call_argument_accesses(&call.arguments),
+                    collect_call_argument_accesses(argument_accesses, &call.arguments),
                 );
                 *call_ordinal += 1;
             }
@@ -817,11 +813,14 @@ fn machine_symbol_from_type_reference(
     }
 }
 
-fn collect_call_argument_accesses(arguments: &[Expression]) -> Vec<BorrowArgumentAccessFact> {
-    let mut accesses = Vec::new();
+fn collect_call_argument_accesses(
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    arguments: &[Expression],
+) -> omega_core::arena::HandleSpan<BorrowArgumentAccessFact> {
+    let mut accesses = omega_core::arena::HandleSpan::empty();
 
     for argument in arguments {
-        collect_argument_accesses(argument, &mut accesses);
+        collect_argument_accesses(argument, argument_accesses, &mut accesses);
     }
 
     accesses
@@ -829,65 +828,83 @@ fn collect_call_argument_accesses(arguments: &[Expression]) -> Vec<BorrowArgumen
 
 fn collect_argument_accesses(
     expression: &Expression,
-    accesses: &mut Vec<BorrowArgumentAccessFact>,
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {
     match expression {
         Expression::Mutable(inner_expression) => {
             if let Some(root_name) = expression_root_name(inner_expression) {
-                accesses.push(BorrowArgumentAccessFact {
-                    root_name,
-                    kind: BorrowAccessKind::Mutable,
-                });
+                argument_accesses.append_to_span(
+                    accesses,
+                    BorrowArgumentAccessFact {
+                        root_name,
+                        kind: BorrowAccessKind::Mutable,
+                    },
+                );
             }
         }
-        other_expression => collect_read_accesses(other_expression, accesses),
+        other_expression => collect_read_accesses(other_expression, argument_accesses, accesses),
     }
 }
 
-fn collect_read_accesses(expression: &Expression, accesses: &mut Vec<BorrowArgumentAccessFact>) {
+fn collect_read_accesses(
+    expression: &Expression,
+    argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
+    accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+) {
     match expression {
         Expression::ArrayLiteral(values) => {
             for value in values {
-                collect_read_accesses(value, accesses);
+                collect_read_accesses(value, argument_accesses, accesses);
             }
         }
         Expression::Binary(binary) => {
-            collect_read_accesses(&binary.left, accesses);
-            collect_read_accesses(&binary.right, accesses);
+            collect_read_accesses(&binary.left, argument_accesses, accesses);
+            collect_read_accesses(&binary.right, argument_accesses, accesses);
         }
         Expression::Call(call) => {
             if let Some(receiver) = &call.receiver {
-                collect_read_accesses(receiver, accesses);
+                collect_read_accesses(receiver, argument_accesses, accesses);
             }
 
             for argument in &call.arguments {
-                collect_read_accesses(argument, accesses);
+                collect_read_accesses(argument, argument_accesses, accesses);
             }
         }
-        Expression::Cast(cast) => collect_read_accesses(&cast.value, accesses),
+        Expression::Cast(cast) => collect_read_accesses(&cast.value, argument_accesses, accesses),
         Expression::Indexed(indexed) => {
             if let Some(root_name) = expression_root_name(&indexed.collection) {
-                accesses.push(BorrowArgumentAccessFact {
-                    root_name,
-                    kind: BorrowAccessKind::Read,
-                });
+                argument_accesses.append_to_span(
+                    accesses,
+                    BorrowArgumentAccessFact {
+                        root_name,
+                        kind: BorrowAccessKind::Read,
+                    },
+                );
             }
 
-            collect_read_accesses(&indexed.index, accesses);
+            collect_read_accesses(&indexed.index, argument_accesses, accesses);
         }
-        Expression::Member(member) => collect_read_accesses(&member.receiver, accesses),
+        Expression::Member(member) => {
+            collect_read_accesses(&member.receiver, argument_accesses, accesses)
+        }
         Expression::Name(path) => {
             if let Some(root_name) = path.first() {
-                accesses.push(BorrowArgumentAccessFact {
-                    root_name: root_name.clone(),
-                    kind: BorrowAccessKind::Read,
-                });
+                argument_accesses.append_to_span(
+                    accesses,
+                    BorrowArgumentAccessFact {
+                        root_name: root_name.clone(),
+                        kind: BorrowAccessKind::Read,
+                    },
+                );
             }
         }
-        Expression::Mutable(inner_expression) => collect_read_accesses(inner_expression, accesses),
+        Expression::Mutable(inner_expression) => {
+            collect_read_accesses(inner_expression, argument_accesses, accesses)
+        }
         Expression::StructLiteral(struct_literal) => {
             for field in &struct_literal.fields {
-                collect_read_accesses(&field.value, accesses);
+                collect_read_accesses(&field.value, argument_accesses, accesses);
             }
         }
         Expression::Boolean(_)
