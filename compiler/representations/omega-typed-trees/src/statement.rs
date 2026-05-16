@@ -123,6 +123,20 @@ impl StatementTable {
         self.transition_targets.insert(target)
     }
 
+    pub fn copy_statement_nodes_from(
+        &mut self,
+        source: &StatementTable,
+        statements: HandleSpan<StatementNode>,
+    ) -> HandleSpan<StatementNode> {
+        let mut copied = HandleSpan::empty();
+
+        for statement in source.statements(statements) {
+            self.push_statement(&mut copied, statement.clone());
+        }
+
+        copied
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }
