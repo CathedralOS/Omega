@@ -7,7 +7,7 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
-    Assignment, Call, Transition, TransitionGuard, TransitionTarget,
+    Assignment, TableCall, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_typed_trees::types::{TypeConstraint, TypeReference};
 
@@ -202,7 +202,8 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 );
             }
 
-            for statement in program.state_statements(state) {
+            let table_statements = program.statement_table.statements(state.statement_nodes);
+            for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
                 let transition = match statement {
                     omega_typed_trees::statement::Statement::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
@@ -214,14 +215,18 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                         );
                         continue;
                     }
-                    omega_typed_trees::statement::Statement::Call(call) => {
-                        collect_bounded_call_argument_obligations(
-                            program,
-                            machine,
-                            state,
-                            call,
-                            &mut proof_plan,
-                        );
+                    omega_typed_trees::statement::Statement::Call(_) => {
+                        if let Some(omega_typed_trees::statement::StatementNode::Call(table_call)) =
+                            table_statements.get(statement_index)
+                        {
+                            collect_bounded_call_argument_obligations(
+                                program,
+                                machine,
+                                state,
+                                table_call,
+                                &mut proof_plan,
+                            );
+                        }
                         continue;
                     }
                     omega_typed_trees::statement::Statement::Transition(transition) => transition,
@@ -423,17 +428,22 @@ fn collect_bounded_call_argument_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    call: &Call,
+    call: &TableCall,
     proof_plan: &mut ProofPlan,
 ) {
-    let Some(parameters) = call_target_parameters(program, call) else {
+    let Some(parameters) = call_target_parameters(program, call.target_symbol) else {
         return;
     };
 
     for (parameter, argument) in parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .zip(program.call_arguments(call).iter())
+        .zip(
+            program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter(),
+        )
     {
         let TypeReference::Constrained {
             base_type,
@@ -443,9 +453,11 @@ fn collect_bounded_call_argument_obligations(
             continue;
         };
 
-        let argument_constraints = expression_constraints(program, machine, state, argument);
+        let argument = program.expression_table.to_tree(*argument);
+        let argument_constraints = expression_constraints(program, machine, state, &argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
         let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+        let receiver = program.statement_table.name_path_members(call.receiver);
 
         proof_plan.push_obligation(ProofObligation::BoundedCallArgument(
             BoundedCallArgumentObligation {
@@ -453,11 +465,10 @@ fn collect_bounded_call_argument_obligations(
                 machine: machine.name.to_string(),
                 state_symbol: state.symbol,
                 state: state.name.to_string(),
-                receiver: (!call.receiver.is_empty())
-                    .then(|| display_name_path(program.statement_path_members(call.receiver))),
+                receiver: (!receiver.is_empty()).then(|| display_name_path(receiver)),
                 target: call.target.to_string(),
                 parameter: parameter.name.to_string(),
-                argument: argument.clone(),
+                argument,
                 argument_constraints,
                 base_type: base_type.as_ref().clone(),
                 constraints,
@@ -506,9 +517,9 @@ fn collect_bounded_state_return_obligation(
 
 fn call_target_parameters<'program>(
     program: &'program TypedTrees,
-    call: &Call,
+    target_symbol: SymbolHandle,
 ) -> Option<&'program [StateParameter]> {
-    state_by_symbol(program, call.target_symbol).map(|state| program.state_parameters(state))
+    state_by_symbol(program, target_symbol).map(|state| program.state_parameters(state))
 }
 
 fn display_name_path(path: &[ProgramName]) -> String {
