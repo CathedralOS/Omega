@@ -92,6 +92,37 @@ impl StatementTable {
         self.statements.append(statement)
     }
 
+    pub fn push_statement(
+        &mut self,
+        span: &mut HandleSpan<StatementNode>,
+        statement: StatementNode,
+    ) -> StatementHandle {
+        self.statements.append_to_span(span, statement)
+    }
+
+    pub fn push_expression_handle(
+        &mut self,
+        span: &mut HandleSpan<crate::expression::ExpressionHandle>,
+        expression: crate::expression::ExpressionHandle,
+    ) {
+        self.expression_handles.append_to_span(span, expression);
+    }
+
+    pub fn push_name_path_member(
+        &mut self,
+        span: &mut HandleSpan<ProgramName>,
+        member: ProgramName,
+    ) {
+        self.name_path_members.append_to_span(span, member);
+    }
+
+    pub fn insert_transition_target(
+        &mut self,
+        target: TransitionTargetNode,
+    ) -> TransitionTargetHandle {
+        self.transition_targets.insert(target)
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }
@@ -452,5 +483,55 @@ mod tests {
         assert_eq!(path.symbol, target_symbol);
         assert_eq!(arguments.count(), 2);
         assert_eq!(expressions.expression_count(), 3);
+    }
+
+    #[test]
+    fn statement_table_appends_handle_native_payloads_directly() {
+        let target_symbol = SymbolHandle::from_arena_index(11);
+        let mut statements = StatementTable::new();
+        let mut expressions = ExpressionTable::new();
+        let argument = expressions.insert(crate::expression::ExpressionNode::Integer(99));
+
+        let mut arguments = omega_core::arena::HandleSpan::empty();
+        statements.push_expression_handle(&mut arguments, argument);
+
+        let mut path = omega_core::arena::HandleSpan::empty();
+        statements.push_name_path_member(&mut path, ProgramName::generated("next"));
+
+        let target = statements.insert_transition_target(TransitionTargetNode::Named {
+            path: super::TableNamePath {
+                members: path,
+                head_symbol: target_symbol,
+                symbol: target_symbol,
+            },
+            arguments,
+        });
+
+        let mut state_statements = omega_core::arena::HandleSpan::empty();
+        let statement = statements.push_statement(
+            &mut state_statements,
+            StatementNode::Transition(super::TableTransition {
+                target,
+                continuation: super::TransitionTargetHandle::invalid(),
+                guard: super::TransitionGuardNode::Always,
+            }),
+        );
+
+        assert_eq!(state_statements.count(), 1);
+        assert_eq!(statements.statement_count(), 1);
+        assert_eq!(statements.transition_target_count(), 1);
+
+        let StatementNode::Transition(transition) = statements.statement(statement) else {
+            panic!("statement should be transition");
+        };
+        let TransitionTargetNode::Named { path, arguments } =
+            statements.transition_target(transition.target)
+        else {
+            panic!("transition target should be named");
+        };
+
+        assert_eq!(path.symbol, target_symbol);
+        assert_eq!(arguments.count(), 1);
+        assert_eq!(statements.expression_handles(*arguments), &[argument]);
     }
 }
