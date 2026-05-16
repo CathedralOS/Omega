@@ -4,7 +4,7 @@ use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
-use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
@@ -776,9 +776,9 @@ fn validate_owned_data(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for owned_data in program.machine_owned_data(machine) {
-        validate_type_reference(
+        validate_type_reference_handle(
             program,
-            &owned_data.type_reference,
+            owned_data.type_reference,
             symbols,
             diagnostics,
             format!(
@@ -788,11 +788,10 @@ fn validate_owned_data(
         );
 
         if owned_data.initial_value.is_valid() {
-            let initial_value = program.expression_table.to_tree(owned_data.initial_value);
-            validate_initial_value(
+            validate_initial_value_handle(
                 program,
-                &owned_data.type_reference,
-                &initial_value,
+                owned_data.type_reference,
+                owned_data.initial_value,
                 diagnostics,
                 format!(
                     "machine `{}` owned data `{}`",
@@ -803,18 +802,18 @@ fn validate_owned_data(
     }
 }
 
-fn validate_initial_value(
+fn validate_initial_value_handle(
     program: &TypedTrees,
-    type_reference: &TypeReference,
-    initial_value: &Expression,
+    type_reference: TypeReferenceHandle,
+    initial_value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
-    if !argument_matches_type(initial_value, type_reference) {
+    if !argument_matches_type_reference_handle(program, initial_value, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} initializer expects `{}`, got `{}`",
-            type_reference.display_name_with_constraints(&program.type_constraints),
-            expression_type_name(initial_value)
+            program.display_type_reference_with_constraints(type_reference),
+            expression_type_name_handle(program, initial_value)
         )));
     }
 }
@@ -1167,85 +1166,96 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
     }
 }
 
-fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) -> bool {
-    if let Expression::Mutable(inner_expression) = argument {
-        return argument_matches_type(inner_expression, type_reference);
+fn argument_matches_type_reference_handle(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    if let ExpressionNode::Mutable(inner_expression) = program.expression_table.expression(argument)
+    {
+        return argument_matches_type_reference_handle(program, *inner_expression, type_reference);
     }
 
-    match type_reference {
-        TypeReference::Reference { referee, .. } => argument_matches_type(argument, referee),
-        TypeReference::Constrained { base_type, .. } => argument_matches_type(argument, base_type),
-        TypeReference::FixedArray { .. } => matches!(
-            argument,
-            Expression::ArrayLiteral(_)
-                | Expression::Call(_)
-                | Expression::Indexed(_)
-                | Expression::Member(_)
-                | Expression::Name(_)
+    let argument_node = program.expression_table.expression(argument);
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            argument_matches_type_reference_handle(program, argument, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            argument_matches_type_reference_handle(program, argument, *base_type)
+        }
+        TypeReferenceNode::FixedArray { .. } => matches!(
+            argument_node,
+            ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Call(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
         ),
-        TypeReference::Slice { .. } => matches!(
-            argument,
-            Expression::Call(_)
-                | Expression::Indexed(_)
-                | Expression::Member(_)
-                | Expression::Name(_)
+        TypeReferenceNode::Slice { .. } => matches!(
+            argument_node,
+            ExpressionNode::Call(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
         ),
-        TypeReference::Generic { base_name, .. } if base_name == "IndexOf" => {
+        TypeReferenceNode::Generic { base_name, .. } if base_name == "IndexOf" => {
             matches!(
-                argument,
-                Expression::Integer(_)
-                    | Expression::Indexed(_)
-                    | Expression::Member(_)
-                    | Expression::Name(_)
+                argument_node,
+                ExpressionNode::Integer(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Name(_)
             )
         }
-        TypeReference::Generic { .. } => matches!(
-            argument,
-            Expression::Binary(_)
-                | Expression::Call(_)
-                | Expression::Cast(_)
-                | Expression::Indexed(_)
-                | Expression::Integer(_)
-                | Expression::Member(_)
-                | Expression::Name(_)
-                | Expression::StructLiteral(_)
+        TypeReferenceNode::Generic { .. } => matches!(
+            argument_node,
+            ExpressionNode::Binary(_)
+                | ExpressionNode::Call(_)
+                | ExpressionNode::Cast(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+                | ExpressionNode::StructLiteral(_)
         ),
-        TypeReference::Named {
+        TypeReferenceNode::Named {
             name: type_name, ..
         } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
-                return matches!(argument, Expression::Boolean(_))
+                return matches!(argument_node, ExpressionNode::Boolean(_))
                     && primitive_type == PrimitiveType::Bool
-                    || matches!(argument, Expression::String(_))
+                    || matches!(argument_node, ExpressionNode::String(_))
                         && primitive_type == PrimitiveType::String
-                    || matches!(argument, Expression::Float(_))
+                    || matches!(argument_node, ExpressionNode::Float(_))
                         && primitive_type.accepts_float_literal()
-                    || matches!(argument, Expression::Integer(_))
+                    || matches!(argument_node, ExpressionNode::Integer(_))
                         && primitive_type.accepts_integer_literal()
                     || matches!(
-                        argument,
-                        Expression::Binary(_)
-                            | Expression::Call(_)
-                            | Expression::Cast(_)
-                            | Expression::Indexed(_)
-                            | Expression::Member(_)
-                            | Expression::Name(_)
-                            | Expression::StructLiteral(_)
+                        argument_node,
+                        ExpressionNode::Binary(_)
+                            | ExpressionNode::Call(_)
+                            | ExpressionNode::Cast(_)
+                            | ExpressionNode::Indexed(_)
+                            | ExpressionNode::Member(_)
+                            | ExpressionNode::Name(_)
+                            | ExpressionNode::StructLiteral(_)
                     );
             }
 
             matches!(
-                argument,
-                Expression::Binary(_)
-                    | Expression::Call(_)
-                    | Expression::Cast(_)
-                    | Expression::Indexed(_)
-                    | Expression::Member(_)
-                    | Expression::Name(_)
-                    | Expression::StructLiteral(_)
+                argument_node,
+                ExpressionNode::Binary(_)
+                    | ExpressionNode::Call(_)
+                    | ExpressionNode::Cast(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Name(_)
+                    | ExpressionNode::StructLiteral(_)
             )
         }
-        TypeReference::Unit => false,
+        TypeReferenceNode::Unit => false,
     }
 }
 
@@ -1355,24 +1365,6 @@ fn validate_expression_type_handle(
             type_reference.display_name_with_constraints(&program.type_constraints),
             expression_type_name_handle(program, expression)
         )));
-    }
-}
-
-fn expression_type_name(argument: &Expression) -> &'static str {
-    match argument {
-        Expression::ArrayLiteral(_) => "array literal",
-        Expression::Binary(_) => "binary expression",
-        Expression::Boolean(_) => "bool",
-        Expression::Call(_) => "call expression",
-        Expression::Cast(_) => "cast expression",
-        Expression::Float(_) => "float literal",
-        Expression::Indexed(_) => "indexed value",
-        Expression::Integer(_) => "integer literal",
-        Expression::Member(_) => "member access",
-        Expression::Mutable(inner_expression) => expression_type_name(inner_expression),
-        Expression::Name(_) => "named value",
-        Expression::StructLiteral(_) => "struct literal",
-        Expression::String(_) => "String",
     }
 }
 

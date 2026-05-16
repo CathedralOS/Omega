@@ -150,24 +150,23 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
 
     for machine in program.machines() {
         for owned_data in program.machine_owned_data(machine) {
+            let owner = format!(
+                "machine `{}` owned data `{}`",
+                machine.name, owned_data.name
+            );
+            let type_reference = table_type_reference_to_tree(program, owned_data.type_reference);
             collect_bounded_value_obligation(
                 program,
-                format!(
-                    "machine `{}` owned data `{}`",
-                    machine.name, owned_data.name
-                ),
-                &owned_data.type_reference,
+                owner.clone(),
+                &type_reference,
                 &mut proof_plan,
             );
             if owned_data.initial_value.is_valid() {
                 let initial_value = program.expression_table.to_tree(owned_data.initial_value);
                 collect_bounded_initializer_obligation(
                     program,
-                    format!(
-                        "machine `{}` owned data `{}`",
-                        machine.name, owned_data.name
-                    ),
-                    &owned_data.type_reference,
+                    owner,
+                    &type_reference,
                     &initial_value,
                     &mut proof_plan,
                 );
@@ -818,7 +817,9 @@ fn expression_type_reference(
                         .machine_owned_data(machine)
                         .iter()
                         .find(|owned_data| owned_data.name == *name)
-                        .map(|owned_data| owned_data.type_reference.clone())
+                        .map(|owned_data| {
+                            table_type_reference_to_tree(program, owned_data.type_reference)
+                        })
                 })
         }
         Expression::Member(member) => {
@@ -959,12 +960,7 @@ fn collection_length_for_binding(
                 .iter()
                 .find(|owned_data| owned_data.name == *name)
                 .and_then(|owned_data| {
-                    collection_length_from_type_reference(
-                        program,
-                        machine,
-                        state,
-                        &owned_data.type_reference,
-                    )
+                    collection_length_from_type_reference_handle(program, owned_data.type_reference)
                 })
         })
 }
@@ -1104,7 +1100,7 @@ fn type_reference_for_symbol(
                 .machine_owned_data(machine)
                 .iter()
                 .find(|owned_data| owned_data.symbol == symbol)
-                .map(|owned_data| owned_data.type_reference.clone())
+                .map(|owned_data| table_type_reference_to_tree(program, owned_data.type_reference))
         })
         .or_else(|| {
             program

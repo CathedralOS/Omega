@@ -7,7 +7,9 @@ use omega_checked_trees::Program;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
-use omega_checked_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
+use omega_checked_trees::types::{
+    PrimitiveType, TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode,
+};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -213,11 +215,13 @@ impl<'program> LayoutBuilder<'program> {
             fields.push(PlannedField {
                 symbol: owned_data.symbol,
                 name: owned_data.name.clone(),
-                type_symbol: self.type_reference_symbol(&owned_data.type_reference),
-                type_name: owned_data
-                    .type_reference
-                    .display_name_with_constraints(self.type_constraints),
-                layout: self.layout_type_reference(&owned_data.type_reference)?,
+                type_symbol: self
+                    .program
+                    .type_reference_symbol(owned_data.type_reference),
+                type_name: self
+                    .program
+                    .display_type_reference_with_constraints(owned_data.type_reference),
+                layout: self.layout_type_reference_handle(owned_data.type_reference)?,
             });
         }
 
@@ -304,6 +308,65 @@ impl<'program> LayoutBuilder<'program> {
             alignment: self.target.pointer_alignment,
         }
     }
+
+    fn layout_type_reference_handle(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+    ) -> Result<TypeLayout, Diagnostic> {
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Reference { .. } => Ok(TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            }),
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.layout_type_reference_handle(*base_type)
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let element_layout = self.layout_type_reference_handle(*element_type)?;
+
+                Ok(TypeLayout {
+                    size: element_layout.size * length,
+                    alignment: element_layout.alignment,
+                })
+            }
+            TypeReferenceNode::Slice { .. } => Ok(self.slice_layout()),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => {
+                if let Some(layout) = builtin_named_layout(self.target, base_name) {
+                    return Ok(layout);
+                }
+
+                if base_symbol.is_valid()
+                    && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
+                    && DataDefinition::shape_kind_from_members(
+                        self.program.data_members(definition),
+                    ) == DataShapeKind::Enum
+                {
+                    return self.layout_data_definition(*base_symbol);
+                }
+
+                Err(Diagnostic::error(format!(
+                    "native layout for generic type `{base_name}` is not implemented yet"
+                )))
+            }
+            TypeReferenceNode::Named { symbol, name } => self.layout_named_type(*symbol, name),
+            TypeReferenceNode::Unit => Ok(TypeLayout {
+                size: 0,
+                alignment: 1,
+            }),
+        }
+    }
+
     fn layout_named_type(
         &mut self,
         symbol: SymbolHandle,
