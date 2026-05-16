@@ -84,9 +84,11 @@ impl BindingScope for [Binding] {
     }
 }
 
-impl BindingScope for Vec<Binding> {
+impl BindingScope for Arena<Binding> {
     fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
-        self.as_slice().find_path_binding(path)
+        self.iter()
+            .map(|(_, binding)| binding)
+            .find(|binding| binding_matches_path(binding, path))
     }
 }
 
@@ -118,27 +120,37 @@ fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
                 .is_some_and(|name| path.first().is_some_and(|segment| segment == name)))
 }
 
-fn simple_local_bindings(program: &Program, state: &State, statement_index: usize) -> Vec<Binding> {
-    program
+fn simple_local_bindings(
+    program: &Program,
+    state: &State,
+    statement_index: usize,
+) -> Arena<Binding> {
+    let mut bindings = Arena::new();
+
+    for statement in program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .take(statement_index)
-        .filter_map(|statement| {
-            let StatementNode::LocalData(local_data) = statement else {
-                return None;
-            };
-            if !local_data.initial_value.is_valid() {
-                return None;
-            }
-            let value = program.expression_table.to_tree(local_data.initial_value);
-            simple_local_binding_value(&value).map(|value| Binding {
-                symbol: local_data.symbol,
-                name: Some(local_data.name.clone()),
-                value,
-            })
-        })
-        .collect()
+    {
+        let StatementNode::LocalData(local_data) = statement else {
+            continue;
+        };
+        if !local_data.initial_value.is_valid() {
+            continue;
+        }
+        let value = program.expression_table.to_tree(local_data.initial_value);
+        let Some(value) = simple_local_binding_value(&value) else {
+            continue;
+        };
+        bindings.insert(Binding {
+            symbol: local_data.symbol,
+            name: Some(local_data.name.clone()),
+            value,
+        });
+    }
+
+    bindings
 }
 
 fn simple_local_binding_value(expression: &Expression) -> Option<Expression> {
@@ -420,16 +432,18 @@ fn simplify_call_expression(
     if let Some(target_machine) = resolve_call_target_machine(program, machine, receiver.as_ref())
         && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
-        let argument_bindings: Vec<_> = program
+        let mut argument_bindings = Arena::new();
+        for (parameter, argument) in program
             .state_parameters(state)
             .iter()
             .zip(simplified_arguments.iter())
-            .map(|(parameter, argument)| Binding {
+        {
+            argument_bindings.insert(Binding {
                 symbol: parameter.symbol,
                 name: Some(parameter.name.clone()),
                 value: argument.clone(),
-            })
-            .collect();
+            });
+        }
         if let Some(value) = helper_state_value(state, program, target_machine, &argument_bindings)
         {
             return simplify_expression_with_bindings(
@@ -508,16 +522,18 @@ fn simplify_helper_call_comparison(
             simplify_expression_with_bindings(program, machine, argument, bindings, false)
         })
         .collect();
-    let argument_bindings: Vec<_> = program
+    let mut argument_bindings = Arena::new();
+    for (parameter, argument) in program
         .state_parameters(state)
         .iter()
         .zip(argument_values.iter())
-        .map(|(parameter, argument)| Binding {
+    {
+        argument_bindings.insert(Binding {
             symbol: parameter.symbol,
             name: Some(parameter.name.clone()),
             value: argument.clone(),
-        })
-        .collect();
+        });
+    }
 
     helper_state_match_condition(state, program, target_machine, &argument_bindings, expected)
 }
@@ -703,16 +719,18 @@ fn expression_match_condition_with_stack(
     let receiver = call.receiver.as_deref();
     let target_machine = resolve_call_target_machine(program, machine, receiver)?;
     let state = resolve_call_target_state(program, target_machine, call)?;
-    let argument_bindings: Vec<_> = program
+    let mut argument_bindings = Arena::new();
+    for (parameter, argument) in program
         .state_parameters(state)
         .iter()
         .zip(call.arguments.iter())
-        .map(|(parameter, argument)| Binding {
+    {
+        argument_bindings.insert(Binding {
             symbol: parameter.symbol,
             name: Some(parameter.name.clone()),
             value: argument.clone(),
-        })
-        .collect();
+        });
+    }
 
     helper_state_match_condition_with_stack(
         state,
