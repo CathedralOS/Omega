@@ -130,6 +130,7 @@ fn lower_expression_node_into_table(
             }
             Ok(expressions.insert(ExpressionNode::Name(TableNamePath {
                 members,
+                is_self_value: false,
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
             })))
@@ -142,6 +143,7 @@ fn lower_expression_node_into_table(
             );
             Ok(expressions.insert(ExpressionNode::Name(TableNamePath {
                 members,
+                is_self_value: true,
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
             })))

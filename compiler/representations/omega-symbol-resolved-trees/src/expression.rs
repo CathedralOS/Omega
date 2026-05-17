@@ -275,6 +275,7 @@ impl ExpressionTable {
                 let members = self.copy_name_path_members(source, path.members);
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    is_self_value: path.is_self_value,
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,
                 }))
@@ -581,6 +582,7 @@ impl ExpressionTable {
                 );
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    is_self_value: path.is_self_value,
                     head_symbol: path.head_symbol,
                     symbol: SymbolHandle::invalid(),
                 }))
@@ -676,6 +678,7 @@ impl ExpressionTable {
                 let members = self.insert_name_path_members(path);
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    is_self_value: false,
                     head_symbol: path.head_symbol(),
                     symbol: path.symbol(),
                 }))
@@ -1000,6 +1003,7 @@ pub struct TableCallExpression {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
     pub members: HandleSpan<DiagnosticName>,
+    pub is_self_value: bool,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
@@ -1669,6 +1673,7 @@ mod tests {
             members,
             head_symbol,
             symbol,
+            ..
         }) = copied.expression(binary.right)
         else {
             panic!("copied binary rhs should keep its name path");
