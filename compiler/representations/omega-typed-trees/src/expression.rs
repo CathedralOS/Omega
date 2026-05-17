@@ -354,9 +354,9 @@ impl ExpressionTable {
         &mut self,
         members: HandleSpan<ProgramName>,
         index: i64,
-    ) -> Option<HandleSpan<ProgramName>> {
+    ) -> HandleSpan<ProgramName> {
         if members.is_empty() {
-            return None;
+            return HandleSpan::empty();
         }
 
         let mut copied = HandleSpan::empty();
@@ -373,18 +373,18 @@ impl ExpressionTable {
             self.name_path_members.append_to_span(&mut copied, member);
         }
 
-        Some(copied)
+        copied
     }
 
     fn copy_own_name_path_member_symbols_with_index_suffix(
         &mut self,
         member_symbols: HandleSpan<SymbolHandle>,
-    ) -> Option<HandleSpan<SymbolHandle>> {
+    ) -> HandleSpan<SymbolHandle> {
         if member_symbols.is_empty() {
-            return None;
+            return HandleSpan::empty();
         }
 
-        Some(self.copy_own_name_path_member_symbols(member_symbols))
+        self.copy_own_name_path_member_symbols(member_symbols)
     }
 
     fn name_path_member_at_offset(
@@ -835,9 +835,12 @@ impl ExpressionTable {
             }
             _ => return None,
         };
-        let members = self.copy_own_name_path_members_with_index_suffix(base.members, index)?;
+        let members = self.copy_own_name_path_members_with_index_suffix(base.members, index);
         let member_symbols =
-            self.copy_own_name_path_member_symbols_with_index_suffix(base.member_symbols)?;
+            self.copy_own_name_path_member_symbols_with_index_suffix(base.member_symbols);
+        if members.is_empty() {
+            return None;
+        }
 
         Some(TableNamePath {
             members,

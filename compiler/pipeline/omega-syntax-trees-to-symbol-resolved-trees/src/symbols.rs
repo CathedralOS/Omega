@@ -672,13 +672,14 @@ fn assign_statement_symbols(
                 call.arguments,
             );
             if !call.receiver.is_empty() {
-                if let Some((head_symbol, symbol)) = resolve_state_scoped_members(
+                let (head_symbol, symbol) = resolve_state_scoped_members(
                     symbols,
                     machine.symbol,
                     state_symbol,
                     statement_path_members.span_or_empty(call.receiver),
                     call.receiver_starts_at_self,
-                ) {
+                );
+                if symbol.is_valid() {
                     let _ = head_symbol;
                     call.receiver_symbol = symbol;
                 }
@@ -899,13 +900,14 @@ fn assign_expression_table_symbols(
                 child_type_references,
                 call.arguments,
             );
-            if let Some((head_symbol, symbol)) = resolve_expression_table_receiver_path_symbols(
+            let (head_symbol, symbol) = resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine.symbol,
                 state_symbol,
                 expression_table,
                 call.receiver,
-            ) {
+            );
+            if symbol.is_valid() {
                 stamp_receiver_path_symbols_in_table(
                     expression_table,
                     call.receiver,
@@ -985,13 +987,14 @@ fn assign_expression_table_symbols(
             );
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
-            if let Some((head_symbol, symbol)) = resolve_state_scoped_table_path(
+            let (head_symbol, symbol) = resolve_state_scoped_table_path(
                 symbols,
                 machine.symbol,
                 state_symbol,
                 expression_table,
                 &path,
-            ) {
+            );
+            if symbol.is_valid() {
                 if let omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                     expression_table.expression_mut(expression)
                 {
@@ -1170,7 +1173,7 @@ fn resolve_expression_table_receiver_path_symbols(
     state_symbol: SymbolHandle,
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
     receiver: omega_symbol_resolved_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, SymbolHandle)> {
+) -> (SymbolHandle, SymbolHandle) {
     match expression_table.expression(receiver) {
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             resolve_state_scoped_table_path(
@@ -1188,7 +1191,10 @@ fn resolve_expression_table_receiver_path_symbols(
                 state_symbol,
                 expression_table,
                 member.receiver,
-            )?;
+            );
+            if !receiver_symbol.is_valid() {
+                return invalid_symbol_pair();
+            }
             let member_symbol = child_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
@@ -1202,9 +1208,11 @@ fn resolve_expression_table_receiver_path_symbols(
                 member.member.as_str(),
             );
 
-            member_symbol
-                .is_valid()
-                .then_some((head_symbol, member_symbol))
+            if member_symbol.is_valid() {
+                (head_symbol, member_symbol)
+            } else {
+                invalid_symbol_pair()
+            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
             resolve_expression_table_receiver_path_symbols(
@@ -1219,7 +1227,7 @@ fn resolve_expression_table_receiver_path_symbols(
             let omega_symbol_resolved_trees::expression::ExpressionNode::Integer(index) =
                 expression_table.expression(indexed.index)
             else {
-                return None;
+                return invalid_symbol_pair();
             };
 
             resolve_indexed_expression_table_receiver_path_symbols(
@@ -1231,7 +1239,7 @@ fn resolve_expression_table_receiver_path_symbols(
                 *index,
             )
         }
-        _ => None,
+        _ => invalid_symbol_pair(),
     }
 }
 
@@ -1242,7 +1250,7 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
     collection: omega_symbol_resolved_trees::expression::ExpressionHandle,
     index: i64,
-) -> Option<(SymbolHandle, SymbolHandle)> {
+) -> (SymbolHandle, SymbolHandle) {
     match expression_table.expression(collection) {
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             resolve_state_scoped_table_path_with_indexed_last_member(
@@ -1261,7 +1269,10 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 state_symbol,
                 expression_table,
                 member.receiver,
-            )?;
+            );
+            if !receiver_symbol.is_valid() {
+                return invalid_symbol_pair();
+            }
             let member_symbol = child_indexed_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
@@ -1276,9 +1287,11 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 index,
             );
 
-            member_symbol
-                .is_valid()
-                .then_some((head_symbol, member_symbol))
+            if member_symbol.is_valid() {
+                (head_symbol, member_symbol)
+            } else {
+                invalid_symbol_pair()
+            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
             resolve_indexed_expression_table_receiver_path_symbols(
@@ -1290,7 +1303,7 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
                 index,
             )
         }
-        _ => None,
+        _ => invalid_symbol_pair(),
     }
 }
 
@@ -1303,15 +1316,14 @@ fn resolve_expression_table_receiver_symbol(
 ) -> SymbolHandle {
     match expression_table.expression(receiver) {
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
-            resolve_state_scoped_table_path(
+            let (_, symbol) = resolve_state_scoped_table_path(
                 symbols,
                 machine_symbol,
                 state_symbol,
                 expression_table,
                 path,
-            )
-            .map(|(_, symbol)| symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+            );
+            symbol
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             resolve_expression_table_member_symbol(
@@ -1333,15 +1345,14 @@ fn resolve_expression_table_receiver_symbol(
             )
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Indexed(_) => {
-            resolve_expression_table_receiver_path_symbols(
+            let (_, symbol) = resolve_expression_table_receiver_path_symbols(
                 symbols,
                 machine_symbol,
                 state_symbol,
                 expression_table,
                 receiver,
-            )
-            .map(|(_, symbol)| symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+            );
+            symbol
         }
         _ => SymbolHandle::invalid(),
     }
@@ -1353,7 +1364,7 @@ fn resolve_state_scoped_table_path(
     state_symbol: SymbolHandle,
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
     path: &omega_symbol_resolved_trees::expression::TableNamePath,
-) -> Option<(SymbolHandle, SymbolHandle)> {
+) -> (SymbolHandle, SymbolHandle) {
     let members = expression_table.name_path_members(path.members);
     resolve_state_scoped_table_members(
         symbols,
@@ -1372,7 +1383,7 @@ fn resolve_state_scoped_table_path_with_indexed_last_member(
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
     path: &omega_symbol_resolved_trees::expression::TableNamePath,
     index: i64,
-) -> Option<(SymbolHandle, SymbolHandle)> {
+) -> (SymbolHandle, SymbolHandle) {
     let members = expression_table.name_path_members(path.members);
     resolve_state_scoped_table_members(
         symbols,
@@ -1391,9 +1402,9 @@ fn resolve_state_scoped_table_members(
     members: &[omega_symbol_resolved_trees::name::DiagnosticName],
     starts_at_self: bool,
     indexed_last_member: Option<i64>,
-) -> Option<(SymbolHandle, SymbolHandle)> {
+) -> (SymbolHandle, SymbolHandle) {
     if members.is_empty() {
-        return None;
+        return invalid_symbol_pair();
     }
 
     let mut index = 0usize;
@@ -1406,7 +1417,11 @@ fn resolve_state_scoped_table_members(
     }
 
     if index >= members.len() {
-        return current.is_valid().then_some((current, current));
+        return if current.is_valid() {
+            (current, current)
+        } else {
+            invalid_symbol_pair()
+        };
     }
 
     if !current.is_valid() {
@@ -1419,14 +1434,14 @@ fn resolve_state_scoped_table_members(
                 indexed_last_member.expect("indexed last member should be present"),
             );
             if !indexed_symbol.is_valid() {
-                return None;
+                return invalid_symbol_pair();
             }
             indexed_symbol
         } else {
             let base_symbol =
                 resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
             if !base_symbol.is_valid() {
-                return None;
+                return invalid_symbol_pair();
             }
             base_symbol
         };
@@ -1450,7 +1465,7 @@ fn resolve_state_scoped_table_members(
             )
         };
         if !current.is_valid() {
-            return None;
+            return invalid_symbol_pair();
         }
         head = current;
         index += 1;
@@ -1487,11 +1502,11 @@ fn resolve_state_scoped_table_members(
             )
         };
         if !current.is_valid() {
-            return None;
+            return invalid_symbol_pair();
         }
     }
 
-    Some((head, current))
+    (head, current)
 }
 
 fn resolve_base_indexed_symbol(
@@ -1564,13 +1579,14 @@ fn assign_transition_target_symbols(
 
     let path = statement_path_members.span_or_empty(named.path);
     let target_name = path.last().cloned();
-    if let Some((head_symbol, symbol)) = resolve_state_scoped_members(
+    let (head_symbol, symbol) = resolve_state_scoped_members(
         symbols,
         machine.symbol,
         state_symbol,
         path,
         named.path_starts_at_self,
-    ) {
+    );
+    if symbol.is_valid() {
         named.head_symbol = head_symbol;
         named.symbol = symbol;
         return;
@@ -1683,9 +1699,9 @@ fn resolve_state_scoped_members(
     state_symbol: SymbolHandle,
     members: &[omega_symbol_resolved_trees::name::DiagnosticName],
     starts_at_self: bool,
-) -> Option<(SymbolHandle, SymbolHandle)> {
+) -> (SymbolHandle, SymbolHandle) {
     if members.is_empty() {
-        return None;
+        return invalid_symbol_pair();
     }
 
     let mut index = 0usize;
@@ -1698,13 +1714,17 @@ fn resolve_state_scoped_members(
     }
 
     if index >= members.len() {
-        return current.is_valid().then_some((current, current));
+        return if current.is_valid() {
+            (current, current)
+        } else {
+            invalid_symbol_pair()
+        };
     }
 
     if !current.is_valid() {
         current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
         if !current.is_valid() {
-            return None;
+            return invalid_symbol_pair();
         }
         head = current;
         index += 1;
@@ -1716,7 +1736,7 @@ fn resolve_state_scoped_members(
             members[index].as_str(),
         );
         if !current.is_valid() {
-            return None;
+            return invalid_symbol_pair();
         }
         head = current;
         index += 1;
@@ -1736,11 +1756,15 @@ fn resolve_state_scoped_members(
             member.as_str(),
         );
         if !current.is_valid() {
-            return None;
+            return invalid_symbol_pair();
         }
     }
 
-    Some((head, current))
+    (head, current)
+}
+
+fn invalid_symbol_pair() -> (SymbolHandle, SymbolHandle) {
+    (SymbolHandle::invalid(), SymbolHandle::invalid())
 }
 
 fn resolve_base_symbol(

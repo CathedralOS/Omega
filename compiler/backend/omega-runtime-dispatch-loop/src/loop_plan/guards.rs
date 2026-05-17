@@ -80,9 +80,10 @@ pub(super) fn dispatch_guard_expression(
     context: &RuntimeDispatchLoopContext,
     source_dispatch_index: u32,
     statement_order: usize,
-) -> Option<ExpressionHandle> {
+) -> ExpressionHandle {
     context
         .state_guards
         .guard_for_dispatch(source_dispatch_index, statement_order)
         .and_then(|guard| guard.has_expression.then_some(guard.expression))
+        .unwrap_or_else(ExpressionHandle::invalid)
 }
