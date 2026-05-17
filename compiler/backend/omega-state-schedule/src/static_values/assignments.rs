@@ -1,3 +1,4 @@
+use super::StaticValue;
 use super::aliases::{PlaceKey, canonical_place_key, shallow_canonical_place_key};
 use super::evaluation::resolve_static_value;
 use crate::StateScheduleContext;
@@ -8,7 +9,7 @@ pub(crate) fn apply_static_operations(
     context: &StateScheduleContext,
     state: &StateFlow,
     aliases: &[(PlaceKey, PlaceKey)],
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
 ) {
     let Some(operations) = context.control_flow.operations.span(state.operations) else {
         return;
@@ -28,9 +29,9 @@ pub(crate) fn apply_static_operations(
 }
 
 pub(crate) fn set_static_value(
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
     target: PlaceKey,
-    value: String,
+    value: StaticValue,
 ) {
     if let Some((_, existing_value)) = values
         .iter_mut()
@@ -47,7 +48,7 @@ fn apply_static_assignment(
     target: ExpressionHandle,
     value: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
 ) {
     let Some(target_key) = shallow_canonical_place_key(table, target, aliases) else {
         return;
@@ -78,7 +79,7 @@ fn apply_static_assignment(
 }
 
 fn copy_static_prefix(
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
     source_key: &PlaceKey,
     target_key: &PlaceKey,
 ) {

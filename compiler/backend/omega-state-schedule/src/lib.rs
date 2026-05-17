@@ -13,7 +13,7 @@ use display::{cycle_path, state_key_display};
 use local_calls::append_local_state_calls;
 pub use model::ScheduledState;
 use static_values::{
-    PlaceKey, apply_static_operations, select_transition as select_static_transition,
+    PlaceKey, StaticValue, apply_static_operations, select_transition as select_static_transition,
 };
 use transitions::next_state;
 
@@ -44,7 +44,7 @@ pub fn build_entry_state_schedule(
 ) -> Result<Vec<ScheduledState>, String> {
     let mut schedule = Vec::new();
     let mut visited = Vec::<ScheduledState>::new();
-    let mut values = Vec::<(PlaceKey, String)>::new();
+    let mut values = Vec::<(PlaceKey, StaticValue)>::new();
     let mut aliases = Vec::<(PlaceKey, PlaceKey)>::new();
 
     append_state_chain(
@@ -75,7 +75,7 @@ pub(crate) fn append_state_chain(
     start_key: StateKey,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
 ) -> Result<(), String> {
     let mut current_key = start_key;

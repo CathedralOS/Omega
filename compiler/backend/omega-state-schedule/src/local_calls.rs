@@ -2,7 +2,7 @@ use super::append_state_chain;
 use super::lookups::state_flow_by_key;
 use super::model::ScheduledState;
 use super::static_values::{
-    PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
+    PlaceKey, StaticValue, argument_binding_place_key, resolve_static_value, set_static_value,
 };
 use crate::StateScheduleContext;
 use omega_checked_trees::expression::ExpressionHandle;
@@ -15,7 +15,7 @@ pub(super) fn append_local_state_calls(
     state: &StateFlow,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
 ) -> Result<(), String> {
     for (_, state_call) in context.state_calls.calls.iter().filter(|(_, state_call)| {
@@ -51,7 +51,7 @@ pub(super) fn bind_state_arguments_by_key(
     state_key: StateKey,
     arguments: HandleSpan<ExpressionHandle>,
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
 ) -> Result<(), String> {
     let state = state_flow_by_key(context, state_key)?;
     let arguments = context
@@ -93,7 +93,7 @@ fn bind_state_call_arguments_by_key(
     state_key: StateKey,
     arguments: HandleSpan<omega_state_calls::StateCallArgument>,
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
-    values: &mut Vec<(PlaceKey, String)>,
+    values: &mut Vec<(PlaceKey, StaticValue)>,
 ) -> Result<(), String> {
     let state = state_flow_by_key(context, state_key)?;
     let arguments = context.state_calls.arguments.span(arguments).unwrap_or(&[]);
