@@ -24,7 +24,7 @@ impl Default for MachineProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFunction {
-    pub symbol: String,
+    pub symbol: Arc<str>,
     pub source_key: StateKey,
     pub instructions: HandleSpan<MachineInstruction>,
 }
@@ -32,7 +32,7 @@ pub struct MachineFunction {
 impl Default for MachineFunction {
     fn default() -> Self {
         Self {
-            symbol: String::new(),
+            symbol: Arc::from(""),
             source_key: StateKey::default(),
             instructions: HandleSpan::empty(),
         }

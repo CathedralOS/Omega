@@ -232,7 +232,7 @@ pub(super) fn collect_runtime_text_relocations(
             );
             if let RuntimeTextReadSource::Import { symbol } = source {
                 context.relocation_plan.records.insert(RelocationRecord {
-                    function_symbol: context.function.symbol.clone(),
+                    function_symbol: context.function.symbol.to_string(),
                     selected_instruction_index: context.selected_instruction_index,
                     text_offset: runtime_text_line_read_import_call_offset(
                         context.input.target.architecture,

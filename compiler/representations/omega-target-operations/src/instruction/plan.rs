@@ -3,6 +3,7 @@ use crate::SelectedInstruction;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionPlan {
@@ -25,7 +26,7 @@ impl Default for InstructionPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInstructionPlan {
-    pub symbol: String,
+    pub symbol: Arc<str>,
     pub source_key: StateKey,
     pub instructions: HandleSpan<SelectedInstruction>,
 }
@@ -33,7 +34,7 @@ pub struct FunctionInstructionPlan {
 impl Default for FunctionInstructionPlan {
     fn default() -> Self {
         Self {
-            symbol: String::new(),
+            symbol: Arc::from(""),
             source_key: StateKey::default(),
             instructions: HandleSpan::empty(),
         }
