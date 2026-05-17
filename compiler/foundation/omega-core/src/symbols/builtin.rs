@@ -1,5 +1,29 @@
 use super::{SymbolKind, SymbolNameRef};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinFunction {
+    Max,
+    Min,
+}
+
+impl BuiltinFunction {
+    pub const COUNT: usize = 2;
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Max => "max",
+            Self::Min => "min",
+        }
+    }
+
+    pub fn ordinal(self) -> usize {
+        match self {
+            Self::Max => 0,
+            Self::Min => 1,
+        }
+    }
+}
+
 pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); 19] {
     [
         (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
@@ -24,5 +48,19 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); 19] {
         ),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("Terminal")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("Never")),
+    ]
+}
+
+pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BuiltinFunction::COUNT]
+{
+    [
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::Max.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::Min.name()),
+        ),
     ]
 }

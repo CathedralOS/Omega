@@ -4,6 +4,7 @@ use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath,
 };
 use omega_control_flow::StateKey;
+use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
 use omega_target_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
@@ -553,7 +554,7 @@ fn select_runtime_binary_mutation_write(
             &binary.right,
         ),
         Expression::Call(call) => {
-            let operator = builtin_runtime_call_operator(call)?;
+            let operator = builtin_runtime_call_operator(input, call)?;
             let [left, right] = call.arguments.as_slice() else {
                 return None;
             };
@@ -697,7 +698,7 @@ fn resolve_runtime_value_operand(
     }
 
     if let Expression::Call(call) = expression
-        && let Some(operator) = builtin_runtime_call_operator(call)
+        && let Some(operator) = builtin_runtime_call_operator(input, call)
     {
         let [left, right] = call.arguments.as_slice() else {
             return None;
@@ -812,15 +813,20 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
 }
 
 fn builtin_runtime_call_operator(
+    input: &InstructionSelectionInput<'_>,
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<StateGuardOperator> {
     if call.receiver.is_some() || call.arguments.len() != 2 {
         return None;
     }
 
-    match call.target.as_str() {
-        "max" => Some(StateGuardOperator::Max),
-        "min" => Some(StateGuardOperator::Min),
-        _ => None,
+    let symbols = &input.program.symbols;
+    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Max) {
+        return Some(StateGuardOperator::Max);
     }
+    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Min) {
+        return Some(StateGuardOperator::Min);
+    }
+
+    None
 }

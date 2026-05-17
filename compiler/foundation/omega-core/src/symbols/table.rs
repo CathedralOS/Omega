@@ -6,7 +6,8 @@ use crate::arena::{
 use crate::source::{SourceMap, SourceSpan};
 
 use super::{
-    Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef, SymbolNameStorageKind, SymbolPath,
+    BuiltinFunction, Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
+    SymbolNameStorageKind, SymbolPath,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -161,6 +162,11 @@ impl SymbolTable {
         }
 
         Some(current)
+    }
+
+    pub fn builtin_function_symbol(&self, function: BuiltinFunction) -> Option<SymbolHandle> {
+        self.find_child_by_name(self.root, function.name())
+            .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinFunction)
     }
 
     pub fn display_path(&self, symbol: SymbolHandle, separator: &str) -> String {
