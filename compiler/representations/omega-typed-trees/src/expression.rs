@@ -140,6 +140,29 @@ impl ExpressionTable {
         self.name_path_members.append_to_span(span, member);
     }
 
+    pub fn reserve_name_path_members(&mut self, count: u32) -> HandleSpan<ProgramName> {
+        self.name_path_members.insert_many(
+            std::iter::repeat_with(ProgramName::default)
+                .take(usize::try_from(count).expect("name path member span count overflow")),
+        )
+    }
+
+    pub fn set_name_path_member_at_offset(
+        &mut self,
+        members: HandleSpan<ProgramName>,
+        offset: u32,
+        member: ProgramName,
+    ) {
+        *self.name_path_members.get_mut(Handle::from_parts(
+            members
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("name path member index overflow"),
+            members.start().generation(),
+        )) = member;
+    }
+
     pub fn push_name_path_member_symbol(
         &mut self,
         span: &mut HandleSpan<SymbolHandle>,
@@ -147,6 +170,29 @@ impl ExpressionTable {
     ) {
         self.name_path_member_symbols
             .append_to_span(span, member_symbol);
+    }
+
+    pub fn reserve_name_path_member_symbols(&mut self, count: u32) -> HandleSpan<SymbolHandle> {
+        self.name_path_member_symbols.insert_many(
+            std::iter::repeat_with(SymbolHandle::invalid)
+                .take(usize::try_from(count).expect("name path member symbol span count overflow")),
+        )
+    }
+
+    pub fn set_name_path_member_symbol_at_offset(
+        &mut self,
+        member_symbols: HandleSpan<SymbolHandle>,
+        offset: u32,
+        member_symbol: SymbolHandle,
+    ) {
+        *self.name_path_member_symbols.get_mut(Handle::from_parts(
+            member_symbols
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("name path member symbol index overflow"),
+            member_symbols.start().generation(),
+        )) = member_symbol;
     }
 
     pub fn copy_from(
@@ -586,24 +632,19 @@ impl ExpressionTable {
         members: HandleSpan<ProgramName>,
         suffix: ProgramName,
     ) -> HandleSpan<ProgramName> {
-        let mut copied = HandleSpan::empty();
+        let copied = self.reserve_name_path_members(
+            members
+                .count()
+                .checked_add(1)
+                .expect("name path member span count overflow"),
+        );
 
         for offset in 0..members.count() {
-            let member = self
-                .name_path_members
-                .get(Handle::from_parts(
-                    members
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .expect("name path member index overflow"),
-                    members.start().generation(),
-                ))
-                .clone();
-            self.name_path_members.append_to_span(&mut copied, member);
+            let member = self.name_path_member_at_offset(members, offset).clone();
+            self.set_name_path_member_at_offset(copied, offset, member);
         }
 
-        self.name_path_members.append_to_span(&mut copied, suffix);
+        self.set_name_path_member_at_offset(copied, members.count(), suffix);
 
         copied
     }
@@ -614,36 +655,35 @@ impl ExpressionTable {
         suffix_members: HandleSpan<ProgramName>,
         suffix_start_offset: u32,
     ) -> HandleSpan<ProgramName> {
-        let mut copied = HandleSpan::empty();
+        let suffix_count = suffix_members.count().saturating_sub(suffix_start_offset);
+        let copied = self.reserve_name_path_members(
+            members
+                .count()
+                .checked_add(suffix_count)
+                .expect("name path member span count overflow"),
+        );
 
         for offset in 0..members.count() {
-            let member = self
-                .name_path_members
-                .get(Handle::from_parts(
-                    members
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .expect("name path member index overflow"),
-                    members.start().generation(),
-                ))
-                .clone();
-            self.name_path_members.append_to_span(&mut copied, member);
+            let member = self.name_path_member_at_offset(members, offset).clone();
+            self.set_name_path_member_at_offset(copied, offset, member);
         }
 
-        for offset in suffix_start_offset..suffix_members.count() {
+        for (target_offset, offset) in (suffix_start_offset..suffix_members.count()).enumerate() {
             let member = self
-                .name_path_members
-                .get(Handle::from_parts(
-                    suffix_members
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .expect("name path member index overflow"),
-                    suffix_members.start().generation(),
-                ))
+                .name_path_member_at_offset(suffix_members, offset)
                 .clone();
-            self.name_path_members.append_to_span(&mut copied, member);
+            self.set_name_path_member_at_offset(
+                copied,
+                members
+                    .count()
+                    .checked_add(
+                        target_offset
+                            .try_into()
+                            .expect("name path member span count overflow"),
+                    )
+                    .expect("name path member span count overflow"),
+                member,
+            );
         }
 
         copied
@@ -655,19 +695,38 @@ impl ExpressionTable {
         suffix_member_symbols: HandleSpan<SymbolHandle>,
         suffix_start_offset: u32,
     ) -> HandleSpan<SymbolHandle> {
-        let mut copied = HandleSpan::empty();
+        let suffix_count = suffix_member_symbols
+            .count()
+            .saturating_sub(suffix_start_offset);
+        let copied = self.reserve_name_path_member_symbols(
+            member_symbols
+                .count()
+                .checked_add(suffix_count)
+                .expect("name path member symbol span count overflow"),
+        );
 
         for offset in 0..member_symbols.count() {
             let member_symbol = *self.name_path_member_symbol_at_offset(member_symbols, offset);
-            self.name_path_member_symbols
-                .append_to_span(&mut copied, member_symbol);
+            self.set_name_path_member_symbol_at_offset(copied, offset, member_symbol);
         }
 
-        for offset in suffix_start_offset..suffix_member_symbols.count() {
+        for (target_offset, offset) in
+            (suffix_start_offset..suffix_member_symbols.count()).enumerate()
+        {
             let member_symbol =
                 *self.name_path_member_symbol_at_offset(suffix_member_symbols, offset);
-            self.name_path_member_symbols
-                .append_to_span(&mut copied, member_symbol);
+            self.set_name_path_member_symbol_at_offset(
+                copied,
+                member_symbols
+                    .count()
+                    .checked_add(
+                        target_offset
+                            .try_into()
+                            .expect("name path member symbol span count overflow"),
+                    )
+                    .expect("name path member symbol span count overflow"),
+                member_symbol,
+            );
         }
 
         copied

@@ -1284,7 +1284,7 @@ fn transition_guard_expression_name(
     guard: ExpressionHandle,
 ) -> String {
     if guard.is_valid() {
-        transition_guard_name(&TransitionGuard::When(expressions.to_tree(guard)))
+        format!("when {}", expressions.display_name(guard))
     } else {
         "always".to_owned()
     }
