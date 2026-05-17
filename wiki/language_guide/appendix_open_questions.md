@@ -11,6 +11,10 @@ This page tracks design pressure that is not fully nailed down yet.
 - Terminal value completion is useful: `-> value` completes the active function frame with a value, while `transition { _ -> state_name(args) }` transitions to a plain state.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
+- `domain` names a type-scoped proof predicate over an existing value. Domains
+  may have explicit `when` classifiers for cheap `domain_of` dispatch, but
+  Omega should not inject hidden runtime tags to make ambiguous domains
+  distinguishable.
 - `match` is for value selection. `transition` is for control movement. Conditional transitions name a scrutinee; anonymous `transition { _ -> target }` is only for unconditional jumps.
 - Borrowed slices should use Rust-like `&[T]` / `&mut [T]` surface syntax.
   They are built-in borrowed views with proof-visible facts such as `len` and
@@ -28,6 +32,8 @@ This page tracks design pressure that is not fully nailed down yet.
 ## Still Open
 
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
+- How much domain classifier inference should Omega attempt beyond explicit
+  `when` clauses?
 - Can relax obligations cross arbitrary transitions, or only transitions to states that opt in?
 - How explicit should weakened machine invariants be in target state signatures?
 - Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?
