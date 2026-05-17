@@ -133,9 +133,10 @@ fn write_platform_call_lowering(
 
 fn write_host_call(output: &mut String, backend_plan: &BackendReportInput<'_>, call: &HostCall) {
     let source_name = backend_state_name(backend_plan, call.source_key);
+    let platform_call = host_call_display_name(backend_plan, call);
     output.push_str(&format!(
         "- {} statement {} `{}`\n",
-        source_name, call.statement_index, call.platform_call
+        source_name, call.statement_index, platform_call
     ));
 
     match backend_plan.host_calls.arguments.span(call.arguments) {
@@ -159,6 +160,25 @@ fn write_host_call(output: &mut String, backend_plan: &BackendReportInput<'_>, c
         }
         None => output.push_str("  operations: invalid span\n"),
     }
+}
+
+pub(super) fn host_call_display_name(
+    backend_plan: &BackendReportInput<'_>,
+    call: &HostCall,
+) -> String {
+    if !backend_plan
+        .host_abi
+        .platform_call_lowerings
+        .is_valid(call.lowering)
+    {
+        return "<unknown>".to_owned();
+    }
+
+    let lowering = backend_plan
+        .host_abi
+        .platform_call_lowerings
+        .get(call.lowering);
+    format!("{}.{}", lowering.platform, lowering.state)
 }
 
 fn write_host_call_argument(

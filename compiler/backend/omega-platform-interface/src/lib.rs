@@ -1,4 +1,4 @@
-use omega_calling_conventions::{HostOperationKey, PlatformCallData};
+use omega_calling_conventions::{HostOperationKey, PlatformCallData, PlatformCallLoweringHandle};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
@@ -43,7 +43,7 @@ pub struct UnsupportedHostCall {
 pub struct HostCall {
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub platform_call: String,
+    pub lowering: PlatformCallLoweringHandle,
     pub data: PlatformCallData,
     pub operations: HandleSpan<LoweredHostOperation>,
     pub arguments: HandleSpan<HostCallArgument>,
@@ -54,7 +54,7 @@ impl Default for HostCall {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
-            platform_call: String::new(),
+            lowering: PlatformCallLoweringHandle::invalid(),
             data: PlatformCallData::None,
             operations: HandleSpan::empty(),
             arguments: HandleSpan::empty(),

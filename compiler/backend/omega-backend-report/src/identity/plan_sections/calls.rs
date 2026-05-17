@@ -7,9 +7,6 @@ pub(in crate::identity) fn count_host_call_strings(
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    for (_, call) in backend_plan.host_calls.calls.iter() {
-        storage.count_identity(&call.platform_call);
-    }
     for (_, unsupported) in backend_plan.host_calls.unsupported_calls.iter() {
         storage.count_identity(&unsupported.platform_call);
         storage.count_report(&unsupported.reason);
