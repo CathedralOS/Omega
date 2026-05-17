@@ -3,51 +3,8 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceText;
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Expression {
-    ArrayLiteral(ArrayLiteralExpression),
-    Binary(Box<BinaryExpression>),
-    Boolean(bool),
-    Cast(Box<CastExpression>),
-    Call(Box<CallExpression>),
-    Float(FloatLiteral),
-    Indexed(Box<IndexedExpression>),
-    Integer(i64),
-    Member(Box<MemberExpression>),
-    Mutable(Box<Expression>),
-    Name(NamePath),
-    StructLiteral(StructLiteral),
-    String(SourceText),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ArrayLiteralExpression {
-    pub storage: ArrayLiteralExpressionStorage,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ArrayLiteralExpressionStorage {
-    pub values: Arc<[Expression]>,
-}
-
-impl Deref for ArrayLiteralExpression {
-    type Target = ArrayLiteralExpressionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for ArrayLiteralExpression {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
@@ -326,12 +283,6 @@ impl ExpressionTable {
         span
     }
 
-    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
-        self.spans
-            .name_path_members
-            .insert_many(path.members().iter().cloned())
-    }
-
     fn copy_name_path_members(
         &mut self,
         source: &ExpressionTable,
@@ -355,59 +306,6 @@ impl ExpressionTable {
             self.set_struct_field_at_offset(
                 span,
                 offset,
-                TableStructLiteralField {
-                    name: field.name.clone(),
-                    value,
-                },
-            );
-        }
-
-        span
-    }
-
-    fn insert_expression_handle_span_from_trees(
-        &mut self,
-        expressions: &[Expression],
-    ) -> HandleSpan<ExpressionHandle> {
-        let span = self.reserve_expression_handles(
-            expressions
-                .len()
-                .try_into()
-                .expect("expression handle span count overflow"),
-        );
-
-        for (offset, expression) in expressions.iter().enumerate() {
-            let expression = self.insert_tree(expression);
-            self.set_expression_handle_at_offset(
-                span,
-                offset
-                    .try_into()
-                    .expect("expression handle span count overflow"),
-                expression,
-            );
-        }
-
-        span
-    }
-
-    fn insert_struct_field_span_from_tree(
-        &mut self,
-        fields: &[StructLiteralField],
-    ) -> HandleSpan<TableStructLiteralField> {
-        let span = self.reserve_struct_fields(
-            fields
-                .len()
-                .try_into()
-                .expect("struct literal field span count overflow"),
-        );
-
-        for (offset, field) in fields.iter().enumerate() {
-            let value = self.insert_tree(&field.value);
-            self.set_struct_field_at_offset(
-                span,
-                offset
-                    .try_into()
-                    .expect("struct literal field span count overflow"),
                 TableStructLiteralField {
                     name: field.name.clone(),
                     value,
@@ -471,6 +369,21 @@ impl ExpressionTable {
         self.spans.name_path_members.span_or_empty(span)
     }
 
+    pub fn name_path_member_at_offset(
+        &self,
+        members: HandleSpan<DiagnosticName>,
+        offset: u32,
+    ) -> &DiagnosticName {
+        self.spans.name_path_members.get(Handle::from_parts(
+            members
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("name path member index overflow"),
+            members.start().generation(),
+        ))
+    }
+
     pub fn copy_name_path_members_with_suffix(
         &mut self,
         members: HandleSpan<DiagnosticName>,
@@ -484,18 +397,7 @@ impl ExpressionTable {
         );
 
         for offset in 0..members.count() {
-            let member = self
-                .spans
-                .name_path_members
-                .get(Handle::from_parts(
-                    members
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .expect("name path member index overflow"),
-                    members.start().generation(),
-                ))
-                .clone();
+            let member = self.name_path_member_at_offset(members, offset).clone();
             self.set_name_path_member_at_offset(span, offset, member);
         }
 
@@ -536,16 +438,7 @@ impl ExpressionTable {
 
         for (target_offset, offset) in (suffix_start_offset..suffix_members.count()).enumerate() {
             let member = self
-                .spans
-                .name_path_members
-                .get(Handle::from_parts(
-                    suffix_members
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .expect("name path member index overflow"),
-                    suffix_members.start().generation(),
-                ))
+                .name_path_member_at_offset(suffix_members, offset)
                 .clone();
             self.set_name_path_member_at_offset(
                 span,
@@ -596,14 +489,249 @@ impl ExpressionTable {
                 );
                 self.insert(ExpressionNode::Mutable(target))
             }
-            _ => {
-                let expression = self.to_tree_with_place_suffix_members(
-                    expression,
+            ExpressionNode::Indexed(indexed) => self
+                .insert_indexed_expression_path_with_member_suffix(
+                    &indexed,
                     suffix_members,
                     suffix_start_offset,
-                );
-                self.insert_tree(&expression)
+                )
+                .unwrap_or_else(|| self.copy_from_self(expression)),
+            _ => self.copy_from_self(expression),
+        }
+    }
+
+    pub fn copy_from_self(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
+        match self.expression(expression).clone() {
+            ExpressionNode::ArrayLiteral(values) => {
+                let copied_values = self.reserve_expression_handles(values.count());
+
+                for offset in 0..values.count() {
+                    let value = *self.expression_handle_at_offset(values, offset);
+                    let value = self.copy_from_self(value);
+                    self.set_expression_handle_at_offset(copied_values, offset, value);
+                }
+
+                self.insert(ExpressionNode::ArrayLiteral(copied_values))
             }
+            ExpressionNode::Binary(binary) => {
+                let left = self.copy_from_self(binary.left);
+                let right = self.copy_from_self(binary.right);
+                self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }))
+            }
+            ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
+            ExpressionNode::Cast(cast) => {
+                let value = self.copy_from_self(cast.value);
+                let target_type = self.copy_name_path_members_from_self(cast.target_type);
+                self.insert(ExpressionNode::Cast(TableCastExpression {
+                    value,
+                    target_type,
+                }))
+            }
+            ExpressionNode::Call(call) => {
+                let receiver = call
+                    .receiver
+                    .is_valid()
+                    .then(|| self.copy_from_self(call.receiver))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let arguments = self.copy_expression_handles_from_self(call.arguments);
+                self.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    arguments,
+                }))
+            }
+            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
+            ExpressionNode::Indexed(indexed) => {
+                let collection = self.copy_from_self(indexed.collection);
+                let index = self.copy_from_self(indexed.index);
+                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection,
+                    index,
+                }))
+            }
+            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
+            ExpressionNode::Member(member) => {
+                let receiver = self.copy_from_self(member.receiver);
+                self.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member,
+                }))
+            }
+            ExpressionNode::Mutable(inner_expression) => {
+                let inner_expression = self.copy_from_self(inner_expression);
+                self.insert(ExpressionNode::Mutable(inner_expression))
+            }
+            ExpressionNode::Name(path) => {
+                let members = self.copy_name_path_members_from_self(path.members);
+                self.insert(ExpressionNode::Name(TableNamePath { members, ..path }))
+            }
+            ExpressionNode::StructLiteral(struct_literal) => {
+                let fields = self.copy_struct_literal_fields_from_self(struct_literal.fields);
+                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    type_name: struct_literal.type_name,
+                    fields,
+                }))
+            }
+            ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
+        }
+    }
+
+    fn copy_expression_handles_from_self(
+        &mut self,
+        expressions: HandleSpan<ExpressionHandle>,
+    ) -> HandleSpan<ExpressionHandle> {
+        let copied = self.reserve_expression_handles(expressions.count());
+
+        for offset in 0..expressions.count() {
+            let expression = *self.expression_handle_at_offset(expressions, offset);
+            let expression = self.copy_from_self(expression);
+            self.set_expression_handle_at_offset(copied, offset, expression);
+        }
+
+        copied
+    }
+
+    fn copy_name_path_members_from_self(
+        &mut self,
+        members: HandleSpan<DiagnosticName>,
+    ) -> HandleSpan<DiagnosticName> {
+        let copied = self.reserve_name_path_members(members.count());
+
+        for offset in 0..members.count() {
+            let member = self.name_path_member_at_offset(members, offset).clone();
+            self.set_name_path_member_at_offset(copied, offset, member);
+        }
+
+        copied
+    }
+
+    fn copy_struct_literal_fields_from_self(
+        &mut self,
+        fields: HandleSpan<TableStructLiteralField>,
+    ) -> HandleSpan<TableStructLiteralField> {
+        let copied = self.reserve_struct_fields(fields.count());
+
+        for offset in 0..fields.count() {
+            let field = self.struct_field_at_offset(fields, offset).clone();
+            let value = self.copy_from_self(field.value);
+            self.set_struct_field_at_offset(
+                copied,
+                offset,
+                TableStructLiteralField {
+                    name: field.name,
+                    value,
+                },
+            );
+        }
+
+        copied
+    }
+
+    fn insert_indexed_expression_path_with_member_suffix(
+        &mut self,
+        indexed: &TableIndexedExpression,
+        suffix_members: HandleSpan<DiagnosticName>,
+        suffix_start_offset: u32,
+    ) -> Option<ExpressionHandle> {
+        let path_len = self.storage_path_len(indexed.collection)?;
+        let suffix_count = suffix_members.count().saturating_sub(suffix_start_offset);
+        let members = self.reserve_name_path_members(
+            path_len
+                .checked_add(suffix_count)
+                .expect("name path member span count overflow"),
+        );
+        self.fill_storage_path_members(indexed.collection, members, 0)?;
+
+        for (target_offset, offset) in (suffix_start_offset..suffix_members.count()).enumerate() {
+            let member = self
+                .name_path_member_at_offset(suffix_members, offset)
+                .clone();
+            self.set_name_path_member_at_offset(
+                members,
+                path_len
+                    .checked_add(
+                        target_offset
+                            .try_into()
+                            .expect("name path member span count overflow"),
+                    )
+                    .expect("name path member span count overflow"),
+                member,
+            );
+        }
+
+        Some(self.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: self.storage_path_head_symbol(indexed.collection),
+            symbol: SymbolHandle::invalid(),
+        })))
+    }
+
+    fn storage_path_len(&self, expression: ExpressionHandle) -> Option<u32> {
+        match self.expression(expression) {
+            ExpressionNode::Name(path) => Some(path.members.count()),
+            ExpressionNode::Indexed(indexed) => self.storage_path_len(indexed.collection),
+            ExpressionNode::Mutable(target) => self.storage_path_len(*target),
+            _ => None,
+        }
+    }
+
+    fn storage_path_head_symbol(&self, expression: ExpressionHandle) -> SymbolHandle {
+        match self.expression(expression) {
+            ExpressionNode::Name(path) => path.head_symbol,
+            ExpressionNode::Indexed(indexed) => self.storage_path_head_symbol(indexed.collection),
+            ExpressionNode::Mutable(target) => self.storage_path_head_symbol(*target),
+            _ => SymbolHandle::invalid(),
+        }
+    }
+
+    fn fill_storage_path_members(
+        &mut self,
+        expression: ExpressionHandle,
+        members: HandleSpan<DiagnosticName>,
+        offset: u32,
+    ) -> Option<()> {
+        match self.expression(expression).clone() {
+            ExpressionNode::Name(path) => {
+                for source_offset in 0..path.members.count() {
+                    let member = self
+                        .name_path_member_at_offset(path.members, source_offset)
+                        .clone();
+                    self.set_name_path_member_at_offset(
+                        members,
+                        offset
+                            .checked_add(source_offset)
+                            .expect("name path member span count overflow"),
+                        member,
+                    );
+                }
+                Some(())
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
+                    return None;
+                };
+                let index = *index;
+                self.fill_storage_path_members(indexed.collection, members, offset)?;
+                let path_len = self.storage_path_len(indexed.collection)?;
+                let last_offset = offset
+                    .checked_add(path_len.checked_sub(1)?)
+                    .expect("name path member span count overflow");
+                let last_member = self.name_path_member_at_offset(members, last_offset);
+                let indexed_member = DiagnosticName::generated(format!("{last_member}[{index}]"));
+                self.set_name_path_member_at_offset(members, last_offset, indexed_member);
+                Some(())
+            }
+            ExpressionNode::Mutable(target) => {
+                self.fill_storage_path_members(target, members, offset)
+            }
+            _ => None,
         }
     }
 
@@ -613,264 +741,6 @@ impl ExpressionTable {
 
     pub fn struct_field_count(&self) -> usize {
         self.spans.struct_fields.len()
-    }
-
-    pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
-        match expression {
-            Expression::ArrayLiteral(array_literal) => {
-                let values = self.insert_expression_handle_span_from_trees(&array_literal.values);
-                self.insert(ExpressionNode::ArrayLiteral(values))
-            }
-            Expression::Binary(binary) => {
-                let left = self.insert_tree(&binary.left);
-                let right = self.insert_tree(&binary.right);
-                self.insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: binary.operator,
-                    right,
-                }))
-            }
-            Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
-            Expression::Cast(cast) => {
-                let value = self.insert_tree(&cast.value);
-                let target_type = self.insert_name_path_members(&cast.target_type);
-                self.insert(ExpressionNode::Cast(TableCastExpression {
-                    value,
-                    target_type,
-                }))
-            }
-            Expression::Call(call) => {
-                let receiver = call
-                    .receiver
-                    .as_ref()
-                    .map(|receiver| self.insert_tree(receiver))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
-                self.insert(ExpressionNode::Call(TableCallExpression {
-                    receiver,
-                    target_symbol: call.target_symbol,
-                    target: call.target.clone(),
-                    arguments,
-                }))
-            }
-            Expression::Float(value) => self.insert(ExpressionNode::Float(*value)),
-            Expression::Indexed(indexed) => {
-                let collection = self.insert_tree(&indexed.collection);
-                let index = self.insert_tree(&indexed.index);
-                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                    collection,
-                    index,
-                }))
-            }
-            Expression::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
-            Expression::Member(member) => {
-                let receiver = self.insert_tree(&member.receiver);
-                self.insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver,
-                    member_symbol: member.member_symbol,
-                    member: member.member.clone(),
-                }))
-            }
-            Expression::Mutable(inner_expression) => {
-                let inner_expression = self.insert_tree(inner_expression);
-                self.insert(ExpressionNode::Mutable(inner_expression))
-            }
-            Expression::Name(path) => {
-                let members = self.insert_name_path_members(path);
-                self.insert(ExpressionNode::Name(TableNamePath {
-                    members,
-                    is_self_value: false,
-                    head_symbol: path.head_symbol(),
-                    symbol: path.symbol(),
-                }))
-            }
-            Expression::StructLiteral(struct_literal) => {
-                let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
-                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name: struct_literal.type_name.clone(),
-                    fields,
-                }))
-            }
-            Expression::String(value) => self.insert(ExpressionNode::String(value.clone())),
-        }
-    }
-
-    pub fn to_tree(&self, expression: ExpressionHandle) -> Expression {
-        match self.expression(expression) {
-            ExpressionNode::ArrayLiteral(values) => {
-                Expression::ArrayLiteral(ArrayLiteralExpression {
-                    storage: ArrayLiteralExpressionStorage {
-                        values: self
-                            .expression_handles(*values)
-                            .iter()
-                            .map(|value| self.to_tree(*value))
-                            .collect(),
-                    },
-                })
-            }
-            ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
-                storage: BinaryExpressionStorage {
-                    left: self.to_tree(binary.left),
-                    operator: binary.operator,
-                    right: self.to_tree(binary.right),
-                },
-            })),
-            ExpressionNode::Boolean(value) => Expression::Boolean(*value),
-            ExpressionNode::Cast(cast) => Expression::Cast(Box::new(CastExpression {
-                storage: CastExpressionStorage {
-                    value: self.to_tree(cast.value),
-                    target_type: NamePath::unresolved_from_iter(
-                        self.name_path_members(cast.target_type).iter().cloned(),
-                    ),
-                },
-            })),
-            ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
-                target_symbol: call.target_symbol,
-                target: call.target.clone(),
-                storage: CallExpressionStorage {
-                    receiver: call
-                        .receiver
-                        .is_valid()
-                        .then(|| Box::new(self.to_tree(call.receiver))),
-                    arguments: self
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .map(|argument| self.to_tree(*argument))
-                        .collect(),
-                },
-            })),
-            ExpressionNode::Float(value) => Expression::Float(*value),
-            ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
-                storage: IndexedExpressionStorage {
-                    collection: self.to_tree(indexed.collection),
-                    index: self.to_tree(indexed.index),
-                },
-            })),
-            ExpressionNode::Integer(value) => Expression::Integer(*value),
-            ExpressionNode::Member(member) => Expression::Member(Box::new(MemberExpression {
-                storage: MemberExpressionStorage {
-                    receiver: self.to_tree(member.receiver),
-                    member_symbol: member.member_symbol,
-                    member: member.member.clone(),
-                },
-            })),
-            ExpressionNode::Mutable(inner_expression) => {
-                Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
-            }
-            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved_from_iter(
-                self.name_path_members(path.members).iter().cloned(),
-                path.head_symbol,
-                path.symbol,
-            )),
-            ExpressionNode::StructLiteral(struct_literal) => {
-                Expression::StructLiteral(StructLiteral {
-                    storage: StructLiteralStorage {
-                        type_name: struct_literal.type_name.clone(),
-                        fields: self
-                            .struct_fields(struct_literal.fields)
-                            .iter()
-                            .map(|field| StructLiteralField {
-                                name: field.name.clone(),
-                                value: self.to_tree(field.value),
-                            })
-                            .collect(),
-                    },
-                })
-            }
-            ExpressionNode::String(value) => Expression::String(value.clone()),
-        }
-    }
-
-    pub fn to_tree_with_place_suffix(
-        &self,
-        expression: ExpressionHandle,
-        suffix: &[DiagnosticName],
-    ) -> Expression {
-        if suffix.is_empty() {
-            return self.to_tree(expression);
-        }
-
-        match self.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let mut resolved_path = self.name_path_to_tree(path);
-                resolved_path.extend_from_slice(suffix);
-                Expression::Name(resolved_path)
-            }
-            ExpressionNode::Indexed(indexed) => {
-                if let Some(mut indexed_path) = self.indexed_expression_path(indexed) {
-                    indexed_path.extend_from_slice(suffix);
-                    Expression::Name(indexed_path)
-                } else {
-                    self.to_tree(expression)
-                }
-            }
-            ExpressionNode::Mutable(target) => {
-                Expression::Mutable(Box::new(self.to_tree_with_place_suffix(*target, suffix)))
-            }
-            _ => self.to_tree(expression),
-        }
-    }
-
-    pub fn to_tree_with_place_suffix_members(
-        &self,
-        expression: ExpressionHandle,
-        suffix_members: HandleSpan<DiagnosticName>,
-        suffix_start_offset: u32,
-    ) -> Expression {
-        if suffix_start_offset >= suffix_members.count() {
-            return self.to_tree(expression);
-        }
-
-        let suffix_start = usize::try_from(suffix_start_offset).expect("suffix offset overflow");
-        let suffix = &self.name_path_members(suffix_members)[suffix_start..];
-
-        match self.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let mut resolved_path = self.name_path_to_tree(path);
-                resolved_path.extend_from_iter(suffix.iter().cloned());
-                Expression::Name(resolved_path)
-            }
-            ExpressionNode::Indexed(indexed) => {
-                if let Some(mut indexed_path) = self.indexed_expression_path(indexed) {
-                    indexed_path.extend_from_iter(suffix.iter().cloned());
-                    Expression::Name(indexed_path)
-                } else {
-                    self.to_tree(expression)
-                }
-            }
-            ExpressionNode::Mutable(target) => {
-                Expression::Mutable(Box::new(self.to_tree_with_place_suffix_members(
-                    *target,
-                    suffix_members,
-                    suffix_start_offset,
-                )))
-            }
-            _ => self.to_tree(expression),
-        }
-    }
-
-    fn name_path_to_tree(&self, path: &TableNamePath) -> NamePath {
-        NamePath::resolved_from_iter(
-            self.name_path_members(path.members).iter().cloned(),
-            path.head_symbol,
-            path.symbol,
-        )
-    }
-
-    fn indexed_expression_path(&self, indexed: &TableIndexedExpression) -> Option<NamePath> {
-        let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
-            return None;
-        };
-        let mut path = match self.expression(indexed.collection) {
-            ExpressionNode::Name(path) => self.name_path_to_tree(path),
-            ExpressionNode::Indexed(inner_indexed) => {
-                self.indexed_expression_path(inner_indexed)?
-            }
-            _ => return None,
-        };
-        let last_segment = path.last_mut()?;
-        *last_segment = DiagnosticName::generated(format!("{last_segment}[{index}]"));
-        Some(path)
     }
 
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
@@ -934,63 +804,10 @@ pub struct TableIndexedExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MemberExpression {
-    pub storage: MemberExpressionStorage,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MemberExpressionStorage {
-    pub receiver: Expression,
-    pub member_symbol: SymbolHandle,
-    pub member: DiagnosticName,
-}
-
-impl Deref for MemberExpression {
-    type Target = MemberExpressionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for MemberExpression {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
     pub member: DiagnosticName,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallExpression {
-    pub target_symbol: SymbolHandle,
-    pub target: DiagnosticName,
-    pub storage: CallExpressionStorage,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CallExpressionStorage {
-    pub receiver: Option<Box<Expression>>,
-    pub arguments: Arc<[Expression]>,
-}
-
-impl Deref for CallExpression {
-    type Target = CallExpressionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for CallExpression {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1039,133 +856,6 @@ impl Default for TableStructLiteralField {
     }
 }
 
-impl Default for Expression {
-    fn default() -> Self {
-        Self::Integer(0)
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct NamePath {
-    storage: NamePathStorage,
-    head_symbol: SymbolHandle,
-    symbol: SymbolHandle,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct NamePathStorage {
-    members: Arc<[DiagnosticName]>,
-}
-
-impl NamePath {
-    pub fn unresolved_from_iter(members: impl IntoIterator<Item = DiagnosticName>) -> Self {
-        Self::unresolved_from_boxed_slice(members.into_iter().collect())
-    }
-
-    fn unresolved_from_boxed_slice(members: Box<[DiagnosticName]>) -> Self {
-        Self {
-            storage: NamePathStorage {
-                members: Arc::from(members),
-            },
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-        }
-    }
-
-    pub fn resolved_from_iter(
-        members: impl IntoIterator<Item = DiagnosticName>,
-        head_symbol: SymbolHandle,
-        symbol: SymbolHandle,
-    ) -> Self {
-        Self::resolved_from_boxed_slice(members.into_iter().collect(), head_symbol, symbol)
-    }
-
-    fn resolved_from_boxed_slice(
-        members: Box<[DiagnosticName]>,
-        head_symbol: SymbolHandle,
-        symbol: SymbolHandle,
-    ) -> Self {
-        Self {
-            storage: NamePathStorage {
-                members: Arc::from(members),
-            },
-            head_symbol,
-            symbol,
-        }
-    }
-
-    pub fn members(&self) -> &[DiagnosticName] {
-        &self.storage.members
-    }
-
-    pub fn extend_from_slice(&mut self, members: &[DiagnosticName]) {
-        self.extend_from_iter(members.iter().cloned());
-    }
-
-    pub fn extend_from_iter(&mut self, members: impl IntoIterator<Item = DiagnosticName>) {
-        let mut owned_members = self.storage.members.iter().cloned().collect::<Vec<_>>();
-        owned_members.extend(members);
-        self.storage.members = Arc::from(owned_members.into_boxed_slice());
-        self.symbol = SymbolHandle::invalid();
-    }
-
-    pub fn len(&self) -> usize {
-        self.storage.members.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.storage.members.is_empty()
-    }
-
-    pub fn first(&self) -> Option<&DiagnosticName> {
-        self.storage.members.first()
-    }
-
-    pub fn last(&self) -> Option<&DiagnosticName> {
-        self.storage.members.last()
-    }
-
-    pub fn last_mut(&mut self) -> Option<&mut DiagnosticName> {
-        self.symbol = SymbolHandle::invalid();
-        Arc::make_mut(&mut self.storage.members).last_mut()
-    }
-
-    pub fn head_symbol(&self) -> SymbolHandle {
-        self.head_symbol
-    }
-
-    pub fn symbol(&self) -> SymbolHandle {
-        self.symbol
-    }
-
-    pub fn set_symbols(&mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) {
-        self.head_symbol = head_symbol;
-        self.symbol = symbol;
-    }
-
-    pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
-        self.set_symbols(head_symbol, symbol);
-        self
-    }
-}
-
-impl Deref for NamePath {
-    type Target = [DiagnosticName];
-
-    fn deref(&self) -> &Self::Target {
-        self.members()
-    }
-}
-
-impl<'path> IntoIterator for &'path NamePath {
-    type Item = &'path DiagnosticName;
-    type IntoIter = std::slice::Iter<'path, DiagnosticName>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.storage.members.iter()
-    }
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FloatLiteral {
     bits: u64,
@@ -1194,42 +884,6 @@ impl fmt::Display for FloatLiteral {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BinaryExpression {
-    pub storage: BinaryExpressionStorage,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BinaryExpressionStorage {
-    pub left: Expression,
-    pub operator: BinaryOperator,
-    pub right: Expression,
-}
-
-impl Default for BinaryExpressionStorage {
-    fn default() -> Self {
-        Self {
-            left: Expression::Integer(0),
-            operator: BinaryOperator::Add,
-            right: Expression::Integer(0),
-        }
-    }
-}
-
-impl Deref for BinaryExpression {
-    type Target = BinaryExpressionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for BinaryExpression {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     Add,
@@ -1247,117 +901,6 @@ pub enum BinaryOperator {
     ShiftLeft,
     ShiftRight,
     Subtract,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CastExpression {
-    pub storage: CastExpressionStorage,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CastExpressionStorage {
-    pub value: Expression,
-    pub target_type: NamePath,
-}
-
-impl Deref for CastExpression {
-    type Target = CastExpressionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for CastExpression {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexedExpression {
-    pub storage: IndexedExpressionStorage,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct IndexedExpressionStorage {
-    pub collection: Expression,
-    pub index: Expression,
-}
-
-impl Deref for IndexedExpression {
-    type Target = IndexedExpressionStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for IndexedExpression {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructLiteral {
-    pub storage: StructLiteralStorage,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StructLiteralStorage {
-    pub type_name: DiagnosticName,
-    pub fields: Arc<[StructLiteralField]>,
-}
-
-impl Deref for StructLiteral {
-    type Target = StructLiteralStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.storage
-    }
-}
-
-impl DerefMut for StructLiteral {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.storage
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructLiteralField {
-    pub name: DiagnosticName,
-    pub value: Expression,
-}
-
-impl Expression {
-    pub fn display_name(&self) -> String {
-        match self {
-            Expression::ArrayLiteral(array_literal) => {
-                bracketed_display_names(array_literal.values.iter(), Expression::display_name)
-            }
-            Expression::Binary(binary) => binary.display_name(),
-            Expression::Boolean(value) => value.to_string(),
-            Expression::Cast(cast) => cast.display_name(),
-            Expression::Call(call) => call.display_name(),
-            Expression::Float(value) => value.to_string(),
-            Expression::Indexed(indexed) => {
-                format!(
-                    "{}[{}]",
-                    indexed.collection.display_name(),
-                    indexed.index.display_name()
-                )
-            }
-            Expression::Integer(value) => value.to_string(),
-            Expression::Member(member) => {
-                format!("{}.{}", member.receiver.display_name(), member.member)
-            }
-            Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
-            Expression::Name(path) => display_name_path(path, "::"),
-            Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Expression::String(value) => format!("{:?}", value.as_str()),
-        }
-    }
 }
 
 impl ExpressionNode {
@@ -1408,17 +951,6 @@ pub fn display_name_path(path: &[DiagnosticName], separator: &str) -> String {
     display_name
 }
 
-impl BinaryExpression {
-    pub fn display_name(&self) -> String {
-        format!(
-            "{} {} {}",
-            self.left.display_name(),
-            self.operator.display_name(),
-            self.right.display_name()
-        )
-    }
-}
-
 impl TableBinaryExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         format!(
@@ -1430,32 +962,10 @@ impl TableBinaryExpression {
     }
 }
 
-impl CastExpression {
-    pub fn display_name(&self) -> String {
-        format!(
-            "{} as {}",
-            self.value.display_name(),
-            display_name_path(&self.target_type, "::")
-        )
-    }
-}
-
 impl TableCastExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         let target_type = display_name_path(table.name_path_members(self.target_type), "::");
         format!("{} as {}", table.display_name(self.value), target_type)
-    }
-}
-
-impl CallExpression {
-    pub fn display_name(&self) -> String {
-        let arguments = comma_join_display_names(&*self.arguments, Expression::display_name);
-
-        if let Some(receiver) = &self.receiver {
-            format!("{}.{}({arguments})", receiver.display_name(), self.target)
-        } else {
-            format!("{}({arguments})", self.target)
-        }
     }
 }
 
@@ -1552,32 +1062,29 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryExpression, BinaryExpressionStorage, BinaryOperator, Expression, ExpressionNode,
-        ExpressionTable, NamePath, StructLiteral, StructLiteralField, StructLiteralStorage,
-        TableBinaryExpression, TableNamePath,
+        BinaryOperator, ExpressionNode, ExpressionTable, TableBinaryExpression, TableNamePath,
+        TableStructLiteral, TableStructLiteralField,
     };
     use crate::name::DiagnosticName;
     use omega_core::source::SourceText;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
-    fn expression_table_stores_recursive_typed_expressions_as_handles() {
-        let expression = Expression::Binary(Box::new(BinaryExpression {
-            storage: BinaryExpressionStorage {
-                left: Expression::Integer(1),
-                operator: BinaryOperator::Add,
-                right: Expression::Binary(Box::new(BinaryExpression {
-                    storage: BinaryExpressionStorage {
-                        left: Expression::Integer(2),
-                        operator: BinaryOperator::Add,
-                        right: Expression::Integer(3),
-                    },
-                })),
-            },
-        }));
-
+    fn expression_table_stores_nested_expressions_as_handles() {
         let mut table = ExpressionTable::new();
-        let root = table.insert_tree(&expression);
+        let one = table.insert(ExpressionNode::Integer(1));
+        let two = table.insert(ExpressionNode::Integer(2));
+        let three = table.insert(ExpressionNode::Integer(3));
+        let right = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: two,
+            operator: BinaryOperator::Add,
+            right: three,
+        }));
+        let root = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: one,
+            operator: BinaryOperator::Add,
+            right,
+        }));
 
         assert_eq!(table.expression_count(), 5);
         assert_eq!(table.display_name(root), "1 + 2 + 3");
@@ -1594,17 +1101,16 @@ mod tests {
 
     #[test]
     fn expression_table_stores_name_paths_as_member_spans() {
-        let expression = Expression::Name(NamePath::resolved_from_iter(
-            [
-                DiagnosticName::generated("player"),
-                DiagnosticName::generated("inventory"),
-            ],
-            SymbolHandle::from_arena_index(1),
-            SymbolHandle::from_arena_index(2),
-        ));
-
         let mut table = ExpressionTable::new();
-        let root = table.insert_tree(&expression);
+        let members = table.reserve_name_path_members(2);
+        table.set_name_path_member_at_offset(members, 0, DiagnosticName::generated("player"));
+        table.set_name_path_member_at_offset(members, 1, DiagnosticName::generated("inventory"));
+        let root = table.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::from_arena_index(1),
+            symbol: SymbolHandle::from_arena_index(2),
+        }));
         let ExpressionNode::Name(path) = table.expression(root) else {
             panic!("root expression should be a name path");
         };
@@ -1619,53 +1125,52 @@ mod tests {
     fn expression_table_copies_table_payloads_without_tree_roundtrip() {
         let room_symbol = SymbolHandle::from_arena_index(3);
         let field_symbol = SymbolHandle::from_arena_index(4);
-        let expression = Expression::StructLiteral(StructLiteral {
-            storage: StructLiteralStorage {
-                type_name: DiagnosticName::generated("Room"),
-                fields: Arc::from(
-                    vec![
-                        StructLiteralField {
-                            name: DiagnosticName::generated("name"),
-                            value: Expression::String(SourceText::generated("Hall")),
-                        },
-                        StructLiteralField {
-                            name: DiagnosticName::generated("open"),
-                            value: Expression::Binary(Box::new(BinaryExpression {
-                                storage: BinaryExpressionStorage {
-                                    left: Expression::Name(NamePath::resolved_from_iter(
-                                        [DiagnosticName::generated("room")],
-                                        room_symbol,
-                                        room_symbol,
-                                    )),
-                                    operator: BinaryOperator::Equal,
-                                    right: Expression::Name(NamePath::resolved_from_iter(
-                                        [
-                                            DiagnosticName::generated("room"),
-                                            DiagnosticName::generated("field"),
-                                        ],
-                                        room_symbol,
-                                        field_symbol,
-                                    )),
-                                },
-                            })),
-                        },
-                    ]
-                    .into_boxed_slice(),
-                ),
-            },
-        });
 
         let mut source = ExpressionTable::new();
-        let root = source.insert_tree(&expression);
+        let room_members = source.reserve_name_path_members(1);
+        source.set_name_path_member_at_offset(room_members, 0, DiagnosticName::generated("room"));
+        let room = source.insert(ExpressionNode::Name(TableNamePath {
+            members: room_members,
+            is_self_value: false,
+            head_symbol: room_symbol,
+            symbol: room_symbol,
+        }));
+
+        let field_members = source.reserve_name_path_members(2);
+        source.set_name_path_member_at_offset(field_members, 0, DiagnosticName::generated("room"));
+        source.set_name_path_member_at_offset(field_members, 1, DiagnosticName::generated("field"));
+        let field = source.insert(ExpressionNode::Name(TableNamePath {
+            members: field_members,
+            is_self_value: false,
+            head_symbol: room_symbol,
+            symbol: field_symbol,
+        }));
+
+        let hall = source.insert(ExpressionNode::String(SourceText::generated("Hall")));
+        let open = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: room,
+            operator: BinaryOperator::Equal,
+            right: field,
+        }));
+        let fields = source.insert_struct_fields([
+            TableStructLiteralField {
+                name: DiagnosticName::generated("name"),
+                value: hall,
+            },
+            TableStructLiteralField {
+                name: DiagnosticName::generated("open"),
+                value: open,
+            },
+        ]);
+        let root = source.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+            type_name: DiagnosticName::generated("Room"),
+            fields,
+        }));
 
         let mut copied = ExpressionTable::new();
         let copied_root = copied.copy_from(&source, root);
 
         assert_eq!(source.display_name(root), copied.display_name(copied_root));
-        assert_eq!(
-            expression.display_name(),
-            copied.to_tree(copied_root).display_name()
-        );
 
         let ExpressionNode::StructLiteral(struct_literal) = copied.expression(copied_root) else {
             panic!("copied root should remain a struct literal");
