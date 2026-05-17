@@ -39,7 +39,7 @@ pub(crate) fn byte_distance_to_next_state_write_end(
         .find(|instruction| {
             matches!(
                 instruction.kind,
-                MachineInstructionKind::DispatchStateWrite { .. }
+                MachineInstructionKind::DispatchStateWrite
             )
         })
     else {
@@ -86,7 +86,7 @@ pub(crate) fn byte_distance_to_dispatch_loop_start(
     let Some(loop_enter) = machine_instructions.iter().find(|instruction| {
         matches!(
             instruction.kind,
-            MachineInstructionKind::DispatchLoopEnter { .. }
+            MachineInstructionKind::DispatchLoopEnter
         )
     }) else {
         return Err(Diagnostic::error(format!(

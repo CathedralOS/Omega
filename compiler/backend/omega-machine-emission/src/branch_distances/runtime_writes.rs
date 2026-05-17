@@ -119,21 +119,21 @@ fn selected_instruction_source<'plan>(
 fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
     matches!(
         instruction.kind,
-        MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
-            | MachineInstructionKind::RuntimeStorageBinaryWrite { .. }
-            | MachineInstructionKind::RuntimeFrameIndexedIntegerWrite { .. }
-            | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite { .. }
-            | MachineInstructionKind::RuntimeStorageCopy { .. }
-            | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed { .. }
-            | MachineInstructionKind::RuntimeTextBufferMaterialize { .. }
-            | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee { .. }
-            | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed { .. }
-            | MachineInstructionKind::RuntimeTextStoredPlaceAppend { .. }
-            | MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimePointee { .. }
-            | MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed { .. }
-            | MachineInstructionKind::RuntimeTextLiteralAppend { .. }
-            | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee { .. }
-            | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed { .. }
-            | MachineInstructionKind::DispatchStateWrite { .. }
+        MachineInstructionKind::RuntimeMachineIntegerWrite
+            | MachineInstructionKind::RuntimeStorageBinaryWrite
+            | MachineInstructionKind::RuntimeFrameIndexedIntegerWrite
+            | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
+            | MachineInstructionKind::RuntimeStorageCopy
+            | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed
+            | MachineInstructionKind::RuntimeTextBufferMaterialize
+            | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee
+            | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed
+            | MachineInstructionKind::RuntimeTextStoredPlaceAppend
+            | MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimePointee
+            | MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed
+            | MachineInstructionKind::RuntimeTextLiteralAppend
+            | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee
+            | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed
+            | MachineInstructionKind::DispatchStateWrite
     )
 }

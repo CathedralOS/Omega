@@ -1,32 +1,23 @@
 use omega_machine_program::MachineInstructionKind;
-use omega_target_operations::StateGuardOperator;
-
-pub(super) fn dispatch_loop_enter_kind(entry_dispatch_index: u32) -> MachineInstructionKind {
-    MachineInstructionKind::DispatchLoopEnter {
-        entry_dispatch_index,
-    }
+pub(super) fn dispatch_loop_enter_kind(_entry_dispatch_index: u32) -> MachineInstructionKind {
+    MachineInstructionKind::DispatchLoopEnter
 }
 
-pub(super) fn dispatch_case_enter_kind(dispatch_index: u32) -> MachineInstructionKind {
-    MachineInstructionKind::DispatchCaseEnter { dispatch_index }
+pub(super) fn dispatch_case_enter_kind(_dispatch_index: u32) -> MachineInstructionKind {
+    MachineInstructionKind::DispatchCaseEnter
 }
 
 pub(super) fn dispatch_guard_compare_static_kind(
-    operator: StateGuardOperator,
-    byte_offset: usize,
-    byte_size: usize,
-    expected_value: i64,
+    _operator: omega_target_operations::StateGuardOperator,
+    _byte_offset: usize,
+    _byte_size: usize,
+    _expected_value: i64,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::DispatchGuardCompareStatic {
-        operator,
-        byte_offset,
-        byte_size,
-        expected_value,
-    }
+    MachineInstructionKind::DispatchGuardCompareStatic
 }
 
-pub(super) fn dispatch_state_write_kind(dispatch_index: u32) -> MachineInstructionKind {
-    MachineInstructionKind::DispatchStateWrite { dispatch_index }
+pub(super) fn dispatch_state_write_kind(_dispatch_index: u32) -> MachineInstructionKind {
+    MachineInstructionKind::DispatchStateWrite
 }
 
 pub(super) fn dispatch_terminate_kind() -> MachineInstructionKind {

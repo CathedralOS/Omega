@@ -1,196 +1,125 @@
 use omega_machine_program::MachineInstructionKind;
-use omega_target_operations::StateGuardOperator;
-
 pub(super) fn runtime_storage_compare_kind(
-    left_offset: usize,
-    right_offset: usize,
-    byte_size: usize,
-    operator: StateGuardOperator,
+    _left_offset: usize,
+    _right_offset: usize,
+    _byte_size: usize,
+    _operator: omega_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeStorageCompare {
-        left_offset,
-        right_offset,
-        byte_size,
-        operator,
-    }
+    MachineInstructionKind::RuntimeStorageCompare
 }
 
 pub(super) fn runtime_storage_value_compare_kind(
-    byte_offset: usize,
-    byte_size: usize,
-    expected_value: i64,
-    operator: StateGuardOperator,
+    _byte_offset: usize,
+    _byte_size: usize,
+    _expected_value: i64,
+    _operator: omega_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeStorageValueCompare {
-        byte_offset,
-        byte_size,
-        expected_value,
-        operator,
-    }
+    MachineInstructionKind::RuntimeStorageValueCompare
 }
 
 pub(super) fn runtime_machine_integer_write_kind(
-    byte_offset: usize,
-    byte_size: usize,
-    value: i64,
+    _byte_offset: usize,
+    _byte_size: usize,
+    _value: i64,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeMachineIntegerWrite {
-        byte_offset,
-        byte_size,
-        value,
-    }
+    MachineInstructionKind::RuntimeMachineIntegerWrite
 }
 
 pub(super) fn runtime_storage_integer_write_kind(
-    byte_offset: usize,
-    byte_size: usize,
-    value: i64,
+    _byte_offset: usize,
+    _byte_size: usize,
+    _value: i64,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeMachineIntegerWrite {
-        byte_offset,
-        byte_size,
-        value,
-    }
+    MachineInstructionKind::RuntimeMachineIntegerWrite
 }
 
 pub(super) fn runtime_pointee_integer_write_kind(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _value: i64,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimePointeeIntegerWrite {
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_size,
-        value,
-    }
+    MachineInstructionKind::RuntimePointeeIntegerWrite
 }
 
 pub(super) fn runtime_storage_binary_write_kind(
-    target_offset: usize,
-    byte_size: usize,
-    operator: StateGuardOperator,
+    _target_offset: usize,
+    _byte_size: usize,
+    _operator: omega_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeStorageBinaryWrite {
-        target_offset,
-        byte_size,
-        operator,
-    }
+    MachineInstructionKind::RuntimeStorageBinaryWrite
 }
 
 pub(super) fn runtime_pointee_binary_write_kind(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    operator: StateGuardOperator,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _operator: omega_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimePointeeBinaryWrite {
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_size,
-        operator,
-    }
+    MachineInstructionKind::RuntimePointeeBinaryWrite
 }
 
 pub(super) fn runtime_frame_indexed_integer_write_kind(
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    value: i64,
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _value: i64,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeFrameIndexedIntegerWrite {
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        value,
-    }
+    MachineInstructionKind::RuntimeFrameIndexedIntegerWrite
 }
 
 pub(super) fn runtime_frame_indexed_binary_write_kind(
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_size: usize,
-    operator: StateGuardOperator,
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _operator: omega_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeFrameIndexedBinaryWrite {
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_size,
-        operator,
-    }
+    MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
 }
 
 pub(super) fn runtime_machine_string_write_kind(
-    byte_offset: usize,
-    byte_length: usize,
+    _byte_offset: usize,
+    _byte_length: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeMachineStringWrite {
-        byte_offset,
-        byte_length,
-    }
+    MachineInstructionKind::RuntimeMachineStringWrite
 }
 
 pub(super) fn runtime_pointee_string_write_kind(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_length: usize,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
+    _byte_length: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimePointeeStringWrite {
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_length,
-    }
+    MachineInstructionKind::RuntimePointeeStringWrite
 }
 
 pub(super) fn runtime_storage_copy_kind(
-    source_offset: usize,
-    target_offset: usize,
-    byte_count: usize,
+    _source_offset: usize,
+    _target_offset: usize,
+    _byte_count: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeStorageCopy {
-        source_offset,
-        target_offset,
-        byte_count,
-    }
+    MachineInstructionKind::RuntimeStorageCopy
 }
 
 pub(super) fn runtime_storage_copy_to_runtime_frame_indexed_kind(
-    source_offset: usize,
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
+    _source_offset: usize,
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_count: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed {
-        source_offset,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-        byte_count,
-    }
+    MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed
 }
 
 pub(super) fn runtime_storage_copy_to_runtime_pointee_kind(
-    source_offset: usize,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
-    byte_count: usize,
+    _source_offset: usize,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
+    _byte_count: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeStorageCopyToRuntimePointee {
-        source_offset,
-        pointer_byte_offset,
-        field_byte_offset,
-        byte_count,
-    }
+    MachineInstructionKind::RuntimeStorageCopyToRuntimePointee
 }

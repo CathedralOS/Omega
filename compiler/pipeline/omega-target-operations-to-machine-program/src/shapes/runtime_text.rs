@@ -1,144 +1,103 @@
 use omega_machine_program::MachineInstructionKind;
-use omega_target_operations::StateGuardOperator;
 
 pub(super) fn runtime_text_literal_compare_kind() -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralCompare
 }
 
 pub(super) fn runtime_text_storage_compare_kind(
-    source_offset: usize,
-    operator: StateGuardOperator,
+    _source_offset: usize,
+    _operator: omega_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextStorageCompare {
-        source_offset,
-        operator,
-    }
+    MachineInstructionKind::RuntimeTextStorageCompare
 }
 
 pub(super) fn runtime_text_literal_write_kind() -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralWrite
 }
 
-pub(super) fn runtime_text_literal_segment_write_kind(byte_offset: usize) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralSegmentWrite { byte_offset }
+pub(super) fn runtime_text_literal_segment_write_kind(_byte_offset: usize) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextLiteralSegmentWrite
 }
 
 pub(super) fn runtime_text_stored_suffix_append_kind(
-    buffer_offset: usize,
-    source_offset: usize,
-    target_offset: usize,
-    length_delta: usize,
+    _buffer_offset: usize,
+    _source_offset: usize,
+    _target_offset: usize,
+    _length_delta: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextStoredSuffixAppend {
-        buffer_offset,
-        source_offset,
-        target_offset,
-        length_delta,
-    }
+    MachineInstructionKind::RuntimeTextStoredSuffixAppend
 }
 
-pub(super) fn runtime_text_buffer_materialize_kind(target_offset: usize) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextBufferMaterialize { target_offset }
+pub(super) fn runtime_text_buffer_materialize_kind(_target_offset: usize) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextBufferMaterialize
 }
 
 pub(super) fn runtime_text_buffer_materialize_to_runtime_pointee_kind(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee {
-        pointer_byte_offset,
-        field_byte_offset,
-    }
+    MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee
 }
 
 pub(super) fn runtime_text_buffer_materialize_to_runtime_frame_indexed_kind(
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed {
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-    }
+    MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed
 }
 
 pub(super) fn runtime_text_stored_place_append_kind(
-    source_offset: usize,
-    target_offset: usize,
+    _source_offset: usize,
+    _target_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextStoredPlaceAppend {
-        source_offset,
-        target_offset,
-    }
+    MachineInstructionKind::RuntimeTextStoredPlaceAppend
 }
 
 pub(super) fn runtime_text_stored_place_append_to_runtime_pointee_kind(
-    source_offset: usize,
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
+    _source_offset: usize,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimePointee {
-        source_offset,
-        pointer_byte_offset,
-        field_byte_offset,
-    }
+    MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimePointee
 }
 
 pub(super) fn runtime_text_stored_place_append_to_runtime_frame_indexed_kind(
-    source_offset: usize,
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
+    _source_offset: usize,
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed {
-        source_offset,
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-    }
+    MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed
 }
 
 pub(super) fn runtime_text_literal_append_kind(
-    target_offset: usize,
+    _target_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralAppend { target_offset }
+    MachineInstructionKind::RuntimeTextLiteralAppend
 }
 
 pub(super) fn runtime_text_literal_append_to_runtime_pointee_kind(
-    pointer_byte_offset: usize,
-    field_byte_offset: usize,
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee {
-        pointer_byte_offset,
-        field_byte_offset,
-    }
+    MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee
 }
 
 pub(super) fn runtime_text_literal_append_to_runtime_frame_indexed_kind(
-    descriptor_offset: usize,
-    index_offset: usize,
-    element_byte_size: usize,
-    field_byte_offset: usize,
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed {
-        descriptor_offset,
-        index_offset,
-        element_byte_size,
-        field_byte_offset,
-    }
+    MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed
 }
 
 pub(super) fn runtime_text_line_read_kind(
-    target_offset: usize,
-    byte_capacity: usize,
+    _target_offset: usize,
+    _byte_capacity: usize,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLineRead {
-        target_offset,
-        byte_capacity,
-    }
+    MachineInstructionKind::RuntimeTextLineRead
 }
