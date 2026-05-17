@@ -489,8 +489,7 @@ fn nested_machine_storage_offset(
     for field in fields {
         let field_offset = base_offset + field.offset;
 
-        let nested_machine_layout =
-            field_machine_layout(layouts, field.type_symbol, &field.type_name);
+        let nested_machine_layout = field_machine_layout(layouts, field.type_symbol);
 
         if nested_machine_layout
             .is_some_and(|nested_machine_layout| nested_machine_layout.symbol == target_machine)
@@ -518,28 +517,11 @@ fn nested_machine_storage_offset(
 fn field_machine_layout<'plan>(
     layouts: &'plan LayoutPlan,
     type_symbol: SymbolHandle,
-    type_name: &str,
 ) -> Option<&'plan omega_layout::MachineLayout> {
-    if let Some(machine_layout) = layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, machine_layout)| machine_layout.symbol == type_symbol)
-        .map(|(_, machine_layout)| machine_layout)
-    {
-        return Some(machine_layout);
-    }
-
-    let data_name = layouts
-        .data_layouts
-        .iter()
-        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
-        .map(|(_, data_layout)| data_layout.name.as_str())
-        .unwrap_or(type_name);
-
     layouts
         .machine_layouts
         .iter()
-        .find(|(_, machine_layout)| machine_layout.name.as_str() == data_name)
+        .find(|(_, machine_layout)| machine_layout.symbol == type_symbol)
         .map(|(_, machine_layout)| machine_layout)
 }
 
@@ -628,8 +610,7 @@ fn record_fields(
         .machine_layouts
         .iter()
         .find_map(|(_, machine_layout)| {
-            ((type_symbol.is_valid() && machine_layout.symbol == type_symbol)
-                || machine_layout.name.as_str() == type_name)
+            (type_symbol.is_valid() && machine_layout.symbol == type_symbol)
                 .then_some(machine_layout.fields)
         })
 }
