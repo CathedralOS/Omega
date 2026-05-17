@@ -6,7 +6,6 @@ mod model;
 
 use collection::build_runtime_dispatch_loop_case;
 pub use context::RuntimeDispatchLoopContext;
-pub use inputs::{RuntimeDispatchLoopCaseInput, RuntimeDispatchLoopInputs, runtime_dispatch_loop_inputs};
 pub use model::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopCase, RuntimeDispatchLoopEdge,
     RuntimeDispatchLoopPlan,
@@ -17,16 +16,14 @@ use std::sync::Arc;
 
 pub fn build_runtime_dispatch_loop_plan(
     context: RuntimeDispatchLoopContext,
-    case_inputs: RuntimeDispatchLoopInputs,
 ) -> RuntimeDispatchLoopPlan {
     let workers = WorkerPool::with_available_parallelism();
 
-    build_runtime_dispatch_loop_plan_with_workers(Arc::new(context), case_inputs, workers.handle())
+    build_runtime_dispatch_loop_plan_with_workers(Arc::new(context), workers.handle())
 }
 
 pub fn build_runtime_dispatch_loop_plan_with_workers(
     context: Arc<RuntimeDispatchLoopContext>,
-    case_inputs: RuntimeDispatchLoopInputs,
     workers: WorkerPoolHandle,
 ) -> RuntimeDispatchLoopPlan {
     let mut plan = RuntimeDispatchLoopPlan {
@@ -39,19 +36,21 @@ pub fn build_runtime_dispatch_loop_plan_with_workers(
         edges: Arena::new(),
     };
 
-    if !plan.needed || case_inputs.is_empty() {
+    if !plan.needed || context.state_dispatch.states.is_empty() {
         return plan;
     }
 
-    let case_inputs = Arc::new(case_inputs);
-    let case_count = case_inputs.len();
+    let case_count = context.state_dispatch.states.len();
     let context_for_cases = Arc::clone(&context);
     let cases = workers.map_ordered(case_count, move |index| {
-        let case_input = case_inputs
+        let dispatch_state = context_for_cases
+            .state_dispatch
+            .states
+            .storage_slice()
             .get(index)
             .expect("runtime-dispatch-loop worker index should be in range");
 
-        build_runtime_dispatch_loop_case(&context_for_cases, case_input)
+        build_runtime_dispatch_loop_case(&context_for_cases, dispatch_state)
     });
 
     for case in cases {
