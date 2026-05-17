@@ -4,12 +4,13 @@ use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_control_flow::StateKey;
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchLoopCase {
     pub key: StateKey,
     pub dispatch_index: u32,
-    pub label: String,
+    pub label: Arc<str>,
     pub operation_count: usize,
     pub edges: Vec<RuntimeDispatchLoopEdge>,
 }

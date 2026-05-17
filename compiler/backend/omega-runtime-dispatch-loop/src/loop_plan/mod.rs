@@ -30,8 +30,8 @@ pub fn build_runtime_dispatch_loop_plan_with_workers(
         needed: context.needed,
         entry_dispatch_index: context.entry_dispatch_index,
         terminal_dispatch_index: 0,
-        current_state_slot: "omega_current_state".to_owned(),
-        next_state_slot: "omega_next_state".to_owned(),
+        current_state_slot: Arc::from("omega_current_state"),
+        next_state_slot: Arc::from("omega_next_state"),
         cases: Arena::new(),
         edges: Arena::new(),
     };

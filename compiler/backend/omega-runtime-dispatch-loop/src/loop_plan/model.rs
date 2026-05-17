@@ -3,14 +3,15 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, StateGuardOperandStorage, StateGuardOperator};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopPlan {
     pub needed: bool,
     pub entry_dispatch_index: u32,
     pub terminal_dispatch_index: u32,
-    pub current_state_slot: String,
-    pub next_state_slot: String,
+    pub current_state_slot: Arc<str>,
+    pub next_state_slot: Arc<str>,
     pub cases: Arena<RuntimeDispatchLoopCase>,
     pub edges: Arena<RuntimeDispatchLoopEdge>,
 }
@@ -19,7 +20,7 @@ pub struct RuntimeDispatchLoopPlan {
 pub struct RuntimeDispatchLoopCase {
     pub key: StateKey,
     pub dispatch_index: u32,
-    pub label: String,
+    pub label: Arc<str>,
     pub operation_count: usize,
     pub edges: HandleSpan<RuntimeDispatchLoopEdge>,
 }
@@ -29,7 +30,7 @@ impl Default for RuntimeDispatchLoopCase {
         Self {
             key: StateKey::default(),
             dispatch_index: 0,
-            label: String::new(),
+            label: Arc::from(""),
             operation_count: 0,
             edges: HandleSpan::empty(),
         }
