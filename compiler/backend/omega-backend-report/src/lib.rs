@@ -535,7 +535,10 @@ pub fn backend_report_text(
                 "- {} -> {} {}",
                 backend_state_name(backend_plan, edge.from),
                 runtime_transition_target_name(backend_plan, &edge.target),
-                transition_guard_name(&edge.guard)
+                transition_guard_expression_name(
+                    &backend_plan.control_flow.expressions,
+                    edge.expressions.guard,
+                )
             ));
 
             if edge.continuation != RuntimeTransitionTarget::None {

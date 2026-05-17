@@ -1,6 +1,5 @@
 mod builder;
 
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -30,7 +29,6 @@ pub struct RuntimeEdge {
     pub statement_index: usize,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
-    pub guard: TransitionGuard,
     pub expressions: TransitionExpressionRefs,
     pub forms_cycle: bool,
 }
@@ -42,7 +40,6 @@ impl Default for RuntimeEdge {
             statement_index: 0,
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
-            guard: TransitionGuard::Always,
             expressions: TransitionExpressionRefs::default(),
             forms_cycle: false,
         }
