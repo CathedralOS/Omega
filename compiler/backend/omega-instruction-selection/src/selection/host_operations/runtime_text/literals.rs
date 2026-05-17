@@ -6,10 +6,11 @@ use omega_platform_interface::HostCall;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
 use omega_target_operations::TargetDataObjectHandle;
+use std::sync::Arc;
 
 pub(in crate::selection) struct RuntimeTextLiteralWrite {
     pub buffer: TargetDataObjectHandle,
-    pub literal: String,
+    pub literal: Arc<str>,
 }
 
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
@@ -27,7 +28,7 @@ pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
 pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> Option<String> {
+) -> Option<Arc<str>> {
     let append_newline = match host_call.data {
         PlatformCallData::FirstTextArgument { append_newline } => append_newline,
         PlatformCallData::MutableOutputBuffer { .. } | PlatformCallData::None => return None,
@@ -81,17 +82,20 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         let Some(value) = input
             .runtime_text
             .expressions
-            .string_literal(text_write.value)
+            .string_literal_value(text_write.value)
         else {
             continue;
         };
-        latest_static_text = Some(value.to_owned());
+        latest_static_text = Some(value);
     }
 
-    let mut literal = latest_static_text?;
+    let literal = latest_static_text?;
     if append_newline {
+        let mut literal = String::from(literal.as_ref());
         literal.push('\n');
+        return Some(Arc::from(literal));
     }
+
     Some(literal)
 }
 

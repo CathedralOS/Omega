@@ -203,8 +203,7 @@ fn runtime_text_builder_write_without_aliases_emit(
                 let Some(literal) = input
                     .runtime_text
                     .expressions
-                    .string_literal(segment.expression)
-                    .map(str::to_owned)
+                    .string_literal_value(segment.expression)
                 else {
                     return false;
                 };
@@ -400,8 +399,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                 let Some(literal) = input
                     .runtime_text
                     .expressions
-                    .string_literal(segment.expression)
-                    .map(str::to_owned)
+                    .string_literal_value(segment.expression)
                 else {
                     return false;
                 };
@@ -462,8 +460,7 @@ fn prefixed_stored_place_write(
     let Some(prefix) = input
         .runtime_text
         .expressions
-        .string_literal(prefix.expression)
-        .map(str::to_owned)
+        .string_literal_value(prefix.expression)
     else {
         return false;
     };
@@ -515,8 +512,7 @@ fn prefixed_stored_place_write_without_aliases(
     let Some(prefix) = input
         .runtime_text
         .expressions
-        .string_literal(prefix.expression)
-        .map(str::to_owned)
+        .string_literal_value(prefix.expression)
     else {
         return false;
     };
