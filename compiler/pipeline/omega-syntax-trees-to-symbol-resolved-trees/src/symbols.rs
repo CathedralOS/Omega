@@ -966,10 +966,9 @@ fn assign_expression_table_symbols(
                 member.receiver,
                 &member.member,
             );
-            if let (
-                Some(symbol),
-                omega_symbol_resolved_trees::expression::ExpressionNode::Member(member),
-            ) = (member_symbol, expression_table.expression_mut(expression))
+            if let (symbol, omega_symbol_resolved_trees::expression::ExpressionNode::Member(member)) =
+                (member_symbol, expression_table.expression_mut(expression))
+                && symbol.is_valid()
             {
                 member.member_symbol = symbol;
             }
@@ -1113,7 +1112,7 @@ fn resolve_expression_table_call_target_symbol(
             machine,
             parameters,
             true,
-            receiver_symbol.unwrap_or_else(SymbolHandle::invalid),
+            receiver_symbol,
             &call.target,
             child_type_references,
             symbols,
@@ -1138,14 +1137,17 @@ fn resolve_expression_table_member_symbol(
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
     receiver: omega_symbol_resolved_trees::expression::ExpressionHandle,
     member: &omega_symbol_resolved_trees::name::DiagnosticName,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     let receiver_symbol = resolve_expression_table_receiver_symbol(
         symbols,
         machine_symbol,
         state_symbol,
         expression_table,
         receiver,
-    )?;
+    );
+    if !receiver_symbol.is_valid() {
+        return SymbolHandle::invalid();
+    }
     let member_symbol = child_symbol_by_kinds(
         symbols,
         receiver_symbol,
@@ -1159,7 +1161,7 @@ fn resolve_expression_table_member_symbol(
         member.as_str(),
     );
 
-    member_symbol.is_valid().then_some(member_symbol)
+    member_symbol
 }
 
 fn resolve_expression_table_receiver_path_symbols(
@@ -1298,7 +1300,7 @@ fn resolve_expression_table_receiver_symbol(
     state_symbol: SymbolHandle,
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
     receiver: omega_symbol_resolved_trees::expression::ExpressionHandle,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     match expression_table.expression(receiver) {
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             resolve_state_scoped_table_path(
@@ -1309,6 +1311,7 @@ fn resolve_expression_table_receiver_symbol(
                 path,
             )
             .map(|(_, symbol)| symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             resolve_expression_table_member_symbol(
@@ -1338,8 +1341,9 @@ fn resolve_expression_table_receiver_symbol(
                 receiver,
             )
             .map(|(_, symbol)| symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
         }
-        _ => None,
+        _ => SymbolHandle::invalid(),
     }
 }
 
@@ -1407,15 +1411,24 @@ fn resolve_state_scoped_table_members(
 
     if !current.is_valid() {
         current = if indexed_last_member.is_some() && index + 1 == members.len() {
-            resolve_base_indexed_symbol(
+            let indexed_symbol = resolve_base_indexed_symbol(
                 symbols,
                 machine_symbol,
                 state_symbol,
                 members[index].as_str(),
                 indexed_last_member.expect("indexed last member should be present"),
-            )?
+            );
+            if !indexed_symbol.is_valid() {
+                return None;
+            }
+            indexed_symbol
         } else {
-            resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index])?
+            let base_symbol =
+                resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
+            if !base_symbol.is_valid() {
+                return None;
+            }
+            base_symbol
         };
         head = current;
         index += 1;
@@ -1487,7 +1500,7 @@ fn resolve_base_indexed_symbol(
     state_symbol: SymbolHandle,
     member: &str,
     index: i64,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     if state_symbol.is_valid() {
         let parameter_symbol = child_indexed_symbol_by_kinds(
             symbols,
@@ -1497,7 +1510,7 @@ fn resolve_base_indexed_symbol(
             index,
         );
         if parameter_symbol.is_valid() {
-            return Some(parameter_symbol);
+            return parameter_symbol;
         }
     }
 
@@ -1508,7 +1521,7 @@ fn resolve_base_indexed_symbol(
         member,
         index,
     );
-    machine_child.is_valid().then_some(machine_child)
+    machine_child
 }
 
 fn assign_transition_target_symbols(
@@ -1689,7 +1702,10 @@ fn resolve_state_scoped_members(
     }
 
     if !current.is_valid() {
-        current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index])?;
+        current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
+        if !current.is_valid() {
+            return None;
+        }
         head = current;
         index += 1;
     } else {
@@ -1732,7 +1748,7 @@ fn resolve_base_symbol(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     member: &omega_symbol_resolved_trees::name::DiagnosticName,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     if state_symbol.is_valid() {
         let parameter_symbol = child_symbol_by_kinds(
             symbols,
@@ -1741,7 +1757,7 @@ fn resolve_base_symbol(
             member.as_str(),
         );
         if parameter_symbol.is_valid() {
-            return Some(parameter_symbol);
+            return parameter_symbol;
         }
     }
 
@@ -1752,7 +1768,7 @@ fn resolve_base_symbol(
         member.as_str(),
     );
     if machine_child.is_valid() {
-        return Some(machine_child);
+        return machine_child;
     }
 
     let top_level = top_level_symbol_by_kinds(
@@ -1766,7 +1782,7 @@ fn resolve_base_symbol(
         ],
         member.as_str(),
     );
-    top_level.is_valid().then_some(top_level)
+    top_level
 }
 
 fn type_reference_symbol(

@@ -118,6 +118,8 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
                 byte_width: relocation.byte_width,
                 symbol: relocation.symbol.clone(),
                 symbol_handle: final_image_symbol_handle(relocation.symbol_handle)
+                    .is_valid()
+                    .then(|| final_image_symbol_handle(relocation.symbol_handle))
                     .filter(|handle| symbols.is_valid(*handle))
                     .unwrap_or_else(|| symbol_handle(symbols, &relocation.symbol)),
                 kind: relocation.kind,
@@ -127,10 +129,12 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
     image
 }
 
-fn final_image_symbol_handle(symbol: ObjectSymbolHandle) -> Option<FinalImageSymbolHandle> {
-    symbol
-        .is_valid()
-        .then(|| Handle::from_parts(symbol.arena_index(), symbol.generation()))
+fn final_image_symbol_handle(symbol: ObjectSymbolHandle) -> FinalImageSymbolHandle {
+    if symbol.is_valid() {
+        Handle::from_parts(symbol.arena_index(), symbol.generation())
+    } else {
+        FinalImageSymbolHandle::invalid()
+    }
 }
 
 pub fn final_image_symbol_address(

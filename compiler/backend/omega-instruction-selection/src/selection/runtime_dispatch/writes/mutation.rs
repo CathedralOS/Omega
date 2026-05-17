@@ -187,18 +187,17 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     }
 
     if let Expression::String(value) = value {
-        if let Some((pointer_byte_offset, field_byte_offset, data)) =
-            resolve_runtime_pointee_slot_offset(
+        let data = string_literal_data_handle(input, operation_source_key, statement_index, value);
+        if data.is_valid()
+            && let Some(target) = resolve_runtime_pointee_slot_offset(
                 input,
                 dispatch_index,
                 target_source_key,
                 resolved_target,
             )
-            .and_then(|target| {
-                string_literal_data_handle(input, operation_source_key, statement_index, value)
-                    .map(|data| (target.pointer_byte_offset, target.field_byte_offset, data))
-            })
         {
+            let pointer_byte_offset = target.pointer_byte_offset;
+            let field_byte_offset = target.field_byte_offset;
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimePointeeString {
                     pointer_byte_offset,
