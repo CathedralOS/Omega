@@ -3,6 +3,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
 use omega_target_operations::StateGuardOperator;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineProgram {
@@ -95,7 +96,7 @@ pub enum MachineInstructionKind {
         expected_value: i64,
     },
     RuntimeTextLiteralCompare {
-        literal: String,
+        literal: Arc<str>,
     },
     RuntimeTextStorageCompare {
         source_offset: usize,
@@ -114,11 +115,11 @@ pub enum MachineInstructionKind {
         operator: StateGuardOperator,
     },
     RuntimeTextLiteralWrite {
-        literal: String,
+        literal: Arc<str>,
     },
     RuntimeTextLiteralSegmentWrite {
         byte_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     RuntimeTextStoredSuffixAppend {
         buffer_offset: usize,
@@ -157,19 +158,19 @@ pub enum MachineInstructionKind {
     },
     RuntimeTextLiteralAppend {
         target_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     RuntimeTextLiteralAppendToRuntimePointee {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     RuntimeTextLiteralAppendToRuntimeFrameIndexed {
         descriptor_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     RuntimeMachineIntegerWrite {
         byte_offset: usize,
