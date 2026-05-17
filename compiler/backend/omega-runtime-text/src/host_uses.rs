@@ -1,9 +1,8 @@
 use omega_calling_conventions::PlatformCallData;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
-use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
 
+use super::places::expression_place_eq_across_tables;
 use super::slots::text_place_for_buffer_target;
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 
@@ -132,53 +131,21 @@ fn output_buffer_target_for_text_expression(
     plan: &mut RuntimeTextPlan,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    match host_calls.expressions.expression(expression) {
-        ExpressionNode::Member(member) if member.member.as_str() == "text" => Some(
-            plan.expressions
-                .copy_from(&host_calls.expressions, member.receiver),
-        ),
-        ExpressionNode::Name(path) => {
-            let source_members = host_calls.expressions.name_path_members(path.members);
-            if source_members.len() <= 1
-                || !source_members
-                    .last()
-                    .is_some_and(|member| member.as_str() == "text")
-            {
-                return None;
-            }
-
-            let mut members = HandleSpan::empty();
-            let mut member_symbols = HandleSpan::empty();
-            let source_member_symbols = host_calls
-                .expressions
-                .name_path_member_symbols(path.member_symbols);
-            for member in source_members.iter().take(source_members.len() - 1) {
-                plan.expressions
-                    .push_name_path_member(&mut members, member.clone());
-            }
-            for (offset, _) in source_members
-                .iter()
-                .take(source_members.len() - 1)
-                .enumerate()
-            {
-                let member_symbol = source_member_symbols
-                    .get(offset)
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid);
-                plan.expressions
-                    .push_name_path_member_symbol(&mut member_symbols, member_symbol);
-            }
-            Some(plan.expressions.insert(ExpressionNode::Name(TableNamePath {
-                members,
-                member_symbols,
-                head_symbol: path.head_symbol,
-                symbol: path.head_symbol,
-            })))
-        }
-        ExpressionNode::Mutable(inner) => {
-            let target = output_buffer_target_for_text_expression(host_calls, plan, *inner)?;
-            Some(plan.expressions.insert(ExpressionNode::Mutable(target)))
-        }
-        _ => None,
+    let source_expression = host_calls.expressions.expression(expression);
+    if matches!(source_expression, ExpressionNode::Mutable(_)) {
+        return None;
     }
+
+    plan.buffers
+        .iter()
+        .find(|(_, buffer)| {
+            buffer.text_place.is_valid()
+                && expression_place_eq_across_tables(
+                    &plan.expressions,
+                    buffer.text_place,
+                    &host_calls.expressions,
+                    expression,
+                )
+        })
+        .map(|(_, buffer)| buffer.target)
 }
