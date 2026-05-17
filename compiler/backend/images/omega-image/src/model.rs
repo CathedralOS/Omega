@@ -1,6 +1,7 @@
 use omega_core::arena::{Arena, Handle};
 use omega_object::{RelocationKind, SymbolKind};
 use omega_target::NativeTarget;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImage {
@@ -72,7 +73,7 @@ pub struct FinalImageImport {
 pub struct FinalImageRelocation {
     pub text_offset: usize,
     pub byte_width: usize,
-    pub symbol: String,
+    pub symbol: Arc<str>,
     pub symbol_handle: FinalImageSymbolHandle,
     pub kind: RelocationKind,
 }
@@ -82,7 +83,7 @@ impl Default for FinalImageRelocation {
         Self {
             text_offset: 0,
             byte_width: 0,
-            symbol: String::new(),
+            symbol: Arc::from(""),
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
         }

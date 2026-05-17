@@ -1,6 +1,7 @@
 use omega_core::arena::{Arena, Handle};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::RuntimeStorageRegion;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {
@@ -83,11 +84,11 @@ impl Default for RelocationPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationRecord {
-    pub function_symbol: String,
+    pub function_symbol: Arc<str>,
     pub selected_instruction_index: u32,
     pub text_offset: usize,
     pub byte_width: usize,
-    pub symbol: String,
+    pub symbol: Arc<str>,
     pub symbol_handle: ObjectSymbolHandle,
     pub kind: RelocationKind,
 }
@@ -95,11 +96,11 @@ pub struct RelocationRecord {
 impl Default for RelocationRecord {
     fn default() -> Self {
         Self {
-            function_symbol: String::new(),
+            function_symbol: Arc::from(""),
             selected_instruction_index: 0,
             text_offset: 0,
             byte_width: 0,
-            symbol: String::new(),
+            symbol: Arc::from(""),
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
         }

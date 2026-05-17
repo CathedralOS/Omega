@@ -6,6 +6,7 @@ use omega_object::{
 };
 use omega_target::Architecture;
 use omega_target_operations::{FunctionInstructionPlan, InstructionOperandKind};
+use std::sync::Arc;
 
 pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
@@ -27,7 +28,7 @@ pub(super) fn collect_data_address_relocations(
                 if !data.is_valid() {
                     continue;
                 }
-                let symbol = &input.data.objects.get(*data).symbol;
+                let symbol = input.data.objects.get(*data).symbol.clone();
                 insert_data_address_relocations(
                     input,
                     relocation_plan,
@@ -45,7 +46,7 @@ pub(super) fn collect_data_address_relocations(
                     function,
                     selected_instruction_index,
                     operand_text_offset,
-                    &storage_region_symbol_name(*region, input.entry_machine_name),
+                    Arc::from(storage_region_symbol_name(*region, input.entry_machine_name)),
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
@@ -62,38 +63,38 @@ pub(super) fn insert_data_address_relocations(
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
     operand_text_offset: usize,
-    symbol: &str,
+    symbol: Arc<str>,
 ) {
-    let symbol_handle = object_symbol_handle_by_name(&input.object, symbol);
+    let symbol_handle = object_symbol_handle_by_name(&input.object, symbol.as_ref());
 
     match input.target.architecture {
         Architecture::Aarch64 => {
             relocation_plan.records.insert(RelocationRecord {
-                function_symbol: function.symbol.to_string(),
+                function_symbol: function.symbol.clone(),
                 selected_instruction_index,
                 text_offset: operand_text_offset,
                 byte_width: 4,
-                symbol: symbol.to_owned(),
+                symbol: symbol.clone(),
                 symbol_handle,
                 kind: RelocationKind::Aarch64Page21,
             });
             relocation_plan.records.insert(RelocationRecord {
-                function_symbol: function.symbol.to_string(),
+                function_symbol: function.symbol.clone(),
                 selected_instruction_index,
                 text_offset: operand_text_offset + 4,
                 byte_width: 4,
-                symbol: symbol.to_owned(),
+                symbol: symbol.clone(),
                 symbol_handle,
                 kind: RelocationKind::Aarch64PageOffset12,
             });
         }
         Architecture::X86_64 => {
             relocation_plan.records.insert(RelocationRecord {
-                function_symbol: function.symbol.to_string(),
+                function_symbol: function.symbol.clone(),
                 selected_instruction_index,
                 text_offset: operand_text_offset,
                 byte_width: 8,
-                symbol: symbol.to_owned(),
+                symbol,
                 symbol_handle,
                 kind: RelocationKind::X86_64Absolute64,
             });

@@ -14,6 +14,7 @@ use omega_target_operations::{
     FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
     StateGuardOperator,
 };
+use std::sync::Arc;
 
 pub(super) fn collect_instruction_relocations(
     input: RelocationPlanningInput<'_>,
@@ -56,10 +57,10 @@ pub(super) fn collect_instruction_relocations(
             has_storage: true,
             ..
         } => {
-            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+            context.insert_data_address_at_instruction_start(Arc::from(storage_region_symbol_name(
                 *storage_region,
                 input.entry_machine_name,
-            ));
+            )));
         }
         SelectedInstructionKind::CompareRuntimeStorage {
             left_region,
@@ -68,60 +69,60 @@ pub(super) fn collect_instruction_relocations(
         } => {
             let left_symbol = storage_region_symbol_name(*left_region, input.entry_machine_name);
             let right_symbol = storage_region_symbol_name(*right_region, input.entry_machine_name);
-            context.insert_data_address_at_instruction_start(&left_symbol);
+            context.insert_data_address_at_instruction_start(Arc::from(left_symbol));
             context.insert_data_address_at_relative_offset(
                 runtime_storage_compare_right_address_offset(input.target.architecture),
-                &right_symbol,
+                Arc::from(right_symbol),
             );
         }
         SelectedInstructionKind::CompareRuntimeStorageValue { region, .. } => {
             let symbol = storage_region_symbol_name(*region, input.entry_machine_name);
-            context.insert_data_address_at_instruction_start(&symbol);
+            context.insert_data_address_at_instruction_start(Arc::from(symbol));
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
-            context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
+            context.insert_data_address_at_instruction_start(Arc::from(machine_storage_symbol_name(
                 input.entry_machine_name,
-            ));
+            )));
         }
         SelectedInstructionKind::WriteRuntimeStorageInteger { target_region, .. } => {
             let symbol = storage_region_symbol_name(*target_region, input.entry_machine_name);
-            context.insert_data_address_at_instruction_start(&symbol);
+            context.insert_data_address_at_instruction_start(Arc::from(symbol));
         }
         SelectedInstructionKind::WriteRuntimePointeeInteger { .. } => {
-            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+            context.insert_data_address_at_instruction_start(Arc::from(storage_region_symbol_name(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 input.entry_machine_name,
-            ));
+            )));
         }
         SelectedInstructionKind::WriteRuntimePointeeBinary { .. } => {
-            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+            context.insert_data_address_at_instruction_start(Arc::from(storage_region_symbol_name(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 input.entry_machine_name,
-            ));
+            )));
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. } => {
-            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+            context.insert_data_address_at_instruction_start(Arc::from(storage_region_symbol_name(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 input.entry_machine_name,
-            ));
+            )));
         }
         SelectedInstructionKind::WriteRuntimeMachineString { data, .. } => {
-            let data_symbol = &input.data.objects.get(*data).symbol;
+            let data_symbol = input.data.objects.get(*data).symbol.clone();
             context.insert_data_address_at_instruction_start(data_symbol);
             context.insert_data_address_at_relative_offset(
                 string_descriptor_machine_address_offset(input.target.architecture),
-                &machine_storage_symbol_name(input.entry_machine_name),
+                Arc::from(machine_storage_symbol_name(input.entry_machine_name)),
             );
         }
         SelectedInstructionKind::WriteRuntimePointeeString { data, .. } => {
-            let data_symbol = &input.data.objects.get(*data).symbol;
+            let data_symbol = input.data.objects.get(*data).symbol.clone();
             context.insert_data_address_at_instruction_start(data_symbol);
             context.insert_data_address_at_relative_offset(
                 string_descriptor_pointee_address_offset(input.target.architecture),
-                &storage_region_symbol_name(
+                Arc::from(storage_region_symbol_name(
                     omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     input.entry_machine_name,
-                ),
+                )),
             );
         }
         SelectedInstructionKind::CopyRuntimeStorage {
@@ -133,28 +134,28 @@ pub(super) fn collect_instruction_relocations(
                 storage_region_symbol_name(*source_region, input.entry_machine_name);
             let target_symbol =
                 storage_region_symbol_name(*target_region, input.entry_machine_name);
-            context.insert_data_address_at_instruction_start(&source_symbol);
+            context.insert_data_address_at_instruction_start(Arc::from(source_symbol));
             context.insert_data_address_at_relative_offset(
                 runtime_storage_copy_target_address_offset(input.target.architecture),
-                &target_symbol,
+                Arc::from(target_symbol),
             );
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. } => {
-            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+            context.insert_data_address_at_instruction_start(Arc::from(storage_region_symbol_name(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                 input.entry_machine_name,
-            ));
+            )));
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
             let source_symbol =
                 storage_region_symbol_name(*source_region, input.entry_machine_name);
-            context.insert_data_address_at_instruction_start(&source_symbol);
+            context.insert_data_address_at_instruction_start(Arc::from(source_symbol));
             context.insert_data_address_at_relative_offset(
                 runtime_storage_copy_target_address_offset(input.target.architecture),
-                &storage_region_symbol_name(
+                Arc::from(storage_region_symbol_name(
                     omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
                     input.entry_machine_name,
-                ),
+                )),
             );
         }
         _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),
