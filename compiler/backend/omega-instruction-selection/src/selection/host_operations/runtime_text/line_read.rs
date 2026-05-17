@@ -6,7 +6,6 @@ use omega_calling_conventions::{
     HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
 use omega_checked_trees::expression::{Expression, NamePath};
-use omega_checked_trees::name::ProgramName;
 use omega_platform_interface::HostCall;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
@@ -41,11 +40,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(data, data_object)| (data, data_object))?;
-    let text_suffix = ProgramName::generated("text");
-    let text_place = input
-        .runtime_text
-        .expressions
-        .to_tree_with_place_suffix(buffer.target, std::slice::from_ref(&text_suffix));
+    let text_place = input.runtime_text.expressions.to_tree(buffer.text_place);
     let source_machine = input
         .control_flow
         .state_machine_name_by_key_cloned(host_call.source_key);

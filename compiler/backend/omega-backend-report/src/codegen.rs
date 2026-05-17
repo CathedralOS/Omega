@@ -572,7 +572,9 @@ fn selected_instruction_name(
     }
 }
 
-fn runtime_text_read_source_name(source: &omega_target_operations::RuntimeTextReadSource) -> String {
+fn runtime_text_read_source_name(
+    source: &omega_target_operations::RuntimeTextReadSource,
+) -> String {
     match source {
         omega_target_operations::RuntimeTextReadSource::Import { symbol } => {
             format!("import {symbol}")

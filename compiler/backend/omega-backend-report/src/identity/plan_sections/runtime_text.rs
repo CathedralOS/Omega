@@ -21,6 +21,11 @@ pub(in crate::identity) fn count_runtime_text_strings(
             buffer.target,
             storage,
         );
+        count_control_flow_expression_strings(
+            &backend_plan.runtime_text.expressions,
+            buffer.text_place,
+            storage,
+        );
     }
     for (_, slot) in backend_plan.runtime_text.slots.iter() {
         count_control_flow_expression_strings(

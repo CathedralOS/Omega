@@ -19,9 +19,9 @@ pub(crate) fn build_runtime_text_slots(plan: &mut RuntimeTextPlan) -> Arena<Runt
     } = plan;
     let mut buffer_places = Arena::new();
     for (_, buffer) in buffers.iter() {
-        if let Some(place) = text_place_for_buffer_target(expressions, buffer.target) {
+        if buffer.text_place.is_valid() {
             buffer_places.insert(BufferPlace {
-                place,
+                place: buffer.text_place,
                 byte_capacity: buffer.byte_capacity,
             });
         }
@@ -117,7 +117,7 @@ fn text_place_has_input_buffer(
     })
 }
 
-fn text_place_for_buffer_target(
+pub(crate) fn text_place_for_buffer_target(
     expressions: &mut ExpressionTable,
     target: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
