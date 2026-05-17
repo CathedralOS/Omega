@@ -2,6 +2,7 @@ mod symbols;
 
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -547,22 +548,49 @@ fn validate_type_constraints_node(
 }
 
 fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let Some(main_machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "main")
+    let main_symbol =
+        child_symbol_by_name_and_kind(program, program.symbols.root(), "main", SymbolKind::Machine);
+    let Some(main_machine) = main_symbol
+        .is_valid()
+        .then(|| {
+            program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == main_symbol)
+        })
+        .flatten()
     else {
         diagnostics.push(Diagnostic::error("missing machine main"));
         return;
     };
 
-    if !program
-        .machine_states(main_machine)
-        .iter()
-        .any(|state| state.name.as_str() == "entry")
+    let entry_symbol =
+        child_symbol_by_name_and_kind(program, main_symbol, "entry", SymbolKind::State);
+    if !entry_symbol.is_valid()
+        || !program
+            .machine_states(main_machine)
+            .iter()
+            .any(|state| state.symbol == entry_symbol)
     {
         diagnostics.push(Diagnostic::error("machine main is missing state entry"));
     }
+}
+
+fn child_symbol_by_name_and_kind(
+    program: &TypedTrees,
+    parent: SymbolHandle,
+    name: &str,
+    kind: SymbolKind,
+) -> SymbolHandle {
+    let Some(mut children) = program.symbols.child_handles(parent) else {
+        return SymbolHandle::invalid();
+    };
+
+    children
+        .find(|child| {
+            program.symbols.name(*child) == name && program.symbols.get(*child).kind == kind
+        })
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 #[cfg(test)]
