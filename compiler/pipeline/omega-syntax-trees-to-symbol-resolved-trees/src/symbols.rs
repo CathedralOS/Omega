@@ -107,17 +107,11 @@ fn insert_builtin_type_symbol_children(
     let SymbolNameRef::Static(name) = builtin_type.1 else {
         return;
     };
-    let Some(builtin_type) = builtin_type_by_name(name) else {
+    let Some(builtin_type) = BuiltinType::from_name(name) else {
         return;
     };
 
     builder.insert_children(builtin_symbol, builtin_type_member_symbols(builtin_type));
-}
-
-fn builtin_type_by_name(name: &str) -> Option<BuiltinType> {
-    [BuiltinType::UInt, BuiltinType::Int, BuiltinType::Real]
-        .into_iter()
-        .find(|builtin_type| builtin_type.name() == name)
 }
 
 fn insert_data_symbol_children(
