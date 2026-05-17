@@ -97,7 +97,7 @@ fn collect_call_host_lowering(
         plan.unsupported_calls.insert(UnsupportedHostCall {
             source_key: state_key(machine, state),
             statement_index,
-            platform_call: platform_call.clone(),
+            platform_call,
             reason: format!("no native lowering for target {target:?}"),
         });
         return Ok(());
