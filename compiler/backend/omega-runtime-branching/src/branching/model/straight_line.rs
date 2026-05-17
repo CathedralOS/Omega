@@ -86,9 +86,7 @@ impl Default for RuntimeStraightLineBranchOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum RuntimeStraightLineBranchOperationKind {
-    HostCall {
-        platform_call: String,
-    },
+    HostCall,
     Mutation {
         mutation_kind: StateMutationKind,
         lowering: StateMutationLowering,

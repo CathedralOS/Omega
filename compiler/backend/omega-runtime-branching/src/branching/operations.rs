@@ -102,10 +102,8 @@ fn prelude_operation_kind(
     statement_index: usize,
     operation_kind: &OperationKind,
 ) -> RuntimeBranchPreludeOperationKind {
-    if let Some(host_call) = host_call_for_statement(context, source_key, statement_index) {
-        return RuntimeBranchPreludeOperationKind::HostCall {
-            platform_call: host_call.platform_call.clone(),
-        };
+    if host_call_for_statement(context, source_key, statement_index).is_some() {
+        return RuntimeBranchPreludeOperationKind::HostCall;
     }
 
     if let Some(mutation) = mutation_for_statement(context, source_key, statement_index) {
@@ -139,10 +137,8 @@ fn leaf_operation_kind(
     source_key: StateKey,
     statement_index: usize,
 ) -> RuntimeLeafBranchOperationKind {
-    if let Some(host_call) = host_call_for_statement(context, source_key, statement_index) {
-        return RuntimeLeafBranchOperationKind::HostCall {
-            platform_call: host_call.platform_call.clone(),
-        };
+    if host_call_for_statement(context, source_key, statement_index).is_some() {
+        return RuntimeLeafBranchOperationKind::HostCall;
     }
 
     if let Some(mutation) = mutation_for_statement(context, source_key, statement_index) {
@@ -164,10 +160,8 @@ fn straight_line_operation_kind(
     statement_index: usize,
     operation_kind: &OperationKind,
 ) -> RuntimeStraightLineBranchOperationKind {
-    if let Some(host_call) = host_call_for_statement(context, source_key, statement_index) {
-        return RuntimeStraightLineBranchOperationKind::HostCall {
-            platform_call: host_call.platform_call.clone(),
-        };
+    if host_call_for_statement(context, source_key, statement_index).is_some() {
+        return RuntimeStraightLineBranchOperationKind::HostCall;
     }
 
     if let Some(mutation) = mutation_for_statement(context, source_key, statement_index) {

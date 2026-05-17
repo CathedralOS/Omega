@@ -32,9 +32,7 @@ pub(in crate::identity) fn count_runtime_branching_strings(
     }
     for (_, operation) in backend_plan.runtime_branching_calls.leaf_operations.iter() {
         match &operation.kind {
-            RuntimeLeafBranchOperationKind::HostCall { platform_call } => {
-                storage.count_identity(platform_call)
-            }
+            RuntimeLeafBranchOperationKind::HostCall => {}
             RuntimeLeafBranchOperationKind::Mutation { target, value, .. } => {
                 count_control_flow_expression_strings(
                     &backend_plan.runtime_branching_calls.expressions,
@@ -76,9 +74,7 @@ pub(in crate::identity) fn count_runtime_branching_strings(
         .iter()
     {
         match &operation.kind {
-            RuntimeStraightLineBranchOperationKind::HostCall { platform_call } => {
-                storage.count_identity(platform_call)
-            }
+            RuntimeStraightLineBranchOperationKind::HostCall => {}
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
                 count_control_flow_expression_strings(
                     &backend_plan.runtime_branching_calls.expressions,
