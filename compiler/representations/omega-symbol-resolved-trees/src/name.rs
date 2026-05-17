@@ -1,5 +1,6 @@
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use omega_core::source::SourceSpan;
 
@@ -19,20 +20,20 @@ enum DiagnosticNameText {
     #[default]
     Missing,
     Static(&'static str),
-    Generated(String),
+    Generated(Arc<str>),
 }
 
 impl DiagnosticName {
     pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
-            text: DiagnosticNameText::Generated(text.into()),
+            text: DiagnosticNameText::Generated(Arc::from(text.into().into_boxed_str())),
             source_span,
         }
     }
 
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
-            text: DiagnosticNameText::Generated(text.into()),
+            text: DiagnosticNameText::Generated(Arc::from(text.into().into_boxed_str())),
             source_span: SourceSpan::default(),
         }
     }
@@ -48,7 +49,7 @@ impl DiagnosticName {
         match &self.text {
             DiagnosticNameText::Missing => "",
             DiagnosticNameText::Static(text) => text,
-            DiagnosticNameText::Generated(text) => text.as_str(),
+            DiagnosticNameText::Generated(text) => text.as_ref(),
         }
     }
 
