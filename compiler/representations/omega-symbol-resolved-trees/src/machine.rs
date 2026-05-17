@@ -47,7 +47,7 @@ pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
-    pub initial_value: Option<ExpressionHandle>,
+    pub initial_value: ExpressionHandle,
 }
 
 impl Default for OwnedData {
@@ -56,7 +56,7 @@ impl Default for OwnedData {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::default(),
             type_reference: TypeReference::Unit,
-            initial_value: None,
+            initial_value: ExpressionHandle::invalid(),
         }
     }
 }

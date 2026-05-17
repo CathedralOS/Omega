@@ -602,8 +602,9 @@ fn resolve_state_call_target(
             });
         }
 
-        if let Some(type_symbol) =
-            source_state_parameter_machine_symbol(control_flow, source_key, receiver_symbol)
+        let type_symbol =
+            source_state_parameter_machine_symbol(control_flow, source_key, receiver_symbol);
+        if type_symbol.is_valid()
             && let Some(target_machine) = control_flow.machine_by_symbol(type_symbol)
         {
             return resolve_state_key_in_machine(
@@ -685,26 +686,30 @@ fn receiver_can_dispatch_to_machine(
         return true;
     }
 
+    let type_symbol =
+        source_state_parameter_machine_symbol(control_flow, source_key, receiver_symbol);
     control_flow.machine_by_symbol(receiver_symbol).is_some()
-        || source_state_parameter_machine_symbol(control_flow, source_key, receiver_symbol)
-            .and_then(|type_symbol| control_flow.machine_by_symbol(type_symbol))
-            .is_some()
+        || (type_symbol.is_valid() && control_flow.machine_by_symbol(type_symbol).is_some())
 }
 
 fn source_state_parameter_machine_symbol(
     control_flow: &ControlFlowPlan,
     source_key: StateKey,
     receiver_symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let state = control_flow
+) -> SymbolHandle {
+    let Some(state) = control_flow
         .states
         .iter()
-        .find_map(|(_, state)| (state.key == source_key).then_some(state))?;
+        .find_map(|(_, state)| (state.key == source_key).then_some(state))
+    else {
+        return SymbolHandle::invalid();
+    };
     control_flow
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == receiver_symbol)
         .map(|parameter| parameter.type_symbol)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 #[cfg(test)]

@@ -34,11 +34,15 @@ pub(super) fn plan_transition(
                 .is_valid()
                 .then(|| table_transition_target_value(table.continuation, program, state_graph))
                 .unwrap_or_else(ExpressionHandle::invalid);
-            let guard_expression = table_transition_guard_expression(*table).map(|guard| {
-                state_graph
-                    .expressions
-                    .copy_from(&program.expression_table, guard)
-            });
+            let guard_expression = table_transition_guard_expression(*table);
+            let guard_expression = guard_expression
+                .is_valid()
+                .then(|| {
+                    state_graph
+                        .expressions
+                        .copy_from(&program.expression_table, guard_expression)
+                })
+                .unwrap_or_else(ExpressionHandle::invalid);
 
             Ok(TransitionEdge {
                 target: plan_transition_target(source_key, state_indexes, table.target, program)?,
@@ -59,7 +63,7 @@ pub(super) fn plan_transition(
                     target_value,
                     continuation_arguments,
                     continuation_value,
-                    guard: guard_expression.unwrap_or_else(ExpressionHandle::invalid),
+                    guard: guard_expression,
                 },
             })
         }

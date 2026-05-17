@@ -106,8 +106,8 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                 expression_table,
                 &mut counts,
             );
-            if let Some(initial_value) = owned_data.initial_value {
-                count_expression_handle(expression_table, initial_value, &mut counts);
+            if owned_data.initial_value.is_valid() {
+                count_expression_handle(expression_table, owned_data.initial_value, &mut counts);
             }
         }
         for state in program

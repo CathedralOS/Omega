@@ -120,16 +120,16 @@ fn text_place_has_input_buffer(
 pub(crate) fn text_place_for_buffer_target(
     expressions: &mut ExpressionTable,
     target: ExpressionHandle,
-) -> Option<ExpressionHandle> {
+) -> ExpressionHandle {
     match *expressions.expression(target) {
-        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => Some(
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
             expressions.insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: target,
                 member_symbol: SymbolHandle::invalid(),
                 member: ProgramName::generated("text"),
-            })),
-        ),
+            }))
+        }
         ExpressionNode::Mutable(inner) => text_place_for_buffer_target(expressions, inner),
-        _ => None,
+        _ => ExpressionHandle::invalid(),
     }
 }

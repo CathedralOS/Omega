@@ -391,7 +391,8 @@ fn owned_data_snapshot(program: &SymbolResolvedTrees, owned: &OwnedData) -> Owne
         type_reference: type_reference_snapshot(program, &owned.type_reference),
         initial_value: owned
             .initial_value
-            .map(|expression| table_expression_snapshot(program, expression)),
+            .is_valid()
+            .then(|| table_expression_snapshot(program, owned.initial_value)),
     }
 }
 
@@ -491,7 +492,8 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
             type_reference: type_reference_snapshot(program, &local_data.type_reference),
             initial_value: local_data
                 .initial_value
-                .map(|expression| statement_expression_snapshot(program, expression)),
+                .is_valid()
+                .then(|| statement_expression_snapshot(program, local_data.initial_value)),
         },
         Statement::Transition(transition) => transition_snapshot(program, transition),
     }
