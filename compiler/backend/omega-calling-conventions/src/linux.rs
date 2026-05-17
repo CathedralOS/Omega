@@ -72,11 +72,11 @@ fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding 
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Syscall {
-            name: operation.to_owned(),
+            name: operation.into(),
             number,
             number_register: 8,
             supervisor_call: 0,
         },
-        trust_policy: "omega::host::targets::linux".to_owned(),
+        trust_policy: "omega::host::targets::linux".into(),
     }
 }

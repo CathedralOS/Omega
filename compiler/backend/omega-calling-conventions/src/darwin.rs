@@ -48,9 +48,9 @@ fn darwin_import(capability: &str, operation: &str, symbol: &str) -> HostBinding
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
-            library: "libSystem.B.dylib".to_owned(),
-            symbol: symbol.to_owned(),
+            library: "libSystem.B.dylib".into(),
+            symbol: symbol.into(),
         },
-        trust_policy: "omega::host::targets::darwin".to_owned(),
+        trust_policy: "omega::host::targets::darwin".into(),
     }
 }

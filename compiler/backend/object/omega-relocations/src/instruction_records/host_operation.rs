@@ -39,8 +39,8 @@ pub(super) fn collect_host_operation_relocation(
                 .unwrap_or(&[]),
         ),
         byte_width: external_call_relocation_width(context.input.target.architecture),
-        symbol: symbol.clone(),
-        symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol),
+        symbol: symbol.to_string(),
+        symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
         kind: external_call_relocation_kind(context.input.target.architecture),
     });
 }

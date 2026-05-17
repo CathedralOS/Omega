@@ -239,8 +239,8 @@ pub(super) fn collect_runtime_text_relocations(
                         context.selected_text_offset,
                     ),
                     byte_width: 4,
-                    symbol: symbol.clone(),
-                    symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol),
+                    symbol: symbol.to_string(),
+                    symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
                     kind: super::super::offsets::external_call_relocation_kind(
                         context.input.target.architecture,
                     ),

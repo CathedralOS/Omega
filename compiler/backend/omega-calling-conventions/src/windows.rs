@@ -59,9 +59,9 @@ fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
-            library: library.to_owned(),
-            symbol: symbol.to_owned(),
+            library: library.into(),
+            symbol: symbol.into(),
         },
-        trust_policy: "omega::host::targets::windows".to_owned(),
+        trust_policy: "omega::host::targets::windows".into(),
     }
 }
