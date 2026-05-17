@@ -202,10 +202,10 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
                 && is_runtime_text_segment_like(table, binary.left)
                 && is_runtime_text_segment_like(table, binary.right)
         }
-        ExpressionNode::Call(call) => call.target.as_str() == "to_string",
         ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -220,10 +220,10 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
             contains_runtime_text_anchor(table, binary.left)
                 || contains_runtime_text_anchor(table, binary.right)
         }
-        ExpressionNode::Call(call) => call.target.as_str() == "to_string",
         ExpressionNode::Mutable(inner) => contains_runtime_text_anchor(table, *inner),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Indexed(_)
