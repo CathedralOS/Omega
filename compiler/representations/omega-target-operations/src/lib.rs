@@ -1,7 +1,7 @@
 pub mod data;
 pub mod instruction;
 
-pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataPlan};
+pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,

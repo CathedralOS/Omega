@@ -19,6 +19,7 @@ impl Default for TargetDataPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetDataObject {
     pub symbol: String,
+    pub kind: TargetDataObjectKind,
     pub offset: usize,
     pub bytes: HandleSpan<u8>,
     pub alignment: usize,
@@ -28,10 +29,20 @@ pub struct TargetDataObject {
 
 pub type TargetDataObjectHandle = Handle<TargetDataObject>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TargetDataObjectKind {
+    StaticString,
+    RuntimeTextBuffer,
+    HostNewline,
+    #[default]
+    Other,
+}
+
 impl Default for TargetDataObject {
     fn default() -> Self {
         Self {
             symbol: String::new(),
+            kind: TargetDataObjectKind::Other,
             offset: 0,
             bytes: HandleSpan::empty(),
             alignment: 1,
