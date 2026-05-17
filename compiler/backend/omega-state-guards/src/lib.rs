@@ -44,7 +44,11 @@ pub fn build_state_guard_plan(
     runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
 ) -> StateGuardPlan {
-    let mut plan = StateGuardPlan::default();
+    let mut plan = StateGuardPlan {
+        guards: Arena::with_capacity(state_dispatch.edges.len()),
+        operands: Arena::with_capacity(state_dispatch.edges.len().saturating_mul(2)),
+        ..StateGuardPlan::default()
+    };
 
     for (_, state) in state_dispatch.states.iter() {
         let Some(machine) = machine_by_symbol(program, state.key.machine) else {
