@@ -10,7 +10,7 @@ use omega_checked_trees::platform::Platform;
 use omega_checked_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_target::NativeTarget;
 
 pub fn build_layout_plan(
@@ -286,7 +286,7 @@ impl<'program> LayoutBuilder<'program> {
                 base_name,
                 ..
             } => {
-                if let Some(layout) = builtin_named_layout(self.target, base_name) {
+                if let Some(layout) = self.builtin_type_layout(*base_symbol) {
                     return Ok(layout);
                 }
 
@@ -320,7 +320,7 @@ impl<'program> LayoutBuilder<'program> {
             return Ok(primitive_type_layout(self.target, primitive_type));
         }
 
-        if let Some(layout) = builtin_named_layout(self.target, name) {
+        if let Some(layout) = self.builtin_type_layout(symbol) {
             return Ok(layout);
         }
 
@@ -386,18 +386,22 @@ impl<'program> LayoutBuilder<'program> {
                 Diagnostic::error(format!("unknown machine symbol {}", symbol.arena_index()))
             })
     }
-}
 
-fn builtin_named_layout(target: NativeTarget, name: &str) -> Option<TypeLayout> {
-    match name {
-        "Uint" => Some(TypeLayout {
-            size: target.pointer_size,
-            alignment: target.pointer_alignment,
-        }),
-        "Real" => Some(TypeLayout {
-            size: 8,
-            alignment: 8,
-        }),
-        _ => None,
+    fn builtin_type_layout(&self, symbol: SymbolHandle) -> Option<TypeLayout> {
+        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Uint) {
+            return Some(TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            });
+        }
+
+        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Real) {
+            return Some(TypeLayout {
+                size: 8,
+                alignment: 8,
+            });
+        }
+
+        None
     }
 }

@@ -7,7 +7,7 @@ use crate::source::{SourceMap, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
 use super::{
-    BuiltinFunction, Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
+    BuiltinFunction, BuiltinType, Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
     SymbolNameStorageKind, SymbolPath,
 };
 
@@ -170,6 +170,12 @@ impl SymbolTable {
         self.child_handles(self.root)?
             .nth(builtin_offset)
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinFunction)
+    }
+
+    pub fn builtin_type_symbol(&self, builtin_type: BuiltinType) -> Option<SymbolHandle> {
+        self.child_handles(self.root)?
+            .nth(builtin_type.ordinal())
+            .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType)
     }
 
     pub fn display_path(&self, symbol: SymbolHandle, separator: &str) -> String {

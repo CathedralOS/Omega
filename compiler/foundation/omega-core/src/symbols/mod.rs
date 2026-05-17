@@ -5,7 +5,7 @@ mod path;
 mod symbol;
 mod table;
 
-pub use builtin::{BuiltinFunction, builtin_function_symbols, builtin_type_symbols};
+pub use builtin::{BuiltinFunction, BuiltinType, builtin_function_symbols, builtin_type_symbols};
 pub use kind::SymbolKind;
 pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use path::SymbolPath;
