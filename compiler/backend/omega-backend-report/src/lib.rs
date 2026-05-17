@@ -786,7 +786,10 @@ pub fn backend_report_text(
                             runtime_transition_target_name(backend_plan, &edge.target),
                             edge.guard_lowering,
                             edge.action,
-                            transition_guard_name(&edge.guard)
+                            transition_guard_expression_name(
+                                &backend_plan.state_guards.expressions,
+                                edge.guard_has_expression.then_some(edge.guard_expression),
+                            )
                         ));
                         if edge.guard_has_storage {
                             output.push_str(&format!(
