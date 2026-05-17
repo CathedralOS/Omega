@@ -1157,6 +1157,13 @@ impl ExpressionTable {
             _ => None,
         }
     }
+
+    pub fn string_literal_value(&self, handle: ExpressionHandle) -> Option<Arc<str>> {
+        match self.expression(handle) {
+            ExpressionNode::String(value) => Some(value.clone()),
+            _ => None,
+        }
+    }
 }
 
 impl Default for ExpressionTable {

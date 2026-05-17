@@ -13,10 +13,11 @@ use omega_runtime_text::places::expression_place_eq_table_tree;
 use omega_target_operations::{
     RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle,
 };
+use std::sync::Arc;
 
 struct RuntimeTextLiteralGuard {
     buffer: TargetDataObjectHandle,
-    literal: String,
+    literal: Arc<str>,
 }
 
 #[derive(Clone, Copy)]
@@ -315,7 +316,7 @@ fn runtime_text_literal_guard(
     }
     Some(RuntimeTextLiteralGuard {
         buffer: buffer.buffer,
-        literal: literal.to_string(),
+        literal: literal.clone(),
     })
 }
 

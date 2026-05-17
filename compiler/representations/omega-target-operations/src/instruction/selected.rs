@@ -3,6 +3,7 @@ use crate::{StateGuardLowering, StateGuardOperator};
 use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstruction {
@@ -69,7 +70,7 @@ pub enum SelectedInstructionKind {
     },
     CompareRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
-        literal: String,
+        literal: Arc<str>,
     },
     CompareRuntimeTextStorage {
         buffer: TargetDataObjectHandle,
@@ -100,12 +101,12 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
-        literal: String,
+        literal: Arc<str>,
     },
     WriteRuntimeTextLiteralSegment {
         buffer: TargetDataObjectHandle,
         byte_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     AppendRuntimeTextStoredSuffix {
         buffer: TargetDataObjectHandle,
@@ -160,13 +161,13 @@ pub enum SelectedInstructionKind {
         buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     AppendRuntimeTextLiteralToRuntimePointee {
         buffer: TargetDataObjectHandle,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     AppendRuntimeTextLiteralToRuntimeFrameIndexed {
         buffer: TargetDataObjectHandle,
@@ -174,7 +175,7 @@ pub enum SelectedInstructionKind {
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
-        literal: String,
+        literal: Arc<str>,
     },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
