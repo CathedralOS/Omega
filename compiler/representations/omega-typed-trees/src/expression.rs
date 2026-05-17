@@ -3,6 +3,7 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
@@ -1198,8 +1199,8 @@ impl Default for Expression {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePath {
-    members: Vec<ProgramName>,
-    member_symbols: Vec<SymbolHandle>,
+    members: Arc<[ProgramName]>,
+    member_symbols: Arc<[SymbolHandle]>,
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
 }
@@ -1208,8 +1209,8 @@ impl NamePath {
     pub fn unresolved(members: Vec<ProgramName>) -> Self {
         let member_symbols = vec![SymbolHandle::invalid(); members.len()];
         Self {
-            members,
-            member_symbols,
+            members: Arc::from(members.into_boxed_slice()),
+            member_symbols: Arc::from(member_symbols.into_boxed_slice()),
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }
@@ -1232,8 +1233,8 @@ impl NamePath {
             *last_symbol = symbol;
         }
         Self {
-            members,
-            member_symbols,
+            members: Arc::from(members.into_boxed_slice()),
+            member_symbols: Arc::from(member_symbols.into_boxed_slice()),
             head_symbol,
             symbol,
         }
@@ -1255,8 +1256,8 @@ impl NamePath {
             *last_symbol = symbol;
         }
         Self {
-            members,
-            member_symbols,
+            members: Arc::from(members.into_boxed_slice()),
+            member_symbols: Arc::from(member_symbols.into_boxed_slice()),
             head_symbol,
             symbol,
         }
@@ -1303,36 +1304,48 @@ impl NamePath {
 
     pub fn last_mut(&mut self) -> Option<&mut ProgramName> {
         self.symbol = SymbolHandle::invalid();
-        if let Some(last_symbol) = self.member_symbols.last_mut() {
+        if let Some(last_symbol) = Arc::make_mut(&mut self.member_symbols).last_mut() {
             *last_symbol = SymbolHandle::invalid();
         }
-        self.members.last_mut()
+        Arc::make_mut(&mut self.members).last_mut()
     }
 
     pub fn replace_last_preserving_symbol(&mut self, member: ProgramName) -> Option<()> {
-        let last = self.members.last_mut()?;
+        let last = Arc::make_mut(&mut self.members).last_mut()?;
         *last = member;
         Some(())
     }
 
     pub fn push(&mut self, member: ProgramName) {
-        self.members.push(member);
-        self.member_symbols.push(SymbolHandle::invalid());
+        let mut members = self.members.iter().cloned().collect::<Vec<_>>();
+        members.push(member);
+        self.members = Arc::from(members.into_boxed_slice());
+
+        let mut member_symbols = self.member_symbols.iter().copied().collect::<Vec<_>>();
+        member_symbols.push(SymbolHandle::invalid());
+        self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
         self.symbol = SymbolHandle::invalid();
     }
 
     pub fn push_resolved(&mut self, member: ProgramName, symbol: SymbolHandle) {
-        self.members.push(member);
-        self.member_symbols.push(symbol);
+        let mut members = self.members.iter().cloned().collect::<Vec<_>>();
+        members.push(member);
+        self.members = Arc::from(members.into_boxed_slice());
+
+        let mut member_symbols = self.member_symbols.iter().copied().collect::<Vec<_>>();
+        member_symbols.push(symbol);
+        self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
         self.symbol = symbol;
     }
 
     pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
-        let mut path = std::mem::take(&mut self.members);
+        let mut path = self.members.iter().cloned().collect::<Vec<_>>();
         path.extend_from_slice(members);
-        self.member_symbols
-            .extend(std::iter::repeat_with(SymbolHandle::invalid).take(members.len()));
-        self.members = path;
+        self.members = Arc::from(path.into_boxed_slice());
+
+        let mut member_symbols = self.member_symbols.iter().copied().collect::<Vec<_>>();
+        member_symbols.extend(std::iter::repeat_with(SymbolHandle::invalid).take(members.len()));
+        self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
         self.symbol = SymbolHandle::invalid();
     }
 
@@ -1347,10 +1360,10 @@ impl NamePath {
     pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
         self.head_symbol = head_symbol;
         self.symbol = symbol;
-        if let Some(first_symbol) = self.member_symbols.first_mut() {
+        if let Some(first_symbol) = Arc::make_mut(&mut self.member_symbols).first_mut() {
             *first_symbol = head_symbol;
         }
-        if let Some(last_symbol) = self.member_symbols.last_mut() {
+        if let Some(last_symbol) = Arc::make_mut(&mut self.member_symbols).last_mut() {
             *last_symbol = symbol;
         }
         self
