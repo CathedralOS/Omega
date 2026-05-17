@@ -3,8 +3,8 @@ use std::sync::Arc;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceMap;
 use omega_core::symbols::{
-    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
-    builtin_function_symbols, builtin_type_symbols,
+    BuiltinType, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    builtin_function_symbols, builtin_type_member_symbols, builtin_type_symbols,
 };
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
@@ -51,8 +51,10 @@ fn build_symbol_table(
         );
     let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
-    for _ in 0..builtin_type_symbols().len() {
-        let _ = root_children.next();
+    for builtin_type in builtin_type_symbols() {
+        if let Some(builtin_symbol) = root_children.next() {
+            insert_builtin_type_symbol_children(&mut builder, builtin_symbol, builtin_type);
+        }
     }
     for _ in 0..builtin_function_symbols().len() {
         let _ = root_children.next();
@@ -95,6 +97,27 @@ fn build_symbol_table(
     }
 
     builder.finish()
+}
+
+fn insert_builtin_type_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    builtin_symbol: SymbolHandle,
+    builtin_type: (SymbolKind, SymbolNameRef<'static>),
+) {
+    let SymbolNameRef::Static(name) = builtin_type.1 else {
+        return;
+    };
+    let Some(builtin_type) = builtin_type_by_name(name) else {
+        return;
+    };
+
+    builder.insert_children(builtin_symbol, builtin_type_member_symbols(builtin_type));
+}
+
+fn builtin_type_by_name(name: &str) -> Option<BuiltinType> {
+    [BuiltinType::UInt, BuiltinType::Int, BuiltinType::Real]
+        .into_iter()
+        .find(|builtin_type| builtin_type.name() == name)
 }
 
 fn insert_data_symbol_children(
@@ -1614,6 +1637,14 @@ fn resolve_call_target_symbol(
                 if direct.is_valid() {
                     return direct;
                 }
+            }
+            if matches!(receiver_kind, SymbolKind::BuiltinType) {
+                return child_symbol_by_kinds(
+                    symbols,
+                    receiver_symbol,
+                    &[SymbolKind::BuiltinFunction],
+                    target.as_str(),
+                );
             }
             if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Platform) {
                 return child_symbol_by_kinds(

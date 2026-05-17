@@ -103,3 +103,36 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         ),
     ]
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinTypeMember {
+    RealFrom,
+}
+
+impl BuiltinTypeMember {
+    pub fn owner(self) -> BuiltinType {
+        match self {
+            Self::RealFrom => BuiltinType::Real,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::RealFrom => "from",
+        }
+    }
+}
+
+pub fn builtin_type_member_symbols(
+    builtin_type: BuiltinType,
+) -> impl Iterator<Item = (SymbolKind, SymbolNameRef<'static>)> {
+    [BuiltinTypeMember::RealFrom]
+        .into_iter()
+        .filter(move |member| member.owner() == builtin_type)
+        .map(|member| {
+            (
+                SymbolKind::BuiltinFunction,
+                SymbolNameRef::Static(member.name()),
+            )
+        })
+}
