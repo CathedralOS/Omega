@@ -24,7 +24,7 @@ use omega_instruction_selection::{
 use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct LaidOutMachineInstruction {
     pub selected_instruction_index: u32,
     pub offset: usize,
@@ -49,7 +49,7 @@ pub(crate) fn layout_machine_instructions(
             selected_instruction_index: machine_instruction.selected_instruction_index,
             offset,
             byte_width,
-            kind: machine_instruction.kind.clone(),
+            kind: machine_instruction.kind,
         });
         offset += byte_width;
     }

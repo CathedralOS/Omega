@@ -37,7 +37,7 @@ impl Default for MachineFunction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MachineInstruction {
     pub selected_instruction_index: u32,
     pub kind: MachineInstructionKind,
@@ -52,7 +52,7 @@ impl Default for MachineInstruction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineInstructionKind {
     NoOp,
     DispatchLoopEnter,
