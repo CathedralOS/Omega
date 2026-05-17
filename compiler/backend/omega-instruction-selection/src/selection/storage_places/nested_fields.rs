@@ -3,23 +3,6 @@ use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::selection) struct FieldPathSegment {
-    pub(in crate::selection) name: ProgramName,
-    pub(in crate::selection) symbol: SymbolHandle,
-    pub(in crate::selection) index: Option<usize>,
-}
-
-impl FieldPathSegment {
-    pub(in crate::selection) fn new(name: ProgramName, symbol: SymbolHandle) -> Self {
-        Self {
-            name,
-            symbol,
-            index: None,
-        }
-    }
-}
-
 pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
