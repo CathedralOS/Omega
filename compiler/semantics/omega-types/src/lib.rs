@@ -5,9 +5,9 @@
 //! inside the compiler orchestration crate.
 
 use omega_core::arena::Arena;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{CapabilityMember, DataMember, Item};
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeSurfaceReport {
@@ -209,7 +209,13 @@ fn collect_state_signature(
     state: &omega_syntax_trees::item::StateSignature,
     owner: &str,
 ) {
-    collect_state_parts(report, syntax_trees, state.parameters, state.return_type, owner);
+    collect_state_parts(
+        report,
+        syntax_trees,
+        state.parameters,
+        state.return_type,
+        owner,
+    );
 }
 
 fn collect_state_parts(
@@ -256,7 +262,10 @@ fn collect_type_reference(
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_reference(report, syntax_trees, *referee, kind, owner);
         }
-        TypeReferenceNode::Constrained { base_type, constraints } => {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
             collect_type_reference(report, syntax_trees, *base_type, kind, owner);
             collect_constraints(report, syntax_trees, *constraints, owner);
         }
@@ -266,15 +275,21 @@ fn collect_type_reference(
         TypeReferenceNode::Slice { element_type } => {
             collect_type_reference(report, syntax_trees, *element_type, kind, owner);
         }
-        TypeReferenceNode::Generic { base_name, arguments } => {
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
             insert_reference(report, base_name.as_str(), kind, owner);
 
-            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(*arguments)
+            {
                 collect_type_reference(report, syntax_trees, *argument, kind, owner);
             }
         }
         TypeReferenceNode::Named(name) => insert_reference(report, name.as_str(), kind, owner),
-        TypeReferenceNode::Unit => {}
+        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -287,7 +302,12 @@ fn collect_constraints(
     for constraint in syntax_trees.type_references.constraints(constraints) {
         match constraint {
             TypeConstraintNode::Named(name) => {
-                insert_reference(report, name.as_str(), TypeReferenceUseKind::Constraint, owner);
+                insert_reference(
+                    report,
+                    name.as_str(),
+                    TypeReferenceUseKind::Constraint,
+                    owner,
+                );
             }
             TypeConstraintNode::Range { minimum, maximum } => {
                 insert_reference(
@@ -329,10 +349,10 @@ fn insert_reference(
 mod tests {
     use super::{TypeDeclarationKind, TypeReferenceUseKind, build_type_surface_report};
     use omega_core::arena::HandleSpan;
+    use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{Item, Machine, State, StateParameterNode};
     use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
-    use omega_syntax_trees::SyntaxTrees;
 
     #[test]
     fn collects_state_signatures_and_constraints() {
@@ -341,18 +361,24 @@ mod tests {
         let base_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("f32")));
-        let minimum = syntax_trees.expressions.insert(omega_syntax_trees::expression::ExpressionNode::Integer(0));
-        let maximum = syntax_trees.expressions.insert(omega_syntax_trees::expression::ExpressionNode::Integer(100000));
+        let minimum = syntax_trees
+            .expressions
+            .insert(omega_syntax_trees::expression::ExpressionNode::Integer(0));
+        let maximum = syntax_trees.expressions.insert(
+            omega_syntax_trees::expression::ExpressionNode::Integer(100000),
+        );
         let finite = syntax_trees
             .type_references
             .append_constraint(TypeConstraintNode::Named(Identifier::generated("finite")));
         let range = syntax_trees
             .type_references
             .append_constraint(TypeConstraintNode::Range { minimum, maximum });
-        let parameter_type = syntax_trees.type_references.insert(TypeReferenceNode::Constrained {
-            base_type,
-            constraints: HandleSpan::from_parts(finite, 2),
-        });
+        let parameter_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Constrained {
+                base_type,
+                constraints: HandleSpan::from_parts(finite, 2),
+            });
         let return_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
