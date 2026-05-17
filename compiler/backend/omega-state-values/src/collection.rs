@@ -3,7 +3,7 @@ use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{
     StatementNode, TransitionTargetHandle, TransitionTargetNode,
@@ -155,7 +155,9 @@ fn push_value(
     expression: ExpressionHandle,
     required: bool,
 ) {
-    let expression = if role == StateValueRole::AssignmentTarget {
+    let expression = if role == StateValueRole::AssignmentTarget
+        || expression_is_literal(&program.expression_table, expression)
+    {
         plan.expressions.copy_from(&program.expression_table, expression)
     } else {
         let simplified_expression = simplify_state_expression_for_role(
@@ -176,4 +178,17 @@ fn push_value(
         expression,
         required,
     });
+}
+
+fn expression_is_literal(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    matches!(
+        expressions.expression(expression),
+        ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::String(_)
+    )
 }
