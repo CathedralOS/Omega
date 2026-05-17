@@ -50,13 +50,12 @@ pub(super) fn split_state_segments(
 ) -> Vec<StateSegment> {
     let machine_symbol = machine.symbol;
     let state_symbol = state.symbol;
+    let table_statements = program.statement_table.statements(state.statement_nodes);
     let mut segments = Vec::new();
-    let mut operations = Arena::new();
-    let mut transitions = Arena::new();
+    let mut operations = Arena::with_capacity(table_statements.len());
+    let mut transitions = Arena::with_capacity(table_statements.len());
     let mut segment_index = 0usize;
     let mut transition_section_started = false;
-
-    let table_statements = program.statement_table.statements(state.statement_nodes);
 
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
         if let StatementNode::Transition(table) = table_statement {
@@ -89,8 +88,9 @@ pub(super) fn split_state_segments(
                 next_segment_name: None,
             });
 
-            operations = Arena::new();
-            transitions = Arena::new();
+            let remaining_statement_count = table_statements.len() - statement_index;
+            operations = Arena::with_capacity(remaining_statement_count);
+            transitions = Arena::with_capacity(remaining_statement_count);
             segment_index += 1;
             transition_section_started = false;
             continue;
@@ -115,8 +115,9 @@ pub(super) fn split_state_segments(
                 next_segment_name: None,
             });
 
-            operations = Arena::new();
-            transitions = Arena::new();
+            let remaining_statement_count = table_statements.len() - statement_index;
+            operations = Arena::with_capacity(remaining_statement_count);
+            transitions = Arena::with_capacity(remaining_statement_count);
             segment_index += 1;
             transition_section_started = false;
         }
@@ -160,7 +161,7 @@ fn branch_call_transitions(
     table: TableCall,
     has_continuation_segment: bool,
 ) -> Arena<SegmentTransition> {
-    let mut transitions = Arena::new();
+    let mut transitions = Arena::with_capacity(1);
     transitions.insert(SegmentTransition::BranchCall {
         table,
         has_continuation_segment,
