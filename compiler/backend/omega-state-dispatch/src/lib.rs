@@ -72,7 +72,7 @@ fn build_dispatch_state(
     context: &StateDispatchContext,
     dispatch_target: &context::StateDispatchTarget,
 ) -> CollectedDispatchState {
-    let mut edges = Arena::new();
+    let mut edges = Arena::with_capacity(dispatch_edge_capacity(context, dispatch_target));
 
     for edge in context
         .edges
@@ -150,6 +150,35 @@ fn append_terminal_continuation_edges(
             forms_cycle: false,
         });
     }
+}
+
+fn dispatch_edge_capacity(
+    context: &StateDispatchContext,
+    dispatch_target: &context::StateDispatchTarget,
+) -> usize {
+    let outgoing_count = context
+        .edges
+        .iter()
+        .map(|(_, edge)| edge)
+        .filter(|edge| edge.from == dispatch_target.key)
+        .count();
+    if outgoing_count > 0 {
+        return outgoing_count;
+    }
+
+    context
+        .edges
+        .iter()
+        .map(|(_, edge)| edge)
+        .filter(|edge| {
+            matches!(
+                edge.target,
+                RuntimeTransitionTarget::State { key, .. }
+                    if key.machine == dispatch_target.key.machine
+            )
+        })
+        .filter(|edge| matches!(edge.continuation, RuntimeTransitionTarget::State { .. }))
+        .count()
 }
 
 fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransitionTarget) -> u32 {
