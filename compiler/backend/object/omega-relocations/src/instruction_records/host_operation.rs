@@ -26,7 +26,7 @@ pub(super) fn collect_host_operation_relocation(
     };
 
     context.relocation_plan.records.insert(RelocationRecord {
-        function_symbol: context.function.symbol.to_string(),
+        function_symbol: context.function.symbol.clone(),
         selected_instruction_index: context.selected_instruction_index,
         text_offset: external_call_relocation_offset(
             context.input.target.architecture,
@@ -39,7 +39,7 @@ pub(super) fn collect_host_operation_relocation(
                 .unwrap_or(&[]),
         ),
         byte_width: external_call_relocation_width(context.input.target.architecture),
-        symbol: symbol.to_string(),
+        symbol: symbol.clone(),
         symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
         kind: external_call_relocation_kind(context.input.target.architecture),
     });

@@ -2,6 +2,7 @@ use super::super::data_addresses::insert_data_address_relocations;
 use crate::RelocationPlanningInput;
 use omega_object::RelocationPlan;
 use omega_target_operations::FunctionInstructionPlan;
+use std::sync::Arc;
 
 pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
     pub input: RelocationPlanningInput<'plan>,
@@ -12,7 +13,7 @@ pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
 }
 
 impl InstructionRelocationContext<'_, '_> {
-    pub(super) fn insert_data_address(&mut self, byte_offset: usize, symbol: &str) {
+    pub(super) fn insert_data_address(&mut self, byte_offset: usize, symbol: Arc<str>) {
         insert_data_address_relocations(
             self.input,
             self.relocation_plan,
@@ -23,14 +24,14 @@ impl InstructionRelocationContext<'_, '_> {
         );
     }
 
-    pub(super) fn insert_data_address_at_instruction_start(&mut self, symbol: &str) {
+    pub(super) fn insert_data_address_at_instruction_start(&mut self, symbol: Arc<str>) {
         self.insert_data_address(self.selected_text_offset, symbol);
     }
 
     pub(super) fn insert_data_address_at_relative_offset(
         &mut self,
         relative_offset: usize,
-        symbol: &str,
+        symbol: Arc<str>,
     ) {
         self.insert_data_address(self.selected_text_offset + relative_offset, symbol);
     }
