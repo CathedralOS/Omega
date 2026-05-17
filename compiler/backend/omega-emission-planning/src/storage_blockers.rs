@@ -6,10 +6,10 @@ use omega_runtime_text::places::expression_place_eq_across_tables;
 use omega_state_storage::StateMutationLowering;
 use omega_target_operations::SelectedInstructionKind;
 
-use super::semantic_scope::{invariant_suffix, proof_scope_suffix, state_name};
 use super::runtime_text_blockers::{
     runtime_text_write_for_statement, runtime_text_write_is_planned,
 };
+use super::semantic_scope::{invariant_suffix, proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_storage_blockers(
@@ -35,7 +35,10 @@ pub(super) fn collect_state_storage_blockers(
                 source_name,
                 local.statement_index,
                 local.name,
-                local.type_name,
+                input
+                    .state_storage
+                    .type_references
+                    .display_name(local.type_reference),
                 invariant_suffix(&input.state_storage.invariant_names, local.invariant_names),
                 proof_scope_suffix(input, local.source_key)
             ),
@@ -188,6 +191,5 @@ fn state_mutation_is_planned(
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
-    actual == expected
-        || (actual.machine == expected.machine && actual.state == expected.state)
+    actual == expected || (actual.machine == expected.machine && actual.state == expected.state)
 }
