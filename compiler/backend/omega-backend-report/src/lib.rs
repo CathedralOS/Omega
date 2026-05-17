@@ -8,7 +8,6 @@ mod stats;
 use omega_artifacts::BackendSurfaceReport;
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
@@ -895,7 +894,10 @@ pub fn backend_report_text(
                             runtime_transition_target_name(backend_plan, &edge.target),
                             edge.lowering,
                             edge.guard_kind,
-                            transition_guard_name(&edge.guard)
+                            transition_guard_expression_name(
+                                &backend_plan.runtime_branching_calls.expressions,
+                                edge.guard
+                            )
                         ));
 
                         let target_arguments = backend_plan
@@ -964,12 +966,18 @@ pub fn backend_report_text(
                 expansion.edge_order,
                 leaf_name,
                 expansion.guard_kind,
-                transition_guard_name(&expansion.guard)
+                transition_guard_expression_name(
+                    &backend_plan.runtime_branching_calls.expressions,
+                    expansion.guard
+                )
             ));
             if expansion.resolved_guard != expansion.guard {
                 output.push_str(&format!(
                     "  resolved guard: {}\n",
-                    transition_guard_name(&expansion.resolved_guard)
+                    transition_guard_expression_name(
+                        &backend_plan.runtime_branching_calls.expressions,
+                        expansion.resolved_guard
+                    )
                 ));
             }
 
@@ -1063,12 +1071,18 @@ pub fn backend_report_text(
                 expansion.edge_order,
                 target_name,
                 expansion.guard_kind,
-                transition_guard_name(&expansion.guard)
+                transition_guard_expression_name(
+                    &backend_plan.runtime_branching_calls.expressions,
+                    expansion.guard
+                )
             ));
             if expansion.resolved_guard != expansion.guard {
                 output.push_str(&format!(
                     "  resolved guard: {}\n",
-                    transition_guard_name(&expansion.resolved_guard)
+                    transition_guard_expression_name(
+                        &backend_plan.runtime_branching_calls.expressions,
+                        expansion.resolved_guard
+                    )
                 ));
             }
 
@@ -1269,13 +1283,6 @@ fn write_runtime_straight_line_branch_operation(
                 source_name, operation.statement_index
             ));
         }
-    }
-}
-
-fn transition_guard_name(guard: &TransitionGuard) -> String {
-    match guard {
-        TransitionGuard::Always => "always".to_owned(),
-        TransitionGuard::When(expression) => format!("when {}", expression.display_name()),
     }
 }
 

@@ -1,11 +1,10 @@
 use crate::RuntimeBranchingContext;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_state_calls::StateCallRole;
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_state_guards::classify_transition_guard;
+use omega_state_guards::classify_transition_guard_expression;
 
 use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
@@ -43,8 +42,6 @@ pub(super) fn build_branch_edges(
             .guard_for_dispatch(state_dispatch_index.unwrap_or_default(), order)
             .and_then(|guard| guard.has_expression.then_some(guard.expression))
             .map(|guard| expressions.copy_from(&context.state_guards.expressions, guard))
-            .map(|guard| expressions.to_tree(guard))
-            .map(TransitionGuard::When)
             .unwrap_or_else(|| {
                 transition
                     .expressions
@@ -56,8 +53,7 @@ pub(super) fn build_branch_edges(
                             transition.expressions.guard,
                         )
                     })
-                    .map(|guard| TransitionGuard::When(expressions.to_tree(guard)))
-                    .unwrap_or(TransitionGuard::Always)
+                    .unwrap_or_else(ExpressionHandle::invalid)
             });
         let target = runtime_transition_target(context, machine, state.key, &transition.target);
         let handle = output_edges.append(RuntimeBranchingCallEdge {
@@ -87,7 +83,7 @@ pub(super) fn build_branch_edges(
             } else {
                 ExpressionHandle::invalid()
             },
-            guard_kind: classify_transition_guard(&guard),
+            guard_kind: classify_transition_guard_expression(expressions, guard),
             guard,
         });
         if count == 0 {

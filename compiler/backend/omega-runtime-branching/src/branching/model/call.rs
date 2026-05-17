@@ -1,5 +1,4 @@
 use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_state_graph::RuntimeTransitionTarget;
@@ -35,7 +34,7 @@ pub struct RuntimeBranchingCallEdge {
     pub order: usize,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
-    pub guard: TransitionGuard,
+    pub guard: ExpressionHandle,
     pub target_arguments: HandleSpan<ExpressionHandle>,
     pub target_value: ExpressionHandle,
     pub guard_kind: StateGuardKind,
@@ -48,7 +47,7 @@ impl Default for RuntimeBranchingCallEdge {
             order: 0,
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
-            guard: TransitionGuard::Always,
+            guard: ExpressionHandle::invalid(),
             target_arguments: HandleSpan::empty(),
             target_value: ExpressionHandle::invalid(),
             guard_kind: StateGuardKind::Always,

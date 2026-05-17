@@ -1,27 +1,23 @@
 use crate::RuntimeBranchingContext;
 use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::TransitionGuard;
 use omega_state_calls::{StateCall, StateCallArgumentKind};
 
 mod expressions;
 mod model;
 
+pub(super) use expressions::resolve_branch_expression_handle;
 use expressions::resolve_runtime_branch_alias_expression_handle;
-pub(super) use expressions::{resolve_branch_expression, resolve_branch_expression_handle};
 pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias};
 
-pub(super) fn resolve_branch_guard(
-    guard: &TransitionGuard,
+pub(super) fn resolve_branch_guard_handle(
+    guard: omega_checked_trees::expression::ExpressionHandle,
     branch_bindings: &[BranchParameterBinding],
-    expression_table: &ExpressionTable,
-) -> TransitionGuard {
-    match guard {
-        TransitionGuard::Always => TransitionGuard::Always,
-        TransitionGuard::When(expression) => TransitionGuard::When(resolve_branch_expression(
-            expression,
-            branch_bindings,
-            expression_table,
-        )),
+    expression_table: &mut ExpressionTable,
+) -> omega_checked_trees::expression::ExpressionHandle {
+    if guard.is_valid() {
+        resolve_branch_expression_handle(guard, branch_bindings, expression_table)
+    } else {
+        omega_checked_trees::expression::ExpressionHandle::invalid()
     }
 }
 

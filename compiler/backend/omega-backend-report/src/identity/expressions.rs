@@ -1,9 +1,6 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::statement::TransitionGuard;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_core::arena::HandleSpan;
 
 pub(in crate::identity) fn count_expression_span_strings(
@@ -23,15 +20,6 @@ pub(in crate::identity) fn count_expression_span_strings(
                 storage,
             );
         }
-    }
-}
-
-pub(in crate::identity) fn count_guard_strings(
-    guard: &TransitionGuard,
-    storage: &mut BackendStringStorage,
-) {
-    if let TransitionGuard::When(expression) = guard {
-        count_expression_strings(expression, storage);
     }
 }
 
@@ -98,60 +86,5 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
         }
         ExpressionNode::String(value) => storage.count_payload(value),
         ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {}
-    }
-}
-
-pub(in crate::identity) fn count_expression_strings(
-    expression: &Expression,
-    storage: &mut BackendStringStorage,
-) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values.iter() {
-                count_expression_strings(value, storage);
-            }
-        }
-        Expression::Binary(binary) => {
-            count_expression_strings(&binary.left, storage);
-            count_expression_strings(&binary.right, storage);
-        }
-        Expression::Call(call) => {
-            if let Some(receiver) = &call.receiver {
-                count_expression_strings(receiver, storage);
-            }
-            for argument in call.arguments.iter() {
-                count_expression_strings(argument, storage);
-            }
-            storage.count_program_name_identity(&call.target);
-        }
-        Expression::Cast(cast) => {
-            count_expression_strings(&cast.value, storage);
-            for name in &cast.target_type {
-                storage.count_program_name_identity(name);
-            }
-        }
-        Expression::Indexed(indexed) => {
-            count_expression_strings(&indexed.collection, storage);
-            count_expression_strings(&indexed.index, storage);
-        }
-        Expression::Member(member) => {
-            count_expression_strings(&member.receiver, storage);
-            storage.count_program_name_identity(&member.member);
-        }
-        Expression::Mutable(expression) => count_expression_strings(expression, storage),
-        Expression::StructLiteral(struct_literal) => {
-            storage.count_program_name_identity(&struct_literal.type_name);
-            for field in struct_literal.fields.iter() {
-                storage.count_program_name_identity(&field.name);
-                count_expression_strings(&field.value, storage);
-            }
-        }
-        Expression::Name(path) => {
-            for name in path {
-                storage.count_program_name_identity(name);
-            }
-        }
-        Expression::String(value) => storage.count_payload(value),
-        Expression::Boolean(_) | Expression::Float(_) | Expression::Integer(_) => {}
     }
 }
