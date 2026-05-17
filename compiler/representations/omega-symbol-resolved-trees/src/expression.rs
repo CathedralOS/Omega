@@ -4,6 +4,7 @@ use omega_core::source::SourceText;
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
@@ -1053,7 +1054,7 @@ pub struct NamePath {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePathStorage {
-    members: Box<[DiagnosticName]>,
+    members: Arc<[DiagnosticName]>,
 }
 
 impl NamePath {
@@ -1063,7 +1064,9 @@ impl NamePath {
 
     fn unresolved_from_boxed_slice(members: Box<[DiagnosticName]>) -> Self {
         Self {
-            storage: NamePathStorage { members },
+            storage: NamePathStorage {
+                members: Arc::from(members),
+            },
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }
@@ -1083,7 +1086,9 @@ impl NamePath {
         symbol: SymbolHandle,
     ) -> Self {
         Self {
-            storage: NamePathStorage { members },
+            storage: NamePathStorage {
+                members: Arc::from(members),
+            },
             head_symbol,
             symbol,
         }
@@ -1098,9 +1103,9 @@ impl NamePath {
     }
 
     pub fn extend_from_iter(&mut self, members: impl IntoIterator<Item = DiagnosticName>) {
-        let mut owned_members = std::mem::take(&mut self.storage.members).into_vec();
+        let mut owned_members = self.storage.members.iter().cloned().collect::<Vec<_>>();
         owned_members.extend(members);
-        self.storage.members = owned_members.into_boxed_slice();
+        self.storage.members = Arc::from(owned_members.into_boxed_slice());
         self.symbol = SymbolHandle::invalid();
     }
 
@@ -1122,7 +1127,7 @@ impl NamePath {
 
     pub fn last_mut(&mut self) -> Option<&mut DiagnosticName> {
         self.symbol = SymbolHandle::invalid();
-        self.storage.members.last_mut()
+        Arc::make_mut(&mut self.storage.members).last_mut()
     }
 
     pub fn head_symbol(&self) -> SymbolHandle {
