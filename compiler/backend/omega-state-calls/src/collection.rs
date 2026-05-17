@@ -61,7 +61,7 @@ pub(crate) fn collect_machine_state_calls(
                     state.key,
                     *receiver_symbol,
                     *target_symbol,
-                    receiver.as_ref().map(|receiver| receiver.members()),
+                    receiver.is_some(),
                     target,
                 );
 
@@ -336,16 +336,14 @@ fn collect_expression_state_calls_in_table(
             );
         }
         ExpressionNode::Call(call) => {
-            let (receiver_symbol, receiver_path) =
-                call_receiver_parts(&context.control_flow.expressions, call.receiver);
-            let receiver_members = receiver_path.as_ref().map(ReceiverPath::members);
+            let receiver = call_receiver_parts(&context.control_flow.expressions, call.receiver);
             let resolved_target = resolve_state_call_target(
                 &context.control_flow,
                 machine,
                 source_key,
-                receiver_symbol,
+                receiver.symbol,
                 call.target_symbol,
-                receiver_members,
+                receiver.is_present,
                 &call.target,
             );
             let is_machine_call = resolved_target.is_some()
@@ -353,8 +351,8 @@ fn collect_expression_state_calls_in_table(
                     &context.control_flow,
                     machine,
                     source_key,
-                    receiver_symbol,
-                    receiver_members,
+                    receiver.symbol,
+                    receiver.is_present,
                 );
             if !is_machine_call {
                 if call.receiver.is_valid() {
@@ -392,10 +390,9 @@ fn collect_expression_state_calls_in_table(
                 statement_index,
                 call_ordinal: *call_ordinal,
                 role,
-                receiver_symbol,
-                receiver: receiver_path
-                    .as_ref()
-                    .and_then(|receiver| receiver.members().last().cloned())
+                receiver_symbol: receiver.symbol,
+                receiver: receiver
+                    .last_member
                     .unwrap_or_else(|| ProgramName::generated("self")),
                 target_key: resolved_target
                     .as_ref()
@@ -517,59 +514,34 @@ fn collect_expression_state_calls_in_table(
     }
 }
 
-fn call_receiver_parts(
-    expressions: &ExpressionTable,
-    receiver: ExpressionHandle,
-) -> (SymbolHandle, Option<ReceiverPath<'_>>) {
+fn call_receiver_parts(expressions: &ExpressionTable, receiver: ExpressionHandle) -> ReceiverParts {
     if !receiver.is_valid() {
-        return (SymbolHandle::invalid(), None);
+        return ReceiverParts::default();
     }
 
     match expressions.expression(receiver) {
         ExpressionNode::Mutable(inner) => call_receiver_parts(expressions, *inner),
-        ExpressionNode::Name(path) => (
-            path.symbol,
-            Some(ReceiverPath::borrowed(
-                expressions.name_path_members(path.members),
-            )),
-        ),
+        ExpressionNode::Name(path) => ReceiverParts {
+            symbol: path.symbol,
+            last_member: expressions.name_path_members(path.members).last().cloned(),
+            is_present: true,
+        },
         ExpressionNode::Member(member) => {
-            let (_, path) = call_receiver_parts(expressions, member.receiver);
-            let mut members = path.map(ReceiverPath::into_owned).unwrap_or_default();
-            members.push(member.member.clone());
-            (member.member_symbol, Some(ReceiverPath::owned(members)))
+            let mut receiver = call_receiver_parts(expressions, member.receiver);
+            receiver.symbol = member.member_symbol;
+            receiver.last_member = Some(member.member.clone());
+            receiver.is_present = true;
+            receiver
         }
-        _ => (SymbolHandle::invalid(), None),
+        _ => ReceiverParts::default(),
     }
 }
 
-enum ReceiverPath<'table> {
-    Borrowed(&'table [ProgramName]),
-    Owned(Vec<ProgramName>),
-}
-
-impl<'table> ReceiverPath<'table> {
-    fn borrowed(members: &'table [ProgramName]) -> Self {
-        Self::Borrowed(members)
-    }
-
-    fn owned(members: Vec<ProgramName>) -> Self {
-        Self::Owned(members)
-    }
-
-    fn members(&self) -> &[ProgramName] {
-        match self {
-            Self::Borrowed(members) => members,
-            Self::Owned(members) => members,
-        }
-    }
-
-    fn into_owned(self) -> Vec<ProgramName> {
-        match self {
-            Self::Borrowed(members) => members.to_vec(),
-            Self::Owned(members) => members,
-        }
-    }
+#[derive(Debug, Clone, Default)]
+struct ReceiverParts {
+    symbol: SymbolHandle,
+    last_member: Option<ProgramName>,
+    is_present: bool,
 }
 
 struct ResolvedStateCall {
@@ -583,10 +555,10 @@ fn resolve_state_call_target(
     source_key: StateKey,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-    receiver: Option<&[ProgramName]>,
+    has_receiver: bool,
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
-    if receiver.is_none() || receiver_symbol == machine.symbol {
+    if !has_receiver || receiver_symbol == machine.symbol {
         return resolve_state_key_in_machine(
             control_flow,
             machine.symbol,
@@ -662,7 +634,9 @@ fn resolve_state_call_target(
         return None;
     }
 
-    let _ = receiver?;
+    if !has_receiver {
+        return None;
+    }
     let _ = target_state;
     None
 }
@@ -693,9 +667,9 @@ fn receiver_can_dispatch_to_machine(
     machine: &MachineFlow,
     source_key: StateKey,
     receiver_symbol: SymbolHandle,
-    receiver: Option<&[ProgramName]>,
+    has_receiver: bool,
 ) -> bool {
-    if receiver.is_none() || receiver_symbol == machine.symbol {
+    if !has_receiver || receiver_symbol == machine.symbol {
         return false;
     }
 
