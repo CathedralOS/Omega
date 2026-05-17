@@ -10,8 +10,8 @@ use shapes::lower_machine_instruction_kind;
 pub fn build_machine_program(instructions: &InstructionPlan) -> Result<MachineProgram, Diagnostic> {
     let mut machine_program = MachineProgram {
         target: instructions.target,
-        functions: Arena::new(),
-        instructions: Arena::new(),
+        functions: Arena::with_capacity(instructions.functions.len()),
+        instructions: Arena::with_capacity(instructions.instructions.len()),
     };
 
     for (_, function) in instructions.functions.iter() {
