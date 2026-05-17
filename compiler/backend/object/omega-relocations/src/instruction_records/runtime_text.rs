@@ -8,6 +8,7 @@ use super::super::offsets::{
     runtime_text_stored_suffix_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
+use omega_calling_conventions::HostBindingMechanism;
 use omega_object::{RelocationRecord, object_symbol_handle_by_name, storage_region_symbol_name};
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 use std::sync::Arc;
@@ -238,7 +239,15 @@ pub(super) fn collect_runtime_text_relocations(
                 ),
                 Arc::from(target_symbol),
             );
-            if let RuntimeTextReadSource::Import { symbol } = source {
+            if let RuntimeTextReadSource::Import { operation_key } = source {
+                let Some(binding) =
+                    super::super::lookups::find_host_binding(context.input, *operation_key)
+                else {
+                    return;
+                };
+                let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+                    return;
+                };
                 context.relocation_plan.records.insert(RelocationRecord {
                     function_symbol_handle: object_symbol_handle_by_name(
                         &context.input.object,

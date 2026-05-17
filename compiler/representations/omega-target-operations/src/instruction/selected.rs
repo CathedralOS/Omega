@@ -294,7 +294,7 @@ pub enum SelectedInstructionKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTextReadSource {
     Import {
-        symbol: Arc<str>,
+        operation_key: HostOperationKey,
     },
     Syscall {
         number: u32,
