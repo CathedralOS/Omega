@@ -273,6 +273,7 @@ fn collect_statement_borrow_calls(
                         argument_accesses,
                         &program.expression_table,
                         program.statement_table.expression_handles(call.arguments),
+                        machine.symbol,
                     ),
                 );
                 *call_ordinal += 1;
@@ -514,6 +515,7 @@ fn collect_expression_borrow_calls(
                         argument_accesses,
                         &program.expression_table,
                         program.expression_table.expression_handles(call.arguments),
+                        machine.symbol,
                     ),
                 );
                 *call_ordinal += 1;
@@ -852,11 +854,18 @@ fn collect_call_argument_accesses(
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     expressions: &omega_typed_trees::expression::ExpressionTable,
     arguments: &[ExpressionHandle],
+    machine_symbol: SymbolHandle,
 ) -> omega_core::arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = omega_core::arena::HandleSpan::empty();
 
     for argument in arguments {
-        collect_argument_accesses(*argument, expressions, argument_accesses, &mut accesses);
+        collect_argument_accesses(
+            *argument,
+            expressions,
+            argument_accesses,
+            &mut accesses,
+            machine_symbol,
+        );
     }
 
     accesses
@@ -867,10 +876,13 @@ fn collect_argument_accesses(
     expressions: &omega_typed_trees::expression::ExpressionTable,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+    machine_symbol: SymbolHandle,
 ) {
     match expressions.expression(expression) {
         ExpressionNode::Mutable(inner_expression) => {
-            if let Some(root_name) = expression_root_name(*inner_expression, expressions) {
+            if let Some(root_name) =
+                expression_root_name(*inner_expression, expressions, machine_symbol)
+            {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -880,7 +892,13 @@ fn collect_argument_accesses(
                 );
             }
         }
-        _ => collect_read_accesses(expression, expressions, argument_accesses, accesses),
+        _ => collect_read_accesses(
+            expression,
+            expressions,
+            argument_accesses,
+            accesses,
+            machine_symbol,
+        ),
     }
 }
 
@@ -889,31 +907,68 @@ fn collect_read_accesses(
     expressions: &omega_typed_trees::expression::ExpressionTable,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+    machine_symbol: SymbolHandle,
 ) {
     match expressions.expression(expression) {
         ExpressionNode::ArrayLiteral(values) => {
             for value in expressions.expression_handles(*values) {
-                collect_read_accesses(*value, expressions, argument_accesses, accesses);
+                collect_read_accesses(
+                    *value,
+                    expressions,
+                    argument_accesses,
+                    accesses,
+                    machine_symbol,
+                );
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_read_accesses(binary.left, expressions, argument_accesses, accesses);
-            collect_read_accesses(binary.right, expressions, argument_accesses, accesses);
+            collect_read_accesses(
+                binary.left,
+                expressions,
+                argument_accesses,
+                accesses,
+                machine_symbol,
+            );
+            collect_read_accesses(
+                binary.right,
+                expressions,
+                argument_accesses,
+                accesses,
+                machine_symbol,
+            );
         }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
-                collect_read_accesses(call.receiver, expressions, argument_accesses, accesses);
+                collect_read_accesses(
+                    call.receiver,
+                    expressions,
+                    argument_accesses,
+                    accesses,
+                    machine_symbol,
+                );
             }
 
             for argument in expressions.expression_handles(call.arguments) {
-                collect_read_accesses(*argument, expressions, argument_accesses, accesses);
+                collect_read_accesses(
+                    *argument,
+                    expressions,
+                    argument_accesses,
+                    accesses,
+                    machine_symbol,
+                );
             }
         }
-        ExpressionNode::Cast(cast) => {
-            collect_read_accesses(cast.value, expressions, argument_accesses, accesses)
-        }
+        ExpressionNode::Cast(cast) => collect_read_accesses(
+            cast.value,
+            expressions,
+            argument_accesses,
+            accesses,
+            machine_symbol,
+        ),
         ExpressionNode::Indexed(indexed) => {
-            if let Some(root_name) = expression_root_name(indexed.collection, expressions) {
+            if let Some(root_name) =
+                expression_root_name(indexed.collection, expressions, machine_symbol)
+            {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -923,11 +978,21 @@ fn collect_read_accesses(
                 );
             }
 
-            collect_read_accesses(indexed.index, expressions, argument_accesses, accesses);
+            collect_read_accesses(
+                indexed.index,
+                expressions,
+                argument_accesses,
+                accesses,
+                machine_symbol,
+            );
         }
-        ExpressionNode::Member(member) => {
-            collect_read_accesses(member.receiver, expressions, argument_accesses, accesses)
-        }
+        ExpressionNode::Member(member) => collect_read_accesses(
+            member.receiver,
+            expressions,
+            argument_accesses,
+            accesses,
+            machine_symbol,
+        ),
         ExpressionNode::Name(path) => {
             if let Some(root_name) = expressions.name_path_members(path.members).first() {
                 argument_accesses.append_to_span(
@@ -939,12 +1004,22 @@ fn collect_read_accesses(
                 );
             }
         }
-        ExpressionNode::Mutable(inner_expression) => {
-            collect_read_accesses(*inner_expression, expressions, argument_accesses, accesses)
-        }
+        ExpressionNode::Mutable(inner_expression) => collect_read_accesses(
+            *inner_expression,
+            expressions,
+            argument_accesses,
+            accesses,
+            machine_symbol,
+        ),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in expressions.struct_fields(struct_literal.fields) {
-                collect_read_accesses(field.value, expressions, argument_accesses, accesses);
+                collect_read_accesses(
+                    field.value,
+                    expressions,
+                    argument_accesses,
+                    accesses,
+                    machine_symbol,
+                );
             }
         }
         ExpressionNode::Boolean(_)
@@ -957,20 +1032,21 @@ fn collect_read_accesses(
 fn expression_root_name(
     expression: ExpressionHandle,
     expressions: &omega_typed_trees::expression::ExpressionTable,
+    machine_symbol: SymbolHandle,
 ) -> Option<ProgramName> {
     match expressions.expression(expression) {
-        ExpressionNode::Indexed(indexed) => expression_root_name(indexed.collection, expressions),
+        ExpressionNode::Indexed(indexed) => {
+            expression_root_name(indexed.collection, expressions, machine_symbol)
+        }
         ExpressionNode::Member(member) => match expressions.expression(member.receiver) {
             ExpressionNode::Name(path)
                 if path.members.count() == 1
-                    && expressions
-                        .name_path_members(path.members)
-                        .first()
-                        .is_some_and(|name| name.as_str() == "self") =>
+                    && path.symbol.is_valid()
+                    && path.symbol == machine_symbol =>
             {
                 Some(member.member.clone())
             }
-            _ => expression_root_name(member.receiver, expressions),
+            _ => expression_root_name(member.receiver, expressions, machine_symbol),
         },
         ExpressionNode::Name(path) => expressions.name_path_members(path.members).first().cloned(),
         _ => None,
