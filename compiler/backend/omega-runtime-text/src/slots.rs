@@ -121,14 +121,15 @@ pub(crate) fn text_place_for_buffer_target(
     expressions: &mut ExpressionTable,
     target: ExpressionHandle,
 ) -> ExpressionHandle {
+    if expressions.expression_is_stored_place(target) {
+        return expressions.insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: target,
+            member_symbol: SymbolHandle::invalid(),
+            member: ProgramName::generated("text"),
+        }));
+    }
+
     match *expressions.expression(target) {
-        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
-            expressions.insert(ExpressionNode::Member(TableMemberExpression {
-                receiver: target,
-                member_symbol: SymbolHandle::invalid(),
-                member: ProgramName::generated("text"),
-            }))
-        }
         ExpressionNode::Mutable(inner) => text_place_for_buffer_target(expressions, inner),
         _ => ExpressionHandle::invalid(),
     }
