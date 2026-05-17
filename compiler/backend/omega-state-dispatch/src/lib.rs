@@ -39,7 +39,10 @@ pub fn build_state_dispatch_plan_with_workers(
         build_dispatch_state(&context_for_states, dispatch_target)
     });
 
-    let mut plan = StateDispatchPlan::default();
+    let mut plan = StateDispatchPlan {
+        states: Arena::with_capacity(state_count),
+        edges: Arena::with_capacity(context.edges.len()),
+    };
 
     for dispatch_state in dispatch_states {
         let edges = plan

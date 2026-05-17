@@ -26,14 +26,16 @@ pub fn build_runtime_dispatch_loop_plan_with_workers(
     context: Arc<RuntimeDispatchLoopContext>,
     workers: WorkerPoolHandle,
 ) -> RuntimeDispatchLoopPlan {
+    let case_capacity = context.state_dispatch.states.len();
+    let edge_capacity = context.state_dispatch.edges.len();
     let mut plan = RuntimeDispatchLoopPlan {
         needed: context.needed,
         entry_dispatch_index: context.entry_dispatch_index,
         terminal_dispatch_index: 0,
         current_state_slot: Arc::from("omega_current_state"),
         next_state_slot: Arc::from("omega_next_state"),
-        cases: Arena::new(),
-        edges: Arena::new(),
+        cases: Arena::with_capacity(case_capacity),
+        edges: Arena::with_capacity(edge_capacity),
     };
 
     if !plan.needed || context.state_dispatch.states.is_empty() {
