@@ -1,10 +1,9 @@
 use std::fmt;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
-    pub message: Arc<str>,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,7 +15,7 @@ impl Diagnostic {
     pub fn error(message: impl Into<String>) -> Self {
         Self {
             severity: DiagnosticSeverity::Error,
-            message: Arc::from(message.into().into_boxed_str()),
+            message: message.into(),
         }
     }
 }
