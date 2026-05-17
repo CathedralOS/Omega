@@ -32,7 +32,7 @@ pub struct ArrayLiteralExpression {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ArrayLiteralExpressionStorage {
-    pub values: Box<[Expression]>,
+    pub values: Arc<[Expression]>,
 }
 
 impl Deref for ArrayLiteralExpression {
@@ -976,7 +976,7 @@ pub struct CallExpression {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallExpressionStorage {
     pub receiver: Option<Box<Expression>>,
-    pub arguments: Box<[Expression]>,
+    pub arguments: Arc<[Expression]>,
 }
 
 impl Deref for CallExpression {
@@ -1307,7 +1307,7 @@ pub struct StructLiteral {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructLiteralStorage {
     pub type_name: DiagnosticName,
-    pub fields: Box<[StructLiteralField]>,
+    pub fields: Arc<[StructLiteralField]>,
 }
 
 impl Deref for StructLiteral {
@@ -1449,7 +1449,7 @@ impl TableCastExpression {
 
 impl CallExpression {
     pub fn display_name(&self) -> String {
-        let arguments = comma_join_display_names(&self.arguments, Expression::display_name);
+        let arguments = comma_join_display_names(&*self.arguments, Expression::display_name);
 
         if let Some(receiver) = &self.receiver {
             format!("{}.{}({arguments})", receiver.display_name(), self.target)
@@ -1622,34 +1622,36 @@ mod tests {
         let expression = Expression::StructLiteral(StructLiteral {
             storage: StructLiteralStorage {
                 type_name: DiagnosticName::generated("Room"),
-                fields: vec![
-                    StructLiteralField {
-                        name: DiagnosticName::generated("name"),
-                        value: Expression::String(SourceText::generated("Hall")),
-                    },
-                    StructLiteralField {
-                        name: DiagnosticName::generated("open"),
-                        value: Expression::Binary(Box::new(BinaryExpression {
-                            storage: BinaryExpressionStorage {
-                                left: Expression::Name(NamePath::resolved_from_iter(
-                                    [DiagnosticName::generated("room")],
-                                    room_symbol,
-                                    room_symbol,
-                                )),
-                                operator: BinaryOperator::Equal,
-                                right: Expression::Name(NamePath::resolved_from_iter(
-                                    [
-                                        DiagnosticName::generated("room"),
-                                        DiagnosticName::generated("field"),
-                                    ],
-                                    room_symbol,
-                                    field_symbol,
-                                )),
-                            },
-                        })),
-                    },
-                ]
-                .into_boxed_slice(),
+                fields: Arc::from(
+                    vec![
+                        StructLiteralField {
+                            name: DiagnosticName::generated("name"),
+                            value: Expression::String(SourceText::generated("Hall")),
+                        },
+                        StructLiteralField {
+                            name: DiagnosticName::generated("open"),
+                            value: Expression::Binary(Box::new(BinaryExpression {
+                                storage: BinaryExpressionStorage {
+                                    left: Expression::Name(NamePath::resolved_from_iter(
+                                        [DiagnosticName::generated("room")],
+                                        room_symbol,
+                                        room_symbol,
+                                    )),
+                                    operator: BinaryOperator::Equal,
+                                    right: Expression::Name(NamePath::resolved_from_iter(
+                                        [
+                                            DiagnosticName::generated("room"),
+                                            DiagnosticName::generated("field"),
+                                        ],
+                                        room_symbol,
+                                        field_symbol,
+                                    )),
+                                },
+                            })),
+                        },
+                    ]
+                    .into_boxed_slice(),
+                ),
             },
         });
 
