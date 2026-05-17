@@ -107,7 +107,7 @@ pub(in crate::identity) fn count_expression_strings(
 ) {
     match expression {
         Expression::ArrayLiteral(values) => {
-            for value in values {
+            for value in values.iter() {
                 count_expression_strings(value, storage);
             }
         }
@@ -119,7 +119,7 @@ pub(in crate::identity) fn count_expression_strings(
             if let Some(receiver) = &call.receiver {
                 count_expression_strings(receiver, storage);
             }
-            for argument in &call.arguments {
+            for argument in call.arguments.iter() {
                 count_expression_strings(argument, storage);
             }
             storage.count_program_name_identity(&call.target);

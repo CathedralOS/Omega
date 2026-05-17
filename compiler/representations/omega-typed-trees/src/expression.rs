@@ -9,7 +9,7 @@ pub type ExpressionHandle = Handle<ExpressionNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
-    ArrayLiteral(Vec<Expression>),
+    ArrayLiteral(Arc<[Expression]>),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
     Cast(Box<CastExpression>),
@@ -938,12 +938,13 @@ impl ExpressionTable {
 
     pub fn to_tree(&self, expression: ExpressionHandle) -> Expression {
         match self.expression(expression) {
-            ExpressionNode::ArrayLiteral(values) => Expression::ArrayLiteral(
+            ExpressionNode::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
                 self.expression_handles(*values)
                     .iter()
                     .map(|value| self.to_tree(*value))
-                    .collect(),
-            ),
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            )),
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
                 left: self.to_tree(binary.left),
                 operator: binary.operator,
@@ -963,11 +964,13 @@ impl ExpressionTable {
                     .then(|| Box::new(self.to_tree(call.receiver))),
                 target_symbol: call.target_symbol,
                 target: call.target.clone(),
-                arguments: self
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| self.to_tree(*argument))
-                    .collect(),
+                arguments: Arc::from(
+                    self.expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| self.to_tree(*argument))
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                ),
             })),
             ExpressionNode::Float(value) => Expression::Float(*value),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
@@ -1142,7 +1145,7 @@ pub struct CallExpression {
     pub receiver: Option<Box<Expression>>,
     pub target_symbol: SymbolHandle,
     pub target: ProgramName,
-    pub arguments: Vec<Expression>,
+    pub arguments: Arc<[Expression]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1584,7 +1587,7 @@ impl TableCastExpression {
 
 impl CallExpression {
     pub fn display_name(&self) -> String {
-        let arguments = comma_join_display_names(&self.arguments, Expression::display_name);
+        let arguments = comma_join_display_names(&*self.arguments, Expression::display_name);
 
         if let Some(receiver) = &self.receiver {
             format!("{}.{}({arguments})", receiver.display_name(), self.target)

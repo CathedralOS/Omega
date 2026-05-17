@@ -555,7 +555,7 @@ fn select_runtime_binary_mutation_write(
         ),
         Expression::Call(call) => {
             let operator = builtin_runtime_call_operator(input, call)?;
-            let [left, right] = call.arguments.as_slice() else {
+            let [left, right] = &*call.arguments else {
                 return None;
             };
             (operator, left, right)
@@ -700,7 +700,7 @@ fn resolve_runtime_value_operand(
     if let Expression::Call(call) = expression
         && let Some(operator) = builtin_runtime_call_operator(input, call)
     {
-        let [left, right] = call.arguments.as_slice() else {
+        let [left, right] = &*call.arguments else {
             return None;
         };
         let left = resolve_runtime_value_operand(

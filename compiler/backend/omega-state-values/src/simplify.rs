@@ -9,6 +9,7 @@ use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
 pub fn simplify_expression(
     program: &Program,
@@ -170,7 +171,8 @@ fn simple_local_binding_value(expression: &Expression) -> Option<Expression> {
                 .arguments
                 .iter()
                 .map(simple_local_binding_value)
-                .collect::<Option<Vec<_>>>()?,
+                .collect::<Option<Vec<_>>>()?
+                .into(),
         }))),
         Expression::Mutable(inner) => {
             simple_local_binding_value(inner).map(|value| Expression::Mutable(Box::new(value)))
@@ -196,7 +198,7 @@ fn simplify_expression_with_bindings(
     preserve_call_locals: bool,
 ) -> Expression {
     match expression {
-        Expression::ArrayLiteral(values) => Expression::ArrayLiteral(
+        Expression::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
             values
                 .iter()
                 .map(|value| {
@@ -208,8 +210,9 @@ fn simplify_expression_with_bindings(
                         preserve_call_locals,
                     )
                 })
-                .collect(),
-        ),
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        )),
         Expression::Binary(binary) => {
             simplify_binary_expression(program, machine, binary, bindings, preserve_call_locals)
         }
@@ -399,7 +402,7 @@ fn simplify_call_expression(
         receiver: receiver.map(Box::new),
         target_symbol: call.target_symbol,
         target: call.target.clone(),
-        arguments: simplified_arguments,
+        arguments: simplified_arguments.into(),
     }))
 }
 
@@ -1438,7 +1441,7 @@ mod tests {
                 receiver: None,
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
-                arguments: vec![name("roll", roll_symbol)],
+                arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
@@ -1453,7 +1456,7 @@ mod tests {
                 receiver: None,
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
-                arguments: vec![name("roll", roll_symbol)],
+                arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
@@ -1477,7 +1480,7 @@ mod tests {
                 receiver: None,
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
-                arguments: vec![name("roll", roll_symbol)],
+                arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
@@ -1492,7 +1495,7 @@ mod tests {
                 receiver: None,
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
-                arguments: vec![name("roll", roll_symbol)],
+                arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
