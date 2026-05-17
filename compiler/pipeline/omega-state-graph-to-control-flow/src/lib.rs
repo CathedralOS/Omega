@@ -197,6 +197,7 @@ fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
             call_ordinal: call.call_ordinal,
             receiver_symbol: call.receiver_symbol,
             target_symbol: call.target_symbol,
+            has_receiver: call.has_receiver,
             receiver: call.receiver.clone(),
             target: call.target.clone(),
             accesses: remap_borrow_argument_access_span(call.accesses),
@@ -258,11 +259,13 @@ fn remap_operation_kind(kind: &omega_state_graph::OperationKind) -> OperationKin
         omega_state_graph::OperationKind::Call {
             receiver_symbol,
             target_symbol,
+            has_receiver,
             receiver,
             target,
         } => OperationKind::Call {
             receiver_symbol: *receiver_symbol,
             target_symbol: *target_symbol,
+            has_receiver: *has_receiver,
             receiver: receiver.clone(),
             target: target.clone(),
         },

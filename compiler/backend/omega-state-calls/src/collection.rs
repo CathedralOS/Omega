@@ -45,6 +45,7 @@ pub(crate) fn collect_machine_state_calls(
             if let OperationKind::Call {
                 receiver_symbol,
                 target_symbol,
+                has_receiver,
                 receiver,
                 target,
             } = &operation.kind
@@ -61,7 +62,7 @@ pub(crate) fn collect_machine_state_calls(
                     state.key,
                     *receiver_symbol,
                     *target_symbol,
-                    receiver.is_some(),
+                    *has_receiver,
                     target,
                 );
 
@@ -71,12 +72,7 @@ pub(crate) fn collect_machine_state_calls(
                     call_ordinal,
                     role: StateCallRole::Statement,
                     receiver_symbol: *receiver_symbol,
-                    receiver: receiver
-                        .as_ref()
-                        .and_then(|receiver: &omega_checked_trees::expression::NamePath| {
-                            receiver.last().cloned()
-                        })
-                        .unwrap_or_else(|| ProgramName::generated("self")),
+                    receiver: receiver.clone(),
                     target_key: resolved_target
                         .as_ref()
                         .map(|target| target.key)

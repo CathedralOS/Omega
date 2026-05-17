@@ -542,7 +542,12 @@ fn state_borrow_summary(
                 call_ordinal: call.call_ordinal,
                 receiver_symbol: call.receiver_symbol,
                 target_symbol: call.target_symbol,
-                receiver: call.receiver.clone(),
+                has_receiver: call.receiver.is_some(),
+                receiver: call
+                    .receiver
+                    .as_ref()
+                    .and_then(|receiver| receiver.last().cloned())
+                    .unwrap_or_else(|| omega_checked_trees::name::ProgramName::generated("self")),
                 target: call.target.clone(),
                 accesses,
             },

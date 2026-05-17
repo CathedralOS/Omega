@@ -2,7 +2,6 @@ mod runtime_flow;
 
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::NamePath;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::ProgramName;
 
@@ -222,7 +221,8 @@ pub struct StateBorrowCall {
     pub call_ordinal: usize,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: Option<NamePath>,
+    pub has_receiver: bool,
+    pub receiver: ProgramName,
     pub target: ProgramName,
     pub accesses: HandleSpan<StateBorrowArgumentAccess>,
 }
@@ -256,7 +256,8 @@ pub enum OperationKind {
     Call {
         receiver_symbol: SymbolHandle,
         target_symbol: SymbolHandle,
-        receiver: Option<NamePath>,
+        has_receiver: bool,
+        receiver: ProgramName,
         target: ProgramName,
     },
     ConstantIntegerAssignment,

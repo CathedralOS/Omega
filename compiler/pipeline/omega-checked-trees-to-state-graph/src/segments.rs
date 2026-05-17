@@ -1,7 +1,5 @@
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
-};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
@@ -244,7 +242,8 @@ fn operation_kind(program: &Program, table_statement: &StatementNode) -> Operati
         StatementNode::Call(call) => OperationKind::Call {
             receiver_symbol: call.receiver_symbol,
             target_symbol: call.target_symbol,
-            receiver: statement_call_receiver_path(program, call),
+            has_receiver: !program.statement_table.name_path_members(call.receiver).is_empty(),
+            receiver: statement_call_receiver_name(program, call),
             target: call.target.clone(),
         },
         StatementNode::Expression(_) => OperationKind::Expression,
@@ -253,17 +252,12 @@ fn operation_kind(program: &Program, table_statement: &StatementNode) -> Operati
     }
 }
 
-fn statement_call_receiver_path(program: &Program, call: &TableCall) -> Option<NamePath> {
+fn statement_call_receiver_name(program: &Program, call: &TableCall) -> ProgramName {
     let receiver = program.statement_table.name_path_members(call.receiver);
-    if receiver.is_empty() {
-        return None;
-    }
-
-    Some(NamePath::resolved(
-        receiver.iter().cloned().collect(),
-        call.receiver_symbol,
-        call.receiver_symbol,
-    ))
+    receiver
+        .last()
+        .cloned()
+        .unwrap_or_else(|| ProgramName::generated("self"))
 }
 
 fn operation_expression_refs(
