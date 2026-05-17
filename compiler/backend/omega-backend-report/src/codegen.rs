@@ -691,10 +691,16 @@ fn write_machine_function_code(
 }
 
 fn machine_function_symbol(
-    _backend_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     function: &MachineFunction,
 ) -> String {
-    function.symbol.to_string()
+    backend_plan
+        .instructions
+        .functions
+        .iter()
+        .find(|(_, instruction_function)| instruction_function.source_key == function.source_key)
+        .map(|(_, instruction_function)| instruction_function.symbol.to_string())
+        .unwrap_or_else(|| format!("{:?}", function.source_key))
 }
 
 fn write_machine_instruction(

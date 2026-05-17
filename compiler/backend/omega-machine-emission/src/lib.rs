@@ -49,7 +49,6 @@ pub fn emit_machine_bytes(
         )?;
         let byte_count = encoded_bytes.bytes.len() - byte_offset;
         encoded_bytes.functions.insert(EncodedMachineFunction {
-            symbol: function.symbol.clone(),
             source_key: function.source_key,
             byte_offset,
             byte_count,

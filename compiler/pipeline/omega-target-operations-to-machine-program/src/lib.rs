@@ -19,7 +19,6 @@ pub fn build_machine_program(instructions: &InstructionPlan) -> Result<MachinePr
             append_machine_instructions(instructions, function, &mut machine_program.instructions)?;
 
         machine_program.functions.insert(MachineFunction {
-            symbol: function.symbol.clone(),
             source_key: function.source_key,
             instructions: machine_instructions,
         });
