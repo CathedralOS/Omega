@@ -6,44 +6,40 @@ mod model;
 use collection::build_dispatch_body;
 pub use context::RuntimeDispatchBodyContext;
 pub use model::{
-    RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
-    RuntimeDispatchBodyPlan,
+    RuntimeDispatchBody, RuntimeDispatchBodyInput, RuntimeDispatchBodyOperation,
+    RuntimeDispatchBodyOperationKind, RuntimeDispatchBodyPlan,
 };
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_state_dispatch::DispatchState;
+use omega_state_dispatch::StateDispatchPlan;
 use std::sync::Arc;
 
 pub fn build_runtime_dispatch_body_plan(
     context: RuntimeDispatchBodyContext,
-    dispatch_states: Vec<DispatchState>,
+    body_inputs: Vec<RuntimeDispatchBodyInput>,
 ) -> RuntimeDispatchBodyPlan {
     let workers = WorkerPool::with_available_parallelism();
 
-    build_runtime_dispatch_body_plan_with_workers(
-        Arc::new(context),
-        dispatch_states,
-        workers.handle(),
-    )
+    build_runtime_dispatch_body_plan_with_workers(Arc::new(context), body_inputs, workers.handle())
 }
 
 pub fn build_runtime_dispatch_body_plan_with_workers(
     context: Arc<RuntimeDispatchBodyContext>,
-    dispatch_states: Vec<DispatchState>,
+    body_inputs: Vec<RuntimeDispatchBodyInput>,
     workers: WorkerPoolHandle,
 ) -> RuntimeDispatchBodyPlan {
-    if dispatch_states.is_empty() {
+    if body_inputs.is_empty() {
         return RuntimeDispatchBodyPlan::default();
     }
 
-    let dispatch_states = Arc::new(dispatch_states);
-    let state_count = dispatch_states.len();
+    let body_inputs = Arc::new(body_inputs);
+    let state_count = body_inputs.len();
     let context_for_bodies = Arc::clone(&context);
     let collected_bodies = workers.map_ordered(state_count, move |index| {
-        let dispatch_state = dispatch_states
+        let body_input = body_inputs
             .get(index)
             .expect("runtime-body worker index should be in range");
 
-        build_dispatch_body(&context_for_bodies, dispatch_state)
+        build_dispatch_body(&context_for_bodies, *body_input)
     });
 
     let mut plan = RuntimeDispatchBodyPlan::default();
@@ -106,4 +102,17 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
     }
 
     plan
+}
+
+pub fn runtime_dispatch_body_inputs(
+    state_dispatch: &StateDispatchPlan,
+) -> Vec<RuntimeDispatchBodyInput> {
+    state_dispatch
+        .states
+        .iter()
+        .map(|(_, dispatch_state)| RuntimeDispatchBodyInput {
+            key: dispatch_state.key,
+            dispatch_index: dispatch_state.dispatch_index,
+        })
+        .collect()
 }
