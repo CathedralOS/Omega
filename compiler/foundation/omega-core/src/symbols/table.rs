@@ -143,8 +143,27 @@ impl SymbolTable {
     }
 
     pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {
+        if !parent.is_valid() {
+            return None;
+        }
+
         self.symbols
             .find_child(parent, |symbol, _| self.name(symbol) == name)
+    }
+
+    pub fn find_child_by_name_and_kind(
+        &self,
+        parent: SymbolHandle,
+        name: &str,
+        kind: SymbolKind,
+    ) -> Option<SymbolHandle> {
+        if !parent.is_valid() {
+            return None;
+        }
+
+        self.symbols.find_child(parent, |symbol, symbol_data| {
+            symbol_data.kind == kind && self.name(symbol) == name
+        })
     }
 
     pub fn find_descendant_by_path<'name>(
