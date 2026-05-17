@@ -2,7 +2,6 @@ use super::context::RuntimeDispatchLoopContext;
 use super::guards::{dispatch_guard_comparison, dispatch_guard_expression};
 use super::inputs::RuntimeDispatchLoopCaseInput;
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
-use omega_checked_trees::expression::ExpressionHandle;
 use omega_control_flow::StateKey;
 use omega_state_graph::RuntimeTransitionTarget;
 
@@ -45,8 +44,8 @@ pub(super) fn build_runtime_dispatch_loop_case(
                 continuation: edge.continuation.clone(),
                 continuation_dispatch_index: edge.continuation_dispatch_index,
                 continuation_arguments: edge.expressions.continuation_arguments,
-                guard_expression: guard_expression.unwrap_or_else(ExpressionHandle::invalid),
-                guard_has_expression: guard_expression.is_some(),
+                guard_expression,
+                guard_has_expression: guard_expression.is_valid(),
                 guard_lowering: guard_comparison.lowering,
                 guard_operator: guard_comparison.operator,
                 guard_storage: guard_comparison.storage,
