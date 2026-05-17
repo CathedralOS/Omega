@@ -42,8 +42,9 @@ pub fn build_entry_state_schedule(
     context: &StateScheduleContext,
     entry_key: StateKey,
 ) -> Result<Vec<ScheduledState>, String> {
-    let mut schedule = Vec::new();
-    let mut visited = Vec::<ScheduledState>::new();
+    let state_capacity = context.control_flow.states.len();
+    let mut schedule = Vec::with_capacity(state_capacity);
+    let mut visited = Vec::<ScheduledState>::with_capacity(state_capacity);
     let mut values = Vec::<(PlaceKey, StaticValue)>::new();
     let mut aliases = Vec::<(PlaceKey, PlaceKey)>::new();
 
