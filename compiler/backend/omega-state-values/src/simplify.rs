@@ -282,20 +282,23 @@ fn simplify_expression_with_bindings(
             .unwrap_or_else(|| expression.clone()),
         Expression::StructLiteral(struct_literal) => Expression::StructLiteral(StructLiteral {
             type_name: struct_literal.type_name.clone(),
-            fields: struct_literal
-                .fields
-                .iter()
-                .map(|field| StructLiteralField {
-                    name: field.name.clone(),
-                    value: simplify_expression_with_bindings(
-                        program,
-                        machine,
-                        &field.value,
-                        bindings,
-                        preserve_call_locals,
-                    ),
-                })
-                .collect(),
+            fields: Arc::from(
+                struct_literal
+                    .fields
+                    .iter()
+                    .map(|field| StructLiteralField {
+                        name: field.name.clone(),
+                        value: simplify_expression_with_bindings(
+                            program,
+                            machine,
+                            &field.value,
+                            bindings,
+                            preserve_call_locals,
+                        ),
+                    })
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ),
         }),
     }
 }

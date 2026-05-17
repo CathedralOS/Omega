@@ -280,7 +280,8 @@ pub(super) fn resolve_runtime_alias_binding(
                                     value: resolved.expression,
                                 }
                             })
-                            .collect(),
+                            .collect::<Vec<_>>()
+                            .into(),
                     },
                 ),
             }
