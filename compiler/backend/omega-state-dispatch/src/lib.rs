@@ -3,7 +3,7 @@ mod input;
 mod model;
 
 pub use context::StateDispatchContext;
-pub use input::{runtime_state_inputs, RuntimeStateInput};
+pub use input::{RuntimeStateInput, runtime_state_inputs};
 pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
 use omega_control_flow::StateKey;
@@ -77,6 +77,7 @@ fn build_dispatch_state(
     for edge in context
         .edges
         .iter()
+        .map(|(_, edge)| edge)
         .filter(|edge| edge.from == runtime_state.key)
     {
         edges.insert(DispatchEdge {
@@ -116,12 +117,13 @@ fn append_terminal_continuation_edges(
     let has_outgoing_edges = context
         .edges
         .iter()
+        .map(|(_, edge)| edge)
         .any(|edge| edge.from == runtime_state.key);
     if has_outgoing_edges {
         return;
     }
 
-    for edge in &context.edges {
+    for (_, edge) in context.edges.iter() {
         let RuntimeTransitionTarget::State { key, .. } = &edge.target else {
             continue;
         };
@@ -158,6 +160,7 @@ fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransit
     context
         .targets
         .iter()
+        .map(|(_, target)| target)
         .find(|target| target.key == *key)
         .map(|target| target.dispatch_index)
         .unwrap_or(0)
