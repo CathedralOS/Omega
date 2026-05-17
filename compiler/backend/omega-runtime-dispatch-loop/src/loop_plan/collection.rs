@@ -1,8 +1,8 @@
 use super::context::RuntimeDispatchLoopContext;
 use super::guards::{dispatch_guard_comparison, dispatch_guard_expression};
-use super::inputs::RuntimeDispatchLoopCaseInput;
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_control_flow::StateKey;
+use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -16,9 +16,8 @@ pub(super) struct CollectedRuntimeDispatchLoopCase {
 
 pub(super) fn build_runtime_dispatch_loop_case(
     context: &RuntimeDispatchLoopContext,
-    case_input: &RuntimeDispatchLoopCaseInput,
+    state: &DispatchState,
 ) -> CollectedRuntimeDispatchLoopCase {
-    let state = context.state_dispatch.states.get(case_input.state);
     let Some(case_edges) = context.state_dispatch.edges.span(state.edges) else {
         return CollectedRuntimeDispatchLoopCase {
             key: state.key,

@@ -21,7 +21,6 @@ use omega_runtime_bodies::{
 use omega_runtime_branching::{RuntimeBranchingContext, build_runtime_branching_call_plan};
 use omega_runtime_dispatch_loop::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
-    runtime_dispatch_loop_inputs,
 };
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers,
@@ -190,13 +189,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         backend_plan.state_guards.clone(),
         backend_plan.runtime_bodies.clone(),
     ));
-    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&backend_plan.state_dispatch);
     let runtime_loop_workers = workers.clone();
     backend_plan.runtime_dispatch_loop =
         record_backend_phase(&mut phase_timings, "runtime loop", || {
             build_runtime_dispatch_loop_plan_with_workers(
                 runtime_loop_context,
-                runtime_loop_inputs,
                 runtime_loop_workers,
             )
         });
