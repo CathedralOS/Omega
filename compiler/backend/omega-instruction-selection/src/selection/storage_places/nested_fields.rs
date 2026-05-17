@@ -20,12 +20,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
         let DataShape::Record { fields } = &data_layout.shape else {
             return None;
         };
-        let field = field_layout_by_symbol_or_name(
-            layouts,
-            *fields,
-            suffix_symbol(index),
-            field_segment.name,
-        )?;
+        let field = field_layout_by_symbol(layouts, *fields, suffix_symbol(index))?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         type_name = &field.type_name;
@@ -66,38 +61,33 @@ fn data_layout<'plan>(
         .map(|(_, data_layout)| data_layout)
 }
 
-fn field_layout_by_symbol_or_name<'plan>(
+fn field_layout_by_symbol<'plan>(
     layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
-    field_name: &str,
 ) -> Option<&'plan FieldLayout> {
-    layouts.fields.span(fields)?.iter().find(|field| {
-        if field_symbol.is_valid() {
-            field.symbol == field_symbol
-        } else {
-            field.name.as_str() == field_name
-        }
-    })
+    field_symbol
+        .is_valid()
+        .then(|| {
+            layouts
+                .fields
+                .span(fields)?
+                .iter()
+                .find(|field| field.symbol == field_symbol)
+        })
+        .flatten()
 }
 
-struct FieldSegment<'name> {
-    name: &'name str,
+struct FieldSegment {
     index: Option<usize>,
 }
 
-fn parse_field_segment(segment: &str) -> Option<FieldSegment<'_>> {
-    let Some((field_name, index_suffix)) = segment.split_once('[') else {
-        return Some(FieldSegment {
-            name: segment,
-            index: None,
-        });
+fn parse_field_segment(segment: &str) -> Option<FieldSegment> {
+    let Some((_field_name, index_suffix)) = segment.split_once('[') else {
+        return Some(FieldSegment { index: None });
     };
     let index = index_suffix.strip_suffix(']')?.parse::<usize>().ok()?;
-    Some(FieldSegment {
-        name: field_name,
-        index: Some(index),
-    })
+    Some(FieldSegment { index: Some(index) })
 }
 
 struct ArrayTypeName<'name> {
