@@ -8,7 +8,8 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
-    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_type_symbols,
+    BuiltinType, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    builtin_type_member_symbols, builtin_type_symbols,
 };
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -527,8 +528,9 @@ fn collect_transition_target(
     owner: &str,
     context: ResolveContext,
 ) {
-    if let omega_syntax_trees::statement::TransitionTargetNode::Named { path, arguments } =
-        syntax_trees.statements.transition_target(target)
+    if let omega_syntax_trees::statement::TransitionTargetNode::Named {
+        path, arguments, ..
+    } = syntax_trees.statements.transition_target(target)
     {
         let path_members = syntax_trees.statements.identifier_path_members(*path);
         let symbol = context.resolve_identifier_members(&report.symbols, path_members);
@@ -914,6 +916,12 @@ fn has_source_name(source_span: SourceSpan) -> bool {
     source_span.span.start != source_span.span.end
 }
 
+fn builtin_type_by_name(name: &str) -> Option<BuiltinType> {
+    [BuiltinType::UInt, BuiltinType::Int, BuiltinType::Real]
+        .into_iter()
+        .find(|builtin_type| builtin_type.name() == name)
+}
+
 impl<'syntax> SourceSymbolTableBuilder<'syntax> {
     fn new(syntax_trees: &'syntax SyntaxTrees, sources: Option<Arc<SourceMap>>) -> Self {
         Self {
@@ -935,8 +943,10 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
         );
         let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
-        for _ in 0..builtin_type_symbols().len() {
-            let _ = root_children.next();
+        for builtin_type in builtin_type_symbols() {
+            if let Some(builtin_symbol) = root_children.next() {
+                self.insert_builtin_type_children(builtin_symbol, builtin_type);
+            }
         }
         for item in syntax_trees.root_items() {
             if item_symbol_seed(item).is_none() {
@@ -948,6 +958,22 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
         }
 
         self.builder.finish()
+    }
+
+    fn insert_builtin_type_children(
+        &mut self,
+        builtin_symbol: SymbolHandle,
+        builtin_type: (SymbolKind, SymbolNameRef<'static>),
+    ) {
+        let SymbolNameRef::Static(name) = builtin_type.1 else {
+            return;
+        };
+        let Some(builtin_type) = builtin_type_by_name(name) else {
+            return;
+        };
+
+        self.builder
+            .insert_children(builtin_symbol, builtin_type_member_symbols(builtin_type));
     }
 
     fn insert_item_children(&mut self, parent: SymbolHandle, item: &'syntax Item) {
@@ -1292,10 +1318,13 @@ mod tests {
     };
     use omega_core::arena::HandleSpan;
     use omega_syntax_trees::SyntaxTrees;
+    use omega_syntax_trees::expression::{ExpressionNode, TableCallExpression};
     use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{Item, Machine, StateParameterNode, UseItem};
+    use omega_syntax_trees::item::{
+        DataDefinition, DataField, DataMember, Item, Machine, State, StateParameterNode, UseItem,
+    };
     use omega_syntax_trees::statement::{
-        StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode,
+        StatementNode, TableAssignment, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
     use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -1332,6 +1361,7 @@ mod tests {
                 .statements
                 .insert_transition_target(TransitionTargetNode::Named {
                     path: target_path,
+                    path_starts_at_self: false,
                     arguments: HandleSpan::empty(),
                 });
         let transition =
@@ -1390,6 +1420,94 @@ mod tests {
                     && reference.symbol.is_valid()
             }),
             "state transition target should be collected and bound to a symbol"
+        );
+    }
+
+    #[test]
+    fn resolves_builtin_type_member_call_targets() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let real_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("Real")));
+        let field = syntax_trees
+            .items
+            .append_data_member(DataMember::Field(DataField {
+                name: Identifier::generated("value"),
+                type_reference: real_type,
+                initial_value: omega_syntax_trees::expression::ExpressionHandle::invalid(),
+            }));
+        syntax_trees.push_root_item(Item::Data(DataDefinition {
+            name: Identifier::generated("main"),
+            type_parameters: HandleSpan::empty(),
+            members: HandleSpan::from_parts(field, 1),
+        }));
+
+        let receiver_member = syntax_trees
+            .expressions
+            .append_identifier_path_member(Identifier::generated("Real"));
+        let receiver =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Name(HandleSpan::from_parts(
+                    receiver_member,
+                    1,
+                )));
+        let argument = syntax_trees.expressions.insert(ExpressionNode::Integer(1));
+        let arguments = syntax_trees
+            .expressions
+            .insert_expression_handles([argument]);
+        let call = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver,
+                target: Identifier::generated("from"),
+                arguments,
+            }));
+        let target_path_start = syntax_trees
+            .expressions
+            .append_identifier_path_member(Identifier::generated("self"));
+        let target_path_member = syntax_trees
+            .expressions
+            .append_identifier_path_member(Identifier::generated("value"));
+        let target = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Name(HandleSpan::from_parts(
+                target_path_start,
+                target_path_member
+                    .arena_index()
+                    .checked_sub(target_path_start.arena_index())
+                    .expect("target path should be contiguous")
+                    + 1,
+            )));
+        let assignment =
+            syntax_trees
+                .statements
+                .insert(StatementNode::Assignment(TableAssignment {
+                    target,
+                    value: call,
+                }));
+        let assignment = syntax_trees.items.append_statement_handle(assignment);
+        let entry_state = syntax_trees.items.insert_state(&State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::empty(),
+            return_type: TypeReferenceHandle::invalid(),
+            statements: HandleSpan::from_parts(assignment, 1),
+        });
+        let entry_state = syntax_trees.items.append_state_handle(entry_state);
+        syntax_trees.push_root_item(Item::Machine(Machine {
+            name: Identifier::generated("main"),
+            states: HandleSpan::from_parts(entry_state, 1),
+        }));
+
+        let report = build_resolve_report_without_sources(&syntax_trees);
+
+        assert!(
+            report.references.iter().any(|(_, reference)| {
+                report.reference_name(reference) == "Real::from"
+                    && reference.kind == ResolvedReferenceKind::CallTarget
+                    && reference.symbol.is_valid()
+            }),
+            "builtin type member call target should resolve to a symbol"
         );
     }
 }
