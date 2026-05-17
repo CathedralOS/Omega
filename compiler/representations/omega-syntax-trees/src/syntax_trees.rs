@@ -508,6 +508,7 @@ impl SyntaxTrees {
             }),
             StatementNode::Call(call) => StatementNode::Call(TableCall {
                 receiver: self.copy_statement_identifier_span(other, call.receiver),
+                receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
                 arguments: self.copy_statement_expression_span(other, call.arguments),
             }),
@@ -542,8 +543,13 @@ impl SyntaxTrees {
         }
 
         let target = match other.statements.transition_target(handle) {
-            TransitionTargetNode::Named { path, arguments } => TransitionTargetNode::Named {
+            TransitionTargetNode::Named {
+                path,
+                path_starts_at_self,
+                arguments,
+            } => TransitionTargetNode::Named {
                 path: self.copy_statement_identifier_span(other, *path),
+                path_starts_at_self: *path_starts_at_self,
                 arguments: self.copy_statement_expression_span(other, *arguments),
             },
             TransitionTargetNode::Value(value) => {
@@ -934,6 +940,7 @@ mod tests {
         let argument = file.statements.append_expression_handle(argument);
         let call = file.statements.insert(StatementNode::Call(TableCall {
             receiver,
+            receiver_starts_at_self: true,
             target: Identifier::generated("take_non_negative"),
             arguments: HandleSpan::from_parts(argument, 1),
         }));

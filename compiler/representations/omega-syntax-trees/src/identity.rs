@@ -388,7 +388,9 @@ fn count_transition_target_node(
     counts: &mut AstIdentityStorageCounts,
 ) {
     match syntax_trees.statements.transition_target(target) {
-        crate::statement::TransitionTargetNode::Named { path, arguments } => {
+        crate::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
             for member in syntax_trees.statements.identifier_path_members(*path) {
                 count_identifier(member, counts);
             }

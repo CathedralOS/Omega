@@ -98,23 +98,32 @@ fn expression_handle_to_statement_call(
 
     let (receiver, target) = split_expression_call_handle(syntax_trees, &call)?;
     Some(TableCall {
-        receiver,
+        receiver: receiver.members,
+        receiver_starts_at_self: receiver.starts_at_self,
         target,
         arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
     })
+}
+
+struct StatementIdentifierPath {
+    members: HandleSpan<omega_syntax_trees::identifier::Identifier>,
+    starts_at_self: bool,
 }
 
 fn split_expression_call_handle(
     syntax_trees: &mut SyntaxTrees,
     call: &TableCallExpression,
 ) -> Option<(
-    HandleSpan<omega_syntax_trees::identifier::Identifier>,
+    StatementIdentifierPath,
     omega_syntax_trees::identifier::Identifier,
 )> {
     let receiver = if call.receiver.is_valid() {
         expression_handle_to_identifier_path_span(syntax_trees, call.receiver)?
     } else {
-        HandleSpan::empty()
+        StatementIdentifierPath {
+            members: HandleSpan::empty(),
+            starts_at_self: false,
+        }
     };
 
     Some((receiver, call.target.clone()))
@@ -123,20 +132,30 @@ fn split_expression_call_handle(
 fn expression_handle_to_identifier_path_span(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
-) -> Option<HandleSpan<omega_syntax_trees::identifier::Identifier>> {
+) -> Option<StatementIdentifierPath> {
     match syntax_trees.expressions.expression(expression).clone() {
-        ExpressionNode::Name(path) => Some(copy_expression_identifier_path_to_statement_table(
-            syntax_trees,
-            path,
-        )),
+        ExpressionNode::Name(path) => Some(StatementIdentifierPath {
+            members: copy_expression_identifier_path_to_statement_table(syntax_trees, path),
+            starts_at_self: false,
+        }),
+        ExpressionNode::SelfValue => {
+            let self_member = syntax_trees.statements.append_identifier_path_member(
+                omega_syntax_trees::identifier::Identifier::generated("self"),
+            );
+            Some(StatementIdentifierPath {
+                members: HandleSpan::from_parts(self_member, 1),
+                starts_at_self: true,
+            })
+        }
         ExpressionNode::Member(member) => {
-            let receiver =
+            let mut receiver =
                 expression_handle_to_identifier_path_span(syntax_trees, member.receiver)?;
-            Some(append_statement_identifier_path_member(
+            receiver.members = append_statement_identifier_path_member(
                 syntax_trees,
-                receiver,
+                receiver.members,
                 member.member,
-            ))
+            );
+            Some(receiver)
         }
         _ => None,
     }

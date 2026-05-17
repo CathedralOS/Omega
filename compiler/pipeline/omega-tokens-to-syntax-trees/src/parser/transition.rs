@@ -202,14 +202,8 @@ fn classify_transition_target_handle(
     let node = syntax_trees.expressions.expression(expression).clone();
     let target = match node {
         ExpressionNode::Call(call) => classify_call_target_handle(syntax_trees, call)?,
-        ExpressionNode::Name(path) => {
-            let members = syntax_trees.expressions.identifier_path_members(path);
-            if members.len() == 1 && members[0].as_str() == "self" {
-                TransitionTargetNode::SelfTarget
-            } else {
-                TransitionTargetNode::Value(expression)
-            }
-        }
+        ExpressionNode::SelfValue => TransitionTargetNode::SelfTarget,
+        ExpressionNode::Name(_) => TransitionTargetNode::Value(expression),
         _ => TransitionTargetNode::Value(expression),
     };
 
@@ -235,24 +229,34 @@ fn classify_call_target_handle(
             syntax_trees.expressions.insert(ExpressionNode::Call(call)),
         ));
     }
-    let path = if call.receiver.is_valid() {
+    let (path, path_starts_at_self) = if call.receiver.is_valid() {
         let receiver =
             copy_expression_identifier_path_to_statement_table(syntax_trees, call.receiver)
                 .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
-        append_statement_identifier_path_member(syntax_trees, receiver, call.target.clone())
+        (
+            append_statement_identifier_path_member(
+                syntax_trees,
+                receiver.members,
+                call.target.clone(),
+            ),
+            receiver.starts_at_self,
+        )
     } else {
         let handle = syntax_trees
             .statements
             .append_identifier_path_member(call.target.clone());
-        HandleSpan::from_parts(handle, 1)
+        (HandleSpan::from_parts(handle, 1), false)
     };
 
-    let path_members = syntax_trees.statements.identifier_path_members(path);
-    if path_members.len() == 1 && path_members[0].as_str() == "self" {
+    if path_starts_at_self && path.count() == 1 {
         Ok(TransitionTargetNode::SelfTarget)
     } else {
         let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
-        Ok(TransitionTargetNode::Named { path, arguments })
+        Ok(TransitionTargetNode::Named {
+            path,
+            path_starts_at_self,
+            arguments,
+        })
     }
 }
 
@@ -271,27 +275,43 @@ fn expression_handle_identifier_depth(
             let depth = expression_handle_identifier_depth(syntax_trees, member.receiver)?;
             Some(depth + 1)
         }
+        ExpressionNode::SelfValue => Some(1),
         _ => None,
     }
+}
+
+struct StatementIdentifierPath {
+    members: HandleSpan<omega_syntax_trees::identifier::Identifier>,
+    starts_at_self: bool,
 }
 
 fn copy_expression_identifier_path_to_statement_table(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
-) -> Option<HandleSpan<omega_syntax_trees::identifier::Identifier>> {
+) -> Option<StatementIdentifierPath> {
     match syntax_trees.expressions.expression(expression).clone() {
-        ExpressionNode::Name(path) => Some(copy_identifier_members_to_statement_table(
-            syntax_trees,
-            path,
-        )),
+        ExpressionNode::Name(path) => Some(StatementIdentifierPath {
+            members: copy_identifier_members_to_statement_table(syntax_trees, path),
+            starts_at_self: false,
+        }),
+        ExpressionNode::SelfValue => {
+            let self_member = syntax_trees.statements.append_identifier_path_member(
+                omega_syntax_trees::identifier::Identifier::generated("self"),
+            );
+            Some(StatementIdentifierPath {
+                members: HandleSpan::from_parts(self_member, 1),
+                starts_at_self: true,
+            })
+        }
         ExpressionNode::Member(member) => {
-            let receiver =
+            let mut receiver =
                 copy_expression_identifier_path_to_statement_table(syntax_trees, member.receiver)?;
-            Some(append_statement_identifier_path_member(
+            receiver.members = append_statement_identifier_path_member(
                 syntax_trees,
-                receiver,
+                receiver.members,
                 member.member,
-            ))
+            );
+            Some(receiver)
         }
         _ => None,
     }

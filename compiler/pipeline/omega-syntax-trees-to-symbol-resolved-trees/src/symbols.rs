@@ -652,6 +652,7 @@ fn assign_statement_symbols(
                     machine.symbol,
                     state_symbol,
                     statement_path_members.span_or_empty(call.receiver),
+                    call.receiver_starts_at_self,
                 ) {
                     let _ = head_symbol;
                     call.receiver_symbol = symbol;
@@ -1525,9 +1526,13 @@ fn assign_transition_target_symbols(
 
     let path = statement_path_members.span_or_empty(named.path);
     let target_name = path.last().cloned();
-    if let Some((head_symbol, symbol)) =
-        resolve_state_scoped_members(symbols, machine.symbol, state_symbol, path)
-    {
+    if let Some((head_symbol, symbol)) = resolve_state_scoped_members(
+        symbols,
+        machine.symbol,
+        state_symbol,
+        path,
+        named.path_starts_at_self,
+    ) {
         named.head_symbol = head_symbol;
         named.symbol = symbol;
         return;
@@ -1626,6 +1631,7 @@ fn resolve_state_scoped_members(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     members: &[omega_symbol_resolved_trees::name::DiagnosticName],
+    starts_at_self: bool,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if members.is_empty() {
         return None;
@@ -1635,10 +1641,7 @@ fn resolve_state_scoped_members(
     let mut current = SymbolHandle::invalid();
     let head: SymbolHandle;
 
-    if members
-        .first()
-        .is_some_and(|member| member.as_str() == "self")
-    {
+    if starts_at_self {
         current = machine_symbol;
         index = 1;
     }

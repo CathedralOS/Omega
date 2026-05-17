@@ -705,7 +705,9 @@ fn snapshot_transition_target(
     target: &TransitionTargetNode,
 ) -> TransitionTargetSnapshot {
     match target {
-        TransitionTargetNode::Named { path, arguments } => TransitionTargetSnapshot::Named {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => TransitionTargetSnapshot::Named {
             path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
             arguments: syntax_trees
                 .statements
