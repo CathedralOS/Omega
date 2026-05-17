@@ -1144,7 +1144,12 @@ fn write_runtime_leaf_branch_operation(
 ) {
     let source_name = backend_state_name(backend_plan, operation.source_key);
     match &operation.kind {
-        RuntimeLeafBranchOperationKind::HostCall { platform_call } => {
+        RuntimeLeafBranchOperationKind::HostCall => {
+            let platform_call = host_call_name_for_statement(
+                backend_plan,
+                operation.source_key,
+                operation.statement_index,
+            );
             output.push_str(&format!(
                 "    - {} statement {} host call `{}`\n",
                 source_name, operation.statement_index, platform_call
@@ -1188,7 +1193,12 @@ fn write_runtime_straight_line_branch_operation(
 ) {
     let source_name = backend_state_name(backend_plan, operation.source_key);
     match &operation.kind {
-        RuntimeStraightLineBranchOperationKind::HostCall { platform_call } => {
+        RuntimeStraightLineBranchOperationKind::HostCall => {
+            let platform_call = host_call_name_for_statement(
+                backend_plan,
+                operation.source_key,
+                operation.statement_index,
+            );
             output.push_str(&format!(
                 "    - {} statement {} host call `{}`\n",
                 source_name, operation.statement_index, platform_call
@@ -1269,4 +1279,25 @@ fn backend_state_name(backend_plan: &BackendReportInput<'_>, key: StateKey) -> S
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))
         .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
+}
+
+fn host_call_name_for_statement<'plan>(
+    backend_plan: &'plan BackendReportInput<'plan>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> &'plan str {
+    backend_plan
+        .host_calls
+        .calls
+        .iter()
+        .find(|(_, host_call)| {
+            state_key_matches_statement_source(host_call.source_key, source_key)
+                && host_call.statement_index == statement_index
+        })
+        .map(|(_, host_call)| host_call.platform_call.as_str())
+        .unwrap_or("<unknown>")
+}
+
+fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
 }

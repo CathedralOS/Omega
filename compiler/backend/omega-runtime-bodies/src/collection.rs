@@ -66,15 +66,11 @@ fn append_state_body_operations(
     };
 
     for operation in state_operations {
-        if let Some(host_call) =
-            host_call_for_statement(context, state_key, operation.statement_index)
-        {
+        if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
             operations.insert(body_operation(
                 state_key,
                 operation.statement_index,
-                RuntimeDispatchBodyOperationKind::HostCall {
-                    platform_call: host_call.platform_call.clone(),
-                },
+                RuntimeDispatchBodyOperationKind::HostCall,
             ));
             continue;
         }

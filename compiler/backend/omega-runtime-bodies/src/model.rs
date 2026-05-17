@@ -50,9 +50,7 @@ impl Default for RuntimeDispatchBodyOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum RuntimeDispatchBodyOperationKind {
-    HostCall {
-        platform_call: String,
-    },
+    HostCall,
     InlineLeafStateCall {
         role: StateCallRole,
         call_ordinal: usize,

@@ -90,9 +90,7 @@ impl Default for RuntimeLeafBranchOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum RuntimeLeafBranchOperationKind {
-    HostCall {
-        platform_call: String,
-    },
+    HostCall,
     Mutation {
         mutation_kind: StateMutationKind,
         lowering: StateMutationLowering,

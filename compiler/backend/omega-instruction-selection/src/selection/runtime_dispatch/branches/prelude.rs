@@ -59,7 +59,7 @@ fn select_runtime_branch_prelude(
 
     for operation in operations {
         match &operation.kind {
-            RuntimeBranchPreludeOperationKind::HostCall { .. } => {
+            RuntimeBranchPreludeOperationKind::HostCall => {
                 let Some(host_call) =
                     host_call_for_statement(input, operation.source_key, operation.statement_index)
                 else {

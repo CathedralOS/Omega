@@ -23,7 +23,7 @@ pub(super) fn bind_runtime_operation_aliases(
         RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
         | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
         | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}
-        RuntimeDispatchBodyOperationKind::HostCall { .. }
+        RuntimeDispatchBodyOperationKind::HostCall
         | RuntimeDispatchBodyOperationKind::LocalStorage { .. }
         | RuntimeDispatchBodyOperationKind::Mutation { .. }
         | RuntimeDispatchBodyOperationKind::StateCallResult { .. }
