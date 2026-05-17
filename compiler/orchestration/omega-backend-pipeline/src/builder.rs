@@ -3,7 +3,9 @@ use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
 use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
+use omega_checked_trees::Program;
 use omega_control_flow::ControlFlowPlan;
+use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_data_planning::build_target_data_plan;
@@ -38,7 +40,6 @@ use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
 use omega_target_operations_to_machine_program::build_machine_program;
-use omega_checked_trees::Program;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
@@ -48,7 +49,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
     let entry_point = resolve_backend_entry_point(&program)?;
-    let mut phase_timings = Vec::new();
+    let mut phase_timings = Arena::new();
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
     });

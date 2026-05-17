@@ -1,6 +1,7 @@
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
+use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_program::MachineProgram;
@@ -47,7 +48,7 @@ pub struct BackendPlan {
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
     pub entry_key: StateKey,
-    pub phase_timings: Vec<BackendPlanPhaseTiming>,
+    pub phase_timings: Arena<BackendPlanPhaseTiming>,
 }
 
 impl BackendPlan {
@@ -66,7 +67,7 @@ impl BackendPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BackendPlanPhaseTiming {
     pub phase: String,
     pub microseconds: u128,

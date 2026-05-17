@@ -1,9 +1,10 @@
 use omega_backend_plan::BackendPlanPhaseTiming;
 use omega_core::allocations::snapshot as allocation_snapshot;
+use omega_core::arena::Arena;
 use std::time::Instant;
 
 pub(super) fn record_backend_phase<T>(
-    timings: &mut Vec<BackendPlanPhaseTiming>,
+    timings: &mut Arena<BackendPlanPhaseTiming>,
     phase: &str,
     work: impl FnOnce() -> T,
 ) -> T {
@@ -13,7 +14,7 @@ pub(super) fn record_backend_phase<T>(
     let microseconds = time_start.elapsed().as_micros();
     let allocations = allocation_snapshot().delta_since(allocation_start);
 
-    timings.push(BackendPlanPhaseTiming {
+    timings.append(BackendPlanPhaseTiming {
         phase: phase.to_owned(),
         microseconds,
         allocations,

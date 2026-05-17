@@ -1,6 +1,7 @@
 use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
+use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_program::MachineProgram;
@@ -31,7 +32,7 @@ pub(super) struct BackendPlanSkeletonInput {
     pub state_guards: StateGuardPlan,
     pub layouts: LayoutPlan,
     pub entry_key: StateKey,
-    pub phase_timings: Vec<BackendPlanPhaseTiming>,
+    pub phase_timings: Arena<BackendPlanPhaseTiming>,
 }
 
 pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> BackendPlan {
