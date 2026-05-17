@@ -15,8 +15,8 @@ use expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
 use nested_fields::{
-    FieldPathSegment, resolve_nested_field_layout_with_segments,
-    resolve_nested_field_layout_with_symbols,
+    FieldPathSegment, resolve_nested_field_layout_with_pairs,
+    resolve_nested_field_layout_with_segments, resolve_nested_field_layout_with_symbols,
 };
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
@@ -226,7 +226,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     if path.is_empty() {
         return None;
     }
-    let suffix = &path.members()[1..];
+    let suffix = path.suffix(1);
     let slot = input
         .runtime_storage
         .frame_slots
@@ -254,9 +254,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         },
     };
     let (byte_offset, layout) =
-        resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
-            path.member_symbol(index + 1)
-        })?;
+        resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?;
 
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,

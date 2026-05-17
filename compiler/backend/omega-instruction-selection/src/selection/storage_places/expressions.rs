@@ -5,6 +5,8 @@ use omega_checked_trees::expression::{
 use omega_checked_trees::name::ProgramName;
 use omega_core::symbols::SymbolHandle;
 
+use super::nested_fields::FieldPathSegment;
+
 pub(in crate::selection) fn normalized_storage_expression(
     expression: &Expression,
 ) -> Option<Expression> {
@@ -90,12 +92,13 @@ fn member_expression_path_in_table<'table>(
         ExpressionNode::Mutable(target) => normalized_storage_name_path_in_table(table, *target)?,
         _ => return None,
     };
-    let (mut members, mut member_symbols, head_symbol, _) = path.into_owned_parts();
-    members.push(member.member.clone());
-    member_symbols.push(member.member_symbol);
+    let (mut segments, head_symbol, _) = path.into_owned_segments();
+    segments.push(FieldPathSegment::new(
+        member.member.clone(),
+        member.member_symbol,
+    ));
     Some(StorageNamePath::owned(
-        members,
-        member_symbols,
+        segments,
         head_symbol,
         member.member_symbol,
     ))
@@ -120,7 +123,7 @@ fn indexed_expression_path_in_table<'table>(
         }
         _ => return None,
     };
-    let last_segment = path.members().last()?.clone();
+    let last_segment = path.last()?.clone();
     Some(
         path.replace_last_preserving_symbol(ProgramName::generated(format!(
             "{last_segment}[{index}]"
@@ -136,8 +139,7 @@ pub(in crate::selection) enum StorageNamePath<'table> {
         final_symbol: SymbolHandle,
     },
     Owned {
-        members: Vec<ProgramName>,
-        member_symbols: Vec<SymbolHandle>,
+        segments: Vec<FieldPathSegment>,
         head_symbol: SymbolHandle,
         final_symbol: SymbolHandle,
     },
@@ -159,21 +161,19 @@ impl<'table> StorageNamePath<'table> {
     }
 
     fn owned(
-        members: Vec<ProgramName>,
-        member_symbols: Vec<SymbolHandle>,
+        segments: Vec<FieldPathSegment>,
         head_symbol: SymbolHandle,
         final_symbol: SymbolHandle,
     ) -> Self {
         Self::Owned {
-            members,
-            member_symbols,
+            segments,
             head_symbol,
             final_symbol,
         }
     }
 
     pub(in crate::selection) fn is_empty(&self) -> bool {
-        self.members().is_empty()
+        self.len() == 0
     }
 
     pub(in crate::selection) fn head_symbol(&self) -> SymbolHandle {
@@ -182,11 +182,23 @@ impl<'table> StorageNamePath<'table> {
         }
     }
 
-    pub(in crate::selection) fn members(&self) -> &[ProgramName] {
+    pub(in crate::selection) fn len(&self) -> usize {
         match self {
-            Self::Borrowed { members, .. } => members,
-            Self::Owned { members, .. } => members,
+            Self::Borrowed { members, .. } => members.len(),
+            Self::Owned { segments, .. } => segments.len(),
         }
+    }
+
+    pub(in crate::selection) fn member(&self, index: usize) -> Option<&ProgramName> {
+        match self {
+            Self::Borrowed { members, .. } => members.get(index),
+            Self::Owned { segments, .. } => segments.get(index).map(|segment| &segment.name),
+        }
+    }
+
+    fn last(&self) -> Option<&ProgramName> {
+        let last_index = self.len().checked_sub(1)?;
+        self.member(last_index)
     }
 
     pub(in crate::selection) fn member_symbol(&self, index: usize) -> SymbolHandle {
@@ -206,33 +218,32 @@ impl<'table> StorageNamePath<'table> {
                     SymbolHandle::invalid()
                 }
             }),
-            Self::Owned { member_symbols, .. } => member_symbols
+            Self::Owned { segments, .. } => segments
                 .get(index)
-                .copied()
+                .map(|segment| segment.symbol)
                 .unwrap_or_else(SymbolHandle::invalid),
         }
     }
 
-    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
-        let (mut members, member_symbols, head_symbol, final_symbol) = self.into_owned_parts();
-        let last = members.last_mut()?;
-        *last = member;
-        Some(Self::owned(
-            members,
-            member_symbols,
-            head_symbol,
-            final_symbol,
-        ))
+    pub(in crate::selection) fn suffix(&self, start: usize) -> StoragePathSuffix<'_, 'table> {
+        match self {
+            Self::Borrowed { .. } => StoragePathSuffix::Borrowed { path: self, start },
+            Self::Owned { segments, .. } => StoragePathSuffix::Owned(
+                segments
+                    .get(start..)
+                    .unwrap_or_else(|| segments.get(segments.len()..).unwrap_or(&[])),
+            ),
+        }
     }
 
-    fn into_owned_parts(
-        self,
-    ) -> (
-        Vec<ProgramName>,
-        Vec<SymbolHandle>,
-        SymbolHandle,
-        SymbolHandle,
-    ) {
+    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
+        let (mut segments, head_symbol, final_symbol) = self.into_owned_segments();
+        let last = segments.last_mut()?;
+        last.name = member;
+        Some(Self::owned(segments, head_symbol, final_symbol))
+    }
+
+    fn into_owned_segments(self) -> (Vec<FieldPathSegment>, SymbolHandle, SymbolHandle) {
         match self {
             Self::Borrowed {
                 members,
@@ -240,31 +251,93 @@ impl<'table> StorageNamePath<'table> {
                 head_symbol,
                 final_symbol,
             } => {
-                let mut owned_member_symbols = member_symbols.to_vec();
-                if owned_member_symbols.len() != members.len() {
-                    owned_member_symbols.resize(members.len(), SymbolHandle::invalid());
-                }
-                if let Some(root_symbol) = owned_member_symbols.first_mut() {
-                    *root_symbol = head_symbol;
-                }
-                if members.len() > 1
-                    && let Some(last_symbol) = owned_member_symbols.last_mut()
-                {
-                    *last_symbol = final_symbol;
-                }
-                (
-                    members.to_vec(),
-                    owned_member_symbols,
-                    head_symbol,
-                    final_symbol,
-                )
+                let segments = members
+                    .iter()
+                    .enumerate()
+                    .map(|(index, member)| {
+                        FieldPathSegment::new(
+                            member.clone(),
+                            borrowed_member_symbol(
+                                members,
+                                member_symbols,
+                                head_symbol,
+                                final_symbol,
+                                index,
+                            ),
+                        )
+                    })
+                    .collect();
+                (segments, head_symbol, final_symbol)
             }
             Self::Owned {
-                members,
-                member_symbols,
+                segments,
                 head_symbol,
                 final_symbol,
-            } => (members, member_symbols, head_symbol, final_symbol),
+            } => (segments, head_symbol, final_symbol),
+        }
+    }
+}
+
+fn borrowed_member_symbol(
+    members: &[ProgramName],
+    member_symbols: &[SymbolHandle],
+    head_symbol: SymbolHandle,
+    final_symbol: SymbolHandle,
+    index: usize,
+) -> SymbolHandle {
+    member_symbols.get(index).copied().unwrap_or_else(|| {
+        if index == 0 {
+            head_symbol
+        } else if index + 1 == members.len() {
+            final_symbol
+        } else {
+            SymbolHandle::invalid()
+        }
+    })
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::selection) enum StoragePathSuffix<'path, 'table> {
+    Borrowed {
+        path: &'path StorageNamePath<'table>,
+        start: usize,
+    },
+    Owned(&'path [FieldPathSegment]),
+}
+
+impl<'path, 'table> StoragePathSuffix<'path, 'table> {
+    pub(in crate::selection) fn iter(self) -> StoragePathSuffixIter<'path, 'table> {
+        match self {
+            Self::Borrowed { path, start } => {
+                StoragePathSuffixIter::Borrowed { path, index: start }
+            }
+            Self::Owned(segments) => StoragePathSuffixIter::Owned(segments.iter()),
+        }
+    }
+}
+
+pub(in crate::selection) enum StoragePathSuffixIter<'path, 'table> {
+    Borrowed {
+        path: &'path StorageNamePath<'table>,
+        index: usize,
+    },
+    Owned(std::slice::Iter<'path, FieldPathSegment>),
+}
+
+impl<'path, 'table> Iterator for StoragePathSuffixIter<'path, 'table> {
+    type Item = (&'path ProgramName, SymbolHandle);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Borrowed { path, index } => {
+                let member = path.member(*index)?;
+                let symbol = path.member_symbol(*index);
+                *index += 1;
+                Some((member, symbol))
+            }
+            Self::Owned(segments) => segments
+                .next()
+                .map(|segment| (&segment.name, segment.symbol)),
         }
     }
 }

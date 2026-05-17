@@ -1,7 +1,9 @@
 use super::expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
-use super::nested_fields::resolve_nested_field_layout_with_symbols;
+use super::nested_fields::{
+    resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
+};
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::ProgramName;
 use omega_core::symbols::SymbolHandle;
@@ -35,12 +37,11 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
     expression: ExpressionHandle,
 ) -> Option<(usize, usize)> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
-    let (machine_base_offset, root_field, suffix, suffix_start_index) =
+    let (machine_base_offset, root_field, suffix_start_index) =
         root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
+    let suffix = path.suffix(suffix_start_index);
     let (field_offset, field_layout) =
-        resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, |index| {
-            path.member_symbol(suffix_start_index + index)
-        })?;
+        resolve_nested_field_layout_with_pairs(layouts, root_field, suffix.iter())?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
 }
@@ -50,15 +51,25 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path StorageNamePath<'_>,
-) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName], usize)> {
-    root_machine_field_layout_from_parts(
-        layouts,
-        entry_machine,
-        source_machine,
-        path.members(),
-        path.head_symbol(),
-        path.member_symbol(1),
-    )
+) -> Option<(usize, &'layout FieldLayout, usize)> {
+    path.member(0)?;
+
+    if path.head_symbol() == source_machine {
+        path.member(1)?;
+        let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+        let machine_layout = layouts
+            .machine_layouts
+            .iter()
+            .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
+            .map(|(_, machine_layout)| machine_layout)?;
+        let root_field =
+            field_layout_by_symbol(layouts, machine_layout.fields, path.member_symbol(1))?;
+        return Some((machine_base_offset, root_field, 2));
+    }
+
+    let (machine_base_offset, root_field) =
+        root_machine_field_layout(layouts, entry_machine, source_machine, path.head_symbol())?;
+    Some((machine_base_offset, root_field, 1))
 }
 
 fn root_machine_field_layout_from_path<'path, 'layout>(

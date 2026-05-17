@@ -36,11 +36,19 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_segments(
     root_field: &FieldLayout,
     suffix: &[FieldPathSegment],
 ) -> Option<(usize, TypeLayout)> {
-    resolve_nested_field_layout(
+    resolve_nested_field_layout_with_pairs(
         layouts,
         root_field,
         suffix.iter().map(|segment| (&segment.name, segment.symbol)),
     )
+}
+
+pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
+    layouts: &LayoutPlan,
+    root_field: &FieldLayout,
+    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle)>,
+) -> Option<(usize, TypeLayout)> {
+    resolve_nested_field_layout(layouts, root_field, suffix)
 }
 
 fn resolve_nested_field_layout<'suffix>(
