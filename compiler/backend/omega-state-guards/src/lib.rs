@@ -9,7 +9,7 @@ pub use model::{
 use normalize::normalize_guard_expression;
 use omega_checked_trees::Program;
 use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use omega_checked_trees::machine::Machine;
 use omega_control_flow::{ControlFlowPlan, StateKey};
@@ -126,12 +126,14 @@ fn build_state_guard(
     edge: &DispatchEdge,
 ) -> StateGuard {
     let source_guard = edge.expressions.guard;
-    let simplified_guard =
-        simplified_guard_expression(program, source_machine, source_expressions, source_guard);
     let mut normalized_expressions = ExpressionTable::new();
-    let normalized_guard = normalize_guard_expression(simplified_guard)
-        .map(|guard| normalized_expressions.insert_tree(&guard));
-    let normalized_guard = normalized_guard.unwrap_or_else(ExpressionHandle::invalid);
+    let normalized_guard = normalized_guard_expression(
+        program,
+        source_machine,
+        source_expressions,
+        source_guard,
+        &mut normalized_expressions,
+    );
     let kind = classify_transition_guard_expression(&normalized_expressions, normalized_guard);
     let operator = normalized_guard
         .is_valid()
@@ -219,25 +221,29 @@ fn build_state_guard(
     }
 }
 
-fn simplified_guard_expression(
+fn normalized_guard_expression(
     program: &Program,
     source_machine: &Machine,
     source_expressions: &ExpressionTable,
     source_guard: ExpressionHandle,
-) -> Option<Expression> {
+    normalized_expressions: &mut ExpressionTable,
+) -> ExpressionHandle {
     if !source_guard.is_valid() {
-        return None;
+        return ExpressionHandle::invalid();
     }
 
     if let ExpressionNode::Boolean(value) = source_expressions.expression(source_guard) {
-        return Some(Expression::Boolean(*value));
+        return normalized_expressions.insert(ExpressionNode::Boolean(*value));
     }
 
-    Some(simplify_expression(
+    let simplified_guard = simplify_expression(
         program,
         source_machine,
         &source_expressions.to_tree(source_guard),
-    ))
+    );
+    normalize_guard_expression(Some(simplified_guard))
+        .map(|guard| normalized_expressions.insert_tree(&guard))
+        .unwrap_or_else(ExpressionHandle::invalid)
 }
 
 fn machine_by_symbol<'program>(
