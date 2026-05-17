@@ -3,12 +3,13 @@ use omega_checked_trees::Program;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{TableAssignment, TableCall};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StaticValue {
     Integer(i64),
     Expression(ExpressionHandle),
-    Text(String),
+    Text(Arc<str>),
 }
 
 pub(crate) fn initial_static_values(
@@ -29,7 +30,7 @@ pub(crate) fn initial_static_values(
                 .expression(owned_data.initial_value)
             {
                 ExpressionNode::Integer(value) => StaticValue::Integer(*value),
-                ExpressionNode::String(value) => StaticValue::Text(value.to_string()),
+                ExpressionNode::String(value) => StaticValue::Text(value.clone()),
                 ExpressionNode::Name(path) if path.symbol.is_valid() => StaticValue::Expression(
                     expressions.copy_from(&program.expression_table, owned_data.initial_value),
                 ),
@@ -113,7 +114,7 @@ pub(crate) fn resolve_static_value_handle(
 ) -> Option<StaticValue> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => Some(StaticValue::Integer(*value)),
-        ExpressionNode::String(value) => Some(StaticValue::Text(value.to_string())),
+        ExpressionNode::String(value) => Some(StaticValue::Text(value.clone())),
         ExpressionNode::Name(path) => {
             let key = static_place_key_handle(program, expression)?;
             static_values
