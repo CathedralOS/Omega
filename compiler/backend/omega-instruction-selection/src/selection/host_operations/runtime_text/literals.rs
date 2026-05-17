@@ -7,13 +7,21 @@ use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
 use omega_target_operations::TargetDataObjectHandle;
 
+pub(in crate::selection) struct RuntimeTextLiteralWrite {
+    pub buffer: TargetDataObjectHandle,
+    pub literal: String,
+}
+
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> Option<(TargetDataObjectHandle, String)> {
+) -> Option<RuntimeTextLiteralWrite> {
     let literal = runtime_text_literal_for_host_call(input, host_call)?;
-    let (data_object, _) = find_runtime_text_input_buffer_data(input, host_call)?;
-    Some((data_object, literal))
+    let buffer = find_runtime_text_input_buffer_data(input, host_call);
+    if !buffer.is_valid() {
+        return None;
+    }
+    Some(RuntimeTextLiteralWrite { buffer, literal })
 }
 
 pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
@@ -91,7 +99,7 @@ fn host_call_uses_runtime_text_input_buffer(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
 ) -> bool {
-    find_runtime_text_input_buffer_data(input, host_call).is_some()
+    find_runtime_text_input_buffer_data(input, host_call).is_valid()
 }
 
 fn runtime_text_write_for_operation<'plan>(

@@ -5,10 +5,10 @@ use omega_runtime_text::RuntimeTextSource;
 use omega_runtime_text::places::{expression_place_eq_in_table, expression_place_eq_table_tree};
 use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
 
-pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
-    input: &'plan InstructionSelectionInput<'plan>,
+pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data(
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
+) -> TargetDataObjectHandle {
     let text_use = input
         .runtime_text
         .uses
@@ -18,7 +18,10 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
                 && text_use.statement_index == host_call.statement_index
                 && text_use.source == RuntimeTextSource::StoredPlace
         })
-        .map(|(_, text_use)| text_use)?;
+        .map(|(_, text_use)| text_use);
+    let Some(text_use) = text_use else {
+        return TargetDataObjectHandle::invalid();
+    };
 
     let text_slot = input
         .runtime_text
@@ -31,7 +34,10 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
                 text_use.expression,
             ) && slot.has_input_buffer
         })
-        .map(|(_, slot)| slot)?;
+        .map(|(_, slot)| slot);
+    let Some(text_slot) = text_slot else {
+        return TargetDataObjectHandle::invalid();
+    };
 
     let buffer = input
         .runtime_text
@@ -44,25 +50,35 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
                 text_slot.place,
             )
         })
-        .map(|(_, buffer)| buffer)?;
+        .map(|(_, buffer)| buffer);
+    let Some(buffer) = buffer else {
+        return TargetDataObjectHandle::invalid();
+    };
 
-    input.data.objects.iter().find(|(_, data_object)| {
-        data_object.source_key == buffer.source_key
-            && data_object.source_statement == buffer.statement_index
-    })
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_key == buffer.source_key
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
 }
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data_object<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
 ) -> Option<&'plan TargetDataObject> {
-    find_runtime_text_input_buffer_data(input, host_call).map(|(_, data_object)| data_object)
+    let handle = find_runtime_text_input_buffer_data(input, host_call);
+    handle.is_valid().then(|| input.data.objects.get(handle))
 }
 
-pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>(
-    input: &'plan InstructionSelectionInput<'plan>,
+pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place(
+    input: &InstructionSelectionInput<'_>,
     text_place: &Expression,
-) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
+) -> TargetDataObjectHandle {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
         (expression_place_eq_table_tree(
             &input.runtime_text.expressions,
@@ -74,10 +90,19 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>
             text_place,
         ))
         .then_some(buffer)
-    })?;
+    });
+    let Some(buffer) = buffer else {
+        return TargetDataObjectHandle::invalid();
+    };
 
-    input.data.objects.iter().find(|(_, data_object)| {
-        data_object.source_key == buffer.source_key
-            && data_object.source_statement == buffer.statement_index
-    })
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_key == buffer.source_key
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
 }
