@@ -1,8 +1,5 @@
 use crate::StateGuardOperandStorage;
-use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
-    TableMemberExpression,
-};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
@@ -249,142 +246,21 @@ fn normalized_guard_name_path<'table>(
     table: &'table ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<NormalizedGuardNamePath<'table>> {
-    match table.expression(expression) {
-        ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target),
-        ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed),
-        ExpressionNode::Member(member) => member_expression_path_in_table(table, member),
-        ExpressionNode::Name(path) => Some(NormalizedGuardNamePath::borrowed(
-            table.name_path_members(path.members),
-            table.name_path_member_symbols(path.member_symbols),
-            path.head_symbol,
-            path.symbol,
-        )),
-        _ => None,
-    }
+    guard_path_len(table, expression).map(|_| NormalizedGuardNamePath { table, expression })
 }
 
-fn member_expression_path_in_table<'table>(
+struct NormalizedGuardNamePath<'table> {
     table: &'table ExpressionTable,
-    member: &TableMemberExpression,
-) -> Option<NormalizedGuardNamePath<'table>> {
-    let path = match table.expression(member.receiver) {
-        ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
-            table.name_path_members(path.members),
-            table.name_path_member_symbols(path.member_symbols),
-            path.head_symbol,
-            path.symbol,
-        ),
-        ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed)?,
-        ExpressionNode::Member(inner_member) => {
-            member_expression_path_in_table(table, inner_member)?
-        }
-        ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target)?,
-        _ => return None,
-    };
-    let (mut segments, head_symbol, _) = path.into_owned_segments();
-    segments.push(GuardPathSegment::new(
-        member.member.clone(),
-        member.member_symbol,
-    ));
-    Some(NormalizedGuardNamePath::owned(
-        segments,
-        head_symbol,
-        member.member_symbol,
-    ))
-}
-
-fn indexed_expression_path_in_table<'table>(
-    table: &'table ExpressionTable,
-    indexed: &TableIndexedExpression,
-) -> Option<NormalizedGuardNamePath<'table>> {
-    let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
-        return None;
-    };
-    let index = usize::try_from(*index).ok()?;
-    let path = match table.expression(indexed.collection) {
-        ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
-            table.name_path_members(path.members),
-            table.name_path_member_symbols(path.member_symbols),
-            path.head_symbol,
-            path.symbol,
-        ),
-        ExpressionNode::Indexed(inner_indexed) => {
-            indexed_expression_path_in_table(table, inner_indexed)?
-        }
-        _ => return None,
-    };
-    path.with_last_index(index)
-}
-
-enum NormalizedGuardNamePath<'table> {
-    Borrowed {
-        members: &'table [ProgramName],
-        member_symbols: &'table [SymbolHandle],
-        head_symbol: SymbolHandle,
-        final_symbol: SymbolHandle,
-    },
-    Owned {
-        segments: Vec<GuardPathSegment>,
-        head_symbol: SymbolHandle,
-        final_symbol: SymbolHandle,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct GuardPathSegment {
-    name: ProgramName,
-    symbol: SymbolHandle,
-    index: Option<usize>,
-}
-
-impl GuardPathSegment {
-    fn new(name: ProgramName, symbol: SymbolHandle) -> Self {
-        Self {
-            name,
-            symbol,
-            index: None,
-        }
-    }
+    expression: ExpressionHandle,
 }
 
 impl<'table> NormalizedGuardNamePath<'table> {
-    fn borrowed(
-        members: &'table [ProgramName],
-        member_symbols: &'table [SymbolHandle],
-        head_symbol: SymbolHandle,
-        final_symbol: SymbolHandle,
-    ) -> Self {
-        Self::Borrowed {
-            members,
-            member_symbols,
-            head_symbol,
-            final_symbol,
-        }
-    }
-
-    fn owned(
-        segments: Vec<GuardPathSegment>,
-        head_symbol: SymbolHandle,
-        final_symbol: SymbolHandle,
-    ) -> Self {
-        Self::Owned {
-            segments,
-            head_symbol,
-            final_symbol,
-        }
-    }
-
     fn head_symbol(&self) -> SymbolHandle {
-        match self {
-            Self::Borrowed { head_symbol, .. } | Self::Owned { head_symbol, .. } => *head_symbol,
-        }
+        guard_path_head_symbol(self.table, self.expression)
     }
 
     fn len(&self) -> usize {
-        match self {
-            Self::Borrowed { members, .. } => members.len(),
-            Self::Owned { segments, .. } => segments.len(),
-        }
+        guard_path_len(self.table, self.expression).unwrap_or(0)
     }
 
     fn is_empty(&self) -> bool {
@@ -392,95 +268,127 @@ impl<'table> NormalizedGuardNamePath<'table> {
     }
 
     fn member(&self, index: usize) -> Option<&ProgramName> {
-        match self {
-            Self::Borrowed { members, .. } => members.get(index),
-            Self::Owned { segments, .. } => segments.get(index).map(|segment| &segment.name),
-        }
+        guard_path_member(self.table, self.expression, index)
     }
 
     fn member_symbol(&self, index: usize) -> SymbolHandle {
-        match self {
-            Self::Borrowed {
-                members,
-                member_symbols,
-                head_symbol,
-                final_symbol,
-                ..
-            } => member_symbols.get(index).copied().unwrap_or_else(|| {
-                if index == 0 {
-                    *head_symbol
-                } else if index + 1 == members.len() {
-                    *final_symbol
-                } else {
-                    SymbolHandle::invalid()
-                }
-            }),
-            Self::Owned { segments, .. } => segments
-                .get(index)
-                .map(|segment| segment.symbol)
-                .unwrap_or_else(SymbolHandle::invalid),
-        }
+        guard_path_member_symbol(self.table, self.expression, index)
     }
 
     fn member_index(&self, index: usize) -> Option<usize> {
-        match self {
-            Self::Borrowed { .. } => None,
-            Self::Owned { segments, .. } => segments.get(index).and_then(|segment| segment.index),
-        }
+        guard_path_member_index(self.table, self.expression, index)
     }
 
     fn suffix(&self, start: usize) -> GuardPathSuffix<'_, 'table> {
-        match self {
-            Self::Borrowed { .. } => GuardPathSuffix::Borrowed { path: self, start },
-            Self::Owned { segments, .. } => GuardPathSuffix::Owned(
-                segments
-                    .get(start..)
-                    .unwrap_or_else(|| segments.get(segments.len()..).unwrap_or(&[])),
-            ),
+        GuardPathSuffix { path: self, start }
+    }
+}
+
+fn guard_path_head_symbol(table: &ExpressionTable, expression: ExpressionHandle) -> SymbolHandle {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => guard_path_head_symbol(table, *target),
+        ExpressionNode::Indexed(indexed) => guard_path_head_symbol(table, indexed.collection),
+        ExpressionNode::Member(member) => guard_path_head_symbol(table, member.receiver),
+        ExpressionNode::Name(path) => path.head_symbol,
+        _ => SymbolHandle::invalid(),
+    }
+}
+
+fn guard_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Option<usize> {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => guard_path_len(table, *target),
+        ExpressionNode::Indexed(indexed) => {
+            let ExpressionNode::Integer(_) = table.expression(indexed.index) else {
+                return None;
+            };
+            guard_path_len(table, indexed.collection)
         }
+        ExpressionNode::Member(member) => guard_path_len(table, member.receiver)?.checked_add(1),
+        ExpressionNode::Name(path) => Some(table.name_path_members(path.members).len()),
+        _ => None,
     }
+}
 
-    fn with_last_index(self, index: usize) -> Option<Self> {
-        let (mut segments, head_symbol, final_symbol) = self.into_owned_segments();
-        let last = segments.last_mut()?;
-        last.index = Some(index);
-        Some(Self::owned(segments, head_symbol, final_symbol))
-    }
-
-    fn into_owned_segments(self) -> (Vec<GuardPathSegment>, SymbolHandle, SymbolHandle) {
-        match self {
-            Self::Borrowed {
-                members,
-                member_symbols,
-                head_symbol,
-                final_symbol,
-                ..
-            } => {
-                let segments = members
-                    .iter()
-                    .enumerate()
-                    .map(|(index, member)| {
-                        GuardPathSegment::new(
-                            member.clone(),
-                            borrowed_member_symbol(
-                                members,
-                                member_symbols,
-                                head_symbol,
-                                final_symbol,
-                                index,
-                            ),
-                        )
-                    })
-                    .collect();
-                (segments, head_symbol, final_symbol)
+fn guard_path_member(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    index: usize,
+) -> Option<&ProgramName> {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => guard_path_member(table, *target, index),
+        ExpressionNode::Indexed(indexed) => guard_path_member(table, indexed.collection, index),
+        ExpressionNode::Member(member) => {
+            let receiver_len = guard_path_len(table, member.receiver)?;
+            if index == receiver_len {
+                Some(&member.member)
+            } else {
+                guard_path_member(table, member.receiver, index)
             }
-            Self::Owned {
-                segments,
-                head_symbol,
-                final_symbol,
-                ..
-            } => (segments, head_symbol, final_symbol),
         }
+        ExpressionNode::Name(path) => table.name_path_members(path.members).get(index),
+        _ => None,
+    }
+}
+
+fn guard_path_member_symbol(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    index: usize,
+) -> SymbolHandle {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => guard_path_member_symbol(table, *target, index),
+        ExpressionNode::Indexed(indexed) => {
+            guard_path_member_symbol(table, indexed.collection, index)
+        }
+        ExpressionNode::Member(member) => {
+            let Some(receiver_len) = guard_path_len(table, member.receiver) else {
+                return SymbolHandle::invalid();
+            };
+            if index == receiver_len {
+                member.member_symbol
+            } else {
+                guard_path_member_symbol(table, member.receiver, index)
+            }
+        }
+        ExpressionNode::Name(path) => borrowed_member_symbol(
+            table.name_path_members(path.members),
+            table.name_path_member_symbols(path.member_symbols),
+            path.head_symbol,
+            path.symbol,
+            index,
+        ),
+        _ => SymbolHandle::invalid(),
+    }
+}
+
+fn guard_path_member_index(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    index: usize,
+) -> Option<usize> {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => guard_path_member_index(table, *target, index),
+        ExpressionNode::Indexed(indexed) => {
+            let indexed_len = guard_path_len(table, indexed.collection)?;
+            if index + 1 == indexed_len {
+                let ExpressionNode::Integer(value) = table.expression(indexed.index) else {
+                    return None;
+                };
+                usize::try_from(*value).ok()
+            } else {
+                guard_path_member_index(table, indexed.collection, index)
+            }
+        }
+        ExpressionNode::Member(member) => {
+            let receiver_len = guard_path_len(table, member.receiver)?;
+            if index < receiver_len {
+                guard_path_member_index(table, member.receiver, index)
+            } else {
+                None
+            }
+        }
+        ExpressionNode::Name(_) => None,
+        _ => None,
     }
 }
 
@@ -503,54 +411,38 @@ fn borrowed_member_symbol(
 }
 
 #[derive(Clone, Copy)]
-enum GuardPathSuffix<'path, 'table> {
-    Borrowed {
-        path: &'path NormalizedGuardNamePath<'table>,
-        start: usize,
-    },
-    Owned(&'path [GuardPathSegment]),
+struct GuardPathSuffix<'path, 'table> {
+    path: &'path NormalizedGuardNamePath<'table>,
+    start: usize,
 }
 
 impl<'path, 'table> GuardPathSuffix<'path, 'table> {
     fn is_empty(self) -> bool {
-        match self {
-            Self::Borrowed { path, start } => start >= path.len(),
-            Self::Owned(segments) => segments.is_empty(),
-        }
+        self.start >= self.path.len()
     }
 
     fn iter(self) -> GuardPathSuffixIter<'path, 'table> {
-        match self {
-            Self::Borrowed { path, start } => GuardPathSuffixIter::Borrowed { path, index: start },
-            Self::Owned(segments) => GuardPathSuffixIter::Owned(segments.iter()),
+        GuardPathSuffixIter {
+            path: self.path,
+            index: self.start,
         }
     }
 }
 
-enum GuardPathSuffixIter<'path, 'table> {
-    Borrowed {
-        path: &'path NormalizedGuardNamePath<'table>,
-        index: usize,
-    },
-    Owned(std::slice::Iter<'path, GuardPathSegment>),
+struct GuardPathSuffixIter<'path, 'table> {
+    path: &'path NormalizedGuardNamePath<'table>,
+    index: usize,
 }
 
 impl<'path, 'table> Iterator for GuardPathSuffixIter<'path, 'table> {
     type Item = (&'path ProgramName, SymbolHandle, Option<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Borrowed { path, index } => {
-                let member = path.member(*index)?;
-                let symbol = path.member_symbol(*index);
-                let field_index = path.member_index(*index);
-                *index += 1;
-                Some((member, symbol, field_index))
-            }
-            Self::Owned(segments) => segments
-                .next()
-                .map(|segment| (&segment.name, segment.symbol, segment.index)),
-        }
+        let member = self.path.member(self.index)?;
+        let symbol = self.path.member_symbol(self.index);
+        let field_index = self.path.member_index(self.index);
+        self.index += 1;
+        Some((member, symbol, field_index))
     }
 }
 
