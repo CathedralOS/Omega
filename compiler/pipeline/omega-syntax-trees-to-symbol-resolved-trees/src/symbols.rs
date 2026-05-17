@@ -1325,7 +1325,14 @@ fn resolve_state_scoped_table_path(
     path: &omega_symbol_resolved_trees::expression::TableNamePath,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     let members = expression_table.name_path_members(path.members);
-    resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, None)
+    resolve_state_scoped_table_members(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        members,
+        path.is_self_value,
+        None,
+    )
 }
 
 fn resolve_state_scoped_table_path_with_indexed_last_member(
@@ -1337,7 +1344,14 @@ fn resolve_state_scoped_table_path_with_indexed_last_member(
     index: i64,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     let members = expression_table.name_path_members(path.members);
-    resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, Some(index))
+    resolve_state_scoped_table_members(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        members,
+        path.is_self_value,
+        Some(index),
+    )
 }
 
 fn resolve_state_scoped_table_members(
@@ -1345,6 +1359,7 @@ fn resolve_state_scoped_table_members(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     members: &[omega_symbol_resolved_trees::name::DiagnosticName],
+    starts_at_self: bool,
     indexed_last_member: Option<i64>,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if members.is_empty() {
@@ -1355,10 +1370,7 @@ fn resolve_state_scoped_table_members(
     let mut current = SymbolHandle::invalid();
     let head: SymbolHandle;
 
-    if members
-        .first()
-        .is_some_and(|member| member.as_str() == "self")
-    {
+    if starts_at_self {
         current = machine_symbol;
         index = 1;
     }
