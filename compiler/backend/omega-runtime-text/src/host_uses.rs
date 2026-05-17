@@ -42,7 +42,6 @@ fn collect_runtime_text_use(
         plan.uses.insert(RuntimeTextUse {
             source_key: host_call.source_key,
             statement_index: host_call.statement_index,
-            platform_call: host_call.platform_call.clone(),
             expression: expression_handle,
             source,
             append_newline,
@@ -55,7 +54,6 @@ fn collect_runtime_text_use(
             plan.buffers.insert(RuntimeTextBuffer {
                 source_key: host_call.source_key,
                 statement_index: host_call.statement_index,
-                platform_call: host_call.platform_call.clone(),
                 target,
                 text_place: expression_handle,
                 byte_capacity: DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY,
@@ -88,7 +86,6 @@ fn collect_runtime_text_buffer(
     plan.buffers.insert(RuntimeTextBuffer {
         source_key: host_call.source_key,
         statement_index: host_call.statement_index,
-        platform_call: host_call.platform_call.clone(),
         target,
         text_place,
         byte_capacity,

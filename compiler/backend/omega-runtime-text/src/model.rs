@@ -17,7 +17,6 @@ pub struct RuntimeTextPlan {
 pub struct RuntimeTextUse {
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub platform_call: String,
     pub expression: ExpressionHandle,
     pub source: RuntimeTextSource,
     pub append_newline: bool,
@@ -27,7 +26,6 @@ pub struct RuntimeTextUse {
 pub struct RuntimeTextBuffer {
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub platform_call: String,
     pub target: ExpressionHandle,
     pub text_place: ExpressionHandle,
     pub byte_capacity: usize,
@@ -127,7 +125,6 @@ impl Default for RuntimeTextBuffer {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
-            platform_call: String::new(),
             target: ExpressionHandle::invalid(),
             text_place: ExpressionHandle::invalid(),
             byte_capacity: 0,
@@ -140,7 +137,6 @@ impl Default for RuntimeTextUse {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
-            platform_call: String::new(),
             expression: ExpressionHandle::invalid(),
             source: RuntimeTextSource::OtherExpression,
             append_newline: false,
