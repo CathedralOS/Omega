@@ -767,7 +767,14 @@ fn pointee_type_layout(
         };
     }
 
-    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Uint) {
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::UInt) {
+        return TypeLayout {
+            size: input.target.pointer_size,
+            alignment: input.target.pointer_alignment,
+        };
+    }
+
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Int) {
         return TypeLayout {
             size: input.target.pointer_size,
             alignment: input.target.pointer_alignment,
