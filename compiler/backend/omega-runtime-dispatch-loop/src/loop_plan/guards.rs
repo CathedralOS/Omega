@@ -1,4 +1,5 @@
 use super::context::RuntimeDispatchLoopContext;
+use omega_checked_trees::statement::TransitionGuard;
 use omega_state_guards::{
     StateGuardLowering, StateGuardOperandKind, StateGuardOperandStorage, StateGuardOperator,
 };
@@ -73,4 +74,19 @@ pub(super) fn dispatch_guard_comparison(
         has_storage: true,
         has_right_storage: right_place_operand.is_some(),
     }
+}
+
+pub(super) fn dispatch_guard(
+    context: &RuntimeDispatchLoopContext,
+    source_dispatch_index: u32,
+    statement_order: usize,
+) -> TransitionGuard {
+    context
+        .state_guards
+        .guard_for_dispatch(source_dispatch_index, statement_order)
+        .and_then(|guard| guard.has_expression.then_some(guard.expression))
+        .map(|expression| {
+            TransitionGuard::When(context.state_guards.expressions.to_tree(expression))
+        })
+        .unwrap_or(TransitionGuard::Always)
 }

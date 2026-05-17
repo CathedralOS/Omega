@@ -7,6 +7,7 @@ mod stats;
 
 use omega_artifacts::BackendSurfaceReport;
 use omega_calling_conventions::HostAbiPlan;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
@@ -605,7 +606,10 @@ pub fn backend_report_text(
                             "    - -> #{} {} {}",
                             edge.target_dispatch_index,
                             runtime_transition_target_name(backend_plan, &edge.target),
-                            transition_guard_name(&edge.guard)
+                            transition_guard_expression_name(
+                                &backend_plan.control_flow.expressions,
+                                edge.expressions.guard,
+                            )
                         ));
 
                         if edge.continuation != RuntimeTransitionTarget::None {
@@ -1263,6 +1267,15 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
         TransitionGuard::Always => "always".to_owned(),
         TransitionGuard::When(expression) => format!("when {}", expression.display_name()),
     }
+}
+
+fn transition_guard_expression_name(
+    expressions: &ExpressionTable,
+    guard: Option<ExpressionHandle>,
+) -> String {
+    guard
+        .map(|guard| transition_guard_name(&TransitionGuard::When(expressions.to_tree(guard))))
+        .unwrap_or_else(|| "always".to_owned())
 }
 
 fn runtime_transition_target_name(
