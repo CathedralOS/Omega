@@ -7,11 +7,16 @@ use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 pub(in crate::selection) struct FieldPathSegment {
     pub(in crate::selection) name: ProgramName,
     pub(in crate::selection) symbol: SymbolHandle,
+    pub(in crate::selection) index: Option<usize>,
 }
 
 impl FieldPathSegment {
     pub(in crate::selection) fn new(name: ProgramName, symbol: SymbolHandle) -> Self {
-        Self { name, symbol }
+        Self {
+            name,
+            symbol,
+            index: None,
+        }
     }
 }
 
@@ -27,7 +32,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
         suffix
             .iter()
             .enumerate()
-            .map(|(index, field_name)| (field_name, suffix_symbol(index))),
+            .map(|(index, field_name)| (field_name, suffix_symbol(index), None)),
     )
 }
 
@@ -39,14 +44,16 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_segments(
     resolve_nested_field_layout_with_pairs(
         layouts,
         root_field,
-        suffix.iter().map(|segment| (&segment.name, segment.symbol)),
+        suffix
+            .iter()
+            .map(|segment| (&segment.name, segment.symbol, segment.index)),
     )
 }
 
 pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle)>,
+    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle, Option<usize>)>,
 ) -> Option<(usize, TypeLayout)> {
     resolve_nested_field_layout(layouts, root_field, suffix)
 }
@@ -54,15 +61,15 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
 fn resolve_nested_field_layout<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle)>,
+    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle, Option<usize>)>,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
     let mut type_name = root_field.type_name.as_str();
     let mut layout = root_field.layout;
 
-    for (field_name, field_symbol) in suffix {
-        let field_segment = parse_field_segment(field_name)?;
+    for (field_name, field_symbol, field_index) in suffix {
+        let field_segment = parse_field_segment(field_name, field_index)?;
         let data_layout = data_layout(layouts, type_symbol, type_name)?;
         let DataShape::Record { fields } = &data_layout.shape else {
             return None;
@@ -129,7 +136,13 @@ struct FieldSegment {
     index: Option<usize>,
 }
 
-fn parse_field_segment(segment: &str) -> Option<FieldSegment> {
+fn parse_field_segment(segment: &str, explicit_index: Option<usize>) -> Option<FieldSegment> {
+    if explicit_index.is_some() {
+        return Some(FieldSegment {
+            index: explicit_index,
+        });
+    }
+
     let Some((_field_name, index_suffix)) = segment.split_once('[') else {
         return Some(FieldSegment { index: None });
     };

@@ -210,8 +210,8 @@ fn resolve_nested_slot_layout(
         alignment: 1,
     };
 
-    for (segment, field_symbol) in suffix.iter() {
-        let field_segment = parse_field_segment(segment)?;
+    for (segment, field_symbol, field_index) in suffix.iter() {
+        let field_segment = parse_field_segment(segment, field_index)?;
         let fields = record_fields(layouts, type_symbol, type_name);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
@@ -296,6 +296,7 @@ fn indexed_expression_path_in_table<'table>(
     let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
         return None;
     };
+    let index = usize::try_from(*index).ok()?;
     let path = match table.expression(indexed.collection) {
         ExpressionNode::Name(path) => NormalizedGuardNamePath::borrowed(
             table.name_path_members(path.members),
@@ -308,12 +309,7 @@ fn indexed_expression_path_in_table<'table>(
         }
         _ => return None,
     };
-    let last_segment = path.last()?.clone();
-    Some(
-        path.replace_last_preserving_symbol(ProgramName::generated(format!(
-            "{last_segment}[{index}]"
-        )))?,
-    )
+    path.with_last_index(index)
 }
 
 enum NormalizedGuardNamePath<'table> {
@@ -334,11 +330,16 @@ enum NormalizedGuardNamePath<'table> {
 struct GuardPathSegment {
     name: ProgramName,
     symbol: SymbolHandle,
+    index: Option<usize>,
 }
 
 impl GuardPathSegment {
     fn new(name: ProgramName, symbol: SymbolHandle) -> Self {
-        Self { name, symbol }
+        Self {
+            name,
+            symbol,
+            index: None,
+        }
     }
 }
 
@@ -386,11 +387,6 @@ impl<'table> NormalizedGuardNamePath<'table> {
         self.member(0)
     }
 
-    fn last(&self) -> Option<&ProgramName> {
-        let last_index = self.len().checked_sub(1)?;
-        self.member(last_index)
-    }
-
     fn member(&self, index: usize) -> Option<&ProgramName> {
         match self {
             Self::Borrowed { members, .. } => members.get(index),
@@ -422,6 +418,13 @@ impl<'table> NormalizedGuardNamePath<'table> {
         }
     }
 
+    fn member_index(&self, index: usize) -> Option<usize> {
+        match self {
+            Self::Borrowed { .. } => None,
+            Self::Owned { segments, .. } => segments.get(index).and_then(|segment| segment.index),
+        }
+    }
+
     fn suffix(&self, start: usize) -> GuardPathSuffix<'_, 'table> {
         match self {
             Self::Borrowed { .. } => GuardPathSuffix::Borrowed { path: self, start },
@@ -433,10 +436,10 @@ impl<'table> NormalizedGuardNamePath<'table> {
         }
     }
 
-    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
+    fn with_last_index(self, index: usize) -> Option<Self> {
         let (mut segments, head_symbol, final_symbol) = self.into_owned_segments();
         let last = segments.last_mut()?;
-        last.name = member;
+        last.index = Some(index);
         Some(Self::owned(segments, head_symbol, final_symbol))
     }
 
@@ -540,19 +543,20 @@ enum GuardPathSuffixIter<'path, 'table> {
 }
 
 impl<'path, 'table> Iterator for GuardPathSuffixIter<'path, 'table> {
-    type Item = (&'path ProgramName, SymbolHandle);
+    type Item = (&'path ProgramName, SymbolHandle, Option<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Borrowed { path, index } => {
                 let member = path.member(*index)?;
                 let symbol = path.member_symbol(*index);
+                let field_index = path.member_index(*index);
                 *index += 1;
-                Some((member, symbol))
+                Some((member, symbol, field_index))
             }
             Self::Owned(segments) => segments
                 .next()
-                .map(|segment| (&segment.name, segment.symbol)),
+                .map(|segment| (&segment.name, segment.symbol, segment.index)),
         }
     }
 }
@@ -640,8 +644,8 @@ fn resolve_nested_field_layout_by_symbol(
     let mut type_name = root_field.type_name.as_str();
     let mut layout = root_field.layout;
 
-    for (segment, field_symbol) in suffix.iter() {
-        let field_segment = parse_field_segment(segment)?;
+    for (segment, field_symbol, field_index) in suffix.iter() {
+        let field_segment = parse_field_segment(segment, field_index)?;
         let fields = record_fields(layouts, type_symbol, type_name);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
@@ -710,7 +714,13 @@ struct FieldSegment {
     index: Option<usize>,
 }
 
-fn parse_field_segment(segment: &str) -> Option<FieldSegment> {
+fn parse_field_segment(segment: &str, explicit_index: Option<usize>) -> Option<FieldSegment> {
+    if explicit_index.is_some() {
+        return Some(FieldSegment {
+            index: explicit_index,
+        });
+    }
+
     let Some((_field_name, index_suffix)) = segment.split_once('[') else {
         return Some(FieldSegment { index: None });
     };

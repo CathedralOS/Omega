@@ -111,6 +111,7 @@ fn indexed_expression_path_in_table<'table>(
     let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
         return None;
     };
+    let index = usize::try_from(*index).ok()?;
     let path = match table.expression(indexed.collection) {
         ExpressionNode::Name(path) => StorageNamePath::borrowed(
             table.name_path_members(path.members),
@@ -123,12 +124,7 @@ fn indexed_expression_path_in_table<'table>(
         }
         _ => return None,
     };
-    let last_segment = path.last()?.clone();
-    Some(
-        path.replace_last_preserving_symbol(ProgramName::generated(format!(
-            "{last_segment}[{index}]"
-        )))?,
-    )
+    path.with_last_index(index)
 }
 
 pub(in crate::selection) enum StorageNamePath<'table> {
@@ -196,11 +192,6 @@ impl<'table> StorageNamePath<'table> {
         }
     }
 
-    fn last(&self) -> Option<&ProgramName> {
-        let last_index = self.len().checked_sub(1)?;
-        self.member(last_index)
-    }
-
     pub(in crate::selection) fn member_symbol(&self, index: usize) -> SymbolHandle {
         match self {
             Self::Borrowed {
@@ -225,6 +216,13 @@ impl<'table> StorageNamePath<'table> {
         }
     }
 
+    pub(in crate::selection) fn member_index(&self, index: usize) -> Option<usize> {
+        match self {
+            Self::Borrowed { .. } => None,
+            Self::Owned { segments, .. } => segments.get(index).and_then(|segment| segment.index),
+        }
+    }
+
     pub(in crate::selection) fn suffix(&self, start: usize) -> StoragePathSuffix<'_, 'table> {
         match self {
             Self::Borrowed { .. } => StoragePathSuffix::Borrowed { path: self, start },
@@ -236,10 +234,10 @@ impl<'table> StorageNamePath<'table> {
         }
     }
 
-    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
+    fn with_last_index(self, index: usize) -> Option<Self> {
         let (mut segments, head_symbol, final_symbol) = self.into_owned_segments();
         let last = segments.last_mut()?;
-        last.name = member;
+        last.index = Some(index);
         Some(Self::owned(segments, head_symbol, final_symbol))
     }
 
@@ -325,19 +323,20 @@ pub(in crate::selection) enum StoragePathSuffixIter<'path, 'table> {
 }
 
 impl<'path, 'table> Iterator for StoragePathSuffixIter<'path, 'table> {
-    type Item = (&'path ProgramName, SymbolHandle);
+    type Item = (&'path ProgramName, SymbolHandle, Option<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Borrowed { path, index } => {
                 let member = path.member(*index)?;
                 let symbol = path.member_symbol(*index);
+                let field_index = path.member_index(*index);
                 *index += 1;
-                Some((member, symbol))
+                Some((member, symbol, field_index))
             }
             Self::Owned(segments) => segments
                 .next()
-                .map(|segment| (&segment.name, segment.symbol)),
+                .map(|segment| (&segment.name, segment.symbol, segment.index)),
         }
     }
 }
