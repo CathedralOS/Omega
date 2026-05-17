@@ -163,7 +163,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Expression::StructLiteral(struct_literal) = value {
-        for field in &struct_literal.fields {
+        for field in struct_literal.fields.iter() {
             let field_target =
                 append_place_suffix(resolved_target, std::slice::from_ref(&field.name));
             select_runtime_resolved_target_value_source_mutation_writes(

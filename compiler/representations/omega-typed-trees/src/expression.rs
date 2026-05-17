@@ -995,14 +995,16 @@ impl ExpressionTable {
             ExpressionNode::StructLiteral(struct_literal) => {
                 Expression::StructLiteral(StructLiteral {
                     type_name: struct_literal.type_name.clone(),
-                    fields: self
-                        .struct_fields(struct_literal.fields)
-                        .iter()
-                        .map(|field| StructLiteralField {
-                            name: field.name.clone(),
-                            value: self.to_tree(field.value),
-                        })
-                        .collect(),
+                    fields: Arc::from(
+                        self.struct_fields(struct_literal.fields)
+                            .iter()
+                            .map(|field| StructLiteralField {
+                                name: field.name.clone(),
+                                value: self.to_tree(field.value),
+                            })
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
+                    ),
                 })
             }
             ExpressionNode::String(value) => Expression::String(value.clone()),
@@ -1459,7 +1461,7 @@ pub struct IndexedExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteral {
     pub type_name: ProgramName,
-    pub fields: Vec<StructLiteralField>,
+    pub fields: Arc<[StructLiteralField]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1695,6 +1697,7 @@ mod tests {
     };
     use crate::name::ProgramName;
     use omega_core::symbols::SymbolHandle;
+    use std::sync::Arc;
 
     #[test]
     fn expression_table_stores_recursive_typed_expressions_as_handles() {
@@ -1753,31 +1756,34 @@ mod tests {
         let field_symbol = SymbolHandle::from_arena_index(4);
         let expression = Expression::StructLiteral(StructLiteral {
             type_name: ProgramName::generated("Room"),
-            fields: vec![
-                StructLiteralField {
-                    name: ProgramName::generated("name"),
-                    value: Expression::String("Hall".to_string()),
-                },
-                StructLiteralField {
-                    name: ProgramName::generated("open"),
-                    value: Expression::Binary(Box::new(BinaryExpression {
-                        left: Expression::Name(NamePath::resolved(
-                            vec![ProgramName::generated("room")],
-                            room_symbol,
-                            room_symbol,
-                        )),
-                        operator: BinaryOperator::Equal,
-                        right: Expression::Name(NamePath::resolved(
-                            vec![
-                                ProgramName::generated("room"),
-                                ProgramName::generated("field"),
-                            ],
-                            room_symbol,
-                            field_symbol,
-                        )),
-                    })),
-                },
-            ],
+            fields: Arc::from(
+                vec![
+                    StructLiteralField {
+                        name: ProgramName::generated("name"),
+                        value: Expression::String("Hall".to_string()),
+                    },
+                    StructLiteralField {
+                        name: ProgramName::generated("open"),
+                        value: Expression::Binary(Box::new(BinaryExpression {
+                            left: Expression::Name(NamePath::resolved(
+                                vec![ProgramName::generated("room")],
+                                room_symbol,
+                                room_symbol,
+                            )),
+                            operator: BinaryOperator::Equal,
+                            right: Expression::Name(NamePath::resolved(
+                                vec![
+                                    ProgramName::generated("room"),
+                                    ProgramName::generated("field"),
+                                ],
+                                room_symbol,
+                                field_symbol,
+                            )),
+                        })),
+                    },
+                ]
+                .into_boxed_slice(),
+            ),
         });
 
         let mut source = ExpressionTable::new();

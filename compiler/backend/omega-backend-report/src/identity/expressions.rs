@@ -141,7 +141,7 @@ pub(in crate::identity) fn count_expression_strings(
         Expression::Mutable(expression) => count_expression_strings(expression, storage),
         Expression::StructLiteral(struct_literal) => {
             storage.count_program_name_identity(&struct_literal.type_name);
-            for field in &struct_literal.fields {
+            for field in struct_literal.fields.iter() {
                 storage.count_program_name_identity(&field.name);
                 count_expression_strings(&field.value, storage);
             }
