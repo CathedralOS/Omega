@@ -1,5 +1,5 @@
-use omega_machine_program::{MachineInstructionKind, MachineRuntimeTextReadSource};
-use omega_target_operations::{RuntimeTextReadSource, StateGuardOperator};
+use omega_machine_program::MachineInstructionKind;
+use omega_target_operations::StateGuardOperator;
 
 pub(super) fn runtime_text_literal_compare_kind() -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralCompare
@@ -136,28 +136,9 @@ pub(super) fn runtime_text_literal_append_to_runtime_frame_indexed_kind(
 pub(super) fn runtime_text_line_read_kind(
     target_offset: usize,
     byte_capacity: usize,
-    source: &RuntimeTextReadSource,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLineRead {
         target_offset,
         byte_capacity,
-        source: lower_runtime_text_read_source(source),
-    }
-}
-
-fn lower_runtime_text_read_source(source: &RuntimeTextReadSource) -> MachineRuntimeTextReadSource {
-    match source {
-        RuntimeTextReadSource::Import { symbol } => MachineRuntimeTextReadSource::Import {
-            symbol: symbol.clone(),
-        },
-        RuntimeTextReadSource::Syscall {
-            number,
-            number_register,
-            supervisor_call,
-        } => MachineRuntimeTextReadSource::Syscall {
-            number: *number,
-            number_register: *number_register,
-            supervisor_call: *supervisor_call,
-        },
     }
 }

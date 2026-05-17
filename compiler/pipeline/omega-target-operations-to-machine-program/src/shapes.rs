@@ -267,9 +267,8 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,
-            source,
             ..
-        } => runtime_text::runtime_text_line_read_kind(*target_offset, *byte_capacity, source),
+        } => runtime_text::runtime_text_line_read_kind(*target_offset, *byte_capacity),
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
             target_offset,

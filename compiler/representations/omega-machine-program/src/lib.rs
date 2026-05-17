@@ -188,7 +188,6 @@ pub enum MachineInstructionKind {
     RuntimeTextLineRead {
         target_offset: usize,
         byte_capacity: usize,
-        source: MachineRuntimeTextReadSource,
     },
     RuntimeStorageCopy {
         source_offset: usize,
@@ -218,16 +217,4 @@ pub enum MachineInstructionKind {
         operation_key: HostOperationKey,
     },
     Return,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MachineRuntimeTextReadSource {
-    Import {
-        symbol: Arc<str>,
-    },
-    Syscall {
-        number: u32,
-        number_register: u8,
-        supervisor_call: u16,
-    },
 }
