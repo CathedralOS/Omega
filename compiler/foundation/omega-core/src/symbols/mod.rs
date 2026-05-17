@@ -47,6 +47,29 @@ mod tests {
     }
 
     #[test]
+    fn finds_child_by_name_and_kind_when_siblings_share_names() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        builder.insert_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Borrowed("main")),
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("main")),
+            ],
+        );
+        let symbols = builder.finish();
+        let machine = symbols
+            .find_child_by_name_and_kind(root, "main", SymbolKind::Machine)
+            .expect("machine main should resolve by kind");
+
+        assert_eq!(symbols.get(machine).kind, SymbolKind::Machine);
+        assert_eq!(
+            symbols.find_child_by_name_and_kind(root, "main", SymbolKind::State),
+            None
+        );
+    }
+
+    #[test]
     fn builder_stores_symbols_without_definition_tree() {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));

@@ -436,19 +436,8 @@ fn builtin_type_symbols(program: &TypedTrees) -> Vec<TypeSymbol<'_>> {
 }
 
 fn child_symbol(program: &TypedTrees, parent: SymbolHandle, name: &str) -> SymbolHandle {
-    if !parent.is_valid() {
-        return SymbolHandle::invalid();
-    }
-
-    let Some(children) = program.symbols.child_handles(parent) else {
-        return SymbolHandle::invalid();
-    };
-
-    for child in children {
-        if program.symbols.name(child) == name {
-            return child;
-        }
-    }
-
-    SymbolHandle::invalid()
+    program
+        .symbols
+        .find_child_by_name(parent, name)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
