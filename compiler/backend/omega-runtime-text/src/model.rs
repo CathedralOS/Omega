@@ -29,6 +29,7 @@ pub struct RuntimeTextBuffer {
     pub statement_index: usize,
     pub platform_call: String,
     pub target: ExpressionHandle,
+    pub text_place: ExpressionHandle,
     pub byte_capacity: usize,
 }
 
@@ -128,6 +129,7 @@ impl Default for RuntimeTextBuffer {
             statement_index: 0,
             platform_call: String::new(),
             target: ExpressionHandle::invalid(),
+            text_place: ExpressionHandle::invalid(),
             byte_capacity: 0,
         }
     }

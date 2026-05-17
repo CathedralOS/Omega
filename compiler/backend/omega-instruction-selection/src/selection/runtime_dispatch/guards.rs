@@ -9,7 +9,7 @@ use super::super::storage_places::{
     enum_variant_value, resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
     resolve_runtime_storage_place, resolve_runtime_transition_guard_call_result_place,
 };
-use omega_runtime_text::places::expression_name_with_suffix_eq_tree;
+use omega_runtime_text::places::expression_place_eq_table_tree;
 use omega_target_operations::{
     RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle,
 };
@@ -635,11 +635,10 @@ fn runtime_text_input_buffer_data_for_text_place_in_state(
 ) -> Option<(TargetDataObjectHandle, usize)> {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
         (buffer.source_key == source_key
-            && expression_name_with_suffix_eq_tree(
+            && expression_place_eq_table_tree(
                 &input.runtime_text.expressions,
-                buffer.target,
+                buffer.text_place,
                 expression,
-                "text",
             ))
         .then_some(buffer)
     })?;

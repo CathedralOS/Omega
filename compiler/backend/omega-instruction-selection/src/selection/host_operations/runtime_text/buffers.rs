@@ -2,10 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::Expression;
 use omega_platform_interface::HostCall;
 use omega_runtime_text::RuntimeTextSource;
-use omega_runtime_text::places::{
-    expression_name_with_suffix_eq_in_table, expression_name_with_suffix_eq_tree,
-    expression_place_eq_in_table, expression_place_eq_table_tree,
-};
+use omega_runtime_text::places::{expression_place_eq_in_table, expression_place_eq_table_tree};
 use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
@@ -42,11 +39,10 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         .buffers
         .iter()
         .find(|(_, buffer)| {
-            expression_name_with_suffix_eq_in_table(
+            expression_place_eq_in_table(
                 &input.runtime_text.expressions,
-                buffer.target,
+                buffer.text_place,
                 text_slot.place,
-                "text",
             )
         })
         .map(|(_, buffer)| buffer)?;
@@ -69,11 +65,10 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>
     text_place: &Expression,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-        (expression_name_with_suffix_eq_tree(
+        (expression_place_eq_table_tree(
             &input.runtime_text.expressions,
-            buffer.target,
+            buffer.text_place,
             text_place,
-            "text",
         ) || expression_place_eq_table_tree(
             &input.runtime_text.expressions,
             buffer.target,

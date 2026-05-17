@@ -341,13 +341,17 @@ pub fn backend_report_text(
         for (_, text_buffer) in backend_plan.runtime_text.buffers.iter() {
             let source_name = backend_state_name(backend_plan, text_buffer.source_key);
             output.push_str(&format!(
-                "- buffer {} statement {} `{}` bytes {}\n",
+                "- buffer {} statement {} target `{}` text `{}` bytes {}\n",
                 source_name,
                 text_buffer.statement_index,
                 backend_plan
                     .runtime_text
                     .expressions
                     .display_name(text_buffer.target),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_buffer.text_place),
                 text_buffer.byte_capacity
             ));
         }

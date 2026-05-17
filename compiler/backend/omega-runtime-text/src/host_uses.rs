@@ -4,6 +4,7 @@ use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
 
+use super::slots::text_place_for_buffer_target;
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 
 const DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY: usize = 256;
@@ -57,6 +58,7 @@ fn collect_runtime_text_use(
                 statement_index: host_call.statement_index,
                 platform_call: host_call.platform_call.clone(),
                 target,
+                text_place: expression_handle,
                 byte_capacity: DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY,
             });
         }
@@ -80,11 +82,16 @@ fn collect_runtime_text_buffer(
         return;
     };
 
+    let target = plan.expressions.copy_from(&host_calls.expressions, *target);
+    let text_place = text_place_for_buffer_target(&mut plan.expressions, target)
+        .unwrap_or(ExpressionHandle::invalid());
+
     plan.buffers.insert(RuntimeTextBuffer {
         source_key: host_call.source_key,
         statement_index: host_call.statement_index,
         platform_call: host_call.platform_call.clone(),
-        target: plan.expressions.copy_from(&host_calls.expressions, *target),
+        target,
+        text_place,
         byte_capacity,
     });
 }
