@@ -42,8 +42,8 @@ pub(super) fn lower_machine_instruction_kind(
             *byte_size,
             *expected_value,
         ),
-        SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
-            runtime_text::runtime_text_literal_compare_kind(literal)
+        SelectedInstructionKind::CompareRuntimeTextLiteral { .. } => {
+            runtime_text::runtime_text_literal_compare_kind()
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
             source_offset,
@@ -75,14 +75,13 @@ pub(super) fn lower_machine_instruction_kind(
             *operator,
         ),
         SelectedInstructionKind::CompareRuntimeValues { .. } => MachineInstructionKind::NoOp,
-        SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
-            runtime_text::runtime_text_literal_write_kind(literal)
+        SelectedInstructionKind::WriteRuntimeTextLiteral { .. } => {
+            runtime_text::runtime_text_literal_write_kind()
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
             byte_offset,
-            literal,
             ..
-        } => runtime_text::runtime_text_literal_segment_write_kind(*byte_offset, literal),
+        } => runtime_text::runtime_text_literal_segment_write_kind(*byte_offset),
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_offset,
             source_offset,
@@ -149,32 +148,27 @@ pub(super) fn lower_machine_instruction_kind(
         ),
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             target_offset,
-            literal,
             ..
-        } => runtime_text::runtime_text_literal_append_kind(*target_offset, literal),
+        } => runtime_text::runtime_text_literal_append_kind(*target_offset),
         SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
             pointer_byte_offset,
             field_byte_offset,
-            literal,
             ..
         } => runtime_text::runtime_text_literal_append_to_runtime_pointee_kind(
             *pointer_byte_offset,
             *field_byte_offset,
-            literal,
         ),
         SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
             descriptor_offset,
             index_offset,
             element_byte_size,
             field_byte_offset,
-            literal,
             ..
         } => runtime_text::runtime_text_literal_append_to_runtime_frame_indexed_kind(
             *descriptor_offset,
             *index_offset,
             *element_byte_size,
             *field_byte_offset,
-            literal,
         ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,

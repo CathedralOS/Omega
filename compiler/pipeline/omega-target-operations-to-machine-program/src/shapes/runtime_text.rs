@@ -1,11 +1,8 @@
 use omega_machine_program::{MachineInstructionKind, MachineRuntimeTextReadSource};
 use omega_target_operations::{RuntimeTextReadSource, StateGuardOperator};
-use std::sync::Arc;
 
-pub(super) fn runtime_text_literal_compare_kind(literal: &Arc<str>) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralCompare {
-        literal: literal.clone(),
-    }
+pub(super) fn runtime_text_literal_compare_kind() -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextLiteralCompare
 }
 
 pub(super) fn runtime_text_storage_compare_kind(
@@ -18,20 +15,12 @@ pub(super) fn runtime_text_storage_compare_kind(
     }
 }
 
-pub(super) fn runtime_text_literal_write_kind(literal: &Arc<str>) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralWrite {
-        literal: literal.clone(),
-    }
+pub(super) fn runtime_text_literal_write_kind() -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextLiteralWrite
 }
 
-pub(super) fn runtime_text_literal_segment_write_kind(
-    byte_offset: usize,
-    literal: &Arc<str>,
-) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralSegmentWrite {
-        byte_offset,
-        literal: literal.clone(),
-    }
+pub(super) fn runtime_text_literal_segment_write_kind(byte_offset: usize) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextLiteralSegmentWrite { byte_offset }
 }
 
 pub(super) fn runtime_text_stored_suffix_append_kind(
@@ -116,23 +105,17 @@ pub(super) fn runtime_text_stored_place_append_to_runtime_frame_indexed_kind(
 
 pub(super) fn runtime_text_literal_append_kind(
     target_offset: usize,
-    literal: &Arc<str>,
 ) -> MachineInstructionKind {
-    MachineInstructionKind::RuntimeTextLiteralAppend {
-        target_offset,
-        literal: literal.clone(),
-    }
+    MachineInstructionKind::RuntimeTextLiteralAppend { target_offset }
 }
 
 pub(super) fn runtime_text_literal_append_to_runtime_pointee_kind(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &Arc<str>,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee {
         pointer_byte_offset,
         field_byte_offset,
-        literal: literal.clone(),
     }
 }
 
@@ -141,14 +124,12 @@ pub(super) fn runtime_text_literal_append_to_runtime_frame_indexed_kind(
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &Arc<str>,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed {
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
-        literal: literal.clone(),
     }
 }
 

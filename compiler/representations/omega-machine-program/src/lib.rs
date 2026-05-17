@@ -69,9 +69,7 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         expected_value: i64,
     },
-    RuntimeTextLiteralCompare {
-        literal: Arc<str>,
-    },
+    RuntimeTextLiteralCompare,
     RuntimeTextStorageCompare {
         source_offset: usize,
         operator: StateGuardOperator,
@@ -88,12 +86,9 @@ pub enum MachineInstructionKind {
         expected_value: i64,
         operator: StateGuardOperator,
     },
-    RuntimeTextLiteralWrite {
-        literal: Arc<str>,
-    },
+    RuntimeTextLiteralWrite,
     RuntimeTextLiteralSegmentWrite {
         byte_offset: usize,
-        literal: Arc<str>,
     },
     RuntimeTextStoredSuffixAppend {
         buffer_offset: usize,
@@ -132,19 +127,16 @@ pub enum MachineInstructionKind {
     },
     RuntimeTextLiteralAppend {
         target_offset: usize,
-        literal: Arc<str>,
     },
     RuntimeTextLiteralAppendToRuntimePointee {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
-        literal: Arc<str>,
     },
     RuntimeTextLiteralAppendToRuntimeFrameIndexed {
         descriptor_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
-        literal: Arc<str>,
     },
     RuntimeMachineIntegerWrite {
         byte_offset: usize,
