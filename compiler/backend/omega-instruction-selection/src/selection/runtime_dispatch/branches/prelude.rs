@@ -11,7 +11,7 @@ use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperationKind,
 };
-use omega_target_operations::InstructionOperand;
+use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 use super::super::super::lookups::host_call_for_statement;
 use super::mutation::select_runtime_resolved_mutation_write;
@@ -21,6 +21,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     for (_, expansion) in input
@@ -33,7 +34,13 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
                 && expansion.statement_index == operation.statement_index
         })
     {
-        select_runtime_branch_prelude(input, expansion, operands, selected_instructions);
+        select_runtime_branch_prelude(
+            input,
+            expansion,
+            operands,
+            runtime_value_operands,
+            selected_instructions,
+        );
     }
 }
 
@@ -41,6 +48,7 @@ fn select_runtime_branch_prelude(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeBranchPreludeExpansion,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(operations) = input
@@ -101,6 +109,7 @@ fn select_runtime_branch_prelude(
                     operation.statement_index,
                     &resolved_target,
                     &resolved_value,
+                    runtime_value_operands,
                     selected_instructions,
                 );
             }

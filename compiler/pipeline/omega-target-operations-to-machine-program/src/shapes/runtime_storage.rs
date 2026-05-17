@@ -70,9 +70,7 @@ pub(super) fn runtime_pointee_integer_write_kind(
 pub(super) fn runtime_storage_binary_write_kind(
     target_offset: usize,
     byte_size: usize,
-    _left: omega_target_operations::RuntimeValueOperand,
     operator: StateGuardOperator,
-    _right: omega_target_operations::RuntimeValueOperand,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageBinaryWrite {
         target_offset,
@@ -85,9 +83,7 @@ pub(super) fn runtime_pointee_binary_write_kind(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    _left: omega_target_operations::RuntimeValueOperand,
     operator: StateGuardOperator,
-    _right: omega_target_operations::RuntimeValueOperand,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimePointeeBinaryWrite {
         pointer_byte_offset,
@@ -121,9 +117,7 @@ pub(super) fn runtime_frame_indexed_binary_write_kind(
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    _left: omega_target_operations::RuntimeValueOperand,
     operator: StateGuardOperator,
-    _right: omega_target_operations::RuntimeValueOperand,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeFrameIndexedBinaryWrite {
         descriptor_offset,

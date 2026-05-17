@@ -8,8 +8,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_checked_trees::name::ProgramName;
+use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use omega_target_operations::SelectedInstruction;
+use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
 use static_values::RuntimeStaticValues;
 
 pub(super) use storage_copy::runtime_storage_copy;
@@ -21,6 +22,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     match &operation.kind {
@@ -44,6 +46,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
                 aliases,
                 alias_expressions,
                 static_values,
+                runtime_value_operands,
                 selected_instructions,
             );
             return;
@@ -90,6 +93,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
         aliases,
         alias_expressions,
         static_values,
+        runtime_value_operands,
         selected_instructions,
     );
 }

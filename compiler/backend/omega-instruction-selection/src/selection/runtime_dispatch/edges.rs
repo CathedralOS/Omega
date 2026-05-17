@@ -7,21 +7,30 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
+use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{
-    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    StateGuardLowering,
 };
 
 pub(super) fn select_runtime_dispatch_edge(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    select_dispatch_guard_instructions(input, edge, source_key, selected_instructions);
+    select_dispatch_guard_instructions(
+        input,
+        edge,
+        source_key,
+        runtime_value_operands,
+        selected_instructions,
+    );
 
     match edge.action {
         RuntimeDispatchLoopAction::EnterState => {
@@ -57,6 +66,7 @@ fn select_dispatch_guard_instructions(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
@@ -115,6 +125,7 @@ fn select_dispatch_guard_instructions(
             source_key,
             edge.order,
             &guard,
+            runtime_value_operands,
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind,

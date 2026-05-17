@@ -1,7 +1,8 @@
+use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
-use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
+use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
 pub fn encode_runtime_storage_compare(
     architecture: Architecture,
@@ -45,14 +46,16 @@ pub fn encode_runtime_storage_value_compare(
 
 pub fn encode_runtime_value_compare(
     architecture: Architecture,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_value_compare(
+            runtime_value_operands,
             left,
             right,
             byte_size,
@@ -97,14 +100,16 @@ pub fn encode_runtime_pointee_integer_write(
 
 pub fn encode_runtime_storage_binary_write(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     target_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_binary_write(
+            runtime_value_operands,
             target_offset,
             byte_size,
             left,
@@ -117,15 +122,17 @@ pub fn encode_runtime_storage_binary_write(
 
 pub fn encode_runtime_pointee_binary_write(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_pointee_binary_write(
+            runtime_value_operands,
             pointer_byte_offset,
             field_byte_offset,
             byte_size,
@@ -161,17 +168,19 @@ pub fn encode_runtime_frame_indexed_integer_write(
 
 pub fn encode_runtime_frame_indexed_binary_write(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_frame_indexed_binary_write(
+            runtime_value_operands,
             descriptor_offset,
             index_offset,
             element_byte_size,

@@ -14,8 +14,8 @@ mod storage_places;
 use self::bindings::RuntimeAliasBuffer;
 use instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{
-    FunctionInstructionPlan, InstructionOperand, InstructionPlan, SelectedInstruction,
-    SelectedInstructionKind,
+    FunctionInstructionPlan, InstructionOperand, InstructionPlan, RuntimeValueOperand,
+    SelectedInstruction, SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
 use state_bodies::{runtime_reachable_states, select_state_body_instructions};
@@ -26,11 +26,13 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
         functions: Arena::new(),
         instructions: Arena::new(),
         operands: Arena::new(),
+        runtime_value_operands: Arena::new(),
     };
 
     let instructions = select_entry_instructions(
         input,
         &mut instruction_plan.operands,
+        &mut instruction_plan.runtime_value_operands,
         &mut instruction_plan.instructions,
     );
 
@@ -46,6 +48,7 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
 fn select_entry_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     instructions: &mut Arena<SelectedInstruction>,
 ) -> omega_core::arena::HandleSpan<SelectedInstruction> {
     let mut selected_instructions = SelectedInstructionSink::new(instructions);
@@ -53,7 +56,12 @@ fn select_entry_instructions(
     selected_instructions.push(entry_instruction(input));
 
     if input.runtime_dispatch_loop.needed {
-        select_runtime_dispatch_loop_instructions(input, operands, &mut selected_instructions);
+        select_runtime_dispatch_loop_instructions(
+            input,
+            operands,
+            runtime_value_operands,
+            &mut selected_instructions,
+        );
         selected_instructions.push(exit_instruction(input));
         return selected_instructions.finish();
     }
@@ -76,6 +84,7 @@ fn select_entry_instructions(
         &empty_aliases,
         &ExpressionTable::new(),
         operands,
+        runtime_value_operands,
         &mut selected_instructions,
         &mut Vec::new(),
     );

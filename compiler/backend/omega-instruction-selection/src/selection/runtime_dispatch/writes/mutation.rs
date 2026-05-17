@@ -4,10 +4,12 @@ use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath,
 };
 use omega_control_flow::StateKey;
+use omega_core::arena::Arena;
 use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
 use omega_target_operations::{
-    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
+    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
+    StateGuardOperator,
 };
 
 use super::super::super::bindings::{
@@ -71,6 +73,7 @@ pub(super) fn select_runtime_mutation_writes(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let resolved_target =
@@ -89,6 +92,7 @@ pub(super) fn select_runtime_mutation_writes(
         aliases,
         alias_expressions,
         static_values,
+        runtime_value_operands,
         selected_instructions,
     );
 }
@@ -106,6 +110,7 @@ pub(super) fn select_runtime_state_call_result_write(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(slot) = input.runtime_storage.call_result_slot_by_ordinal(
@@ -141,6 +146,7 @@ pub(super) fn select_runtime_state_call_result_write(
         aliases,
         alias_expressions,
         static_values,
+        runtime_value_operands,
         selected_instructions,
     );
 }
@@ -160,6 +166,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Expression::StructLiteral(struct_literal) = value {
@@ -180,6 +187,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
                 aliases,
                 alias_expressions,
                 static_values,
+                runtime_value_operands,
                 selected_instructions,
             );
         }
@@ -400,6 +408,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         aliases,
         alias_expressions,
         static_values,
+        runtime_value_operands,
     ) {
         selected_instructions.push(SelectedInstruction {
             kind,
@@ -545,6 +554,7 @@ fn select_runtime_binary_mutation_write(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let (operator, left_expression, right_expression) = match value {
         Expression::Binary(binary) => (
@@ -572,6 +582,7 @@ fn select_runtime_binary_mutation_write(
         aliases,
         alias_expressions,
         static_values,
+        runtime_value_operands,
     )?;
     let right = resolve_runtime_value_operand(
         input,
@@ -584,6 +595,7 @@ fn select_runtime_binary_mutation_write(
         aliases,
         alias_expressions,
         static_values,
+        runtime_value_operands,
     )?;
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
@@ -651,7 +663,8 @@ fn resolve_runtime_value_operand(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &RuntimeStaticValues,
-) -> Option<RuntimeValueOperand> {
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
     if let Some(value) = resolve_runtime_static_integer_value(
         input,
         source_key,
@@ -660,7 +673,7 @@ fn resolve_runtime_value_operand(
         alias_expressions,
         static_values,
     ) {
-        return Some(RuntimeValueOperand::Immediate(value));
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
     }
 
     if let Expression::Binary(binary) = expression {
@@ -676,6 +689,7 @@ fn resolve_runtime_value_operand(
             aliases,
             alias_expressions,
             static_values,
+            runtime_value_operands,
         )?;
         let right = resolve_runtime_value_operand(
             input,
@@ -688,12 +702,13 @@ fn resolve_runtime_value_operand(
             aliases,
             alias_expressions,
             static_values,
+            runtime_value_operands,
         )?;
-        return Some(RuntimeValueOperand::Binary {
-            left: Box::new(left),
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+            left,
             operator,
-            right: Box::new(right),
-        });
+            right,
+        }));
     }
 
     if let Expression::Call(call) = expression
@@ -713,6 +728,7 @@ fn resolve_runtime_value_operand(
             aliases,
             alias_expressions,
             static_values,
+            runtime_value_operands,
         )?;
         let right = resolve_runtime_value_operand(
             input,
@@ -725,12 +741,13 @@ fn resolve_runtime_value_operand(
             aliases,
             alias_expressions,
             static_values,
+            runtime_value_operands,
         )?;
-        return Some(RuntimeValueOperand::Binary {
-            left: Box::new(left),
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+            left,
             operator,
-            right: Box::new(right),
-        });
+            right,
+        }));
     }
 
     if matches!(expression, Expression::Call(_))
@@ -741,34 +758,34 @@ fn resolve_runtime_value_operand(
             statement_index,
         )
     {
-        return Some(RuntimeValueOperand::Storage {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
             region: place.region,
             byte_offset: place.byte_offset,
             byte_size: place.byte_count,
-        });
+        }));
     }
 
     if let Some(pointer_target) =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
         && supports_runtime_value_operand(pointer_target.pointee_byte_size)
     {
-        return Some(RuntimeValueOperand::Pointee {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
             pointer_byte_offset: pointer_target.pointer_byte_offset,
             field_byte_offset: pointer_target.field_byte_offset,
             byte_size: pointer_target.pointee_byte_size,
-        });
+        }));
     }
 
     if let Some(indexed_target) =
         resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
     {
-        return Some(RuntimeValueOperand::FrameIndexed {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
             descriptor_offset: indexed_target.descriptor_offset,
             index_offset: indexed_target.index_offset,
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
             byte_size: indexed_target.byte_count,
-        });
+        }));
     }
 
     let resolved =
@@ -784,11 +801,11 @@ fn resolve_runtime_value_operand(
     if !supports_runtime_value_operand(place.byte_count) {
         return None;
     }
-    Some(RuntimeValueOperand::Storage {
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
         region: place.region,
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
-    })
+    }))
 }
 
 fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {

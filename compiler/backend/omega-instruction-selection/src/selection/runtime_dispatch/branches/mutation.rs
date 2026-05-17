@@ -1,8 +1,10 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{BinaryOperator, Expression};
 use omega_control_flow::StateKey;
+use omega_core::arena::Arena;
 use omega_target_operations::{
-    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
+    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
+    StateGuardOperator,
 };
 
 use super::super::super::storage_places::{
@@ -35,6 +37,7 @@ pub(crate) fn select_runtime_resolved_mutation_write(
     statement_index: usize,
     resolved_target: &Expression,
     resolved_value: &Expression,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Expression::String(value) = resolved_value {
@@ -187,6 +190,7 @@ pub(crate) fn select_runtime_resolved_mutation_write(
         operation_state,
         resolved_target,
         resolved_value,
+        runtime_value_operands,
     ) {
         selected_instructions.push(SelectedInstruction {
             kind,
@@ -251,6 +255,7 @@ fn select_runtime_resolved_binary_mutation_write(
     operation_state: &str,
     resolved_target: &Expression,
     resolved_value: &Expression,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let Expression::Binary(binary) = resolved_value else {
         return None;
@@ -263,6 +268,7 @@ fn select_runtime_resolved_binary_mutation_write(
         operation_machine,
         operation_state,
         &binary.left,
+        runtime_value_operands,
     )?;
     let right = resolve_runtime_value_operand(
         input,
@@ -271,6 +277,7 @@ fn select_runtime_resolved_binary_mutation_write(
         operation_machine,
         operation_state,
         &binary.right,
+        runtime_value_operands,
     )?;
 
     if let Some(indexed_target) =
@@ -326,9 +333,10 @@ fn resolve_runtime_value_operand(
     source_machine: &str,
     source_state: &str,
     expression: &Expression,
-) -> Option<RuntimeValueOperand> {
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
     if let Some(value) = static_integer_value(&input.layouts, expression) {
-        return Some(RuntimeValueOperand::Immediate(value));
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
     }
 
     if let Expression::Binary(binary) = expression {
@@ -340,6 +348,7 @@ fn resolve_runtime_value_operand(
             source_machine,
             source_state,
             &binary.left,
+            runtime_value_operands,
         )?;
         let right = resolve_runtime_value_operand(
             input,
@@ -348,35 +357,36 @@ fn resolve_runtime_value_operand(
             source_machine,
             source_state,
             &binary.right,
+            runtime_value_operands,
         )?;
-        return Some(RuntimeValueOperand::Binary {
-            left: Box::new(left),
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+            left,
             operator,
-            right: Box::new(right),
-        });
+            right,
+        }));
     }
 
     if let Some(indexed_target) =
         resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
     {
-        return Some(RuntimeValueOperand::FrameIndexed {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
             descriptor_offset: indexed_target.descriptor_offset,
             index_offset: indexed_target.index_offset,
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
             byte_size: indexed_target.byte_count,
-        });
+        }));
     }
 
     if let Some(pointer_target) =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
         && supports_runtime_value_operand(pointer_target.pointee_byte_size)
     {
-        return Some(RuntimeValueOperand::Pointee {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
             pointer_byte_offset: pointer_target.pointer_byte_offset,
             field_byte_offset: pointer_target.field_byte_offset,
             byte_size: pointer_target.pointee_byte_size,
-        });
+        }));
     }
 
     let place = resolve_runtime_storage_place(
@@ -390,11 +400,11 @@ fn resolve_runtime_value_operand(
     if !supports_runtime_value_operand(place.byte_count) {
         return None;
     }
-    Some(RuntimeValueOperand::Storage {
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
         region: place.region,
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
-    })
+    }))
 }
 
 fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {

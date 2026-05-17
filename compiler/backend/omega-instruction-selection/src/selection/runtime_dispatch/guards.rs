@@ -2,6 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionHandle};
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::TransitionGuard;
+use omega_core::arena::Arena;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
 use omega_state_guards::StateGuardOperator;
 
@@ -11,7 +12,7 @@ use super::super::storage_places::{
 };
 use omega_runtime_text::places::expression_place_eq_table_tree;
 use omega_target_operations::{
-    RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle,
+    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
 use std::sync::Arc;
 
@@ -28,6 +29,7 @@ struct RuntimeTextInputBufferData {
 pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
     let normalized_guard =
@@ -38,6 +40,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
         expansion.source_key,
         expansion.statement_index,
         &normalized_guard,
+        runtime_value_operands,
     ) {
         return Some(guard);
     }
@@ -67,6 +70,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
             expansion.source_key,
             expansion.statement_index,
             &normalized_guard,
+            runtime_value_operands,
         )
     })
     .or_else(|| {
@@ -82,6 +86,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
 pub(super) fn select_runtime_straight_line_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
     let normalized_guard =
@@ -92,6 +97,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         expansion.source_key,
         expansion.statement_index,
         &normalized_guard,
+        runtime_value_operands,
     ) {
         return Some(guard);
     }
@@ -121,6 +127,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
             expansion.source_key,
             expansion.statement_index,
             &normalized_guard,
+            runtime_value_operands,
         )
     })
     .or_else(|| {
@@ -150,6 +157,7 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
     guard: &TransitionGuard,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let normalized_guard = normalized_boolean_wrapped_guard(guard).unwrap_or_else(|| guard.clone());
     if let Some(guard) = runtime_boolean_condition_guard(
@@ -158,6 +166,7 @@ pub(super) fn select_runtime_dispatch_expression_guard(
         source_key,
         statement_index,
         &normalized_guard,
+        runtime_value_operands,
     ) {
         return Some(guard);
     }
@@ -179,6 +188,7 @@ pub(super) fn select_runtime_dispatch_expression_guard(
                 source_key,
                 statement_index,
                 &normalized_guard,
+                runtime_value_operands,
             )
         })
         .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, &normalized_guard))
@@ -233,6 +243,7 @@ fn runtime_boolean_condition_guard(
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
     guard: &TransitionGuard,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let TransitionGuard::When(expression) = guard else {
         return None;
@@ -252,15 +263,19 @@ fn runtime_boolean_condition_guard(
         &source_machine,
         &source_state,
         expression,
+        runtime_value_operands,
     )?;
-    let byte_size = runtime_value_operand_byte_size(&operand);
+    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, operand);
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
+    let expected = runtime_value_operands.insert(RuntimeValueOperand::Immediate(i64::from(
+        expected_true,
+    )));
 
     Some(SelectedInstructionKind::CompareRuntimeValues {
         left: operand,
-        right: RuntimeValueOperand::Immediate(i64::from(expected_true)),
+        right: expected,
         byte_size,
         operator: StateGuardOperator::Equal,
     })
@@ -476,6 +491,7 @@ fn runtime_value_guard(
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
     guard: &TransitionGuard,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return None;
@@ -491,6 +507,7 @@ fn runtime_value_guard(
         &source_machine,
         &source_state,
         &binary.left,
+        runtime_value_operands,
     )?;
     let right = resolve_runtime_value_operand(
         input,
@@ -500,9 +517,10 @@ fn runtime_value_guard(
         &source_machine,
         &source_state,
         &binary.right,
+        runtime_value_operands,
     )?;
-    let byte_size =
-        runtime_value_operand_byte_size(&left).max(runtime_value_operand_byte_size(&right));
+    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, left)
+        .max(runtime_value_operand_byte_size(runtime_value_operands, right));
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
@@ -530,11 +548,12 @@ fn resolve_runtime_value_operand(
     source_machine: &str,
     source_state: &str,
     expression: &Expression,
-) -> Option<RuntimeValueOperand> {
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
     if let Some(value) =
         enum_variant_value(&input.layouts, expression).or_else(|| static_guard_value(expression))
     {
-        return Some(RuntimeValueOperand::Immediate(value));
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
     }
 
     if let Expression::Binary(binary) = expression {
@@ -547,6 +566,7 @@ fn resolve_runtime_value_operand(
             source_machine,
             source_state,
             &binary.left,
+            runtime_value_operands,
         )?;
         let right = resolve_runtime_value_operand(
             input,
@@ -556,12 +576,13 @@ fn resolve_runtime_value_operand(
             source_machine,
             source_state,
             &binary.right,
+            runtime_value_operands,
         )?;
-        return Some(RuntimeValueOperand::Binary {
-            left: Box::new(left),
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+            left,
             operator,
-            right: Box::new(right),
-        });
+            right,
+        }));
     }
 
     if matches!(expression, Expression::Call(_))
@@ -572,33 +593,33 @@ fn resolve_runtime_value_operand(
             statement_index,
         )
     {
-        return Some(RuntimeValueOperand::Storage {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
             region: place.region,
             byte_offset: place.byte_offset,
             byte_size: place.byte_count,
-        });
+        }));
     }
 
     if let Some(pointer_target) =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
     {
-        return Some(RuntimeValueOperand::Pointee {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
             pointer_byte_offset: pointer_target.pointer_byte_offset,
             field_byte_offset: pointer_target.field_byte_offset,
             byte_size: pointer_target.pointee_byte_size,
-        });
+        }));
     }
 
     if let Some(indexed_target) =
         resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
     {
-        return Some(RuntimeValueOperand::FrameIndexed {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
             descriptor_offset: indexed_target.descriptor_offset,
             index_offset: indexed_target.index_offset,
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
             byte_size: indexed_target.byte_count,
-        });
+        }));
     }
 
     let place = resolve_runtime_storage_place(
@@ -609,21 +630,25 @@ fn resolve_runtime_value_operand(
         source_state,
         expression,
     )?;
-    Some(RuntimeValueOperand::Storage {
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
         region: place.region,
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
-    })
+    }))
 }
 
-fn runtime_value_operand_byte_size(operand: &RuntimeValueOperand) -> usize {
-    match operand {
+fn runtime_value_operand_byte_size(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    match runtime_value_operands.get(operand) {
         RuntimeValueOperand::Immediate(_) => 8,
         RuntimeValueOperand::Storage { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Pointee { byte_size, .. } => *byte_size,
         RuntimeValueOperand::FrameIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Binary { left, right, .. } => {
-            runtime_value_operand_byte_size(left).max(runtime_value_operand_byte_size(right))
+            runtime_value_operand_byte_size(runtime_value_operands, *left)
+                .max(runtime_value_operand_byte_size(runtime_value_operands, *right))
         }
     }
 }

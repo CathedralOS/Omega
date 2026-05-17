@@ -3,7 +3,7 @@ use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
+use omega_target_operations::{RuntimeValueOperandHandle, StateGuardOperator};
 
 pub(super) fn encode_runtime_storage_compare(
     input: MachineEmissionContext<'_>,
@@ -55,13 +55,14 @@ pub(super) fn encode_runtime_value_compare(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
     byte_size: usize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_value_compare(
         input.target.architecture,
+        &input.instructions.runtime_value_operands,
         left,
         right,
         byte_size,
@@ -108,12 +109,13 @@ pub(super) fn encode_runtime_storage_binary_write(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_storage_binary_write(
         input.target.architecture,
+        &input.instructions.runtime_value_operands,
         target_offset,
         byte_size,
         left,
@@ -127,12 +129,13 @@ pub(super) fn encode_runtime_pointee_binary_write(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_pointee_binary_write(
         input.target.architecture,
+        &input.instructions.runtime_value_operands,
         pointer_byte_offset,
         field_byte_offset,
         byte_size,
@@ -169,12 +172,13 @@ pub(super) fn encode_runtime_frame_indexed_binary_write(
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_frame_indexed_binary_write(
         input.target.architecture,
+        &input.instructions.runtime_value_operands,
         descriptor_offset,
         index_offset,
         element_byte_size,

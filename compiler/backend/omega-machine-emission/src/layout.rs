@@ -111,9 +111,10 @@ fn machine_instruction_width(
             ..
         } => runtime_value_compare_width(
             input.target.architecture,
+            &input.instructions.runtime_value_operands,
             *byte_size,
-            left,
-            right,
+            *left,
+            *right,
         ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
             runtime_text_literal_write_width(input.target.architecture, literal)
@@ -187,9 +188,10 @@ fn machine_instruction_width(
             ..
         } => runtime_storage_binary_write_width(
             input.target.architecture,
+            &input.instructions.runtime_value_operands,
             *byte_size,
-            left,
-            right,
+            *left,
+            *right,
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             byte_size,
@@ -198,9 +200,10 @@ fn machine_instruction_width(
             ..
         } => runtime_pointee_binary_write_width(
             input.target.architecture,
+            &input.instructions.runtime_value_operands,
             *byte_size,
-            left,
-            right,
+            *left,
+            *right,
         ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             element_byte_size,
@@ -222,11 +225,12 @@ fn machine_instruction_width(
             ..
         } => runtime_frame_indexed_binary_write_width(
             input.target.architecture,
+            &input.instructions.runtime_value_operands,
             *element_byte_size,
             *field_byte_offset,
             *byte_size,
-            left,
-            right,
+            *left,
+            *right,
         ),
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)

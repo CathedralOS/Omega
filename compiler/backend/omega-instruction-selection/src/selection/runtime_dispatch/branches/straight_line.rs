@@ -2,6 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{Expression, NamePath};
 use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
+use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchExpansion,
@@ -20,11 +21,13 @@ use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_state_calls::StateCallRole;
+use omega_target_operations::RuntimeValueOperand;
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     for (_, expansion) in input
@@ -37,17 +40,25 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
                 && expansion.statement_index == operation.statement_index
         })
     {
-        select_runtime_straight_line_branch_expansion(input, expansion, selected_instructions);
+        select_runtime_straight_line_branch_expansion(
+            input,
+            expansion,
+            runtime_value_operands,
+            selected_instructions,
+        );
     }
 }
 
 fn select_runtime_straight_line_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let mut emitted_guard = false;
-    if let Some(guard) = select_runtime_straight_line_branch_guard(input, expansion) {
+    if let Some(guard) =
+        select_runtime_straight_line_branch_guard(input, expansion, runtime_value_operands)
+    {
         selected_instructions.push(omega_target_operations::SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
@@ -56,7 +67,12 @@ fn select_runtime_straight_line_branch_expansion(
         emitted_guard = true;
     }
     let write_start = selected_instructions.len();
-    select_runtime_straight_line_branch_writes(input, expansion, selected_instructions);
+    select_runtime_straight_line_branch_writes(
+        input,
+        expansion,
+        runtime_value_operands,
+        selected_instructions,
+    );
     if emitted_guard && selected_instructions.len() == write_start {
         selected_instructions.pop();
     }
@@ -65,6 +81,7 @@ fn select_runtime_straight_line_branch_expansion(
 fn select_runtime_straight_line_branch_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(operations) = input
@@ -106,6 +123,7 @@ fn select_runtime_straight_line_branch_writes(
                     operation.statement_index,
                     &resolved_target,
                     &resolved_value,
+                    runtime_value_operands,
                     selected_instructions,
                 );
             }
@@ -123,6 +141,7 @@ fn select_runtime_straight_line_branch_writes(
                 *call_ordinal,
                 bindings,
                 *target_key,
+                runtime_value_operands,
                 selected_instructions,
             ),
             _ => {}
@@ -143,6 +162,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     call_ordinal: usize,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let state_call = match role {
@@ -215,6 +235,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             leaf_operation.statement_index,
             &resolved_target,
             &resolved_value,
+            runtime_value_operands,
             selected_instructions,
         );
     }
