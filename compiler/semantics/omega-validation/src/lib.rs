@@ -482,19 +482,17 @@ fn validate_type_reference_handle(
                 )));
             }
 
-            if base_name.as_str() != "IndexOf" {
-                for argument in program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                {
-                    validate_type_reference_handle(
-                        program,
-                        *argument,
-                        symbols,
-                        diagnostics,
-                        format!("{owner} generic argument"),
-                    );
-                }
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                validate_type_reference_handle(
+                    program,
+                    *argument,
+                    symbols,
+                    diagnostics,
+                    format!("{owner} generic argument"),
+                );
             }
         }
         TypeReferenceNode::Named { name, .. } => {
@@ -1100,15 +1098,6 @@ fn argument_matches_type_reference_handle(
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Name(_)
         ),
-        TypeReferenceNode::Generic { base_name, .. } if base_name.as_str() == "IndexOf" => {
-            matches!(
-                argument_node,
-                ExpressionNode::Integer(_)
-                    | ExpressionNode::Indexed(_)
-                    | ExpressionNode::Member(_)
-                    | ExpressionNode::Name(_)
-            )
-        }
         TypeReferenceNode::Generic { .. } => matches!(
             argument_node,
             ExpressionNode::Binary(_)

@@ -389,13 +389,6 @@ impl<'program> LayoutBuilder<'program> {
 }
 
 fn builtin_named_layout(target: NativeTarget, name: &str) -> Option<TypeLayout> {
-    if name == "IndexOf" {
-        return Some(TypeLayout {
-            size: target.pointer_size,
-            alignment: target.pointer_alignment,
-        });
-    }
-
     match name {
         "Uint" => Some(TypeLayout {
             size: target.pointer_size,

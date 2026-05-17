@@ -180,7 +180,7 @@ impl<'program> ProgramSymbols<'program> {
 }
 
 fn is_builtin_shape_type(name: &str) -> bool {
-    matches!(name, "IndexOf" | "Real" | "Uint")
+    matches!(name, "Real" | "Uint")
 }
 
 #[derive(Debug)]

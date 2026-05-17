@@ -80,7 +80,7 @@ machine RoomFormatter::write_adjacent_rooms {
         exits: &[Exit],
         exit_count: usize[positive],
         out_line: &mut ConsoleLine,
-        index: IndexOf<exits>
+        index: usize
     ) {
         out_line.text = out_line.text + " | " + exits[index].command;
         let next_index: usize = index + 1;

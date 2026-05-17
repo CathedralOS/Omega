@@ -56,7 +56,7 @@ machine InventorySystem::add_reward {
         kind: ItemKind
     ) {
         let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
-        let index: IndexOf<items> = inventory.item_count;
+        let index: usize = inventory.item_count;
         items[index] = InventoryItem { kind: kind, count: 1 };
         inventory.item_count = inventory.item_count + 1;
     }
@@ -87,7 +87,7 @@ machine InventorySystem::add_reward {
         &mut self,
         items: &[InventoryItem],
         kind: ItemKind,
-        index: IndexOf<items>
+        index: usize
     ) -> Option<usize> {
         let found: bool = items[index].kind == kind;
         let next_index: usize = index + 1;
