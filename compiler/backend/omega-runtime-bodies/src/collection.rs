@@ -271,7 +271,8 @@ fn append_state_call_result_operation(
         return;
     }
 
-    let Some(value) = terminal_state_value_expression(context, state_call.target_key) else {
+    let value = terminal_state_value_expression(context, state_call.target_key);
+    if !value.is_valid() {
         return;
     };
     let value = expressions.copy_from(&context.program.expression_table, value);
@@ -291,24 +292,32 @@ fn append_state_call_result_operation(
 fn terminal_state_value_expression(
     context: &RuntimeDispatchBodyContext,
     target_key: StateKey,
-) -> Option<omega_checked_trees::expression::ExpressionHandle> {
-    let machine = context
+) -> omega_checked_trees::expression::ExpressionHandle {
+    let Some(machine) = context
         .program
         .machines()
         .iter()
-        .find(|machine| machine.symbol == target_key.machine)?;
-    let state = context
+        .find(|machine| machine.symbol == target_key.machine)
+    else {
+        return omega_checked_trees::expression::ExpressionHandle::invalid();
+    };
+    let Some(state) = context
         .program
         .machine_states(machine)
         .iter()
-        .find(|state| state.symbol == target_key.state)?;
+        .find(|state| state.symbol == target_key.state)
+    else {
+        return omega_checked_trees::expression::ExpressionHandle::invalid();
+    };
     let statements = context
         .program
         .statement_table
         .statements(state.statement_nodes);
-    let statement = statements.last()?;
+    let Some(statement) = statements.last() else {
+        return omega_checked_trees::expression::ExpressionHandle::invalid();
+    };
     match statement {
-        StatementNode::Expression(expression) => Some(*expression),
+        StatementNode::Expression(expression) => *expression,
         StatementNode::Transition(transition)
             if !transition.continuation.is_valid()
                 && matches!(transition.guard, TransitionGuardNode::Always) =>
@@ -318,11 +327,11 @@ fn terminal_state_value_expression(
                 .statement_table
                 .transition_target(transition.target)
             {
-                TransitionTargetNode::Value(expression) => Some(*expression),
-                _ => None,
+                TransitionTargetNode::Value(expression) => *expression,
+                _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
             }
         }
-        _ => None,
+        _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
     }
 }
 

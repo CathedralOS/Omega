@@ -6,11 +6,11 @@ use std::sync::Arc;
 pub(super) fn normalize_guard_expression(
     table: &ExpressionTable,
     simplified_guard: Option<&Expression>,
-    guard: Option<ExpressionHandle>,
+    guard: ExpressionHandle,
 ) -> Option<Expression> {
     let guard = simplified_guard
         .cloned()
-        .or_else(|| guard.map(|guard| table.to_tree(guard)))?;
+        .or_else(|| guard.is_valid().then(|| table.to_tree(guard)))?;
     Some(normalize_top_level_guard_expression(guard))
 }
 

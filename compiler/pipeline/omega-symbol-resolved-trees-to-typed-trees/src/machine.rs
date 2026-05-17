@@ -40,11 +40,12 @@ pub(crate) fn lower_machine(
             type_reference: lower_type_reference_into_table(lowerer, &owned_data.type_reference)?,
             initial_value: owned_data
                 .initial_value
-                .map(|initial_value| {
+                .is_valid()
+                .then(|| {
                     lower_expression_handle_from_table(
                         &lowerer.source_trees.tables.bodies.expressions,
                         &mut lowerer.typed_trees.expression_table,
-                        initial_value,
+                        owned_data.initial_value,
                     )
                 })
                 .transpose()?

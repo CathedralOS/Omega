@@ -47,10 +47,8 @@ fn collect_runtime_text_use(
             append_newline,
         });
 
-        if source == RuntimeTextSource::StoredPlace
-            && let Some(target) =
-                output_buffer_target_for_text_expression(host_calls, plan, *expression)
-        {
+        let target = output_buffer_target_for_text_expression(host_calls, plan, *expression);
+        if source == RuntimeTextSource::StoredPlace && target.is_valid() {
             plan.buffers.insert(RuntimeTextBuffer {
                 source_key: host_call.source_key,
                 statement_index: host_call.statement_index,
@@ -80,8 +78,7 @@ fn collect_runtime_text_buffer(
     };
 
     let target = plan.expressions.copy_from(&host_calls.expressions, *target);
-    let text_place = text_place_for_buffer_target(&mut plan.expressions, target)
-        .unwrap_or(ExpressionHandle::invalid());
+    let text_place = text_place_for_buffer_target(&mut plan.expressions, target);
 
     plan.buffers.insert(RuntimeTextBuffer {
         source_key: host_call.source_key,
@@ -127,10 +124,10 @@ fn output_buffer_target_for_text_expression(
     host_calls: &HostCallPlan,
     plan: &mut RuntimeTextPlan,
     expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
+) -> ExpressionHandle {
     let source_expression = host_calls.expressions.expression(expression);
     if matches!(source_expression, ExpressionNode::Mutable(_)) {
-        return None;
+        return ExpressionHandle::invalid();
     }
 
     plan.buffers
@@ -145,4 +142,5 @@ fn output_buffer_target_for_text_expression(
                 )
         })
         .map(|(_, buffer)| buffer.target)
+        .unwrap_or_else(ExpressionHandle::invalid)
 }

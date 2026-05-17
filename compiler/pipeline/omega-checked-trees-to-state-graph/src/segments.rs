@@ -333,12 +333,10 @@ fn is_static_assignment(program: &Program, assignment: TableAssignment) -> bool 
     target_is_place && value_is_static
 }
 
-pub(super) fn table_transition_guard_expression(
-    transition: TableTransition,
-) -> Option<ExpressionHandle> {
+pub(super) fn table_transition_guard_expression(transition: TableTransition) -> ExpressionHandle {
     match transition.guard {
-        TransitionGuardNode::Always => None,
-        TransitionGuardNode::When(expression) => Some(expression),
+        TransitionGuardNode::Always => ExpressionHandle::invalid(),
+        TransitionGuardNode::When(expression) => expression,
     }
 }
 

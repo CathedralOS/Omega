@@ -59,13 +59,9 @@ fn lower_statement_node(
                         local_data.type_reference,
                     )?,
                     initial_value: if local_data.initial_value.is_valid() {
-                        Some(lower_statement_expression(
-                            lowerer,
-                            syntax_trees,
-                            local_data.initial_value,
-                        )?)
+                        lower_statement_expression(lowerer, syntax_trees, local_data.initial_value)?
                     } else {
-                        None
+                        omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
                     },
                 },
             }))

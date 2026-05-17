@@ -37,14 +37,14 @@ pub struct LocalData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalDataStorage {
     pub type_reference: crate::types::TypeReference,
-    pub initial_value: Option<crate::expression::ExpressionHandle>,
+    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 impl Default for LocalDataStorage {
     fn default() -> Self {
         Self {
             type_reference: crate::types::TypeReference::Unit,
-            initial_value: None,
+            initial_value: crate::expression::ExpressionHandle::invalid(),
         }
     }
 }
@@ -300,12 +300,12 @@ impl StatementTable {
                 );
                 let initial_value = local_data
                     .initial_value
-                    .filter(|value| value.is_valid())
-                    .map(|value| {
+                    .is_valid()
+                    .then(|| {
                         expression_handle_from_tree(
                             source_expressions,
                             expressions,
-                            value,
+                            local_data.initial_value,
                             copy_expression_handles,
                         )
                     })

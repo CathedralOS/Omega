@@ -109,11 +109,11 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
 
 pub fn classify_transition_guard_expression(
     table: &ExpressionTable,
-    guard: Option<ExpressionHandle>,
+    guard: ExpressionHandle,
 ) -> StateGuardKind {
-    let Some(guard) = guard else {
+    if !guard.is_valid() {
         return StateGuardKind::Always;
-    };
+    }
 
     match table.expression(guard) {
         ExpressionNode::Boolean(true) => StateGuardKind::Always,
@@ -153,26 +153,29 @@ fn build_state_guard(
     statement_index: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
-    let source_guard = edge
-        .expressions
-        .guard
-        .is_valid()
-        .then_some(edge.expressions.guard);
-    let simplified_guard = source_guard.map(|guard| {
-        simplify_expression(program, source_machine, &source_expressions.to_tree(guard))
+    let source_guard = edge.expressions.guard;
+    let simplified_guard = source_guard.is_valid().then(|| {
+        simplify_expression(
+            program,
+            source_machine,
+            &source_expressions.to_tree(source_guard),
+        )
     });
     let mut normalized_expressions = ExpressionTable::new();
     let normalized_guard =
         normalize_guard_expression(source_expressions, simplified_guard.as_ref(), source_guard)
             .map(|guard| normalized_expressions.insert_tree(&guard));
+    let normalized_guard = normalized_guard.unwrap_or_else(ExpressionHandle::invalid);
     let kind = classify_transition_guard_expression(&normalized_expressions, normalized_guard);
     let operator = normalized_guard
-        .map(|guard| guard_operator(&normalized_expressions, guard))
+        .is_valid()
+        .then(|| guard_operator(&normalized_expressions, normalized_guard))
         .unwrap_or(StateGuardOperator::None);
     let expression = normalized_guard
-        .map(|guard| guard_expressions.copy_from(&normalized_expressions, guard))
+        .is_valid()
+        .then(|| guard_expressions.copy_from(&normalized_expressions, normalized_guard))
         .unwrap_or_else(ExpressionHandle::invalid);
-    let has_expression = normalized_guard.is_some();
+    let has_expression = normalized_guard.is_valid();
     let guard_operands = guard_operands(
         &normalized_expressions,
         guard_expressions,
@@ -185,8 +188,10 @@ fn build_state_guard(
         statement_index,
         normalized_guard,
     );
-    let (kind, operator, lowering, operands) = if let Some(expected) =
-        normalized_guard.and_then(|guard| match normalized_expressions.expression(guard) {
+    let (kind, operator, lowering, operands) = if let Some(expected) = normalized_guard
+        .is_valid()
+        .then(|| normalized_guard)
+        .and_then(|guard| match normalized_expressions.expression(guard) {
             ExpressionNode::Boolean(value) => Some(*value),
             _ => None,
         })
@@ -432,7 +437,7 @@ fn lower_guard_leaf(
     expression: ExpressionHandle,
     clauses: &mut Vec<StateGuardClause>,
 ) -> Option<()> {
-    let kind = classify_transition_guard_expression(&plan.expressions, Some(expression));
+    let kind = classify_transition_guard_expression(&plan.expressions, expression);
     let operator = guard_operator(&plan.expressions, expression);
     let mut scratch = ExpressionTable::new();
     let operands = guard_operands(
@@ -445,7 +450,7 @@ fn lower_guard_leaf(
         source_machine,
         source_dispatch_index,
         statement_index,
-        Some(expression),
+        expression,
     )?;
     let lowering = guard_lowering(kind, operator, Some(&operands));
     if matches!(

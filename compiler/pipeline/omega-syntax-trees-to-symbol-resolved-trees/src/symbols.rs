@@ -378,7 +378,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 machine_symbol,
                 &mut owned_data.type_reference,
             );
-            if let Some(initial_value) = owned_data.initial_value {
+            if owned_data.initial_value.is_valid() {
                 assign_expression_table_symbols(
                     symbols,
                     &MachineScope {
@@ -391,7 +391,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                     SymbolHandle::invalid(),
                     expression_table,
                     child_type_references,
-                    initial_value,
+                    owned_data.initial_value,
                 );
             }
         }
@@ -712,7 +712,7 @@ fn assign_statement_symbols(
                 machine.symbol,
                 &mut local_data.type_reference,
             );
-            if let Some(initial_value) = local_data.initial_value {
+            if local_data.initial_value.is_valid() {
                 assign_statement_expression_symbols(
                     symbols,
                     machine,
@@ -720,7 +720,7 @@ fn assign_statement_symbols(
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    initial_value,
+                    local_data.initial_value,
                 );
             }
         }

@@ -37,9 +37,12 @@ pub(crate) fn guard_operands(
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
     statement_index: usize,
-    guard: Option<ExpressionHandle>,
+    guard: ExpressionHandle,
 ) -> Option<GuardOperands> {
-    let ExpressionNode::Binary(binary) = source_expressions.expression(guard?) else {
+    if !guard.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Binary(binary) = source_expressions.expression(guard) else {
         return None;
     };
 
