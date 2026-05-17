@@ -184,6 +184,10 @@ fn classify_runtime_text_builder_segment(
 }
 
 fn is_obvious_runtime_text_value(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    if table.expression_is_stored_place(expression) {
+        return true;
+    }
+
     match table.expression(expression) {
         ExpressionNode::String(_) => true,
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
