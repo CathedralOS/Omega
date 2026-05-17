@@ -17,7 +17,6 @@ use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_runtime_bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
-    runtime_dispatch_body_inputs,
 };
 use omega_runtime_branching::{RuntimeBranchingContext, build_runtime_branching_call_plan};
 use omega_runtime_dispatch_loop::{
@@ -151,10 +150,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                     &program,
                     &backend_plan.control_flow,
                     &backend_plan.host_calls,
+                    &backend_plan.state_dispatch,
                     &backend_plan.state_calls,
                     &backend_plan.state_storage,
                 )),
-                runtime_dispatch_body_inputs(&backend_plan.state_dispatch),
                 workers.clone(),
             )
         });

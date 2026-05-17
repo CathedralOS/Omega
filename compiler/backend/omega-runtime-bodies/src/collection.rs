@@ -4,9 +4,7 @@ use super::lookups::{
     state_assignment_value_call, state_call_for_statement, state_has_no_transitions,
     state_operations,
 };
-use super::model::{
-    RuntimeDispatchBodyInput, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
-};
+use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_checked_trees::expression::ExpressionTable;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -14,6 +12,7 @@ use omega_checked_trees::types::TypeReferenceTable;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering};
+use omega_state_dispatch::DispatchState;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
@@ -27,7 +26,7 @@ pub(super) struct CollectedRuntimeDispatchBody {
 
 pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
-    body_input: RuntimeDispatchBodyInput,
+    dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
     let mut operations = Arena::new();
     let mut expressions = ExpressionTable::new();
@@ -35,7 +34,7 @@ pub(super) fn build_dispatch_body(
     let mut type_references = TypeReferenceTable::new();
     append_state_body_operations(
         context,
-        body_input.key,
+        dispatch_state.key,
         &mut operations,
         &mut expressions,
         &mut invariant_names,
@@ -44,8 +43,8 @@ pub(super) fn build_dispatch_body(
     );
 
     CollectedRuntimeDispatchBody {
-        key: body_input.key,
-        dispatch_index: body_input.dispatch_index,
+        key: dispatch_state.key,
+        dispatch_index: dispatch_state.dispatch_index,
         expressions,
         invariant_names,
         operations,
