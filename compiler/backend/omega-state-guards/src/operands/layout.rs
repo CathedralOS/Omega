@@ -47,7 +47,9 @@ pub(super) fn resolve_guard_operand_layout(
 
     let path = normalized_guard_name_path(table, expression)?;
     let root_symbol = path.head_symbol();
-    path.first()?;
+    if path.is_empty() {
+        return None;
+    }
     let suffix = path.suffix(1);
 
     if let Some(slot_layout) = runtime_frame_operand_layout(
@@ -62,7 +64,9 @@ pub(super) fn resolve_guard_operand_layout(
     }
 
     if root_symbol == source_machine {
-        suffix.first()?;
+        if suffix.is_empty() {
+            return None;
+        }
         let field_symbol = path.member_symbol(1);
         let rest = path.suffix(2);
         if let Some((_, machine_layout)) = layouts
@@ -383,8 +387,8 @@ impl<'table> NormalizedGuardNamePath<'table> {
         }
     }
 
-    fn first(&self) -> Option<&ProgramName> {
-        self.member(0)
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     fn member(&self, index: usize) -> Option<&ProgramName> {
@@ -512,17 +516,6 @@ impl<'path, 'table> GuardPathSuffix<'path, 'table> {
         match self {
             Self::Borrowed { path, start } => start >= path.len(),
             Self::Owned(segments) => segments.is_empty(),
-        }
-    }
-
-    fn first(self) -> Option<(&'path ProgramName, SymbolHandle)> {
-        match self {
-            Self::Borrowed { path, start } => {
-                Some((path.member(start)?, path.member_symbol(start)))
-            }
-            Self::Owned(segments) => segments
-                .first()
-                .map(|segment| (&segment.name, segment.symbol)),
         }
     }
 
