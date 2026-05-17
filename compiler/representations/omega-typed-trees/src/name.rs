@@ -1,5 +1,6 @@
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 /// Transitional spelling wrapper.
 ///
@@ -15,20 +16,20 @@ pub struct ProgramName {
 enum ProgramNameText {
     #[default]
     Missing,
-    Generated(String),
+    Generated(Arc<str>),
 }
 
 impl ProgramName {
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
-            text: ProgramNameText::Generated(text.into()),
+            text: ProgramNameText::Generated(Arc::from(text.into().into_boxed_str())),
         }
     }
 
     pub fn as_str(&self) -> &str {
         match &self.text {
             ProgramNameText::Missing => "",
-            ProgramNameText::Generated(text) => text.as_str(),
+            ProgramNameText::Generated(text) => text.as_ref(),
         }
     }
 }
