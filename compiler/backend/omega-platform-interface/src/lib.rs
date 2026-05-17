@@ -2,6 +2,7 @@ use omega_calling_conventions::{HostOperationKey, PlatformCallData};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use std::sync::Arc;
 
 mod host_calls;
 mod place_keys;
@@ -89,7 +90,7 @@ impl Default for HostCallArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostCallArgumentKind {
-    Text(String),
+    Text(Arc<str>),
     Integer(i64),
     Expression(ExpressionHandle),
 }

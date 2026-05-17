@@ -163,7 +163,7 @@ fn lower_host_call_argument(
     expressions: &mut ExpressionTable,
 ) -> HostCallArgumentKind {
     match program.expression_table.expression(argument) {
-        ExpressionNode::String(value) => HostCallArgumentKind::Text(value.to_string()),
+        ExpressionNode::String(value) => HostCallArgumentKind::Text(value.clone()),
         ExpressionNode::Integer(value) => HostCallArgumentKind::Integer(*value),
         ExpressionNode::Name(_) => {
             resolve_static_value_handle(program, expressions, argument, static_values)
