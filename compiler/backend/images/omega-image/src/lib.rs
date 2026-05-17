@@ -70,6 +70,12 @@ pub struct FinalImageInput<'a> {
 }
 
 pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
+    let import_count = input
+        .object
+        .symbols
+        .iter()
+        .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
+        .count();
     let mut image = FinalImage {
         target: input.target,
         entry_symbol: input.object.entry_symbol.clone(),
@@ -77,9 +83,9 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         data: input.data_bytes.to_vec(),
         bss_size: section_size(input.object, SectionKind::Bss),
         bss_alignment: section_alignment(input.object, SectionKind::Bss),
-        symbols: Arena::new(),
-        imports: Arena::new(),
-        relocations: Arena::new(),
+        symbols: Arena::with_capacity(input.object.symbols.len()),
+        imports: Arena::with_capacity(import_count),
+        relocations: Arena::with_capacity(input.relocations.records.len()),
     };
 
     image
