@@ -52,8 +52,8 @@ fn guard_matches(
     aliases: &[(PlaceKey, PlaceKey)],
     values: &[(PlaceKey, String)],
 ) -> Option<bool> {
-    if let Some(guard) = transition.expressions.guard {
-        evaluate_boolean(table, guard, aliases, values)
+    if transition.expressions.guard.is_valid() {
+        evaluate_boolean(table, transition.expressions.guard, aliases, values)
     } else {
         Some(true)
     }

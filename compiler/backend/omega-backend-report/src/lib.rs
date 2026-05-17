@@ -788,7 +788,11 @@ pub fn backend_report_text(
                             edge.action,
                             transition_guard_expression_name(
                                 &backend_plan.state_guards.expressions,
-                                edge.guard_has_expression.then_some(edge.guard_expression),
+                                if edge.guard_has_expression {
+                                    edge.guard_expression
+                                } else {
+                                    ExpressionHandle::invalid()
+                                },
                             )
                         ));
                         if edge.guard_has_storage {
@@ -1277,11 +1281,13 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 
 fn transition_guard_expression_name(
     expressions: &ExpressionTable,
-    guard: Option<ExpressionHandle>,
+    guard: ExpressionHandle,
 ) -> String {
-    guard
-        .map(|guard| transition_guard_name(&TransitionGuard::When(expressions.to_tree(guard))))
-        .unwrap_or_else(|| "always".to_owned())
+    if guard.is_valid() {
+        transition_guard_name(&TransitionGuard::When(expressions.to_tree(guard)))
+    } else {
+        "always".to_owned()
+    }
 }
 
 fn runtime_transition_target_name(

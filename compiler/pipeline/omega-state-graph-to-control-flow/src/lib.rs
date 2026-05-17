@@ -315,14 +315,12 @@ fn remap_transition(state_graph: &StateGraph, transition: &TransitionEdge) -> Tr
     }
 }
 
-fn remap_transition_guard(
-    state_graph: &StateGraph,
-    guard: Option<ExpressionHandle>,
-) -> TransitionGuard {
-    guard
-        .map(|guard| state_graph.expressions.to_tree(guard))
-        .map(TransitionGuard::When)
-        .unwrap_or(TransitionGuard::Always)
+fn remap_transition_guard(state_graph: &StateGraph, guard: ExpressionHandle) -> TransitionGuard {
+    if guard.is_valid() {
+        TransitionGuard::When(state_graph.expressions.to_tree(guard))
+    } else {
+        TransitionGuard::Always
+    }
 }
 
 fn remap_state_span(states: HandleSpan<omega_state_graph::StateNode>) -> HandleSpan<StateFlow> {

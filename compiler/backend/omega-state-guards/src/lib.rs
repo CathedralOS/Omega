@@ -153,7 +153,11 @@ fn build_state_guard(
     statement_index: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
-    let source_guard = edge.expressions.guard;
+    let source_guard = edge
+        .expressions
+        .guard
+        .is_valid()
+        .then_some(edge.expressions.guard);
     let simplified_guard = source_guard.map(|guard| {
         simplify_expression(program, source_machine, &source_expressions.to_tree(guard))
     });
