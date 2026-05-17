@@ -188,24 +188,27 @@ fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportThunk> {
     let imports = image
         .imports
         .iter()
-        .map(|(_, import)| import.symbol.clone())
+        .filter_map(|(_, import)| {
+            image
+                .symbols
+                .is_valid(import.symbol_handle)
+                .then_some(import.symbol_handle)
+        })
         .collect::<Vec<_>>();
     let mut thunks = Vec::new();
 
-    for symbol in imports {
+    for symbol_handle in imports {
+        let symbol = image.symbols.get(symbol_handle).name.clone();
         let text_offset = image.text.len();
         image.data.resize(align_to(image.data.len(), 8), 0);
         let data_offset = image.data.len();
         image.text.extend([0u8; 12]);
         image.data.extend([0u8; 8]);
 
-        image.symbols.for_each_mut(|_, image_symbol| {
-            if image_symbol.name == symbol {
-                image_symbol.section = FinalImageSection::Text;
-                image_symbol.offset = text_offset;
-                image_symbol.size = 12;
-            }
-        });
+        let image_symbol = image.symbols.get_mut(symbol_handle);
+        image_symbol.section = FinalImageSection::Text;
+        image_symbol.offset = text_offset;
+        image_symbol.size = 12;
 
         thunks.push(MachoImportThunk {
             symbol,

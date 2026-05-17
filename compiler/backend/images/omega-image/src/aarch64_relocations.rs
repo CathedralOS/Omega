@@ -15,7 +15,7 @@ pub fn apply_aarch64_relocations(
             final_image_symbol_address(image, relocation.symbol_handle, layout)
         else {
             let symbol_name = final_image_symbol_name(image, relocation.symbol_handle);
-            if final_image_imports_symbol(image, symbol_name) {
+            if final_image_imports_symbol(image, relocation.symbol_handle) {
                 return Err(Diagnostic::error(format!(
                     "{output_name} cannot import `{}` yet; use syscalls or add dynamic binding",
                     symbol_name

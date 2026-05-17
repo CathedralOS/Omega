@@ -65,7 +65,7 @@ pub enum FinalImageSection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FinalImageImport {
-    pub symbol: String,
+    pub symbol_handle: FinalImageSymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
