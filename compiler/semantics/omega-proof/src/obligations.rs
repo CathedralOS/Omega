@@ -1,5 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{BuiltinType, BuiltinTypeMember, SymbolHandle};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral,
@@ -823,7 +823,7 @@ fn expression_constraints(
             }
 
             let arguments = program.expression_table.expression_handles(call.arguments);
-            if is_real_from_call(program, call.receiver, &call.target)
+            if is_real_from_call(program, call)
                 && let [argument] = arguments
             {
                 let mut constraints = call_expression_return_type(program, machine, state, call)
@@ -1377,20 +1377,19 @@ fn callable_return_type_by_symbol(
 
 fn is_real_from_call(
     program: &TypedTrees,
-    receiver: ExpressionHandle,
-    target: &ProgramName,
+    call: &omega_typed_trees::expression::TableCallExpression,
 ) -> bool {
-    target.as_str() == "from"
-        && matches!(
-            receiver.is_valid().then(|| program.expression_table.expression(receiver)),
-            Some(ExpressionNode::Name(path))
-                if program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .eq(["Real"])
-        )
+    let Some(real_symbol) = program.symbols.builtin_type_symbol(BuiltinType::Real) else {
+        return false;
+    };
+    let Some(real_from_symbol) = program
+        .symbols
+        .find_child_by_name(real_symbol, BuiltinTypeMember::RealFrom.name())
+    else {
+        return false;
+    };
+
+    call.target_symbol == real_from_symbol
 }
 
 fn augment_constraints_with_named_facts(constraints: &mut Vec<ProofConstraint>) {

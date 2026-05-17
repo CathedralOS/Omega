@@ -53,6 +53,7 @@ impl Lowerer {
 mod tests {
     use super::{lower_syntax_trees, lower_syntax_trees_with_sources};
     use omega_core::source::SourceMap;
+    use omega_core::symbols::BuiltinTypeMember;
     use omega_source_files_to_tokens::Lexer;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees_with_id;
@@ -181,6 +182,59 @@ mod tests {
         };
 
         assert_eq!(*symbol, machine.symbol);
+    }
+
+    #[test]
+    fn resolves_builtin_type_member_call_symbols() {
+        let source = r#"
+        data main {
+            value: Real;
+        }
+
+        machine main {
+            pub entry(&mut self) {
+                self.value = Real::from(1);
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+        let machine = program.machines.first().expect("machine");
+        let entry = program
+            .machine_state_handles(machine.states)
+            .first()
+            .map(|state| program.machine_state(*state))
+            .expect("entry state");
+        let statement = program
+            .state_statements(entry.statements)
+            .first()
+            .expect("assignment statement");
+        let omega_symbol_resolved_trees::statement::Statement::Assignment(assignment) = statement
+        else {
+            panic!("expected assignment statement");
+        };
+        let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(assignment.value)
+        else {
+            panic!("expected Real::from call expression");
+        };
+        let real_symbol = program
+            .symbols
+            .find_child_by_name(program.symbols.root(), "Real")
+            .expect("Real builtin symbol");
+        let real_from_symbol = program
+            .symbols
+            .find_child_by_name(real_symbol, BuiltinTypeMember::RealFrom.name())
+            .expect("Real::from builtin symbol");
+
+        assert_eq!(call.target_symbol, real_from_symbol);
     }
 
     #[test]
