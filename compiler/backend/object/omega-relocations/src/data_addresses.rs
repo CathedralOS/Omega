@@ -46,7 +46,10 @@ pub(super) fn collect_data_address_relocations(
                     function,
                     selected_instruction_index,
                     operand_text_offset,
-                    Arc::from(storage_region_symbol_name(*region, input.entry_machine_name)),
+                    Arc::from(storage_region_symbol_name(
+                        *region,
+                        input.entry_machine_name,
+                    )),
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
@@ -65,36 +68,35 @@ pub(super) fn insert_data_address_relocations(
     operand_text_offset: usize,
     symbol: Arc<str>,
 ) {
+    let function_symbol_handle =
+        object_symbol_handle_by_name(&input.object, function.symbol.as_ref());
     let symbol_handle = object_symbol_handle_by_name(&input.object, symbol.as_ref());
 
     match input.target.architecture {
         Architecture::Aarch64 => {
             relocation_plan.records.insert(RelocationRecord {
-                function_symbol: function.symbol.clone(),
+                function_symbol_handle,
                 selected_instruction_index,
                 text_offset: operand_text_offset,
                 byte_width: 4,
-                symbol: symbol.clone(),
                 symbol_handle,
                 kind: RelocationKind::Aarch64Page21,
             });
             relocation_plan.records.insert(RelocationRecord {
-                function_symbol: function.symbol.clone(),
+                function_symbol_handle,
                 selected_instruction_index,
                 text_offset: operand_text_offset + 4,
                 byte_width: 4,
-                symbol: symbol.clone(),
                 symbol_handle,
                 kind: RelocationKind::Aarch64PageOffset12,
             });
         }
         Architecture::X86_64 => {
             relocation_plan.records.insert(RelocationRecord {
-                function_symbol: function.symbol.clone(),
+                function_symbol_handle,
                 selected_instruction_index,
                 text_offset: operand_text_offset,
                 byte_width: 8,
-                symbol,
                 symbol_handle,
                 kind: RelocationKind::X86_64Absolute64,
             });

@@ -1,7 +1,6 @@
 use omega_core::arena::{Arena, Handle};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::RuntimeStorageRegion;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {
@@ -84,11 +83,10 @@ impl Default for RelocationPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationRecord {
-    pub function_symbol: Arc<str>,
+    pub function_symbol_handle: ObjectSymbolHandle,
     pub selected_instruction_index: u32,
     pub text_offset: usize,
     pub byte_width: usize,
-    pub symbol: Arc<str>,
     pub symbol_handle: ObjectSymbolHandle,
     pub kind: RelocationKind,
 }
@@ -96,11 +94,10 @@ pub struct RelocationRecord {
 impl Default for RelocationRecord {
     fn default() -> Self {
         Self {
-            function_symbol: Arc::from(""),
+            function_symbol_handle: Handle::invalid(),
             selected_instruction_index: 0,
             text_offset: 0,
             byte_width: 0,
-            symbol: Arc::from(""),
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
         }
@@ -114,6 +111,14 @@ pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> O
         .find(|(_, symbol)| symbol.name == symbol_name)
         .map(|(handle, _)| handle)
         .unwrap_or_else(Handle::invalid)
+}
+
+pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &str {
+    if object.symbols.is_valid(symbol) {
+        object.symbols.get(symbol).name.as_str()
+    } else {
+        ""
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,7 +208,7 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
     );
 
     write_symbols(&mut bytes, input.object);
-    write_relocations(&mut bytes, input.relocations);
+    write_relocations(&mut bytes, input.object, input.relocations);
 
     bytes.extend(input.text_bytes);
     bytes.extend(input.data_bytes);
@@ -250,14 +255,17 @@ fn write_symbols(bytes: &mut Vec<u8>, object: &ObjectPlan) {
     }
 }
 
-fn write_relocations(bytes: &mut Vec<u8>, relocations: &RelocationPlan) {
+fn write_relocations(bytes: &mut Vec<u8>, object: &ObjectPlan, relocations: &RelocationPlan) {
     write_u32(
         bytes,
         u32::try_from(relocations.records.len()).expect("relocation count overflow"),
     );
 
     for (_, relocation) in relocations.records.iter() {
-        write_string(bytes, &relocation.function_symbol);
+        write_string(
+            bytes,
+            object_symbol_name(object, relocation.function_symbol_handle),
+        );
         write_u32(bytes, relocation.selected_instruction_index);
         write_u64(
             bytes,
@@ -267,7 +275,7 @@ fn write_relocations(bytes: &mut Vec<u8>, relocations: &RelocationPlan) {
             bytes,
             u32::try_from(relocation.byte_width).expect("relocation byte width overflow"),
         );
-        write_string(bytes, &relocation.symbol);
+        write_string(bytes, object_symbol_name(object, relocation.symbol_handle));
         write_u32(bytes, relocation_kind_id(relocation.kind));
     }
 }

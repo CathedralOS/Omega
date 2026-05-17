@@ -119,15 +119,15 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
     image
         .relocations
         .insert_many(input.relocations.records.iter().map(|(_, relocation)| {
+            let symbol_handle = final_image_symbol_handle(relocation.symbol_handle);
             FinalImageRelocation {
                 text_offset: relocation.text_offset,
                 byte_width: relocation.byte_width,
-                symbol: relocation.symbol.clone(),
-                symbol_handle: final_image_symbol_handle(relocation.symbol_handle)
+                symbol_handle: symbol_handle
                     .is_valid()
-                    .then(|| final_image_symbol_handle(relocation.symbol_handle))
+                    .then_some(symbol_handle)
                     .filter(|handle| symbols.is_valid(*handle))
-                    .unwrap_or_else(|| symbol_handle(symbols, &relocation.symbol)),
+                    .unwrap_or_else(Handle::invalid),
                 kind: relocation.kind,
             }
         }));
@@ -170,12 +170,12 @@ pub fn final_image_imports_symbol(image: &FinalImage, symbol_name: &str) -> bool
         .any(|(_, import)| import.symbol == symbol_name)
 }
 
-fn symbol_handle(symbols: &Arena<FinalImageSymbol>, symbol_name: &str) -> FinalImageSymbolHandle {
-    symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == symbol_name)
-        .map(|(handle, _)| handle)
-        .unwrap_or_else(Handle::invalid)
+pub fn final_image_symbol_name(image: &FinalImage, symbol: FinalImageSymbolHandle) -> &str {
+    if image.symbols.is_valid(symbol) {
+        image.symbols.get(symbol).name.as_str()
+    } else {
+        ""
+    }
 }
 
 fn final_image_section(section_name: &str) -> FinalImageSection {
