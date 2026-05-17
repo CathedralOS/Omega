@@ -278,7 +278,7 @@ fn runtime_text_literal_guard(
         source_key,
         text_place,
     )?;
-    Some((buffer, literal.clone()))
+    Some((buffer, literal.to_string()))
 }
 
 fn runtime_text_storage_guard(
