@@ -28,6 +28,7 @@ pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<ProgramName>,
+    name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
 }
 
@@ -37,6 +38,7 @@ impl ExpressionTable {
             expressions: Arena::new(),
             expression_handles: Arena::new(),
             name_path_members: Arena::new(),
+            name_path_member_symbols: Arena::new(),
             struct_fields: Arena::new(),
         }
     }
@@ -45,6 +47,7 @@ impl ExpressionTable {
         self.expressions.reset_retain_capacity();
         self.expression_handles.reset_retain_capacity();
         self.name_path_members.reset_retain_capacity();
+        self.name_path_member_symbols.reset_retain_capacity();
         self.struct_fields.reset_retain_capacity();
     }
 
@@ -136,6 +139,15 @@ impl ExpressionTable {
         self.name_path_members.append_to_span(span, member);
     }
 
+    pub fn push_name_path_member_symbol(
+        &mut self,
+        span: &mut HandleSpan<SymbolHandle>,
+        member_symbol: SymbolHandle,
+    ) {
+        self.name_path_member_symbols
+            .append_to_span(span, member_symbol);
+    }
+
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,
@@ -202,8 +214,11 @@ impl ExpressionTable {
             }
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members(source, path.members);
+                let member_symbols =
+                    self.copy_name_path_member_symbols(source, path.member_symbols);
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,
                 }))
@@ -264,6 +279,17 @@ impl ExpressionTable {
         members
     }
 
+    fn insert_name_path_member_symbols(&mut self, path: &NamePath) -> HandleSpan<SymbolHandle> {
+        let mut member_symbols = HandleSpan::empty();
+
+        for member_symbol in path.member_symbols() {
+            self.name_path_member_symbols
+                .append_to_span(&mut member_symbols, *member_symbol);
+        }
+
+        member_symbols
+    }
+
     fn copy_name_path_members(
         &mut self,
         source: &ExpressionTable,
@@ -279,6 +305,21 @@ impl ExpressionTable {
         copied
     }
 
+    fn copy_name_path_member_symbols(
+        &mut self,
+        source: &ExpressionTable,
+        member_symbols: HandleSpan<SymbolHandle>,
+    ) -> HandleSpan<SymbolHandle> {
+        let mut copied = HandleSpan::empty();
+
+        for member_symbol in source.name_path_member_symbols(member_symbols) {
+            self.name_path_member_symbols
+                .append_to_span(&mut copied, *member_symbol);
+        }
+
+        copied
+    }
+
     fn copy_own_name_path_members(
         &mut self,
         members: HandleSpan<ProgramName>,
@@ -288,6 +329,21 @@ impl ExpressionTable {
         for offset in 0..members.count() {
             let member = self.name_path_member_at_offset(members, offset).clone();
             self.name_path_members.append_to_span(&mut copied, member);
+        }
+
+        copied
+    }
+
+    fn copy_own_name_path_member_symbols(
+        &mut self,
+        member_symbols: HandleSpan<SymbolHandle>,
+    ) -> HandleSpan<SymbolHandle> {
+        let mut copied = HandleSpan::empty();
+
+        for offset in 0..member_symbols.count() {
+            let member_symbol = *self.name_path_member_symbol_at_offset(member_symbols, offset);
+            self.name_path_member_symbols
+                .append_to_span(&mut copied, member_symbol);
         }
 
         copied
@@ -319,6 +375,17 @@ impl ExpressionTable {
         Some(copied)
     }
 
+    fn copy_own_name_path_member_symbols_with_index_suffix(
+        &mut self,
+        member_symbols: HandleSpan<SymbolHandle>,
+    ) -> Option<HandleSpan<SymbolHandle>> {
+        if member_symbols.is_empty() {
+            return None;
+        }
+
+        Some(self.copy_own_name_path_member_symbols(member_symbols))
+    }
+
     fn name_path_member_at_offset(
         &self,
         members: HandleSpan<ProgramName>,
@@ -331,6 +398,21 @@ impl ExpressionTable {
                 .checked_add(offset)
                 .expect("name path member index overflow"),
             members.start().generation(),
+        ))
+    }
+
+    fn name_path_member_symbol_at_offset(
+        &self,
+        member_symbols: HandleSpan<SymbolHandle>,
+        offset: u32,
+    ) -> &SymbolHandle {
+        self.name_path_member_symbols.get(Handle::from_parts(
+            member_symbols
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("name path member symbol index overflow"),
+            member_symbols.start().generation(),
         ))
     }
 
@@ -494,6 +576,10 @@ impl ExpressionTable {
         self.name_path_members.span_or_empty(span)
     }
 
+    pub fn name_path_member_symbols(&self, span: HandleSpan<SymbolHandle>) -> &[SymbolHandle] {
+        self.name_path_member_symbols.span_or_empty(span)
+    }
+
     pub fn copy_name_path_members_with_suffix(
         &mut self,
         members: HandleSpan<ProgramName>,
@@ -562,10 +648,35 @@ impl ExpressionTable {
         copied
     }
 
+    pub fn copy_name_path_member_symbols_with_member_suffix(
+        &mut self,
+        member_symbols: HandleSpan<SymbolHandle>,
+        suffix_member_symbols: HandleSpan<SymbolHandle>,
+        suffix_start_offset: u32,
+    ) -> HandleSpan<SymbolHandle> {
+        let mut copied = HandleSpan::empty();
+
+        for offset in 0..member_symbols.count() {
+            let member_symbol = *self.name_path_member_symbol_at_offset(member_symbols, offset);
+            self.name_path_member_symbols
+                .append_to_span(&mut copied, member_symbol);
+        }
+
+        for offset in suffix_start_offset..suffix_member_symbols.count() {
+            let member_symbol =
+                *self.name_path_member_symbol_at_offset(suffix_member_symbols, offset);
+            self.name_path_member_symbols
+                .append_to_span(&mut copied, member_symbol);
+        }
+
+        copied
+    }
+
     pub fn insert_copy_with_member_suffix(
         &mut self,
         expression: ExpressionHandle,
         suffix_members: HandleSpan<ProgramName>,
+        suffix_member_symbols: HandleSpan<SymbolHandle>,
         suffix_start_offset: u32,
     ) -> ExpressionHandle {
         if suffix_start_offset >= suffix_members.count() {
@@ -579,8 +690,14 @@ impl ExpressionTable {
                     suffix_members,
                     suffix_start_offset,
                 );
+                let member_symbols = self.copy_name_path_member_symbols_with_member_suffix(
+                    path.member_symbols,
+                    suffix_member_symbols,
+                    suffix_start_offset,
+                );
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     head_symbol: path.head_symbol,
                     symbol: SymbolHandle::invalid(),
                 }))
@@ -589,6 +706,7 @@ impl ExpressionTable {
                 let target = self.insert_copy_with_member_suffix(
                     target,
                     suffix_members,
+                    suffix_member_symbols,
                     suffix_start_offset,
                 );
                 self.insert(ExpressionNode::Mutable(target))
@@ -600,8 +718,14 @@ impl ExpressionTable {
                         suffix_members,
                         suffix_start_offset,
                     );
+                    let member_symbols = self.copy_name_path_member_symbols_with_member_suffix(
+                        path.member_symbols,
+                        suffix_member_symbols,
+                        suffix_start_offset,
+                    );
                     self.insert(ExpressionNode::Name(TableNamePath {
                         members,
+                        member_symbols,
                         head_symbol: path.head_symbol,
                         symbol: SymbolHandle::invalid(),
                     }))
@@ -675,8 +799,10 @@ impl ExpressionTable {
             }
             ExpressionNode::Name(path) => {
                 let members = self.copy_own_name_path_members(path.members);
+                let member_symbols = self.copy_own_name_path_member_symbols(path.member_symbols);
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,
                 }))
@@ -709,9 +835,12 @@ impl ExpressionTable {
             _ => return None,
         };
         let members = self.copy_own_name_path_members_with_index_suffix(base.members, index)?;
+        let member_symbols =
+            self.copy_own_name_path_member_symbols_with_index_suffix(base.member_symbols)?;
 
         Some(TableNamePath {
             members,
+            member_symbols,
             head_symbol: base.head_symbol,
             symbol: SymbolHandle::invalid(),
         })
@@ -787,8 +916,10 @@ impl ExpressionTable {
             }
             Expression::Name(path) => {
                 let members = self.insert_name_path_members(path);
+                let member_symbols = self.insert_name_path_member_symbols(path);
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     head_symbol: path.head_symbol(),
                     symbol: path.symbol(),
                 }))
@@ -851,8 +982,9 @@ impl ExpressionTable {
             ExpressionNode::Mutable(inner_expression) => {
                 Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
             }
-            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved_from_iter(
-                self.name_path_members(path.members).iter().cloned(),
+            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved_with_member_symbols(
+                self.name_path_members(path.members).to_vec(),
+                self.name_path_member_symbols(path.member_symbols).to_vec(),
                 path.head_symbol,
                 path.symbol,
             )),
@@ -904,8 +1036,9 @@ impl ExpressionTable {
     }
 
     fn name_path_to_tree(&self, path: &TableNamePath) -> NamePath {
-        NamePath::resolved_from_iter(
-            self.name_path_members(path.members).iter().cloned(),
+        NamePath::resolved_with_member_symbols(
+            self.name_path_members(path.members).to_vec(),
+            self.name_path_member_symbols(path.member_symbols).to_vec(),
             path.head_symbol,
             path.symbol,
         )
@@ -1022,6 +1155,7 @@ pub struct TableCallExpression {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
     pub members: HandleSpan<ProgramName>,
+    pub member_symbols: HandleSpan<SymbolHandle>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
@@ -1091,6 +1225,29 @@ impl NamePath {
         symbol: SymbolHandle,
     ) -> Self {
         let mut member_symbols = vec![SymbolHandle::invalid(); members.len()];
+        if let Some(first_symbol) = member_symbols.first_mut() {
+            *first_symbol = head_symbol;
+        }
+        if let Some(last_symbol) = member_symbols.last_mut() {
+            *last_symbol = symbol;
+        }
+        Self {
+            members,
+            member_symbols,
+            head_symbol,
+            symbol,
+        }
+    }
+
+    pub fn resolved_with_member_symbols(
+        members: Vec<ProgramName>,
+        mut member_symbols: Vec<SymbolHandle>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        if member_symbols.len() != members.len() {
+            member_symbols.resize(members.len(), SymbolHandle::invalid());
+        }
         if let Some(first_symbol) = member_symbols.first_mut() {
             *first_symbol = head_symbol;
         }
@@ -1632,6 +1789,7 @@ mod tests {
             members,
             head_symbol,
             symbol,
+            ..
         }) = copied.expression(binary.right)
         else {
             panic!("copied binary rhs should keep its name path");

@@ -20,12 +20,11 @@ use expansions::{
 };
 use lookups::state_call_for_runtime_operation;
 pub use model::{
-    RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCall,
-    RuntimeBranchingCallEdge, RuntimeBranchingCallPlan, RuntimeLeafBranchBinding,
-    RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation,
-    RuntimeLeafBranchOperationKind, RuntimeBranchPreludeBinding,
-    RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperation,
-    RuntimeBranchPreludeOperationKind, RuntimeStraightLineBranchBinding,
+    RuntimeBranchCallExpansion, RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion,
+    RuntimeBranchPreludeOperation, RuntimeBranchPreludeOperationKind, RuntimeBranchTargetLowering,
+    RuntimeBranchingCall, RuntimeBranchingCallEdge, RuntimeBranchingCallPlan,
+    RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion,
+    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };

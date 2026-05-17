@@ -528,6 +528,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                     expression: alias_expressions.insert_copy_with_member_suffix(
                         resolved.expression,
                         path.members,
+                        path.member_symbols,
                         1,
                     ),
                 }
