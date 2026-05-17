@@ -9,6 +9,7 @@ pub use model::{
     RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
     RuntimeDispatchBodyPlan,
 };
+use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use std::sync::Arc;
 
@@ -41,7 +42,10 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
         build_dispatch_body(&context_for_bodies, dispatch_state)
     });
 
-    let mut plan = RuntimeDispatchBodyPlan::default();
+    let mut plan = RuntimeDispatchBodyPlan {
+        bodies: Arena::with_capacity(state_count),
+        ..RuntimeDispatchBodyPlan::default()
+    };
 
     for collected_body in collected_bodies {
         let operations = plan
