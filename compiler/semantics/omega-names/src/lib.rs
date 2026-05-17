@@ -68,7 +68,7 @@ pub enum ResolvedNameMember {
     #[default]
     Missing,
     Source(SourceSpan),
-    Generated(String),
+    Generated(Arc<str>),
 }
 
 impl ResolvedNameMember {
@@ -76,7 +76,7 @@ impl ResolvedNameMember {
         if identifier.is_source_backed() {
             Self::Source(identifier.source_span())
         } else {
-            Self::Generated(identifier.as_str().to_owned())
+            Self::Generated(Arc::from(identifier.as_str()))
         }
     }
 
@@ -84,7 +84,7 @@ impl ResolvedNameMember {
         match self {
             Self::Missing => "",
             Self::Source(source_span) => symbols.source_text(*source_span),
-            Self::Generated(value) => value.as_str(),
+            Self::Generated(value) => value.as_ref(),
         }
     }
 }
