@@ -110,8 +110,8 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
             .symbols
             .iter()
             .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
-            .map(|(_, symbol)| FinalImageImport {
-                symbol: symbol.name.clone(),
+            .map(|(symbol_handle, _)| FinalImageImport {
+                symbol_handle: final_image_symbol_handle(symbol_handle),
             }),
     );
 
@@ -163,11 +163,14 @@ pub fn final_image_symbol_address(
     Some(section_address + symbol.offset as u64)
 }
 
-pub fn final_image_imports_symbol(image: &FinalImage, symbol_name: &str) -> bool {
+pub fn final_image_imports_symbol(
+    image: &FinalImage,
+    symbol: FinalImageSymbolHandle,
+) -> bool {
     image
         .imports
         .iter()
-        .any(|(_, import)| import.symbol == symbol_name)
+        .any(|(_, import)| import.symbol_handle == symbol)
 }
 
 pub fn final_image_symbol_name(image: &FinalImage, symbol: FinalImageSymbolHandle) -> &str {
