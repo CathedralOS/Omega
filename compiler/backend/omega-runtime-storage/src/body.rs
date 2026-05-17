@@ -56,7 +56,8 @@ pub(super) fn build_runtime_storage_body_plan(
                     type_name: context
                         .runtime_bodies
                         .type_references
-                        .display_name(*type_reference),
+                        .display_name(*type_reference)
+                        .into(),
                     invariant_names: plan.invariant_names.insert_many(
                         context
                             .runtime_bodies
@@ -151,7 +152,7 @@ fn append_parameter_slots(
             symbol: parameter.symbol,
             name: parameter.name.clone(),
             type_symbol: parameter.type_symbol,
-            type_name: parameter.type_name.to_string(),
+            type_name: parameter.type_name.as_str().into(),
             invariant_names: HandleSpan::empty(),
             byte_offset,
             byte_size: layout.size,
@@ -212,7 +213,7 @@ fn append_state_call_result_slot(
             statement_index, call_ordinal
         )),
         type_symbol,
-        type_name,
+        type_name: type_name.into(),
         invariant_names: HandleSpan::empty(),
         byte_offset,
         byte_size: layout.size,

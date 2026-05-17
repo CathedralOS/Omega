@@ -5,6 +5,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
@@ -119,7 +120,7 @@ pub struct RuntimeFrameSlot {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
-    pub type_name: String,
+    pub type_name: Arc<str>,
     pub invariant_names: HandleSpan<ProgramName>,
     pub byte_offset: usize,
     pub byte_size: usize,

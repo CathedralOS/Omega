@@ -526,7 +526,7 @@ fn resolve_nested_field_layout_by_symbol(
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
-    let mut type_name = root_field.type_name.as_str();
+    let mut type_name = root_field.type_name.as_ref();
     let mut layout = root_field.layout;
 
     for (segment, field_symbol, field_index) in suffix.iter() {
