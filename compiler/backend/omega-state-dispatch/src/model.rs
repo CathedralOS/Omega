@@ -1,6 +1,7 @@
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchPlan {
@@ -12,7 +13,7 @@ pub struct StateDispatchPlan {
 pub struct DispatchState {
     pub key: StateKey,
     pub dispatch_index: u32,
-    pub label: String,
+    pub label: Arc<str>,
     pub edges: HandleSpan<DispatchEdge>,
 }
 
@@ -21,7 +22,7 @@ impl Default for DispatchState {
         Self {
             key: StateKey::default(),
             dispatch_index: 0,
-            label: String::new(),
+            label: Arc::from(""),
             edges: HandleSpan::empty(),
         }
     }

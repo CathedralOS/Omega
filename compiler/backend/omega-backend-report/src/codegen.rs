@@ -147,7 +147,7 @@ fn selected_instruction_name(
                 .cases
                 .iter()
                 .find(|(_, dispatch_case)| dispatch_case.dispatch_index == *dispatch_index)
-                .map(|(_, dispatch_case)| dispatch_case.label.as_str())
+                .map(|(_, dispatch_case)| dispatch_case.label.as_ref())
                 .unwrap_or("unknown");
             format!("enter dispatch case #{dispatch_index} `{label}`")
         }
