@@ -47,7 +47,7 @@ pub(super) fn resolve_guard_operand_layout(
 
     let path = normalized_guard_name_path(table, expression)?;
     let root_symbol = path.head_symbol();
-    let root_name = path.first()?.clone();
+    path.first()?;
     let suffix = path.members().get(1..).unwrap_or(&[]);
 
     if let Some(slot_layout) = runtime_frame_operand_layout(
@@ -62,7 +62,7 @@ pub(super) fn resolve_guard_operand_layout(
     }
 
     if root_symbol == source_machine {
-        let [field_name, rest @ ..] = suffix else {
+        let [_field_name, rest @ ..] = suffix else {
             return None;
         };
         let field_symbol = path.member_symbol(1);
@@ -74,12 +74,9 @@ pub(super) fn resolve_guard_operand_layout(
             if let Some(machine_base_offset) =
                 machine_storage_offset(layouts, entry_machine, source_machine)
             {
-                if let Some(root_field) = field_layout_by_symbol_or_name(
-                    layouts,
-                    machine_layout.fields,
-                    field_symbol,
-                    field_name.as_str(),
-                ) {
+                if let Some(root_field) =
+                    field_layout_by_symbol(layouts, machine_layout.fields, field_symbol)
+                {
                     return resolve_nested_field_layout_with_symbols(
                         layouts, root_field, rest, &path, 2,
                     )
@@ -98,12 +95,8 @@ pub(super) fn resolve_guard_operand_layout(
             .find_map(|(_, candidate_layout)| {
                 let candidate_base_offset =
                     machine_storage_offset(layouts, entry_machine, candidate_layout.symbol)?;
-                let root_field = field_layout_by_symbol_or_name(
-                    layouts,
-                    candidate_layout.fields,
-                    field_symbol,
-                    field_name.as_str(),
-                )?;
+                let root_field =
+                    field_layout_by_symbol(layouts, candidate_layout.fields, field_symbol)?;
 
                 resolve_nested_field_layout_with_symbols(layouts, root_field, rest, &path, 2).map(
                     |(byte_offset, layout)| ResolvedOperandLayout {
@@ -121,12 +114,7 @@ pub(super) fn resolve_guard_operand_layout(
         .iter()
         .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
         .map(|(_, machine_layout)| machine_layout)?;
-    let root_field = field_layout_by_symbol_or_name(
-        layouts,
-        machine_layout.fields,
-        root_symbol,
-        root_name.as_str(),
-    );
+    let root_field = field_layout_by_symbol(layouts, machine_layout.fields, root_symbol);
 
     if let Some(root_field) = root_field {
         return resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, &path, 1)
@@ -216,7 +204,7 @@ fn resolve_nested_slot_layout(
     root_type_symbol: SymbolHandle,
     root_type_name: &str,
     suffix: &[ProgramName],
-    mut field_symbol_at: impl FnMut(usize, &FieldSegment<'_>) -> SymbolHandle,
+    mut field_symbol_at: impl FnMut(usize, &FieldSegment) -> SymbolHandle,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_byte_offset;
     let mut type_symbol = root_type_symbol;
@@ -230,8 +218,7 @@ fn resolve_nested_slot_layout(
         let field_segment = parse_field_segment(segment)?;
         let fields = record_fields(layouts, type_symbol, type_name)?;
         let field_symbol = field_symbol_at(offset, &field_segment);
-        let field =
-            field_layout_by_symbol_or_name(layouts, fields, field_symbol, field_segment.name)?;
+        let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         type_name = &field.type_name;
@@ -557,7 +544,7 @@ fn resolve_nested_field_layout_by_symbol(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
     suffix: &[ProgramName],
-    mut field_symbol_at: impl FnMut(usize, &FieldSegment<'_>) -> SymbolHandle,
+    mut field_symbol_at: impl FnMut(usize, &FieldSegment) -> SymbolHandle,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
@@ -568,8 +555,7 @@ fn resolve_nested_field_layout_by_symbol(
         let field_segment = parse_field_segment(segment)?;
         let fields = record_fields(layouts, type_symbol, type_name)?;
         let field_symbol = field_symbol_at(offset, &field_segment);
-        let field =
-            field_layout_by_symbol_or_name(layouts, fields, field_symbol, field_segment.name)?;
+        let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         type_name = &field.type_name;
@@ -631,23 +617,16 @@ fn record_fields(
         })
 }
 
-struct FieldSegment<'name> {
-    name: &'name str,
+struct FieldSegment {
     index: Option<usize>,
 }
 
-fn parse_field_segment(segment: &str) -> Option<FieldSegment<'_>> {
-    let Some((field_name, index_suffix)) = segment.split_once('[') else {
-        return Some(FieldSegment {
-            name: segment,
-            index: None,
-        });
+fn parse_field_segment(segment: &str) -> Option<FieldSegment> {
+    let Some((_field_name, index_suffix)) = segment.split_once('[') else {
+        return Some(FieldSegment { index: None });
     };
     let index = index_suffix.strip_suffix(']')?.parse::<usize>().ok()?;
-    Some(FieldSegment {
-        name: field_name,
-        index: Some(index),
-    })
+    Some(FieldSegment { index: Some(index) })
 }
 
 struct ArrayTypeName<'name> {
@@ -664,19 +643,21 @@ fn parse_array_type_name(type_name: &str) -> Option<ArrayTypeName<'_>> {
     })
 }
 
-fn field_layout_by_symbol_or_name<'plan>(
+fn field_layout_by_symbol<'plan>(
     layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
-    field_name: &str,
 ) -> Option<&'plan FieldLayout> {
-    layouts.fields.span(fields)?.iter().find(|field| {
-        if field_symbol.is_valid() {
-            field.symbol == field_symbol
-        } else {
-            field.name.as_str() == field_name
-        }
-    })
+    field_symbol
+        .is_valid()
+        .then(|| {
+            layouts
+                .fields
+                .span(fields)?
+                .iter()
+                .find(|field| field.symbol == field_symbol)
+        })
+        .flatten()
 }
 
 fn fallback_machine_named_path_layout(
@@ -697,7 +678,7 @@ fn fallback_machine_named_path_layout(
         segments = segments.get(1..)?;
         root_index = 1;
     }
-    let [root_name, suffix @ ..] = segments else {
+    let [_root_name, suffix @ ..] = segments else {
         return None;
     };
     let root_field_symbol = path.member_symbol(root_index);
@@ -708,12 +689,8 @@ fn fallback_machine_named_path_layout(
         .find_map(|(_, machine_layout)| {
             let machine_base_offset =
                 machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
-            let root_field = field_layout_by_symbol_or_name(
-                layouts,
-                machine_layout.fields,
-                root_field_symbol,
-                root_name.as_str(),
-            )?;
+            let root_field =
+                field_layout_by_symbol(layouts, machine_layout.fields, root_field_symbol)?;
             let (byte_offset, layout) = resolve_nested_field_layout_with_symbols(
                 layouts,
                 root_field,
