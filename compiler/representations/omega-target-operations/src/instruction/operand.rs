@@ -13,7 +13,9 @@ impl Default for InstructionOperand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionOperandKind {
-    DataAddress { data: TargetDataObjectHandle },
+    DataAddress {
+        data: TargetDataObjectHandle,
+    },
     RuntimeStringPointer {
         region: RuntimeStorageRegion,
         byte_offset: usize,

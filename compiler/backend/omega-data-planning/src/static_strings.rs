@@ -2,7 +2,7 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_control_flow::StateKey;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
-use omega_target_operations::{TargetDataObject, TargetDataPlan};
+use omega_target_operations::{TargetDataObject, TargetDataObjectKind, TargetDataPlan};
 
 pub(super) fn collect_static_string_assignment_data(
     state_storage: &StateStoragePlan,
@@ -63,6 +63,7 @@ fn collect_static_string_expression_data(
 
             data_plan.objects.insert(TargetDataObject {
                 symbol: format!("omega_string_literal_{symbol_index}"),
+                kind: TargetDataObjectKind::StaticString,
                 offset,
                 bytes: byte_span,
                 alignment: 1,

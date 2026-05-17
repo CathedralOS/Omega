@@ -8,7 +8,7 @@ use omega_calling_conventions::{
 };
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
-use omega_target_operations::TargetDataObject;
+use omega_target_operations::{TargetDataObject, TargetDataObjectKind};
 
 use super::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{
@@ -99,7 +99,7 @@ fn newline_data_object<'plan>(
         .data
         .objects
         .iter()
-        .find(|(_, data_object)| data_object.symbol == "omega_newline")
+        .find(|(_, data_object)| data_object.kind == TargetDataObjectKind::HostNewline)
         .map(|(_, data_object)| data_object)
 }
 

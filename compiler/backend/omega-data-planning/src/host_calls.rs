@@ -2,7 +2,7 @@ use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
 use omega_runtime_text::RuntimeTextPlan;
-use omega_target_operations::{TargetDataObject, TargetDataPlan};
+use omega_target_operations::{TargetDataObject, TargetDataObjectKind, TargetDataPlan};
 
 pub(super) fn collect_host_call_data(
     host_calls: &HostCallPlan,
@@ -57,6 +57,7 @@ pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut Ta
 
     data_plan.objects.insert(TargetDataObject {
         symbol: "omega_newline".to_owned(),
+        kind: TargetDataObjectKind::HostNewline,
         offset,
         bytes: byte_span,
         alignment: 1,
@@ -94,6 +95,7 @@ fn collect_text_argument_data(
 
     data_plan.objects.insert(TargetDataObject {
         symbol: format!("omega_string_literal_{symbol_index}"),
+        kind: TargetDataObjectKind::StaticString,
         offset,
         bytes: byte_span,
         alignment: 1,
@@ -116,6 +118,7 @@ fn collect_runtime_text_buffer(
 
     data_plan.objects.insert(TargetDataObject {
         symbol: format!("omega_mut_buffer_{symbol_index}"),
+        kind: TargetDataObjectKind::RuntimeTextBuffer,
         offset,
         bytes: byte_span,
         alignment: 16,
