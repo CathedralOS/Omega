@@ -1,6 +1,6 @@
 use crate::EmissionPlanningInput;
-use omega_core::arena::Arena;
 use omega_checked_trees::expression::{BinaryOperator, Expression};
+use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
 
@@ -21,7 +21,7 @@ pub(super) fn collect_state_guard_blockers(
             continue;
         }
 
-        if lower_guard_conjunction(
+        let clauses = lower_guard_conjunction(
             input.state_guards,
             input.layouts,
             input.runtime_storage,
@@ -30,9 +30,8 @@ pub(super) fn collect_state_guard_blockers(
             guard.source.machine,
             guard.source_dispatch_index,
             guard.statement_order,
-        )
-        .is_some()
-        {
+        );
+        if !clauses.is_empty() {
             continue;
         }
 
@@ -157,22 +156,24 @@ fn runtime_value_expression_can_emit(
     expression: &Expression,
 ) -> bool {
     match expression {
-        Expression::Binary(binary) => matches!(
-            binary.operator,
-            BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
-        ) && runtime_value_expression_can_emit(
-            input,
-            source_key,
-            source_dispatch_index,
-            statement_index,
-            &binary.left,
-        ) && runtime_value_expression_can_emit(
-            input,
-            source_key,
-            source_dispatch_index,
-            statement_index,
-            &binary.right,
-        ),
+        Expression::Binary(binary) => {
+            matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
+            ) && runtime_value_expression_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_index,
+                &binary.left,
+            ) && runtime_value_expression_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_index,
+                &binary.right,
+            )
+        }
         Expression::Name(_)
         | Expression::Member(_)
         | Expression::Indexed(_)

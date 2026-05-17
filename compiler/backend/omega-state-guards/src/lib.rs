@@ -334,15 +334,17 @@ pub fn lower_guard_conjunction(
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
     statement_order: usize,
-) -> Option<Vec<StateGuardClause>> {
-    let guard = plan.guard_for_dispatch(source_dispatch_index, statement_order)?;
+) -> Vec<StateGuardClause> {
+    let Some(guard) = plan.guard_for_dispatch(source_dispatch_index, statement_order) else {
+        return Vec::new();
+    };
     let expression = guard.expression;
     if !expression.is_valid() {
-        return None;
+        return Vec::new();
     }
 
     let mut clauses = Vec::new();
-    lower_guard_conjunction_expression(
+    if lower_guard_conjunction_expression(
         plan,
         layouts,
         runtime_storage,
@@ -353,9 +355,13 @@ pub fn lower_guard_conjunction(
         guard.statement_index,
         expression,
         &mut clauses,
-    )?;
+    )
+    .is_none()
+    {
+        return Vec::new();
+    }
 
-    Some(clauses)
+    clauses
 }
 
 fn lower_guard_conjunction_expression(

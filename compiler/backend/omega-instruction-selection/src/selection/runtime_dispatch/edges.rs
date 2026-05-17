@@ -61,8 +61,8 @@ fn select_dispatch_guard_instructions(
 ) {
     let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
 
-    if !guard_can_emit_directly(edge)
-        && let Some(clauses) = lower_guard_conjunction(
+    if !guard_can_emit_directly(edge) {
+        let clauses = lower_guard_conjunction(
             input.state_guards,
             input.layouts,
             input.runtime_storage,
@@ -71,39 +71,40 @@ fn select_dispatch_guard_instructions(
             source_key.machine,
             source_dispatch_index,
             edge.order,
-        )
-    {
-        for clause in clauses {
-            let kind = if matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
-                && clause.has_storage
-                && clause.has_right_storage
-            {
-                SelectedInstructionKind::CompareRuntimeStorage {
-                    left_region: guard_storage_region(clause.storage),
-                    left_offset: clause.byte_offset,
-                    right_region: guard_storage_region(clause.right_storage),
-                    right_offset: clause.right_byte_offset,
-                    byte_size: clause.byte_size,
-                    operator: clause.operator,
-                }
-            } else {
-                SelectedInstructionKind::EvaluateDispatchGuard {
-                    guard_lowering: clause.lowering,
-                    operator: clause.operator,
-                    storage_region: guard_storage_region(clause.storage),
-                    byte_offset: clause.byte_offset,
-                    byte_size: clause.byte_size,
-                    expected_value: clause.expected_value,
-                    has_storage: clause.has_storage,
-                }
-            };
-            selected_instructions.push(SelectedInstruction {
-                kind,
-                source_key,
-                source_statement: edge.order,
-            });
+        );
+        if !clauses.is_empty() {
+            for clause in clauses {
+                let kind = if matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
+                    && clause.has_storage
+                    && clause.has_right_storage
+                {
+                    SelectedInstructionKind::CompareRuntimeStorage {
+                        left_region: guard_storage_region(clause.storage),
+                        left_offset: clause.byte_offset,
+                        right_region: guard_storage_region(clause.right_storage),
+                        right_offset: clause.right_byte_offset,
+                        byte_size: clause.byte_size,
+                        operator: clause.operator,
+                    }
+                } else {
+                    SelectedInstructionKind::EvaluateDispatchGuard {
+                        guard_lowering: clause.lowering,
+                        operator: clause.operator,
+                        storage_region: guard_storage_region(clause.storage),
+                        byte_offset: clause.byte_offset,
+                        byte_size: clause.byte_size,
+                        expected_value: clause.expected_value,
+                        has_storage: clause.has_storage,
+                    }
+                };
+                selected_instructions.push(SelectedInstruction {
+                    kind,
+                    source_key,
+                    source_statement: edge.order,
+                });
+            }
+            return;
         }
-        return;
     }
 
     if !guard_can_emit_directly(edge) {
