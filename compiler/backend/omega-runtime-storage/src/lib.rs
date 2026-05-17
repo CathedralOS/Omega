@@ -79,7 +79,7 @@ pub fn runtime_storage_body_inputs(
     runtime_bodies
         .bodies
         .iter()
-        .map(|(_, body)| RuntimeStorageBodyInput { body: body.clone() })
+        .map(|(body, _)| RuntimeStorageBodyInput { body })
         .collect()
 }
 
