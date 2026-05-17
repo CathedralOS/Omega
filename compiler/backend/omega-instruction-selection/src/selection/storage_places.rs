@@ -6,7 +6,7 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{resolve_machine_owned_place, resolve_machine_owned_place_in_table};
-pub(super) use model::{IndexedTargetPath, RuntimeFrameIndexedTarget, RuntimeStoragePlace};
+pub(super) use model::{RuntimeFrameIndexedTarget, RuntimeStoragePlace};
 use omega_target_operations::RuntimeStorageRegion;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
@@ -15,8 +15,8 @@ use expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
 use nested_fields::{
-    FieldPathSegment, resolve_nested_field_layout_with_pairs,
-    resolve_nested_field_layout_with_segments, resolve_nested_field_layout_with_symbols,
+    NestedFieldLayoutCursor, resolve_nested_field_layout_step,
+    resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
 };
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
@@ -271,17 +271,17 @@ pub(super) fn resolve_runtime_frame_indexed_target(
 ) -> Option<RuntimeFrameIndexedTarget> {
     let indexed = indexed_target_path(expression)?;
     let collection_slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, &indexed.collection)?;
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, indexed.collection)?;
     let descriptor_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
         source_key,
         "",
         "",
-        &indexed.collection,
+        indexed.collection,
     )?;
     let index_place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", &indexed.index)?;
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
     if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame
         || index_place.region != RuntimeStorageRegion::RuntimeFrame
     {
@@ -290,19 +290,16 @@ pub(super) fn resolve_runtime_frame_indexed_target(
 
     let element_layout = indexed_element_layout(input, collection_slot.type_symbol)?;
     let element_type_name = indexed_element_type_name(&collection_slot.type_name)?;
-    let (field_byte_offset, field_layout) = if indexed.suffix.is_empty() {
-        (0, element_layout)
-    } else {
-        let root_field = FieldLayout {
-            symbol: collection_slot.symbol,
-            name: collection_slot.name.clone(),
-            offset: 0,
-            type_symbol: collection_slot.type_symbol,
-            type_name: element_type_name.to_owned(),
-            layout: element_layout,
-        };
-        resolve_nested_field_layout_with_segments(&input.layouts, &root_field, &indexed.suffix)?
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: collection_slot.type_symbol,
+        type_name: element_type_name.to_owned(),
+        layout: element_layout,
     };
+    let (field_byte_offset, field_layout) =
+        resolve_indexed_target_suffix_layout(input, &root_field, indexed.suffix_root)?;
 
     Some(RuntimeFrameIndexedTarget {
         descriptor_offset: descriptor_place.byte_offset,
@@ -464,24 +461,21 @@ fn resolve_runtime_fixed_indexed_place(
 ) -> Option<RuntimeStoragePlace> {
     let fixed = fixed_indexed_target_path(expression)?;
     let slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, &fixed.collection)?;
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
     let element_layout = indexed_element_layout(input, slot.type_symbol)?;
     let element_type_name = indexed_element_type_name(&slot.type_name)?;
     let index = usize::try_from(fixed.index).ok()?;
     let element_offset = index.checked_mul(element_layout.size)?;
-    let (field_byte_offset, field_layout) = if fixed.suffix.is_empty() {
-        (0, element_layout)
-    } else {
-        let root_field = FieldLayout {
-            symbol: slot.symbol,
-            name: slot.name.clone(),
-            offset: 0,
-            type_symbol: slot.type_symbol,
-            type_name: element_type_name.to_owned(),
-            layout: element_layout,
-        };
-        resolve_nested_field_layout_with_segments(&input.layouts, &root_field, &fixed.suffix)?
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: slot.type_symbol,
+        type_name: element_type_name.to_owned(),
+        layout: element_layout,
     };
+    let (field_byte_offset, field_layout) =
+        resolve_indexed_target_suffix_layout(input, &root_field, fixed.suffix_root)?;
 
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,
@@ -512,19 +506,20 @@ fn resolve_runtime_fixed_indexed_place_in_table(
     let element_type_name = indexed_element_type_name(&slot.type_name)?;
     let index = usize::try_from(fixed.index).ok()?;
     let element_offset = index.checked_mul(element_layout.size)?;
-    let (field_byte_offset, field_layout) = if fixed.suffix.is_empty() {
-        (0, element_layout)
-    } else {
-        let root_field = FieldLayout {
-            symbol: slot.symbol,
-            name: slot.name.clone(),
-            offset: 0,
-            type_symbol: slot.type_symbol,
-            type_name: element_type_name.to_owned(),
-            layout: element_layout,
-        };
-        resolve_nested_field_layout_with_segments(&input.layouts, &root_field, &fixed.suffix)?
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: slot.type_symbol,
+        type_name: element_type_name.to_owned(),
+        layout: element_layout,
     };
+    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &root_field,
+        expressions,
+        fixed.suffix_root,
+    )?;
 
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,
@@ -536,39 +531,46 @@ fn resolve_runtime_fixed_indexed_place_in_table(
     })
 }
 
-#[derive(Debug, Clone)]
-struct FixedIndexedTargetPath {
-    collection: Expression,
+#[derive(Debug, Clone, Copy)]
+struct FixedIndexedTargetPath<'expression> {
+    collection: &'expression Expression,
     index: i64,
-    suffix: Vec<FieldPathSegment>,
+    suffix_root: &'expression Expression,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct TableFixedIndexedTargetPath {
     collection: ExpressionHandle,
     index: i64,
-    suffix: Vec<FieldPathSegment>,
+    suffix_root: ExpressionHandle,
 }
 
-fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath> {
+#[derive(Debug, Clone, Copy)]
+struct IndexedTargetPath<'expression> {
+    collection: &'expression Expression,
+    index: &'expression Expression,
+    suffix_root: &'expression Expression,
+}
+
+fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath<'_>> {
     match expression {
         Expression::Mutable(target) => fixed_indexed_target_path(target),
         Expression::Member(member) => {
-            let mut path = fixed_indexed_target_path(&member.receiver)?;
-            path.suffix.push(FieldPathSegment::new(
-                member.member.clone(),
-                member.member_symbol,
-            ));
-            Some(path)
+            let path = fixed_indexed_target_path(&member.receiver)?;
+            Some(FixedIndexedTargetPath {
+                collection: path.collection,
+                index: path.index,
+                suffix_root: expression,
+            })
         }
         Expression::Indexed(indexed) => {
             let Expression::Integer(index) = &indexed.index else {
                 return None;
             };
             Some(FixedIndexedTargetPath {
-                collection: indexed.collection.clone(),
+                collection: &indexed.collection,
                 index: *index,
-                suffix: Vec::new(),
+                suffix_root: expression,
             })
         }
         _ => None,
@@ -582,12 +584,12 @@ fn fixed_indexed_target_path_in_table(
     match table.expression(expression) {
         ExpressionNode::Mutable(target) => fixed_indexed_target_path_in_table(table, *target),
         ExpressionNode::Member(member) => {
-            let mut path = fixed_indexed_target_path_in_table(table, member.receiver)?;
-            path.suffix.push(FieldPathSegment::new(
-                member.member.clone(),
-                member.member_symbol,
-            ));
-            Some(path)
+            let path = fixed_indexed_target_path_in_table(table, member.receiver)?;
+            Some(TableFixedIndexedTargetPath {
+                collection: path.collection,
+                index: path.index,
+                suffix_root: expression,
+            })
         }
         ExpressionNode::Indexed(indexed) => {
             let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
@@ -596,29 +598,109 @@ fn fixed_indexed_target_path_in_table(
             Some(TableFixedIndexedTargetPath {
                 collection: indexed.collection,
                 index: *index,
-                suffix: Vec::new(),
+                suffix_root: expression,
             })
         }
         _ => None,
     }
 }
 
-fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath> {
+fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath<'_>> {
     match expression {
         Expression::Mutable(target) => indexed_target_path(target),
         Expression::Member(member) => {
-            let mut path = indexed_target_path(&member.receiver)?;
-            path.suffix.push(FieldPathSegment::new(
-                member.member.clone(),
-                member.member_symbol,
-            ));
-            Some(path)
+            let path = indexed_target_path(&member.receiver)?;
+            Some(IndexedTargetPath {
+                collection: path.collection,
+                index: path.index,
+                suffix_root: expression,
+            })
         }
         Expression::Indexed(indexed) => Some(IndexedTargetPath {
-            collection: indexed.collection.clone(),
-            index: indexed.index.clone(),
-            suffix: Vec::new(),
+            collection: &indexed.collection,
+            index: &indexed.index,
+            suffix_root: expression,
         }),
+        _ => None,
+    }
+}
+
+fn resolve_indexed_target_suffix_layout(
+    input: &InstructionSelectionInput<'_>,
+    root_field: &FieldLayout,
+    expression: &Expression,
+) -> Option<(usize, TypeLayout)> {
+    let cursor = NestedFieldLayoutCursor::from_root(root_field);
+    let cursor = resolve_indexed_target_suffix_cursor(&input.layouts, cursor, expression)?;
+    Some((cursor.byte_offset(), cursor.layout()))
+}
+
+fn resolve_indexed_target_suffix_cursor<'layout>(
+    layouts: &'layout omega_layout::LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    expression: &Expression,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    match expression {
+        Expression::Mutable(target) => {
+            resolve_indexed_target_suffix_cursor(layouts, cursor, target)
+        }
+        Expression::Indexed(_) => Some(cursor),
+        Expression::Member(member) => {
+            let cursor = resolve_indexed_target_suffix_cursor(layouts, cursor, &member.receiver)?;
+            resolve_nested_field_layout_step(
+                layouts,
+                cursor,
+                &member.member,
+                member.member_symbol,
+                None,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn resolve_indexed_target_suffix_layout_in_table(
+    input: &InstructionSelectionInput<'_>,
+    root_field: &FieldLayout,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<(usize, TypeLayout)> {
+    let cursor = NestedFieldLayoutCursor::from_root(root_field);
+    let cursor = resolve_indexed_target_suffix_cursor_in_table(
+        &input.layouts,
+        cursor,
+        expressions,
+        expression,
+    )?;
+    Some((cursor.byte_offset(), cursor.layout()))
+}
+
+fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
+    layouts: &'layout omega_layout::LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(target) => {
+            resolve_indexed_target_suffix_cursor_in_table(layouts, cursor, expressions, *target)
+        }
+        ExpressionNode::Indexed(_) => Some(cursor),
+        ExpressionNode::Member(member) => {
+            let cursor = resolve_indexed_target_suffix_cursor_in_table(
+                layouts,
+                cursor,
+                expressions,
+                member.receiver,
+            )?;
+            resolve_nested_field_layout_step(
+                layouts,
+                cursor,
+                &member.member,
+                member.member_symbol,
+                None,
+            )
+        }
         _ => None,
     }
 }

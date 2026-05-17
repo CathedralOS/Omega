@@ -36,20 +36,6 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
     )
 }
 
-pub(in crate::selection) fn resolve_nested_field_layout_with_segments(
-    layouts: &LayoutPlan,
-    root_field: &FieldLayout,
-    suffix: &[FieldPathSegment],
-) -> Option<(usize, TypeLayout)> {
-    resolve_nested_field_layout_with_pairs(
-        layouts,
-        root_field,
-        suffix
-            .iter()
-            .map(|segment| (&segment.name, segment.symbol, segment.index)),
-    )
-}
-
 pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
@@ -58,45 +44,89 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
     resolve_nested_field_layout(layouts, root_field, suffix)
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::selection) struct NestedFieldLayoutCursor<'layout> {
+    byte_offset: usize,
+    type_symbol: SymbolHandle,
+    type_name: &'layout str,
+    layout: TypeLayout,
+}
+
+impl<'layout> NestedFieldLayoutCursor<'layout> {
+    pub(in crate::selection) fn from_root(root_field: &'layout FieldLayout) -> Self {
+        Self {
+            byte_offset: root_field.offset,
+            type_symbol: root_field.type_symbol,
+            type_name: root_field.type_name.as_str(),
+            layout: root_field.layout,
+        }
+    }
+
+    pub(in crate::selection) fn byte_offset(self) -> usize {
+        self.byte_offset
+    }
+
+    pub(in crate::selection) fn layout(self) -> TypeLayout {
+        self.layout
+    }
+}
+
+pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
+    layouts: &'layout LayoutPlan,
+    cursor: NestedFieldLayoutCursor<'layout>,
+    field_name: &ProgramName,
+    field_symbol: SymbolHandle,
+    field_index: Option<usize>,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    let field_segment = parse_field_segment(field_name, field_index)?;
+    let data_layout = data_layout(layouts, cursor.type_symbol, cursor.type_name)?;
+    let DataShape::Record { fields } = &data_layout.shape else {
+        return None;
+    };
+    let field = field_layout_by_symbol(layouts, *fields, field_symbol)?;
+    let mut next = NestedFieldLayoutCursor {
+        byte_offset: cursor.byte_offset + field.offset,
+        type_symbol: field.type_symbol,
+        type_name: &field.type_name,
+        layout: field.layout,
+    };
+
+    if let Some(index) = field_segment.index {
+        let array = parse_array_type_name(next.type_name)?;
+        if index >= array.length {
+            return None;
+        }
+        let element_layout = TypeLayout {
+            size: next.layout.size / array.length,
+            alignment: next.layout.alignment,
+        };
+        next.byte_offset += element_layout.size * index;
+        next.type_symbol = field.type_symbol;
+        next.type_name = array.element_type_name;
+        next.layout = element_layout;
+    }
+
+    Some(next)
+}
+
 fn resolve_nested_field_layout<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
     suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle, Option<usize>)>,
 ) -> Option<(usize, TypeLayout)> {
-    let mut byte_offset = root_field.offset;
-    let mut type_symbol = root_field.type_symbol;
-    let mut type_name = root_field.type_name.as_str();
-    let mut layout = root_field.layout;
+    let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
 
     for (field_name, field_symbol, field_index) in suffix {
-        let field_segment = parse_field_segment(field_name, field_index)?;
-        let data_layout = data_layout(layouts, type_symbol, type_name)?;
-        let DataShape::Record { fields } = &data_layout.shape else {
-            return None;
-        };
-        let field = field_layout_by_symbol(layouts, *fields, field_symbol)?;
-        byte_offset += field.offset;
-        type_symbol = field.type_symbol;
-        type_name = &field.type_name;
-        layout = field.layout;
-
-        if let Some(index) = field_segment.index {
-            let array = parse_array_type_name(type_name)?;
-            if index >= array.length {
-                return None;
-            }
-            let element_layout = TypeLayout {
-                size: layout.size / array.length,
-                alignment: layout.alignment,
-            };
-            byte_offset += element_layout.size * index;
-            type_symbol = field.type_symbol;
-            type_name = array.element_type_name;
-            layout = element_layout;
-        }
+        cursor = resolve_nested_field_layout_step(
+            layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+        )?;
     }
 
-    Some((byte_offset, layout))
+    Some((cursor.byte_offset(), cursor.layout()))
 }
 
 fn data_layout<'plan>(
