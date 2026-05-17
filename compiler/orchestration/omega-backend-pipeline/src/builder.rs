@@ -32,9 +32,7 @@ use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
     StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
 };
-use omega_state_dispatch::{
-    StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
-};
+use omega_state_dispatch::{StateDispatchContext, build_state_dispatch_plan_with_workers};
 use omega_state_graph::build_runtime_flow_plan;
 use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
@@ -83,7 +81,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let state_dispatch = record_backend_phase(&mut phase_timings, "state dispatch", || {
         build_state_dispatch_plan_with_workers(
             Arc::new(StateDispatchContext::from_runtime_flow(&runtime_flow)),
-            runtime_state_inputs(&runtime_flow),
             workers.clone(),
         )
     });

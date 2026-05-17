@@ -1,9 +1,7 @@
 mod context;
-mod input;
 mod model;
 
 pub use context::StateDispatchContext;
-pub use input::{RuntimeStateInput, runtime_state_inputs};
 pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
 use omega_control_flow::StateKey;
@@ -17,29 +15,28 @@ pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatc
 
     build_state_dispatch_plan_with_workers(
         Arc::new(StateDispatchContext::from_runtime_flow(runtime_flow)),
-        runtime_state_inputs(runtime_flow),
         workers.handle(),
     )
 }
 
 pub fn build_state_dispatch_plan_with_workers(
     context: Arc<StateDispatchContext>,
-    runtime_states: Vec<RuntimeStateInput>,
     workers: WorkerPoolHandle,
 ) -> StateDispatchPlan {
-    if runtime_states.is_empty() {
+    if context.targets.is_empty() {
         return StateDispatchPlan::default();
     }
 
-    let runtime_states = Arc::new(runtime_states);
-    let state_count = runtime_states.len();
+    let state_count = context.targets.len();
     let context_for_states = Arc::clone(&context);
     let dispatch_states = workers.map_ordered(state_count, move |index| {
-        let runtime_state = runtime_states
+        let dispatch_target = context_for_states
+            .targets
+            .storage_slice()
             .get(index)
             .expect("state-dispatch worker index should be in range");
 
-        build_dispatch_state(&context_for_states, runtime_state)
+        build_dispatch_state(&context_for_states, dispatch_target)
     });
 
     let mut plan = StateDispatchPlan::default();
@@ -70,7 +67,7 @@ struct CollectedDispatchState {
 
 fn build_dispatch_state(
     context: &StateDispatchContext,
-    runtime_state: &RuntimeStateInput,
+    dispatch_target: &context::StateDispatchTarget,
 ) -> CollectedDispatchState {
     let mut edges = Arena::new();
 
@@ -78,7 +75,7 @@ fn build_dispatch_state(
         .edges
         .iter()
         .map(|(_, edge)| edge)
-        .filter(|edge| edge.from == runtime_state.key)
+        .filter(|edge| edge.from == dispatch_target.key)
     {
         edges.insert(DispatchEdge {
             statement_index: edge.statement_index,
@@ -91,12 +88,12 @@ fn build_dispatch_state(
         });
     }
 
-    append_terminal_continuation_edges(context, runtime_state, &mut edges);
+    append_terminal_continuation_edges(context, dispatch_target, &mut edges);
 
     CollectedDispatchState {
-        key: runtime_state.key,
-        dispatch_index: runtime_state.handle.arena_index(),
-        label: dispatch_label(runtime_state.key),
+        key: dispatch_target.key,
+        dispatch_index: dispatch_target.dispatch_index,
+        label: dispatch_label(dispatch_target.key),
         edges,
     }
 }
@@ -111,14 +108,14 @@ fn dispatch_label(key: StateKey) -> String {
 
 fn append_terminal_continuation_edges(
     context: &StateDispatchContext,
-    runtime_state: &RuntimeStateInput,
+    dispatch_target: &context::StateDispatchTarget,
     edges: &mut Arena<DispatchEdge>,
 ) {
     let has_outgoing_edges = context
         .edges
         .iter()
         .map(|(_, edge)| edge)
-        .any(|edge| edge.from == runtime_state.key);
+        .any(|edge| edge.from == dispatch_target.key);
     if has_outgoing_edges {
         return;
     }
@@ -127,7 +124,7 @@ fn append_terminal_continuation_edges(
         let RuntimeTransitionTarget::State { key, .. } = &edge.target else {
             continue;
         };
-        if key.machine != runtime_state.key.machine {
+        if key.machine != dispatch_target.key.machine {
             continue;
         }
         let RuntimeTransitionTarget::State { .. } = &edge.continuation else {
