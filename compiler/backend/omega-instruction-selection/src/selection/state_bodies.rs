@@ -17,7 +17,7 @@ use super::lookups::{
 };
 use super::runtime_dispatch::select_runtime_resolved_mutation_write;
 use omega_state_calls::StateCall;
-use omega_target_operations::InstructionOperand;
+use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 pub(super) fn select_state_body_instructions(
     input: &InstructionSelectionInput<'_>,
@@ -26,6 +26,7 @@ pub(super) fn select_state_body_instructions(
     aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
     visiting: &mut Vec<StateKey>,
 ) {
@@ -98,6 +99,7 @@ pub(super) fn select_state_body_instructions(
                     operation.statement_index,
                     &resolved_target.expression,
                     &resolved_value.expression,
+                    runtime_value_operands,
                     selected_instructions,
                 );
             }
@@ -132,6 +134,7 @@ pub(super) fn select_state_body_instructions(
             &child_aliases,
             &child_alias_expressions,
             operands,
+            runtime_value_operands,
             selected_instructions,
             visiting,
         );
@@ -145,6 +148,7 @@ pub(super) fn select_state_body_instructions(
             alias_expressions,
             &transition.target,
             operands,
+            runtime_value_operands,
             selected_instructions,
             visiting,
         );
@@ -156,6 +160,7 @@ pub(super) fn select_state_body_instructions(
                 alias_expressions,
                 continuation,
                 operands,
+                runtime_value_operands,
                 selected_instructions,
                 visiting,
             );
@@ -172,6 +177,7 @@ fn follow_transition_target(
     alias_expressions: &ExpressionTable,
     target: &PlannedTransitionTarget,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
     visiting: &mut Vec<StateKey>,
 ) {
@@ -190,6 +196,7 @@ fn follow_transition_target(
         aliases,
         alias_expressions,
         operands,
+        runtime_value_operands,
         selected_instructions,
         visiting,
     );

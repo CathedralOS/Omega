@@ -5,7 +5,7 @@ use omega_machine_program::{MachineFunction, MachineInstruction};
 use omega_object::storage_region_symbol_name;
 use omega_target_operations::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
-    SelectedInstructionKind, TargetDataObject,
+    RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObject,
 };
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -221,8 +221,8 @@ fn selected_instruction_name(
         } => {
             format!(
                 "compare runtime values {} {operator:?} {} bytes {byte_size}",
-                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
-                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(backend_plan, *left),
+                runtime_value_operand_name(backend_plan, *right),
             )
         }
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, literal } => {
@@ -413,8 +413,8 @@ fn selected_instruction_name(
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "write runtime storage binary {target_symbol}@{target_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
-                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(backend_plan, *left),
+                runtime_value_operand_name(backend_plan, *right),
             )
         }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
@@ -427,8 +427,8 @@ fn selected_instruction_name(
         } => {
             format!(
                 "write runtime pointee binary runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
-                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(backend_plan, *left),
+                runtime_value_operand_name(backend_plan, *right),
             )
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
@@ -455,8 +455,8 @@ fn selected_instruction_name(
         } => {
             format!(
                 "write runtime-frame indexed binary descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
-                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
-                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(backend_plan, *left),
+                runtime_value_operand_name(backend_plan, *right),
             )
         }
         SelectedInstructionKind::WriteRuntimeMachineString {
@@ -588,17 +588,17 @@ fn runtime_text_read_source_name(
 }
 
 fn runtime_value_operand_name(
-    operand: &omega_target_operations::RuntimeValueOperand,
-    entry_machine_name: &str,
+    backend_plan: &BackendReportInput<'_>,
+    operand: RuntimeValueOperandHandle,
 ) -> String {
-    match operand {
+    match backend_plan.instructions.runtime_value_operands.get(operand) {
         omega_target_operations::RuntimeValueOperand::Immediate(value) => value.to_string(),
         omega_target_operations::RuntimeValueOperand::Storage {
             region,
             byte_offset,
             byte_size,
         } => {
-            let symbol = storage_region_symbol_name(*region, entry_machine_name);
+            let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
             format!("{symbol}@{byte_offset}/{}", byte_size)
         }
         omega_target_operations::RuntimeValueOperand::Pointee {
@@ -624,8 +624,8 @@ fn runtime_value_operand_name(
             right,
         } => format!(
             "({} {operator:?} {})",
-            runtime_value_operand_name(left, entry_machine_name),
-            runtime_value_operand_name(right, entry_machine_name),
+            runtime_value_operand_name(backend_plan, *left),
+            runtime_value_operand_name(backend_plan, *right),
         ),
     }
 }

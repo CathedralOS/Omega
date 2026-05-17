@@ -2,6 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::expression::NamePath;
 use omega_checked_trees::name::ProgramName;
+use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_state_calls::StateCallRole;
@@ -13,7 +14,7 @@ use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
 use super::super::writes::runtime_storage_copy;
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind};
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
@@ -23,6 +24,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     for (_, expansion) in
@@ -36,16 +38,22 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
                     && expansion.statement_index == operation.statement_index
             })
     {
-        select_runtime_leaf_branch_expansion(input, expansion, selected_instructions);
+        select_runtime_leaf_branch_expansion(
+            input,
+            expansion,
+            runtime_value_operands,
+            selected_instructions,
+        );
     }
 }
 
 fn select_runtime_leaf_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion) {
+    if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion, runtime_value_operands) {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
@@ -56,8 +64,17 @@ fn select_runtime_leaf_branch_expansion(
     }
 
     let write_start = selected_instructions.len();
-    select_runtime_leaf_branch_terminal_value_write(input, expansion, selected_instructions);
-    select_runtime_leaf_branch_mutation_writes(input, expansion, selected_instructions);
+    select_runtime_leaf_branch_terminal_value_write(
+        input,
+        expansion,
+        runtime_value_operands,
+        selected_instructions,
+    );
+    select_runtime_leaf_branch_mutation_writes(
+        input,
+        expansion,
+        selected_instructions,
+    );
     if selected_instructions.len() == write_start {
         selected_instructions.pop();
     }
@@ -66,6 +83,7 @@ fn select_runtime_leaf_branch_expansion(
 fn select_runtime_leaf_branch_terminal_value_write(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if !expansion.target_value.is_valid() {
@@ -114,6 +132,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
         expansion.statement_index,
         &target,
         &resolved_value,
+        runtime_value_operands,
         selected_instructions,
     );
 }

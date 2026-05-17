@@ -1,6 +1,7 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
-use omega_target_operations::RuntimeValueOperand;
+use omega_core::arena::Arena;
+use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
     operands.iter().map(operand_width).sum::<usize>() + 4
@@ -119,22 +120,24 @@ pub fn runtime_pointee_integer_write_width(byte_size: usize) -> usize {
 }
 
 pub fn runtime_storage_binary_write_width(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
-    8 + runtime_value_operand_width(left)
-        + runtime_value_operand_width(right)
+    8 + runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(byte_size)
 }
 
 pub fn runtime_pointee_binary_write_width(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
-    12 + runtime_value_operand_width(left)
-        + runtime_value_operand_width(right)
+    12 + runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(byte_size)
 }
 
@@ -148,15 +151,16 @@ pub fn runtime_frame_indexed_integer_write_width(
 }
 
 pub fn runtime_frame_indexed_binary_write_width(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-        + runtime_value_operand_width(left)
-        + runtime_value_operand_width(right)
+        + runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(byte_size)
 }
 
@@ -241,8 +245,11 @@ fn runtime_storage_copy_data_width(byte_count: usize) -> usize {
     }
 }
 
-fn runtime_value_operand_width(operand: &RuntimeValueOperand) -> usize {
-    match operand {
+fn runtime_value_operand_width(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    match runtime_value_operands.get(operand) {
         RuntimeValueOperand::Immediate(value) => immediate_width(*value),
         RuntimeValueOperand::Storage { byte_size, .. } => match byte_size {
             1 | 4 => 12,
@@ -267,7 +274,9 @@ fn runtime_value_operand_width(operand: &RuntimeValueOperand) -> usize {
                 + runtime_store_data_width(*byte_size)
         }
         RuntimeValueOperand::Binary { left, right, .. } => {
-            runtime_value_operand_width(left) + runtime_value_operand_width(right) + 4
+            runtime_value_operand_width(runtime_value_operands, *left)
+                + runtime_value_operand_width(runtime_value_operands, *right)
+                + 4
         }
     }
 }

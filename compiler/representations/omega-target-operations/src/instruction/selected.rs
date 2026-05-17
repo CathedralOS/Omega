@@ -2,8 +2,10 @@ use crate::{InstructionOperand, TargetDataObjectHandle};
 use crate::{StateGuardLowering, StateGuardOperator};
 use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
+
+pub type RuntimeValueOperandHandle = Handle<RuntimeValueOperand>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstruction {
@@ -43,10 +45,16 @@ pub enum RuntimeValueOperand {
         byte_size: usize,
     },
     Binary {
-        left: Box<RuntimeValueOperand>,
+        left: RuntimeValueOperandHandle,
         operator: StateGuardOperator,
-        right: Box<RuntimeValueOperand>,
+        right: RuntimeValueOperandHandle,
     },
+}
+
+impl Default for RuntimeValueOperand {
+    fn default() -> Self {
+        Self::Immediate(0)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,8 +102,8 @@ pub enum SelectedInstructionKind {
         operator: StateGuardOperator,
     },
     CompareRuntimeValues {
-        left: RuntimeValueOperand,
-        right: RuntimeValueOperand,
+        left: RuntimeValueOperandHandle,
+        right: RuntimeValueOperandHandle,
         byte_size: usize,
         operator: StateGuardOperator,
     },
@@ -198,17 +206,17 @@ pub enum SelectedInstructionKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
-        left: RuntimeValueOperand,
+        left: RuntimeValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperand,
+        right: RuntimeValueOperandHandle,
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
         byte_size: usize,
-        left: RuntimeValueOperand,
+        left: RuntimeValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperand,
+        right: RuntimeValueOperandHandle,
     },
     WriteRuntimeFrameIndexedInteger {
         descriptor_offset: usize,
@@ -224,9 +232,9 @@ pub enum SelectedInstructionKind {
         element_byte_size: usize,
         field_byte_offset: usize,
         byte_size: usize,
-        left: RuntimeValueOperand,
+        left: RuntimeValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperand,
+        right: RuntimeValueOperandHandle,
     },
     WriteRuntimeMachineString {
         byte_offset: usize,

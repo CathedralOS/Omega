@@ -1,7 +1,10 @@
 use crate::aarch64_call_operands;
+use omega_core::arena::Arena;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
-use omega_target_operations::{InstructionOperand, RuntimeTextReadSource, RuntimeValueOperand};
+use omega_target_operations::{
+    InstructionOperand, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
+};
 
 pub fn host_call_sequence_width(
     architecture: Architecture,
@@ -209,42 +212,54 @@ pub fn runtime_pointee_integer_write_width(architecture: Architecture, byte_size
 
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_binary_write_width(byte_size, left, right)
-        }
+        Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            right,
+        ),
         Architecture::X86_64 => 0,
     }
 }
 
 pub fn runtime_pointee_binary_write_width(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_pointee_binary_write_width(byte_size, left, right)
-        }
+        Architecture::Aarch64 => aarch64::runtime_pointee_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            right,
+        ),
         Architecture::X86_64 => 0,
     }
 }
 
 pub fn runtime_value_compare_width(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_binary_write_width(byte_size, left, right)
-        }
+        Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            right,
+        ),
         Architecture::X86_64 => 0,
     }
 }
@@ -267,14 +282,16 @@ pub fn runtime_frame_indexed_integer_write_width(
 
 pub fn runtime_frame_indexed_binary_write_width(
     architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_frame_indexed_binary_write_width(
+            runtime_value_operands,
             element_byte_size,
             field_byte_offset,
             byte_size,

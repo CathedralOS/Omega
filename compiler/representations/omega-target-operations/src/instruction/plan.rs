@@ -1,5 +1,4 @@
-use crate::InstructionOperand;
-use crate::SelectedInstruction;
+use crate::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
@@ -11,6 +10,7 @@ pub struct InstructionPlan {
     pub functions: Arena<FunctionInstructionPlan>,
     pub instructions: Arena<SelectedInstruction>,
     pub operands: Arena<InstructionOperand>,
+    pub runtime_value_operands: Arena<RuntimeValueOperand>,
 }
 
 impl Default for InstructionPlan {
@@ -20,6 +20,7 @@ impl Default for InstructionPlan {
             functions: Arena::new(),
             instructions: Arena::new(),
             operands: Arena::new(),
+            runtime_value_operands: Arena::new(),
         }
     }
 }

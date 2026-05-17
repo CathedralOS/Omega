@@ -1,5 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
+use omega_core::arena::Arena;
+use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
 use super::primitives::{
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w_register,
@@ -92,14 +93,20 @@ pub fn encode_runtime_storage_value_compare(
 }
 
 pub fn encode_runtime_value_compare(
-    left: &RuntimeValueOperand,
-    right: &RuntimeValueOperand,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_value_operand(17, &[18, 15, 14], left)?;
-    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    let mut bytes = encode_runtime_value_operand(runtime_value_operands, 17, &[18, 15, 14], left)?;
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        18,
+        &[15, 14],
+        right,
+    )?);
     match byte_size {
         1 | 4 => bytes.extend(encode_compare_w_register(17, 18)),
         8 => bytes.extend(encode_compare_x_register(17, 18)),
@@ -184,28 +191,40 @@ pub fn encode_runtime_pointee_integer_write(
 }
 
 pub fn encode_runtime_storage_binary_write(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     target_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
-    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        17,
+        &[18, 15, 14],
+        left,
+    )?);
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        18,
+        &[15, 14],
+        right,
+    )?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     bytes.extend(encode_runtime_storage_result_write(target_offset, byte_size));
     Ok(bytes)
 }
 
 pub fn encode_runtime_pointee_binary_write(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
@@ -213,8 +232,18 @@ pub fn encode_runtime_pointee_binary_write(
     if field_byte_offset > 0 {
         bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
     }
-    bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
-    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        17,
+        &[18, 15, 14],
+        left,
+    )?);
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        18,
+        &[15, 14],
+        right,
+    )?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     bytes.extend(encode_runtime_storage_result_write(0, byte_size));
     Ok(bytes)
@@ -320,14 +349,15 @@ pub fn encode_runtime_frame_indexed_integer_write(
 }
 
 pub fn encode_runtime_frame_indexed_binary_write(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: &RuntimeValueOperand,
+    left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
-    right: &RuntimeValueOperand,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_runtime_frame_index_target_address(
         descriptor_offset,
@@ -335,8 +365,18 @@ pub fn encode_runtime_frame_indexed_binary_write(
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
-    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        17,
+        &[18, 15, 14],
+        left,
+    )?);
+    bytes.extend(encode_runtime_value_operand(
+        runtime_value_operands,
+        18,
+        &[15, 14],
+        right,
+    )?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     bytes.extend(encode_runtime_storage_result_write(0, byte_size));
     Ok(bytes)
@@ -463,11 +503,12 @@ fn encode_runtime_frame_index_target_address(
 }
 
 fn encode_runtime_value_operand(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
     destination_register: u8,
     scratch_registers: &[u8],
-    operand: &RuntimeValueOperand,
+    operand: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    match operand {
+    match runtime_value_operands.get(operand) {
         RuntimeValueOperand::Immediate(value) => {
             let value = u64::try_from(*value).map_err(|_| {
                 Diagnostic::error(format!(
@@ -567,11 +608,17 @@ fn encode_runtime_value_operand(
             };
 
             let mut bytes =
-                encode_runtime_value_operand(destination_register, scratch_registers, left)?;
+                encode_runtime_value_operand(
+                    runtime_value_operands,
+                    destination_register,
+                    scratch_registers,
+                    *left,
+                )?;
             bytes.extend(encode_runtime_value_operand(
+                runtime_value_operands,
                 rhs_register,
                 remaining_scratch,
-                right,
+                *right,
             )?);
             bytes.extend(encode_runtime_binary_operation(
                 destination_register,

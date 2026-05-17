@@ -21,7 +21,9 @@ use branches::{
     select_runtime_straight_line_branch_expansions_for_operation,
 };
 use edges::select_runtime_dispatch_edge;
-use omega_target_operations::{InstructionOperand, SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{
+    InstructionOperand, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+};
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 
@@ -30,6 +32,7 @@ pub(crate) use branches::select_runtime_resolved_mutation_write;
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     selected_instructions.push(SelectedInstruction {
@@ -84,6 +87,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     runtime_aliases.bindings(),
                     &runtime_alias_expressions,
                     &mut runtime_static_values,
+                    runtime_value_operands,
                     selected_instructions,
                 );
 
@@ -92,18 +96,21 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     dispatch_case.dispatch_index,
                     operation,
                     operands,
+                    runtime_value_operands,
                     selected_instructions,
                 );
                 select_runtime_leaf_branch_expansions_for_operation(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
+                    runtime_value_operands,
                     selected_instructions,
                 );
                 select_runtime_straight_line_branch_expansions_for_operation(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
+                    runtime_value_operands,
                     selected_instructions,
                 );
 
@@ -148,7 +155,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
         if let Some(edges) = input.runtime_dispatch_loop.edges.span(dispatch_case.edges) {
             for edge in edges {
-                select_runtime_dispatch_edge(input, edge, dispatch_case.key, selected_instructions);
+                select_runtime_dispatch_edge(
+                    input,
+                    edge,
+                    dispatch_case.key,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
             }
         }
 

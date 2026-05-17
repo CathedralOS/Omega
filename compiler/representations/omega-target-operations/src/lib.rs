@@ -6,7 +6,7 @@ pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
     InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand,
-    SelectedInstruction, SelectedInstructionKind,
+    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
 };
 
 mod guard {
