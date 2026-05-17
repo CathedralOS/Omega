@@ -1,9 +1,11 @@
+use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{
-    ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, Operation,
-    OperationExpressionRefs, OperationKind, PlannedTransitionTarget, ProofFactKind,
-    ProofObligationFact, StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall,
-    StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateFlow, StateKey,
-    StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
+    ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, Operation, OperationExpressionRefs,
+    OperationKind, PlannedTransitionTarget, ProofFactKind, ProofObligationFact,
+    StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind,
+    StateBorrowSummary, StateBorrowWritableRoot, StateFlow, StateKey, StateParameterFlow,
+    TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -180,9 +182,7 @@ fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrow
             root_name: access.root_name.clone(),
             kind: match access.kind {
                 omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
-                omega_state_graph::StateBorrowAccessKind::Mutable => {
-                    StateBorrowAccessKind::Mutable
-                }
+                omega_state_graph::StateBorrowAccessKind::Mutable => StateBorrowAccessKind::Mutable,
             },
         });
     }
@@ -240,7 +240,7 @@ fn remap_transitions(state_graph: &StateGraph) -> Arena<TransitionFlow> {
     let mut transitions = Arena::default();
 
     for (_, transition) in state_graph.transitions.iter() {
-        transitions.append(remap_transition(transition));
+        transitions.append(remap_transition(state_graph, transition));
     }
 
     transitions
@@ -296,12 +296,15 @@ fn remap_operation_expression_refs(
     }
 }
 
-fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
+fn remap_transition(state_graph: &StateGraph, transition: &TransitionEdge) -> TransitionFlow {
     TransitionFlow {
         statement_index: 0,
         target: remap_transition_target(&transition.target),
-        continuation: transition.continuation.as_ref().map(remap_transition_target),
-        guard: transition.guard.clone(),
+        continuation: transition
+            .continuation
+            .as_ref()
+            .map(remap_transition_target),
+        guard: remap_transition_guard(state_graph, transition.expressions.guard),
         expressions: TransitionExpressionRefs {
             target_arguments: transition.expressions.target_arguments,
             target_value: transition.expressions.target_value,
@@ -312,6 +315,16 @@ fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
     }
 }
 
+fn remap_transition_guard(
+    state_graph: &StateGraph,
+    guard: Option<ExpressionHandle>,
+) -> TransitionGuard {
+    guard
+        .map(|guard| state_graph.expressions.to_tree(guard))
+        .map(TransitionGuard::When)
+        .unwrap_or(TransitionGuard::Always)
+}
+
 fn remap_state_span(states: HandleSpan<omega_state_graph::StateNode>) -> HandleSpan<StateFlow> {
     HandleSpan::from_parts(remap_state_handle(states.start()), states.count())
 }
@@ -320,26 +333,35 @@ fn remap_state_handle(handle: Handle<omega_state_graph::StateNode>) -> Handle<St
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
-fn remap_operation_span(operations: HandleSpan<omega_state_graph::Operation>) -> HandleSpan<Operation> {
-    HandleSpan::from_parts(remap_operation_handle(operations.start()), operations.count())
+fn remap_operation_span(
+    operations: HandleSpan<omega_state_graph::Operation>,
+) -> HandleSpan<Operation> {
+    HandleSpan::from_parts(
+        remap_operation_handle(operations.start()),
+        operations.count(),
+    )
 }
 
-fn remap_operation_handle(
-    handle: Handle<omega_state_graph::Operation>,
-) -> Handle<Operation> {
+fn remap_operation_handle(handle: Handle<omega_state_graph::Operation>) -> Handle<Operation> {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 fn remap_transition_span(
     transitions: HandleSpan<omega_state_graph::TransitionEdge>,
 ) -> HandleSpan<TransitionFlow> {
-    HandleSpan::from_parts(remap_transition_handle(transitions.start()), transitions.count())
+    HandleSpan::from_parts(
+        remap_transition_handle(transitions.start()),
+        transitions.count(),
+    )
 }
 
 fn remap_borrow_writable_root_span(
     roots: HandleSpan<omega_state_graph::StateBorrowWritableRoot>,
 ) -> HandleSpan<StateBorrowWritableRoot> {
-    HandleSpan::from_parts(remap_borrow_writable_root_handle(roots.start()), roots.count())
+    HandleSpan::from_parts(
+        remap_borrow_writable_root_handle(roots.start()),
+        roots.count(),
+    )
 }
 
 fn remap_borrow_writable_root_handle(
@@ -351,7 +373,10 @@ fn remap_borrow_writable_root_handle(
 fn remap_borrow_argument_access_span(
     accesses: HandleSpan<omega_state_graph::StateBorrowArgumentAccess>,
 ) -> HandleSpan<StateBorrowArgumentAccess> {
-    HandleSpan::from_parts(remap_borrow_argument_access_handle(accesses.start()), accesses.count())
+    HandleSpan::from_parts(
+        remap_borrow_argument_access_handle(accesses.start()),
+        accesses.count(),
+    )
 }
 
 fn remap_borrow_argument_access_handle(
@@ -384,7 +409,9 @@ fn remap_expression_span(
     HandleSpan::from_parts(expressions.start(), expressions.count())
 }
 
-fn remap_transition_target(target: &omega_state_graph::PlannedTransitionTarget) -> PlannedTransitionTarget {
+fn remap_transition_target(
+    target: &omega_state_graph::PlannedTransitionTarget,
+) -> PlannedTransitionTarget {
     match target {
         omega_state_graph::PlannedTransitionTarget::State { index, key, name } => {
             PlannedTransitionTarget::State {
@@ -404,7 +431,9 @@ fn remap_transition_target(target: &omega_state_graph::PlannedTransitionTarget) 
             receiver: receiver.clone(),
             state: state.clone(),
         },
-        omega_state_graph::PlannedTransitionTarget::SelfTarget => PlannedTransitionTarget::SelfTarget,
+        omega_state_graph::PlannedTransitionTarget::SelfTarget => {
+            PlannedTransitionTarget::SelfTarget
+        }
         omega_state_graph::PlannedTransitionTarget::Terminal => PlannedTransitionTarget::Terminal,
     }
 }

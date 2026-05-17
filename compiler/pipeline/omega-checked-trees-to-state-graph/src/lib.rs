@@ -1,7 +1,6 @@
 use omega_checked_trees::Program;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -598,7 +597,6 @@ fn append_segment_transitions(
                     name: next_segment_name.clone(),
                 },
                 continuation: None,
-                guard: TransitionGuard::Always,
                 expressions: TransitionExpressionRefs::default(),
             },
             &mut start,
@@ -670,7 +668,6 @@ fn remap_transition(
     TransitionEdge {
         target: transition.target.clone(),
         continuation: transition.continuation.clone(),
-        guard: transition.guard.clone(),
         expressions: TransitionExpressionRefs {
             target_arguments: copy_expression_span(
                 target,
