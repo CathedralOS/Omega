@@ -916,12 +916,6 @@ fn has_source_name(source_span: SourceSpan) -> bool {
     source_span.span.start != source_span.span.end
 }
 
-fn builtin_type_by_name(name: &str) -> Option<BuiltinType> {
-    [BuiltinType::UInt, BuiltinType::Int, BuiltinType::Real]
-        .into_iter()
-        .find(|builtin_type| builtin_type.name() == name)
-}
-
 impl<'syntax> SourceSymbolTableBuilder<'syntax> {
     fn new(syntax_trees: &'syntax SyntaxTrees, sources: Option<Arc<SourceMap>>) -> Self {
         Self {
@@ -968,7 +962,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
         let SymbolNameRef::Static(name) = builtin_type.1 else {
             return;
         };
-        let Some(builtin_type) = builtin_type_by_name(name) else {
+        let Some(builtin_type) = BuiltinType::from_name(name) else {
             return;
         };
 

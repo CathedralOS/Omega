@@ -10,6 +10,12 @@ pub enum BuiltinType {
 }
 
 impl BuiltinType {
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::UInt, Self::Int, Self::Real]
+            .into_iter()
+            .find(|builtin_type| builtin_type.name() == name)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Self::UInt => "UInt",
