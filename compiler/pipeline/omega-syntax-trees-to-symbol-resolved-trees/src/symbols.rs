@@ -3,7 +3,8 @@ use std::sync::Arc;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceMap;
 use omega_core::symbols::{
-    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_type_symbols,
+    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    builtin_function_symbols, builtin_type_symbols,
 };
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
@@ -29,6 +30,7 @@ fn build_symbol_table(
             root,
             builtin_type_symbols()
                 .into_iter()
+                .chain(builtin_function_symbols())
                 .chain(program.invariant_definitions.iter().map(|invariant| {
                     symbol_seed(SymbolKind::Invariant, &invariant.name, has_sources)
                 }))
@@ -50,6 +52,9 @@ fn build_symbol_table(
     let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
     for _ in 0..builtin_type_symbols().len() {
+        let _ = root_children.next();
+    }
+    for _ in 0..builtin_function_symbols().len() {
         let _ = root_children.next();
     }
     for _ in &program.invariant_definitions {
@@ -1618,12 +1623,17 @@ fn resolve_call_target_symbol(
         }
     }
 
-    child_symbol_by_kinds(
+    let machine_state = child_symbol_by_kinds(
         symbols,
         machine.symbol,
         &[SymbolKind::State],
         target.as_str(),
-    )
+    );
+    if machine_state.is_valid() {
+        return machine_state;
+    }
+
+    top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
 }
 
 fn resolve_state_scoped_members(
