@@ -1,7 +1,42 @@
 use super::RuntimeStorageContext;
-use omega_checked_trees::types::PrimitiveType;
+use omega_checked_trees::types::{
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+};
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
+
+pub(super) fn layout_for_type_reference(
+    context: &RuntimeStorageContext,
+    table: &TypeReferenceTable,
+    type_reference: TypeReferenceHandle,
+) -> TypeLayout {
+    match table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => pointer_layout(context),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            layout_for_type_reference(context, table, *base_type)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let element = layout_for_type_reference(context, table, *element_type);
+            TypeLayout {
+                size: element.size.saturating_mul(*length),
+                alignment: element.alignment,
+            }
+        }
+        TypeReferenceNode::Slice { .. } => slice_layout(context),
+        TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            base_name: name,
+            ..
+        }
+        | TypeReferenceNode::Named { symbol, name } => {
+            layout_for_type(context, *symbol, name.as_str())
+        }
+        TypeReferenceNode::Unit => TypeLayout::default(),
+    }
+}
 
 pub(super) fn layout_for_type(
     context: &RuntimeStorageContext,
@@ -11,10 +46,7 @@ pub(super) fn layout_for_type(
     let type_name = strip_constraint_suffix(type_name);
 
     if type_name.starts_with('&') {
-        return TypeLayout {
-            size: context.target.pointer_size,
-            alignment: context.target.pointer_alignment,
-        };
+        return pointer_layout(context);
     }
 
     if type_symbol.is_valid() {
@@ -48,13 +80,24 @@ pub(super) fn layout_for_type(
     }
 
     if is_slice_descriptor_name(type_name) {
-        return TypeLayout {
-            size: context.target.pointer_size * 2,
-            alignment: context.target.pointer_alignment,
-        };
+        return slice_layout(context);
     }
 
     TypeLayout::default()
+}
+
+fn pointer_layout(context: &RuntimeStorageContext) -> TypeLayout {
+    TypeLayout {
+        size: context.target.pointer_size,
+        alignment: context.target.pointer_alignment,
+    }
+}
+
+fn slice_layout(context: &RuntimeStorageContext) -> TypeLayout {
+    TypeLayout {
+        size: context.target.pointer_size * 2,
+        alignment: context.target.pointer_alignment,
+    }
 }
 
 fn is_slice_descriptor_name(type_name: &str) -> bool {

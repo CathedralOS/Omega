@@ -1,5 +1,6 @@
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -10,6 +11,7 @@ pub struct StateStoragePlan {
     pub invariant_names: Arena<ProgramName>,
     pub locals: Arena<StateLocalStorage>,
     pub mutations: Arena<StateMutation>,
+    pub type_references: TypeReferenceTable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -19,7 +21,7 @@ pub struct StateLocalStorage {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
-    pub type_name: String,
+    pub type_reference: TypeReferenceHandle,
     pub invariant_names: HandleSpan<ProgramName>,
     pub required: bool,
 }

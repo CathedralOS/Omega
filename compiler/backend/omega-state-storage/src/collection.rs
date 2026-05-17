@@ -57,6 +57,12 @@ pub fn build_state_storage_plan_with_workers(
                         .iter()
                         .cloned(),
                 ),
+                type_reference: plan.type_references.copy_from(
+                    &machine_plan.type_references,
+                    &machine_plan.expressions,
+                    &mut plan.expressions,
+                    local.type_reference,
+                ),
                 ..local.clone()
             });
         }
@@ -113,7 +119,12 @@ fn build_machine_state_storage_plan(
                         symbol: local_data.symbol,
                         name: local_data.name.clone(),
                         type_symbol: program.type_reference_symbol(local_data.type_reference),
-                        type_name: program.display_type_reference(local_data.type_reference),
+                        type_reference: plan.type_references.copy_from(
+                            &program.type_reference_table,
+                            &program.expression_table,
+                            &mut plan.expressions,
+                            local_data.type_reference,
+                        ),
                         invariant_names: append_type_reference_invariant_names(
                             program,
                             local_data.type_reference,
