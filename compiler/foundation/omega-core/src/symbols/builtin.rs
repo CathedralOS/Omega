@@ -1,5 +1,7 @@
 use super::{SymbolKind, SymbolNameRef};
 
+pub const BUILTIN_TYPE_COUNT: usize = 19;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinFunction {
     Max,
@@ -24,7 +26,7 @@ impl BuiltinFunction {
     }
 }
 
-pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); 19] {
+pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_TYPE_COUNT] {
     [
         (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("i8")),
