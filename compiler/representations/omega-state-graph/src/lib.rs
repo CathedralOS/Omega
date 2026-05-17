@@ -1,6 +1,5 @@
 mod runtime_flow;
 
-use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::NamePath;
@@ -294,7 +293,6 @@ pub enum OperationExpressionRefs {
 pub struct TransitionEdge {
     pub target: PlannedTransitionTarget,
     pub continuation: Option<PlannedTransitionTarget>,
-    pub guard: TransitionGuard,
     pub expressions: TransitionExpressionRefs,
 }
 
@@ -329,7 +327,6 @@ impl Default for TransitionEdge {
         Self {
             target: PlannedTransitionTarget::Terminal,
             continuation: None,
-            guard: TransitionGuard::Always,
             expressions: TransitionExpressionRefs::default(),
         }
     }

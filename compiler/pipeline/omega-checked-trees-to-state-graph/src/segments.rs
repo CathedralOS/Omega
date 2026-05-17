@@ -6,8 +6,7 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{
-    StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuard,
-    TransitionGuardNode,
+    StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
 };
 use omega_core::symbols::SymbolHandle;
 
@@ -332,18 +331,6 @@ fn is_static_assignment(program: &Program, assignment: TableAssignment) -> bool 
     };
 
     target_is_place && value_is_static
-}
-
-pub(super) fn transition_guard_from_table(
-    program: &Program,
-    transition: TableTransition,
-) -> TransitionGuard {
-    match transition.guard {
-        TransitionGuardNode::Always => TransitionGuard::Always,
-        TransitionGuardNode::When(expression) => {
-            TransitionGuard::When(program.expression_table.to_tree(expression))
-        }
-    }
 }
 
 pub(super) fn table_transition_guard_expression(
