@@ -618,6 +618,13 @@ impl ExpressionTable {
         )
     }
 
+    pub fn expression_is_stored_place(&self, handle: ExpressionHandle) -> bool {
+        matches!(
+            self.expression(handle),
+            ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
+        )
+    }
+
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
     }

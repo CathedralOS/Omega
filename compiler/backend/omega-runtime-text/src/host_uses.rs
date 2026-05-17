@@ -103,9 +103,13 @@ fn classify_runtime_text_source(
     host_calls: &HostCallPlan,
     expression: ExpressionHandle,
 ) -> RuntimeTextSource {
+    if host_calls.expressions.expression_is_stored_place(expression) {
+        return RuntimeTextSource::StoredPlace;
+    }
+
     match host_calls.expressions.expression(expression) {
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
-            RuntimeTextSource::StoredPlace
+            unreachable!("stored places are classified before expression node matching")
         }
         ExpressionNode::Binary(_) => RuntimeTextSource::GeneratedString,
         ExpressionNode::Mutable(_) => RuntimeTextSource::MutablePlace,
