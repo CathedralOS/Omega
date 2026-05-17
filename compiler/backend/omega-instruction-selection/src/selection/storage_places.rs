@@ -14,11 +14,13 @@ use crate::InstructionSelectionInput;
 use expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
-use nested_fields::resolve_nested_field_layout_with_symbols;
+use nested_fields::{
+    FieldPathSegment, resolve_nested_field_layout_with_segments,
+    resolve_nested_field_layout_with_symbols,
+};
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };
-use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
@@ -301,18 +303,7 @@ pub(super) fn resolve_runtime_frame_indexed_target(
             type_name: element_type_name.to_owned(),
             layout: element_layout,
         };
-        resolve_nested_field_layout_with_symbols(
-            &input.layouts,
-            &root_field,
-            &indexed.suffix,
-            |index| {
-                indexed
-                    .suffix_symbols
-                    .get(index)
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid)
-            },
-        )?
+        resolve_nested_field_layout_with_segments(&input.layouts, &root_field, &indexed.suffix)?
     };
 
     Some(RuntimeFrameIndexedTarget {
@@ -491,18 +482,7 @@ fn resolve_runtime_fixed_indexed_place(
             type_name: element_type_name.to_owned(),
             layout: element_layout,
         };
-        resolve_nested_field_layout_with_symbols(
-            &input.layouts,
-            &root_field,
-            &fixed.suffix,
-            |index| {
-                fixed
-                    .suffix_symbols
-                    .get(index)
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid)
-            },
-        )?
+        resolve_nested_field_layout_with_segments(&input.layouts, &root_field, &fixed.suffix)?
     };
 
     Some(RuntimeStoragePlace {
@@ -545,18 +525,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             type_name: element_type_name.to_owned(),
             layout: element_layout,
         };
-        resolve_nested_field_layout_with_symbols(
-            &input.layouts,
-            &root_field,
-            &fixed.suffix,
-            |index| {
-                fixed
-                    .suffix_symbols
-                    .get(index)
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid)
-            },
-        )?
+        resolve_nested_field_layout_with_segments(&input.layouts, &root_field, &fixed.suffix)?
     };
 
     Some(RuntimeStoragePlace {
@@ -573,16 +542,14 @@ fn resolve_runtime_fixed_indexed_place_in_table(
 struct FixedIndexedTargetPath {
     collection: Expression,
     index: i64,
-    suffix: Vec<ProgramName>,
-    suffix_symbols: Vec<SymbolHandle>,
+    suffix: Vec<FieldPathSegment>,
 }
 
 #[derive(Debug, Clone)]
 struct TableFixedIndexedTargetPath {
     collection: ExpressionHandle,
     index: i64,
-    suffix: Vec<ProgramName>,
-    suffix_symbols: Vec<SymbolHandle>,
+    suffix: Vec<FieldPathSegment>,
 }
 
 fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath> {
@@ -590,8 +557,10 @@ fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTarg
         Expression::Mutable(target) => fixed_indexed_target_path(target),
         Expression::Member(member) => {
             let mut path = fixed_indexed_target_path(&member.receiver)?;
-            path.suffix.push(member.member.clone());
-            path.suffix_symbols.push(member.member_symbol);
+            path.suffix.push(FieldPathSegment::new(
+                member.member.clone(),
+                member.member_symbol,
+            ));
             Some(path)
         }
         Expression::Indexed(indexed) => {
@@ -602,7 +571,6 @@ fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTarg
                 collection: indexed.collection.clone(),
                 index: *index,
                 suffix: Vec::new(),
-                suffix_symbols: Vec::new(),
             })
         }
         _ => None,
@@ -617,8 +585,10 @@ fn fixed_indexed_target_path_in_table(
         ExpressionNode::Mutable(target) => fixed_indexed_target_path_in_table(table, *target),
         ExpressionNode::Member(member) => {
             let mut path = fixed_indexed_target_path_in_table(table, member.receiver)?;
-            path.suffix.push(member.member.clone());
-            path.suffix_symbols.push(member.member_symbol);
+            path.suffix.push(FieldPathSegment::new(
+                member.member.clone(),
+                member.member_symbol,
+            ));
             Some(path)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -629,7 +599,6 @@ fn fixed_indexed_target_path_in_table(
                 collection: indexed.collection,
                 index: *index,
                 suffix: Vec::new(),
-                suffix_symbols: Vec::new(),
             })
         }
         _ => None,
@@ -641,15 +610,16 @@ fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath> {
         Expression::Mutable(target) => indexed_target_path(target),
         Expression::Member(member) => {
             let mut path = indexed_target_path(&member.receiver)?;
-            path.suffix.push(member.member.clone());
-            path.suffix_symbols.push(member.member_symbol);
+            path.suffix.push(FieldPathSegment::new(
+                member.member.clone(),
+                member.member_symbol,
+            ));
             Some(path)
         }
         Expression::Indexed(indexed) => Some(IndexedTargetPath {
             collection: indexed.collection.clone(),
             index: indexed.index.clone(),
             suffix: Vec::new(),
-            suffix_symbols: Vec::new(),
         }),
         _ => None,
     }
