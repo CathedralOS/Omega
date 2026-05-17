@@ -54,8 +54,12 @@ pub fn build_state_graph_with_workers(
     }
 
     state_graph.proof_obligations =
-        remap_proof_obligations(program.facts.proof.obligations.iter().map(|(_, fact)| fact));
+        remap_proof_obligations(
+            program.facts.proof.obligations.len(),
+            program.facts.proof.obligations.iter().map(|(_, fact)| fact),
+        );
     state_graph.invariants = remap_invariants(
+        program.facts.invariants.definitions.len(),
         program
             .facts
             .invariants
@@ -68,9 +72,10 @@ pub fn build_state_graph_with_workers(
 }
 
 fn remap_proof_obligations<'a>(
+    fact_count: usize,
     facts: impl Iterator<Item = &'a omega_checked_trees::ProofObligationFact>,
 ) -> omega_core::arena::Arena<ProofObligationFact> {
-    let mut obligations = omega_core::arena::Arena::new();
+    let mut obligations = omega_core::arena::Arena::with_capacity(fact_count);
 
     for fact in facts {
         obligations.append(ProofObligationFact {
@@ -105,9 +110,10 @@ fn remap_proof_obligations<'a>(
 }
 
 fn remap_invariants<'a>(
+    fact_count: usize,
     facts: impl Iterator<Item = &'a omega_checked_trees::InvariantFact>,
 ) -> omega_core::arena::Arena<InvariantFact> {
-    let mut invariants = omega_core::arena::Arena::new();
+    let mut invariants = omega_core::arena::Arena::with_capacity(fact_count);
 
     for fact in facts {
         invariants.append(InvariantFact {
