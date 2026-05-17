@@ -16,6 +16,7 @@ pub(crate) struct CollectedStateCall {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub role: StateCallRole,
+    pub receiver_symbol: SymbolHandle,
     pub receiver: ProgramName,
     pub target_key: StateKey,
     pub raw_arguments: HandleSpan<ExpressionHandle>,
@@ -69,6 +70,7 @@ pub(crate) fn collect_machine_state_calls(
                     statement_index: operation.statement_index,
                     call_ordinal,
                     role: StateCallRole::Statement,
+                    receiver_symbol: *receiver_symbol,
                     receiver: receiver
                         .as_ref()
                         .and_then(|receiver: &omega_checked_trees::expression::NamePath| {
@@ -390,6 +392,7 @@ fn collect_expression_state_calls_in_table(
                 statement_index,
                 call_ordinal: *call_ordinal,
                 role,
+                receiver_symbol,
                 receiver: receiver_path
                     .as_ref()
                     .and_then(|receiver| receiver.members().last().cloned())
@@ -772,20 +775,22 @@ mod tests {
         let state_graph =
             omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
         let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
-        let entry_machine_symbol = control_flow
-            .machines
-            .iter()
-            .find(|(_, machine)| machine.name.as_str() == "main")
-            .map(|(_, machine)| machine.symbol)
-            .expect("main machine");
         let entry_key = control_flow
             .states
             .iter()
-            .find(|(_, state)| {
-                state.key.machine == entry_machine_symbol && state.name.as_str() == "entry"
+            .find_map(|(_, state)| {
+                let operations = control_flow.operations.span(state.operations)?;
+                operations
+                    .iter()
+                    .any(|operation| {
+                        matches!(
+                            operation.expressions,
+                            omega_control_flow::OperationExpressionRefs::Assignment { .. }
+                        )
+                    })
+                    .then_some(state.key)
             })
-            .map(|(_, state)| state.key)
-            .expect("entry state");
+            .expect("state with assignment");
         let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
         let target = omega_target::NativeTarget::linux_arm64();
         let host_abi = build_host_abi_plan(target);
@@ -796,7 +801,7 @@ mod tests {
             runtime_flow,
         };
         let machine = control_flow
-            .machine_by_symbol(entry_machine_symbol)
+            .machine_by_symbol(entry_key.machine)
             .expect("machine flow");
 
         let calls = collect_machine_state_calls(&context, machine);
@@ -806,7 +811,7 @@ mod tests {
                     && call.source_key.machine == entry_key.machine
                     && call.source_key.state == entry_key.state
                     && call.statement_index == 0
-                    && call.receiver.as_str() == "rng"
+                    && call.receiver_symbol.is_valid()
                     && call.resolution == StateCallResolution::ContainedMachine
             }),
             "expected contained assignment-value call, got {calls:?}"

@@ -81,12 +81,15 @@ mod tests {
 
         assert_eq!(program.data_definitions.len(), 1);
         assert_eq!(program.machines.len(), 1);
+        assert!(program.machines[0].symbol.is_valid());
         assert_eq!(
             program
                 .machine_state_handles(program.machines[0].states)
                 .len(),
             1
         );
+        let state = program.machine_state_handles(program.machines[0].states)[0];
+        assert!(program.machine_state(state).symbol.is_valid());
         assert!(
             program
                 .symbols

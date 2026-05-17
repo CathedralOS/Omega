@@ -276,6 +276,9 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     for _ in 0..builtin_type_symbols().len() {
         let _ = root_children.next();
     }
+    for _ in 0..builtin_function_symbols().len() {
+        let _ = root_children.next();
+    }
 
     program.invariant_definitions.for_each_mut(|invariant| {
         invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
