@@ -5,7 +5,7 @@ use omega_checked_trees::types::TypeReferenceHandle;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
+use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutation, StateMutationLowering};
 
@@ -16,12 +16,13 @@ pub(super) fn build_runtime_storage_body_plan(
     body_input: &RuntimeStorageBodyInput,
 ) -> RuntimeStoragePlan {
     let mut plan = RuntimeStoragePlan::default();
+    let body = context.runtime_bodies.bodies.get(body_input.body);
     let mut next_frame_offset = 0usize;
-    append_parameter_slots(context, body_input, &mut plan, &mut next_frame_offset);
+    append_parameter_slots(context, body, &mut plan, &mut next_frame_offset);
     let Some(operations) = context
         .runtime_bodies
         .operations
-        .paged_span(body_input.body.operations)
+        .paged_span(body.operations)
     else {
         return plan;
     };
@@ -46,7 +47,7 @@ pub(super) fn build_runtime_storage_body_plan(
                     .expect("runtime frame slot size overflow");
 
                 plan.frame_slots.insert(RuntimeFrameSlot {
-                    dispatch_index: body_input.body.dispatch_index,
+                    dispatch_index: body.dispatch_index,
                     source_key: operation.source_key,
                     statement_index: operation.statement_index,
                     kind: RuntimeFrameSlotKind::LocalStorage,
@@ -89,9 +90,9 @@ pub(super) fn build_runtime_storage_body_plan(
                 ..
             } => append_state_call_result_slot(
                 context,
-                body_input,
                 &mut plan,
                 &mut next_frame_offset,
+                body.dispatch_index,
                 operation.source_key,
                 operation.statement_index,
                 *role,
@@ -105,7 +106,7 @@ pub(super) fn build_runtime_storage_body_plan(
                     mutation_for_operation(context, operation.source_key, operation.statement_index)
                 {
                     plan.writes.insert(super::RuntimeStorageWrite {
-                        dispatch_index: body_input.body.dispatch_index,
+                        dispatch_index: body.dispatch_index,
                         source_key: operation.source_key,
                         statement_index: operation.statement_index,
                         target: plan
@@ -128,11 +129,11 @@ pub(super) fn build_runtime_storage_body_plan(
 
 fn append_parameter_slots(
     context: &RuntimeStorageContext,
-    body_input: &RuntimeStorageBodyInput,
+    body: &RuntimeDispatchBody,
     plan: &mut RuntimeStoragePlan,
     next_frame_offset: &mut usize,
 ) {
-    let Some(state) = context.control_flow.state_by_key(body_input.body.key) else {
+    let Some(state) = context.control_flow.state_by_key(body.key) else {
         return;
     };
 
@@ -144,8 +145,8 @@ fn append_parameter_slots(
             .expect("runtime parameter slot size overflow");
 
         plan.frame_slots.insert(RuntimeFrameSlot {
-            dispatch_index: body_input.body.dispatch_index,
-            source_key: body_input.body.key,
+            dispatch_index: body.dispatch_index,
+            source_key: body.key,
             statement_index: usize::MAX,
             kind: RuntimeFrameSlotKind::Parameter,
             symbol: parameter.symbol,
@@ -163,9 +164,9 @@ fn append_parameter_slots(
 #[allow(clippy::too_many_arguments)]
 fn append_state_call_result_slot(
     context: &RuntimeStorageContext,
-    body_input: &RuntimeStorageBodyInput,
     plan: &mut RuntimeStoragePlan,
     next_frame_offset: &mut usize,
+    dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
     role: StateCallRole,
@@ -198,7 +199,7 @@ fn append_state_call_result_slot(
         .expect("runtime state-call result slot size overflow");
 
     plan.frame_slots.insert(RuntimeFrameSlot {
-        dispatch_index: body_input.body.dispatch_index,
+        dispatch_index,
         source_key,
         statement_index,
         kind: RuntimeFrameSlotKind::StateCallResult {
