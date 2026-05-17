@@ -1,7 +1,7 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
 use crate::identity::expressions::{
-    count_control_flow_expression_strings, count_expression_span_strings, count_guard_strings,
+    count_control_flow_expression_strings, count_expression_span_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_branching::{
@@ -15,12 +15,30 @@ pub(in crate::identity) fn count_runtime_branching_strings(
     for (_, edge) in backend_plan.runtime_branching_calls.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
-        count_guard_strings(&edge.guard, storage);
+        if edge.guard.is_valid() {
+            count_control_flow_expression_strings(
+                &backend_plan.runtime_branching_calls.expressions,
+                edge.guard,
+                storage,
+            );
+        }
         count_expression_span_strings(edge.target_arguments, backend_plan, storage);
     }
     for (_, expansion) in backend_plan.runtime_branching_calls.leaf_expansions.iter() {
-        count_guard_strings(&expansion.guard, storage);
-        count_guard_strings(&expansion.resolved_guard, storage);
+        if expansion.guard.is_valid() {
+            count_control_flow_expression_strings(
+                &backend_plan.runtime_branching_calls.expressions,
+                expansion.guard,
+                storage,
+            );
+        }
+        if expansion.resolved_guard.is_valid() {
+            count_control_flow_expression_strings(
+                &backend_plan.runtime_branching_calls.expressions,
+                expansion.resolved_guard,
+                storage,
+            );
+        }
     }
     for (_, binding) in backend_plan.runtime_branching_calls.leaf_bindings.iter() {
         storage.count_program_name_identity(&binding.parameter_name);
@@ -53,8 +71,20 @@ pub(in crate::identity) fn count_runtime_branching_strings(
         .straight_line_expansions
         .iter()
     {
-        count_guard_strings(&expansion.guard, storage);
-        count_guard_strings(&expansion.resolved_guard, storage);
+        if expansion.guard.is_valid() {
+            count_control_flow_expression_strings(
+                &backend_plan.runtime_branching_calls.expressions,
+                expansion.guard,
+                storage,
+            );
+        }
+        if expansion.resolved_guard.is_valid() {
+            count_control_flow_expression_strings(
+                &backend_plan.runtime_branching_calls.expressions,
+                expansion.resolved_guard,
+                storage,
+            );
+        }
     }
     for (_, binding) in backend_plan
         .runtime_branching_calls

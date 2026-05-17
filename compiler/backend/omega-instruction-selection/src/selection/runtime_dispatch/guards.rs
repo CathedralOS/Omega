@@ -1,5 +1,5 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{BinaryOperator, Expression};
+use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionHandle};
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
@@ -28,8 +28,9 @@ pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let normalized_guard = normalized_boolean_wrapped_guard(&expansion.resolved_guard)
-        .unwrap_or_else(|| expansion.resolved_guard.clone());
+    let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
+    let normalized_guard =
+        normalized_boolean_wrapped_guard(&resolved_guard).unwrap_or(resolved_guard);
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         expansion.dispatch_index,
@@ -81,8 +82,9 @@ pub(super) fn select_runtime_straight_line_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let normalized_guard = normalized_boolean_wrapped_guard(&expansion.resolved_guard)
-        .unwrap_or_else(|| expansion.resolved_guard.clone());
+    let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
+    let normalized_guard =
+        normalized_boolean_wrapped_guard(&resolved_guard).unwrap_or(resolved_guard);
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         expansion.dispatch_index,
@@ -128,6 +130,17 @@ pub(super) fn select_runtime_straight_line_branch_guard(
             &normalized_guard,
         )
     })
+}
+
+fn runtime_branch_guard(
+    input: &InstructionSelectionInput<'_>,
+    guard: ExpressionHandle,
+) -> TransitionGuard {
+    if guard.is_valid() {
+        TransitionGuard::When(input.runtime_branching_calls.expressions.to_tree(guard))
+    } else {
+        TransitionGuard::Always
+    }
 }
 
 pub(super) fn select_runtime_dispatch_expression_guard(

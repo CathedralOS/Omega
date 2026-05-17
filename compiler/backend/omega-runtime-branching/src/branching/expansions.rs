@@ -1,6 +1,6 @@
 use super::aliases::{
     BranchParameterBinding, RuntimeBranchAlias, branch_parameter_bindings,
-    resolve_branch_expression_handle, resolve_branch_guard,
+    resolve_branch_expression_handle, resolve_branch_guard_handle,
 };
 use super::lookups::state_parameters;
 use super::operations::{leaf_operations, prelude_operations, straight_line_operations};
@@ -114,8 +114,8 @@ pub(super) fn append_leaf_branch_expansions(
             statement_index,
             branch_key,
             edge_order: edge.order,
-            guard: edge.guard.clone(),
-            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, expressions),
+            guard: edge.guard,
+            resolved_guard: resolve_branch_guard_handle(edge.guard, &branch_bindings, expressions),
             guard_kind: edge.guard_kind,
             role: state_call.role,
             leaf_key,
@@ -183,8 +183,8 @@ pub(super) fn append_straight_line_branch_expansions(
             branch_key,
             target_key: *target_key,
             edge_order: edge.order,
-            guard: edge.guard.clone(),
-            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, expressions),
+            guard: edge.guard,
+            resolved_guard: resolve_branch_guard_handle(edge.guard, &branch_bindings, expressions),
             guard_kind: edge.guard_kind,
             bindings,
             operations,

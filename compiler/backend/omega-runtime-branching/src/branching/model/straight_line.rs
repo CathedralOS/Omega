@@ -1,6 +1,5 @@
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::name::ProgramName;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -16,8 +15,8 @@ pub struct RuntimeStraightLineBranchExpansion {
     pub branch_key: StateKey,
     pub target_key: StateKey,
     pub edge_order: usize,
-    pub guard: TransitionGuard,
-    pub resolved_guard: TransitionGuard,
+    pub guard: ExpressionHandle,
+    pub resolved_guard: ExpressionHandle,
     pub guard_kind: StateGuardKind,
     pub bindings: HandleSpan<RuntimeStraightLineBranchBinding>,
     pub operations: HandleSpan<RuntimeStraightLineBranchOperation>,
@@ -32,8 +31,8 @@ impl Default for RuntimeStraightLineBranchExpansion {
             branch_key: StateKey::default(),
             target_key: StateKey::default(),
             edge_order: 0,
-            guard: TransitionGuard::Always,
-            resolved_guard: TransitionGuard::Always,
+            guard: ExpressionHandle::invalid(),
+            resolved_guard: ExpressionHandle::invalid(),
             guard_kind: StateGuardKind::Always,
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
