@@ -125,20 +125,22 @@ pub fn build_state_call_plan_with_workers(
     context: Arc<StateCallPlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateCallPlan {
-    let machines = Arc::new(
+    let machine_handles = Arc::new(
         context
             .control_flow
             .machines
             .iter()
-            .map(|(_, machine)| machine.clone())
+            .map(|(machine, _)| machine)
             .collect::<Vec<_>>(),
     );
-    let machine_count = machines.len();
+    let machine_count = machine_handles.len();
     let context_for_collection = Arc::clone(&context);
     let machine_calls = workers.map_ordered(machine_count, move |index| {
-        let machine = machines
+        let machine = machine_handles
             .get(index)
+            .copied()
             .expect("state-call worker index should be in range");
+        let machine = context_for_collection.control_flow.machines.get(machine);
 
         collect_machine_state_calls(&context_for_collection, machine)
     });
