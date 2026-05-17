@@ -101,7 +101,6 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
         buffers.insert(RuntimeTextBuffer {
             source_key: write.source_key,
             statement_index: write.statement_index,
-            platform_call: String::new(),
             target: write.target,
             text_place: write.target,
             byte_capacity: DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY,

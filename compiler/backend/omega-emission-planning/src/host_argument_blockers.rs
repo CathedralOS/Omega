@@ -82,7 +82,6 @@ fn runtime_text_use_for_host_call<'plan>(
         .find(|(_, text_use)| {
             text_use.source_key == host_call.source_key
                 && text_use.statement_index == host_call.statement_index
-                && text_use.platform_call == host_call.platform_call
         })
         .map(|(_, text_use)| text_use)
 }

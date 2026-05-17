@@ -16,7 +16,6 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         .find(|(_, text_use)| {
             text_use.source_key == host_call.source_key
                 && text_use.statement_index == host_call.statement_index
-                && text_use.platform_call == host_call.platform_call
                 && text_use.source == RuntimeTextSource::StoredPlace
         })
         .map(|(_, text_use)| text_use)?;

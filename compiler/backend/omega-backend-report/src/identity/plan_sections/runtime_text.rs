@@ -7,7 +7,6 @@ pub(in crate::identity) fn count_runtime_text_strings(
     storage: &mut BackendStringStorage,
 ) {
     for (_, text_use) in backend_plan.runtime_text.uses.iter() {
-        storage.count_identity(&text_use.platform_call);
         count_control_flow_expression_strings(
             &backend_plan.runtime_text.expressions,
             text_use.expression,
@@ -15,7 +14,6 @@ pub(in crate::identity) fn count_runtime_text_strings(
         );
     }
     for (_, buffer) in backend_plan.runtime_text.buffers.iter() {
-        storage.count_identity(&buffer.platform_call);
         count_control_flow_expression_strings(
             &backend_plan.runtime_text.expressions,
             buffer.target,
