@@ -2,6 +2,7 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::Program;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::StatementNode;
@@ -137,14 +138,20 @@ fn build_machine_state_storage_plan(
                     let target = plan
                         .expressions
                         .copy_from(&program.expression_table, assignment.target);
-                    let simplified_value = simplify_state_expression(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        &program.expression_table.to_tree(assignment.value),
-                    );
-                    let value = plan.expressions.insert_tree(&simplified_value);
+                    let value = if expression_is_literal(&program.expression_table, assignment.value)
+                    {
+                        plan.expressions
+                            .copy_from(&program.expression_table, assignment.value)
+                    } else {
+                        let simplified_value = simplify_state_expression(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            &program.expression_table.to_tree(assignment.value),
+                        );
+                        plan.expressions.insert_tree(&simplified_value)
+                    };
                     let mutation_kind = mutation_kind(
                         context,
                         source_key,
@@ -238,6 +245,16 @@ fn append_type_reference_invariant_names(
     let mut span = HandleSpan::empty();
     collect_type_reference_invariant_names(program, type_reference, names, &mut span);
     span
+}
+
+fn expression_is_literal(expressions: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    matches!(
+        expressions.expression(expression),
+        ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::String(_)
+    )
 }
 
 fn collect_type_reference_invariant_names(
