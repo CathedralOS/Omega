@@ -1,25 +1,28 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 21;
+pub const BUILTIN_TYPE_COUNT: usize = 22;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
-    Uint,
+    UInt,
+    Int,
     Real,
 }
 
 impl BuiltinType {
     pub fn name(self) -> &'static str {
         match self {
-            Self::Uint => "Uint",
+            Self::UInt => "UInt",
+            Self::Int => "Int",
             Self::Real => "Real",
         }
     }
 
     pub fn ordinal(self) -> usize {
         match self {
-            Self::Uint => 19,
-            Self::Real => 20,
+            Self::UInt => 19,
+            Self::Int => 20,
+            Self::Real => 21,
         }
     }
 }
@@ -74,7 +77,11 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
         (SymbolKind::BuiltinType, SymbolNameRef::Static("Never")),
         (
             SymbolKind::BuiltinType,
-            SymbolNameRef::Static(BuiltinType::Uint.name()),
+            SymbolNameRef::Static(BuiltinType::UInt.name()),
+        ),
+        (
+            SymbolKind::BuiltinType,
+            SymbolNameRef::Static(BuiltinType::Int.name()),
         ),
         (
             SymbolKind::BuiltinType,

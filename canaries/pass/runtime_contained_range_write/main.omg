@@ -3,7 +3,7 @@ data Random {
 
 data RandomState {
     seed: u64[wrapping];
-    calls: Uint;
+    calls: UInt;
 }
 
 data Reward {

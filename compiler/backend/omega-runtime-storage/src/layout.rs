@@ -69,7 +69,19 @@ fn builtin_type_layout(
         == context
             .program
             .symbols
-            .builtin_type_symbol(BuiltinType::Uint)
+            .builtin_type_symbol(BuiltinType::UInt)
+    {
+        return Some(TypeLayout {
+            size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
+        });
+    }
+
+    if Some(type_symbol)
+        == context
+            .program
+            .symbols
+            .builtin_type_symbol(BuiltinType::Int)
     {
         return Some(TypeLayout {
             size: context.target.pointer_size,

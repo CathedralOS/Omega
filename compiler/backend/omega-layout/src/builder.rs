@@ -388,7 +388,14 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn builtin_type_layout(&self, symbol: SymbolHandle) -> Option<TypeLayout> {
-        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Uint) {
+        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::UInt) {
+            return Some(TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            });
+        }
+
+        if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Int) {
             return Some(TypeLayout {
                 size: self.target.pointer_size,
                 alignment: self.target.pointer_alignment,
