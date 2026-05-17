@@ -12,7 +12,10 @@ This page tracks design pressure that is not fully nailed down yet.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
 - `match` is for value selection. `transition` is for control movement. Conditional transitions name a scrutinee; anonymous `transition { _ -> target }` is only for unconditional jumps.
-- Borrowed slices should use Rust-like `&[T]` / `&mut [T]` surface syntax. `IndexOf<slice>` is the working proof-carrying index type for safe indexing into a stable slice view.
+- Borrowed slices should use Rust-like `&[T]` / `&mut [T]` surface syntax.
+  They are built-in borrowed views with proof-visible facts such as `len` and
+  type-scoped invariant parameters such as `&[T, [non_empty]]`; indexing is
+  valid when the current facts prove the index is inside the slice bounds.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
 - Omega should distinguish proof numbers from machine numbers. `UInt`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
