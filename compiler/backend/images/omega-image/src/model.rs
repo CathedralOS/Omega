@@ -5,7 +5,7 @@ use omega_target::NativeTarget;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImage {
     pub target: NativeTarget,
-    pub entry_symbol: String,
+    pub entry_symbol: FinalImageSymbolHandle,
     pub text: Vec<u8>,
     pub data: Vec<u8>,
     pub bss_size: usize,
@@ -19,7 +19,7 @@ impl Default for FinalImage {
     fn default() -> Self {
         Self {
             target: NativeTarget::host(),
-            entry_symbol: String::new(),
+            entry_symbol: Handle::invalid(),
             text: Vec::new(),
             data: Vec::new(),
             bss_size: 0,

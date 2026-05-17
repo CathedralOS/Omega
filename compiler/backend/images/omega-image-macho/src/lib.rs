@@ -1,7 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
-    ExecutableImageOutput, FinalImage, FinalImageLayout, FinalImageSection,
-    apply_aarch64_relocations,
+    apply_aarch64_relocations, final_image_symbol_name, ExecutableImageOutput, FinalImage,
+    FinalImageLayout, FinalImageSection,
 };
 
 mod bytes;
@@ -156,21 +156,21 @@ pub fn emit_macho_aarch64_executable(
 }
 
 fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
-    let (_, entry_symbol) = image
+    let entry_symbol = image
         .symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == image.entry_symbol)
+        .is_valid(image.entry_symbol)
+        .then(|| image.symbols.get(image.entry_symbol))
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "Mach-O entry symbol `{}` is missing from the final image",
-                image.entry_symbol
+                final_image_symbol_name(image, image.entry_symbol)
             ))
         })?;
 
     if entry_symbol.section != FinalImageSection::Text {
         return Err(Diagnostic::error(format!(
             "Mach-O entry symbol `{}` is not in the text section",
-            image.entry_symbol
+            final_image_symbol_name(image, image.entry_symbol)
         )));
     }
 

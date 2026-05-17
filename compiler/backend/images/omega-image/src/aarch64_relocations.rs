@@ -1,6 +1,6 @@
 use crate::{
-    FinalImage, FinalImageLayout, final_image_imports_symbol, final_image_symbol_address,
-    final_image_symbol_name,
+    final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name, FinalImage,
+    FinalImageLayout,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_object::RelocationKind;
