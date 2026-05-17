@@ -5,6 +5,7 @@ use crate::arena::{
 };
 use crate::source::{SourceMap, SourceSpan};
 
+use super::builtin::BUILTIN_TYPE_COUNT;
 use super::{
     BuiltinFunction, Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
     SymbolNameStorageKind, SymbolPath,
@@ -165,7 +166,9 @@ impl SymbolTable {
     }
 
     pub fn builtin_function_symbol(&self, function: BuiltinFunction) -> Option<SymbolHandle> {
-        self.find_child_by_name(self.root, function.name())
+        let builtin_offset = BUILTIN_TYPE_COUNT.checked_add(function.ordinal())?;
+        self.child_handles(self.root)?
+            .nth(builtin_offset)
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinFunction)
     }
 
