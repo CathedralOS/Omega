@@ -10,9 +10,9 @@ pub struct StateDispatchContext {
 
 impl StateDispatchContext {
     pub fn from_runtime_flow(runtime_flow: &RuntimeFlowPlan) -> Self {
-        let mut edges = Arena::new();
+        let mut edges = Arena::with_capacity(runtime_flow.edges.len());
         edges.insert_many(runtime_flow.edges.iter().map(|(_, edge)| edge.clone()));
-        let mut targets = Arena::new();
+        let mut targets = Arena::with_capacity(runtime_flow.states.len());
         targets.insert_many(runtime_flow.states.iter().map(|(handle, state)| {
             StateDispatchTarget {
                 key: state.key,
