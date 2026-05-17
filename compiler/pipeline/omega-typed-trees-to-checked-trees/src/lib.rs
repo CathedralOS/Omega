@@ -492,7 +492,7 @@ fn collect_expression_borrow_calls(
                 receiver_path.as_deref(),
                 &call.target,
             )
-            .is_some()
+            .is_valid()
                 || receiver_can_dispatch_to_machine(
                     program,
                     machine,
@@ -646,7 +646,7 @@ fn statement_call_can_dispatch_to_machine(
         statement_call_receiver_members(program, call),
         &call.target,
     )
-    .is_some()
+    .is_valid()
         || receiver_can_dispatch_to_machine(
             program,
             machine,
@@ -719,13 +719,13 @@ fn resolve_state_call_target(
     target_symbol: SymbolHandle,
     receiver: Option<&[ProgramName]>,
     _target_state: &ProgramName,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     if receiver.is_none() || receiver_symbol == machine.symbol {
         return resolve_state_symbol_in_machine(program, machine, target_symbol);
     }
 
     if !receiver_symbol.is_valid() {
-        return None;
+        return SymbolHandle::invalid();
     }
 
     if let Some(contained) = program
@@ -733,22 +733,25 @@ fn resolve_state_call_target(
         .iter()
         .find(|contained| contained.symbol == receiver_symbol)
     {
-        return machine_by_symbol(program, contained.type_symbol).and_then(|target_machine| {
-            resolve_state_symbol_in_machine(program, target_machine, target_symbol)
-        });
+        let Some(target_machine) = machine_by_symbol(program, contained.type_symbol) else {
+            return SymbolHandle::invalid();
+        };
+        return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
     if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
-    if let Some(type_symbol) = program
+    let type_symbol = program
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == receiver_symbol)
-        .and_then(|parameter| {
+        .map(|parameter| {
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })
+        .unwrap_or_else(SymbolHandle::invalid);
+    if type_symbol.is_valid()
         && let Some(target_machine) = machine_by_symbol(program, type_symbol)
     {
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
@@ -761,10 +764,10 @@ fn resolve_state_call_target(
             .flat_map(|machine| program.machine_states(machine).iter())
             .any(|state| state.symbol == target_symbol)
     {
-        return Some(target_symbol);
+        return target_symbol;
     }
 
-    None
+    SymbolHandle::invalid()
 }
 
 fn receiver_can_dispatch_to_machine(
@@ -790,25 +793,26 @@ fn receiver_can_dispatch_to_machine(
         return true;
     }
 
+    let type_symbol = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == receiver_symbol)
+        .map(|parameter| {
+            machine_symbol_from_type_reference_handle(program, parameter.type_reference)
+        })
+        .unwrap_or_else(SymbolHandle::invalid);
+
     machine_by_symbol(program, receiver_symbol).is_some()
-        || program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == receiver_symbol)
-            .and_then(|parameter| {
-                machine_symbol_from_type_reference_handle(program, parameter.type_reference)
-            })
-            .and_then(|type_symbol| machine_by_symbol(program, type_symbol))
-            .is_some()
+        || (type_symbol.is_valid() && machine_by_symbol(program, type_symbol).is_some())
 }
 
 fn resolve_state_symbol_in_machine(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     if !state_symbol.is_valid() {
-        return None;
+        return SymbolHandle::invalid();
     }
 
     program
@@ -816,6 +820,7 @@ fn resolve_state_symbol_in_machine(
         .iter()
         .find(|state| state.symbol == state_symbol)
         .map(|state| state.symbol)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn machine_by_symbol(
@@ -831,7 +836,7 @@ fn machine_by_symbol(
 fn machine_symbol_from_type_reference_handle(
     program: &omega_typed_trees::TypedTrees,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
         omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             machine_symbol_from_type_reference_handle(program, *referee)
@@ -843,10 +848,10 @@ fn machine_symbol_from_type_reference_handle(
         | omega_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..
-        } => Some(*base_symbol),
+        } => *base_symbol,
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
-        | omega_typed_trees::types::TypeReferenceNode::Unit => None,
+        | omega_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
     }
 }
 

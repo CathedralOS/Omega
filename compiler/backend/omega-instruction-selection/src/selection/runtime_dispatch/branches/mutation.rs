@@ -38,18 +38,17 @@ pub(crate) fn select_runtime_resolved_mutation_write(
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Expression::String(value) = resolved_value {
-        if let Some((pointer_byte_offset, field_byte_offset, data)) =
-            resolve_runtime_pointee_slot_offset(
+        let data = string_literal_data_handle(input, operation_key, statement_index, value);
+        if data.is_valid()
+            && let Some(target) = resolve_runtime_pointee_slot_offset(
                 input,
                 dispatch_index,
                 operation_key,
                 resolved_target,
             )
-            .and_then(|target| {
-                string_literal_data_handle(input, operation_key, statement_index, value)
-                    .map(|data| (target.pointer_byte_offset, target.field_byte_offset, data))
-            })
         {
+            let pointer_byte_offset = target.pointer_byte_offset;
+            let field_byte_offset = target.field_byte_offset;
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimePointeeString {
                     pointer_byte_offset,

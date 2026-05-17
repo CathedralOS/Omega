@@ -205,19 +205,19 @@ fn assignment_targets_symbol(
         return false;
     };
 
-    assignment_target_head_symbol(expressions, assignment.target) == Some(symbol)
+    assignment_target_head_symbol(expressions, assignment.target) == symbol
 }
 
 fn assignment_target_head_symbol(
     expressions: &omega_checked_trees::expression::ExpressionTable,
     expression: omega_checked_trees::expression::ExpressionHandle,
-) -> Option<SymbolHandle> {
+) -> SymbolHandle {
     use omega_checked_trees::expression::ExpressionNode;
 
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => {
             let head_symbol = path.head_symbol;
-            head_symbol.is_valid().then_some(head_symbol)
+            head_symbol
         }
         ExpressionNode::Member(member) => {
             assignment_target_head_symbol(expressions, member.receiver)
@@ -226,7 +226,7 @@ fn assignment_target_head_symbol(
             assignment_target_head_symbol(expressions, indexed.collection)
         }
         ExpressionNode::Mutable(inner) => assignment_target_head_symbol(expressions, *inner),
-        _ => None,
+        _ => SymbolHandle::invalid(),
     }
 }
 

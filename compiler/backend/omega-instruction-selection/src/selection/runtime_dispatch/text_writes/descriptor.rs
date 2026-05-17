@@ -54,8 +54,10 @@ pub(in crate::selection) fn string_literal_data_handle(
     source_key: StateKey,
     statement_index: usize,
     value: &str,
-) -> Option<TargetDataObjectHandle> {
-    string_literal_data_object(input, source_key, statement_index, value).map(|(handle, _)| handle)
+) -> TargetDataObjectHandle {
+    string_literal_data_object(input, source_key, statement_index, value)
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
 }
 
 fn string_literal_data_object<'plan>(
