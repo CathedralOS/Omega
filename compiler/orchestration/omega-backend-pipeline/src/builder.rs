@@ -26,7 +26,7 @@ use omega_runtime_dispatch_loop::{
 };
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers,
-    runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
+    runtime_frame_storage_alignment, runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -166,13 +166,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         &backend_plan.state_storage,
         backend_plan.target,
     ));
-    let runtime_storage_inputs = runtime_storage_body_inputs(&backend_plan.runtime_bodies);
     let runtime_storage_workers = workers.clone();
     backend_plan.runtime_storage =
         record_backend_phase(&mut phase_timings, "runtime storage", || {
             build_runtime_storage_plan_with_workers(
                 runtime_storage_context,
-                runtime_storage_inputs,
                 runtime_storage_workers,
             )
         });

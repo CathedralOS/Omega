@@ -4,48 +4,38 @@ mod layout;
 mod model;
 
 pub use context::RuntimeStorageContext;
-pub use model::{
-    RuntimeFrameSlot, RuntimeFrameSlotKind, RuntimeStorageBodyInput, RuntimeStoragePlan,
-    RuntimeStorageWrite,
-};
+pub use model::{RuntimeFrameSlot, RuntimeFrameSlotKind, RuntimeStoragePlan, RuntimeStorageWrite};
 
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use std::sync::Arc;
 
 use body::build_runtime_storage_body_plan;
 
-pub fn build_runtime_storage_plan(
-    context: RuntimeStorageContext,
-    runtime_bodies: &RuntimeDispatchBodyPlan,
-) -> RuntimeStoragePlan {
+pub fn build_runtime_storage_plan(context: RuntimeStorageContext) -> RuntimeStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
 
-    build_runtime_storage_plan_with_workers(
-        Arc::new(context),
-        runtime_storage_body_inputs(runtime_bodies),
-        workers.handle(),
-    )
+    build_runtime_storage_plan_with_workers(Arc::new(context), workers.handle())
 }
 
 pub fn build_runtime_storage_plan_with_workers(
     context: Arc<RuntimeStorageContext>,
-    body_inputs: Vec<RuntimeStorageBodyInput>,
     workers: WorkerPoolHandle,
 ) -> RuntimeStoragePlan {
-    if body_inputs.is_empty() {
+    if context.runtime_bodies.bodies.is_empty() {
         return RuntimeStoragePlan::default();
     }
 
-    let body_inputs = Arc::new(body_inputs);
-    let body_count = body_inputs.len();
+    let body_count = context.runtime_bodies.bodies.len();
     let context_for_bodies = Arc::clone(&context);
     let body_plans = workers.map_ordered(body_count, move |index| {
-        let body_input = body_inputs
+        let body = context_for_bodies
+            .runtime_bodies
+            .bodies
+            .storage_slice()
             .get(index)
             .expect("runtime-storage worker index should be in range");
 
-        build_runtime_storage_body_plan(&context_for_bodies, body_input)
+        build_runtime_storage_body_plan(&context_for_bodies, body)
     });
 
     let mut plan = RuntimeStoragePlan::default();
@@ -71,16 +61,6 @@ pub fn build_runtime_storage_plan_with_workers(
     }
 
     plan
-}
-
-pub fn runtime_storage_body_inputs(
-    runtime_bodies: &RuntimeDispatchBodyPlan,
-) -> Vec<RuntimeStorageBodyInput> {
-    runtime_bodies
-        .bodies
-        .iter()
-        .map(|(body, _)| RuntimeStorageBodyInput { body })
-        .collect()
 }
 
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {

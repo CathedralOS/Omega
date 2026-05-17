@@ -1,4 +1,4 @@
-use super::{RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, RuntimeStoragePlan};
+use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::TypeReferenceHandle;
@@ -13,10 +13,9 @@ use super::layout::{align_to, layout_for_type, layout_for_type_reference};
 
 pub(super) fn build_runtime_storage_body_plan(
     context: &RuntimeStorageContext,
-    body_input: &RuntimeStorageBodyInput,
+    body: &RuntimeDispatchBody,
 ) -> RuntimeStoragePlan {
     let mut plan = RuntimeStoragePlan::default();
-    let body = context.runtime_bodies.bodies.get(body_input.body);
     let mut next_frame_offset = 0usize;
     append_parameter_slots(context, body, &mut plan, &mut next_frame_offset);
     let Some(operations) = context
