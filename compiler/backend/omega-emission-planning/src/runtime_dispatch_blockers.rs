@@ -197,7 +197,7 @@ fn decomposed_guard_can_emit(
     source_dispatch_index: u32,
     edge: &RuntimeDispatchLoopEdge,
 ) -> bool {
-    let Some(clauses) = lower_guard_conjunction(
+    let clauses = lower_guard_conjunction(
         input.state_guards,
         input.layouts,
         input.runtime_storage,
@@ -206,9 +206,7 @@ fn decomposed_guard_can_emit(
         source_key.machine,
         source_dispatch_index,
         edge.order,
-    ) else {
-        return false;
-    };
+    );
 
     !clauses.is_empty()
         && clauses.iter().all(|clause| match clause.lowering {
