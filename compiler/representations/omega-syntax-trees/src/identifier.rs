@@ -1,5 +1,6 @@
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use omega_core::source::SourceSpan;
 
@@ -13,20 +14,20 @@ pub struct Identifier {
 enum IdentifierText {
     #[default]
     Missing,
-    Owned(String),
+    Shared(Arc<str>),
 }
 
 impl Identifier {
     pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
-            text: IdentifierText::Owned(text.into()),
+            text: IdentifierText::Shared(Arc::from(text.into().into_boxed_str())),
             source_span,
         }
     }
 
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
-            text: IdentifierText::Owned(text.into()),
+            text: IdentifierText::Shared(Arc::from(text.into().into_boxed_str())),
             source_span: SourceSpan::default(),
         }
     }
@@ -34,7 +35,7 @@ impl Identifier {
     pub fn as_str(&self) -> &str {
         match &self.text {
             IdentifierText::Missing => "",
-            IdentifierText::Owned(text) => text.as_str(),
+            IdentifierText::Shared(text) => text.as_ref(),
         }
     }
 
