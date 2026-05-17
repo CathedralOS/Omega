@@ -75,8 +75,8 @@ fn runtime_text_read_source(
         input,
         HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
     )? {
-        HostBindingMechanism::Import { symbol, .. } => Some(RuntimeTextReadSource::Import {
-            symbol: symbol.clone(),
+        HostBindingMechanism::Import { .. } => Some(RuntimeTextReadSource::Import {
+            operation_key: HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
         }),
         HostBindingMechanism::Syscall {
             number,

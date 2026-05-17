@@ -489,7 +489,7 @@ fn selected_instruction_name(
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
-                runtime_text_read_source_name(source)
+                runtime_text_read_source_name(backend_plan, source)
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {
@@ -570,10 +570,23 @@ fn selected_instruction_name(
 }
 
 fn runtime_text_read_source_name(
+    backend_plan: &BackendReportInput<'_>,
     source: &omega_target_operations::RuntimeTextReadSource,
 ) -> String {
     match source {
-        omega_target_operations::RuntimeTextReadSource::Import { symbol } => {
+        omega_target_operations::RuntimeTextReadSource::Import { operation_key } => {
+            let symbol = backend_plan
+                .host_abi
+                .bindings
+                .iter()
+                .find(|(_, binding)| binding.operation_key == *operation_key)
+                .and_then(|(_, binding)| match &binding.mechanism {
+                    omega_calling_conventions::HostBindingMechanism::Import { symbol, .. } => {
+                        Some(symbol.as_ref())
+                    }
+                    omega_calling_conventions::HostBindingMechanism::Syscall { .. } => None,
+                })
+                .unwrap_or("unknown");
             format!("import {symbol}")
         }
         omega_target_operations::RuntimeTextReadSource::Syscall {
