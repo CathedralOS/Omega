@@ -15,6 +15,7 @@ use omega_checked_trees::expression::{
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
+use places::expression_place_eq_across_tables;
 use slots::build_runtime_text_slots;
 
 const DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY: usize = 256;
@@ -37,7 +38,7 @@ pub fn build_runtime_text_plan(
 
 fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
     for (_, mutation) in state_storage.mutations.iter() {
-        if !is_text_place(&state_storage.expressions, mutation.target)
+        if !is_known_runtime_text_place(plan, &state_storage.expressions, mutation.target)
             && !is_obvious_runtime_text_value(&state_storage.expressions, mutation.value)
         {
             continue;
@@ -57,6 +58,22 @@ fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut Runt
             value,
         });
     }
+}
+
+fn is_known_runtime_text_place(
+    plan: &RuntimeTextPlan,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    plan.buffers.iter().any(|(_, buffer)| {
+        buffer.text_place.is_valid()
+            && expression_place_eq_across_tables(
+                &plan.expressions,
+                buffer.text_place,
+                expressions,
+                expression,
+            )
+    })
 }
 
 fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
@@ -215,25 +232,6 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
         | ExpressionNode::Member(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::StructLiteral(_) => false,
-    }
-}
-
-fn is_text_place(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
-    match table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            if member.member.as_str() == "text" {
-                return true;
-            }
-
-            is_text_place(table, member.receiver)
-        }
-        ExpressionNode::Name(path) => table
-            .name_path_members(path.members)
-            .last()
-            .is_some_and(|segment| segment.as_str() == "text"),
-        ExpressionNode::Indexed(indexed) => is_text_place(table, indexed.collection),
-        ExpressionNode::Mutable(expression) => is_text_place(table, *expression),
-        _ => false,
     }
 }
 
