@@ -1,4 +1,4 @@
-# Chapter 9: Proof Obligations
+# Chapter 10: Proof Obligations
 
 Typed states and bounded values imply compiler-generated obligations.
 

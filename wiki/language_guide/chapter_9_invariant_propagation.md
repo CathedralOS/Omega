@@ -1,4 +1,4 @@
-# Chapter 8: Invariant Propagation
+# Chapter 9: Invariant Propagation
 
 Omega should be able to weaken an invariant temporarily, then prove that each transition either restores the invariant or transfers a narrower proof obligation to the next state.
 

@@ -1,4 +1,4 @@
-# Chapter 7: Relax Scopes
+# Chapter 8: Relax Scopes
 
 Some transformations temporarily violate invariants but restore them before the value escapes.
 
