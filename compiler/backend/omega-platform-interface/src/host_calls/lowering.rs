@@ -153,7 +153,8 @@ fn lowering_matches(
     platform_name: &str,
     state_name: &str,
 ) -> bool {
-    (lowering.platform == "*" || lowering.platform == platform_name) && lowering.state == state_name
+    (lowering.platform.as_ref() == "*" || lowering.platform.as_ref() == platform_name)
+        && lowering.state.as_ref() == state_name
 }
 
 fn lower_host_call_argument(

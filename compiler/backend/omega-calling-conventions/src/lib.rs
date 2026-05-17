@@ -4,6 +4,7 @@ mod windows;
 
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::{NativeTarget, ObjectFormat};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct HostOperationKey {
@@ -120,7 +121,7 @@ pub struct HostAbiPlan {
 pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
-    pub trust_policy: String,
+    pub trust_policy: Arc<str>,
 }
 
 impl Default for HostBinding {
@@ -128,10 +129,10 @@ impl Default for HostBinding {
         Self {
             operation_key: HostOperationKey::default(),
             mechanism: HostBindingMechanism::Import {
-                library: String::new(),
-                symbol: String::new(),
+                library: Arc::from(""),
+                symbol: Arc::from(""),
             },
-            trust_policy: String::new(),
+            trust_policy: Arc::from(""),
         }
     }
 }
@@ -139,11 +140,11 @@ impl Default for HostBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostBindingMechanism {
     Import {
-        library: String,
-        symbol: String,
+        library: Arc<str>,
+        symbol: Arc<str>,
     },
     Syscall {
-        name: String,
+        name: Arc<str>,
         number: u32,
         number_register: u8,
         supervisor_call: u16,
@@ -152,8 +153,8 @@ pub enum HostBindingMechanism {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlatformCallLowering {
-    pub platform: String,
-    pub state: String,
+    pub platform: Arc<str>,
+    pub state: Arc<str>,
     pub operations: HandleSpan<HostOperationReference>,
     pub data: PlatformCallData,
 }
@@ -161,8 +162,8 @@ pub struct PlatformCallLowering {
 impl Default for PlatformCallLowering {
     fn default() -> Self {
         Self {
-            platform: String::new(),
-            state: String::new(),
+            platform: Arc::from(""),
+            state: Arc::from(""),
             operations: HandleSpan::empty(),
             data: PlatformCallData::None,
         }
@@ -220,8 +221,8 @@ fn insert_platform_lowering<const COUNT: usize>(
 ) {
     let operations = plan.host_operations.insert_many(operations);
     plan.platform_call_lowerings.insert(PlatformCallLowering {
-        platform: platform.to_owned(),
-        state: state.to_owned(),
+        platform: Arc::from(platform),
+        state: Arc::from(state),
         operations,
         data,
     });

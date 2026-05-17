@@ -117,7 +117,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
         .insert_many(input.host_abi.bindings.iter().filter_map(|(_, binding)| {
             match &binding.mechanism {
                 HostBindingMechanism::Import { symbol, .. } => Some(SymbolPlan {
-                    name: symbol.clone(),
+                    name: symbol.to_string(),
                     section: None,
                     offset: 0,
                     size: 0,

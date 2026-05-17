@@ -263,7 +263,7 @@ pub enum MachineInstructionKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineRuntimeTextReadSource {
     Import {
-        symbol: String,
+        symbol: Arc<str>,
     },
     Syscall {
         number: u32,
