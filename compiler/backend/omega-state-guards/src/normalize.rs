@@ -1,16 +1,12 @@
 use omega_checked_trees::expression::{
-    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionTable,
+    BinaryExpression, BinaryOperator, Expression,
 };
 use std::sync::Arc;
 
 pub(super) fn normalize_guard_expression(
-    table: &ExpressionTable,
-    simplified_guard: Option<&Expression>,
-    guard: ExpressionHandle,
+    simplified_guard: Option<Expression>,
 ) -> Option<Expression> {
-    let guard = simplified_guard
-        .cloned()
-        .or_else(|| guard.is_valid().then(|| table.to_tree(guard)))?;
+    let guard = simplified_guard?;
     Some(normalize_top_level_guard_expression(guard))
 }
 

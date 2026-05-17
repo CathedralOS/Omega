@@ -9,10 +9,9 @@ pub use model::{
 use normalize::normalize_guard_expression;
 use omega_checked_trees::Program;
 use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
@@ -80,33 +79,6 @@ pub fn build_state_guard_plan(
     plan
 }
 
-pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
-    match guard {
-        TransitionGuard::Always => StateGuardKind::Always,
-        TransitionGuard::When(expression) => match expression {
-            Expression::Boolean(true) => StateGuardKind::Always,
-            Expression::Binary(binary) => match binary.operator {
-                BinaryOperator::Equal => StateGuardKind::RuntimeEquality,
-                BinaryOperator::NotEqual => StateGuardKind::RuntimeInequality,
-                BinaryOperator::Greater
-                | BinaryOperator::GreaterOrEqual
-                | BinaryOperator::Less
-                | BinaryOperator::LessOrEqual => StateGuardKind::RuntimeOrdering,
-                BinaryOperator::Add
-                | BinaryOperator::And
-                | BinaryOperator::Divide
-                | BinaryOperator::Modulo
-                | BinaryOperator::Multiply
-                | BinaryOperator::Or
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::Subtract => StateGuardKind::RuntimeExpression,
-            },
-            _ => StateGuardKind::RuntimeExpression,
-        },
-    }
-}
-
 pub fn classify_transition_guard_expression(
     table: &ExpressionTable,
     guard: ExpressionHandle,
@@ -162,9 +134,8 @@ fn build_state_guard(
         )
     });
     let mut normalized_expressions = ExpressionTable::new();
-    let normalized_guard =
-        normalize_guard_expression(source_expressions, simplified_guard.as_ref(), source_guard)
-            .map(|guard| normalized_expressions.insert_tree(&guard));
+    let normalized_guard = normalize_guard_expression(simplified_guard)
+        .map(|guard| normalized_expressions.insert_tree(&guard));
     let normalized_guard = normalized_guard.unwrap_or_else(ExpressionHandle::invalid);
     let kind = classify_transition_guard_expression(&normalized_expressions, normalized_guard);
     let operator = normalized_guard
