@@ -93,7 +93,7 @@ pub(super) fn append_leaf_branch_expansions(
                     leaf_operations(context, expressions, leaf_operations_arena, *leaf_key);
                 (*leaf_key, bindings, operations)
             }
-            RuntimeTransitionTarget::Terminal if edge.target_value.is_some() => (
+            RuntimeTransitionTarget::Terminal if edge.target_value.is_valid() => (
                 StateKey::default(),
                 leaf_bindings.insert_many(branch_bindings.iter().map(|binding| {
                     RuntimeLeafBranchBinding {
