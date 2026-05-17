@@ -72,7 +72,7 @@ Important runtime rule:
 
 This keeps invariants as part of the compiler's reasoning system. They describe what must be true, not an object header or dynamic type tag.
 
-## Slices And Proof-Carrying Indices
+## Slices And Invariant Parameters
 
 Owning growable containers and stable indexed views should be distinct.
 
@@ -91,16 +91,20 @@ fn find_item(inventory: &Inventory, kind: ItemKind) -> Option<usize> {
 }
 
 fn find_item_at(
-    items: &[InventoryItem],
+    items: &[InventoryItem, [non_empty]],
     kind: ItemKind,
-    index: IndexOf<items>,
+    base_index: usize,
 ) -> Option<usize> {
-    let found: bool = items[index].kind == kind;
-    let next_index: usize = index + 1;
+    let found: bool = items[0].kind == kind;
+    let rest: &[InventoryItem] = items[1..];
+    let next_index: usize = base_index + 1;
 
     match found {
-        true -> index
-        false -> find_item_after(items, kind, next_index)
+        true -> Some(base_index)
+        false -> match rest.len > 0 {
+            true -> find_item_at(rest, kind, next_index)
+            false -> None
+        }
     }
 }
 ```
@@ -108,28 +112,36 @@ fn find_item_at(
 Working interpretation:
 
 - `Vec<T>` owns growable storage.
-- `&[T]` is borrowed slice-view syntax, intentionally close to Rust.
+- Fields inside `data` are owned by default. Omega does not need an `owned`
+  keyword for ordinary stored fields.
+- `&[T]` is built-in borrowed slice-view syntax, intentionally close to Rust.
+- `&mut [T]` is the corresponding built-in unique mutable slice-view syntax.
 - `Vec<T>.as_slice()` creates a stable immutable view for the borrow lifetime.
 - `Vec<T>.as_mut_slice()` creates a stable mutable view for the borrow lifetime.
-- `IndexOf<items>` is a proof-carrying index tied to that exact slice view.
-- `items[index]` is a proof-requiring operator. The compiler must prove that
-  `index` is valid for `items`.
-- Literal or computed integers may be coerced into `IndexOf<items>` only when
-  the current proof context establishes they are valid for that view.
+- Slice views expose proof-visible facts such as `len`.
+- Slice views may carry type-scoped invariant parameters, such as
+  `&[T, [non_empty]]`.
+- `items[index]` is a proof-requiring operator. The compiler must prove
+  `index < items.len` from the current facts.
+- `items[0]` is valid for `&[T, [non_empty]]` because that invariant means
+  `items.len > 0` for slice views.
+- Slice ranges such as `items[1..]` create new slice views with updated bounds.
 - Slice indexing should not silently add hidden runtime bounds checks as the
   language model. Debug or proof-instrumented builds may add checks as
   instrumentation.
 
-This avoids putting arbitrary member paths or function calls inside invariant
-parameters. A function call such as `items.len()` should not appear inside a
-type-level invariant. A stable field on a proof-bearing view, such as
-`items.len`, may be read as ordinary data, while validity of an index is
-represented by `IndexOf<items>`.
+Invariant names are resolved in the namespace of the type being instantiated.
+For slice views, `non_empty` means the slice-specific fact `len > 0`. Another
+type may export a different invariant with the same name if that name is scoped
+to that type.
 
-`Vec<T>` belongs in the allocation/runtime layer, while slice views and
-proof-carrying indices are core language concepts. Mutation through `Vec<T>`
-may invalidate existing slice views; the borrow system must enforce that an
-active `&[T]` view cannot be invalidated by a conflicting mutable operation.
+`Vec<T>` belongs in the allocation/runtime layer, while slice views are core
+borrowed language concepts. The public language model does not need to expose a
+raw pointer field for `Vec<T>`; a vector owns storage, length, and capacity, and
+its methods manufacture borrowed slice views with proof-visible guarantees.
+Mutation through `Vec<T>` may invalidate existing slice views; the borrow system
+must enforce that an active `&[T]` view cannot be invalidated by a conflicting
+mutable operation.
 
 ## Invariant Aliases
 

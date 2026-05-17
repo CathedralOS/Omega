@@ -95,7 +95,7 @@ duplicating normal type facts in ad-hoc `requires` clauses.
 &[u8, [non_empty, initialized]]
 &mut [u8, [writable, initialized]]
 HANDLE<[process, vm_read]>
-RemotePtr<const u8, [readable_by<process>]>
+RemoteBuffer<const u8, [readable_by<process>]>
 ```
 
 The invariant names are resolved in the namespace of the type being
@@ -105,22 +105,24 @@ have to mean the same thing.
 A type can define which invariant parameters it accepts:
 
 ```omega
-machine Slice<T, I>
-    where I subset {non_empty, initialized, writable}
-{
-    ptr: Ptr<T>;
-    len: usize;
+builtin slice &[T, I]
+    where I subset {non_empty, initialized}
+    exposes len: usize
+    invariant non_empty = len > 0
+    invariant initialized = elements.initialized
 
-    invariant non_empty = len > 0;
-    invariant initialized = ptr.initialized<len>;
-    invariant writable = ptr.writable<len>;
-}
+builtin slice &mut [T, I]
+    where I subset {non_empty, initialized, writable}
+    exposes len: usize
+    invariant non_empty = len > 0
+    invariant initialized = elements.initialized
+    invariant writable = elements.writable
 ```
 
-Surface syntax such as `&[T]` and `&mut [T]` is shorthand for borrowed
-proof-bearing slice views. The underlying core type can still be modeled as
-`Slice<T, I>`; users should not need to spell that internal form for ordinary
-borrowed contiguous data.
+The exact declaration syntax is provisional. The important point is that
+`&[T]` and `&mut [T]` are built-in borrowed slice-view types, not user-defined
+machines. They expose proof-visible facts such as `len`, and they define the
+invariant names that callers may attach to that slice view.
 
 This sketch needs more design work, but the direction is important:
 
@@ -129,13 +131,12 @@ This sketch needs more design work, but the direction is important:
 - The type implementation maps public invariant names to private facts.
 - Callers should not need to know private field layout to state proof
   requirements.
+- Safe Omega source does not expose raw pointer fields for ordinary slices or
+  vectors. Address-level representation belongs to compiler/runtime lowering
+  and explicit trusted boundary modeling, not the normal surface language.
 
-Short forms can come from overloads or aliases rather than magical defaults:
-
-```omega
-machine Slice<T> = Slice<T, []>;
-machine InitializedSlice<T> = Slice<T, [initialized]>;
-```
+Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
+extra invariant parameters.
 
 ## Trust
 
