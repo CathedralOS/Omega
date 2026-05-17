@@ -41,6 +41,7 @@ struct LayoutBuilder<'program> {
     platform_definitions: &'program [Platform],
     program: &'program Program,
     target: NativeTarget,
+    variants: Arena<VariantLayout>,
 }
 
 impl<'program> LayoutBuilder<'program> {
@@ -56,6 +57,7 @@ impl<'program> LayoutBuilder<'program> {
             platform_definitions: program.platforms(),
             program,
             target,
+            variants: Arena::new(),
         }
     }
 
@@ -64,6 +66,7 @@ impl<'program> LayoutBuilder<'program> {
             data_layouts: self.data_layouts,
             fields: self.fields,
             machine_layouts: self.machine_layouts,
+            variants: self.variants,
         }
     }
 
@@ -131,16 +134,15 @@ impl<'program> LayoutBuilder<'program> {
     ) -> Result<DataLayout, Diagnostic> {
         let members = self.program.data_members(definition);
         if DataDefinition::shape_kind_from_members(members) == DataShapeKind::Enum {
-            let variants = members
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Variant(variant) => Some(VariantLayout {
-                        symbol: variant.symbol,
-                        name: variant.name.clone(),
-                    }),
-                    DataMember::Field(_) => None,
-                })
-                .collect();
+            let variants =
+                self.variants
+                    .insert_many(members.iter().filter_map(|member| match member {
+                        DataMember::Variant(variant) => Some(VariantLayout {
+                            symbol: variant.symbol,
+                            name: variant.name.clone(),
+                        }),
+                        DataMember::Field(_) => None,
+                    }));
 
             return Ok(DataLayout {
                 symbol: definition.symbol,
