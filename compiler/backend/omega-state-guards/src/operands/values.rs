@@ -29,7 +29,9 @@ pub(super) fn resolved_guard_operand_value(
         .iter()
         .find(|(_, data_layout)| data_layout.symbol == type_symbol)
         .and_then(|(_, data_layout)| match &data_layout.shape {
-            DataShape::Enum { variants } => variants
+            DataShape::Enum { variants } => layouts
+                .variants
+                .span_or_empty(*variants)
                 .iter()
                 .position(|candidate| candidate.symbol == variant_symbol)
                 .and_then(|index| i64::try_from(index).ok()),

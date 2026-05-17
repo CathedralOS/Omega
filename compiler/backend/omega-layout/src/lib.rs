@@ -63,7 +63,7 @@ impl Default for VariantLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataShape {
-    Enum { variants: Vec<VariantLayout> },
+    Enum { variants: HandleSpan<VariantLayout> },
     Record { fields: HandleSpan<FieldLayout> },
 }
 
@@ -118,4 +118,5 @@ pub struct LayoutPlan {
     pub data_layouts: Arena<DataLayout>,
     pub fields: Arena<FieldLayout>,
     pub machine_layouts: Arena<MachineLayout>,
+    pub variants: Arena<VariantLayout>,
 }

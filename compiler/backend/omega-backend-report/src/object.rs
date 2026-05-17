@@ -19,6 +19,10 @@ pub(super) fn write_layout_object_sections(
         "fields: {}\n\n",
         backend_plan.layouts.fields.len()
     ));
+    output.push_str(&format!(
+        "variants: {}\n\n",
+        backend_plan.layouts.variants.len()
+    ));
 
     for (_, data_layout) in backend_plan.layouts.data_layouts.iter() {
         output.push_str(&format!(
@@ -28,7 +32,10 @@ pub(super) fn write_layout_object_sections(
 
         match &data_layout.shape {
             DataShape::Enum { variants } => {
-                let variants = variants
+                let variants = backend_plan
+                    .layouts
+                    .variants
+                    .span_or_empty(*variants)
                     .iter()
                     .map(|variant| variant.name.to_string())
                     .collect::<Vec<_>>()

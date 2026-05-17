@@ -24,7 +24,9 @@ pub(in crate::selection) fn enum_variant_value(
     let DataShape::Enum { variants } = &data_layout.shape else {
         return None;
     };
-    variants
+    layouts
+        .variants
+        .span_or_empty(*variants)
         .iter()
         .position(|variant| variant.symbol == variant_symbol)
         .and_then(|index| i64::try_from(index).ok())
