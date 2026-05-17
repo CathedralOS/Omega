@@ -24,7 +24,7 @@ use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_runtime_text::RuntimeTextPlan;
 use omega_state_calls::{AliasFlowPlan, StateCallPlan};
-use omega_state_dispatch::StateDispatchPlan;
+use omega_state_dispatch::{StateDispatchPlan, state_dispatch_label};
 use omega_state_graph::RuntimeFlowPlan;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::StateGuardPlan;
@@ -596,7 +596,10 @@ pub fn backend_report_text(
                 .unwrap_or("<unknown>");
             output.push_str(&format!(
                 "- #{} {}.{} label `{}`\n",
-                state.dispatch_index, machine_name, state_name, state.label
+                state.dispatch_index,
+                machine_name,
+                state_name,
+                state_dispatch_label(state.key)
             ));
 
             match backend_plan.state_dispatch.edges.span(state.edges) {
@@ -731,14 +734,6 @@ pub fn backend_report_text(
         backend_plan.runtime_dispatch_loop.terminal_dispatch_index
     ));
     output.push_str(&format!(
-        "current state slot: `{}`\n",
-        backend_plan.runtime_dispatch_loop.current_state_slot
-    ));
-    output.push_str(&format!(
-        "next state slot: `{}`\n",
-        backend_plan.runtime_dispatch_loop.next_state_slot
-    ));
-    output.push_str(&format!(
         "cases: {}\n",
         backend_plan.runtime_dispatch_loop.cases.len()
     ));
@@ -765,7 +760,7 @@ pub fn backend_report_text(
                 dispatch_case.dispatch_index,
                 machine_name,
                 state_name,
-                dispatch_case.label,
+                state_dispatch_label(dispatch_case.key),
                 dispatch_case.operation_count
             ));
 

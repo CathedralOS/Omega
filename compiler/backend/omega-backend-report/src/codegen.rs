@@ -3,9 +3,10 @@ use super::backend_state_name;
 use crate::BackendReportInput;
 use omega_machine_program::{MachineFunction, MachineInstruction};
 use omega_object::storage_region_symbol_name;
+use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
-    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
-    RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObject,
+    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle,
+    SelectedInstruction, SelectedInstructionKind, TargetDataObject,
 };
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -134,21 +135,17 @@ fn selected_instruction_name(
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             terminal_dispatch_index,
-        } => {
-            let current_state_slot = &backend_plan.runtime_dispatch_loop.current_state_slot;
-            let next_state_slot = &backend_plan.runtime_dispatch_loop.next_state_slot;
-            format!(
-                "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index} current `{current_state_slot}` next `{next_state_slot}`"
-            )
-        }
+        } => format!(
+            "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index}"
+        ),
         SelectedInstructionKind::EnterDispatchCase { dispatch_index } => {
             let label = backend_plan
                 .runtime_dispatch_loop
                 .cases
                 .iter()
                 .find(|(_, dispatch_case)| dispatch_case.dispatch_index == *dispatch_index)
-                .map(|(_, dispatch_case)| dispatch_case.label.as_ref())
-                .unwrap_or("unknown");
+                .map(|(_, dispatch_case)| state_dispatch_label(dispatch_case.key))
+                .unwrap_or_else(|| "unknown".to_owned());
             format!("enter dispatch case #{dispatch_index} `{label}`")
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
@@ -591,7 +588,11 @@ fn runtime_value_operand_name(
     backend_plan: &BackendReportInput<'_>,
     operand: RuntimeValueOperandHandle,
 ) -> String {
-    match backend_plan.instructions.runtime_value_operands.get(operand) {
+    match backend_plan
+        .instructions
+        .runtime_value_operands
+        .get(operand)
+    {
         omega_target_operations::RuntimeValueOperand::Immediate(value) => value.to_string(),
         omega_target_operations::RuntimeValueOperand::Storage {
             region,

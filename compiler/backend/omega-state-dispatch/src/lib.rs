@@ -52,7 +52,6 @@ pub fn build_state_dispatch_plan_with_workers(
         plan.states.insert(DispatchState {
             key: dispatch_state.key,
             dispatch_index: dispatch_state.dispatch_index,
-            label: dispatch_state.label,
             edges,
         });
     }
@@ -64,7 +63,6 @@ pub fn build_state_dispatch_plan_with_workers(
 struct CollectedDispatchState {
     key: StateKey,
     dispatch_index: u32,
-    label: Arc<str>,
     edges: Arena<DispatchEdge>,
 }
 
@@ -96,17 +94,16 @@ fn build_dispatch_state(
     CollectedDispatchState {
         key: dispatch_target.key,
         dispatch_index: dispatch_target.dispatch_index,
-        label: dispatch_label(dispatch_target.key),
         edges,
     }
 }
 
-fn dispatch_label(key: StateKey) -> Arc<str> {
-    Arc::from(format!(
+pub fn state_dispatch_label(key: StateKey) -> String {
+    format!(
         "omega_state_symbol{}_symbol{}",
         key.machine.arena_index(),
         key.state.arena_index()
-    ))
+    )
 }
 
 fn append_terminal_continuation_edges(

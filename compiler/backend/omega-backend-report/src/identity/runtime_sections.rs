@@ -18,9 +18,6 @@ pub(in crate::identity) fn count_state_dispatch_strings(
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    for (_, state) in backend_plan.state_dispatch.states.iter() {
-        storage.count_generated_symbol(&state.label);
-    }
     for (_, edge) in backend_plan.state_dispatch.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
@@ -85,11 +82,6 @@ pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    storage.count_generated_symbol(&backend_plan.runtime_dispatch_loop.current_state_slot);
-    storage.count_generated_symbol(&backend_plan.runtime_dispatch_loop.next_state_slot);
-    for (_, dispatch_case) in backend_plan.runtime_dispatch_loop.cases.iter() {
-        storage.count_generated_symbol(&dispatch_case.label);
-    }
     for (_, edge) in backend_plan.runtime_dispatch_loop.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
