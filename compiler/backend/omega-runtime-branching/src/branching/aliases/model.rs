@@ -1,7 +1,7 @@
-use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::name::ProgramName;
+use omega_control_flow::StateKey;
+use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct RuntimeBranchAlias {

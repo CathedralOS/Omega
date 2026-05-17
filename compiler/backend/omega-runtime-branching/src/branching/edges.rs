@@ -2,9 +2,9 @@ use crate::RuntimeBranchingContext;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_state_calls::StateCallRole;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard;
-use omega_state_calls::StateCallRole;
 
 use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
@@ -63,14 +63,11 @@ pub(super) fn build_branch_edges(
                 expressions,
                 target_arguments,
             ),
-            target_value: transition
-                .expressions
-                .target_value
-                .map(|value| {
-                    let copied = expressions.copy_from(&context.control_flow.expressions, value);
-                    target_values.append(copied);
-                    copied
-                }),
+            target_value: transition.expressions.target_value.map(|value| {
+                let copied = expressions.copy_from(&context.control_flow.expressions, value);
+                target_values.append(copied);
+                copied
+            }),
             guard_kind: classify_transition_guard(&guard),
             guard,
         });

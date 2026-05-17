@@ -5,8 +5,8 @@ use omega_core::arena::{Arena, HandleSpan};
 
 use super::lookups::{host_call_for_statement, mutation_for_statement, state_call_for_operation};
 use super::{
-    RuntimeBranchPreludeOperation, RuntimeBranchPreludeOperationKind,
-    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
+    RuntimeBranchPreludeOperation, RuntimeBranchPreludeOperationKind, RuntimeLeafBranchOperation,
+    RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
 

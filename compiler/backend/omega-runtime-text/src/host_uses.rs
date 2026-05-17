@@ -1,6 +1,7 @@
 use omega_calling_conventions::PlatformCallData;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
 use omega_core::arena::HandleSpan;
+use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
@@ -140,12 +141,29 @@ fn output_buffer_target_for_text_expression(
             }
 
             let mut members = HandleSpan::empty();
+            let mut member_symbols = HandleSpan::empty();
+            let source_member_symbols = host_calls
+                .expressions
+                .name_path_member_symbols(path.member_symbols);
             for member in source_members.iter().take(source_members.len() - 1) {
                 plan.expressions
                     .push_name_path_member(&mut members, member.clone());
             }
+            for (offset, _) in source_members
+                .iter()
+                .take(source_members.len() - 1)
+                .enumerate()
+            {
+                let member_symbol = source_member_symbols
+                    .get(offset)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid);
+                plan.expressions
+                    .push_name_path_member_symbol(&mut member_symbols, member_symbol);
+            }
             Some(plan.expressions.insert(ExpressionNode::Name(TableNamePath {
                 members,
+                member_symbols,
                 head_symbol: path.head_symbol,
                 symbol: path.head_symbol,
             })))

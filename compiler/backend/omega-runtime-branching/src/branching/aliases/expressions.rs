@@ -1,10 +1,10 @@
 use crate::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
-use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::expression::{
     BinaryExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableBinaryExpression, TableIndexedExpression, TableNamePath,
 };
+use omega_control_flow::StateKey;
+use omega_core::symbols::SymbolHandle;
 
 pub(crate) fn resolve_branch_expression(
     expression: &Expression,
@@ -59,7 +59,12 @@ pub(crate) fn resolve_branch_expression_handle(
             .iter()
             .find(|binding| branch_binding_matches_table_path(binding, &path))
             .map(|binding| {
-                expression_table.insert_copy_with_member_suffix(binding.expression, path.members, 1)
+                expression_table.insert_copy_with_member_suffix(
+                    binding.expression,
+                    path.members,
+                    path.member_symbols,
+                    1,
+                )
             })
             .unwrap_or(expression),
         ExpressionNode::Binary(binary) => {
@@ -123,7 +128,12 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
             .rev()
             .find(|alias| alias.source_key == source_key && alias_matches_table_path(alias, &path))
             .map(|alias| {
-                expression_table.insert_copy_with_member_suffix(alias.expression, path.members, 1)
+                expression_table.insert_copy_with_member_suffix(
+                    alias.expression,
+                    path.members,
+                    path.member_symbols,
+                    1,
+                )
             })
             .unwrap_or(expression),
         _ => expression,

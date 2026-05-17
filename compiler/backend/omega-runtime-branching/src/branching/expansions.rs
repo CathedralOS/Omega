@@ -12,9 +12,9 @@ use super::{
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
 };
 use crate::RuntimeBranchingContext;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
 

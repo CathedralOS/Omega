@@ -64,6 +64,7 @@ pub(in crate::selection) fn normalized_storage_name_path_in_table(
         ExpressionNode::Member(member) => member_expression_path_in_table(table, member),
         ExpressionNode::Name(path) => Some(StorageNamePath::borrowed(
             table.name_path_members(path.members),
+            table.name_path_member_symbols(path.member_symbols),
             path.head_symbol,
             path.symbol,
         )),
@@ -78,6 +79,7 @@ fn member_expression_path_in_table<'table>(
     let path = match table.expression(member.receiver) {
         ExpressionNode::Name(path) => StorageNamePath::borrowed(
             table.name_path_members(path.members),
+            table.name_path_member_symbols(path.member_symbols),
             path.head_symbol,
             path.symbol,
         ),
@@ -109,6 +111,7 @@ fn indexed_expression_path_in_table<'table>(
     let path = match table.expression(indexed.collection) {
         ExpressionNode::Name(path) => StorageNamePath::borrowed(
             table.name_path_members(path.members),
+            table.name_path_member_symbols(path.member_symbols),
             path.head_symbol,
             path.symbol,
         ),
@@ -128,6 +131,7 @@ fn indexed_expression_path_in_table<'table>(
 pub(in crate::selection) enum StorageNamePath<'table> {
     Borrowed {
         members: &'table [ProgramName],
+        member_symbols: &'table [SymbolHandle],
         head_symbol: SymbolHandle,
         final_symbol: SymbolHandle,
     },
@@ -142,11 +146,13 @@ pub(in crate::selection) enum StorageNamePath<'table> {
 impl<'table> StorageNamePath<'table> {
     fn borrowed(
         members: &'table [ProgramName],
+        member_symbols: &'table [SymbolHandle],
         head_symbol: SymbolHandle,
         final_symbol: SymbolHandle,
     ) -> Self {
         Self::Borrowed {
             members,
+            member_symbols,
             head_symbol,
             final_symbol,
         }
@@ -187,10 +193,11 @@ impl<'table> StorageNamePath<'table> {
         match self {
             Self::Borrowed {
                 members,
+                member_symbols,
                 head_symbol,
                 final_symbol,
                 ..
-            } => {
+            } => member_symbols.get(index).copied().unwrap_or_else(|| {
                 if index == 0 {
                     *head_symbol
                 } else if index + 1 == members.len() {
@@ -198,7 +205,7 @@ impl<'table> StorageNamePath<'table> {
                 } else {
                     SymbolHandle::invalid()
                 }
-            }
+            }),
             Self::Owned { member_symbols, .. } => member_symbols
                 .get(index)
                 .copied()
@@ -229,19 +236,28 @@ impl<'table> StorageNamePath<'table> {
         match self {
             Self::Borrowed {
                 members,
+                member_symbols,
                 head_symbol,
                 final_symbol,
             } => {
-                let mut member_symbols = vec![SymbolHandle::invalid(); members.len()];
-                if let Some(root_symbol) = member_symbols.first_mut() {
+                let mut owned_member_symbols = member_symbols.to_vec();
+                if owned_member_symbols.len() != members.len() {
+                    owned_member_symbols.resize(members.len(), SymbolHandle::invalid());
+                }
+                if let Some(root_symbol) = owned_member_symbols.first_mut() {
                     *root_symbol = head_symbol;
                 }
                 if members.len() > 1
-                    && let Some(last_symbol) = member_symbols.last_mut()
+                    && let Some(last_symbol) = owned_member_symbols.last_mut()
                 {
                     *last_symbol = final_symbol;
                 }
-                (members.to_vec(), member_symbols, head_symbol, final_symbol)
+                (
+                    members.to_vec(),
+                    owned_member_symbols,
+                    head_symbol,
+                    final_symbol,
+                )
             }
             Self::Owned {
                 members,
