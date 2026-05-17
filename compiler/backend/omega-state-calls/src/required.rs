@@ -118,8 +118,6 @@ fn runtime_transition_target(
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
-            receiver,
-            state,
             ..
         } => context
             .control_flow
@@ -146,9 +144,7 @@ fn runtime_transition_target(
                         key: target_state.key,
                     })
             })
-            .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
-                name: format!("{receiver}.{state}"),
-            }),
+            .unwrap_or(RuntimeTransitionTarget::Unknown),
         PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State { key: current_state }
         }

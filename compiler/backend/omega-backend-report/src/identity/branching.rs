@@ -3,7 +3,6 @@ use crate::identity::BackendStringStorage;
 use crate::identity::expressions::{
     count_control_flow_expression_strings, count_expression_span_strings,
 };
-use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_branching::{
     RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperationKind,
 };
@@ -13,8 +12,6 @@ pub(in crate::identity) fn count_runtime_branching_strings(
     storage: &mut BackendStringStorage,
 ) {
     for (_, edge) in backend_plan.runtime_branching_calls.edges.iter() {
-        count_runtime_target_strings(&edge.target, storage);
-        count_runtime_target_strings(&edge.continuation, storage);
         if edge.guard.is_valid() {
             count_control_flow_expression_strings(
                 &backend_plan.runtime_branching_calls.expressions,

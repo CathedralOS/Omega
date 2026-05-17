@@ -1,27 +1,18 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_control_flow_expression_strings;
-use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 
 pub(in crate::identity) fn count_runtime_flow_strings(
-    backend_plan: &BackendReportInput<'_>,
-    storage: &mut BackendStringStorage,
+    _backend_plan: &BackendReportInput<'_>,
+    _storage: &mut BackendStringStorage,
 ) {
-    for (_, edge) in backend_plan.runtime_flow.edges.iter() {
-        count_runtime_target_strings(&edge.target, storage);
-        count_runtime_target_strings(&edge.continuation, storage);
-    }
 }
 
 pub(in crate::identity) fn count_state_dispatch_strings(
-    backend_plan: &BackendReportInput<'_>,
-    storage: &mut BackendStringStorage,
+    _backend_plan: &BackendReportInput<'_>,
+    _storage: &mut BackendStringStorage,
 ) {
-    for (_, edge) in backend_plan.state_dispatch.edges.iter() {
-        count_runtime_target_strings(&edge.target, storage);
-        count_runtime_target_strings(&edge.continuation, storage);
-    }
 }
 
 pub(in crate::identity) fn count_runtime_body_strings(
@@ -59,8 +50,6 @@ pub(in crate::identity) fn count_state_guard_strings(
     storage: &mut BackendStringStorage,
 ) {
     for (_, guard) in backend_plan.state_guards.guards.iter() {
-        count_runtime_target_strings(&guard.target, storage);
-        count_runtime_target_strings(&guard.continuation, storage);
         if guard.has_expression {
             count_control_flow_expression_strings(
                 &backend_plan.state_guards.expressions,
@@ -83,8 +72,6 @@ pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
     storage: &mut BackendStringStorage,
 ) {
     for (_, edge) in backend_plan.runtime_dispatch_loop.edges.iter() {
-        count_runtime_target_strings(&edge.target, storage);
-        count_runtime_target_strings(&edge.continuation, storage);
         if edge.guard_has_expression {
             count_control_flow_expression_strings(
                 &backend_plan.state_guards.expressions,
