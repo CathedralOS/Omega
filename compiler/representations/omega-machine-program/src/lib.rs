@@ -55,32 +55,6 @@ impl Default for MachineInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MachineRuntimeValueOperand {
-    Immediate(i64),
-    Storage {
-        byte_offset: usize,
-        byte_size: usize,
-    },
-    Pointee {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameIndexed {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    Binary {
-        left: Box<MachineRuntimeValueOperand>,
-        operator: StateGuardOperator,
-        right: Box<MachineRuntimeValueOperand>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineInstructionKind {
     NoOp,
     DispatchLoopEnter {
@@ -186,17 +160,13 @@ pub enum MachineInstructionKind {
     RuntimeStorageBinaryWrite {
         target_offset: usize,
         byte_size: usize,
-        left: MachineRuntimeValueOperand,
         operator: StateGuardOperator,
-        right: MachineRuntimeValueOperand,
     },
     RuntimePointeeBinaryWrite {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
         byte_size: usize,
-        left: MachineRuntimeValueOperand,
         operator: StateGuardOperator,
-        right: MachineRuntimeValueOperand,
     },
     RuntimeFrameIndexedIntegerWrite {
         descriptor_offset: usize,
@@ -212,9 +182,7 @@ pub enum MachineInstructionKind {
         element_byte_size: usize,
         field_byte_offset: usize,
         byte_size: usize,
-        left: MachineRuntimeValueOperand,
         operator: StateGuardOperator,
-        right: MachineRuntimeValueOperand,
     },
     RuntimeMachineStringWrite {
         byte_offset: usize,
