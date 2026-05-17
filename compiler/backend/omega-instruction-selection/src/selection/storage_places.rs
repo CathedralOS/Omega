@@ -295,7 +295,7 @@ pub(super) fn resolve_runtime_frame_indexed_target(
         name: collection_slot.name.clone(),
         offset: 0,
         type_symbol: collection_slot.type_symbol,
-        type_name: element_type_name.to_owned(),
+        type_name: element_type_name.into(),
         layout: element_layout,
     };
     let (field_byte_offset, field_layout) =
@@ -349,7 +349,7 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
             name: slot.name.clone(),
             offset: 0,
             type_symbol: slot.type_symbol,
-            type_name: pointee_type_name.to_owned(),
+            type_name: pointee_type_name.into(),
             layout: pointee_layout,
         };
         resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
@@ -471,7 +471,7 @@ fn resolve_runtime_fixed_indexed_place(
         name: slot.name.clone(),
         offset: 0,
         type_symbol: slot.type_symbol,
-        type_name: element_type_name.to_owned(),
+        type_name: element_type_name.into(),
         layout: element_layout,
     };
     let (field_byte_offset, field_layout) =
@@ -511,7 +511,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         name: slot.name.clone(),
         offset: 0,
         type_symbol: slot.type_symbol,
-        type_name: element_type_name.to_owned(),
+        type_name: element_type_name.into(),
         layout: element_layout,
     };
     let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(

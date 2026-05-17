@@ -2,13 +2,14 @@ use crate::{FieldLayout, TypeLayout};
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub(super) struct PlannedField {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
-    pub type_name: String,
+    pub type_name: Arc<str>,
     pub layout: TypeLayout,
 }
 

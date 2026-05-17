@@ -40,7 +40,7 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
         Self {
             byte_offset: root_field.offset,
             type_symbol: root_field.type_symbol,
-            type_name: root_field.type_name.as_str(),
+            type_name: root_field.type_name.as_ref(),
             layout: root_field.layout,
         }
     }

@@ -169,7 +169,7 @@ fn selected_instruction_name(
             }
         }
         SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!("compare runtime text `{buffer_symbol}` with {literal:?}")
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
@@ -178,7 +178,7 @@ fn selected_instruction_name(
             source_offset,
             operator,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let source_symbol =
                 storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             format!(
@@ -226,7 +226,7 @@ fn selected_instruction_name(
             )
         }
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, literal } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!("write runtime text `{buffer_symbol}` = {literal:?}")
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
@@ -234,7 +234,7 @@ fn selected_instruction_name(
             byte_offset,
             literal,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!("write runtime text segment `{buffer_symbol}`@{byte_offset} = {literal:?}")
         }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
@@ -246,7 +246,7 @@ fn selected_instruction_name(
             target_offset,
             length_delta,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let source_symbol =
                 storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             let target_symbol =
@@ -260,7 +260,7 @@ fn selected_instruction_name(
             target_region,
             target_offset,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
@@ -272,7 +272,7 @@ fn selected_instruction_name(
             pointer_byte_offset,
             field_byte_offset,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!(
                 "materialize runtime text buffer `{buffer_symbol}` for runtime_frame@{pointer_byte_offset} +{field_byte_offset}"
             )
@@ -284,7 +284,7 @@ fn selected_instruction_name(
             element_byte_size,
             field_byte_offset,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!(
                 "materialize runtime text buffer `{buffer_symbol}` for runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset}"
             )
@@ -296,7 +296,7 @@ fn selected_instruction_name(
             target_region,
             target_offset,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let source_symbol =
                 storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             let target_symbol =
@@ -312,7 +312,7 @@ fn selected_instruction_name(
             pointer_byte_offset,
             field_byte_offset,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let source_symbol =
                 storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             format!(
@@ -328,7 +328,7 @@ fn selected_instruction_name(
             element_byte_size,
             field_byte_offset,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let source_symbol =
                 storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             format!(
@@ -341,7 +341,7 @@ fn selected_instruction_name(
             target_offset,
             literal,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
@@ -354,7 +354,7 @@ fn selected_instruction_name(
             field_byte_offset,
             literal,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!(
                 "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame@{pointer_byte_offset} +{field_byte_offset} += {literal:?}"
             )
@@ -367,7 +367,7 @@ fn selected_instruction_name(
             field_byte_offset,
             literal,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             format!(
                 "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset} += {literal:?}"
             )
@@ -464,7 +464,7 @@ fn selected_instruction_name(
             data,
             byte_length,
         } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_str();
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
             format!(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
             )
@@ -475,7 +475,7 @@ fn selected_instruction_name(
             data,
             byte_length,
         } => {
-            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_str();
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
             format!(
                 "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
             )
@@ -487,7 +487,7 @@ fn selected_instruction_name(
             byte_capacity,
             source,
         } => {
-            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
@@ -642,7 +642,7 @@ fn selected_instruction_operands_name(
         .iter()
         .map(|operand| match &operand.kind {
             InstructionOperandKind::DataAddress { data } => {
-                let symbol = backend_plan.data.objects.get(*data).symbol.as_str();
+                let symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
                 format!("addr {symbol}")
             }
             InstructionOperandKind::RuntimeStringPointer {
@@ -694,7 +694,7 @@ fn machine_function_symbol(
     _backend_plan: &BackendReportInput<'_>,
     function: &MachineFunction,
 ) -> String {
-    function.symbol.clone()
+    function.symbol.to_string()
 }
 
 fn write_machine_instruction(

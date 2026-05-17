@@ -1,6 +1,7 @@
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
 mod builder;
 mod packing;
@@ -29,7 +30,7 @@ pub struct FieldLayout {
     pub name: ProgramName,
     pub offset: usize,
     pub type_symbol: SymbolHandle,
-    pub type_name: String,
+    pub type_name: Arc<str>,
     pub layout: TypeLayout,
 }
 
@@ -40,7 +41,7 @@ impl Default for FieldLayout {
             name: ProgramName::default(),
             offset: 0,
             type_symbol: SymbolHandle::invalid(),
-            type_name: String::new(),
+            type_name: Arc::from(""),
             layout: TypeLayout::default(),
         }
     }

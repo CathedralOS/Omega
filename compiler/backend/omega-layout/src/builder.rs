@@ -169,7 +169,8 @@ impl<'program> LayoutBuilder<'program> {
                     type_symbol: self.program.type_reference_symbol(field.type_reference),
                     type_name: self
                         .program
-                        .display_type_reference_with_constraints(field.type_reference),
+                        .display_type_reference_with_constraints(field.type_reference)
+                        .into(),
                     layout,
                 })
             })
@@ -203,7 +204,8 @@ impl<'program> LayoutBuilder<'program> {
                     type_symbol: self.program.type_reference_symbol(field.type_reference),
                     type_name: self
                         .program
-                        .display_type_reference_with_constraints(field.type_reference),
+                        .display_type_reference_with_constraints(field.type_reference)
+                        .into(),
                     layout: self.layout_type_reference_handle(field.type_reference)?,
                 });
             }
@@ -218,7 +220,8 @@ impl<'program> LayoutBuilder<'program> {
                     .type_reference_symbol(owned_data.type_reference),
                 type_name: self
                     .program
-                    .display_type_reference_with_constraints(owned_data.type_reference),
+                    .display_type_reference_with_constraints(owned_data.type_reference)
+                    .into(),
                 layout: self.layout_type_reference_handle(owned_data.type_reference)?,
             });
         }
@@ -232,7 +235,7 @@ impl<'program> LayoutBuilder<'program> {
                     symbol: contained_object.symbol,
                     name: contained_object.name.clone(),
                     type_symbol: contained_object.type_symbol,
-                    type_name: contained_object.type_name.to_string(),
+                    type_name: contained_object.type_name.as_str().into(),
                     layout: self.layout_machine(contained_object.type_symbol)?,
                 });
             }
