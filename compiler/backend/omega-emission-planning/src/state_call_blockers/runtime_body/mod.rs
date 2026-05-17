@@ -46,19 +46,13 @@ pub(super) fn collect_runtime_body_state_call_blockers(
                 continue;
             };
 
-            let (source_machine, source_state) = state_names(input, operation.source_key);
-            let (target_machine, target_state) = state_names(input, *target_key);
             push_runtime_body_state_call_blocker(
                 &mut grouped_blockers,
                 RuntimeBodyStateCallBlocker {
                     dispatch_index: body.dispatch_index,
                     source_key: operation.source_key,
-                    source_machine,
-                    source_state,
                     first_statement_index: operation.statement_index,
                     target_key: *target_key,
-                    target_machine,
-                    target_state,
                     argument_count: *argument_count,
                     lowering: *lowering,
                     count: 1,
@@ -73,30 +67,20 @@ pub(super) fn collect_runtime_body_state_call_blockers(
         }
 
         let expansion_reason = runtime_body_state_call_expansion_reason(input, &grouped_blocker);
+        let source_name = state_name(input, grouped_blocker.source_key);
+        let target_name = state_name(input, grouped_blocker.target_key);
         blockers.insert(blocker(
             "state calls",
             &format!(
-                "#{} {}.{} statement {} calls {}.{} with {} argument(s){}; runtime dispatch body needs {expansion_reason}{}",
+                "#{} {} statement {} calls {} with {} argument(s){}; runtime dispatch body needs {expansion_reason}{}",
                 grouped_blocker.dispatch_index,
-                grouped_blocker.source_machine,
-                grouped_blocker.source_state,
+                source_name,
                 grouped_blocker.first_statement_index,
-                grouped_blocker.target_machine,
-                grouped_blocker.target_state,
+                target_name,
                 grouped_blocker.argument_count,
                 repeated_count_suffix(grouped_blocker.count),
                 proof_scope_suffix(input, grouped_blocker.source_key)
             ),
         ));
     }
-}
-
-fn state_names(
-    input: &EmissionPlanningInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> (String, String) {
-    state_name(input, key)
-        .split_once('.')
-        .map(|(machine, state)| (machine.to_owned(), state.to_owned()))
-        .unwrap_or_default()
 }
