@@ -235,7 +235,7 @@ fn write_backend_report(
     let phase_timings = plan
         .phase_timings
         .iter()
-        .map(|timing| BackendReportPhaseTiming {
+        .map(|(_, timing)| BackendReportPhaseTiming {
             phase: timing.phase.clone(),
             microseconds: timing.microseconds,
             allocations: timing.allocations,
