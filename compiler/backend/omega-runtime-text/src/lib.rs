@@ -162,10 +162,14 @@ fn classify_runtime_text_builder_segment(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> RuntimeTextBuilderSegmentKind {
+    if expressions.expression_is_stored_place(expression) {
+        return RuntimeTextBuilderSegmentKind::StoredPlace;
+    }
+
     match expressions.expression(expression) {
         ExpressionNode::String(_) => RuntimeTextBuilderSegmentKind::StaticText,
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
-            RuntimeTextBuilderSegmentKind::StoredPlace
+            unreachable!("stored places are classified before expression node matching")
         }
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Binary(_)
@@ -182,6 +186,9 @@ fn classify_runtime_text_builder_segment(
 fn is_obvious_runtime_text_value(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
     match table.expression(expression) {
         ExpressionNode::String(_) => true,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
+            unreachable!("stored places are classified before expression node matching")
+        }
         ExpressionNode::Binary(binary) => {
             binary.operator == BinaryOperator::Add
                 && is_runtime_text_segment_like(table, binary.left)
@@ -194,9 +201,15 @@ fn is_obvious_runtime_text_value(table: &ExpressionTable, expression: Expression
 }
 
 fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    if table.expression_is_stored_place(expression) {
+        return true;
+    }
+
     match table.expression(expression) {
         ExpressionNode::String(_) => true,
-        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => true,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
+            unreachable!("stored places are classified before expression node matching")
+        }
         ExpressionNode::Binary(binary) => {
             binary.operator == BinaryOperator::Add
                 && is_runtime_text_segment_like(table, binary.left)
@@ -238,10 +251,14 @@ fn classify_runtime_text_write(
     table: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> RuntimeTextWriteKind {
+    if table.expression_is_stored_place(expression) {
+        return RuntimeTextWriteKind::StoredCopy;
+    }
+
     match table.expression(expression) {
         ExpressionNode::String(_) => RuntimeTextWriteKind::StaticText,
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
-            RuntimeTextWriteKind::StoredCopy
+            unreachable!("stored places are classified before expression node matching")
         }
         ExpressionNode::Binary(_) => RuntimeTextWriteKind::GeneratedString,
         ExpressionNode::ArrayLiteral(_)
