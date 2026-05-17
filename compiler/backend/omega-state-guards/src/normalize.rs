@@ -3,11 +3,8 @@ use omega_checked_trees::expression::{
 };
 use std::sync::Arc;
 
-pub(super) fn normalize_guard_expression(
-    simplified_guard: Option<Expression>,
-) -> Option<Expression> {
-    let guard = simplified_guard?;
-    Some(normalize_top_level_guard_expression(guard))
+pub(super) fn normalize_guard_expression(expression: Expression) -> Expression {
+    normalize_top_level_guard_expression(expression)
 }
 
 fn normalize_top_level_guard_expression(expression: Expression) -> Expression {
