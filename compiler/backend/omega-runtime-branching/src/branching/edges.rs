@@ -126,7 +126,7 @@ fn branch_target_lowering(
             RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {
                 RuntimeBranchTargetLowering::Terminal
             }
-            RuntimeTransitionTarget::Unknown { .. } => RuntimeBranchTargetLowering::Unknown,
+            RuntimeTransitionTarget::Unknown => RuntimeBranchTargetLowering::Unknown,
             RuntimeTransitionTarget::State { .. } => unreachable!(),
         };
     };
@@ -168,8 +168,6 @@ fn runtime_transition_target(
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
-            receiver,
-            state,
             ..
         } => context
             .control_flow
@@ -195,9 +193,7 @@ fn runtime_transition_target(
             .map(|target_state| RuntimeTransitionTarget::State {
                 key: target_state.key,
             })
-            .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
-                name: format!("{receiver}.{state}"),
-            }),
+            .unwrap_or(RuntimeTransitionTarget::Unknown),
         PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State { key: current_state }
         }

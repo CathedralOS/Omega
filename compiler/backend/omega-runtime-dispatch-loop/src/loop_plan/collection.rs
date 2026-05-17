@@ -72,7 +72,7 @@ fn dispatch_action(target: &RuntimeTransitionTarget) -> RuntimeDispatchLoopActio
         RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {
             RuntimeDispatchLoopAction::Terminate
         }
-        RuntimeTransitionTarget::Unknown { .. } => RuntimeDispatchLoopAction::Unknown,
+        RuntimeTransitionTarget::Unknown => RuntimeDispatchLoopAction::Unknown,
     }
 }
 

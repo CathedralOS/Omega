@@ -238,6 +238,6 @@ fn runtime_transition_target_name(
             .unwrap_or_else(|| "<unknown>.<unknown>".to_owned()),
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
-        RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
+        RuntimeTransitionTarget::Unknown => "unknown".to_owned(),
     }
 }

@@ -1300,7 +1300,7 @@ fn runtime_transition_target_name(
         RuntimeTransitionTarget::State { key } => backend_state_name(backend_plan, *key),
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
-        RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
+        RuntimeTransitionTarget::Unknown => "unknown".to_owned(),
     }
 }
 

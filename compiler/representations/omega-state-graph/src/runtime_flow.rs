@@ -51,7 +51,7 @@ pub enum RuntimeTransitionTarget {
     State { key: StateKey },
     Terminal,
     None,
-    Unknown { name: String },
+    Unknown,
 }
 
 impl Default for RuntimeTransitionTarget {

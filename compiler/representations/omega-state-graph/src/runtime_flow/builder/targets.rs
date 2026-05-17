@@ -57,9 +57,7 @@ impl RuntimeFlowBuilder<'_> {
                         })
                 })
                 .map(|state| RuntimeTransitionTarget::State { key: state.key })
-                .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
-                    name: format!("{receiver}.{state}"),
-                }),
+                .unwrap_or(RuntimeTransitionTarget::Unknown),
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
                 key: self.active_states.last().copied().unwrap_or_default(),
             },
