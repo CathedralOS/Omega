@@ -1,6 +1,6 @@
+use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_typed_trees::expression::NamePath;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::ProgramName;
@@ -202,7 +202,7 @@ pub struct TransitionFlow {
 pub struct TransitionExpressionRefs {
     pub target_arguments: HandleSpan<ExpressionHandle>,
     pub continuation_arguments: HandleSpan<ExpressionHandle>,
-    pub guard: Option<ExpressionHandle>,
+    pub guard: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
