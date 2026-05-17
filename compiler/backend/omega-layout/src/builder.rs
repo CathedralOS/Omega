@@ -46,18 +46,51 @@ struct LayoutBuilder<'program> {
 
 impl<'program> LayoutBuilder<'program> {
     fn new(program: &'program Program, target: NativeTarget) -> Self {
+        let data_definitions = program.data_definitions();
+        let machine_definitions = program.machines();
+        let field_capacity = data_definitions
+            .iter()
+            .map(|definition| {
+                program
+                    .data_members(definition)
+                    .iter()
+                    .filter(|member| matches!(member, DataMember::Field(_)))
+                    .count()
+            })
+            .sum::<usize>()
+            .checked_add(
+                machine_definitions
+                    .iter()
+                    .map(|machine| {
+                        program.machine_owned_data(machine).len()
+                            + program.machine_contained_objects(machine).len()
+                    })
+                    .sum::<usize>(),
+            )
+            .expect("layout field capacity overflow");
+        let variant_capacity = data_definitions
+            .iter()
+            .map(|definition| {
+                program
+                    .data_members(definition)
+                    .iter()
+                    .filter(|member| matches!(member, DataMember::Variant(_)))
+                    .count()
+            })
+            .sum();
+
         Self {
-            data_definitions: program.data_definitions(),
-            data_layouts: Arena::new(),
+            data_definitions,
+            data_layouts: Arena::with_capacity(data_definitions.len()),
             data_visiting: Vec::new(),
-            fields: Arena::new(),
-            machine_definitions: program.machines(),
-            machine_layouts: Arena::new(),
+            fields: Arena::with_capacity(field_capacity),
+            machine_definitions,
+            machine_layouts: Arena::with_capacity(machine_definitions.len()),
             machine_visiting: Vec::new(),
             platform_definitions: program.platforms(),
             program,
             target,
-            variants: Arena::new(),
+            variants: Arena::with_capacity(variant_capacity),
         }
     }
 
@@ -186,7 +219,25 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn compute_machine_layout(&mut self, machine: &Machine) -> Result<MachineLayout, Diagnostic> {
-        let mut fields = Vec::new();
+        let data_field_capacity = self
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name == machine.name)
+            .map(|definition| {
+                self.program
+                    .data_members(definition)
+                    .iter()
+                    .filter(|member| matches!(member, DataMember::Field(_)))
+                    .count()
+            })
+            .unwrap_or(0);
+        let field_capacity = data_field_capacity
+            .checked_add(self.program.machine_owned_data(machine).len())
+            .and_then(|count| {
+                count.checked_add(self.program.machine_contained_objects(machine).len())
+            })
+            .expect("machine layout field capacity overflow");
+        let mut fields = Vec::with_capacity(field_capacity);
 
         if let Some(data_definition) = self
             .data_definitions
