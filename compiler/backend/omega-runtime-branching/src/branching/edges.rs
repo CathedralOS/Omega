@@ -63,8 +63,11 @@ pub(super) fn build_branch_edges(
                 expressions,
                 target_arguments,
             ),
-            target_value: transition.expressions.target_value.map(|value| {
-                let copied = expressions.copy_from(&context.control_flow.expressions, value);
+            target_value: transition.expressions.target_value.is_valid().then(|| {
+                let copied = expressions.copy_from(
+                    &context.control_flow.expressions,
+                    transition.expressions.target_value,
+                );
                 target_values.append(copied);
                 copied
             }),

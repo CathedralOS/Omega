@@ -677,7 +677,9 @@ fn remap_transition(
             target_value: transition
                 .expressions
                 .target_value
-                .map(|value| copy_expression(target, source, value)),
+                .is_valid()
+                .then(|| copy_expression(target, source, transition.expressions.target_value))
+                .unwrap_or_else(ExpressionHandle::invalid),
             continuation_arguments: copy_expression_span(
                 target,
                 source,
@@ -686,11 +688,15 @@ fn remap_transition(
             continuation_value: transition
                 .expressions
                 .continuation_value
-                .map(|value| copy_expression(target, source, value)),
+                .is_valid()
+                .then(|| copy_expression(target, source, transition.expressions.continuation_value))
+                .unwrap_or_else(ExpressionHandle::invalid),
             guard: transition
                 .expressions
                 .guard
-                .map(|guard| copy_expression(target, source, guard)),
+                .is_valid()
+                .then(|| copy_expression(target, source, transition.expressions.guard))
+                .unwrap_or_else(ExpressionHandle::invalid),
         },
     }
 }

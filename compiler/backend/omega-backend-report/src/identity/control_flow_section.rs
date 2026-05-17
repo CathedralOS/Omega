@@ -72,10 +72,10 @@ pub(in crate::identity) fn count_control_flow_strings(
             transition.expressions.continuation_arguments,
             storage,
         );
-        if let Some(guard) = transition.expressions.guard {
+        if transition.expressions.guard.is_valid() {
             count_control_flow_expression_strings(
                 &backend_plan.control_flow.expressions,
-                guard,
+                transition.expressions.guard,
                 storage,
             );
         }

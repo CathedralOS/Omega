@@ -187,7 +187,7 @@ fn collect_expression_state_calls_for_transition(
     expressions: TransitionExpressionRefs,
     calls: &mut Vec<CollectedStateCall>,
 ) {
-    if let Some(guard) = expressions.guard {
+    if expressions.guard.is_valid() {
         collect_expression_state_calls(
             context,
             machine,
@@ -195,7 +195,7 @@ fn collect_expression_state_calls_for_transition(
             statement_index,
             call_ordinal,
             StateCallRole::TransitionGuard,
-            guard,
+            expressions.guard,
             calls,
         );
     }
@@ -217,7 +217,7 @@ fn collect_expression_state_calls_for_transition(
         );
     }
 
-    if let Some(value) = expressions.target_value {
+    if expressions.target_value.is_valid() {
         collect_expression_state_calls(
             context,
             machine,
@@ -225,7 +225,7 @@ fn collect_expression_state_calls_for_transition(
             statement_index,
             call_ordinal,
             StateCallRole::TransitionArgument,
-            value,
+            expressions.target_value,
             calls,
         );
     }
@@ -247,7 +247,7 @@ fn collect_expression_state_calls_for_transition(
         );
     }
 
-    if let Some(value) = expressions.continuation_value {
+    if expressions.continuation_value.is_valid() {
         collect_expression_state_calls(
             context,
             machine,
@@ -255,7 +255,7 @@ fn collect_expression_state_calls_for_transition(
             statement_index,
             call_ordinal,
             StateCallRole::TransitionArgument,
-            value,
+            expressions.continuation_value,
             calls,
         );
     }

@@ -1,4 +1,5 @@
 use omega_checked_trees::Program;
+use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::statement::{TableCall, TransitionTargetHandle, TransitionTargetNode};
 use omega_core::diagnostics::Diagnostic;
 
@@ -32,7 +33,7 @@ pub(super) fn plan_transition(
                 .continuation
                 .is_valid()
                 .then(|| table_transition_target_value(table.continuation, program, state_graph))
-                .flatten();
+                .unwrap_or_else(ExpressionHandle::invalid);
             let guard_expression = table_transition_guard_expression(*table).map(|guard| {
                 state_graph
                     .expressions
@@ -58,7 +59,7 @@ pub(super) fn plan_transition(
                     target_value,
                     continuation_arguments,
                     continuation_value,
-                    guard: guard_expression,
+                    guard: guard_expression.unwrap_or_else(ExpressionHandle::invalid),
                 },
             })
         }
@@ -77,10 +78,10 @@ pub(super) fn plan_transition(
                     &program.statement_table,
                     table.arguments,
                 ),
-                target_value: None,
+                target_value: ExpressionHandle::invalid(),
                 continuation_arguments: omega_core::arena::HandleSpan::empty(),
-                continuation_value: None,
-                guard: None,
+                continuation_value: ExpressionHandle::invalid(),
+                guard: ExpressionHandle::invalid(),
             },
         }),
     }
@@ -116,18 +117,16 @@ fn table_transition_target_value(
     target: omega_checked_trees::statement::TransitionTargetHandle,
     program: &Program,
     state_graph: &mut StateGraph,
-) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+) -> omega_checked_trees::expression::ExpressionHandle {
     if !target.is_valid() {
-        return None;
+        return omega_checked_trees::expression::ExpressionHandle::invalid();
     }
 
     match program.statement_table.transition_target(target) {
-        omega_checked_trees::statement::TransitionTargetNode::Value(expression) => Some(
-            state_graph
-                .expressions
-                .copy_from(&program.expression_table, *expression),
-        ),
-        _ => None,
+        omega_checked_trees::statement::TransitionTargetNode::Value(expression) => state_graph
+            .expressions
+            .copy_from(&program.expression_table, *expression),
+        _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
     }
 }
 
