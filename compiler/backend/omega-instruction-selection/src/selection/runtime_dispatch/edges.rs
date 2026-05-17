@@ -4,6 +4,7 @@ use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
@@ -105,21 +106,22 @@ fn select_dispatch_guard_instructions(
         return;
     }
 
-    if !guard_can_emit_directly(edge)
-        && let Some(kind) = select_runtime_dispatch_expression_guard(
+    if !guard_can_emit_directly(edge) {
+        let guard = transition_guard_for_edge(input, edge);
+        if let Some(kind) = select_runtime_dispatch_expression_guard(
             input,
             source_dispatch_index,
             source_key,
             edge.order,
-            &edge.guard,
-        )
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind,
-            source_key,
-            source_statement: edge.order,
-        });
-        return;
+            &guard,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: edge.order,
+            });
+            return;
+        }
     }
 
     let guard_instruction = match edge.guard_lowering {
@@ -150,6 +152,22 @@ fn select_dispatch_guard_instructions(
         source_key,
         source_statement: edge.order,
     });
+}
+
+fn transition_guard_for_edge(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+) -> TransitionGuard {
+    if edge.guard_has_expression {
+        TransitionGuard::When(
+            input
+                .state_guards
+                .expressions
+                .to_tree(edge.guard_expression),
+        )
+    } else {
+        TransitionGuard::Always
+    }
 }
 
 fn guard_can_emit_directly(edge: &RuntimeDispatchLoopEdge) -> bool {

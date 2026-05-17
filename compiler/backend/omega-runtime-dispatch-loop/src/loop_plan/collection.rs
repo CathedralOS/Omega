@@ -1,7 +1,8 @@
 use super::context::RuntimeDispatchLoopContext;
-use super::guards::{dispatch_guard, dispatch_guard_comparison};
+use super::guards::{dispatch_guard_comparison, dispatch_guard_expression};
 use super::inputs::RuntimeDispatchLoopCaseInput;
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
+use omega_checked_trees::expression::ExpressionHandle;
 use omega_control_flow::StateKey;
 use omega_state_graph::RuntimeTransitionTarget;
 
@@ -33,6 +34,8 @@ pub(super) fn build_runtime_dispatch_loop_case(
         .map(|(order, edge)| {
             let guard_comparison =
                 dispatch_guard_comparison(context, case_input.dispatch_index, order);
+            let guard_expression =
+                dispatch_guard_expression(context, case_input.dispatch_index, order);
             RuntimeDispatchLoopEdge {
                 order,
                 statement_index: edge.statement_index,
@@ -42,7 +45,8 @@ pub(super) fn build_runtime_dispatch_loop_case(
                 continuation: edge.continuation.clone(),
                 continuation_dispatch_index: edge.continuation_dispatch_index,
                 continuation_arguments: edge.expressions.continuation_arguments,
-                guard: dispatch_guard(context, case_input.dispatch_index, order),
+                guard_expression: guard_expression.unwrap_or_else(ExpressionHandle::invalid),
+                guard_has_expression: guard_expression.is_some(),
                 guard_lowering: guard_comparison.lowering,
                 guard_operator: guard_comparison.operator,
                 guard_storage: guard_comparison.storage,

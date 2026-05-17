@@ -254,13 +254,32 @@ fn fallback_expression_guard_can_emit(
         StateGuardLowering::CompareStaticValue
             | StateGuardLowering::CompareRuntimeValue
             | StateGuardLowering::NeedsRuntimeExpression
-    ) && guard_expression_can_emit(
-        input,
-        source_key,
-        source_dispatch_index,
-        edge.statement_index,
-        &edge.guard,
-    )
+    ) && {
+        let guard = transition_guard_for_edge(input, edge);
+        guard_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            edge.statement_index,
+            &guard,
+        )
+    }
+}
+
+fn transition_guard_for_edge(
+    input: &EmissionPlanningInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+) -> TransitionGuard {
+    if edge.guard_has_expression {
+        TransitionGuard::When(
+            input
+                .state_guards
+                .expressions
+                .to_tree(edge.guard_expression),
+        )
+    } else {
+        TransitionGuard::Always
+    }
 }
 
 fn guard_expression_can_emit(

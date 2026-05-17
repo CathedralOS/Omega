@@ -1,10 +1,7 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::{
-    count_control_flow_expression_strings, count_expression_strings,
-};
+use crate::identity::expressions::count_control_flow_expression_strings;
 use crate::identity::targets::count_runtime_target_strings;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 
 pub(in crate::identity) fn count_runtime_flow_strings(
@@ -96,8 +93,12 @@ pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
     for (_, edge) in backend_plan.runtime_dispatch_loop.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
-        if let TransitionGuard::When(expression) = &edge.guard {
-            count_expression_strings(&expression, storage);
+        if edge.guard_has_expression {
+            count_control_flow_expression_strings(
+                &backend_plan.state_guards.expressions,
+                edge.guard_expression,
+                storage,
+            );
         }
     }
 }
