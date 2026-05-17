@@ -19,10 +19,6 @@ pub(super) fn collect_state_value_blockers(
             continue;
         }
 
-        if value.role == StateValueRole::TransitionGuard {
-            continue;
-        }
-
         if state_value_is_static_assignment(input, value) {
             continue;
         }

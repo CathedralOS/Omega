@@ -38,7 +38,6 @@ pub enum StateValueRole {
     AssignmentValue,
     CallArgument,
     TransitionArgument,
-    TransitionGuard,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
