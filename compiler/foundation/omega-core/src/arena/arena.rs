@@ -42,6 +42,12 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    pub fn reserve(&mut self, additional: usize) {
+        self.items.reserve(additional);
+        self.generations.reserve(additional);
+        self.occupied.reserve(additional);
+    }
+
     pub fn insert(&mut self, item: T) -> Handle<T> {
         if let Some(arena_index) = self.free_indices.pop() {
             let index = usize::try_from(arena_index).expect("arena index overflow");
