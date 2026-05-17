@@ -236,7 +236,7 @@ fn write_backend_report(
         .phase_timings
         .iter()
         .map(|(_, timing)| BackendReportPhaseTiming {
-            phase: timing.phase.clone(),
+            phase: timing.phase.to_owned(),
             microseconds: timing.microseconds,
             allocations: timing.allocations,
         })
