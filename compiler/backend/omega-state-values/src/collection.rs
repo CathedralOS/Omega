@@ -169,15 +169,19 @@ fn push_value(
     expression: ExpressionHandle,
     required: bool,
 ) {
-    let simplified_expression = simplify_state_expression_for_role(
-        program,
-        machine,
-        state,
-        statement_index,
-        role,
-        &program.expression_table.to_tree(expression),
-    );
-    let expression = plan.expressions.insert_tree(&simplified_expression);
+    let expression = if role == StateValueRole::AssignmentTarget {
+        plan.expressions.copy_from(&program.expression_table, expression)
+    } else {
+        let simplified_expression = simplify_state_expression_for_role(
+            program,
+            machine,
+            state,
+            statement_index,
+            role,
+            &program.expression_table.to_tree(expression),
+        );
+        plan.expressions.insert_tree(&simplified_expression)
+    };
     plan.values.insert(StateValueUse {
         source_key,
         statement_index,
