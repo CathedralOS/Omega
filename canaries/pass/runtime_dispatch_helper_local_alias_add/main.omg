@@ -18,7 +18,7 @@ machine main {
             ],
             exit_count: 0
         }];
-        let from_index: IndexOf<rooms> = 0;
+        let from_index: usize = 0;
 
         self.append_exit(&mut rooms[from_index], 1);
         -> entry() when true;
@@ -30,7 +30,7 @@ machine main {
         destination: u32
     ) {
         let exits: &mut [Exit] = room.exits.as_mut_slice();
-        let index: IndexOf<exits> = room.exit_count;
+        let index: usize = room.exit_count;
 
         exits[index] = Exit { destination: destination };
         room.exit_count = index + 1;

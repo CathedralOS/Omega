@@ -25,7 +25,7 @@ machine RoomLookup::find_room {
         room_count: usize[positive],
         cell: CellId,
         out_room: &mut Room,
-        index: IndexOf<rooms>
+        index: usize
     ) {
         let found: bool = rooms[index].cell == cell;
         let next_index: usize = index + 1;
@@ -63,7 +63,7 @@ machine RoomLookup::find_room_mut -> &mut Room {
         rooms: &mut [Room],
         room_count: usize[positive],
         cell: CellId,
-        index: IndexOf<rooms>
+        index: usize
     ) -> &mut Room {
         let found: bool = rooms[index].cell == cell;
         let next_index: usize = index + 1;

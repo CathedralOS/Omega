@@ -67,7 +67,7 @@ machine CommandParser::resolve_navigation -> Navigation {
         exits: &[Exit],
         exit_count: usize[positive],
         command: &String,
-        index: IndexOf<exits>
+        index: usize
     ) -> Navigation {
         let found: bool = exits[index].command == command;
         let next_index: usize = index + 1;
