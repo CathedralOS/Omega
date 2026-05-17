@@ -1,5 +1,6 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetDataPlan {
@@ -18,7 +19,7 @@ impl Default for TargetDataPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetDataObject {
-    pub symbol: String,
+    pub symbol: Arc<str>,
     pub kind: TargetDataObjectKind,
     pub offset: usize,
     pub bytes: HandleSpan<u8>,
@@ -41,7 +42,7 @@ pub enum TargetDataObjectKind {
 impl Default for TargetDataObject {
     fn default() -> Self {
         Self {
-            symbol: String::new(),
+            symbol: Arc::from(""),
             kind: TargetDataObjectKind::Other,
             offset: 0,
             bytes: HandleSpan::empty(),

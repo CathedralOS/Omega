@@ -133,7 +133,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
             let bytes = input.data.bytes.span(data_object.bytes)?;
 
             Some(SymbolPlan {
-                name: data_object.symbol.clone(),
+                name: data_object.symbol.to_string(),
                 section: Some(section_name(input.target, SectionKind::Data)),
                 offset: data_object.offset,
                 size: bytes.len(),

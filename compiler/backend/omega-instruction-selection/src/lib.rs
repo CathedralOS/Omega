@@ -24,12 +24,13 @@ use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetDataPlan;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionSelectionInput<'plan> {
     pub target: NativeTarget,
     pub entry_key: StateKey,
-    pub entry_symbol: String,
+    pub entry_symbol: Arc<str>,
     pub program: &'plan Program,
     pub host_abi: &'plan HostAbiPlan,
     pub control_flow: &'plan ControlFlowPlan,

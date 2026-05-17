@@ -56,7 +56,7 @@ pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut Ta
     let byte_span = data_plan.bytes.insert_many(std::iter::once(b'\n'));
 
     data_plan.objects.insert(TargetDataObject {
-        symbol: "omega_newline".to_owned(),
+        symbol: "omega_newline".into(),
         kind: TargetDataObjectKind::HostNewline,
         offset,
         bytes: byte_span,
@@ -94,7 +94,7 @@ fn collect_text_argument_data(
     let symbol_index = data_plan.objects.len() + 1;
 
     data_plan.objects.insert(TargetDataObject {
-        symbol: format!("omega_string_literal_{symbol_index}"),
+        symbol: format!("omega_string_literal_{symbol_index}").into(),
         kind: TargetDataObjectKind::StaticString,
         offset,
         bytes: byte_span,
@@ -117,7 +117,7 @@ fn collect_runtime_text_buffer(
     let symbol_index = data_plan.objects.len() + 1;
 
     data_plan.objects.insert(TargetDataObject {
-        symbol: format!("omega_mut_buffer_{symbol_index}"),
+        symbol: format!("omega_mut_buffer_{symbol_index}").into(),
         kind: TargetDataObjectKind::RuntimeTextBuffer,
         offset,
         bytes: byte_span,

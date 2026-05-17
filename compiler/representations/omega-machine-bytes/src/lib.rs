@@ -1,6 +1,7 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedMachinePlan {
@@ -23,12 +24,23 @@ impl Default for EncodedMachinePlan {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedMachineFunction {
-    pub symbol: String,
+    pub symbol: Arc<str>,
     pub source_key: StateKey,
     pub byte_offset: usize,
     pub byte_count: usize,
+}
+
+impl Default for EncodedMachineFunction {
+    fn default() -> Self {
+        Self {
+            symbol: Arc::from(""),
+            source_key: StateKey::default(),
+            byte_offset: 0,
+            byte_count: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

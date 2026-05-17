@@ -62,7 +62,7 @@ fn collect_static_string_expression_data(
             let symbol_index = data_plan.objects.len() + 1;
 
             data_plan.objects.insert(TargetDataObject {
-                symbol: format!("omega_string_literal_{symbol_index}"),
+                symbol: format!("omega_string_literal_{symbol_index}").into(),
                 kind: TargetDataObjectKind::StaticString,
                 offset,
                 bytes: byte_span,

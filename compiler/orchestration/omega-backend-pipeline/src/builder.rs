@@ -224,7 +224,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_instruction_plan(&InstructionSelectionInput {
             target: backend_plan.target,
             entry_key: backend_plan.entry_key,
-            entry_symbol: backend_plan.object.entry_symbol.clone(),
+            entry_symbol: backend_plan.object.entry_symbol.as_str().into(),
             program: program.as_ref(),
             host_abi: &backend_plan.host_abi,
             control_flow: &backend_plan.control_flow,
