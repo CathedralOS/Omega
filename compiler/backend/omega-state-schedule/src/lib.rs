@@ -70,17 +70,6 @@ pub fn scheduled_state_flow<'plan>(
     lookups::state_flow_by_key(context, scheduled_state.key).ok()
 }
 
-pub fn scheduled_state_key(
-    context: &StateScheduleContext,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<StateKey> {
-    let machine = lookups::machine_flow(context, machine_name).ok()?;
-    let state = lookups::state_flow(context, machine, state_name).ok()?;
-
-    Some(state.key)
-}
-
 pub(crate) fn append_state_chain(
     context: &StateScheduleContext,
     start_key: StateKey,

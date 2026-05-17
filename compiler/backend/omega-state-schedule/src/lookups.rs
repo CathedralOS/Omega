@@ -2,19 +2,6 @@ use crate::StateScheduleContext;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::symbols::SymbolHandle;
 
-pub(super) fn machine_flow<'plan>(
-    context: &StateScheduleContext<'plan>,
-    machine_name: &str,
-) -> Result<&'plan MachineFlow, String> {
-    context
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name.as_str() == machine_name)
-        .map(|(_, machine)| machine)
-        .ok_or_else(|| format!("machine `{machine_name}` was not present in the control-flow plan"))
-}
-
 pub(super) fn machine_flow_by_symbol<'plan>(
     context: &StateScheduleContext<'plan>,
     machine_symbol: SymbolHandle,
@@ -29,28 +16,6 @@ pub(super) fn machine_flow_by_symbol<'plan>(
             format!(
                 "machine symbol {} was not present in the control-flow plan",
                 machine_symbol.arena_index()
-            )
-        })
-}
-
-pub(super) fn state_flow<'plan>(
-    context: &StateScheduleContext<'plan>,
-    machine: &MachineFlow,
-    state_name: &str,
-) -> Result<&'plan StateFlow, String> {
-    context
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| {
-            states
-                .iter()
-                .find(|state| state.name.as_str() == state_name)
-        })
-        .ok_or_else(|| {
-            format!(
-                "state {}.{} was not present in the control-flow plan",
-                machine.name, state_name
             )
         })
 }
