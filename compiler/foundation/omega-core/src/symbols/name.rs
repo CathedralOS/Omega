@@ -1,4 +1,5 @@
 use crate::source::{SourceMap, SourceSpan};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolName {
@@ -11,7 +12,7 @@ enum SymbolNameStorage {
     Missing,
     Source(SourceSpan),
     Static(&'static str),
-    Owned(String),
+    Owned(Arc<str>),
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -27,7 +28,7 @@ impl SymbolName {
     pub fn from_ref(name: SymbolNameRef<'_>) -> Self {
         Self {
             storage: match name {
-                SymbolNameRef::Borrowed(value) => SymbolNameStorage::Owned(value.to_owned()),
+                SymbolNameRef::Borrowed(value) => SymbolNameStorage::Owned(Arc::from(value)),
                 SymbolNameRef::Source(source_span) => SymbolNameStorage::Source(source_span),
                 SymbolNameRef::Static(value) => SymbolNameStorage::Static(value),
             },
@@ -41,7 +42,7 @@ impl SymbolName {
                 .map(|sources| sources.text_at(*source_span))
                 .unwrap_or(""),
             SymbolNameStorage::Static(value) => value,
-            SymbolNameStorage::Owned(value) => value.as_str(),
+            SymbolNameStorage::Owned(value) => value.as_ref(),
         }
     }
 
