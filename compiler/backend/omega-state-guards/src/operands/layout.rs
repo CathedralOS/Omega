@@ -212,7 +212,7 @@ fn resolve_nested_slot_layout(
 
     for (segment, field_symbol) in suffix.iter() {
         let field_segment = parse_field_segment(segment)?;
-        let fields = record_fields(layouts, type_symbol, type_name)?;
+        let fields = record_fields(layouts, type_symbol, type_name);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
@@ -642,7 +642,7 @@ fn resolve_nested_field_layout_by_symbol(
 
     for (segment, field_symbol) in suffix.iter() {
         let field_segment = parse_field_segment(segment)?;
-        let fields = record_fields(layouts, type_symbol, type_name)?;
+        let fields = record_fields(layouts, type_symbol, type_name);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
@@ -688,12 +688,12 @@ fn record_fields(
     layouts: &LayoutPlan,
     type_symbol: SymbolHandle,
     type_name: &str,
-) -> Option<HandleSpan<FieldLayout>> {
+) -> HandleSpan<FieldLayout> {
     if let Some(data_layout) = data_layout(layouts, type_symbol, type_name) {
         let DataShape::Record { fields } = &data_layout.shape else {
-            return None;
+            return HandleSpan::empty();
         };
-        return Some(*fields);
+        return *fields;
     }
 
     layouts
@@ -703,6 +703,7 @@ fn record_fields(
             (type_symbol.is_valid() && machine_layout.symbol == type_symbol)
                 .then_some(machine_layout.fields)
         })
+        .unwrap_or_else(HandleSpan::empty)
 }
 
 struct FieldSegment {
