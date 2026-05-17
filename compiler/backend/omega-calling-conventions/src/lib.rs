@@ -2,7 +2,7 @@ mod darwin;
 mod linux;
 mod windows;
 
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::{NativeTarget, ObjectFormat};
 use std::sync::Arc;
 
@@ -158,6 +158,8 @@ pub struct PlatformCallLowering {
     pub operations: HandleSpan<HostOperationReference>,
     pub data: PlatformCallData,
 }
+
+pub type PlatformCallLoweringHandle = Handle<PlatformCallLowering>;
 
 impl Default for PlatformCallLowering {
     fn default() -> Self {

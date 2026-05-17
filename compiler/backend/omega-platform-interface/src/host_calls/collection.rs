@@ -92,7 +92,9 @@ fn collect_call_host_lowering(
         return Ok(());
     };
 
-    let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
+    let Some((lowering_handle, lowering)) =
+        find_platform_call_lowering(host_abi, &platform_name, call)
+    else {
         let platform_call = platform_call_name(program, call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
             source_key: state_key(machine, state),
@@ -124,7 +126,7 @@ fn collect_call_host_lowering(
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
         statement_index,
-        platform_call: platform_call_name(program, call),
+        lowering: lowering_handle,
         data: lowering.data,
         operations,
         arguments,

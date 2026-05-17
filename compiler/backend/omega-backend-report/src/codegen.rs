@@ -1,4 +1,5 @@
 use super::backend_state_name;
+use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
 use omega_machine_program::{MachineFunction, MachineInstruction};
@@ -550,8 +551,8 @@ fn selected_instruction_name(
                     call.source_key == instruction.source_key
                         && call.statement_index == instruction.source_statement
                 })
-                .map(|(_, call)| call.platform_call.as_str())
-                .unwrap_or("unknown");
+                .map(|(_, call)| host_call_display_name(backend_plan, call))
+                .unwrap_or_else(|| "unknown".to_owned());
             format!("begin platform call `{platform_call}`")
         }
         SelectedInstructionKind::HostOperation {

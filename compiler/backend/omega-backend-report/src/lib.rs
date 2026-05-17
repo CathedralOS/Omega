@@ -36,6 +36,8 @@ use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
 
+use crate::host::host_call_display_name;
+
 pub struct BackendReportPhaseTiming {
     pub phase: String,
     pub microseconds: u128,
@@ -1316,7 +1318,7 @@ fn host_call_name_for_statement<'plan>(
     backend_plan: &'plan BackendReportInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
-) -> &'plan str {
+) -> String {
     backend_plan
         .host_calls
         .calls
@@ -1325,8 +1327,8 @@ fn host_call_name_for_statement<'plan>(
             state_key_matches_statement_source(host_call.source_key, source_key)
                 && host_call.statement_index == statement_index
         })
-        .map(|(_, host_call)| host_call.platform_call.as_str())
-        .unwrap_or("<unknown>")
+        .map(|(_, host_call)| host_call_display_name(backend_plan, host_call))
+        .unwrap_or_else(|| "<unknown>".to_owned())
 }
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
