@@ -1064,6 +1064,7 @@ mod tests {
     use omega_checked_trees::statement::{StatementNode, TableCall};
     use omega_checked_trees::types::TypeReferenceNode;
     use omega_core::symbols::SymbolHandle;
+    use std::sync::Arc;
 
     #[test]
     fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
@@ -1083,7 +1084,7 @@ mod tests {
             receiver: None,
             target_symbol: inner_symbol,
             target: ProgramName::generated("inner"),
-            arguments: vec![item_argument],
+            arguments: Arc::from(vec![item_argument].into_boxed_slice()),
         }));
 
         let mut program = omega_typed_trees::TypedTrees::default();

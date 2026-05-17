@@ -1,6 +1,7 @@
 use omega_checked_trees::expression::{
     BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionTable,
 };
+use std::sync::Arc;
 
 pub(super) fn normalize_guard_expression(
     table: &ExpressionTable,
@@ -24,12 +25,14 @@ fn normalize_top_level_guard_expression(expression: Expression) -> Expression {
 
 fn normalize_guard_expression_tree(expression: Expression) -> Expression {
     match expression {
-        Expression::ArrayLiteral(values) => Expression::ArrayLiteral(
+        Expression::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
             values
-                .into_iter()
+                .iter()
+                .cloned()
                 .map(normalize_guard_expression_tree)
-                .collect(),
-        ),
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        )),
         Expression::Binary(binary) => {
             let left = normalize_guard_expression_tree(binary.left);
             let right = normalize_guard_expression_tree(binary.right);
