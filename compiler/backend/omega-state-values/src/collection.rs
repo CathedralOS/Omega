@@ -6,7 +6,7 @@ use omega_checked_trees::Program;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+    StatementNode, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_control_flow::StateKey;
 
@@ -68,20 +68,6 @@ pub(super) fn build_machine_state_value_plan(
                     }
                 }
                 StatementNode::Transition(transition) => {
-                    if let TransitionGuardNode::When(expression) = transition.guard {
-                        push_value(
-                            &mut plan,
-                            program,
-                            machine,
-                            state,
-                            source_key,
-                            statement_index,
-                            StateValueRole::TransitionGuard,
-                            expression,
-                            required,
-                        );
-                    }
-
                     collect_transition_arguments(
                         &mut plan,
                         program,
