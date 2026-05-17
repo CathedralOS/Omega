@@ -1,5 +1,3 @@
-use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, Operation, OperationExpressionRefs,
     OperationKind, PlannedTransitionTarget, ProofFactKind, ProofObligationFact,
@@ -240,7 +238,7 @@ fn remap_transitions(state_graph: &StateGraph) -> Arena<TransitionFlow> {
     let mut transitions = Arena::default();
 
     for (_, transition) in state_graph.transitions.iter() {
-        transitions.append(remap_transition(state_graph, transition));
+        transitions.append(remap_transition(transition));
     }
 
     transitions
@@ -296,7 +294,7 @@ fn remap_operation_expression_refs(
     }
 }
 
-fn remap_transition(state_graph: &StateGraph, transition: &TransitionEdge) -> TransitionFlow {
+fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
     TransitionFlow {
         statement_index: 0,
         target: remap_transition_target(&transition.target),
@@ -304,7 +302,6 @@ fn remap_transition(state_graph: &StateGraph, transition: &TransitionEdge) -> Tr
             .continuation
             .as_ref()
             .map(remap_transition_target),
-        guard: remap_transition_guard(state_graph, transition.expressions.guard),
         expressions: TransitionExpressionRefs {
             target_arguments: transition.expressions.target_arguments,
             target_value: transition.expressions.target_value,
@@ -312,14 +309,6 @@ fn remap_transition(state_graph: &StateGraph, transition: &TransitionEdge) -> Tr
             continuation_value: transition.expressions.continuation_value,
             guard: transition.expressions.guard,
         },
-    }
-}
-
-fn remap_transition_guard(state_graph: &StateGraph, guard: ExpressionHandle) -> TransitionGuard {
-    if guard.is_valid() {
-        TransitionGuard::When(state_graph.expressions.to_tree(guard))
-    } else {
-        TransitionGuard::Always
     }
 }
 
