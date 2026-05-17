@@ -21,7 +21,7 @@ pub enum Expression {
     Mutable(Box<Expression>),
     Name(NamePath),
     StructLiteral(StructLiteral),
-    String(String),
+    String(Arc<str>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1074,7 +1074,7 @@ impl ExpressionTable {
 
     pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&str> {
         match self.expression(handle) {
-            ExpressionNode::String(value) => Some(value.as_str()),
+            ExpressionNode::String(value) => Some(value.as_ref()),
             _ => None,
         }
     }
@@ -1100,7 +1100,7 @@ pub enum ExpressionNode {
     Mutable(ExpressionHandle),
     Name(TableNamePath),
     StructLiteral(TableStructLiteral),
-    String(String),
+    String(Arc<str>),
 }
 
 impl Default for ExpressionNode {
@@ -1760,7 +1760,7 @@ mod tests {
                 vec![
                     StructLiteralField {
                         name: ProgramName::generated("name"),
-                        value: Expression::String("Hall".to_string()),
+                        value: Expression::String(Arc::from("Hall")),
                     },
                     StructLiteralField {
                         name: ProgramName::generated("open"),

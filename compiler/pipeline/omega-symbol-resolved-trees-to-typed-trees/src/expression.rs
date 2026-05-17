@@ -99,7 +99,7 @@ pub(crate) fn lower_expression_handle_from_table(
             )
         }
         resolved::expression::ExpressionNode::String(value) => Ok(target.insert(
-            typed::expression::ExpressionNode::String(value.as_str().to_owned()),
+            typed::expression::ExpressionNode::String(std::sync::Arc::from(value.as_str())),
         )),
     }
 }

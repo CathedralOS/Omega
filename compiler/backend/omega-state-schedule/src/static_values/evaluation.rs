@@ -24,7 +24,7 @@ pub(crate) fn resolve_static_value(
         }
         ExpressionNode::Boolean(value) => Some(value.to_string()),
         ExpressionNode::Integer(value) => Some(value.to_string()),
-        ExpressionNode::String(value) => Some(value.clone()),
+        ExpressionNode::String(value) => Some(value.to_string()),
         _ => None,
     }
 }
