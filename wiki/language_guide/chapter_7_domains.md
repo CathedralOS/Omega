@@ -32,17 +32,17 @@ States and functions can require or guarantee domains.
 
 ```omega
 state respawn(player: &mut Player)
-    requires player in Dead
-    ensures player in Alive
+    requires player in Player::Dead
+    ensures player in Player::Alive
 {
     player.health = 100;
 }
 ```
 
 This is shorthand for a named bundle of proof obligations. The caller must
-prove `player in Dead` before entering `respawn`. The state must prove
-`player in Alive` before returning or transitioning to a target that requires
-that domain.
+prove `player in Player::Dead` before entering `respawn`. The state must prove
+`player in Player::Alive` before returning or transitioning to a target that
+requires that domain.
 
 Machine-owned state uses the same model:
 
@@ -69,8 +69,8 @@ domain Playing for Game
 }
 
 state start_game(&mut self)
-    requires self in NewGame
-    ensures self in Playing
+    requires self in Game::NewGame
+    ensures self in Game::Playing
 {
 }
 ```
@@ -92,39 +92,55 @@ data Player {
 
 That desugars to `domain Dead for Player { self.health <= 0; ... }`.
 
-## Domain Unions
+## Domain Patterns
 
 Some operations naturally produce one of several semantic states.
 
 ```omega
 fn apply_move(game: &mut Game, pos: BoardPos) -> MoveResult
-    requires game in Playing
-    ensures game in Playing | Finished
+    requires game in Game::Playing
+    ensures game in Game::Playing | Game::Finished
 {
 }
 ```
 
-`game in Playing | Finished` means the compiler knows `game` is in one of
-those domains after the function, but not which one until control flow splits
-again.
+`game in Game::Playing | Game::Finished` means the compiler knows `game` is in
+one of those domains after the function, but not which one until control flow
+splits again.
 
-Callers can split a known domain union with `domain_of`:
+Callers split that union by matching the value against type-qualified domain
+patterns:
 
 ```omega
-match domain_of(game) {
-    Playing -> continue_game()
-    Finished -> show_result()
+match game {
+    Game::Playing -> continue_game()
+    Game::Finished -> show_result()
 }
 ```
 
-This does not mean "check every invariant at runtime." It means the compiler
-uses an existing classifier to choose the arm and then adds that domain's facts
-to the arm's proof context.
+Matching a data value with `Type::Domain` means "check whether this value is in
+that domain." The selected arm receives the domain's facts in its proof
+context.
+
+Domain patterns can be interleaved with ordinary data patterns and guards:
+
+```omega
+match player {
+    Player::Dead -> respawn(player)
+    Player { beans, .. } if beans > 69 -> handle_beans(player)
+    Player::Alive -> continue_playing(player)
+    _ -> report_invalid_player(player)
+}
+```
+
+This is an ordered match like Rust's `match`: earlier arms win. That means
+overlapping domain patterns are allowed in ordinary value matching because the
+source order is part of the program.
 
 ## Classifiers
 
-Domains that participate in `domain_of` should provide a cheap classifier with
-`when`.
+Domains that participate in domain patterns should provide a cheap classifier
+with `when` when possible.
 
 ```omega
 domain Playing for Game
@@ -141,13 +157,29 @@ domain Finished for Game
 ```
 
 The `when` clause is the classifier. The domain body is the full invariant.
-For `domain_of(game)`, the compiler should lower the match through the
-classifier, such as `game.phase`, not by rechecking every body fact.
+For a domain pattern such as `Game::Playing`, the compiler may lower the match
+through the classifier, such as `game.phase`, instead of rechecking every body
+fact.
 
-The compiler checks classifier facts:
+If a domain has no classifier, a domain pattern may still be executable when
+all of the domain body's facts are pure, finite, and runtime-checkable:
 
-- Classifiers for a classified union must be mutually exclusive.
-- The known union must be exhaustive at the match site.
+```omega
+if player in Player::Dead {
+    respawn(player)
+}
+```
+
+This lowers to the domain body's comparisons and updates the true branch with
+`player in Player::Dead`. Domains with quantifiers, opaque proof calls, or
+non-executable facts cannot be used as runtime checks unless they expose an
+explicit executable classifier or checker.
+
+For classified domains, the compiler checks classifier facts:
+
+- A non-wildcard match over a known domain union must be exhaustive.
+- Classifiers should be mutually exclusive when the program relies on
+  unordered domain-union reasoning.
 - Each arm receives the facts from the selected domain.
 - Each transition target must accept the facts established by its arm.
 
@@ -172,12 +204,22 @@ domain Secure for Password {
 A value can be both:
 
 ```omega
-requires password in Valid & Secure
+requires password in Password::Valid & Password::Secure
 ```
 
-But overlapping domains cannot be used as a `domain_of` dispatch unless their
-current classified set has mutually exclusive classifiers. If two possible
-domains have no disambiguating feature, `domain_of` is a compile error.
+Overlapping domains are fine in ordered value matches:
+
+```omega
+match password {
+    Password::Secure -> accept_strong(password)
+    Password::Valid -> accept_basic(password)
+    _ -> reject(password)
+}
+```
+
+Here `Password::Secure` wins when both domains hold because it appears first.
+If source code needs an unordered, exhaustive split of a known domain union,
+the domains must still be distinguishable by mutually exclusive classifiers.
 
 ## No Hidden RTTI
 
@@ -201,11 +243,12 @@ Working interpretation:
 - `domain` is a contextual keyword in declaration position.
 - Domains are type-scoped named proof predicates.
 - `when` is a cheap, pure classifier, not the whole invariant.
-- `requires x in Domain` is a caller obligation.
-- `ensures x in Domain` is a callee guarantee.
-- `x in A | B` is a domain union.
-- `x in A & B` is a domain intersection.
-- `domain_of(x)` is only legal for a known, exhaustive, disjoint classified
-  domain union.
+- `requires x in Type::Domain` is a caller obligation.
+- `ensures x in Type::Domain` is a callee guarantee.
+- `x in Type::A | Type::B` is a domain union.
+- `x in Type::A & Type::B` is a domain intersection.
+- `Type::Domain` in a match arm is a domain pattern for values of `Type`.
+- `if x in Type::Domain` is a full executable domain check when the domain is
+  runtime-checkable.
 - Domain facts erase from ordinary runtime code unless a diagnostic build
   explicitly asks for checks.
