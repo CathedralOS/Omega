@@ -7,11 +7,11 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::TableCall;
 use omega_core::arena::{Arena, HandleSpan};
 
-pub(crate) fn platform_call_receiver_type(
-    program: &Program,
+pub(crate) fn platform_call_receiver_type<'program>(
+    program: &'program Program,
     machine: &Machine,
     call: &TableCall,
-) -> Option<String> {
+) -> Option<&'program str> {
     if call.receiver.count() == 0 {
         return None;
     }
@@ -81,7 +81,7 @@ pub(crate) fn platform_call_receiver_type(
         .platforms()
         .iter()
         .find(|platform| platform.symbol == receiver_type_symbol)
-        .map(|platform| platform.name.to_string())
+        .map(|platform| platform.name.as_str())
 }
 
 pub(crate) fn find_platform_call_lowering<'abi>(
