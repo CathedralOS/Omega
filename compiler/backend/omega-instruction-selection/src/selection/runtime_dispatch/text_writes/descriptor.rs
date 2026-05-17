@@ -3,8 +3,8 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::resolve_runtime_storage_place;
 use omega_checked_trees::expression::Expression;
 use omega_control_flow::StateKey;
+use omega_target_operations::TargetDataObjectHandle;
 use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
-use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_string_descriptor_write(
@@ -32,9 +32,8 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     if target_place.byte_count != input.target.pointer_size * 2 {
         return;
     }
-    let Some((data, _data_object)) =
-        string_literal_data_object(input, literal_source_key, statement_index, value)
-    else {
+    let data = string_literal_data_object(input, literal_source_key, statement_index, value);
+    if !data.is_valid() {
         return;
     };
 
@@ -56,16 +55,14 @@ pub(in crate::selection) fn string_literal_data_handle(
     value: &str,
 ) -> TargetDataObjectHandle {
     string_literal_data_object(input, source_key, statement_index, value)
-        .map(|(handle, _)| handle)
-        .unwrap_or_else(TargetDataObjectHandle::invalid)
 }
 
-fn string_literal_data_object<'plan>(
-    input: &'plan InstructionSelectionInput<'plan>,
+fn string_literal_data_object(
+    input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
     value: &str,
-) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
+) -> TargetDataObjectHandle {
     let exact = input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == source_key
             && data_object.source_statement == statement_index
@@ -77,15 +74,18 @@ fn string_literal_data_object<'plan>(
                     bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
                 })
     });
-    exact.or_else(|| {
-        input.data.objects.iter().find(|(_, data_object)| {
-            input
-                .data
-                .bytes
-                .span(data_object.bytes)
-                .is_some_and(|bytes| {
-                    bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
-                })
+    exact
+        .or_else(|| {
+            input.data.objects.iter().find(|(_, data_object)| {
+                input
+                    .data
+                    .bytes
+                    .span(data_object.bytes)
+                    .is_some_and(|bytes| {
+                        bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
+                    })
+            })
         })
-    })
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
 }

@@ -122,13 +122,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         alias_context,
                     )
                     .is_none()
-                        && let Some((buffer, literal)) =
+                        && let Some(literal_write) =
                             runtime_text_literal_write_for_host_call(input, host_call)
                     {
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::WriteRuntimeTextLiteral {
-                                buffer,
-                                literal,
+                                buffer: literal_write.buffer,
+                                literal: literal_write.literal,
                             },
                             source_key: host_call.source_key,
                             source_statement: host_call.statement_index,

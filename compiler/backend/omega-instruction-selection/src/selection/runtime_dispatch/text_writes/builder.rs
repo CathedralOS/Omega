@@ -83,8 +83,8 @@ fn runtime_text_builder_write_without_aliases_emit(
         return false;
     };
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let Some((buffer, _)) = runtime_text_input_buffer_data_for_text_place(input, &resolved_target)
-    else {
+    let buffer = runtime_text_input_buffer_data_for_text_place(input, &resolved_target);
+    if !buffer.is_valid() {
         return false;
     };
     let target_place = resolve_runtime_storage_place(
@@ -274,8 +274,8 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
         return false;
     };
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let Some((buffer, _)) = runtime_text_input_buffer_data_for_text_place(input, &resolved_target)
-    else {
+    let buffer = runtime_text_input_buffer_data_for_text_place(input, &resolved_target);
+    if !buffer.is_valid() {
         return false;
     };
     let target_place = resolve_runtime_storage_place(

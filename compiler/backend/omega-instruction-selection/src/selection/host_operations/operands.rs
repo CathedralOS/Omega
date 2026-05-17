@@ -33,14 +33,11 @@ pub(super) fn select_host_operation_operands(
             operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(-10))])
         }
         (_, HostCapability::Stdin, HostOperation::Read | HostOperation::ReadFile) => {
-            let Some((data_object_handle, data_object)) = find_data_object(input, host_call) else {
+            let data_object_handle = find_data_object(input, host_call);
+            if !data_object_handle.is_valid() {
                 return HandleSpan::empty();
             };
-            let byte_count = input
-                .data
-                .bytes
-                .span(data_object.bytes)
-                .map_or(0, |bytes| bytes.len());
+            let byte_count = data_object_byte_count(input, data_object_handle);
 
             if operation_key.operation == HostOperation::Read {
                 return operands.insert_many([
@@ -60,17 +57,14 @@ pub(super) fn select_host_operation_operands(
             ])
         }
         (_, HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
-            if let Some((data_object_handle, data_object)) = find_data_object(input, host_call) {
-                let byte_count = input
-                    .data
-                    .bytes
-                    .span(data_object.bytes)
-                    .map_or(0, |bytes| bytes.len());
+            let direct_data_object = find_data_object(input, host_call);
+            if direct_data_object.is_valid() {
+                let byte_count = data_object_byte_count(input, direct_data_object);
                 return stdout_operands(
                     operands,
                     operation_key.operation,
                     InstructionOperandKind::DataAddress {
-                        data: data_object_handle,
+                        data: direct_data_object,
                     },
                     InstructionOperandKind::ByteLength(byte_count),
                 );
@@ -142,14 +136,31 @@ fn stdout_operands(
     operands.insert_many([operand(first), operand(second)])
 }
 
-fn find_data_object<'plan>(
-    input: &'plan InstructionSelectionInput<'plan>,
+fn find_data_object(
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
-    input.data.objects.iter().find(|(_, data_object)| {
-        data_object.source_key == host_call.source_key
-            && data_object.source_statement == host_call.statement_index
-    })
+) -> TargetDataObjectHandle {
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_key == host_call.source_key
+                && data_object.source_statement == host_call.statement_index
+        })
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
+}
+
+fn data_object_byte_count(
+    input: &InstructionSelectionInput<'_>,
+    data_object: TargetDataObjectHandle,
+) -> usize {
+    input
+        .data
+        .bytes
+        .span(input.data.objects.get(data_object).bytes)
+        .map_or(0, |bytes| bytes.len())
 }
 
 pub(super) fn data_object_handle(
