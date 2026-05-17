@@ -1,5 +1,6 @@
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::symbols::SymbolHandle;
@@ -12,6 +13,7 @@ pub struct RuntimeDispatchBodyPlan {
     pub expressions: ExpressionTable,
     pub invariant_names: Arena<ProgramName>,
     pub operations: PagedArena<RuntimeDispatchBodyOperation>,
+    pub type_references: TypeReferenceTable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,7 +77,7 @@ pub enum RuntimeDispatchBodyOperationKind {
         symbol: SymbolHandle,
         name: ProgramName,
         type_symbol: SymbolHandle,
-        type_name: String,
+        type_reference: TypeReferenceHandle,
         invariant_names: HandleSpan<ProgramName>,
     },
     Mutation {

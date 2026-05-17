@@ -8,6 +8,7 @@ use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKin
 use omega_checked_trees::expression::ExpressionTable;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use omega_checked_trees::types::TypeReferenceTable;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering};
@@ -20,6 +21,7 @@ pub(super) struct CollectedRuntimeDispatchBody {
     pub expressions: ExpressionTable,
     pub invariant_names: Arena<ProgramName>,
     pub operations: Arena<RuntimeDispatchBodyOperation>,
+    pub type_references: TypeReferenceTable,
 }
 
 pub(super) fn build_dispatch_body(
@@ -29,12 +31,14 @@ pub(super) fn build_dispatch_body(
     let mut operations = Arena::new();
     let mut expressions = ExpressionTable::new();
     let mut invariant_names = Arena::new();
+    let mut type_references = TypeReferenceTable::new();
     append_state_body_operations(
         context,
         dispatch_state.key,
         &mut operations,
         &mut expressions,
         &mut invariant_names,
+        &mut type_references,
         &mut Vec::new(),
     );
 
@@ -44,6 +48,7 @@ pub(super) fn build_dispatch_body(
         expressions,
         invariant_names,
         operations,
+        type_references,
     }
 }
 
@@ -53,6 +58,7 @@ fn append_state_body_operations(
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
+    type_references: &mut TypeReferenceTable,
     visiting: &mut Vec<StateKey>,
 ) {
     if visiting.contains(&state_key) {
@@ -84,6 +90,7 @@ fn append_state_body_operations(
                 operations,
                 expressions,
                 invariant_names,
+                type_references,
                 visiting,
             );
             continue;
@@ -98,6 +105,7 @@ fn append_state_body_operations(
                 operations,
                 expressions,
                 invariant_names,
+                type_references,
                 visiting,
             );
         }
@@ -112,7 +120,12 @@ fn append_state_body_operations(
                     symbol: local_storage.symbol,
                     name: local_storage.name.clone(),
                     type_symbol: local_storage.type_symbol,
-                    type_name: local_storage.type_name.clone(),
+                    type_reference: type_references.copy_from(
+                        &context.state_storage.type_references,
+                        &context.state_storage.expressions,
+                        expressions,
+                        local_storage.type_reference,
+                    ),
                     invariant_names: invariant_names.insert_many(
                         context
                             .state_storage
@@ -163,6 +176,7 @@ fn append_state_body_operations(
                 operations,
                 expressions,
                 invariant_names,
+                type_references,
                 visiting,
             );
         }
@@ -177,6 +191,7 @@ fn append_state_call_body_operation(
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
+    type_references: &mut TypeReferenceTable,
     visiting: &mut Vec<StateKey>,
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
@@ -196,6 +211,7 @@ fn append_state_call_body_operation(
             operations,
             expressions,
             invariant_names,
+            type_references,
             visiting,
         );
         append_state_call_result_operation(context, state_call, operations, expressions);
@@ -220,6 +236,7 @@ fn append_state_call_body_operation(
             operations,
             expressions,
             invariant_names,
+            type_references,
             visiting,
         );
         append_state_call_result_operation(context, state_call, operations, expressions);

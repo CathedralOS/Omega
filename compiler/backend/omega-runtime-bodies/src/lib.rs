@@ -58,13 +58,18 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
                             symbol,
                             ref name,
                             type_symbol,
-                            ref type_name,
+                            type_reference,
                             invariant_names,
                         } => RuntimeDispatchBodyOperationKind::LocalStorage {
                             symbol,
                             name: name.clone(),
                             type_symbol,
-                            type_name: type_name.clone(),
+                            type_reference: plan.type_references.copy_from(
+                                &collected_body.type_references,
+                                &collected_body.expressions,
+                                &mut plan.expressions,
+                                type_reference,
+                            ),
                             invariant_names: plan.invariant_names.insert_many(
                                 collected_body
                                     .invariant_names

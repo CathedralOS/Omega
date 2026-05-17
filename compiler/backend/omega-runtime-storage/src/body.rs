@@ -8,7 +8,7 @@ use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutation, StateMutationLowering};
 
-use super::layout::{align_to, layout_for_type};
+use super::layout::{align_to, layout_for_type, layout_for_type_reference};
 
 pub(super) fn build_runtime_storage_body_plan(
     context: &RuntimeStorageContext,
@@ -31,10 +31,14 @@ pub(super) fn build_runtime_storage_body_plan(
                 symbol,
                 name,
                 type_symbol,
-                type_name,
+                type_reference,
                 invariant_names,
             } => {
-                let layout = layout_for_type(context, *type_symbol, type_name);
+                let layout = layout_for_type_reference(
+                    context,
+                    &context.runtime_bodies.type_references,
+                    *type_reference,
+                );
                 let byte_offset = align_to(next_frame_offset, layout.alignment);
                 next_frame_offset = byte_offset
                     .checked_add(layout.size)
@@ -48,7 +52,10 @@ pub(super) fn build_runtime_storage_body_plan(
                     symbol: *symbol,
                     name: name.clone(),
                     type_symbol: *type_symbol,
-                    type_name: type_name.clone(),
+                    type_name: context
+                        .runtime_bodies
+                        .type_references
+                        .display_name(*type_reference),
                     invariant_names: plan.invariant_names.insert_many(
                         context
                             .runtime_bodies

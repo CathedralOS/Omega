@@ -8,7 +8,12 @@ pub(in crate::identity) fn count_state_storage_strings(
 ) {
     for (_, local) in backend_plan.state_storage.locals.iter() {
         storage.count_program_name_identity(&local.name);
-        storage.count_identity(&local.type_name);
+        storage.count_identity(
+            &backend_plan
+                .state_storage
+                .type_references
+                .display_name(local.type_reference),
+        );
     }
     for (_, mutation) in backend_plan.state_storage.mutations.iter() {
         count_control_flow_expression_strings(

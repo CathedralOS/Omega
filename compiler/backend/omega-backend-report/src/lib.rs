@@ -199,9 +199,13 @@ pub fn backend_report_text(
     ));
     for (_, local) in backend_plan.state_storage.locals.iter() {
         let source_name = backend_state_name(backend_plan, local.source_key);
+        let type_name = backend_plan
+            .state_storage
+            .type_references
+            .display_name(local.type_reference);
         output.push_str(&format!(
             "- {} statement {} local `{}`: {} required {}\n",
-            source_name, local.statement_index, local.name, local.type_name, local.required
+            source_name, local.statement_index, local.name, type_name, local.required
         ));
     }
     output.push_str(&format!(
