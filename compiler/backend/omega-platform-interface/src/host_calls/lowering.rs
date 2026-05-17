@@ -128,18 +128,22 @@ pub(crate) fn platform_call_name(program: &Program, call: &TableCall) -> String 
         return call.target.to_string();
     }
 
-    format!("{}.{}", display_path(receiver), call.target)
-}
+    let byte_count = receiver
+        .iter()
+        .map(|member| member.as_str().len())
+        .sum::<usize>()
+        + receiver.len()
+        + call.target.len();
+    let mut display = String::with_capacity(byte_count);
 
-fn display_path(path: &[omega_checked_trees::name::ProgramName]) -> String {
-    let mut display = String::new();
-
-    for member in path {
-        if !display.is_empty() {
+    for (index, member) in receiver.iter().enumerate() {
+        if index > 0 {
             display.push('.');
         }
         display.push_str(member.as_str());
     }
+    display.push('.');
+    display.push_str(&call.target);
 
     display
 }
