@@ -1,6 +1,6 @@
 use crate::BackendReportInput;
 use omega_layout::{DataShape, FieldLayout};
-use omega_object::{RelocationRecord, SectionPlan, SymbolPlan};
+use omega_object::{RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name};
 
 pub(super) fn write_layout_object_sections(
     output: &mut String,
@@ -80,7 +80,7 @@ pub(super) fn write_layout_object_sections(
         output.push_str("none\n");
     } else {
         for (_, relocation) in backend_plan.relocations.records.iter() {
-            write_relocation_record(output, relocation);
+            write_relocation_record(output, backend_plan, relocation);
         }
     }
 }
@@ -124,14 +124,18 @@ fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
     ));
 }
 
-fn write_relocation_record(output: &mut String, relocation: &RelocationRecord) {
+fn write_relocation_record(
+    output: &mut String,
+    backend_plan: &BackendReportInput<'_>,
+    relocation: &RelocationRecord,
+) {
     output.push_str(&format!(
         "- {:?} {} text @{} width {} instruction #{} -> {}\n",
         relocation.kind,
-        relocation.function_symbol,
+        object_symbol_name(backend_plan.object, relocation.function_symbol_handle),
         relocation.text_offset,
         relocation.byte_width,
         relocation.selected_instruction_index,
-        relocation.symbol
+        object_symbol_name(backend_plan.object, relocation.symbol_handle)
     ));
 }

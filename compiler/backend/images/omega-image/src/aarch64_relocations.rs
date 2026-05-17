@@ -1,4 +1,7 @@
-use crate::{FinalImage, FinalImageLayout, final_image_imports_symbol, final_image_symbol_address};
+use crate::{
+    FinalImage, FinalImageLayout, final_image_imports_symbol, final_image_symbol_address,
+    final_image_symbol_name,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_object::RelocationKind;
 
@@ -11,16 +14,17 @@ pub fn apply_aarch64_relocations(
         let Some(symbol_address) =
             final_image_symbol_address(image, relocation.symbol_handle, layout)
         else {
-            if final_image_imports_symbol(image, &relocation.symbol) {
+            let symbol_name = final_image_symbol_name(image, relocation.symbol_handle);
+            if final_image_imports_symbol(image, symbol_name) {
                 return Err(Diagnostic::error(format!(
                     "{output_name} cannot import `{}` yet; use syscalls or add dynamic binding",
-                    relocation.symbol
+                    symbol_name
                 )));
             }
 
             return Err(Diagnostic::error(format!(
                 "{output_name} relocation references unknown symbol `{}`",
-                relocation.symbol
+                symbol_name
             )));
         };
 
