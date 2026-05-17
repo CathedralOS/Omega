@@ -241,9 +241,8 @@ fn normalized_guard_expression(
         source_machine,
         &source_expressions.to_tree(source_guard),
     );
-    normalize_guard_expression(Some(simplified_guard))
-        .map(|guard| normalized_expressions.insert_tree(&guard))
-        .unwrap_or_else(ExpressionHandle::invalid)
+    let normalized_guard = normalize_guard_expression(simplified_guard);
+    normalized_expressions.insert_tree(&normalized_guard)
 }
 
 fn machine_by_symbol<'program>(
