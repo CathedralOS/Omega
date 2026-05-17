@@ -1,6 +1,7 @@
 use super::{RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
 use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::types::TypeReferenceHandle;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -180,9 +181,12 @@ fn append_state_call_result_slot(
         return;
     }
 
-    let Some((type_symbol, type_name)) = state_return_type(context, target_key) else {
+    let return_type = state_return_type(context, target_key);
+    if !return_type.is_valid() {
         return;
     };
+    let type_symbol = context.program.type_reference_symbol(return_type);
+    let type_name = context.program.display_type_reference(return_type);
     let layout = layout_for_type(context, type_symbol, &type_name);
     if layout.size == 0 {
         return;
@@ -216,26 +220,24 @@ fn append_state_call_result_slot(
     });
 }
 
-fn state_return_type(
-    context: &RuntimeStorageContext,
-    target_key: StateKey,
-) -> Option<(SymbolHandle, String)> {
-    let machine = context
+fn state_return_type(context: &RuntimeStorageContext, target_key: StateKey) -> TypeReferenceHandle {
+    let Some(machine) = context
         .program
         .machines()
         .iter()
-        .find(|machine| machine.symbol == target_key.machine)?;
-    let state = context
+        .find(|machine| machine.symbol == target_key.machine)
+    else {
+        return TypeReferenceHandle::invalid();
+    };
+    let Some(state) = context
         .program
         .machine_states(machine)
         .iter()
-        .find(|state| state.symbol == target_key.state)?;
-    state.return_type.is_valid().then(|| {
-        (
-            context.program.type_reference_symbol(state.return_type),
-            context.program.display_type_reference(state.return_type),
-        )
-    })
+        .find(|state| state.symbol == target_key.state)
+    else {
+        return TypeReferenceHandle::invalid();
+    };
+    state.return_type
 }
 
 fn mutation_for_operation<'plan>(
