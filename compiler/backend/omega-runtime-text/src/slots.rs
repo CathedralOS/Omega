@@ -9,7 +9,6 @@ use super::places::expression_place_eq_in_table;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};
 
 pub(crate) fn build_runtime_text_slots(plan: &mut RuntimeTextPlan) -> Arena<RuntimeTextSlot> {
-    let mut slots = Arena::new();
     let RuntimeTextPlan {
         expressions,
         buffers,
@@ -17,7 +16,13 @@ pub(crate) fn build_runtime_text_slots(plan: &mut RuntimeTextPlan) -> Arena<Runt
         writes,
         ..
     } = plan;
-    let mut buffer_places = Arena::new();
+    let slot_capacity = uses
+        .len()
+        .checked_add(buffers.len())
+        .and_then(|count| count.checked_add(writes.len()))
+        .expect("runtime text slot capacity overflow");
+    let mut slots = Arena::with_capacity(slot_capacity);
+    let mut buffer_places = Arena::with_capacity(buffers.len());
     for (_, buffer) in buffers.iter() {
         if buffer.text_place.is_valid() {
             buffer_places.insert(BufferPlace {
