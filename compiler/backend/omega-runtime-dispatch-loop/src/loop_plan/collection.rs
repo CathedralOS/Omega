@@ -18,12 +18,13 @@ pub(super) fn build_runtime_dispatch_loop_case(
     context: &RuntimeDispatchLoopContext,
     case_input: &RuntimeDispatchLoopCaseInput,
 ) -> CollectedRuntimeDispatchLoopCase {
-    let Some(case_edges) = context.state_dispatch.edges.span(case_input.edges) else {
+    let state = context.state_dispatch.states.get(case_input.state);
+    let Some(case_edges) = context.state_dispatch.edges.span(state.edges) else {
         return CollectedRuntimeDispatchLoopCase {
-            key: case_input.key,
-            dispatch_index: case_input.dispatch_index,
-            label: case_input.label.clone(),
-            operation_count: runtime_body_operation_count(context, case_input.dispatch_index),
+            key: state.key,
+            dispatch_index: state.dispatch_index,
+            label: state.label.clone(),
+            operation_count: runtime_body_operation_count(context, state.dispatch_index),
             edges: Vec::new(),
         };
     };
@@ -31,10 +32,8 @@ pub(super) fn build_runtime_dispatch_loop_case(
         .iter()
         .enumerate()
         .map(|(order, edge)| {
-            let guard_comparison =
-                dispatch_guard_comparison(context, case_input.dispatch_index, order);
-            let guard_expression =
-                dispatch_guard_expression(context, case_input.dispatch_index, order);
+            let guard_comparison = dispatch_guard_comparison(context, state.dispatch_index, order);
+            let guard_expression = dispatch_guard_expression(context, state.dispatch_index, order);
             RuntimeDispatchLoopEdge {
                 order,
                 statement_index: edge.statement_index,
@@ -63,10 +62,10 @@ pub(super) fn build_runtime_dispatch_loop_case(
         .collect();
 
     CollectedRuntimeDispatchLoopCase {
-        key: case_input.key,
-        dispatch_index: case_input.dispatch_index,
-        label: case_input.label.clone(),
-        operation_count: runtime_body_operation_count(context, case_input.dispatch_index),
+        key: state.key,
+        dispatch_index: state.dispatch_index,
+        label: state.label.clone(),
+        operation_count: runtime_body_operation_count(context, state.dispatch_index),
         edges,
     }
 }

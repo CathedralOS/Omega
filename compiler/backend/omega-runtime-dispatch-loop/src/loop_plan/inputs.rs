@@ -1,13 +1,12 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
+use omega_state_dispatch::{DispatchState, StateDispatchPlan};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(super) type DispatchStateHandle = omega_core::arena::Handle<DispatchState>;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCaseInput {
-    pub(super) key: StateKey,
-    pub(super) dispatch_index: u32,
-    pub(super) label: String,
-    pub(super) edges: HandleSpan<DispatchEdge>,
+    pub(super) state: DispatchStateHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -26,7 +25,9 @@ impl RuntimeDispatchLoopInputs {
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&RuntimeDispatchLoopCaseInput> {
-        self.cases.span(self.span).and_then(|cases| cases.get(index))
+        self.cases
+            .span(self.span)
+            .and_then(|cases| cases.get(index))
     }
 }
 
@@ -34,14 +35,12 @@ pub fn runtime_dispatch_loop_inputs(
     state_dispatch: &StateDispatchPlan,
 ) -> RuntimeDispatchLoopInputs {
     let mut inputs = RuntimeDispatchLoopInputs::default();
-    inputs.span = inputs.cases.insert_many(state_dispatch.states.iter().map(|(_, state)| {
-        RuntimeDispatchLoopCaseInput {
-            key: state.key,
-            dispatch_index: state.dispatch_index,
-            label: state.label.clone(),
-            edges: state.edges,
-        }
-    }));
+    inputs.span = inputs.cases.insert_many(
+        state_dispatch
+            .states
+            .iter()
+            .map(|(state, _)| RuntimeDispatchLoopCaseInput { state }),
+    );
     inputs
 }
 
