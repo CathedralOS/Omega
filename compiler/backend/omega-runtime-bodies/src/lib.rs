@@ -6,40 +6,39 @@ mod model;
 use collection::build_dispatch_body;
 pub use context::RuntimeDispatchBodyContext;
 pub use model::{
-    RuntimeDispatchBody, RuntimeDispatchBodyInput, RuntimeDispatchBodyOperation,
-    RuntimeDispatchBodyOperationKind, RuntimeDispatchBodyPlan,
+    RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
+    RuntimeDispatchBodyPlan,
 };
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_state_dispatch::StateDispatchPlan;
 use std::sync::Arc;
 
 pub fn build_runtime_dispatch_body_plan(
     context: RuntimeDispatchBodyContext,
-    body_inputs: Vec<RuntimeDispatchBodyInput>,
 ) -> RuntimeDispatchBodyPlan {
     let workers = WorkerPool::with_available_parallelism();
 
-    build_runtime_dispatch_body_plan_with_workers(Arc::new(context), body_inputs, workers.handle())
+    build_runtime_dispatch_body_plan_with_workers(Arc::new(context), workers.handle())
 }
 
 pub fn build_runtime_dispatch_body_plan_with_workers(
     context: Arc<RuntimeDispatchBodyContext>,
-    body_inputs: Vec<RuntimeDispatchBodyInput>,
     workers: WorkerPoolHandle,
 ) -> RuntimeDispatchBodyPlan {
-    if body_inputs.is_empty() {
+    if context.state_dispatch.states.is_empty() {
         return RuntimeDispatchBodyPlan::default();
     }
 
-    let body_inputs = Arc::new(body_inputs);
-    let state_count = body_inputs.len();
+    let state_count = context.state_dispatch.states.len();
     let context_for_bodies = Arc::clone(&context);
     let collected_bodies = workers.map_ordered(state_count, move |index| {
-        let body_input = body_inputs
+        let dispatch_state = context_for_bodies
+            .state_dispatch
+            .states
+            .storage_slice()
             .get(index)
             .expect("runtime-body worker index should be in range");
 
-        build_dispatch_body(&context_for_bodies, *body_input)
+        build_dispatch_body(&context_for_bodies, dispatch_state)
     });
 
     let mut plan = RuntimeDispatchBodyPlan::default();
@@ -102,17 +101,4 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
     }
 
     plan
-}
-
-pub fn runtime_dispatch_body_inputs(
-    state_dispatch: &StateDispatchPlan,
-) -> Vec<RuntimeDispatchBodyInput> {
-    state_dispatch
-        .states
-        .iter()
-        .map(|(_, dispatch_state)| RuntimeDispatchBodyInput {
-            key: dispatch_state.key,
-            dispatch_index: dispatch_state.dispatch_index,
-        })
-        .collect()
 }

@@ -16,12 +16,6 @@ pub struct RuntimeDispatchBodyPlan {
     pub type_references: TypeReferenceTable,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RuntimeDispatchBodyInput {
-    pub key: StateKey,
-    pub dispatch_index: u32,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBody {
     pub key: StateKey,
