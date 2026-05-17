@@ -33,6 +33,12 @@ impl PlaceKey {
                 key.symbol = SymbolHandle::invalid();
                 Some(key)
             }
+            Expression::Member(member) => {
+                let mut key = Self::from_expression(&member.receiver)?;
+                key = key.append_member(member.member.clone());
+                key.symbol = member.member_symbol;
+                Some(key)
+            }
             _ => None,
         }
     }
@@ -51,6 +57,12 @@ impl PlaceKey {
                 key =
                     key.append_generated_member(format!("[{}]", table.display_name(indexed.index)));
                 key.symbol = SymbolHandle::invalid();
+                Some(key)
+            }
+            ExpressionNode::Member(member) => {
+                let mut key = Self::from_expression_handle(table, member.receiver)?;
+                key = key.append_member(member.member.clone());
+                key.symbol = member.member_symbol;
                 Some(key)
             }
             _ => None,

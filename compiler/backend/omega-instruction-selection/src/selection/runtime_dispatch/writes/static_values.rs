@@ -6,8 +6,9 @@ use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
 };
 use super::super::super::storage_places::enum_variant_value;
+use omega_platform_interface::PlaceKey;
 
-pub(super) type RuntimeStaticValues = Vec<(Expression, i64)>;
+pub(super) type RuntimeStaticValues = Vec<(PlaceKey, i64)>;
 
 pub(super) fn resolve_runtime_static_integer_value(
     input: &InstructionSelectionInput<'_>,
@@ -15,7 +16,7 @@ pub(super) fn resolve_runtime_static_integer_value(
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
-    static_values: &[(Expression, i64)],
+    static_values: &RuntimeStaticValues,
 ) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
@@ -57,7 +58,7 @@ pub(super) fn resolve_runtime_static_integer_value(
 fn resolve_runtime_resolved_static_integer_value(
     input: &InstructionSelectionInput<'_>,
     expression: Expression,
-    static_values: &[(Expression, i64)],
+    static_values: &RuntimeStaticValues,
 ) -> Option<i64> {
     let expression = strip_mutable_expression(expression);
     match expression {
@@ -65,9 +66,10 @@ fn resolve_runtime_resolved_static_integer_value(
         Expression::Boolean(value) => Some(i64::from(value)),
         Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
             enum_variant_value(&input.layouts, &expression).or_else(|| {
+                let key = PlaceKey::from_expression(&expression)?;
                 static_values
                     .iter()
-                    .find(|(target, _)| target == &expression)
+                    .find(|(target, _)| target == &key)
                     .map(|(_, value)| *value)
             })
         }
@@ -87,6 +89,10 @@ pub(super) fn set_runtime_static_value(
     target: Expression,
     value: i64,
 ) {
+    let Some(target) = PlaceKey::from_expression(&strip_mutable_expression(target)) else {
+        return;
+    };
+
     if let Some((_, existing_value)) = static_values
         .iter_mut()
         .find(|(existing_target, _)| existing_target == &target)
