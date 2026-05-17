@@ -1,5 +1,5 @@
-use omega_machine_program::{MachineInstructionKind, MachineRuntimeValueOperand};
-use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
+use omega_machine_program::MachineInstructionKind;
+use omega_target_operations::StateGuardOperator;
 
 pub(super) fn runtime_storage_compare_kind(
     left_offset: usize,
@@ -70,16 +70,14 @@ pub(super) fn runtime_pointee_integer_write_kind(
 pub(super) fn runtime_storage_binary_write_kind(
     target_offset: usize,
     byte_size: usize,
-    left: RuntimeValueOperand,
+    _left: omega_target_operations::RuntimeValueOperand,
     operator: StateGuardOperator,
-    right: RuntimeValueOperand,
+    _right: omega_target_operations::RuntimeValueOperand,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageBinaryWrite {
         target_offset,
         byte_size,
-        left: lower_runtime_value_operand(left),
         operator,
-        right: lower_runtime_value_operand(right),
     }
 }
 
@@ -87,17 +85,15 @@ pub(super) fn runtime_pointee_binary_write_kind(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: RuntimeValueOperand,
+    _left: omega_target_operations::RuntimeValueOperand,
     operator: StateGuardOperator,
-    right: RuntimeValueOperand,
+    _right: omega_target_operations::RuntimeValueOperand,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimePointeeBinaryWrite {
         pointer_byte_offset,
         field_byte_offset,
         byte_size,
-        left: lower_runtime_value_operand(left),
         operator,
-        right: lower_runtime_value_operand(right),
     }
 }
 
@@ -125,9 +121,9 @@ pub(super) fn runtime_frame_indexed_binary_write_kind(
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
-    left: RuntimeValueOperand,
+    _left: omega_target_operations::RuntimeValueOperand,
     operator: StateGuardOperator,
-    right: RuntimeValueOperand,
+    _right: omega_target_operations::RuntimeValueOperand,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeFrameIndexedBinaryWrite {
         descriptor_offset,
@@ -135,9 +131,7 @@ pub(super) fn runtime_frame_indexed_binary_write_kind(
         element_byte_size,
         field_byte_offset,
         byte_size,
-        left: lower_runtime_value_operand(left),
         operator,
-        right: lower_runtime_value_operand(right),
     }
 }
 
@@ -204,52 +198,5 @@ pub(super) fn runtime_storage_copy_to_runtime_pointee_kind(
         pointer_byte_offset,
         field_byte_offset,
         byte_count,
-    }
-}
-
-fn lower_runtime_value_operand(operand: RuntimeValueOperand) -> MachineRuntimeValueOperand {
-    match operand {
-        RuntimeValueOperand::Immediate(value) => MachineRuntimeValueOperand::Immediate(value),
-        RuntimeValueOperand::Storage {
-            byte_offset,
-            byte_size,
-            ..
-        } => {
-            MachineRuntimeValueOperand::Storage {
-                byte_offset,
-                byte_size,
-            }
-        }
-        RuntimeValueOperand::Pointee {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-        } => MachineRuntimeValueOperand::Pointee {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-        },
-        RuntimeValueOperand::FrameIndexed {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-        } => MachineRuntimeValueOperand::FrameIndexed {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-        },
-        RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-        } => MachineRuntimeValueOperand::Binary {
-            left: Box::new(lower_runtime_value_operand(*left)),
-            operator,
-            right: Box::new(lower_runtime_value_operand(*right)),
-        },
     }
 }
