@@ -1,8 +1,6 @@
-use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_operations::StateGuardOperator;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,164 +55,40 @@ impl Default for MachineInstruction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineInstructionKind {
     NoOp,
-    DispatchLoopEnter {
-        entry_dispatch_index: u32,
-    },
-    DispatchCaseEnter {
-        dispatch_index: u32,
-    },
-    DispatchGuardCompareStatic {
-        operator: StateGuardOperator,
-        byte_offset: usize,
-        byte_size: usize,
-        expected_value: i64,
-    },
+    DispatchLoopEnter,
+    DispatchCaseEnter,
+    DispatchGuardCompareStatic,
     RuntimeTextLiteralCompare,
-    RuntimeTextStorageCompare {
-        source_offset: usize,
-        operator: StateGuardOperator,
-    },
-    RuntimeStorageCompare {
-        left_offset: usize,
-        right_offset: usize,
-        byte_size: usize,
-        operator: StateGuardOperator,
-    },
-    RuntimeStorageValueCompare {
-        byte_offset: usize,
-        byte_size: usize,
-        expected_value: i64,
-        operator: StateGuardOperator,
-    },
+    RuntimeTextStorageCompare,
+    RuntimeStorageCompare,
+    RuntimeStorageValueCompare,
     RuntimeTextLiteralWrite,
-    RuntimeTextLiteralSegmentWrite {
-        byte_offset: usize,
-    },
-    RuntimeTextStoredSuffixAppend {
-        buffer_offset: usize,
-        source_offset: usize,
-        target_offset: usize,
-        length_delta: usize,
-    },
-    RuntimeTextBufferMaterialize {
-        target_offset: usize,
-    },
-    RuntimeTextBufferMaterializeToRuntimePointee {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    RuntimeTextBufferMaterializeToRuntimeFrameIndexed {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    RuntimeTextStoredPlaceAppend {
-        source_offset: usize,
-        target_offset: usize,
-    },
-    RuntimeTextStoredPlaceAppendToRuntimePointee {
-        source_offset: usize,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed {
-        source_offset: usize,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    RuntimeTextLiteralAppend {
-        target_offset: usize,
-    },
-    RuntimeTextLiteralAppendToRuntimePointee {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-    },
-    RuntimeTextLiteralAppendToRuntimeFrameIndexed {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-    },
-    RuntimeMachineIntegerWrite {
-        byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    RuntimePointeeIntegerWrite {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    RuntimeStorageBinaryWrite {
-        target_offset: usize,
-        byte_size: usize,
-        operator: StateGuardOperator,
-    },
-    RuntimePointeeBinaryWrite {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        operator: StateGuardOperator,
-    },
-    RuntimeFrameIndexedIntegerWrite {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        value: i64,
-    },
-    RuntimeFrameIndexedBinaryWrite {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-        operator: StateGuardOperator,
-    },
-    RuntimeMachineStringWrite {
-        byte_offset: usize,
-        byte_length: usize,
-    },
-    RuntimePointeeStringWrite {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_length: usize,
-    },
-    RuntimeTextLineRead {
-        target_offset: usize,
-        byte_capacity: usize,
-    },
-    RuntimeStorageCopy {
-        source_offset: usize,
-        target_offset: usize,
-        byte_count: usize,
-    },
-    RuntimeStorageCopyToRuntimeFrameIndexed {
-        source_offset: usize,
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
-    RuntimeStorageCopyToRuntimePointee {
-        source_offset: usize,
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_count: usize,
-    },
-    DispatchStateWrite {
-        dispatch_index: u32,
-    },
+    RuntimeTextLiteralSegmentWrite,
+    RuntimeTextStoredSuffixAppend,
+    RuntimeTextBufferMaterialize,
+    RuntimeTextBufferMaterializeToRuntimePointee,
+    RuntimeTextBufferMaterializeToRuntimeFrameIndexed,
+    RuntimeTextStoredPlaceAppend,
+    RuntimeTextStoredPlaceAppendToRuntimePointee,
+    RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed,
+    RuntimeTextLiteralAppend,
+    RuntimeTextLiteralAppendToRuntimePointee,
+    RuntimeTextLiteralAppendToRuntimeFrameIndexed,
+    RuntimeMachineIntegerWrite,
+    RuntimePointeeIntegerWrite,
+    RuntimeStorageBinaryWrite,
+    RuntimePointeeBinaryWrite,
+    RuntimeFrameIndexedIntegerWrite,
+    RuntimeFrameIndexedBinaryWrite,
+    RuntimeMachineStringWrite,
+    RuntimePointeeStringWrite,
+    RuntimeTextLineRead,
+    RuntimeStorageCopy,
+    RuntimeStorageCopyToRuntimeFrameIndexed,
+    RuntimeStorageCopyToRuntimePointee,
+    DispatchStateWrite,
     DispatchTerminate,
     DispatchCaseLeave,
-    HostCallSequence {
-        operation_key: HostOperationKey,
-    },
+    HostCallSequence,
     Return,
 }
