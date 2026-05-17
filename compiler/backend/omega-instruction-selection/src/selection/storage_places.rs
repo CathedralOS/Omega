@@ -21,7 +21,7 @@ use omega_checked_trees::expression::{
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::{FieldLayout, TypeLayout};
 use omega_state_calls::StateCallRole;
 
@@ -767,14 +767,14 @@ fn pointee_type_layout(
         };
     }
 
-    if type_name == "Uint" {
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Uint) {
         return TypeLayout {
             size: input.target.pointer_size,
             alignment: input.target.pointer_alignment,
         };
     }
 
-    if type_name == "Real" {
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Real) {
         return TypeLayout {
             size: 8,
             alignment: 8,

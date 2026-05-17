@@ -125,7 +125,6 @@ impl<'program> ProgramSymbols<'program> {
         self.type_symbol(name).is_valid()
             || self.machine_symbol(name).is_valid()
             || self.platform_symbol(name).is_valid()
-            || is_builtin_shape_type(name)
     }
 
     fn type_symbol(&self, name: &str) -> SymbolHandle {
@@ -177,10 +176,6 @@ impl<'program> ProgramSymbols<'program> {
     pub fn is_callable_receiver_type(&self, name: &str) -> bool {
         self.machine_symbol(name).is_valid() || self.platform_symbol(name).is_valid()
     }
-}
-
-fn is_builtin_shape_type(name: &str) -> bool {
-    matches!(name, "Real" | "Uint")
 }
 
 #[derive(Debug)]

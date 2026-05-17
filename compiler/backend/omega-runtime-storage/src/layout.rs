@@ -1,6 +1,6 @@
 use super::RuntimeStorageContext;
 use omega_checked_trees::types::PrimitiveType;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
 
 pub(super) fn layout_for_type(
@@ -43,7 +43,7 @@ pub(super) fn layout_for_type(
         return primitive_layout(context, primitive_type);
     }
 
-    if let Some(layout) = builtin_named_layout(context, type_name) {
+    if let Some(layout) = builtin_type_layout(context, type_symbol) {
         return layout;
     }
 
@@ -61,18 +61,35 @@ fn is_slice_descriptor_name(type_name: &str) -> bool {
     type_name.starts_with('[') && type_name.ends_with(']') && !type_name.contains(';')
 }
 
-fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Option<TypeLayout> {
-    match type_name {
-        "Uint" => Some(TypeLayout {
+fn builtin_type_layout(
+    context: &RuntimeStorageContext,
+    type_symbol: SymbolHandle,
+) -> Option<TypeLayout> {
+    if Some(type_symbol)
+        == context
+            .program
+            .symbols
+            .builtin_type_symbol(BuiltinType::Uint)
+    {
+        return Some(TypeLayout {
             size: context.target.pointer_size,
             alignment: context.target.pointer_alignment,
-        }),
-        "Real" => Some(TypeLayout {
+        });
+    }
+
+    if Some(type_symbol)
+        == context
+            .program
+            .symbols
+            .builtin_type_symbol(BuiltinType::Real)
+    {
+        return Some(TypeLayout {
             size: 8,
             alignment: 8,
-        }),
-        _ => None,
+        });
     }
+
+    None
 }
 
 fn strip_constraint_suffix(type_name: &str) -> &str {
