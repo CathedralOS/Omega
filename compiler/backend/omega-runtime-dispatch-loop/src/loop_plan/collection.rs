@@ -1,5 +1,5 @@
 use super::context::RuntimeDispatchLoopContext;
-use super::guards::dispatch_guard_comparison;
+use super::guards::{dispatch_guard, dispatch_guard_comparison};
 use super::inputs::RuntimeDispatchLoopCaseInput;
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_control_flow::StateKey;
@@ -42,7 +42,7 @@ pub(super) fn build_runtime_dispatch_loop_case(
                 continuation: edge.continuation.clone(),
                 continuation_dispatch_index: edge.continuation_dispatch_index,
                 continuation_arguments: edge.expressions.continuation_arguments,
-                guard: edge.guard.clone(),
+                guard: dispatch_guard(context, case_input.dispatch_index, order),
                 guard_lowering: guard_comparison.lowering,
                 guard_operator: guard_comparison.operator,
                 guard_storage: guard_comparison.storage,

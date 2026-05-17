@@ -3,10 +3,9 @@ mod input;
 mod model;
 
 pub use context::StateDispatchContext;
-pub use input::{RuntimeStateInput, runtime_state_inputs};
+pub use input::{runtime_state_inputs, RuntimeStateInput};
 pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
-use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -86,7 +85,6 @@ fn build_dispatch_state(
             target: edge.target.clone(),
             continuation_dispatch_index: target_dispatch_index(context, &edge.continuation),
             continuation: edge.continuation.clone(),
-            guard: edge.guard.clone(),
             expressions: edge.expressions,
             forms_cycle: edge.forms_cycle,
         });
@@ -146,7 +144,6 @@ fn append_terminal_continuation_edges(
             target: edge.continuation.clone(),
             continuation_dispatch_index: 0,
             continuation: RuntimeTransitionTarget::None,
-            guard: TransitionGuard::Always,
             expressions: Default::default(),
             forms_cycle: false,
         });
