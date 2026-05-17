@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 use super::SourceSpan;
 
@@ -12,20 +13,20 @@ pub struct SourceText {
 enum SourceTextStorage {
     #[default]
     Missing,
-    Owned(String),
+    Shared(Arc<str>),
 }
 
 impl SourceText {
     pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
-            text: SourceTextStorage::Owned(text.into()),
+            text: SourceTextStorage::Shared(Arc::from(text.into().into_boxed_str())),
             source_span,
         }
     }
 
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
-            text: SourceTextStorage::Owned(text.into()),
+            text: SourceTextStorage::Shared(Arc::from(text.into().into_boxed_str())),
             source_span: SourceSpan::default(),
         }
     }
@@ -33,7 +34,7 @@ impl SourceText {
     pub fn as_str(&self) -> &str {
         match &self.text {
             SourceTextStorage::Missing => "",
-            SourceTextStorage::Owned(text) => text.as_str(),
+            SourceTextStorage::Shared(text) => text.as_ref(),
         }
     }
 
