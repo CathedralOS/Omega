@@ -2,7 +2,6 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::StatementNode;
@@ -138,8 +137,7 @@ fn build_machine_state_storage_plan(
                     let target = plan
                         .expressions
                         .copy_from(&program.expression_table, assignment.target);
-                    let value = if expression_is_literal(&program.expression_table, assignment.value)
-                    {
+                    let value = if program.expression_table.expression_is_literal(assignment.value) {
                         plan.expressions
                             .copy_from(&program.expression_table, assignment.value)
                     } else {
@@ -245,16 +243,6 @@ fn append_type_reference_invariant_names(
     let mut span = HandleSpan::empty();
     collect_type_reference_invariant_names(program, type_reference, names, &mut span);
     span
-}
-
-fn expression_is_literal(expressions: &ExpressionTable, expression: ExpressionHandle) -> bool {
-    matches!(
-        expressions.expression(expression),
-        ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_)
-    )
 }
 
 fn collect_type_reference_invariant_names(
