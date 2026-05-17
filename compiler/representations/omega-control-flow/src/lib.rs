@@ -1,4 +1,3 @@
-use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::NamePath;
@@ -288,7 +287,6 @@ pub struct TransitionFlow {
     pub statement_index: usize,
     pub target: PlannedTransitionTarget,
     pub continuation: Option<PlannedTransitionTarget>,
-    pub guard: TransitionGuard,
     pub expressions: TransitionExpressionRefs,
 }
 
@@ -324,7 +322,6 @@ impl Default for TransitionFlow {
             statement_index: 0,
             target: PlannedTransitionTarget::Terminal,
             continuation: None,
-            guard: TransitionGuard::Always,
             expressions: TransitionExpressionRefs::default(),
         }
     }
