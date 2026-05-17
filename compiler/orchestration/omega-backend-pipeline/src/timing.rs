@@ -5,7 +5,7 @@ use std::time::Instant;
 
 pub(super) fn record_backend_phase<T>(
     timings: &mut Arena<BackendPlanPhaseTiming>,
-    phase: &str,
+    phase: &'static str,
     work: impl FnOnce() -> T,
 ) -> T {
     let allocation_start = allocation_snapshot();
@@ -15,7 +15,7 @@ pub(super) fn record_backend_phase<T>(
     let allocations = allocation_snapshot().delta_since(allocation_start);
 
     timings.append(BackendPlanPhaseTiming {
-        phase: phase.to_owned(),
+        phase,
         microseconds,
         allocations,
     });

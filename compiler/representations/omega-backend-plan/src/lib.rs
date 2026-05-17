@@ -69,7 +69,7 @@ impl BackendPlan {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BackendPlanPhaseTiming {
-    pub phase: String,
+    pub phase: &'static str,
     pub microseconds: u128,
     pub allocations: AllocationDelta,
 }
