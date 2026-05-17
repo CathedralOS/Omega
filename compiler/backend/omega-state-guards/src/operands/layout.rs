@@ -48,7 +48,7 @@ pub(super) fn resolve_guard_operand_layout(
     let path = normalized_guard_name_path(table, expression)?;
     let root_symbol = path.head_symbol();
     path.first()?;
-    let suffix = path.members().get(1..).unwrap_or(&[]);
+    let suffix = path.suffix(1);
 
     if let Some(slot_layout) = runtime_frame_operand_layout(
         layouts,
@@ -62,10 +62,9 @@ pub(super) fn resolve_guard_operand_layout(
     }
 
     if root_symbol == source_machine {
-        let [_field_name, rest @ ..] = suffix else {
-            return None;
-        };
+        suffix.first()?;
         let field_symbol = path.member_symbol(1);
+        let rest = path.suffix(2);
         if let Some((_, machine_layout)) = layouts
             .machine_layouts
             .iter()
@@ -77,14 +76,12 @@ pub(super) fn resolve_guard_operand_layout(
                 if let Some(root_field) =
                     field_layout_by_symbol(layouts, machine_layout.fields, field_symbol)
                 {
-                    return resolve_nested_field_layout_with_symbols(
-                        layouts, root_field, rest, &path, 2,
-                    )
-                    .map(|(byte_offset, layout)| ResolvedOperandLayout {
-                        storage: StateGuardOperandStorage::MachineOwned,
-                        byte_offset: machine_base_offset + byte_offset,
-                        layout,
-                    });
+                    return resolve_nested_field_layout_with_symbols(layouts, root_field, rest)
+                        .map(|(byte_offset, layout)| ResolvedOperandLayout {
+                            storage: StateGuardOperandStorage::MachineOwned,
+                            byte_offset: machine_base_offset + byte_offset,
+                            layout,
+                        });
                 }
             }
         }
@@ -98,7 +95,7 @@ pub(super) fn resolve_guard_operand_layout(
                 let root_field =
                     field_layout_by_symbol(layouts, candidate_layout.fields, field_symbol)?;
 
-                resolve_nested_field_layout_with_symbols(layouts, root_field, rest, &path, 2).map(
+                resolve_nested_field_layout_with_symbols(layouts, root_field, rest).map(
                     |(byte_offset, layout)| ResolvedOperandLayout {
                         storage: StateGuardOperandStorage::MachineOwned,
                         byte_offset: candidate_base_offset + byte_offset,
@@ -117,12 +114,13 @@ pub(super) fn resolve_guard_operand_layout(
     let root_field = field_layout_by_symbol(layouts, machine_layout.fields, root_symbol);
 
     if let Some(root_field) = root_field {
-        return resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, &path, 1)
-            .map(|(byte_offset, layout)| ResolvedOperandLayout {
+        return resolve_nested_field_layout_with_symbols(layouts, root_field, suffix).map(
+            |(byte_offset, layout)| ResolvedOperandLayout {
                 storage: StateGuardOperandStorage::MachineOwned,
                 byte_offset: machine_base_offset + byte_offset,
                 layout,
-            });
+            },
+        );
     }
 
     fallback_machine_named_path_layout(layouts, entry_machine, root_symbol, &path).map(
@@ -140,7 +138,7 @@ fn runtime_frame_operand_layout(
     source_key: StateKey,
     source_dispatch_index: u32,
     path: &NormalizedGuardNamePath<'_>,
-    suffix: &[ProgramName],
+    suffix: GuardPathSuffix<'_, '_>,
 ) -> Option<ResolvedOperandLayout> {
     let root_symbol = path.head_symbol();
     let slot_matches_symbol = |slot: &omega_runtime_storage::RuntimeFrameSlot| {
@@ -187,7 +185,6 @@ fn runtime_frame_operand_layout(
             slot.type_symbol,
             &slot.type_name,
             suffix,
-            |offset, _| path.member_symbol(1 + offset),
         )?
     };
 
@@ -203,8 +200,7 @@ fn resolve_nested_slot_layout(
     root_byte_offset: usize,
     root_type_symbol: SymbolHandle,
     root_type_name: &str,
-    suffix: &[ProgramName],
-    mut field_symbol_at: impl FnMut(usize, &FieldSegment) -> SymbolHandle,
+    suffix: GuardPathSuffix<'_, '_>,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_byte_offset;
     let mut type_symbol = root_type_symbol;
@@ -214,10 +210,9 @@ fn resolve_nested_slot_layout(
         alignment: 1,
     };
 
-    for (offset, segment) in suffix.iter().enumerate() {
+    for (segment, field_symbol) in suffix.iter() {
         let field_segment = parse_field_segment(segment)?;
         let fields = record_fields(layouts, type_symbol, type_name)?;
-        let field_symbol = field_symbol_at(offset, &field_segment);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
@@ -282,12 +277,13 @@ fn member_expression_path_in_table<'table>(
         ExpressionNode::Mutable(target) => normalized_guard_name_path(table, *target)?,
         _ => return None,
     };
-    let (mut members, mut member_symbols, head_symbol, _) = path.into_owned_parts();
-    members.push(member.member.clone());
-    member_symbols.push(member.member_symbol);
+    let (mut segments, head_symbol, _) = path.into_owned_segments();
+    segments.push(GuardPathSegment::new(
+        member.member.clone(),
+        member.member_symbol,
+    ));
     Some(NormalizedGuardNamePath::owned(
-        members,
-        member_symbols,
+        segments,
         head_symbol,
         member.member_symbol,
     ))
@@ -312,7 +308,7 @@ fn indexed_expression_path_in_table<'table>(
         }
         _ => return None,
     };
-    let last_segment = path.members().last()?.clone();
+    let last_segment = path.last()?.clone();
     Some(
         path.replace_last_preserving_symbol(ProgramName::generated(format!(
             "{last_segment}[{index}]"
@@ -328,11 +324,22 @@ enum NormalizedGuardNamePath<'table> {
         final_symbol: SymbolHandle,
     },
     Owned {
-        members: Vec<ProgramName>,
-        member_symbols: Vec<SymbolHandle>,
+        segments: Vec<GuardPathSegment>,
         head_symbol: SymbolHandle,
         final_symbol: SymbolHandle,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GuardPathSegment {
+    name: ProgramName,
+    symbol: SymbolHandle,
+}
+
+impl GuardPathSegment {
+    fn new(name: ProgramName, symbol: SymbolHandle) -> Self {
+        Self { name, symbol }
+    }
 }
 
 impl<'table> NormalizedGuardNamePath<'table> {
@@ -351,14 +358,12 @@ impl<'table> NormalizedGuardNamePath<'table> {
     }
 
     fn owned(
-        members: Vec<ProgramName>,
-        member_symbols: Vec<SymbolHandle>,
+        segments: Vec<GuardPathSegment>,
         head_symbol: SymbolHandle,
         final_symbol: SymbolHandle,
     ) -> Self {
         Self::Owned {
-            members,
-            member_symbols,
+            segments,
             head_symbol,
             final_symbol,
         }
@@ -370,15 +375,27 @@ impl<'table> NormalizedGuardNamePath<'table> {
         }
     }
 
-    fn members(&self) -> &[ProgramName] {
+    fn len(&self) -> usize {
         match self {
-            Self::Borrowed { members, .. } => members,
-            Self::Owned { members, .. } => members,
+            Self::Borrowed { members, .. } => members.len(),
+            Self::Owned { segments, .. } => segments.len(),
         }
     }
 
     fn first(&self) -> Option<&ProgramName> {
-        self.members().first()
+        self.member(0)
+    }
+
+    fn last(&self) -> Option<&ProgramName> {
+        let last_index = self.len().checked_sub(1)?;
+        self.member(last_index)
+    }
+
+    fn member(&self, index: usize) -> Option<&ProgramName> {
+        match self {
+            Self::Borrowed { members, .. } => members.get(index),
+            Self::Owned { segments, .. } => segments.get(index).map(|segment| &segment.name),
+        }
     }
 
     fn member_symbol(&self, index: usize) -> SymbolHandle {
@@ -398,33 +415,32 @@ impl<'table> NormalizedGuardNamePath<'table> {
                     SymbolHandle::invalid()
                 }
             }),
-            Self::Owned { member_symbols, .. } => member_symbols
+            Self::Owned { segments, .. } => segments
                 .get(index)
-                .copied()
+                .map(|segment| segment.symbol)
                 .unwrap_or_else(SymbolHandle::invalid),
         }
     }
 
-    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
-        let (mut members, member_symbols, head_symbol, final_symbol) = self.into_owned_parts();
-        let last = members.last_mut()?;
-        *last = member;
-        Some(Self::owned(
-            members,
-            member_symbols,
-            head_symbol,
-            final_symbol,
-        ))
+    fn suffix(&self, start: usize) -> GuardPathSuffix<'_, 'table> {
+        match self {
+            Self::Borrowed { .. } => GuardPathSuffix::Borrowed { path: self, start },
+            Self::Owned { segments, .. } => GuardPathSuffix::Owned(
+                segments
+                    .get(start..)
+                    .unwrap_or_else(|| segments.get(segments.len()..).unwrap_or(&[])),
+            ),
+        }
     }
 
-    fn into_owned_parts(
-        self,
-    ) -> (
-        Vec<ProgramName>,
-        Vec<SymbolHandle>,
-        SymbolHandle,
-        SymbolHandle,
-    ) {
+    fn replace_last_preserving_symbol(self, member: ProgramName) -> Option<Self> {
+        let (mut segments, head_symbol, final_symbol) = self.into_owned_segments();
+        let last = segments.last_mut()?;
+        last.name = member;
+        Some(Self::owned(segments, head_symbol, final_symbol))
+    }
+
+    fn into_owned_segments(self) -> (Vec<GuardPathSegment>, SymbolHandle, SymbolHandle) {
         match self {
             Self::Borrowed {
                 members,
@@ -433,32 +449,110 @@ impl<'table> NormalizedGuardNamePath<'table> {
                 final_symbol,
                 ..
             } => {
-                let mut owned_member_symbols = member_symbols.to_vec();
-                if owned_member_symbols.len() != members.len() {
-                    owned_member_symbols.resize(members.len(), SymbolHandle::invalid());
-                }
-                if let Some(root_symbol) = owned_member_symbols.first_mut() {
-                    *root_symbol = head_symbol;
-                }
-                if members.len() > 1
-                    && let Some(last_symbol) = owned_member_symbols.last_mut()
-                {
-                    *last_symbol = final_symbol;
-                }
-                (
-                    members.to_vec(),
-                    owned_member_symbols,
-                    head_symbol,
-                    final_symbol,
-                )
+                let segments = members
+                    .iter()
+                    .enumerate()
+                    .map(|(index, member)| {
+                        GuardPathSegment::new(
+                            member.clone(),
+                            borrowed_member_symbol(
+                                members,
+                                member_symbols,
+                                head_symbol,
+                                final_symbol,
+                                index,
+                            ),
+                        )
+                    })
+                    .collect();
+                (segments, head_symbol, final_symbol)
             }
             Self::Owned {
-                members,
-                member_symbols,
+                segments,
                 head_symbol,
                 final_symbol,
                 ..
-            } => (members, member_symbols, head_symbol, final_symbol),
+            } => (segments, head_symbol, final_symbol),
+        }
+    }
+}
+
+fn borrowed_member_symbol(
+    members: &[ProgramName],
+    member_symbols: &[SymbolHandle],
+    head_symbol: SymbolHandle,
+    final_symbol: SymbolHandle,
+    index: usize,
+) -> SymbolHandle {
+    member_symbols.get(index).copied().unwrap_or_else(|| {
+        if index == 0 {
+            head_symbol
+        } else if index + 1 == members.len() {
+            final_symbol
+        } else {
+            SymbolHandle::invalid()
+        }
+    })
+}
+
+#[derive(Clone, Copy)]
+enum GuardPathSuffix<'path, 'table> {
+    Borrowed {
+        path: &'path NormalizedGuardNamePath<'table>,
+        start: usize,
+    },
+    Owned(&'path [GuardPathSegment]),
+}
+
+impl<'path, 'table> GuardPathSuffix<'path, 'table> {
+    fn is_empty(self) -> bool {
+        match self {
+            Self::Borrowed { path, start } => start >= path.len(),
+            Self::Owned(segments) => segments.is_empty(),
+        }
+    }
+
+    fn first(self) -> Option<(&'path ProgramName, SymbolHandle)> {
+        match self {
+            Self::Borrowed { path, start } => {
+                Some((path.member(start)?, path.member_symbol(start)))
+            }
+            Self::Owned(segments) => segments
+                .first()
+                .map(|segment| (&segment.name, segment.symbol)),
+        }
+    }
+
+    fn iter(self) -> GuardPathSuffixIter<'path, 'table> {
+        match self {
+            Self::Borrowed { path, start } => GuardPathSuffixIter::Borrowed { path, index: start },
+            Self::Owned(segments) => GuardPathSuffixIter::Owned(segments.iter()),
+        }
+    }
+}
+
+enum GuardPathSuffixIter<'path, 'table> {
+    Borrowed {
+        path: &'path NormalizedGuardNamePath<'table>,
+        index: usize,
+    },
+    Owned(std::slice::Iter<'path, GuardPathSegment>),
+}
+
+impl<'path, 'table> Iterator for GuardPathSuffixIter<'path, 'table> {
+    type Item = (&'path ProgramName, SymbolHandle);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Borrowed { path, index } => {
+                let member = path.member(*index)?;
+                let symbol = path.member_symbol(*index);
+                *index += 1;
+                Some((member, symbol))
+            }
+            Self::Owned(segments) => segments
+                .next()
+                .map(|segment| (&segment.name, segment.symbol)),
         }
     }
 }
@@ -531,30 +625,24 @@ fn field_machine_layout<'plan>(
 fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: &[ProgramName],
-    path: &NormalizedGuardNamePath<'_>,
-    suffix_start_index: usize,
+    suffix: GuardPathSuffix<'_, '_>,
 ) -> Option<(usize, TypeLayout)> {
-    resolve_nested_field_layout_by_symbol(layouts, root_field, suffix, |offset, _| {
-        path.member_symbol(suffix_start_index + offset)
-    })
+    resolve_nested_field_layout_by_symbol(layouts, root_field, suffix)
 }
 
 fn resolve_nested_field_layout_by_symbol(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: &[ProgramName],
-    mut field_symbol_at: impl FnMut(usize, &FieldSegment) -> SymbolHandle,
+    suffix: GuardPathSuffix<'_, '_>,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
     let mut type_name = root_field.type_name.as_str();
     let mut layout = root_field.layout;
 
-    for (offset, segment) in suffix.iter().enumerate() {
+    for (segment, field_symbol) in suffix.iter() {
         let field_segment = parse_field_segment(segment)?;
         let fields = record_fields(layouts, type_symbol, type_name)?;
-        let field_symbol = field_symbol_at(offset, &field_segment);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
@@ -666,21 +754,17 @@ fn fallback_machine_named_path_layout(
     root_symbol: SymbolHandle,
     path: &NormalizedGuardNamePath<'_>,
 ) -> Option<(usize, TypeLayout)> {
-    let path_members = path.members();
     let mut root_index = 0;
-    let mut segments = path_members;
     if root_symbol.is_valid()
         && layouts
             .machine_layouts
             .iter()
             .any(|(_, machine_layout)| machine_layout.symbol == root_symbol)
     {
-        segments = segments.get(1..)?;
         root_index = 1;
     }
-    let [_root_name, suffix @ ..] = segments else {
-        return None;
-    };
+    path.member(root_index)?;
+    let suffix = path.suffix(root_index + 1);
     let root_field_symbol = path.member_symbol(root_index);
 
     layouts
@@ -691,13 +775,8 @@ fn fallback_machine_named_path_layout(
                 machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
             let root_field =
                 field_layout_by_symbol(layouts, machine_layout.fields, root_field_symbol)?;
-            let (byte_offset, layout) = resolve_nested_field_layout_with_symbols(
-                layouts,
-                root_field,
-                suffix,
-                path,
-                root_index + 1,
-            )?;
+            let (byte_offset, layout) =
+                resolve_nested_field_layout_with_symbols(layouts, root_field, suffix)?;
             Some((machine_base_offset + byte_offset, layout))
         })
 }
