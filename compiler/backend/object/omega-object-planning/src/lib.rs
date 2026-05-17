@@ -57,11 +57,23 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
         .layout
         .alignment
         .max(input.runtime_frame_alignment);
+    let host_import_count = input
+        .host_abi
+        .bindings
+        .iter()
+        .filter(|(_, binding)| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
+        .count();
+    let runtime_frame_symbol_count = usize::from(input.runtime_frame_size > 0);
+    let symbol_capacity = 2usize
+        .checked_add(runtime_frame_symbol_count)
+        .and_then(|count| count.checked_add(host_import_count))
+        .and_then(|count| count.checked_add(input.data.objects.len()))
+        .expect("object symbol capacity overflow");
 
     let mut object_plan = ObjectPlan {
         target: input.target,
-        sections: Arena::new(),
-        symbols: Arena::new(),
+        sections: Arena::with_capacity(3),
+        symbols: Arena::with_capacity(symbol_capacity),
         entry_symbol,
     };
 
