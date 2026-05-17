@@ -2,7 +2,7 @@ mod cycles;
 mod lookups;
 mod targets;
 
-use omega_control_flow::{ControlFlowPlan, MachineFlow, TransitionFlow};
+use omega_control_flow::{ControlFlowPlan, MachineFlow, StateKey, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
 
 use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
@@ -10,8 +10,8 @@ use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget}
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,
     runtime_flow: RuntimeFlowPlan,
-    active_states: Vec<RuntimeState>,
-    reached_states: Vec<RuntimeState>,
+    active_states: Vec<StateKey>,
+    reached_states: Vec<StateKey>,
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
@@ -28,30 +28,24 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         self.runtime_flow
     }
 
-    pub(super) fn visit_state(&mut self, state_key: RuntimeState) -> Result<(), Diagnostic> {
-        if self
-            .active_states
-            .iter()
-            .any(|active_state| active_state == &state_key)
-        {
-            self.record_cycle_to(&state_key);
+    pub(super) fn visit_state(&mut self, state_key: StateKey) -> Result<(), Diagnostic> {
+        if self.active_states.contains(&state_key) {
+            self.record_cycle_to(state_key);
             return Ok(());
         }
 
-        if self
-            .reached_states
-            .iter()
-            .any(|reached_state| reached_state == &state_key)
-        {
+        if self.reached_states.contains(&state_key) {
             return Ok(());
         }
 
-        let machine = self.machine_flow_by_symbol(state_key.key.machine)?.clone();
-        let state = self.state_flow_by_key(state_key.key)?;
+        let machine = self.machine_flow_by_symbol(state_key.machine)?.clone();
+        let state = self.state_flow_by_key(state_key)?;
         let transition_span = state.transitions;
-        self.runtime_flow.states.insert(state_key.clone());
-        self.reached_states.push(state_key.clone());
-        self.active_states.push(state_key.clone());
+        self.runtime_flow
+            .states
+            .insert(RuntimeState { key: state_key });
+        self.reached_states.push(state_key);
+        self.active_states.push(state_key);
 
         let transition_count = self
             .control_flow
@@ -60,7 +54,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             .ok_or_else(|| {
                 Diagnostic::error(format!(
                     "{} has an invalid transition span",
-                    self.state_key_display(state_key.key)
+                    self.state_key_display(state_key)
                 ))
             })?
             .len();
@@ -75,11 +69,11 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 .ok_or_else(|| {
                     Diagnostic::error(format!(
                         "{} has an invalid transition span",
-                        self.state_key_display(state_key.key)
+                        self.state_key_display(state_key)
                     ))
                 })?;
 
-            self.visit_transition(&machine, &state_key, &transition)?;
+            self.visit_transition(&machine, state_key, &transition)?;
         }
 
         self.active_states.pop();
@@ -90,7 +84,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     fn visit_transition(
         &mut self,
         machine: &MachineFlow,
-        from: &RuntimeState,
+        from: StateKey,
         transition: &TransitionFlow,
     ) -> Result<(), Diagnostic> {
         let target = self.runtime_target(machine, &transition.target);
@@ -102,7 +96,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         let forms_cycle = self.target_is_active(&target);
 
         self.runtime_flow.edges.insert(RuntimeEdge {
-            from: from.key,
+            from,
             statement_index: transition.statement_index,
             target: target.clone(),
             continuation: continuation.clone(),
@@ -125,6 +119,6 @@ pub fn build_runtime_flow_plan(
     entry_key: omega_control_flow::StateKey,
 ) -> Result<RuntimeFlowPlan, Diagnostic> {
     let mut builder = RuntimeFlowBuilder::new(control_flow);
-    builder.visit_state(RuntimeState { key: entry_key })?;
+    builder.visit_state(entry_key)?;
     Ok(builder.finish())
 }

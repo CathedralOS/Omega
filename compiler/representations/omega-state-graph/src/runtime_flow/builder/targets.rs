@@ -1,5 +1,5 @@
 use super::RuntimeFlowBuilder;
-use crate::{RuntimeState, RuntimeTransitionTarget};
+use crate::RuntimeTransitionTarget;
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget};
 use omega_core::diagnostics::Diagnostic;
 
@@ -9,7 +9,7 @@ impl RuntimeFlowBuilder<'_> {
         target: RuntimeTransitionTarget,
     ) -> Result<(), Diagnostic> {
         if let RuntimeTransitionTarget::State { key, .. } = target {
-            self.visit_state(RuntimeState { key })?;
+            self.visit_state(key)?;
         }
 
         Ok(())
@@ -61,11 +61,7 @@ impl RuntimeFlowBuilder<'_> {
                     name: format!("{receiver}.{state}"),
                 }),
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-                key: self
-                    .active_states
-                    .last()
-                    .map(|active_state| active_state.key)
-                    .unwrap_or_default(),
+                key: self.active_states.last().copied().unwrap_or_default(),
             },
             PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
         }

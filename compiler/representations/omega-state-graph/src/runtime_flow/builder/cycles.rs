@@ -7,29 +7,28 @@ impl RuntimeFlowBuilder<'_> {
             return false;
         };
 
-        self.active_states
-            .iter()
-            .any(|active_state| active_state.key == *key)
+        self.active_states.contains(key)
     }
 
     pub(super) fn record_cycle_target(&mut self, target: &RuntimeTransitionTarget) {
         if let RuntimeTransitionTarget::State { key, .. } = target {
-            self.record_cycle_to(&RuntimeState { key: *key });
+            self.record_cycle_to(*key);
         }
     }
 
-    pub(super) fn record_cycle_to(&mut self, target: &RuntimeState) {
+    pub(super) fn record_cycle_to(&mut self, target: omega_control_flow::StateKey) {
         let start_index = self
             .active_states
             .iter()
-            .position(|active_state| active_state == target)
+            .position(|active_state| *active_state == target)
             .unwrap_or(0);
         let states = self.runtime_flow.cycle_states.insert_many(
             self.active_states
                 .iter()
                 .skip(start_index)
-                .cloned()
-                .chain(std::iter::once(target.clone())),
+                .copied()
+                .chain(std::iter::once(target))
+                .map(|key| RuntimeState { key }),
         );
 
         self.runtime_flow.cycles.insert(RuntimeCycle { states });
