@@ -3,12 +3,23 @@ use omega_checked_trees::expression::{
 };
 use omega_checked_trees::name::ProgramName;
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaceKey {
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
-    members: Vec<ProgramName>,
+    members: Arc<[ProgramName]>,
+}
+
+impl Default for PlaceKey {
+    fn default() -> Self {
+        Self {
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+            members: Arc::from([]),
+        }
+    }
 }
 
 impl PlaceKey {
@@ -18,10 +29,7 @@ impl PlaceKey {
             Expression::Name(path) => Some(Self::from_name_path(path)),
             Expression::Indexed(indexed) => {
                 let mut key = Self::from_expression(&indexed.collection)?;
-                key.members.push(ProgramName::generated(format!(
-                    "[{}]",
-                    indexed.index.display_name()
-                )));
+                key = key.append_generated_member(format!("[{}]", indexed.index.display_name()));
                 key.symbol = SymbolHandle::invalid();
                 Some(key)
             }
@@ -40,10 +48,8 @@ impl PlaceKey {
             ExpressionNode::Name(path) => Some(Self::from_table_name_path(table, path)),
             ExpressionNode::Indexed(indexed) => {
                 let mut key = Self::from_expression_handle(table, indexed.collection)?;
-                key.members.push(ProgramName::generated(format!(
-                    "[{}]",
-                    table.display_name(indexed.index)
-                )));
+                key =
+                    key.append_generated_member(format!("[{}]", table.display_name(indexed.index)));
                 key.symbol = SymbolHandle::invalid();
                 Some(key)
             }
@@ -52,17 +58,22 @@ impl PlaceKey {
     }
 
     pub fn append_member(&self, member: ProgramName) -> Self {
-        let mut key = self.clone();
-        key.members.push(member);
-        key.symbol = SymbolHandle::invalid();
-        key
+        let mut members = Vec::with_capacity(self.members.len() + 1);
+        members.extend(self.members.iter().cloned());
+        members.push(member);
+
+        Self {
+            head_symbol: self.head_symbol,
+            symbol: SymbolHandle::invalid(),
+            members: Arc::from(members.into_boxed_slice()),
+        }
     }
 
     pub fn from_symbol_name(symbol: SymbolHandle, name: ProgramName) -> Self {
         Self {
             head_symbol: symbol,
             symbol,
-            members: vec![name],
+            members: Arc::from(vec![name].into_boxed_slice()),
         }
     }
 
@@ -89,7 +100,10 @@ impl PlaceKey {
             return self.clone();
         }
 
-        let mut members = target.members.clone();
+        let mut members = Vec::with_capacity(
+            target.members.len() + self.members.len().saturating_sub(prefix.members.len()),
+        );
+        members.extend(target.members.iter().cloned());
         members.extend(self.members.iter().skip(prefix.members.len()).cloned());
 
         Self {
@@ -99,7 +113,7 @@ impl PlaceKey {
             } else {
                 SymbolHandle::invalid()
             },
-            members,
+            members: Arc::from(members.into_boxed_slice()),
         }
     }
 
@@ -107,7 +121,7 @@ impl PlaceKey {
         Self {
             head_symbol: path.head_symbol(),
             symbol: path.symbol(),
-            members: path.members().to_vec(),
+            members: Arc::from(path.members()),
         }
     }
 
@@ -115,7 +129,11 @@ impl PlaceKey {
         Self {
             head_symbol: path.head_symbol,
             symbol: path.symbol,
-            members: table.name_path_members(path.members).to_vec(),
+            members: Arc::from(table.name_path_members(path.members)),
         }
+    }
+
+    fn append_generated_member(&self, member: String) -> Self {
+        self.append_member(ProgramName::generated(member))
     }
 }
