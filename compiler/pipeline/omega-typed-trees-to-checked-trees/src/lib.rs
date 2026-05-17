@@ -9,6 +9,7 @@ use omega_checked_trees::{
     ProofFacts, ProofObligationFact, StateBorrowFact,
 };
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
 pub fn lower_typed_trees(
     program: &omega_typed_trees::TypedTrees,
@@ -47,10 +48,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedAssignment,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!(
+                    owner: Arc::from(format!(
                         "machine `{}` state `{}`",
                         obligation.machine, obligation.state
-                    ),
+                    )),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedCallArgument(obligation) => {
@@ -58,13 +59,13 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedCallArgument,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!(
+                    owner: Arc::from(format!(
                         "machine `{}` state `{}` call `{}` parameter `{}`",
                         obligation.machine,
                         obligation.state,
                         obligation.target,
                         obligation.parameter
-                    ),
+                    )),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedInitializer(obligation) => {
@@ -72,7 +73,7 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedInitializer,
                     machine_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     state_symbol: omega_core::symbols::SymbolHandle::invalid(),
-                    owner: obligation.owner.clone(),
+                    owner: Arc::from(obligation.owner.as_str()),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedStateReturn(obligation) => {
@@ -80,10 +81,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedStateReturn,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!(
+                    owner: Arc::from(format!(
                         "machine `{}` state `{}` return",
                         obligation.machine, obligation.state
-                    ),
+                    )),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedValue(obligation) => {
@@ -91,7 +92,7 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedValue,
                     machine_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     state_symbol: omega_core::symbols::SymbolHandle::invalid(),
-                    owner: obligation.owner.clone(),
+                    owner: Arc::from(obligation.owner.as_str()),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedTransitionArgument(obligation) => {
@@ -99,10 +100,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedTransitionArgument,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!(
+                    owner: Arc::from(format!(
                         "machine `{}` state `{}` transition parameter `{}`",
                         obligation.machine, obligation.state, obligation.parameter
-                    ),
+                    )),
                 }
             }
             omega_proof::obligations::ProofObligation::GuardedTransition(obligation) => {
@@ -110,10 +111,10 @@ fn build_proof_facts(
                     kind: ProofFactKind::GuardedTransition,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: format!(
+                    owner: Arc::from(format!(
                         "machine `{}` state `{}` guard",
                         obligation.machine, obligation.state
-                    ),
+                    )),
                 }
             }
         });

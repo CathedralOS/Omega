@@ -5,6 +5,7 @@ pub use omega_typed_trees::{
 use omega_core::arena::Arena;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
 pub mod statement {
     pub use omega_typed_trees::statement::*;
@@ -102,12 +103,23 @@ pub enum ProofFactKind {
     GuardedTransition,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofObligationFact {
     pub kind: ProofFactKind,
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
-    pub owner: String,
+    pub owner: Arc<str>,
+}
+
+impl Default for ProofObligationFact {
+    fn default() -> Self {
+        Self {
+            kind: ProofFactKind::default(),
+            machine_symbol: SymbolHandle::invalid(),
+            state_symbol: SymbolHandle::invalid(),
+            owner: Arc::from(""),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
