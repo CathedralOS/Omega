@@ -37,7 +37,7 @@ pub struct RuntimeBranchingCallEdge {
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
     pub target_arguments: HandleSpan<ExpressionHandle>,
-    pub target_value: Option<ExpressionHandle>,
+    pub target_value: ExpressionHandle,
     pub guard_kind: StateGuardKind,
     pub lowering: RuntimeBranchTargetLowering,
 }
@@ -50,7 +50,7 @@ impl Default for RuntimeBranchingCallEdge {
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
             target_arguments: HandleSpan::empty(),
-            target_value: None,
+            target_value: ExpressionHandle::invalid(),
             guard_kind: StateGuardKind::Always,
             lowering: RuntimeBranchTargetLowering::Unknown,
         }

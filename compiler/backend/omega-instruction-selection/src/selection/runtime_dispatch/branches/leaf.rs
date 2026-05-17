@@ -68,9 +68,10 @@ fn select_runtime_leaf_branch_terminal_value_write(
     expansion: &RuntimeLeafBranchExpansion,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(value) = expansion.target_value else {
+    if !expansion.target_value.is_valid() {
         return;
-    };
+    }
+    let value = expansion.target_value;
     if !matches!(
         expansion.role,
         StateCallRole::AssignmentValue

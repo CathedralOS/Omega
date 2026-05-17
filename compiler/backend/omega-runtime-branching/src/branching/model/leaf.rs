@@ -20,7 +20,7 @@ pub struct RuntimeLeafBranchExpansion {
     pub guard_kind: StateGuardKind,
     pub role: StateCallRole,
     pub leaf_key: StateKey,
-    pub target_value: Option<ExpressionHandle>,
+    pub target_value: ExpressionHandle,
     pub bindings: HandleSpan<RuntimeLeafBranchBinding>,
     pub operations: HandleSpan<RuntimeLeafBranchOperation>,
 }
@@ -38,7 +38,7 @@ impl Default for RuntimeLeafBranchExpansion {
             guard_kind: StateGuardKind::Always,
             role: StateCallRole::Statement,
             leaf_key: StateKey::default(),
-            target_value: None,
+            target_value: ExpressionHandle::invalid(),
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }

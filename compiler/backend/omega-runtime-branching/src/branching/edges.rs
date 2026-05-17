@@ -63,14 +63,16 @@ pub(super) fn build_branch_edges(
                 expressions,
                 target_arguments,
             ),
-            target_value: transition.expressions.target_value.is_valid().then(|| {
+            target_value: if transition.expressions.target_value.is_valid() {
                 let copied = expressions.copy_from(
                     &context.control_flow.expressions,
                     transition.expressions.target_value,
                 );
                 target_values.append(copied);
                 copied
-            }),
+            } else {
+                ExpressionHandle::invalid()
+            },
             guard_kind: classify_transition_guard(&guard),
             guard,
         });
