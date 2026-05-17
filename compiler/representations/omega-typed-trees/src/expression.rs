@@ -608,6 +608,16 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    pub fn expression_is_literal(&self, handle: ExpressionHandle) -> bool {
+        matches!(
+            self.expression(handle),
+            ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::String(_)
+        )
+    }
+
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
     }
