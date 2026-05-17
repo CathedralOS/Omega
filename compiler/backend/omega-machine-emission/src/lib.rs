@@ -73,6 +73,12 @@ fn emit_function_bytes(
     };
     let laid_out_instructions =
         layout_machine_instructions(emission_context, machine_instructions)?;
+    encoded_plan.bytes.reserve(
+        laid_out_instructions
+            .iter()
+            .map(|instruction| instruction.byte_width)
+            .sum(),
+    );
 
     for (machine_instruction_index, machine_instruction) in machine_instructions.iter().enumerate()
     {
