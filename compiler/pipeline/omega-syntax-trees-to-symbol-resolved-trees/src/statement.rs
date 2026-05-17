@@ -41,6 +41,7 @@ fn lower_statement_node(
             target: crate::name::lower_name(&call.target),
             storage: CallStorage {
                 receiver: lower_statement_path_members(lowerer, syntax_trees, call.receiver),
+                receiver_starts_at_self: call.receiver_starts_at_self,
                 arguments: lower_statement_expressions(lowerer, syntax_trees, call.arguments)?,
             },
         })),
@@ -142,16 +143,19 @@ fn lower_transition_target_node(
     target: syntax::statement::TransitionTargetHandle,
 ) -> Result<TransitionTarget, Diagnostic> {
     match syntax_trees.statements.transition_target(target) {
-        syntax::statement::TransitionTargetNode::Named { path, arguments } => {
-            Ok(TransitionTarget::Named(NamedTransitionTarget {
-                head_symbol: SymbolHandle::invalid(),
-                symbol: SymbolHandle::invalid(),
-                storage: NamedTransitionTargetStorage {
-                    path: lower_statement_path_members(lowerer, syntax_trees, *path),
-                    arguments: lower_statement_expressions(lowerer, syntax_trees, *arguments)?,
-                },
-            }))
-        }
+        syntax::statement::TransitionTargetNode::Named {
+            path,
+            path_starts_at_self,
+            arguments,
+        } => Ok(TransitionTarget::Named(NamedTransitionTarget {
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+            storage: NamedTransitionTargetStorage {
+                path: lower_statement_path_members(lowerer, syntax_trees, *path),
+                path_starts_at_self: *path_starts_at_self,
+                arguments: lower_statement_expressions(lowerer, syntax_trees, *arguments)?,
+            },
+        })),
         syntax::statement::TransitionTargetNode::Value(expression) => Ok(TransitionTarget::Value(
             lower_statement_expression(lowerer, syntax_trees, *expression)?,
         )),

@@ -74,6 +74,7 @@ pub struct Call {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStorage {
     pub receiver: HandleSpan<DiagnosticName>,
+    pub receiver_starts_at_self: bool,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
@@ -122,6 +123,7 @@ pub struct NamedTransitionTarget {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
     pub path: HandleSpan<DiagnosticName>,
+    pub path_starts_at_self: bool,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
@@ -274,6 +276,7 @@ impl StatementTable {
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
                     receiver,
+                    receiver_starts_at_self: call.receiver_starts_at_self,
                     target: call.target.clone(),
                     arguments,
                 }))
@@ -409,6 +412,7 @@ impl StatementTable {
                     members: self.insert_name_path_members(
                         source_statement_path_members.span_or_empty(named.path),
                     ),
+                    starts_at_self: named.path_starts_at_self,
                     head_symbol: named.head_symbol,
                     symbol: named.symbol,
                 },
@@ -480,6 +484,7 @@ pub struct TableCall {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
+    pub receiver_starts_at_self: bool,
     pub target: DiagnosticName,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
@@ -490,6 +495,7 @@ impl Default for TableCall {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
+            receiver_starts_at_self: false,
             target: DiagnosticName::default(),
             arguments: HandleSpan::empty(),
         }
@@ -558,6 +564,7 @@ impl Default for TransitionTargetNode {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
     pub members: HandleSpan<DiagnosticName>,
+    pub starts_at_self: bool,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
@@ -590,7 +597,11 @@ mod tests {
             target: TransitionTarget::Named(NamedTransitionTarget {
                 head_symbol: target_symbol,
                 symbol: target_symbol,
-                storage: NamedTransitionTargetStorage { path, arguments },
+                storage: NamedTransitionTargetStorage {
+                    path,
+                    path_starts_at_self: false,
+                    arguments,
+                },
             }),
             continuation: None,
             guard: TransitionGuard::When(guard),
@@ -616,8 +627,9 @@ mod tests {
         let StatementNode::Transition(transition) = statements.statement(statement) else {
             panic!("statement should lower to a table transition");
         };
-        let TransitionTargetNode::Named { path, arguments } =
-            statements.transition_target(transition.target)
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = statements.transition_target(transition.target)
         else {
             panic!("transition target should be named");
         };

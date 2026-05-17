@@ -102,6 +102,7 @@ pub struct TableAssignment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
+    pub receiver_starts_at_self: bool,
     pub target: Identifier,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
@@ -110,6 +111,7 @@ impl Default for TableCall {
     fn default() -> Self {
         Self {
             receiver: HandleSpan::empty(),
+            receiver_starts_at_self: false,
             target: Identifier::default(),
             arguments: HandleSpan::empty(),
         }
@@ -160,6 +162,7 @@ pub enum TransitionGuardNode {
 pub enum TransitionTargetNode {
     Named {
         path: HandleSpan<Identifier>,
+        path_starts_at_self: bool,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
     },
     Value(crate::expression::ExpressionHandle),
@@ -193,8 +196,11 @@ mod tests {
         let argument_two = expressions.insert(ExpressionNode::Integer(2));
         let _argument_two = statements.append_expression_handle(argument_two);
         let arguments = HandleSpan::from_parts(argument_one, 2);
-        let target =
-            statements.insert_transition_target(TransitionTargetNode::Named { path, arguments });
+        let target = statements.insert_transition_target(TransitionTargetNode::Named {
+            path,
+            path_starts_at_self: false,
+            arguments,
+        });
         let guard = expressions.insert(ExpressionNode::Boolean(true));
         let statement = statements.insert(StatementNode::Transition(TableTransition {
             target,
@@ -205,8 +211,9 @@ mod tests {
         let StatementNode::Transition(transition) = statements.statement(statement) else {
             panic!("statement should lower to a table transition");
         };
-        let TransitionTargetNode::Named { path, arguments } =
-            statements.transition_target(transition.target)
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = statements.transition_target(transition.target)
         else {
             panic!("transition target should be named");
         };
