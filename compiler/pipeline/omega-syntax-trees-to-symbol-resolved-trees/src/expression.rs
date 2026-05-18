@@ -29,10 +29,21 @@ fn lower_expression_node_into_table(
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
-            let mut span = HandleSpan::empty();
-            for value in syntax_trees.expressions.expression_handles(*values) {
+            let span = expressions.reserve_expression_handles(values.count());
+            for (offset, value) in syntax_trees
+                .expressions
+                .expression_handles(*values)
+                .iter()
+                .enumerate()
+            {
                 let value = lower_expression_into_table(syntax_trees, expressions, *value)?;
-                expressions.push_expression_handle(&mut span, value);
+                expressions.set_expression_handle_at_offset(
+                    span,
+                    offset
+                        .try_into()
+                        .expect("expression handle span count overflow"),
+                    value,
+                );
             }
             Ok(expressions.insert(ExpressionNode::ArrayLiteral(span)))
         }
@@ -72,10 +83,21 @@ fn lower_expression_node_into_table(
             } else {
                 ExpressionHandle::invalid()
             };
-            let mut arguments = HandleSpan::empty();
-            for argument in syntax_trees.expressions.expression_handles(call.arguments) {
+            let arguments = expressions.reserve_expression_handles(call.arguments.count());
+            for (offset, argument) in syntax_trees
+                .expressions
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+            {
                 let argument = lower_expression_into_table(syntax_trees, expressions, *argument)?;
-                expressions.push_expression_handle(&mut arguments, argument);
+                expressions.set_expression_handle_at_offset(
+                    arguments,
+                    offset
+                        .try_into()
+                        .expect("expression handle span count overflow"),
+                    argument,
+                );
             }
             Ok(
                 expressions.insert(ExpressionNode::Call(TableCallExpression {
@@ -152,14 +174,19 @@ fn lower_expression_node_into_table(
             Ok(expressions.insert(ExpressionNode::String(value.clone())))
         }
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
-            let mut fields = HandleSpan::empty();
-            for field in syntax_trees
+            let fields = expressions.reserve_struct_fields(struct_literal.fields.count());
+            for (offset, field) in syntax_trees
                 .expressions
                 .struct_fields(struct_literal.fields)
+                .iter()
+                .enumerate()
             {
                 let value = lower_expression_into_table(syntax_trees, expressions, field.value)?;
-                expressions.push_struct_field(
-                    &mut fields,
+                expressions.set_struct_field_at_offset(
+                    fields,
+                    offset
+                        .try_into()
+                        .expect("struct literal field span count overflow"),
                     TableStructLiteralField {
                         name: lower_name(&field.name),
                         value,

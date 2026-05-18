@@ -101,9 +101,19 @@ fn lower_statement_expressions(
     syntax_trees: &SyntaxTrees,
     expressions: HandleSpan<syntax::expression::ExpressionHandle>,
 ) -> Result<HandleSpan<omega_symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
-    let mut span = HandleSpan::empty();
+    let span = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .reserve_expression_handles(expressions.count());
 
-    for expression in syntax_trees.statements.expression_handles(expressions) {
+    for (offset, expression) in syntax_trees
+        .statements
+        .expression_handles(expressions)
+        .iter()
+        .enumerate()
+    {
         let expression = lower_expression_into_table(
             syntax_trees,
             &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
@@ -114,7 +124,13 @@ fn lower_statement_expressions(
             .tables
             .bodies
             .expressions
-            .push_expression_handle(&mut span, expression);
+            .set_expression_handle_at_offset(
+                span,
+                offset
+                    .try_into()
+                    .expect("expression handle span count overflow"),
+                expression,
+            );
     }
 
     Ok(span)
