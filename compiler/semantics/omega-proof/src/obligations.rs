@@ -1191,7 +1191,7 @@ fn data_field_in_definition(
 
 fn integer_literal_constraints(value: i64) -> Vec<ProofConstraint> {
     let mut constraints = vec![
-        ProofConstraint::Named(ProgramName::generated("exact")),
+        ProofConstraint::Named(ProgramName::generated_static("exact")),
         ProofConstraint::IntegerRange {
             minimum: value,
             maximum: value,
@@ -1199,13 +1199,15 @@ fn integer_literal_constraints(value: i64) -> Vec<ProofConstraint> {
     ];
 
     if value >= 0 {
-        constraints.push(ProofConstraint::Named(ProgramName::generated(
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
             "non_negative",
         )));
     }
 
     if value > 0 {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("positive")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "positive",
+        )));
     }
 
     constraints
@@ -1218,7 +1220,7 @@ fn float_literal_constraints(value: FloatLiteral) -> Vec<ProofConstraint> {
     }
 
     vec![
-        ProofConstraint::Named(ProgramName::generated("finite")),
+        ProofConstraint::Named(ProgramName::generated_static("finite")),
         ProofConstraint::FloatRange {
             minimum: FloatLiteral::new(value),
             maximum: FloatLiteral::new(value),
@@ -1245,7 +1247,9 @@ fn derived_binary_constraints(
                 | BinaryOperator::Subtract
         )
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("exact")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "exact",
+        )));
     }
 
     if integer_constraints_are_wrapping(left_constraints)
@@ -1259,7 +1263,9 @@ fn derived_binary_constraints(
                 | BinaryOperator::Subtract
         )
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("wrapping")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "wrapping",
+        )));
     }
 
     if let (Some(left_range), Some(right_range)) = (
@@ -1272,12 +1278,14 @@ fn derived_binary_constraints(
             maximum: range.maximum,
         });
         if range.minimum >= 0 {
-            constraints.push(ProofConstraint::Named(ProgramName::generated(
+            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
                 "non_negative",
             )));
         }
         if range.minimum > 0 {
-            constraints.push(ProofConstraint::Named(ProgramName::generated("positive")));
+            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+                "positive",
+            )));
         }
     }
 
@@ -1286,7 +1294,9 @@ fn derived_binary_constraints(
         float_range_from_constraints(right_constraints),
     ) && let Some(range) = float_binary_range(operator, left_range, right_range)
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("finite")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "finite",
+        )));
         constraints.push(ProofConstraint::FloatRange {
             minimum: FloatLiteral::new(range.minimum),
             maximum: FloatLiteral::new(range.maximum),
@@ -1302,7 +1312,7 @@ fn derived_real_from_constraints(argument_constraints: &[ProofConstraint]) -> Ve
     };
 
     vec![
-        ProofConstraint::Named(ProgramName::generated("finite")),
+        ProofConstraint::Named(ProgramName::generated_static("finite")),
         ProofConstraint::FloatRange {
             minimum: FloatLiteral::new(range.minimum as f64),
             maximum: FloatLiteral::new(range.maximum as f64),
@@ -1342,7 +1352,9 @@ fn derived_extrema_call_constraints(
     if integer_constraints_are_exact(&left_constraints)
         && integer_constraints_are_exact(&right_constraints)
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("exact")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "exact",
+        )));
     }
 
     if let (Some(left_range), Some(right_range)) = (
@@ -1386,7 +1398,9 @@ fn derived_range_call_constraints(
     };
 
     let upper_constraints = expression_constraints(program, machine, state, *exclusive_max);
-    let mut constraints = vec![ProofConstraint::Named(ProgramName::generated("exact"))];
+    let mut constraints = vec![ProofConstraint::Named(ProgramName::generated_static(
+        "exact",
+    ))];
 
     if let Some(upper_range) = integer_range_from_constraints(&upper_constraints) {
         constraints.push(ProofConstraint::IntegerRange {
@@ -1470,24 +1484,30 @@ fn augment_constraints_with_named_facts(constraints: &mut Vec<ProofConstraint>) 
         )
     }) && !has_named_constraint(constraints, "exact")
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("exact")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "exact",
+        )));
     }
 
     if let Some(range) = integer_range_from_constraints(constraints) {
         if range.minimum >= 0 && !has_named_constraint(constraints, "non_negative") {
-            constraints.push(ProofConstraint::Named(ProgramName::generated(
+            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
                 "non_negative",
             )));
         }
         if range.minimum > 0 && !has_named_constraint(constraints, "positive") {
-            constraints.push(ProofConstraint::Named(ProgramName::generated("positive")));
+            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+                "positive",
+            )));
         }
     }
 
     if float_range_from_constraints(constraints).is_some()
         && !has_named_constraint(constraints, "finite")
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated("finite")));
+        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            "finite",
+        )));
     }
 }
 
