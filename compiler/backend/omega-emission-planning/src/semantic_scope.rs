@@ -2,6 +2,7 @@ use crate::EmissionPlanningInput;
 use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_state_calls::StateCall;
 
 pub(super) fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
     input
@@ -9,6 +10,28 @@ pub(super) fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> St
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))
         .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
+}
+
+pub(super) fn state_call_receiver_name(
+    input: &EmissionPlanningInput<'_>,
+    call: &StateCall,
+) -> String {
+    input
+        .control_flow
+        .receiver_name_by_symbol(call.source_key, call.receiver_symbol)
+        .or_else(|| {
+            input
+                .control_flow
+                .call_receiver_name_by_statement(call.source_key, call.statement_index)
+        })
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            if call.receiver_symbol.is_valid() {
+                "<unknown>".to_owned()
+            } else {
+                "self".to_owned()
+            }
+        })
 }
 
 pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {

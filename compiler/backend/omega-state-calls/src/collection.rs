@@ -17,7 +17,6 @@ pub(crate) struct CollectedStateCall {
     pub call_ordinal: usize,
     pub role: StateCallRole,
     pub receiver_symbol: SymbolHandle,
-    pub receiver: ProgramName,
     pub target_key: StateKey,
     pub raw_arguments: HandleSpan<ExpressionHandle>,
     pub reachable: bool,
@@ -46,7 +45,7 @@ pub(crate) fn collect_machine_state_calls(
                 receiver_symbol,
                 target_symbol,
                 has_receiver,
-                receiver,
+                receiver: _,
                 target,
             } = &operation.kind
             {
@@ -72,7 +71,6 @@ pub(crate) fn collect_machine_state_calls(
                     call_ordinal,
                     role: StateCallRole::Statement,
                     receiver_symbol: *receiver_symbol,
-                    receiver: receiver.clone(),
                     target_key: resolved_target
                         .as_ref()
                         .map(|target| target.key)
@@ -444,9 +442,6 @@ fn collect_expression_state_calls_in_table(
                 call_ordinal: *call_ordinal,
                 role,
                 receiver_symbol: receiver.symbol,
-                receiver: receiver
-                    .last_member
-                    .unwrap_or_else(|| ProgramName::generated_static("self")),
                 target_key: resolved_target
                     .as_ref()
                     .map(|target| target.key)
@@ -576,13 +571,11 @@ fn call_receiver_parts(expressions: &ExpressionTable, receiver: ExpressionHandle
         ExpressionNode::Mutable(inner) => call_receiver_parts(expressions, *inner),
         ExpressionNode::Name(path) => ReceiverParts {
             symbol: path.symbol,
-            last_member: expressions.name_path_members(path.members).last().cloned(),
             is_present: true,
         },
         ExpressionNode::Member(member) => {
             let mut receiver = call_receiver_parts(expressions, member.receiver);
             receiver.symbol = member.member_symbol;
-            receiver.last_member = Some(member.member.clone());
             receiver.is_present = true;
             receiver
         }
@@ -593,7 +586,6 @@ fn call_receiver_parts(expressions: &ExpressionTable, receiver: ExpressionHandle
 #[derive(Debug, Clone, Default)]
 struct ReceiverParts {
     symbol: SymbolHandle,
-    last_member: Option<ProgramName>,
     is_present: bool,
 }
 
@@ -778,6 +770,7 @@ mod tests {
     use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
     use omega_typed_trees_to_checked_trees::lower_typed_trees;
+    use std::sync::Arc;
 
     #[test]
     fn collects_contained_assignment_value_call() {
@@ -828,9 +821,9 @@ mod tests {
         let host_abi = build_host_abi_plan(target);
         let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
         let context = StateCallPlanningContext {
-            control_flow: control_flow.clone(),
-            host_calls,
-            runtime_flow,
+            control_flow: Arc::new(control_flow.clone()),
+            host_calls: Arc::new(host_calls),
+            runtime_flow: Arc::new(runtime_flow),
         };
         let machine = control_flow
             .machine_by_symbol(entry_key.machine)
