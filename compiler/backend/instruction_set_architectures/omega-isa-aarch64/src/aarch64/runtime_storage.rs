@@ -231,10 +231,7 @@ pub fn encode_runtime_storage_binary_write(
         right,
     )?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
-    bytes.extend(encode_runtime_storage_result_write(
-        target_offset,
-        byte_size,
-    ));
+    append_runtime_storage_result_write(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
 }
 
@@ -272,7 +269,7 @@ pub fn encode_runtime_pointee_binary_write(
         right,
     )?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
-    bytes.extend(encode_runtime_storage_result_write(0, byte_size));
+    append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
 
@@ -439,7 +436,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
         right,
     )?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
-    bytes.extend(encode_runtime_storage_result_write(0, byte_size));
+    append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
 
@@ -827,18 +824,22 @@ fn encode_runtime_binary_operation(
     Ok(bytes)
 }
 
-fn encode_runtime_storage_result_write(byte_offset: usize, byte_size: usize) -> Vec<u8> {
+fn append_runtime_storage_result_write(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
     match byte_size {
-        1 | 4 => Vec::from(
-            encode_store_w_to_x(17, 16, byte_offset, byte_size)
-                .expect("runtime binary write should target a supported integer width"),
-        ),
-        8 => Vec::from(
-            encode_store_x_to_x(17, 16, byte_offset)
-                .expect("runtime binary write should target an aligned 8-byte slot"),
-        ),
-        _ => Vec::new(),
+        1 | 4 => bytes.extend(encode_store_w_to_x(17, 16, byte_offset, byte_size)?),
+        8 => bytes.extend(encode_store_x_to_x(17, 16, byte_offset)?),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot write {byte_size}-byte runtime storage results yet"
+            )));
+        }
     }
+
+    Ok(())
 }
 
 fn encode_conditional_branch_for_operator(
