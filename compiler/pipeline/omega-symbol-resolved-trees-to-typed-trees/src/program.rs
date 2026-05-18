@@ -102,4 +102,54 @@ mod tests {
                 .is_some()
         );
     }
+
+    #[test]
+    fn lowers_statement_argument_spans_from_statement_table() {
+        let source = r#"
+        data Parser {}
+
+        machine Parser::start -> i32 {
+            pub entry(&mut self, level: i32, cell: i32, line: i32) {
+                -> self.resolve_exit(level, cell, line);
+            }
+
+            entry resolve_exit(&mut self, level: i32, cell: i32, line: i32) -> i32 {
+                0
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved_program =
+            lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+        let typed_trees =
+            lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+        let machine = &typed_trees.machines()[0];
+        let entry = &typed_trees.machine_states(machine)[0];
+        let statements = typed_trees
+            .statement_table
+            .statements(entry.statement_nodes);
+
+        let omega_typed_trees::statement::StatementNode::Transition(transition) = &statements[0]
+        else {
+            panic!("entry should lower to transition statement");
+        };
+        let omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+            typed_trees
+                .statement_table
+                .transition_target(transition.target)
+        else {
+            panic!("transition target should be named");
+        };
+        let arguments = typed_trees.statement_table.expression_handles(*arguments);
+        let argument_names = arguments
+            .iter()
+            .map(|argument| typed_trees.expression_table.display_name(*argument))
+            .collect::<Vec<_>>();
+
+        assert_eq!(argument_names, ["level", "cell", "line"]);
+    }
 }

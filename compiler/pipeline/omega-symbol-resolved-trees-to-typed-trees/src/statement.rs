@@ -18,20 +18,7 @@ pub(crate) fn lower_statement_node(
             }),
         ),
         resolved::statement::StatementNode::Call(call) => {
-            let mut arguments = HandleSpan::empty();
-            for argument in lowerer
-                .source_trees
-                .tables
-                .bodies
-                .expressions
-                .expression_handles(call.arguments)
-            {
-                let argument = lower_statement_expression(lowerer, *argument)?;
-                lowerer
-                    .typed_trees
-                    .statement_table
-                    .push_expression_handle(&mut arguments, argument);
-            }
+            let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
 
             Ok(typed::statement::StatementNode::Call(
                 typed::statement::TableCall {
@@ -90,6 +77,30 @@ fn lower_statement_expression(
     )
 }
 
+fn lower_statement_argument_span(
+    lowerer: &mut Lowerer,
+    arguments: HandleSpan<resolved::expression::ExpressionHandle>,
+) -> Result<HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
+    let mut lowered_arguments = HandleSpan::empty();
+    let arguments = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .statements
+        .expression_handles(arguments)
+        .to_vec();
+
+    for argument in arguments {
+        let argument = lower_statement_expression(lowerer, argument)?;
+        lowerer
+            .typed_trees
+            .statement_table
+            .push_expression_handle(&mut lowered_arguments, argument);
+    }
+
+    Ok(lowered_arguments)
+}
+
 fn lower_transition_guard(
     lowerer: &mut Lowerer,
     guard: &resolved::statement::TransitionGuardNode,
@@ -118,20 +129,7 @@ fn lower_transition_target(
         .transition_target(target)
     {
         resolved::statement::TransitionTargetNode::Named { path, arguments } => {
-            let mut lowered_arguments = HandleSpan::empty();
-            for argument in lowerer
-                .source_trees
-                .tables
-                .bodies
-                .expressions
-                .expression_handles(*arguments)
-            {
-                let argument = lower_statement_expression(lowerer, *argument)?;
-                lowerer
-                    .typed_trees
-                    .statement_table
-                    .push_expression_handle(&mut lowered_arguments, argument);
-            }
+            let lowered_arguments = lower_statement_argument_span(lowerer, *arguments)?;
 
             typed::statement::TransitionTargetNode::Named {
                 path: typed::statement::TableNamePath {
@@ -171,9 +169,9 @@ fn lower_statement_path_members(
     for member in lowerer
         .source_trees
         .tables
-        .declarations
-        .statement_path_members
-        .span_or_empty(path)
+        .bodies
+        .statements
+        .name_path_members(path)
     {
         lowerer
             .typed_trees
