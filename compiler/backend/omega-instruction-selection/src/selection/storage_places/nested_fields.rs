@@ -68,7 +68,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
     let DataShape::Record { fields } = &data_layout.shape else {
         return None;
     };
-    let field = field_layout_by_symbol(layouts, *fields, field_symbol)?;
+    let field = field_layout_by_symbol_or_name(layouts, *fields, field_symbol, field_name)?;
     let mut next = NestedFieldLayoutCursor {
         byte_offset: cursor.byte_offset + field.offset,
         type_symbol: field.type_symbol,
@@ -131,21 +131,27 @@ fn data_layout<'plan>(
         .map(|(_, data_layout)| data_layout)
 }
 
-fn field_layout_by_symbol<'plan>(
+fn field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
+    field_name: &ProgramName,
 ) -> Option<&'plan FieldLayout> {
-    field_symbol
-        .is_valid()
-        .then(|| {
-            layouts
-                .fields
-                .span(fields)?
-                .iter()
-                .find(|field| field.symbol == field_symbol)
+    let fields = layouts.fields.span(fields)?;
+    fields
+        .iter()
+        .find(|field| field_symbol.is_valid() && field.symbol == field_symbol)
+        .or_else(|| {
+            let name = field_name_without_index(field_name);
+            fields.iter().find(|field| field.name.as_str() == name)
         })
-        .flatten()
+}
+
+fn field_name_without_index(field_name: &str) -> &str {
+    field_name
+        .split_once('[')
+        .map(|(name, _)| name)
+        .unwrap_or(field_name)
 }
 
 struct FieldSegment {
