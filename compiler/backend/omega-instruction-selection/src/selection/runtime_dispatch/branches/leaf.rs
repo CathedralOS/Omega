@@ -7,12 +7,10 @@ use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_state_calls::StateCallRole;
 
-use super::super::super::bindings::{
-    resolve_leaf_binding_expression, resolve_leaf_binding_expression_handle,
-};
+use super::super::super::bindings::resolve_leaf_binding_expression_handle;
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::guards::select_runtime_leaf_branch_guard;
-use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
+use super::super::text_writes::runtime_text_builder_write_with_handle_resolver_emit;
 use super::super::writes::runtime_storage_copy;
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -196,7 +194,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         }
 
         let (operation_machine, operation_state) = state_names(input, operation.source_key);
-        if runtime_text_builder_write_with_resolver_emit(
+        if runtime_text_builder_write_with_handle_resolver_emit(
             input,
             expansion.dispatch_index,
             operation.source_key,
@@ -204,9 +202,10 @@ fn select_runtime_leaf_branch_mutation_writes(
             &operation_state,
             operation.statement_index,
             &resolved_target,
-            &|expression| {
-                resolve_leaf_binding_expression(
+            &|expressions, expression| {
+                resolve_leaf_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
+                    expressions,
                     expression,
                     bindings,
                 )
