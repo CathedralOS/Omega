@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64CallOperand {
     DataAddress,
     RuntimeStringPointer { byte_offset: usize },

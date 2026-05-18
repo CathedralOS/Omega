@@ -4,11 +4,29 @@ use omega_core::arena::Arena;
 use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
-    operands.iter().map(operand_width).sum::<usize>() + 4
+    host_call_sequence_width_from_operands(operands.iter().copied())
 }
 
 pub fn syscall_sequence_width(operands: &[Aarch64CallOperand], syscall_number: u32) -> usize {
-    operands.iter().map(operand_width).sum::<usize>()
+    syscall_sequence_width_from_operands(operands.iter().copied(), syscall_number)
+}
+
+pub fn host_call_sequence_width_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand>,
+) -> usize {
+    operands
+        .map(|operand| operand_width(&operand))
+        .sum::<usize>()
+        + 4
+}
+
+pub fn syscall_sequence_width_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand>,
+    syscall_number: u32,
+) -> usize {
+    operands
+        .map(|operand| operand_width(&operand))
+        .sum::<usize>()
         + unsigned_immediate_width(u64::from(syscall_number))
         + 4
 }

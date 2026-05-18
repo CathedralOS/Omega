@@ -15,7 +15,13 @@ pub use runtime_text::*;
 pub use widths::*;
 
 pub fn encode_host_call_sequence(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_call_operands(operands)?;
+    encode_host_call_sequence_from_operands(operands.iter().copied())
+}
+
+pub fn encode_host_call_sequence_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_call_operands(operands.clone())?;
     bytes.reserve(4);
     bytes.extend(encode_branch_link_placeholder());
     Ok(bytes)
@@ -27,8 +33,24 @@ pub fn encode_syscall_sequence(
     number_register: u8,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_call_operands(operands)?;
-    bytes.reserve(syscall_sequence_width(operands, syscall_number).saturating_sub(bytes.len()));
+    encode_syscall_sequence_from_operands(
+        operands.iter().copied(),
+        syscall_number,
+        number_register,
+        supervisor_call,
+    )
+}
+
+pub fn encode_syscall_sequence_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+    syscall_number: u32,
+    number_register: u8,
+    supervisor_call: u16,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_call_operands(operands.clone())?;
+    bytes.reserve(
+        syscall_sequence_width_from_operands(operands, syscall_number).saturating_sub(bytes.len()),
+    );
     bytes.extend(encode_unsigned_immediate(
         number_register,
         u64::from(syscall_number),
@@ -45,12 +67,19 @@ pub fn encode_return_bytes() -> [u8; 4] {
     encode_instruction(0xD65F03C0)
 }
 
-fn encode_call_operands(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(operands.iter().map(operand_width).sum());
+fn encode_call_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        operands
+            .clone()
+            .map(|operand| operand_width(&operand))
+            .sum(),
+    );
     let mut next_register = 0u8;
 
     for operand in operands {
-        match operand {
+        match &operand {
             ImmediateInteger(value) => {
                 bytes.extend(encode_immediate(next_register, *value)?);
                 next_register += 1;

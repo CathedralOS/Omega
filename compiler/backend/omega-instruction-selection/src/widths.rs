@@ -1,4 +1,4 @@
-use crate::aarch64_call_operands;
+use crate::aarch64_call_operand;
 use omega_core::arena::Arena;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
@@ -11,9 +11,9 @@ pub fn host_call_sequence_width(
     operands: &[InstructionOperand],
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::host_call_sequence_width(&aarch64_call_operands(operands))
-        }
+        Architecture::Aarch64 => aarch64::host_call_sequence_width_from_operands(
+            operands.iter().map(aarch64_call_operand),
+        ),
         Architecture::X86_64 => operands.len() * 8 + 5,
     }
 }
@@ -24,9 +24,10 @@ pub fn syscall_sequence_width(
     syscall_number: u32,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::syscall_sequence_width(&aarch64_call_operands(operands), syscall_number)
-        }
+        Architecture::Aarch64 => aarch64::syscall_sequence_width_from_operands(
+            operands.iter().map(aarch64_call_operand),
+            syscall_number,
+        ),
         Architecture::X86_64 => operands.len() * 8 + 7,
     }
 }
