@@ -1,5 +1,6 @@
 use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
+use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::TypeReferenceHandle;
 use omega_control_flow::StateKey;
@@ -15,16 +16,48 @@ pub(super) fn build_runtime_storage_body_plan(
     context: &RuntimeStorageContext,
     body: &RuntimeDispatchBody,
 ) -> RuntimeStoragePlan {
-    let mut plan = RuntimeStoragePlan::default();
-    let mut next_frame_offset = 0usize;
-    append_parameter_slots(context, body, &mut plan, &mut next_frame_offset);
     let Some(operations) = context
         .runtime_bodies
         .operations
         .paged_span(body.operations)
     else {
-        return plan;
+        return RuntimeStoragePlan::default();
     };
+    let parameter_count = context
+        .control_flow
+        .state_by_key(body.key)
+        .map(|state| context.control_flow.state_parameters(state).len())
+        .unwrap_or(0);
+    let local_count = operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+            )
+        })
+        .count();
+    let write_count = operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                RuntimeDispatchBodyOperationKind::Mutation { lowering, .. }
+                    if lowering != StateMutationLowering::AlreadyLowered
+            )
+        })
+        .count();
+    let mut plan = RuntimeStoragePlan::with_capacities(
+        ExpressionTableCapacity {
+            expressions: write_count.saturating_mul(2),
+            ..ExpressionTableCapacity::default()
+        },
+        local_count,
+        parameter_count.saturating_add(operations.len()),
+        write_count,
+    );
+    let mut next_frame_offset = 0usize;
+    append_parameter_slots(context, body, &mut plan, &mut next_frame_offset);
 
     for operation in operations.iter() {
         match &operation.kind {

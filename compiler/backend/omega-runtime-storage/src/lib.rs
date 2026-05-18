@@ -6,6 +6,7 @@ mod model;
 pub use context::RuntimeStorageContext;
 pub use model::{RuntimeFrameSlot, RuntimeFrameSlotKind, RuntimeStoragePlan, RuntimeStorageWrite};
 
+use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use std::sync::Arc;
 
@@ -38,7 +39,31 @@ pub fn build_runtime_storage_plan_with_workers(
         build_runtime_storage_body_plan(&context_for_bodies, body)
     });
 
-    let mut plan = RuntimeStoragePlan::default();
+    let expression_capacity = body_plans.iter().fold(
+        ExpressionTableCapacity::default(),
+        |mut capacity, body_plan| {
+            capacity.saturating_add_assign(body_plan.expressions.copy_capacity());
+            capacity
+        },
+    );
+    let invariant_name_capacity = body_plans
+        .iter()
+        .map(|body_plan| body_plan.invariant_names.len())
+        .sum();
+    let frame_slot_capacity = body_plans
+        .iter()
+        .map(|body_plan| body_plan.frame_slots.len())
+        .sum();
+    let write_capacity = body_plans
+        .iter()
+        .map(|body_plan| body_plan.writes.len())
+        .sum();
+    let mut plan = RuntimeStoragePlan::with_capacities(
+        expression_capacity,
+        invariant_name_capacity,
+        frame_slot_capacity,
+        write_capacity,
+    );
 
     for body_plan in body_plans {
         let RuntimeStoragePlan {
