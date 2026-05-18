@@ -34,7 +34,8 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,
                 program.state_parameters(state),
-                format!("machine `{}` state `{}`", machine.name, state.name),
+                machine.name.as_str(),
+                state.name.as_str(),
                 &mut diagnostics,
             );
             let writable_roots = WritableRoots {
@@ -114,7 +115,8 @@ fn validate_local_data_names(
     statements: &[StatementNode],
     machine_symbols: &MachineSymbols<'_>,
     parameters: &[StateParameter],
-    owner: String,
+    machine_name: &str,
+    state_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut local_names = Vec::new();
@@ -130,7 +132,7 @@ fn validate_local_data_names(
                 .any(|parameter| parameter.name == local_data.name)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} local data `{}` conflicts with an existing name",
+                "machine `{machine_name}` state `{state_name}` local data `{}` conflicts with an existing name",
                 local_data.name
             )));
             continue;
@@ -138,7 +140,7 @@ fn validate_local_data_names(
 
         if local_names.contains(&local_data.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} has duplicate local data `{}`",
+                "machine `{machine_name}` state `{state_name}` has duplicate local data `{}`",
                 local_data.name
             )));
         }
@@ -163,7 +165,8 @@ fn validate_state_statement_node(
             assignment.target,
             writable_roots,
             diagnostics,
-            format!("machine `{}` state `{state_name}` assignment", machine.name),
+            machine.name.as_str(),
+            state_name,
         ),
         StatementNode::Call(call) => validate_call_node(
             program,
@@ -237,11 +240,12 @@ fn validate_assignment_target_handle(
     target: ExpressionHandle,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
+    machine_name: &str,
+    state_name: &str,
 ) {
     if !is_mutable_place_handle(program, target) {
         diagnostics.push(Diagnostic::error(format!(
-            "{owner} target must be a named place"
+            "machine `{machine_name}` state `{state_name}` assignment target must be a named place"
         )));
         return;
     }
@@ -252,7 +256,7 @@ fn validate_assignment_target_handle(
 
     if !writable_roots.contains(root_name) {
         diagnostics.push(Diagnostic::error(format!(
-            "{owner} cannot write `{root_name}` because it is not mutable in this state"
+            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` because it is not mutable in this state"
         )));
     }
 }
