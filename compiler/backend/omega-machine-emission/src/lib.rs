@@ -1,5 +1,5 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_machine_program::{MachineInstruction, MachineProgram};
@@ -95,13 +95,13 @@ fn emit_function_bytes(
             .instructions
             .instructions
             .get(selected_handle);
-        let encoded = encode_machine_instruction(
+        let byte_span = insert_encoded_machine_instruction(
+            &mut encoded_plan.bytes,
             emission_context,
             &laid_out_instructions,
             machine_instruction_index,
             &selected_instruction.kind,
         )?;
-        let byte_span = encoded_plan.bytes.insert_many(encoded);
         encoded_plan.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
@@ -109,6 +109,27 @@ fn emit_function_bytes(
     }
 
     Ok(())
+}
+
+fn insert_encoded_machine_instruction(
+    encoded_bytes: &mut Arena<u8>,
+    emission_context: MachineEmissionContext<'_>,
+    laid_out_instructions: &[layout::LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+    kind: &omega_target_operations::SelectedInstructionKind,
+) -> Result<HandleSpan<u8>, Diagnostic> {
+    encoded_bytes.try_insert_many_with(|inserter| {
+        for byte in encode_machine_instruction(
+            emission_context,
+            laid_out_instructions,
+            machine_instruction_index,
+            kind,
+        )? {
+            inserter.insert(byte);
+        }
+
+        Ok(())
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
