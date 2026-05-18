@@ -78,11 +78,9 @@ pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
-    let mut operations = Arena::with_capacity(estimated_body_operation_capacity(
-        context,
-        dispatch_state.key,
-    ));
-    let mut expressions = ExpressionTable::new();
+    let operation_capacity = estimated_body_operation_capacity(context, dispatch_state.key);
+    let mut operations = Arena::with_capacity(operation_capacity);
+    let mut expressions = ExpressionTable::with_expression_capacity(operation_capacity);
     let mut invariant_names = Arena::with_capacity(estimated_body_invariant_name_capacity(
         context,
         dispatch_state.key,

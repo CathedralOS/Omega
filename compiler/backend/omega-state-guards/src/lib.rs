@@ -88,12 +88,13 @@ pub fn build_state_guard_plan(
     runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
 ) -> StateGuardPlan {
+    let guard_capacity = state_dispatch.edges.len();
     let mut plan = StateGuardPlan {
-        guards: Arena::with_capacity(state_dispatch.edges.len()),
-        operands: Arena::with_capacity(state_dispatch.edges.len().saturating_mul(2)),
-        ..StateGuardPlan::default()
+        expressions: ExpressionTable::with_expression_capacity(guard_capacity),
+        guards: Arena::with_capacity(guard_capacity),
+        operands: Arena::with_capacity(guard_capacity.saturating_mul(2)),
     };
-    let mut normalized_expressions = ExpressionTable::new();
+    let mut normalized_expressions = ExpressionTable::with_expression_capacity(4);
 
     for (_, state) in state_dispatch.states.iter() {
         let Some(machine) = machine_by_symbol(program, state.key.machine) else {
@@ -457,7 +458,8 @@ pub fn lower_guard_conjunction(
     let clause_capacity =
         guard_conjunction_clause_count(&plan.expressions, expression).unwrap_or(0);
     let mut clauses = StateGuardClauses::with_capacity(clause_capacity);
-    let mut scratch_expressions = ExpressionTable::new();
+    let mut scratch_expressions =
+        ExpressionTable::with_expression_capacity(clause_capacity.saturating_mul(2));
     if lower_guard_conjunction_expression(
         plan,
         layouts,
