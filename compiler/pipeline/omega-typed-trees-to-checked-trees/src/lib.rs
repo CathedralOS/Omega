@@ -39,7 +39,7 @@ fn build_proof_facts(
     _program: &omega_typed_trees::TypedTrees,
     proof_plan: &omega_proof::obligations::ProofPlan,
 ) -> ProofFacts {
-    let mut obligations = omega_core::arena::Arena::new();
+    let mut obligations = omega_core::arena::Arena::with_capacity(proof_plan.obligations.len());
 
     for (_, obligation) in proof_plan.obligations.iter() {
         obligations.append(match obligation {
@@ -194,7 +194,8 @@ fn proof_owner(owner: &omega_proof::obligations::ProofObligationOwner) -> ProofO
 }
 
 fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {
-    let mut definitions = omega_core::arena::Arena::new();
+    let mut definitions =
+        omega_core::arena::Arena::with_capacity(program.invariant_definitions().len());
 
     for definition in program.invariant_definitions() {
         definitions.append(InvariantFact {
@@ -211,10 +212,13 @@ fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFa
 }
 
 fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
-    let mut writable_roots = omega_core::arena::Arena::new();
-    let mut argument_accesses = omega_core::arena::Arena::new();
-    let mut calls = omega_core::arena::Arena::new();
-    let mut states = omega_core::arena::Arena::new();
+    let mut writable_roots =
+        omega_core::arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
+    let mut argument_accesses =
+        omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
+    let mut calls =
+        omega_core::arena::Arena::with_capacity(program.statement_table.statement_count());
+    let mut states = omega_core::arena::Arena::with_capacity(machine_state_count(program));
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -304,6 +308,44 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
         calls,
         states,
     }
+}
+
+fn machine_state_count(program: &omega_typed_trees::TypedTrees) -> usize {
+    program
+        .machines()
+        .iter()
+        .map(|machine| program.machine_states(machine).len())
+        .sum()
+}
+
+fn estimated_borrow_root_capacity(program: &omega_typed_trees::TypedTrees) -> usize {
+    program
+        .machines()
+        .iter()
+        .map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .map(|state| {
+                    let local_data_count = program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .iter()
+                        .filter(|statement| matches!(statement, StatementNode::LocalData(_)))
+                        .count();
+                    let mutable_parameter_count = program
+                        .state_parameters(state)
+                        .iter()
+                        .filter(|parameter| parameter.is_mutable)
+                        .count();
+
+                    program.machine_owned_data(machine).len()
+                        + local_data_count
+                        + mutable_parameter_count
+                })
+                .sum::<usize>()
+        })
+        .sum()
 }
 
 fn collect_statement_borrow_calls(
