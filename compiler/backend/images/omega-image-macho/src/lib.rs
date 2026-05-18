@@ -1,7 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
-    apply_aarch64_relocations, final_image_symbol_name, ExecutableImageOutput, FinalImage,
-    FinalImageLayout, FinalImageSection,
+    ExecutableImageOutput, FinalImage, FinalImageLayout, FinalImageSection,
+    apply_aarch64_relocations, final_image_symbol_name,
 };
 
 mod bytes;

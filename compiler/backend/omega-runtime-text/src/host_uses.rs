@@ -103,7 +103,10 @@ fn classify_runtime_text_source(
     host_calls: &HostCallPlan,
     expression: ExpressionHandle,
 ) -> RuntimeTextSource {
-    if host_calls.expressions.expression_is_stored_place(expression) {
+    if host_calls
+        .expressions
+        .expression_is_stored_place(expression)
+    {
         return RuntimeTextSource::StoredPlace;
     }
 

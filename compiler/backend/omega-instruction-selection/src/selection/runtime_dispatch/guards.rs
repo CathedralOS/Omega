@@ -269,9 +269,8 @@ fn runtime_boolean_condition_guard(
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
-    let expected = runtime_value_operands.insert(RuntimeValueOperand::Immediate(i64::from(
-        expected_true,
-    )));
+    let expected =
+        runtime_value_operands.insert(RuntimeValueOperand::Immediate(i64::from(expected_true)));
 
     Some(SelectedInstructionKind::CompareRuntimeValues {
         left: operand,
@@ -519,8 +518,9 @@ fn runtime_value_guard(
         &binary.right,
         runtime_value_operands,
     )?;
-    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, left)
-        .max(runtime_value_operand_byte_size(runtime_value_operands, right));
+    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, left).max(
+        runtime_value_operand_byte_size(runtime_value_operands, right),
+    );
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
@@ -613,13 +613,15 @@ fn resolve_runtime_value_operand(
     if let Some(indexed_target) =
         resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
     {
-        return Some(runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_size: indexed_target.byte_count,
-        }));
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
     }
 
     let place = resolve_runtime_storage_place(
@@ -647,8 +649,9 @@ fn runtime_value_operand_byte_size(
         RuntimeValueOperand::Pointee { byte_size, .. } => *byte_size,
         RuntimeValueOperand::FrameIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Binary { left, right, .. } => {
-            runtime_value_operand_byte_size(runtime_value_operands, *left)
-                .max(runtime_value_operand_byte_size(runtime_value_operands, *right))
+            runtime_value_operand_byte_size(runtime_value_operands, *left).max(
+                runtime_value_operand_byte_size(runtime_value_operands, *right),
+            )
         }
     }
 }

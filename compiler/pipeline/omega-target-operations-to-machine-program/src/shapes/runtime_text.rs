@@ -15,7 +15,9 @@ pub(super) fn runtime_text_literal_write_kind() -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralWrite
 }
 
-pub(super) fn runtime_text_literal_segment_write_kind(_byte_offset: usize) -> MachineInstructionKind {
+pub(super) fn runtime_text_literal_segment_write_kind(
+    _byte_offset: usize,
+) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralSegmentWrite
 }
 
@@ -28,7 +30,9 @@ pub(super) fn runtime_text_stored_suffix_append_kind(
     MachineInstructionKind::RuntimeTextStoredSuffixAppend
 }
 
-pub(super) fn runtime_text_buffer_materialize_kind(_target_offset: usize) -> MachineInstructionKind {
+pub(super) fn runtime_text_buffer_materialize_kind(
+    _target_offset: usize,
+) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextBufferMaterialize
 }
 
@@ -73,9 +77,7 @@ pub(super) fn runtime_text_stored_place_append_to_runtime_frame_indexed_kind(
     MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed
 }
 
-pub(super) fn runtime_text_literal_append_kind(
-    _target_offset: usize,
-) -> MachineInstructionKind {
+pub(super) fn runtime_text_literal_append_kind(_target_offset: usize) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralAppend
 }
 

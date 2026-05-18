@@ -59,7 +59,9 @@ pub fn build_host_call_plan_with_workers(
 }
 
 fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
-    target.unsupported_calls.reserve(source.unsupported_calls.len());
+    target
+        .unsupported_calls
+        .reserve(source.unsupported_calls.len());
     target.calls.reserve(source.calls.len());
     target.operations.reserve(source.operations.len());
     target.arguments.reserve(source.arguments.len());

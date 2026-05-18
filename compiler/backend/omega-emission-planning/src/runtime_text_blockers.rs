@@ -71,25 +71,29 @@ fn state_value_has_planned_storage_write(
         return false;
     }
 
-    input.instructions.instructions.iter().any(|(_, instruction)| {
-        state_key_matches_statement_source(instruction.source_key, value.source_key)
-            && instruction.source_statement == value.statement_index
-            && matches!(
-                instruction.kind,
-                SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                    | SelectedInstructionKind::WriteRuntimePointeeString { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorage { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
-            )
-    })
+    input
+        .instructions
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            state_key_matches_statement_source(instruction.source_key, value.source_key)
+                && instruction.source_statement == value.statement_index
+                && matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                        | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
+                        | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
+                        | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                        | SelectedInstructionKind::CopyRuntimeStorage { .. }
+                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
+                )
+        })
 }
 
 fn runtime_transition_arguments_are_materialized(
@@ -237,6 +241,5 @@ pub(super) fn runtime_text_write_is_planned(
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
-    actual == expected
-        || (actual.machine == expected.machine && actual.state == expected.state)
+    actual == expected || (actual.machine == expected.machine && actual.state == expected.state)
 }

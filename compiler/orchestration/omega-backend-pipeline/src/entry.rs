@@ -1,6 +1,6 @@
+use omega_checked_trees::Program;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_checked_trees::Program;
 
 pub(super) const ENTRY_MACHINE_NAME: &str = "main";
 pub(super) const ENTRY_STATE_NAME: &str = "entry";
@@ -14,10 +14,12 @@ pub(super) struct BackendEntryPoint {
 pub(super) fn resolve_backend_entry_point(
     program: &Program,
 ) -> Result<BackendEntryPoint, Diagnostic> {
-    let machine_symbol = find_root_child_by_name_and_kind(program, ENTRY_MACHINE_NAME, SymbolKind::Machine)
-        .ok_or_else(|| Diagnostic::error("unknown runtime machine `main`"))?;
-    let state_symbol = find_child_by_name_and_kind(program, machine_symbol, ENTRY_STATE_NAME, SymbolKind::State)
-        .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
+    let machine_symbol =
+        find_root_child_by_name_and_kind(program, ENTRY_MACHINE_NAME, SymbolKind::Machine)
+            .ok_or_else(|| Diagnostic::error("unknown runtime machine `main`"))?;
+    let state_symbol =
+        find_child_by_name_and_kind(program, machine_symbol, ENTRY_STATE_NAME, SymbolKind::State)
+            .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
 
     Ok(BackendEntryPoint {
         machine_symbol,

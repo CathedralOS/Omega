@@ -83,7 +83,10 @@ fn emit_function_bytes(
     {
         let selected_handle =
             Handle::from_arena_index(machine_instruction.selected_instruction_index);
-        let selected_instruction = emission_context.instructions.instructions.get(selected_handle);
+        let selected_instruction = emission_context
+            .instructions
+            .instructions
+            .get(selected_handle);
         let encoded = encode_machine_instruction(
             emission_context,
             &laid_out_instructions,

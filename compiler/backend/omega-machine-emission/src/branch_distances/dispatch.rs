@@ -36,12 +36,7 @@ pub(crate) fn byte_distance_to_next_state_write_end(
     let Some(state_write) = machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| {
-            matches!(
-                instruction.kind,
-                MachineInstructionKind::DispatchStateWrite
-            )
-        })
+        .find(|instruction| matches!(instruction.kind, MachineInstructionKind::DispatchStateWrite))
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode dispatch guard at byte {}: missing guarded state write",
@@ -83,12 +78,10 @@ pub(crate) fn byte_distance_to_dispatch_loop_start(
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(0);
     };
-    let Some(loop_enter) = machine_instructions.iter().find(|instruction| {
-        matches!(
-            instruction.kind,
-            MachineInstructionKind::DispatchLoopEnter
-        )
-    }) else {
+    let Some(loop_enter) = machine_instructions
+        .iter()
+        .find(|instruction| matches!(instruction.kind, MachineInstructionKind::DispatchLoopEnter))
+    else {
         return Err(Diagnostic::error(format!(
             "cannot encode dispatch case leave at byte {}: missing dispatch loop entry",
             current.offset

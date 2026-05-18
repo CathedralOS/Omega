@@ -137,7 +137,10 @@ fn build_machine_state_storage_plan(
                     let target = plan
                         .expressions
                         .copy_from(&program.expression_table, assignment.target);
-                    let value = if program.expression_table.expression_is_literal(assignment.value) {
+                    let value = if program
+                        .expression_table
+                        .expression_is_literal(assignment.value)
+                    {
                         plan.expressions
                             .copy_from(&program.expression_table, assignment.value)
                     } else {

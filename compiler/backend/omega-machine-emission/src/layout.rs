@@ -5,21 +5,18 @@ use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, host_call_sequence_width, return_width,
-    runtime_frame_indexed_binary_write_width,
-    runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
-    runtime_machine_string_write_width, runtime_pointee_binary_write_width,
-    runtime_pointee_integer_write_width,
-    runtime_pointee_string_write_width,
-    runtime_value_compare_width,
-    runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
-    runtime_storage_copy_to_runtime_frame_indexed_width,
-    runtime_storage_copy_to_runtime_pointee_width,
-    runtime_text_buffer_materialize_width, runtime_text_line_read_width,
-    runtime_text_literal_append_width, runtime_text_literal_compare_width,
-    runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
-    runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
-    runtime_text_stored_suffix_append_width, syscall_sequence_width,
+    runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
+    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
+    runtime_pointee_string_write_width, runtime_storage_binary_write_width,
+    runtime_storage_compare_width, runtime_storage_copy_to_runtime_frame_indexed_width,
+    runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
+    runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
+    runtime_text_line_read_width, runtime_text_literal_append_width,
+    runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
+    runtime_text_literal_write_width, runtime_text_storage_compare_width,
+    runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
+    runtime_value_compare_width, syscall_sequence_width,
 };
 use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
@@ -40,8 +37,9 @@ pub(crate) fn layout_machine_instructions(
     let mut offset = 0usize;
 
     for machine_instruction in machine_instructions {
-        let selected_handle =
-            omega_core::arena::Handle::from_arena_index(machine_instruction.selected_instruction_index);
+        let selected_handle = omega_core::arena::Handle::from_arena_index(
+            machine_instruction.selected_instruction_index,
+        );
         let selected_instruction = input.instructions.instructions.get(selected_handle);
         let byte_width = machine_instruction_width(input, &selected_instruction.kind)?;
 

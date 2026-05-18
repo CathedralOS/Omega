@@ -41,11 +41,11 @@ use runtime_dispatch_blockers::{
     runtime_dispatch_loop_can_emit,
 };
 use runtime_text_blockers::collect_state_value_blockers;
+use semantic_scope::{proof_scope_suffix, state_name};
 use state_call_blockers::collect_state_call_blockers;
 use state_codegen_blockers::collect_state_codegen_blockers;
 use state_guard_blockers::collect_state_guard_blockers;
 use storage_blockers::collect_state_storage_blockers;
-use semantic_scope::{proof_scope_suffix, state_name};
 
 pub struct EmissionPlanningInput<'plan> {
     pub target: NativeTarget,

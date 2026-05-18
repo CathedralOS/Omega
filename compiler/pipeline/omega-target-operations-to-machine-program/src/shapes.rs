@@ -23,14 +23,13 @@ pub(super) fn lower_machine_instruction_kind(
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: StateGuardLowering::CompareStaticValue,
-            operator: operator @ (
-                StateGuardOperator::Equal
-                    | StateGuardOperator::NotEqual
-                    | StateGuardOperator::Greater
-                    | StateGuardOperator::GreaterOrEqual
-                    | StateGuardOperator::Less
-                    | StateGuardOperator::LessOrEqual
-            ),
+            operator:
+                operator @ (StateGuardOperator::Equal
+                | StateGuardOperator::NotEqual
+                | StateGuardOperator::Greater
+                | StateGuardOperator::GreaterOrEqual
+                | StateGuardOperator::Less
+                | StateGuardOperator::LessOrEqual),
             byte_offset,
             byte_size,
             expected_value,
@@ -78,10 +77,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::WriteRuntimeTextLiteral { .. } => {
             runtime_text::runtime_text_literal_write_kind()
         }
-        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
-            byte_offset,
-            ..
-        } => runtime_text::runtime_text_literal_segment_write_kind(*byte_offset),
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment { byte_offset, .. } => {
+            runtime_text::runtime_text_literal_segment_write_kind(*byte_offset)
+        }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_offset,
             source_offset,
@@ -146,10 +144,9 @@ pub(super) fn lower_machine_instruction_kind(
             *element_byte_size,
             *field_byte_offset,
         ),
-        SelectedInstructionKind::AppendRuntimeTextLiteral {
-            target_offset,
-            ..
-        } => runtime_text::runtime_text_literal_append_kind(*target_offset),
+        SelectedInstructionKind::AppendRuntimeTextLiteral { target_offset, .. } => {
+            runtime_text::runtime_text_literal_append_kind(*target_offset)
+        }
         SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
             pointer_byte_offset,
             field_byte_offset,
@@ -274,7 +271,9 @@ pub(super) fn lower_machine_instruction_kind(
             target_offset,
             byte_count,
             ..
-        } => runtime_storage::runtime_storage_copy_kind(*source_offset, *target_offset, *byte_count),
+        } => {
+            runtime_storage::runtime_storage_copy_kind(*source_offset, *target_offset, *byte_count)
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
             source_offset,
             descriptor_offset,

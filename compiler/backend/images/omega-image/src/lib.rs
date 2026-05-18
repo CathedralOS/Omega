@@ -8,8 +8,8 @@ pub use model::{
 };
 use omega_core::arena::{Arena, Handle};
 use omega_object::{
-    object_symbol_handle_by_name, ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind,
-    SymbolKind,
+    ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind,
+    object_symbol_handle_by_name,
 };
 use omega_target::NativeTarget;
 
