@@ -58,6 +58,10 @@ pub(super) fn build_runtime_storage_body_plan(
                         .type_references
                         .display_name(*type_reference)
                         .into(),
+                    type_descriptor: type_descriptor(
+                        &context.runtime_bodies.type_references,
+                        *type_reference,
+                    ),
                     invariant_names: plan.invariant_names.insert_many(
                         context
                             .runtime_bodies
@@ -157,6 +161,10 @@ fn append_parameter_slots(
             name: parameter.name.clone(),
             type_symbol: parameter.type_symbol,
             type_name: parameter.type_name.as_str().into(),
+            type_descriptor: type_descriptor(
+                &context.program.type_reference_table,
+                parameter.type_reference,
+            ),
             invariant_names: HandleSpan::empty(),
             byte_offset,
             byte_size: layout.size,
@@ -222,11 +230,57 @@ fn append_state_call_result_slot(
         )),
         type_symbol,
         type_name: type_name.into(),
+        type_descriptor: type_descriptor(&context.program.type_reference_table, return_type),
         invariant_names: HandleSpan::empty(),
         byte_offset,
         byte_size: layout.size,
         alignment: layout.alignment,
     });
+}
+
+fn type_descriptor(
+    table: &omega_checked_trees::types::TypeReferenceTable,
+    type_reference: TypeReferenceHandle,
+) -> omega_layout::TypeLayoutDescriptor {
+    use omega_checked_trees::types::TypeReferenceNode;
+
+    match table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+        } => omega_layout::TypeLayoutDescriptor::Reference {
+            referee: Box::new(type_descriptor(table, *referee)),
+            is_mutable: *is_mutable,
+        },
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            omega_layout::TypeLayoutDescriptor::Constrained {
+                base_type: Box::new(type_descriptor(table, *base_type)),
+            }
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => omega_layout::TypeLayoutDescriptor::FixedArray {
+            element_type: Box::new(type_descriptor(table, *element_type)),
+            length: *length,
+        },
+        TypeReferenceNode::Slice { element_type } => omega_layout::TypeLayoutDescriptor::Slice {
+            element_type: Box::new(type_descriptor(table, *element_type)),
+        },
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => omega_layout::TypeLayoutDescriptor::Named {
+            symbol: *base_symbol,
+            name: base_name.clone(),
+        },
+        TypeReferenceNode::Named { symbol, name } => omega_layout::TypeLayoutDescriptor::Named {
+            symbol: *symbol,
+            name: name.clone(),
+        },
+        TypeReferenceNode::Unit => omega_layout::TypeLayoutDescriptor::Unit,
+    }
 }
 
 fn state_return_type(context: &RuntimeStorageContext, target_key: StateKey) -> TypeReferenceHandle {

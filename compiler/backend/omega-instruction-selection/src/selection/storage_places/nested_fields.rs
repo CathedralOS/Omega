@@ -1,7 +1,7 @@
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
+use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
 
 pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,
@@ -32,6 +32,7 @@ pub(in crate::selection) struct NestedFieldLayoutCursor<'layout> {
     byte_offset: usize,
     type_symbol: SymbolHandle,
     type_name: &'layout str,
+    type_descriptor: &'layout TypeLayoutDescriptor,
     layout: TypeLayout,
 }
 
@@ -41,6 +42,7 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
             byte_offset: root_field.offset,
             type_symbol: root_field.type_symbol,
             type_name: root_field.type_name.as_ref(),
+            type_descriptor: &root_field.type_descriptor,
             layout: root_field.layout,
         }
     }
@@ -62,7 +64,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
     field_index: Option<usize>,
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
     let field_segment = parse_field_segment(field_name, field_index)?;
-    let data_layout = data_layout(layouts, cursor.type_symbol, cursor.type_name)?;
+    let data_layout = data_layout(layouts, cursor.type_descriptor.storage_symbol())?;
     let DataShape::Record { fields } = &data_layout.shape else {
         return None;
     };
@@ -71,21 +73,23 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
         byte_offset: cursor.byte_offset + field.offset,
         type_symbol: field.type_symbol,
         type_name: &field.type_name,
+        type_descriptor: &field.type_descriptor,
         layout: field.layout,
     };
 
     if let Some(index) = field_segment.index {
-        let array = parse_array_type_name(next.type_name)?;
-        if index >= array.length {
+        let (element_type, length) = next.type_descriptor.fixed_array()?;
+        if index >= length {
             return None;
         }
         let element_layout = TypeLayout {
-            size: next.layout.size / array.length,
+            size: next.layout.size / length,
             alignment: next.layout.alignment,
         };
         next.byte_offset += element_layout.size * index;
-        next.type_symbol = field.type_symbol;
-        next.type_name = array.element_type_name;
+        next.type_symbol = element_type.storage_symbol();
+        next.type_name = "";
+        next.type_descriptor = element_type;
         next.layout = element_layout;
     }
 
@@ -115,7 +119,6 @@ fn resolve_nested_field_layout<'suffix>(
 fn data_layout<'plan>(
     layouts: &'plan LayoutPlan,
     type_symbol: SymbolHandle,
-    _type_name: &str,
 ) -> Option<&'plan omega_layout::DataLayout> {
     if !type_symbol.is_valid() {
         return None;
@@ -161,18 +164,4 @@ fn parse_field_segment(segment: &str, explicit_index: Option<usize>) -> Option<F
     };
     let index = index_suffix.strip_suffix(']')?.parse::<usize>().ok()?;
     Some(FieldSegment { index: Some(index) })
-}
-
-struct ArrayTypeName<'name> {
-    element_type_name: &'name str,
-    length: usize,
-}
-
-fn parse_array_type_name(type_name: &str) -> Option<ArrayTypeName<'_>> {
-    let inner = type_name.strip_prefix('[')?.strip_suffix(']')?;
-    let (element_type_name, length) = inner.split_once(';')?;
-    Some(ArrayTypeName {
-        element_type_name: element_type_name.trim(),
-        length: length.trim().parse::<usize>().ok()?,
-    })
 }

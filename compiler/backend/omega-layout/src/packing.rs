@@ -1,4 +1,4 @@
-use crate::{FieldLayout, TypeLayout};
+use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -10,6 +10,7 @@ pub(super) struct PlannedField {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: Arc<str>,
+    pub type_descriptor: TypeLayoutDescriptor,
     pub layout: TypeLayout,
 }
 
@@ -33,6 +34,7 @@ pub(super) fn pack_fields(
             offset: field_offset,
             type_symbol: field.type_symbol,
             type_name: field.type_name,
+            type_descriptor: field.type_descriptor,
             layout,
         }
     }));

@@ -24,7 +24,7 @@ use omega_checked_trees::expression::{
 use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
-use omega_layout::{FieldLayout, TypeLayout};
+use omega_layout::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use omega_state_calls::StateCallRole;
 
 pub(super) fn resolve_runtime_storage_place(
@@ -83,6 +83,7 @@ pub(super) fn resolve_runtime_storage_place(
         offset: slot.byte_offset,
         type_symbol: slot.type_symbol,
         type_name: slot.type_name.clone(),
+        type_descriptor: slot.type_descriptor.clone(),
         layout: TypeLayout {
             size: slot.byte_size,
             alignment: slot.alignment,
@@ -248,6 +249,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         offset: slot.byte_offset,
         type_symbol: slot.type_symbol,
         type_name: slot.type_name.clone(),
+        type_descriptor: slot.type_descriptor.clone(),
         layout: TypeLayout {
             size: slot.byte_size,
             alignment: slot.alignment,
@@ -288,14 +290,15 @@ pub(super) fn resolve_runtime_frame_indexed_target(
         return None;
     }
 
-    let element_layout = indexed_element_layout(input, collection_slot.type_symbol)?;
-    let element_type_name = indexed_element_type_name(&collection_slot.type_name)?;
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
     let root_field = FieldLayout {
         symbol: collection_slot.symbol,
         name: collection_slot.name.clone(),
         offset: 0,
-        type_symbol: collection_slot.type_symbol,
-        type_name: element_type_name.into(),
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
     let (field_byte_offset, field_layout) =
@@ -336,11 +339,8 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     }
 
     let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, target)?;
-    let pointee_type_name = slot
-        .type_name
-        .strip_prefix("&mut ")
-        .or_else(|| slot.type_name.strip_prefix('&'))?;
-    let pointee_layout = pointee_type_layout(input, slot.type_symbol, pointee_type_name);
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
     let (field_byte_offset, field_layout) = if suffix.is_empty() {
         (0, pointee_layout)
     } else {
@@ -348,8 +348,9 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
             symbol: slot.symbol,
             name: slot.name.clone(),
             offset: 0,
-            type_symbol: slot.type_symbol,
-            type_name: pointee_type_name.into(),
+            type_symbol: pointee_descriptor.storage_symbol(),
+            type_name: "".into(),
+            type_descriptor: pointee_descriptor.clone(),
             layout: pointee_layout,
         };
         resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
@@ -462,16 +463,17 @@ fn resolve_runtime_fixed_indexed_place(
     let fixed = fixed_indexed_target_path(expression)?;
     let slot =
         runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
-    let element_layout = indexed_element_layout(input, slot.type_symbol)?;
-    let element_type_name = indexed_element_type_name(&slot.type_name)?;
+    let element_descriptor = slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
     let index = usize::try_from(fixed.index).ok()?;
     let element_offset = index.checked_mul(element_layout.size)?;
     let root_field = FieldLayout {
         symbol: slot.symbol,
         name: slot.name.clone(),
         offset: 0,
-        type_symbol: slot.type_symbol,
-        type_name: element_type_name.into(),
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
     let (field_byte_offset, field_layout) =
@@ -502,16 +504,17 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         expressions,
         fixed.collection,
     )?;
-    let element_layout = indexed_element_layout(input, slot.type_symbol)?;
-    let element_type_name = indexed_element_type_name(&slot.type_name)?;
+    let element_descriptor = slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
     let index = usize::try_from(fixed.index).ok()?;
     let element_offset = index.checked_mul(element_layout.size)?;
     let root_field = FieldLayout {
         symbol: slot.symbol,
         name: slot.name.clone(),
         offset: 0,
-        type_symbol: slot.type_symbol,
-        type_name: element_type_name.into(),
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
         layout: element_layout,
     };
     let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
@@ -705,138 +708,124 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
     }
 }
 
-fn indexed_element_layout(
+fn descriptor_layout(
     input: &InstructionSelectionInput<'_>,
-    type_symbol: SymbolHandle,
-) -> Option<TypeLayout> {
-    if type_symbol.is_valid() {
-        if let Some(layout) = input
-            .layouts
-            .data_layouts
-            .iter()
-            .find(|(_, layout)| layout.symbol == type_symbol)
-            .map(|(_, layout)| layout.layout)
-        {
-            return Some(layout);
-        }
-
-        if let Some(layout) = input
-            .layouts
-            .machine_layouts
-            .iter()
-            .find(|(_, layout)| layout.symbol == type_symbol)
-            .map(|(_, layout)| layout.layout)
-        {
-            return Some(layout);
-        }
-    }
-
-    let _ = PrimitiveType::Bool;
-    None
-}
-
-fn indexed_element_type_name(type_name: &str) -> Option<&str> {
-    type_name
-        .strip_prefix('[')
-        .and_then(|inner| inner.split_once(';').map(|(element, _)| element.trim()))
-        .or_else(|| {
-            type_name
-                .strip_prefix("&mut [")
-                .and_then(|inner| inner.strip_suffix(']'))
-        })
-        .or_else(|| {
-            type_name
-                .strip_prefix("&[")
-                .and_then(|inner| inner.strip_suffix(']'))
-        })
-        .or_else(|| {
-            type_name.strip_prefix("&mut [").and_then(|inner| {
-                inner
-                    .split_once(';')
-                    .map(|(element, _)| element.trim_end_matches(']').trim())
-            })
-        })
-        .or_else(|| {
-            type_name.strip_prefix("&[").and_then(|inner| {
-                inner
-                    .split_once(';')
-                    .map(|(element, _)| element.trim_end_matches(']').trim())
-            })
-        })
-}
-
-fn pointee_type_layout(
-    input: &InstructionSelectionInput<'_>,
-    type_symbol: SymbolHandle,
-    type_name: &str,
+    descriptor: &TypeLayoutDescriptor,
 ) -> TypeLayout {
-    if type_symbol.is_valid() {
-        if let Some(layout) = input
-            .layouts
-            .data_layouts
-            .iter()
-            .find(|(_, layout)| layout.symbol == type_symbol)
-            .map(|(_, layout)| layout.layout)
-        {
-            return layout;
-        }
-
-        if let Some(layout) = input
-            .layouts
-            .machine_layouts
-            .iter()
-            .find(|(_, layout)| layout.symbol == type_symbol)
-            .map(|(_, layout)| layout.layout)
-        {
-            return layout;
-        }
-    }
-
-    if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
-        return match primitive_type {
-            PrimitiveType::Bool => TypeLayout {
-                size: 1,
-                alignment: 1,
-            },
-            PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
-                size: 4,
-                alignment: 4,
-            },
-            PrimitiveType::F64 | PrimitiveType::U64 => TypeLayout {
-                size: 8,
-                alignment: 8,
-            },
-            PrimitiveType::Usize => TypeLayout {
+    match descriptor {
+        TypeLayoutDescriptor::Reference { .. } => {
+            return TypeLayout {
                 size: input.target.pointer_size,
                 alignment: input.target.pointer_alignment,
-            },
-            PrimitiveType::String => TypeLayout {
+            };
+        }
+        TypeLayoutDescriptor::Constrained { base_type } => return descriptor_layout(input, base_type),
+        TypeLayoutDescriptor::FixedArray {
+            element_type,
+            length,
+        } => {
+            let element = descriptor_layout(input, element_type);
+            return TypeLayout {
+                size: element.size.saturating_mul(*length),
+                alignment: element.alignment,
+            };
+        }
+        TypeLayoutDescriptor::Slice { .. } => {
+            return TypeLayout {
                 size: input.target.pointer_size * 2,
                 alignment: input.target.pointer_alignment,
-            },
-        };
-    }
+            };
+        }
+        TypeLayoutDescriptor::Named { symbol, name } => {
+            let type_symbol = *symbol;
+            if let Some(primitive_type) = PrimitiveType::from_name(name) {
+                return primitive_layout(input, primitive_type);
+            }
 
-    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::UInt) {
-        return TypeLayout {
-            size: input.target.pointer_size,
-            alignment: input.target.pointer_alignment,
-        };
-    }
+            if let Some(layout) = builtin_type_layout(input, type_symbol) {
+                return layout;
+            }
 
-    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Int) {
-        return TypeLayout {
-            size: input.target.pointer_size,
-            alignment: input.target.pointer_alignment,
-        };
-    }
+            if type_symbol.is_valid() {
+                if let Some(layout) = input
+                    .layouts
+                    .data_layouts
+                    .iter()
+                    .find(|(_, layout)| layout.symbol == type_symbol)
+                    .map(|(_, layout)| layout.layout)
+                {
+                    return layout;
+                }
 
-    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Real) {
-        return TypeLayout {
-            size: 8,
-            alignment: 8,
-        };
+                if let Some(layout) = input
+                    .layouts
+                    .machine_layouts
+                    .iter()
+                    .find(|(_, layout)| layout.symbol == type_symbol)
+                    .map(|(_, layout)| layout.layout)
+                {
+                    return layout;
+                }
+            }
+        }
+        TypeLayoutDescriptor::Unit => {}
     }
 
     TypeLayout::default()
+}
+
+fn builtin_type_layout(
+    input: &InstructionSelectionInput<'_>,
+    type_symbol: SymbolHandle,
+) -> Option<TypeLayout> {
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::UInt) {
+        return Some(TypeLayout {
+            size: input.target.pointer_size,
+            alignment: input.target.pointer_alignment,
+        });
+    }
+
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Int) {
+        return Some(TypeLayout {
+            size: input.target.pointer_size,
+            alignment: input.target.pointer_alignment,
+        });
+    }
+
+    if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Real) {
+        return Some(TypeLayout {
+            size: 8,
+            alignment: 8,
+        });
+    }
+
+    None
+}
+
+fn primitive_layout(
+    input: &InstructionSelectionInput<'_>,
+    primitive_type: PrimitiveType,
+) -> TypeLayout {
+    match primitive_type {
+        PrimitiveType::Bool => TypeLayout {
+            size: 1,
+            alignment: 1,
+        },
+        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
+            size: 4,
+            alignment: 4,
+        },
+        PrimitiveType::F64 | PrimitiveType::U64 => TypeLayout {
+            size: 8,
+            alignment: 8,
+        },
+        PrimitiveType::Usize => TypeLayout {
+            size: input.target.pointer_size,
+            alignment: input.target.pointer_alignment,
+        },
+        PrimitiveType::String => TypeLayout {
+            size: input.target.pointer_size * 2,
+            alignment: input.target.pointer_alignment,
+        },
+    }
 }
