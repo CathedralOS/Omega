@@ -1,7 +1,8 @@
 use super::RuntimeFlowBuilder;
 use crate::RuntimeTransitionTarget;
-use omega_control_flow::{MachineFlow, PlannedTransitionTarget};
+use omega_control_flow::PlannedTransitionTarget;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 
 impl RuntimeFlowBuilder<'_> {
     pub(super) fn visit_target(
@@ -17,7 +18,7 @@ impl RuntimeFlowBuilder<'_> {
 
     pub(super) fn runtime_target(
         &self,
-        machine: &MachineFlow,
+        machine_symbol: SymbolHandle,
         target: &PlannedTransitionTarget,
     ) -> RuntimeTransitionTarget {
         match target {
@@ -33,11 +34,15 @@ impl RuntimeFlowBuilder<'_> {
                 ..
             } => self
                 .control_flow
-                .machine_contains(machine)
-                .iter()
-                .find(|contained| {
-                    (receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
-                        || contained.name == *receiver
+                .machine_by_symbol(machine_symbol)
+                .and_then(|machine| {
+                    self.control_flow
+                        .machine_contains(machine)
+                        .iter()
+                        .find(|contained| {
+                            (receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
+                                || contained.name == *receiver
+                        })
                 })
                 .and_then(|contained| {
                     self.control_flow

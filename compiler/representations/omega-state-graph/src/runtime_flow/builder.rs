@@ -2,7 +2,7 @@ mod cycles;
 mod lookups;
 mod targets;
 
-use omega_control_flow::{ControlFlowPlan, MachineFlow, StateKey, TransitionFlow};
+use omega_control_flow::{ControlFlowPlan, StateKey, TransitionExpressionRefs};
 use omega_core::diagnostics::Diagnostic;
 
 use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState};
@@ -116,7 +116,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             return Ok(());
         }
 
-        let machine = self.machine_flow_by_symbol(state_key.machine)?.clone();
+        self.machine_flow_by_symbol(state_key.machine)?;
         let state = self.state_flow_by_key(state_key)?;
         let transition_span = state.transitions;
         self.runtime_flow
@@ -138,20 +138,34 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             .len();
 
         for transition_index in 0..transition_count {
-            let transition = self
-                .control_flow
-                .transitions
-                .span(transition_span)
-                .and_then(|transitions| transitions.get(transition_index))
-                .cloned()
-                .ok_or_else(|| {
-                    Diagnostic::error(format!(
-                        "{} has an invalid transition span",
-                        self.state_key_display(state_key)
-                    ))
-                })?;
+            let (statement_index, target, continuation, expressions) = {
+                let transition = self
+                    .control_flow
+                    .transitions
+                    .span(transition_span)
+                    .and_then(|transitions| transitions.get(transition_index))
+                    .ok_or_else(|| {
+                        Diagnostic::error(format!(
+                            "{} has an invalid transition span",
+                            self.state_key_display(state_key)
+                        ))
+                    })?;
 
-            self.visit_transition(&machine, state_key, &transition)?;
+                (
+                    transition.statement_index,
+                    self.runtime_target(state_key.machine, &transition.target),
+                    self.runtime_target(state_key.machine, &transition.continuation),
+                    transition.expressions,
+                )
+            };
+
+            self.visit_transition(
+                state_key,
+                statement_index,
+                target,
+                continuation,
+                expressions,
+            )?;
         }
 
         self.active_states.pop();
@@ -161,20 +175,20 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
     fn visit_transition(
         &mut self,
-        machine: &MachineFlow,
         from: StateKey,
-        transition: &TransitionFlow,
+        statement_index: usize,
+        target: crate::RuntimeTransitionTarget,
+        continuation: crate::RuntimeTransitionTarget,
+        expressions: TransitionExpressionRefs,
     ) -> Result<(), Diagnostic> {
-        let target = self.runtime_target(machine, &transition.target);
-        let continuation = self.runtime_target(machine, &transition.continuation);
         let forms_cycle = self.target_is_active(&target);
 
         self.runtime_flow.edges.insert(RuntimeEdge {
             from,
-            statement_index: transition.statement_index,
-            target: target.clone(),
-            continuation: continuation.clone(),
-            expressions: transition.expressions,
+            statement_index,
+            target,
+            continuation,
+            expressions,
             forms_cycle,
         });
 
