@@ -47,9 +47,7 @@ pub fn build_state_dispatch_plan_with_workers(
     };
 
     for dispatch_state in dispatch_states {
-        let edges = plan
-            .edges
-            .insert_many(dispatch_state.edges.iter().map(|(_, edge)| edge.clone()));
+        let edges = plan.edges.insert_many(dispatch_state.edges.into_items());
 
         plan.states.insert(DispatchState {
             key: dispatch_state.key,
