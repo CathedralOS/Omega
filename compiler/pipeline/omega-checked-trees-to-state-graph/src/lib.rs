@@ -34,20 +34,22 @@ pub fn build_state_graph_with_workers(
     }
 
     let machine_count = program.machines().len();
+    let graph_capacity = StateGraphCapacity::for_program(&program);
     let program_for_machines = Arc::clone(&program);
     let machine_graphs = workers.map_ordered(machine_count, move |index| {
         let machine = program_for_machines
             .machines()
             .get(index)
             .expect("state-graph worker index should be in range");
-        let mut local_state_graph = StateGraph::default();
+        let mut local_state_graph =
+            StateGraphCapacity::for_machine(&program_for_machines, machine).into_state_graph();
         let machine_graph =
             build_machine_graph(machine, &program_for_machines, &mut local_state_graph)?;
 
         Ok((local_state_graph, machine_graph))
     });
 
-    let mut state_graph = StateGraph::default();
+    let mut state_graph = graph_capacity.into_state_graph();
     for machine_graph in machine_graphs {
         let (local_state_graph, machine_graph) = machine_graph?;
         merge_machine_graph(&mut state_graph, &local_state_graph, &machine_graph);
@@ -68,6 +70,100 @@ pub fn build_state_graph_with_workers(
     );
 
     Ok(state_graph)
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct StateGraphCapacity {
+    machines: usize,
+    contained_machines: usize,
+    states: usize,
+    state_parameters: usize,
+    proof_obligations: usize,
+    invariants: usize,
+    borrow_writable_roots: usize,
+    borrow_argument_accesses: usize,
+    borrow_calls: usize,
+    operations: usize,
+    transitions: usize,
+}
+
+impl StateGraphCapacity {
+    fn for_program(program: &Program) -> Self {
+        let mut capacity = Self {
+            machines: program.machines().len(),
+            contained_machines: program.machine_contained_objects.len(),
+            states: 0,
+            state_parameters: program.state_parameters.len(),
+            proof_obligations: program.facts.proof.obligations.len(),
+            invariants: program.facts.invariants.definitions.len(),
+            borrow_writable_roots: program.facts.borrow.writable_roots.len(),
+            borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
+            borrow_calls: program.facts.borrow.calls.len(),
+            operations: program.statement_table.statement_count(),
+            transitions: program.statement_table.transition_target_count(),
+        };
+
+        for machine in program.machines() {
+            capacity.states = capacity
+                .states
+                .saturating_add(estimated_machine_segment_capacity(program, machine));
+        }
+
+        capacity
+    }
+
+    fn for_machine(program: &Program, machine: &Machine) -> Self {
+        let state_capacity = estimated_machine_segment_capacity(program, machine);
+        let statement_capacity = machine_statement_count(program, machine);
+        let state_parameter_capacity = program
+            .machine_states(machine)
+            .iter()
+            .map(|state| program.state_parameters(state).len())
+            .sum();
+
+        Self {
+            machines: 1,
+            contained_machines: program.machine_contained_objects(machine).len(),
+            states: state_capacity,
+            state_parameters: state_parameter_capacity,
+            proof_obligations: 0,
+            invariants: 0,
+            borrow_writable_roots: program.facts.borrow.writable_roots.len(),
+            borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
+            borrow_calls: program.facts.borrow.calls.len(),
+            operations: statement_capacity,
+            transitions: statement_capacity,
+        }
+    }
+
+    fn into_state_graph(self) -> StateGraph {
+        StateGraph::with_capacity(
+            self.machines,
+            self.contained_machines,
+            self.states,
+            self.state_parameters,
+            self.proof_obligations,
+            self.invariants,
+            self.borrow_writable_roots,
+            self.borrow_argument_accesses,
+            self.borrow_calls,
+            self.operations,
+            self.transitions,
+        )
+    }
+}
+
+fn machine_statement_count(program: &Program, machine: &Machine) -> usize {
+    program
+        .machine_states(machine)
+        .iter()
+        .map(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len()
+        })
+        .sum()
 }
 
 fn remap_proof_obligations<'a>(

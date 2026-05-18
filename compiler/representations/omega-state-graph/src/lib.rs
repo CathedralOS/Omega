@@ -28,6 +28,35 @@ pub struct StateGraph {
 }
 
 impl StateGraph {
+    pub fn with_capacity(
+        machine_capacity: usize,
+        contained_machine_capacity: usize,
+        state_capacity: usize,
+        state_parameter_capacity: usize,
+        proof_obligation_capacity: usize,
+        invariant_capacity: usize,
+        borrow_writable_root_capacity: usize,
+        borrow_argument_access_capacity: usize,
+        borrow_call_capacity: usize,
+        operation_capacity: usize,
+        transition_capacity: usize,
+    ) -> Self {
+        Self {
+            expressions: ExpressionTable::new(),
+            machines: Arena::with_capacity(machine_capacity),
+            contained_machines: Arena::with_capacity(contained_machine_capacity),
+            states: Arena::with_capacity(state_capacity),
+            state_parameters: Arena::with_capacity(state_parameter_capacity),
+            proof_obligations: Arena::with_capacity(proof_obligation_capacity),
+            invariants: Arena::with_capacity(invariant_capacity),
+            borrow_writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
+            borrow_argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),
+            borrow_calls: Arena::with_capacity(borrow_call_capacity),
+            operations: Arena::with_capacity(operation_capacity),
+            transitions: Arena::with_capacity(transition_capacity),
+        }
+    }
+
     pub fn state_key_by_symbols(
         &self,
         machine_symbol: SymbolHandle,
