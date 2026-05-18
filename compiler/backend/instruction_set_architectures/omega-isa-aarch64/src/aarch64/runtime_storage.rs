@@ -294,29 +294,35 @@ pub fn encode_runtime_storage_copy(
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
 
-    for (offset, chunk_size) in runtime_copy_chunks(source_offset, target_offset, byte_count)? {
-        match chunk_size {
-            1 | 4 => {
-                bytes.extend(encode_load_w_from_x(
-                    18,
-                    16,
-                    source_offset + offset,
-                    chunk_size,
-                )?);
-                bytes.extend(encode_store_w_to_x(
-                    18,
-                    17,
-                    target_offset + offset,
-                    chunk_size,
-                )?);
+    for_each_runtime_copy_chunk(
+        source_offset,
+        target_offset,
+        byte_count,
+        |offset, chunk_size| {
+            match chunk_size {
+                1 | 4 => {
+                    bytes.extend(encode_load_w_from_x(
+                        18,
+                        16,
+                        source_offset + offset,
+                        chunk_size,
+                    )?);
+                    bytes.extend(encode_store_w_to_x(
+                        18,
+                        17,
+                        target_offset + offset,
+                        chunk_size,
+                    )?);
+                }
+                8 => {
+                    bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
+                    bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
+                }
+                _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
             }
-            8 => {
-                bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
-                bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
-            }
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
-        }
-    }
+            Ok(())
+        },
+    )?;
 
     Ok(bytes)
 }
@@ -409,24 +415,30 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         field_byte_offset,
     )?;
 
-    for (offset, chunk_size) in runtime_copy_chunks(source_offset, field_byte_offset, byte_count)? {
-        match chunk_size {
-            1 | 4 => {
-                bytes.extend(encode_load_w_from_x(
-                    17,
-                    20,
-                    source_offset + offset,
-                    chunk_size,
-                )?);
-                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+    for_each_runtime_copy_chunk(
+        source_offset,
+        field_byte_offset,
+        byte_count,
+        |offset, chunk_size| {
+            match chunk_size {
+                1 | 4 => {
+                    bytes.extend(encode_load_w_from_x(
+                        17,
+                        20,
+                        source_offset + offset,
+                        chunk_size,
+                    )?);
+                    bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+                }
+                8 => {
+                    bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
+                    bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+                }
+                _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
             }
-            8 => {
-                bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
-                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
-            }
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
-        }
-    }
+            Ok(())
+        },
+    )?;
 
     Ok(bytes)
 }
@@ -446,36 +458,42 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
         bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
     }
 
-    for (offset, chunk_size) in runtime_copy_chunks(source_offset, field_byte_offset, byte_count)? {
-        match chunk_size {
-            1 | 4 => {
-                bytes.extend(encode_load_w_from_x(
-                    17,
-                    20,
-                    source_offset + offset,
-                    chunk_size,
-                )?);
-                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+    for_each_runtime_copy_chunk(
+        source_offset,
+        field_byte_offset,
+        byte_count,
+        |offset, chunk_size| {
+            match chunk_size {
+                1 | 4 => {
+                    bytes.extend(encode_load_w_from_x(
+                        17,
+                        20,
+                        source_offset + offset,
+                        chunk_size,
+                    )?);
+                    bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+                }
+                8 => {
+                    bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
+                    bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+                }
+                _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
             }
-            8 => {
-                bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
-                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
-            }
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
-        }
-    }
+            Ok(())
+        },
+    )?;
 
     Ok(bytes)
 }
 
-fn runtime_copy_chunks(
+fn for_each_runtime_copy_chunk(
     source_base_offset: usize,
     target_base_offset: usize,
     byte_count: usize,
-) -> Result<Vec<(usize, usize)>, Diagnostic> {
+    mut visit: impl FnMut(usize, usize) -> Result<(), Diagnostic>,
+) -> Result<(), Diagnostic> {
     let mut remaining = byte_count;
     let mut offset = 0usize;
-    let mut chunks = Vec::new();
 
     while remaining > 0 {
         let source_offset = source_base_offset + offset;
@@ -493,7 +511,7 @@ fn runtime_copy_chunks(
                 1
             };
 
-        chunks.push((offset, chunk_size));
+        visit(offset, chunk_size)?;
         offset += chunk_size;
         remaining -= chunk_size;
     }
@@ -504,7 +522,7 @@ fn runtime_copy_chunks(
         )));
     }
 
-    Ok(chunks)
+    Ok(())
 }
 
 fn encode_runtime_frame_index_target_address(
