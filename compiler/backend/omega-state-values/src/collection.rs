@@ -3,7 +3,7 @@ use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 use omega_control_flow::StateKey;
@@ -155,6 +155,8 @@ fn push_value(
 ) {
     let expression = if role == StateValueRole::AssignmentTarget
         || program.expression_table.expression_is_literal(expression)
+        || (expression_is_direct_place_path(&program.expression_table, expression)
+            && !state_has_initialized_locals_before(program, state, statement_index))
     {
         plan.expressions
             .copy_from(&program.expression_table, expression)
@@ -177,4 +179,36 @@ fn push_value(
         expression,
         required,
     });
+}
+
+fn state_has_initialized_locals_before(
+    program: &Program,
+    state: &omega_checked_trees::state::State,
+    statement_index: usize,
+) -> bool {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .any(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(local_data) if local_data.initial_value.is_valid()
+            )
+        })
+}
+
+fn expression_is_direct_place_path(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Member(member) => {
+            expression_is_direct_place_path(expressions, member.receiver)
+        }
+        ExpressionNode::Mutable(inner) => expression_is_direct_place_path(expressions, *inner),
+        _ => false,
+    }
 }
