@@ -53,11 +53,10 @@ pub fn build_state_graph_with_workers(
         merge_machine_graph(&mut state_graph, &local_state_graph, &machine_graph);
     }
 
-    state_graph.proof_obligations =
-        remap_proof_obligations(
-            program.facts.proof.obligations.len(),
-            program.facts.proof.obligations.iter().map(|(_, fact)| fact),
-        );
+    state_graph.proof_obligations = remap_proof_obligations(
+        program.facts.proof.obligations.len(),
+        program.facts.proof.obligations.iter().map(|(_, fact)| fact),
+    );
     state_graph.invariants = remap_invariants(
         program.facts.invariants.definitions.len(),
         program
@@ -582,20 +581,16 @@ fn append_segment_transitions(
         append_transition(state_graph, transition, &mut start, &mut count);
     }
 
-    if let Some(next_segment_name) = &segment.next_segment_name
-        && !segment_has_unconditional_transition(segment)
-    {
-        let next_segment_key = StateKey {
-            segment_index: segment.key.segment_index + 1,
-            ..segment.key
-        };
-        let (next_key, next_index) = state_indexes
+    if segment.next_segment_key.is_valid() && !segment_has_unconditional_transition(segment) {
+        let next_segment_key = segment.next_segment_key;
+        let (next_key, next_index, next_segment_name) = state_indexes
             .iter()
             .find(|(key, _, _)| *key == next_segment_key)
-            .map(|(key, index, _)| (*key, *index))
+            .map(|(key, index, name)| (*key, *index, name.clone()))
             .ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "internal state-graph segment `{next_segment_name}` was not indexed"
+                    "internal state-graph segment #{} was not indexed",
+                    next_segment_key.segment_index
                 ))
             })?;
 
@@ -605,7 +600,7 @@ fn append_segment_transitions(
                 target: PlannedTransitionTarget::State {
                     index: next_index,
                     key: next_key,
-                    name: next_segment_name.clone(),
+                    name: next_segment_name,
                 },
                 continuation: None,
                 expressions: TransitionExpressionRefs::default(),
