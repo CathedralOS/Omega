@@ -1,7 +1,9 @@
 use super::bindings::host_binding_mechanism;
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{RuntimeAliasResolutionContext, resolve_runtime_alias_binding};
-use crate::selection::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place};
+use crate::selection::storage_places::{
+    RuntimeStoragePlace, resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+};
 use omega_calling_conventions::{
     HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
@@ -40,20 +42,12 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(data, data_object)| (data, data_object))?;
-    let text_place = input.runtime_text.expressions.to_tree(buffer.text_place);
-    let source_machine = input
-        .control_flow
-        .state_machine_name_by_key_cloned(host_call.source_key);
-    let source_state = input
-        .control_flow
-        .state_name_by_key_cloned(host_call.source_key);
-    let target_place = resolve_runtime_storage_place(
+    let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index.unwrap_or(0),
         host_call.source_key,
-        &source_machine,
-        &source_state,
-        &text_place,
+        &input.runtime_text.expressions,
+        buffer.text_place,
     )?;
     if target_place.byte_count != input.target.pointer_size * 2 {
         return None;
