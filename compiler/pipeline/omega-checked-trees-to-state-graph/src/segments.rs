@@ -184,12 +184,8 @@ pub(super) fn segment_has_unconditional_transition(segment: &StateSegment) -> bo
         })
 }
 
-fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
-    if segment_index == 0 {
-        state_name.clone()
-    } else {
-        ProgramName::generated(format!("{state_name}__segment_{segment_index}"))
-    }
+fn segment_name(state_name: &ProgramName, _segment_index: usize) -> ProgramName {
+    state_name.clone()
 }
 
 fn state_parameters_for_segment(
@@ -358,7 +354,7 @@ fn branch_call_target<'program>(
     current_machine: &'program Machine,
     call: &'program TableCall,
 ) -> Option<&'program State> {
-    let mut visiting = VisitingStatesBuffer::new();
+    let mut visiting = VisitingStatesBuffer::with_capacity(program.machine_states.len());
     branch_call_target_with_visited(program, current_machine, call, &mut visiting)
 }
 
@@ -373,11 +369,13 @@ struct VisitingStatesBuffer {
 }
 
 impl VisitingStatesBuffer {
-    fn new() -> Self {
+    fn with_capacity(state_capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_VISITING_STATE_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(
+                state_capacity.saturating_sub(INLINE_VISITING_STATE_COUNT),
+            ),
         }
     }
 
