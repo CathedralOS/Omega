@@ -13,11 +13,22 @@ pub struct EncodedMachinePlan {
 
 impl Default for EncodedMachinePlan {
     fn default() -> Self {
+        Self::with_capacity(NativeTarget::host(), 0, 0, 0)
+    }
+}
+
+impl EncodedMachinePlan {
+    pub fn with_capacity(
+        target: NativeTarget,
+        function_capacity: usize,
+        instruction_capacity: usize,
+        byte_capacity: usize,
+    ) -> Self {
         Self {
-            target: NativeTarget::host(),
-            functions: Arena::new(),
-            instructions: Arena::new(),
-            bytes: Arena::new(),
+            target,
+            functions: Arena::with_capacity(function_capacity),
+            instructions: Arena::with_capacity(instruction_capacity),
+            bytes: Arena::with_capacity(byte_capacity),
             byte_count: 0,
         }
     }
