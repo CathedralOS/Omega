@@ -47,7 +47,7 @@ impl StateScheduleWorkspace {
     pub(super) fn with_state_capacity(state_capacity: usize) -> Self {
         Self {
             schedule: Vec::with_capacity(state_capacity),
-            visited: VisitedStates::new(),
+            visited: VisitedStates::with_capacity(state_capacity),
             values: Vec::new(),
             aliases: Vec::new(),
         }
@@ -124,11 +124,11 @@ struct VisitedStates {
 }
 
 impl VisitedStates {
-    fn new() -> Self {
+    fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_VISITED_STATE_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(capacity.saturating_sub(INLINE_VISITED_STATE_COUNT)),
         }
     }
 

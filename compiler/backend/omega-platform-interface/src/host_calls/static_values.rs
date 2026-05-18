@@ -23,10 +23,14 @@ pub(crate) struct StaticValues {
 
 impl StaticValues {
     pub(crate) fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: std::array::from_fn(|_| None),
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(capacity.saturating_sub(INLINE_STATIC_VALUE_COUNT)),
         }
     }
 
@@ -140,7 +144,7 @@ pub(crate) fn initial_static_values(
     machine: &Machine,
     expressions: &mut ExpressionTable,
 ) -> StaticValues {
-    let mut static_values = StaticValues::new();
+    let mut static_values = StaticValues::with_capacity(program.machine_owned_data(machine).len());
 
     for owned_data in program.machine_owned_data(machine) {
         if !owned_data.initial_value.is_valid() {
