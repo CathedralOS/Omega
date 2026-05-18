@@ -118,10 +118,12 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 if let Some(host_call) =
                     host_call_for_statement(input, operation.source_key, operation.statement_index)
                 {
-                    let alias_context = Some(RuntimeAliasResolutionContext {
-                        aliases: runtime_aliases.bindings(),
-                        alias_expressions: &runtime_alias_expressions,
-                    });
+                    let alias_bindings = runtime_aliases.bindings();
+                    let alias_context =
+                        (!alias_bindings.is_empty()).then_some(RuntimeAliasResolutionContext {
+                            aliases: alias_bindings,
+                            alias_expressions: &runtime_alias_expressions,
+                        });
 
                     if runtime_string_descriptor_place(
                         input,
