@@ -16,6 +16,7 @@ pub use widths::*;
 
 pub fn encode_host_call_sequence(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_call_operands(operands)?;
+    bytes.reserve(4);
     bytes.extend(encode_branch_link_placeholder());
     Ok(bytes)
 }
@@ -27,6 +28,7 @@ pub fn encode_syscall_sequence(
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_call_operands(operands)?;
+    bytes.reserve(syscall_sequence_width(operands, syscall_number).saturating_sub(bytes.len()));
     bytes.extend(encode_unsigned_immediate(
         number_register,
         u64::from(syscall_number),
@@ -40,7 +42,7 @@ pub fn encode_return() -> Vec<u8> {
 }
 
 fn encode_call_operands(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(operands.iter().map(operand_width).sum());
     let mut next_register = 0u8;
 
     for operand in operands {
