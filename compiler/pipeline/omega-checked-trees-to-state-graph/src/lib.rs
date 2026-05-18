@@ -240,12 +240,9 @@ fn append_remapped_states(
     let mut count = 0u32;
 
     for state in source.states.span_or_empty(states) {
-        let mut parameters = HandleSpan::empty();
-        for parameter in source.state_parameters(state) {
-            target
-                .state_parameters
-                .append_to_span(&mut parameters, parameter.clone());
-        }
+        let parameters = target
+            .state_parameters
+            .insert_many(source.state_parameters(state).iter().cloned());
 
         let operations = append_remapped_operations(target, source, state.operations);
         let transitions = append_remapped_transitions(target, source, state.transitions);
@@ -277,15 +274,13 @@ fn remap_state_borrow_summary(
     source: &StateGraph,
     borrow: &StateBorrowSummary,
 ) -> StateBorrowSummary {
-    let mut writable_roots = HandleSpan::empty();
-    for root in source
-        .borrow_writable_roots
-        .span_or_empty(borrow.writable_roots)
-    {
-        target
+    let writable_roots = target.borrow_writable_roots.insert_many(
+        source
             .borrow_writable_roots
-            .append_to_span(&mut writable_roots, root.clone());
-    }
+            .span_or_empty(borrow.writable_roots)
+            .iter()
+            .cloned(),
+    );
 
     let calls = append_remapped_borrow_calls(target, source, borrow.calls);
 
@@ -305,12 +300,13 @@ fn append_remapped_borrow_calls(
     let mut count = 0u32;
 
     for call in source.borrow_calls.span_or_empty(calls) {
-        let mut accesses = HandleSpan::empty();
-        for access in source.borrow_argument_accesses.span_or_empty(call.accesses) {
-            target
+        let accesses = target.borrow_argument_accesses.insert_many(
+            source
                 .borrow_argument_accesses
-                .append_to_span(&mut accesses, access.clone());
-        }
+                .span_or_empty(call.accesses)
+                .iter()
+                .cloned(),
+        );
 
         let handle = target.borrow_calls.append(StateBorrowCall {
             accesses,
@@ -573,16 +569,14 @@ fn state_borrow_summary(
         return StateBorrowSummary::default();
     };
 
-    let mut writable_roots = HandleSpan::empty();
-    for root in program
-        .facts
-        .borrow
-        .writable_roots
-        .span_or_empty(state_borrow.writable_roots)
-    {
-        state_graph.borrow_writable_roots.append_to_span(
-            &mut writable_roots,
-            StateBorrowWritableRoot {
+    let writable_roots = state_graph.borrow_writable_roots.insert_many(
+        program
+            .facts
+            .borrow
+            .writable_roots
+            .span_or_empty(state_borrow.writable_roots)
+            .iter()
+            .map(|root| StateBorrowWritableRoot {
                 symbol: root.symbol,
                 name: root.name.clone(),
                 kind: match root.kind {
@@ -596,22 +590,19 @@ fn state_borrow_summary(
                         StateBorrowRootKind::MutableParameter
                     }
                 },
-            },
-        );
-    }
+            }),
+    );
 
     let mut calls = HandleSpan::empty();
     for call in program.facts.borrow.calls.span_or_empty(state_borrow.calls) {
-        let mut accesses = HandleSpan::empty();
-        for access in program
-            .facts
-            .borrow
-            .argument_accesses
-            .span_or_empty(call.accesses)
-        {
-            state_graph.borrow_argument_accesses.append_to_span(
-                &mut accesses,
-                StateBorrowArgumentAccess {
+        let accesses = state_graph.borrow_argument_accesses.insert_many(
+            program
+                .facts
+                .borrow
+                .argument_accesses
+                .span_or_empty(call.accesses)
+                .iter()
+                .map(|access| StateBorrowArgumentAccess {
                     root_name: access.root_name.clone(),
                     kind: match access.kind {
                         omega_checked_trees::BorrowAccessKind::Read => StateBorrowAccessKind::Read,
@@ -619,9 +610,8 @@ fn state_borrow_summary(
                             StateBorrowAccessKind::Mutable
                         }
                     },
-                },
-            );
-        }
+                }),
+        );
 
         state_graph.borrow_calls.append_to_span(
             &mut calls,
