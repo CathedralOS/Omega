@@ -36,18 +36,8 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
 pub fn build_control_flow_plan_owned(
     state_graph: StateGraph,
 ) -> Result<ControlFlowPlan, Diagnostic> {
-    let (machines, contained_machines, machine_owned_data) = remap_machines(&state_graph);
-    let (states, state_parameters) = remap_states(&state_graph);
-    let proof_obligations = remap_proof_obligations(&state_graph);
-    let invariants = remap_invariants(&state_graph);
-    let borrow_writable_roots = remap_borrow_writable_roots(&state_graph);
-    let borrow_argument_accesses = remap_borrow_argument_accesses(&state_graph);
-    let borrow_calls = remap_borrow_calls(&state_graph);
-    let operations = remap_operations(&state_graph);
-    let transitions = remap_transitions(&state_graph);
-
-    Ok(ControlFlowPlan {
-        expressions: state_graph.expressions,
+    let StateGraph {
+        expressions,
         machines,
         contained_machines,
         machine_owned_data,
@@ -60,6 +50,22 @@ pub fn build_control_flow_plan_owned(
         borrow_calls,
         operations,
         transitions,
+    } = state_graph;
+
+    Ok(ControlFlowPlan {
+        expressions,
+        machines: machines.map(remap_machine_owned),
+        contained_machines: contained_machines.map(remap_contained_owned),
+        machine_owned_data: machine_owned_data.map(remap_owned_data_owned),
+        states: states.map(remap_state_owned),
+        state_parameters: state_parameters.map(remap_parameter_owned),
+        proof_obligations: proof_obligations.map(remap_proof_obligation_owned),
+        invariants: invariants.map(remap_invariant_owned),
+        borrow_writable_roots: borrow_writable_roots.map(remap_borrow_writable_root_owned),
+        borrow_argument_accesses: borrow_argument_accesses.map(remap_borrow_argument_access_owned),
+        borrow_calls: borrow_calls.map(remap_borrow_call_owned),
+        operations: operations.map(remap_operation_owned),
+        transitions: transitions.map(remap_transition_owned),
     })
 }
 
@@ -111,6 +117,16 @@ fn remap_machine(
     }
 }
 
+fn remap_machine_owned(machine: MachineGraph) -> MachineFlow {
+    MachineFlow {
+        symbol: machine.symbol,
+        name: machine.name,
+        contains: remap_contained_span(machine.contains),
+        owned_data: remap_owned_data_span(machine.owned_data),
+        states: remap_state_span(machine.states),
+    }
+}
+
 fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
     ContainedFlow {
         symbol: contained.symbol,
@@ -120,10 +136,27 @@ fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
     }
 }
 
+fn remap_contained_owned(contained: ContainedGraph) -> ContainedFlow {
+    ContainedFlow {
+        symbol: contained.symbol,
+        name: contained.name,
+        type_symbol: contained.type_symbol,
+        type_name: contained.type_name,
+    }
+}
+
 fn remap_owned_data(data: &MachineOwnedDataGraph) -> MachineOwnedDataFlow {
     MachineOwnedDataFlow {
         symbol: data.symbol,
         name: data.name.clone(),
+        type_reference: data.type_reference,
+    }
+}
+
+fn remap_owned_data_owned(data: MachineOwnedDataGraph) -> MachineOwnedDataFlow {
+    MachineOwnedDataFlow {
+        symbol: data.symbol,
+        name: data.name,
         type_reference: data.type_reference,
     }
 }
@@ -172,6 +205,33 @@ fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFac
     }
 
     obligations
+}
+
+fn remap_proof_obligation_owned(
+    obligation: omega_state_graph::ProofObligationFact,
+) -> ProofObligationFact {
+    ProofObligationFact {
+        kind: match obligation.kind {
+            omega_state_graph::ProofFactKind::BoundedAssignment => ProofFactKind::BoundedAssignment,
+            omega_state_graph::ProofFactKind::BoundedCallArgument => {
+                ProofFactKind::BoundedCallArgument
+            }
+            omega_state_graph::ProofFactKind::BoundedInitializer => {
+                ProofFactKind::BoundedInitializer
+            }
+            omega_state_graph::ProofFactKind::BoundedStateReturn => {
+                ProofFactKind::BoundedStateReturn
+            }
+            omega_state_graph::ProofFactKind::BoundedValue => ProofFactKind::BoundedValue,
+            omega_state_graph::ProofFactKind::BoundedTransitionArgument => {
+                ProofFactKind::BoundedTransitionArgument
+            }
+            omega_state_graph::ProofFactKind::GuardedTransition => ProofFactKind::GuardedTransition,
+        },
+        machine_symbol: obligation.machine_symbol,
+        state_symbol: obligation.state_symbol,
+        owner: remap_proof_owner(&obligation.owner),
+    }
 }
 
 fn remap_proof_owner(owner: &omega_state_graph::ProofObligationOwner) -> ProofObligationOwner {
@@ -244,6 +304,14 @@ fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
     invariants
 }
 
+fn remap_invariant_owned(invariant: omega_state_graph::InvariantFact) -> InvariantFact {
+    InvariantFact {
+        symbol: invariant.symbol,
+        name: invariant.name,
+        constraint_count: invariant.constraint_count,
+    }
+}
+
 fn remap_state(
     state_graph: &StateGraph,
     state: &StateNode,
@@ -259,6 +327,18 @@ fn remap_state(
                 .iter()
                 .map(remap_parameter),
         ),
+        borrow: remap_borrow_summary(&state.borrow),
+        operations: remap_operation_span(state.operations),
+        transitions: remap_transition_span(state.transitions),
+    }
+}
+
+fn remap_state_owned(state: StateNode) -> StateFlow {
+    StateFlow {
+        key: remap_state_key(state.key),
+        name: state.name,
+        index: state.index,
+        parameters: remap_parameter_span(state.parameters),
         borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
@@ -284,6 +364,21 @@ fn remap_borrow_writable_roots(state_graph: &StateGraph) -> Arena<StateBorrowWri
     writable_roots
 }
 
+fn remap_borrow_writable_root_owned(
+    root: omega_state_graph::StateBorrowWritableRoot,
+) -> StateBorrowWritableRoot {
+    StateBorrowWritableRoot {
+        symbol: root.symbol,
+        kind: match root.kind {
+            omega_state_graph::StateBorrowRootKind::OwnedData => StateBorrowRootKind::OwnedData,
+            omega_state_graph::StateBorrowRootKind::LocalData => StateBorrowRootKind::LocalData,
+            omega_state_graph::StateBorrowRootKind::MutableParameter => {
+                StateBorrowRootKind::MutableParameter
+            }
+        },
+    }
+}
+
 fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrowArgumentAccess> {
     let mut accesses = Arena::with_capacity(state_graph.borrow_argument_accesses.len());
 
@@ -298,6 +393,18 @@ fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrow
     }
 
     accesses
+}
+
+fn remap_borrow_argument_access_owned(
+    access: omega_state_graph::StateBorrowArgumentAccess,
+) -> StateBorrowArgumentAccess {
+    StateBorrowArgumentAccess {
+        root_symbol: access.root_symbol,
+        kind: match access.kind {
+            omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
+            omega_state_graph::StateBorrowAccessKind::Mutable => StateBorrowAccessKind::Mutable,
+        },
+    }
 }
 
 fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
@@ -317,6 +424,17 @@ fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
     calls
 }
 
+fn remap_borrow_call_owned(call: omega_state_graph::StateBorrowCall) -> StateBorrowCall {
+    StateBorrowCall {
+        statement_index: call.statement_index,
+        call_ordinal: call.call_ordinal,
+        receiver_symbol: call.receiver_symbol,
+        target_symbol: call.target_symbol,
+        has_receiver: call.has_receiver,
+        accesses: remap_borrow_argument_access_span(call.accesses),
+    }
+}
+
 fn remap_borrow_summary(summary: &omega_state_graph::StateBorrowSummary) -> StateBorrowSummary {
     StateBorrowSummary {
         writable_roots: remap_borrow_writable_root_span(summary.writable_roots),
@@ -332,6 +450,17 @@ fn remap_parameter(parameter: &StateParameterNode) -> StateParameterFlow {
         type_reference: parameter.type_reference,
         type_symbol: parameter.type_symbol,
         type_name: parameter.type_name.clone(),
+        is_mutable_reference: parameter.is_mutable_reference,
+    }
+}
+
+fn remap_parameter_owned(parameter: StateParameterNode) -> StateParameterFlow {
+    StateParameterFlow {
+        symbol: parameter.symbol,
+        name: parameter.name,
+        type_reference: parameter.type_reference,
+        type_symbol: parameter.type_symbol,
+        type_name: parameter.type_name,
         is_mutable_reference: parameter.is_mutable_reference,
     }
 }
@@ -364,6 +493,14 @@ fn remap_operation(operation: &omega_state_graph::Operation) -> Operation {
     }
 }
 
+fn remap_operation_owned(operation: omega_state_graph::Operation) -> Operation {
+    Operation {
+        statement_index: operation.statement_index,
+        kind: remap_operation_kind_owned(operation.kind),
+        expressions: remap_operation_expression_refs(operation.expressions),
+    }
+}
+
 fn remap_operation_kind(kind: &omega_state_graph::OperationKind) -> OperationKind {
     match kind {
         omega_state_graph::OperationKind::Assignment => OperationKind::Assignment,
@@ -379,6 +516,31 @@ fn remap_operation_kind(kind: &omega_state_graph::OperationKind) -> OperationKin
             has_receiver: *has_receiver,
             receiver: receiver.clone(),
             target: target.clone(),
+        },
+        omega_state_graph::OperationKind::ConstantIntegerAssignment => {
+            OperationKind::ConstantIntegerAssignment
+        }
+        omega_state_graph::OperationKind::Expression => OperationKind::Expression,
+        omega_state_graph::OperationKind::LocalData => OperationKind::LocalData,
+        omega_state_graph::OperationKind::StaticAssignment => OperationKind::StaticAssignment,
+    }
+}
+
+fn remap_operation_kind_owned(kind: omega_state_graph::OperationKind) -> OperationKind {
+    match kind {
+        omega_state_graph::OperationKind::Assignment => OperationKind::Assignment,
+        omega_state_graph::OperationKind::Call {
+            receiver_symbol,
+            target_symbol,
+            has_receiver,
+            receiver,
+            target,
+        } => OperationKind::Call {
+            receiver_symbol,
+            target_symbol,
+            has_receiver,
+            receiver,
+            target,
         },
         omega_state_graph::OperationKind::ConstantIntegerAssignment => {
             OperationKind::ConstantIntegerAssignment
@@ -421,6 +583,63 @@ fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
             guard: transition.expressions.guard,
         },
     }
+}
+
+fn remap_transition_owned(transition: TransitionEdge) -> TransitionFlow {
+    TransitionFlow {
+        statement_index: transition.statement_index,
+        target: remap_transition_target_owned(transition.target),
+        continuation: remap_transition_target_owned(transition.continuation),
+        expressions: TransitionExpressionRefs {
+            target_arguments: transition.expressions.target_arguments,
+            target_value: transition.expressions.target_value,
+            continuation_arguments: transition.expressions.continuation_arguments,
+            continuation_value: transition.expressions.continuation_value,
+            guard: transition.expressions.guard,
+        },
+    }
+}
+
+fn remap_contained_span(
+    contained: HandleSpan<omega_state_graph::ContainedGraph>,
+) -> HandleSpan<ContainedFlow> {
+    HandleSpan::from_parts(remap_contained_handle(contained.start()), contained.count())
+}
+
+fn remap_contained_handle(
+    handle: Handle<omega_state_graph::ContainedGraph>,
+) -> Handle<ContainedFlow> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_owned_data_span(
+    owned_data: HandleSpan<omega_state_graph::MachineOwnedDataGraph>,
+) -> HandleSpan<MachineOwnedDataFlow> {
+    HandleSpan::from_parts(
+        remap_owned_data_handle(owned_data.start()),
+        owned_data.count(),
+    )
+}
+
+fn remap_owned_data_handle(
+    handle: Handle<omega_state_graph::MachineOwnedDataGraph>,
+) -> Handle<MachineOwnedDataFlow> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_parameter_span(
+    parameters: HandleSpan<omega_state_graph::StateParameterNode>,
+) -> HandleSpan<StateParameterFlow> {
+    HandleSpan::from_parts(
+        remap_parameter_handle(parameters.start()),
+        parameters.count(),
+    )
+}
+
+fn remap_parameter_handle(
+    handle: Handle<omega_state_graph::StateParameterNode>,
+) -> Handle<StateParameterFlow> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 fn remap_state_span(states: HandleSpan<omega_state_graph::StateNode>) -> HandleSpan<StateFlow> {
@@ -529,6 +748,36 @@ fn remap_transition_target(
             state_symbol: *state_symbol,
             receiver: receiver.clone(),
             state: state.clone(),
+        },
+        omega_state_graph::PlannedTransitionTarget::SelfTarget => {
+            PlannedTransitionTarget::SelfTarget
+        }
+        omega_state_graph::PlannedTransitionTarget::Terminal => PlannedTransitionTarget::Terminal,
+    }
+}
+
+fn remap_transition_target_owned(
+    target: omega_state_graph::PlannedTransitionTarget,
+) -> PlannedTransitionTarget {
+    match target {
+        omega_state_graph::PlannedTransitionTarget::None => PlannedTransitionTarget::None,
+        omega_state_graph::PlannedTransitionTarget::State { index, key, name } => {
+            PlannedTransitionTarget::State {
+                index,
+                key: remap_state_key(key),
+                name,
+            }
+        }
+        omega_state_graph::PlannedTransitionTarget::Nested {
+            receiver_symbol,
+            state_symbol,
+            receiver,
+            state,
+        } => PlannedTransitionTarget::Nested {
+            receiver_symbol,
+            state_symbol,
+            receiver,
+            state,
         },
         omega_state_graph::PlannedTransitionTarget::SelfTarget => {
             PlannedTransitionTarget::SelfTarget
