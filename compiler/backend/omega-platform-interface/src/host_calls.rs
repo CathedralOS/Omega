@@ -9,7 +9,7 @@ mod collection;
 mod lowering;
 mod static_values;
 
-use crate::{HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan};
+use crate::{HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation};
 use collection::collect_machine_host_calls;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::StatementNode;
@@ -136,46 +136,64 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
     target.operations.reserve(source.operations.len());
     target.arguments.reserve(source.arguments.len());
 
-    for (_, unsupported_call) in source.unsupported_calls.iter() {
-        target.unsupported_calls.insert(unsupported_call.clone());
-    }
+    let HostCallPlan {
+        expressions,
+        calls,
+        unsupported_calls,
+        operations,
+        arguments,
+    } = source;
 
-    for (_, call) in source.calls.iter() {
-        let operations = target.operations.insert_many(
-            source
-                .operations
-                .span_or_empty(call.operations)
-                .iter()
-                .cloned(),
-        );
-        let arguments = target.arguments.insert_many(
-            source
-                .arguments
-                .span_or_empty(call.arguments)
-                .iter()
-                .map(|argument| HostCallArgument {
-                    kind: match &argument.kind {
-                        HostCallArgumentKind::Text(value) => {
-                            HostCallArgumentKind::Text(value.clone())
-                        }
-                        HostCallArgumentKind::Integer(value) => {
-                            HostCallArgumentKind::Integer(*value)
-                        }
-                        HostCallArgumentKind::Expression(expression) => {
-                            HostCallArgumentKind::Expression(
-                                target
-                                    .expressions
-                                    .copy_from(&source.expressions, *expression),
-                            )
-                        }
-                    },
-                }),
-        );
+    target
+        .unsupported_calls
+        .insert_many(unsupported_calls.into_items());
 
+    for call in calls.into_items() {
+        let operations =
+            copy_lowered_host_operations(&mut target.operations, &operations, call.operations);
+        let arguments = copy_host_call_arguments(target, &expressions, &arguments, call.arguments);
         target.calls.insert(HostCall {
+            source_key: call.source_key,
+            statement_index: call.statement_index,
+            lowering: call.lowering,
+            data: call.data,
             operations,
             arguments,
-            ..call.clone()
         });
     }
+}
+
+fn copy_lowered_host_operations(
+    target: &mut omega_core::arena::Arena<LoweredHostOperation>,
+    source: &omega_core::arena::Arena<LoweredHostOperation>,
+    span: omega_core::arena::HandleSpan<LoweredHostOperation>,
+) -> omega_core::arena::HandleSpan<LoweredHostOperation> {
+    target.insert_many(source.span_or_empty(span).iter().cloned())
+}
+
+fn copy_host_call_arguments(
+    target: &mut HostCallPlan,
+    source_expressions: &omega_checked_trees::expression::ExpressionTable,
+    source_arguments: &omega_core::arena::Arena<HostCallArgument>,
+    span: omega_core::arena::HandleSpan<HostCallArgument>,
+) -> omega_core::arena::HandleSpan<HostCallArgument> {
+    target
+        .arguments
+        .insert_many(source_arguments.span_or_empty(span).iter().map(|argument| {
+            HostCallArgument {
+                kind: match &argument.kind {
+                    HostCallArgumentKind::Text(value) => {
+                        HostCallArgumentKind::Text(Arc::clone(value))
+                    }
+                    HostCallArgumentKind::Integer(value) => HostCallArgumentKind::Integer(*value),
+                    HostCallArgumentKind::Expression(expression) => {
+                        HostCallArgumentKind::Expression(
+                            target
+                                .expressions
+                                .copy_from(source_expressions, *expression),
+                        )
+                    }
+                },
+            }
+        }))
 }
