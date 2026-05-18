@@ -44,6 +44,17 @@ impl RuntimeAliasBuffer {
         Self::from_iter(bindings.iter().cloned())
     }
 
+    pub(super) fn copy_from_bindings(
+        source: &ExpressionTable,
+        bindings: &[RuntimeAliasBinding],
+        target: &mut ExpressionTable,
+    ) -> Self {
+        Self::from_iter(bindings.iter().map(|binding| RuntimeAliasBinding {
+            expression: target.copy_from(source, binding.expression),
+            ..binding.clone()
+        }))
+    }
+
     pub(super) fn bindings(&self) -> &[RuntimeAliasBinding] {
         self.aliases.span_or_empty(self.scope)
     }

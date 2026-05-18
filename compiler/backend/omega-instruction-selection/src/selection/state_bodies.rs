@@ -141,20 +141,25 @@ pub(super) fn select_state_body_instructions(
             if let Some(dispatch_index) =
                 dispatch_index_for_state(input, state.key).or(dispatch_index)
             {
-                let mut expressions = alias_expressions.clone();
+                let mut expressions = ExpressionTable::new();
+                let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+                    alias_expressions,
+                    aliases.bindings(),
+                    &mut expressions,
+                );
                 let target =
                     expressions.copy_from(&input.state_storage.expressions, mutation.target);
                 let value = expressions.copy_from(&input.state_storage.expressions, mutation.value);
                 let resolved_target = resolve_runtime_alias_binding_handle(
                     target,
                     state.key,
-                    aliases.bindings(),
+                    copied_aliases.bindings(),
                     &mut expressions,
                 );
                 let resolved_value = resolve_runtime_alias_binding_handle(
                     value,
                     state.key,
-                    aliases.bindings(),
+                    copied_aliases.bindings(),
                     &mut expressions,
                 );
                 if select_runtime_resolved_mutation_write_in_table(

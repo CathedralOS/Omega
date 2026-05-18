@@ -2,7 +2,9 @@ mod mutation;
 mod static_values;
 mod storage_copy;
 
-use super::super::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding_handle};
+use super::super::bindings::{
+    RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
+};
 use super::super::lookups::state_mutation_for_statement;
 use super::text_writes::runtime_text_builder_write_in_table_emit;
 use crate::InstructionSelectionInput;
@@ -84,19 +86,21 @@ pub(super) fn select_runtime_storage_write_for_operation(
             return;
         }
     } else {
-        let mut expressions = alias_expressions.clone();
+        let mut expressions = ExpressionTable::new();
+        let copied_aliases =
+            RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, &mut expressions);
         let target = expressions.copy_from(&input.state_storage.expressions, mutation.target);
         let value = expressions.copy_from(&input.state_storage.expressions, mutation.value);
         let resolved_target = resolve_runtime_alias_binding_handle(
             target,
             mutation.source_key,
-            aliases,
+            copied_aliases.bindings(),
             &mut expressions,
         );
         let resolved_value = resolve_runtime_alias_binding_handle(
             value,
             mutation.source_key,
-            aliases,
+            copied_aliases.bindings(),
             &mut expressions,
         );
         if select_runtime_storage_resolved_mutation_write_in_table(
@@ -109,7 +113,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
             &expressions,
             resolved_target.expression,
             resolved_value.expression,
-            aliases,
+            copied_aliases.bindings(),
             static_values,
             runtime_value_operands,
             selected_instructions,

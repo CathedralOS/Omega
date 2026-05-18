@@ -14,7 +14,7 @@ use omega_target_operations::{
 };
 
 use super::super::super::bindings::{
-    RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
+    RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix, resolve_runtime_alias_binding,
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
@@ -146,12 +146,14 @@ pub(super) fn select_runtime_state_call_result_write(
     ) else {
         return;
     };
-    let mut value_expressions = alias_expressions.clone();
+    let mut value_expressions = ExpressionTable::new();
+    let copied_aliases =
+        RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, &mut value_expressions);
     let value_expression = value_expressions.copy_from(&input.runtime_bodies.expressions, value);
     let resolved_value = resolve_runtime_alias_binding_handle(
         value_expression,
         value_source_key,
-        aliases,
+        copied_aliases.bindings(),
         &mut value_expressions,
     );
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
