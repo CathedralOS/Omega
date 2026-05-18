@@ -11,7 +11,9 @@ use super::super::super::bindings::resolve_leaf_binding_expression_handle;
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_handle_resolver_emit;
-use super::super::writes::runtime_storage_copy;
+use super::super::writes::{
+    RuntimeStaticValues, runtime_storage_copy, select_runtime_frame_slot_value_write_in_table,
+};
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind};
@@ -116,6 +118,26 @@ fn select_runtime_leaf_branch_terminal_value_write(
         value,
         bindings,
     );
+    let static_values = RuntimeStaticValues::default();
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &expressions,
+        slot,
+        resolved_value,
+        &static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: expansion.source_key,
+            source_statement: expansion.statement_index,
+        });
+        return;
+    }
+
     let resolved_value = expressions.to_tree(resolved_value);
     let target = Expression::Name(NamePath::resolved(
         vec![slot.name.clone()],

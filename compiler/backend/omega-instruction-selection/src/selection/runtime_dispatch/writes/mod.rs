@@ -15,6 +15,7 @@ use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOper
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
 pub(super) use static_values::RuntimeStaticValues;
 
+pub(in crate::selection::runtime_dispatch) use mutation::select_runtime_frame_slot_value_write_in_table;
 pub(super) use storage_copy::runtime_storage_copy;
 
 pub(super) fn select_runtime_storage_write_for_operation(
