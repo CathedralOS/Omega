@@ -1364,7 +1364,7 @@ fn cannot_prove_bounded_call_integer(
         .receiver
         .as_ref()
         .map(|receiver| format!("{receiver}.{}", obligation.target))
-        .unwrap_or_else(|| obligation.target.clone());
+        .unwrap_or_else(|| obligation.target.to_string());
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
@@ -1387,7 +1387,7 @@ fn cannot_prove_bounded_call_float(
         .receiver
         .as_ref()
         .map(|receiver| format!("{receiver}.{}", obligation.target))
-        .unwrap_or_else(|| obligation.target.clone());
+        .unwrap_or_else(|| obligation.target.to_string());
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
@@ -1410,7 +1410,7 @@ fn cannot_prove_call_named_constraint(
         .receiver
         .as_ref()
         .map(|receiver| format!("{receiver}.{}", obligation.target))
-        .unwrap_or_else(|| obligation.target.clone());
+        .unwrap_or_else(|| obligation.target.to_string());
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies `{}` for bounded parameter `{}` for `{}` in `{}.{}`",
