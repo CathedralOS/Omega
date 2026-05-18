@@ -13,7 +13,12 @@ pub(crate) fn mark_required_state_calls(
     context: &StateCallPlanningContext,
     calls: &mut [CollectedStateCall],
 ) {
-    let mut required_states = RequiredStates::new();
+    let required_state_capacity = context
+        .runtime_flow
+        .states
+        .len()
+        .saturating_add(calls.len());
+    let mut required_states = RequiredStates::with_capacity(required_state_capacity);
     for (_, state) in context.runtime_flow.states.iter() {
         required_states.push(state.key);
     }
@@ -145,10 +150,10 @@ struct RequiredStates {
 }
 
 impl RequiredStates {
-    fn new() -> Self {
+    fn with_capacity(state_capacity: usize) -> Self {
         Self {
-            states: RequiredStateList::new(),
-            set: HashSet::new(),
+            states: RequiredStateList::with_capacity(state_capacity),
+            set: HashSet::with_capacity(state_capacity),
             next_unprocessed: 0,
         }
     }
@@ -181,11 +186,13 @@ struct RequiredStateList {
 }
 
 impl RequiredStateList {
-    fn new() -> Self {
+    fn with_capacity(state_capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_REQUIRED_STATE_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(
+                state_capacity.saturating_sub(INLINE_REQUIRED_STATE_COUNT),
+            ),
         }
     }
 

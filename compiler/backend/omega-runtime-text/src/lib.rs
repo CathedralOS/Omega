@@ -30,6 +30,11 @@ pub fn build_runtime_text_plan(
             .calls
             .len()
             .saturating_add(state_storage.mutations.len()),
+        host_calls
+            .calls
+            .len()
+            .saturating_mul(2)
+            .saturating_add(state_storage.mutations.len().saturating_mul(2)),
         state_storage.mutations.len(),
         state_storage.mutations.len(),
         state_storage.mutations.len(),

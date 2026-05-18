@@ -29,7 +29,7 @@ pub(super) fn branch_parameter_bindings(
     aliases: &RuntimeBranchAliasBuffer,
     expression_table: &mut ExpressionTable,
 ) -> BranchParameterBindings {
-    let mut bindings = BranchParameterBindings::new();
+    let mut bindings = BranchParameterBindings::with_capacity(state_call.arguments.len());
 
     if let Some(arguments) = context.state_calls.arguments.span(state_call.arguments) {
         for argument in arguments {

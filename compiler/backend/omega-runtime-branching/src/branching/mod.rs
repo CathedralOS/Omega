@@ -1,5 +1,6 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
+use omega_core::arena::PagedSlice;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallLowering;
 
@@ -50,7 +51,10 @@ pub fn build_runtime_branching_call_plan(
         else {
             continue;
         };
-        let mut aliases = RuntimeBranchAliasBuffer::new();
+        let mut aliases = RuntimeBranchAliasBuffer::with_capacity(runtime_branch_alias_capacity(
+            context,
+            &operations,
+        ));
 
         for operation in operations.iter() {
             let state_call = state_call_for_runtime_operation(context, operation);
@@ -234,6 +238,17 @@ fn operation_is_branching_call(operation: &RuntimeDispatchBodyOperation) -> bool
             ..
         }
     )
+}
+
+fn runtime_branch_alias_capacity(
+    context: &RuntimeBranchingContext,
+    operations: &PagedSlice<'_, RuntimeDispatchBodyOperation>,
+) -> usize {
+    operations
+        .iter()
+        .filter_map(|operation| state_call_for_runtime_operation(context, operation))
+        .map(|state_call| state_call.arguments.len())
+        .sum()
 }
 
 fn branch_target_has_prelude(context: &RuntimeBranchingContext, target_key: StateKey) -> bool {
