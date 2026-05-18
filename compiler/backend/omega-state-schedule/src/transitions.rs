@@ -1,8 +1,7 @@
 use super::append_state_chain;
 use super::local_calls::bind_state_arguments_by_key;
 use super::lookups::{machine_flow_by_symbol, state_flow_by_key, validate_state_index};
-use super::model::ScheduledState;
-use super::static_values::{PlaceKey, StaticValue};
+use super::model::{ScheduledState, StateScheduleWorkspace};
 use crate::StateScheduleContext;
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow};
 
@@ -11,10 +10,7 @@ pub(super) fn next_state(
     machine: &MachineFlow,
     state: &StateFlow,
     transition: &TransitionFlow,
-    schedule: &mut Vec<ScheduledState>,
-    visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(PlaceKey, StaticValue)>,
-    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
+    workspace: &mut StateScheduleWorkspace,
 ) -> Result<Option<ScheduledState>, String> {
     match &transition.target {
         PlannedTransitionTarget::State {
@@ -27,8 +23,7 @@ pub(super) fn next_state(
                 context,
                 *key,
                 transition.expressions.target_arguments,
-                aliases,
-                values,
+                workspace,
             )?;
             Ok(Some(ScheduledState { key: *key }))
         }
@@ -58,8 +53,7 @@ pub(super) fn next_state(
                     )
                 })?;
 
-            let saved_alias_count = aliases.len();
-            let saved_visited_count = visited.len();
+            let checkpoint = workspace.checkpoint();
             let nested_machine_flow = machine_flow_by_symbol(context, nested_machine_symbol)?;
             let nested_state_key = if state_symbol.is_valid() {
                 context
@@ -80,19 +74,10 @@ pub(super) fn next_state(
                 context,
                 nested_state_flow.key,
                 transition.expressions.target_arguments,
-                aliases,
-                values,
+                workspace,
             )?;
-            append_state_chain(
-                context,
-                nested_state_flow.key,
-                schedule,
-                visited,
-                values,
-                aliases,
-            )?;
-            visited.truncate(saved_visited_count);
-            aliases.truncate(saved_alias_count);
+            append_state_chain(context, nested_state_flow.key, workspace)?;
+            workspace.restore(checkpoint);
 
             match &transition.continuation {
                 PlannedTransitionTarget::State {
@@ -105,8 +90,7 @@ pub(super) fn next_state(
                         context,
                         *key,
                         transition.expressions.continuation_arguments,
-                        aliases,
-                        values,
+                        workspace,
                     )?;
                     Ok(Some(ScheduledState { key: *key }))
                 }
