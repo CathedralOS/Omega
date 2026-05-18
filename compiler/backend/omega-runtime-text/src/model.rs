@@ -13,6 +13,26 @@ pub struct RuntimeTextPlan {
     pub builder_segments: Arena<RuntimeTextBuilderSegment>,
 }
 
+impl RuntimeTextPlan {
+    pub fn with_capacity(
+        use_capacity: usize,
+        buffer_capacity: usize,
+        write_capacity: usize,
+        builder_capacity: usize,
+        builder_segment_capacity: usize,
+    ) -> Self {
+        Self {
+            expressions: ExpressionTable::new(),
+            uses: Arena::with_capacity(use_capacity),
+            buffers: Arena::with_capacity(buffer_capacity),
+            slots: Arena::new(),
+            writes: Arena::with_capacity(write_capacity),
+            builders: Arena::with_capacity(builder_capacity),
+            builder_segments: Arena::with_capacity(builder_segment_capacity),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextUse {
     pub source_key: StateKey,
