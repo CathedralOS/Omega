@@ -119,26 +119,74 @@ fn insert_encoded_machine_instruction(
     kind: &SelectedInstructionKind,
 ) -> Result<HandleSpan<u8>, Diagnostic> {
     encoded_bytes.try_insert_many_with(|inserter| {
-        if matches!(kind, SelectedInstructionKind::LeaveFunction) {
+        if insert_fixed_machine_instruction_bytes(
+            inserter,
+            emission_context,
+            laid_out_instructions,
+            machine_instruction_index,
+            kind,
+        )? {
+            return Ok(());
+        }
+
+        for byte in encode_machine_instruction_bytes(
+            emission_context,
+            laid_out_instructions,
+            machine_instruction_index,
+            kind,
+        )? {
+            inserter.insert(byte);
+        }
+
+        Ok(())
+    })
+}
+
+fn insert_fixed_machine_instruction_bytes(
+    inserter: &mut omega_core::arena::ArenaSpanInserter<'_, u8>,
+    emission_context: MachineEmissionContext<'_>,
+    laid_out_instructions: &[layout::LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+    kind: &SelectedInstructionKind,
+) -> Result<bool, Diagnostic> {
+    match kind {
+        SelectedInstructionKind::EnterDispatchLoop {
+            entry_dispatch_index,
+            ..
+        } => {
+            let bytes = omega_instruction_selection::encode_dispatch_loop_enter_bytes(
+                emission_context.target.architecture,
+                *entry_dispatch_index,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
+        SelectedInstructionKind::LeaveDispatchCase => {
+            let bytes = omega_instruction_selection::encode_dispatch_case_leave_bytes(
+                emission_context.target.architecture,
+                branch_distances::byte_distance_to_dispatch_loop_start(
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
+        SelectedInstructionKind::LeaveFunction => {
             let (bytes, byte_count) = omega_instruction_selection::encode_return_bytes(
                 emission_context.target.architecture,
             )?;
             for byte in bytes.into_iter().take(byte_count) {
                 inserter.insert(byte);
             }
-        } else {
-            for byte in encode_machine_instruction_bytes(
-                emission_context,
-                laid_out_instructions,
-                machine_instruction_index,
-                kind,
-            )? {
-                inserter.insert(byte);
-            }
+            Ok(true)
         }
-
-        Ok(())
-    })
+        _ => Ok(false),
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

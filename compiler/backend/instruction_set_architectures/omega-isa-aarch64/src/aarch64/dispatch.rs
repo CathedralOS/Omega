@@ -12,12 +12,18 @@ use super::primitives::{
 use super::widths::{dispatch_guard_compare_static_width, dispatch_state_write_width};
 
 pub fn encode_dispatch_loop_enter(entry_dispatch_index: u32) -> Result<Vec<u8>, Diagnostic> {
+    Ok(Vec::from(encode_dispatch_loop_enter_bytes(
+        entry_dispatch_index,
+    )?))
+}
+
+pub fn encode_dispatch_loop_enter_bytes(entry_dispatch_index: u32) -> Result<[u8; 4], Diagnostic> {
     let immediate = u16::try_from(entry_dispatch_index).map_err(|_| {
         Diagnostic::error(format!(
             "AArch64 MVP encoder cannot encode dispatch index `{entry_dispatch_index}` yet"
         ))
     })?;
-    Ok(Vec::from(encode_movz_w(19, immediate)))
+    Ok(encode_movz_w(19, immediate))
 }
 
 pub fn encode_dispatch_case_enter(
@@ -46,7 +52,13 @@ pub fn encode_dispatch_state_write(
 }
 
 pub fn encode_dispatch_case_leave(loop_byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
-    Ok(Vec::from(encode_unconditional_branch(loop_byte_distance)?))
+    Ok(Vec::from(encode_dispatch_case_leave_bytes(
+        loop_byte_distance,
+    )?))
+}
+
+pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<[u8; 4], Diagnostic> {
+    encode_unconditional_branch(loop_byte_distance)
 }
 
 pub fn encode_dispatch_guard_compare_static(
