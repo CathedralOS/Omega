@@ -24,3 +24,31 @@ pub struct RuntimeBranchingCallPlan {
     pub straight_line_operations: Arena<RuntimeStraightLineBranchOperation>,
     pub straight_line_bindings: Arena<RuntimeStraightLineBranchBinding>,
 }
+
+impl RuntimeBranchingCallPlan {
+    pub fn with_capacity(
+        call_capacity: usize,
+        edge_capacity: usize,
+        argument_capacity: usize,
+        expansion_capacity: usize,
+        binding_capacity: usize,
+        operation_capacity: usize,
+    ) -> Self {
+        Self {
+            expressions: ExpressionTable::new(),
+            calls: Arena::with_capacity(call_capacity),
+            edges: Arena::with_capacity(edge_capacity),
+            target_arguments: Arena::with_capacity(argument_capacity),
+            target_values: Arena::with_capacity(call_capacity),
+            prelude_expansions: Arena::with_capacity(expansion_capacity),
+            prelude_operations: Arena::with_capacity(operation_capacity),
+            prelude_bindings: Arena::with_capacity(binding_capacity),
+            leaf_expansions: Arena::with_capacity(expansion_capacity),
+            leaf_operations: Arena::with_capacity(operation_capacity),
+            leaf_bindings: Arena::with_capacity(binding_capacity),
+            straight_line_expansions: Arena::with_capacity(expansion_capacity),
+            straight_line_operations: Arena::with_capacity(operation_capacity),
+            straight_line_bindings: Arena::with_capacity(binding_capacity),
+        }
+    }
+}
