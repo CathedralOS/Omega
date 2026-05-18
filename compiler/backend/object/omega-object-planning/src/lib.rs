@@ -74,7 +74,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
         target: input.target,
         sections: Arena::with_capacity(3),
         symbols: Arena::with_capacity(symbol_capacity),
-        entry_symbol,
+        entry_symbol: omega_core::arena::Handle::invalid(),
     };
 
     object_plan.sections.insert_many([
@@ -98,22 +98,20 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
         },
     ]);
 
-    object_plan.symbols.insert_many([
-        SymbolPlan {
-            name: object_plan.entry_symbol.clone(),
-            section: SymbolSection::Section(SectionKind::Text),
-            offset: entry_function.byte_offset,
-            size: entry_function.byte_count,
-            kind: SymbolKind::Function,
-        },
-        SymbolPlan {
-            name: machine_storage_symbol(main_layout),
-            section: SymbolSection::Section(SectionKind::Bss),
-            offset: 0,
-            size: main_layout.layout.size,
-            kind: SymbolKind::Object,
-        },
-    ]);
+    object_plan.entry_symbol = object_plan.symbols.insert(SymbolPlan {
+        name: entry_symbol,
+        section: SymbolSection::Section(SectionKind::Text),
+        offset: entry_function.byte_offset,
+        size: entry_function.byte_count,
+        kind: SymbolKind::Function,
+    });
+    object_plan.symbols.insert(SymbolPlan {
+        name: machine_storage_symbol(main_layout),
+        section: SymbolSection::Section(SectionKind::Bss),
+        offset: 0,
+        size: main_layout.layout.size,
+        kind: SymbolKind::Object,
+    });
     if input.runtime_frame_size > 0 {
         object_plan.symbols.insert(SymbolPlan {
             name: runtime_frame_storage_symbol_name(),

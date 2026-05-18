@@ -9,7 +9,6 @@ pub use model::{
 use omega_core::arena::{Arena, Handle};
 use omega_object::{
     ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind, SymbolSection,
-    object_symbol_handle_by_name,
 };
 use omega_target::NativeTarget;
 
@@ -81,10 +80,7 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         .count();
     let mut image = FinalImage {
         target: input.target,
-        entry_symbol: final_image_symbol_handle(object_symbol_handle_by_name(
-            input.object,
-            &input.object.entry_symbol,
-        )),
+        entry_symbol: final_image_symbol_handle(input.object.entry_symbol),
         text: input.text_bytes.to_vec(),
         data: input.data_bytes.to_vec(),
         bss_size: section_size(input.object, SectionKind::Bss),

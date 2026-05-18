@@ -100,7 +100,7 @@ pub fn backend_report_text(
         "entry: {}.{} as `{}`\n\n",
         backend_plan.entry_machine_name(),
         backend_plan.entry_state_name(),
-        backend_plan.object.entry_symbol
+        omega_object::object_entry_symbol_name(backend_plan.object)
     ));
 
     stats::write_backend_phase_timings(&mut output, backend_plan);
