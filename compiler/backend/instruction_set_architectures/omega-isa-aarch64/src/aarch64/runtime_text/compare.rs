@@ -7,6 +7,9 @@ use super::super::primitives::{
     encode_load_byte_w17_from_x16, encode_load_x_from_x, encode_runtime_text_input_delimiter_check,
     encode_subs_x_immediate,
 };
+use super::super::widths::{
+    runtime_text_literal_compare_width, runtime_text_storage_compare_width,
+};
 
 pub fn encode_runtime_text_literal_compare(
     literal: &str,
@@ -21,7 +24,7 @@ pub fn encode_runtime_text_literal_compare(
         )));
     }
 
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_literal_compare_width(literal));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
 
@@ -46,7 +49,7 @@ pub fn encode_runtime_text_storage_compare(
     delimiter_failure_branch_distance: isize,
     branch_when_equal: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_storage_compare_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
