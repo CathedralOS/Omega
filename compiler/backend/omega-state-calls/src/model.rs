@@ -14,7 +14,9 @@ pub struct StateCallPlan {
 impl StateCallPlan {
     pub fn with_capacity(call_capacity: usize, argument_capacity: usize) -> Self {
         Self {
-            expressions: ExpressionTable::new(),
+            expressions: ExpressionTable::with_expression_capacity(
+                call_capacity.saturating_add(argument_capacity),
+            ),
             calls: Arena::with_capacity(call_capacity),
             arguments: Arena::with_capacity(argument_capacity),
         }

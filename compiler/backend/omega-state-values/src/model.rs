@@ -11,7 +11,7 @@ pub struct StateValuePlan {
 impl StateValuePlan {
     pub(crate) fn with_value_capacity(value_capacity: usize) -> Self {
         Self {
-            expressions: ExpressionTable::new(),
+            expressions: ExpressionTable::with_expression_capacity(value_capacity),
             values: Arena::with_capacity(value_capacity),
         }
     }

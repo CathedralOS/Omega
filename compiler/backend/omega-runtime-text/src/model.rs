@@ -23,7 +23,13 @@ impl RuntimeTextPlan {
         builder_segment_capacity: usize,
     ) -> Self {
         Self {
-            expressions: ExpressionTable::new(),
+            expressions: ExpressionTable::with_expression_capacity(
+                use_capacity
+                    .saturating_add(buffer_capacity.saturating_mul(2))
+                    .saturating_add(write_capacity.saturating_mul(2))
+                    .saturating_add(builder_capacity)
+                    .saturating_add(builder_segment_capacity),
+            ),
             uses: Arena::with_capacity(use_capacity),
             buffers: Arena::with_capacity(buffer_capacity),
             slots: Arena::with_capacity(slot_capacity),
