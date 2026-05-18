@@ -26,7 +26,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendPlan {
     pub target: NativeTarget,
-    pub host_abi: HostAbiPlan,
+    pub host_abi: Arc<HostAbiPlan>,
     pub host_calls: Arc<HostCallPlan>,
     pub state_calls: Arc<StateCallPlan>,
     pub alias_flow: AliasFlowPlan,

@@ -51,9 +51,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
     });
+    let host_abi = Arc::new(host_abi);
     let host_call_program = Arc::clone(&program);
     let layout_program = Arc::clone(&program);
-    let host_call_abi = Arc::new(host_abi.clone());
+    let host_call_abi = Arc::clone(&host_abi);
     let host_call_workers = workers.clone();
     let (layouts, host_calls) =
         record_backend_phase(&mut phase_timings, "layout/host calls", || {
@@ -88,7 +89,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     });
     let mut backend_plan = build_backend_plan_skeleton(BackendPlanSkeletonInput {
         target,
-        host_abi,
+        host_abi: Arc::clone(&host_abi),
         host_calls,
         control_flow: Arc::clone(&control_flow),
         runtime_flow: Arc::clone(&runtime_flow),
