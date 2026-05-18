@@ -26,32 +26,36 @@ use omega_target_operations::{
     InstructionOperand, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 use operation_aliases::bind_runtime_operation_aliases;
-use writes::{RuntimeStorageWriteScratch, select_runtime_storage_write_for_operation};
+use writes::select_runtime_storage_write_for_operation;
+pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
 pub(crate) use branches::{
-    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+    select_runtime_resolved_mutation_write,
+    select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn select_runtime_unaliased_storage_mutation_write(
+pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
     target: ExpressionHandle,
     value: ExpressionHandle,
+    static_values: &mut writes::RuntimeStaticValues,
+    scratch: &mut RuntimeStorageWriteScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
-    let mut static_values = writes::RuntimeStaticValues::default();
-    writes::select_runtime_storage_mutation_write_in_table(
+    writes::select_runtime_storage_mutation_write_in_table_with_scratch(
         input,
         dispatch_index,
         source_key,
         statement_index,
         target,
         value,
-        &mut static_values,
+        static_values,
+        scratch,
         runtime_value_operands,
         selected_instructions,
     )

@@ -276,37 +276,6 @@ pub(crate) fn select_runtime_resolved_mutation_write(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn select_runtime_resolved_mutation_write_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    operation_key: StateKey,
-    target_source_key: StateKey,
-    value_source_key: StateKey,
-    statement_index: usize,
-    expressions: &ExpressionTable,
-    resolved_target: ExpressionHandle,
-    resolved_value: ExpressionHandle,
-    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-    selected_instructions: &mut SelectedInstructionSink,
-) -> bool {
-    let mut resolved_segment_expressions = ExpressionTable::new();
-    select_runtime_resolved_mutation_write_in_table_with_scratch(
-        input,
-        dispatch_index,
-        operation_key,
-        target_source_key,
-        value_source_key,
-        statement_index,
-        expressions,
-        resolved_target,
-        resolved_value,
-        &mut resolved_segment_expressions,
-        runtime_value_operands,
-        selected_instructions,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_resolved_mutation_write_in_table_with_scratch(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,

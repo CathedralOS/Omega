@@ -14,8 +14,9 @@ use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
 use super::runtime_dispatch::{
-    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
-    select_runtime_unaliased_storage_mutation_write,
+    RuntimeStorageWriteScratch, select_runtime_resolved_mutation_write,
+    select_runtime_resolved_mutation_write_in_table_with_scratch,
+    select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
 use omega_state_calls::StateCall;
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
@@ -101,6 +102,9 @@ pub(super) fn select_state_body_instructions(
         .span_or_empty(state.transitions);
     let mut expressions = ExpressionTable::new();
     let mut child_alias_expressions = ExpressionTable::new();
+    let mut mutation_segment_expressions = ExpressionTable::new();
+    let mut storage_write_scratch = RuntimeStorageWriteScratch::default();
+    let mut static_values = super::runtime_dispatch::RuntimeStaticValues::default();
 
     for operation in operations {
         if let Some(host_call) =
@@ -126,13 +130,15 @@ pub(super) fn select_state_body_instructions(
             if aliases.bindings().is_empty()
                 && let Some(dispatch_index) =
                     dispatch_index_for_state(input, state.key).or(dispatch_index)
-                && select_runtime_unaliased_storage_mutation_write(
+                && select_runtime_unaliased_storage_mutation_write_with_scratch(
                     input,
                     dispatch_index,
                     state.key,
                     operation.statement_index,
                     mutation.target,
                     mutation.value,
+                    &mut static_values,
+                    &mut storage_write_scratch,
                     runtime_value_operands,
                     selected_instructions,
                 )
@@ -164,7 +170,8 @@ pub(super) fn select_state_body_instructions(
                     copied_aliases.bindings(),
                     &mut expressions,
                 );
-                if select_runtime_resolved_mutation_write_in_table(
+                mutation_segment_expressions.clear();
+                if select_runtime_resolved_mutation_write_in_table_with_scratch(
                     input,
                     dispatch_index,
                     state.key,
@@ -174,6 +181,7 @@ pub(super) fn select_state_body_instructions(
                     &expressions,
                     resolved_target.expression,
                     resolved_value.expression,
+                    &mut mutation_segment_expressions,
                     runtime_value_operands,
                     selected_instructions,
                 ) {
