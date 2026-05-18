@@ -87,7 +87,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         target,
         host_abi,
         host_calls,
-        control_flow: (*control_flow).clone(),
+        control_flow: Arc::clone(&control_flow),
         runtime_flow,
         state_dispatch,
         state_guards: Default::default(),

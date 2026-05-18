@@ -21,6 +21,7 @@ use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::InstructionPlan;
 use omega_target_operations::TargetDataPlan;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendPlan {
@@ -33,7 +34,7 @@ pub struct BackendPlan {
     pub state_values: StateValuePlan,
     pub data: TargetDataPlan,
     pub instructions: InstructionPlan,
-    pub control_flow: ControlFlowPlan,
+    pub control_flow: Arc<ControlFlowPlan>,
     pub runtime_flow: RuntimeFlowPlan,
     pub state_dispatch: StateDispatchPlan,
     pub state_guards: StateGuardPlan,
