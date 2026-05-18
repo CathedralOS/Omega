@@ -5,7 +5,6 @@ use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::types::TypeReferenceHandle;
-use std::sync::Arc;
 
 pub use runtime_flow::{
     RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
@@ -179,7 +178,57 @@ pub struct ProofObligationFact {
     pub kind: ProofFactKind,
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
-    pub owner: Arc<str>,
+    pub owner: ProofObligationOwner,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ProofObligationOwner {
+    #[default]
+    Unknown,
+    MachineState {
+        machine_symbol: SymbolHandle,
+        machine_name: ProgramName,
+        state_symbol: SymbolHandle,
+        state_name: ProgramName,
+    },
+    MachineOwnedData {
+        machine_symbol: SymbolHandle,
+        machine_name: ProgramName,
+        data_symbol: SymbolHandle,
+        data_name: ProgramName,
+    },
+    StateParameter {
+        machine_symbol: SymbolHandle,
+        machine_name: ProgramName,
+        state_symbol: SymbolHandle,
+        state_name: ProgramName,
+        parameter_symbol: SymbolHandle,
+        parameter_name: ProgramName,
+    },
+    StateReturn {
+        machine_symbol: SymbolHandle,
+        machine_name: ProgramName,
+        state_symbol: SymbolHandle,
+        state_name: ProgramName,
+    },
+    CallParameter {
+        machine_symbol: SymbolHandle,
+        machine_name: ProgramName,
+        state_symbol: SymbolHandle,
+        state_name: ProgramName,
+        target_symbol: SymbolHandle,
+        target_name: ProgramName,
+        parameter_symbol: SymbolHandle,
+        parameter_name: ProgramName,
+    },
+    TransitionParameter {
+        machine_symbol: SymbolHandle,
+        machine_name: ProgramName,
+        state_symbol: SymbolHandle,
+        state_name: ProgramName,
+        parameter_symbol: SymbolHandle,
+        parameter_name: ProgramName,
+    },
 }
 
 impl Default for ProofObligationFact {
@@ -188,7 +237,7 @@ impl Default for ProofObligationFact {
             kind: ProofFactKind::default(),
             machine_symbol: SymbolHandle::invalid(),
             state_symbol: SymbolHandle::invalid(),
-            owner: Arc::from(""),
+            owner: ProofObligationOwner::default(),
         }
     }
 }

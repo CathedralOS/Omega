@@ -13,6 +13,7 @@ use omega_typed_trees::statement::{
     TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
@@ -125,16 +126,68 @@ pub enum ProofObligation {
 impl Default for ProofObligation {
     fn default() -> Self {
         Self::BoundedValue(BoundedValueObligation {
-            owner: String::new(),
+            owner: ProofObligationOwner::default(),
             base_type: TypeReferenceHandle::invalid(),
             constraints: HandleSpan::empty(),
         })
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ProofObligationOwner {
+    #[default]
+    Unknown,
+    MachineOwnedData {
+        machine_symbol: SymbolHandle,
+        machine: ProgramName,
+        data_symbol: SymbolHandle,
+        data: ProgramName,
+    },
+    StateParameter {
+        machine_symbol: SymbolHandle,
+        machine: ProgramName,
+        state_symbol: SymbolHandle,
+        state: ProgramName,
+        parameter_symbol: SymbolHandle,
+        parameter: ProgramName,
+    },
+    StateReturn {
+        machine_symbol: SymbolHandle,
+        machine: ProgramName,
+        state_symbol: SymbolHandle,
+        state: ProgramName,
+    },
+}
+
+impl fmt::Display for ProofObligationOwner {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unknown => formatter.write_str("unknown"),
+            Self::MachineOwnedData { machine, data, .. } => {
+                write!(formatter, "machine `{machine}` owned data `{data}`")
+            }
+            Self::StateParameter {
+                machine,
+                state,
+                parameter,
+                ..
+            } => write!(
+                formatter,
+                "machine `{machine}` state `{state}` parameter `{parameter}`"
+            ),
+            Self::StateReturn { machine, state, .. } => {
+                write!(
+                    formatter,
+                    "machine `{machine}` state `{state}` return value"
+                )
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedValueObligation {
-    pub owner: String,
+    pub owner: ProofObligationOwner,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
 }
@@ -169,7 +222,9 @@ pub struct BoundedCallArgumentObligation {
     pub state_symbol: SymbolHandle,
     pub state: String,
     pub receiver: Option<String>,
+    pub target_symbol: SymbolHandle,
     pub target: String,
+    pub parameter_symbol: SymbolHandle,
     pub parameter: String,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<ProofConstraint>,
@@ -179,7 +234,7 @@ pub struct BoundedCallArgumentObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedInitializerObligation {
-    pub owner: String,
+    pub owner: ProofObligationOwner,
     pub value: ExpressionHandle,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
@@ -203,6 +258,7 @@ pub struct BoundedTransitionArgumentObligation {
     pub machine: String,
     pub state_symbol: SymbolHandle,
     pub state: String,
+    pub parameter_symbol: SymbolHandle,
     pub parameter: String,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<ProofConstraint>,
@@ -228,10 +284,12 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
 
     for machine in program.machines() {
         for owned_data in program.machine_owned_data(machine) {
-            let owner = format!(
-                "machine `{}` owned data `{}`",
-                machine.name, owned_data.name
-            );
+            let owner = ProofObligationOwner::MachineOwnedData {
+                machine_symbol: machine.symbol,
+                machine: machine.name.clone(),
+                data_symbol: owned_data.symbol,
+                data: owned_data.name.clone(),
+            };
             collect_bounded_value_obligation(
                 program,
                 owner.clone(),
@@ -253,10 +311,14 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
             for parameter in program.state_parameters(state) {
                 collect_bounded_value_obligation(
                     program,
-                    format!(
-                        "machine `{}` state `{}` parameter `{}`",
-                        machine.name, state.name, parameter.name
-                    ),
+                    ProofObligationOwner::StateParameter {
+                        machine_symbol: machine.symbol,
+                        machine: machine.name.clone(),
+                        state_symbol: state.symbol,
+                        state: state.name.clone(),
+                        parameter_symbol: parameter.symbol,
+                        parameter: parameter.name.clone(),
+                    },
                     parameter.type_reference,
                     &mut proof_plan,
                 );
@@ -265,10 +327,12 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
             if state.return_type.is_valid() {
                 collect_bounded_value_obligation(
                     program,
-                    format!(
-                        "machine `{}` state `{}` return value",
-                        machine.name, state.name
-                    ),
+                    ProofObligationOwner::StateReturn {
+                        machine_symbol: machine.symbol,
+                        machine: machine.name.clone(),
+                        state_symbol: state.symbol,
+                        state: state.name.clone(),
+                    },
                     state.return_type,
                     &mut proof_plan,
                 );
@@ -338,7 +402,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
 
 fn collect_bounded_value_obligation(
     program: &TypedTrees,
-    owner: String,
+    owner: ProofObligationOwner,
     type_reference: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
@@ -378,7 +442,7 @@ fn collect_bounded_value_obligation(
 
 fn collect_bounded_initializer_obligation(
     program: &TypedTrees,
-    owner: String,
+    owner: ProofObligationOwner,
     type_reference: TypeReferenceHandle,
     value: ExpressionHandle,
     proof_plan: &mut ProofPlan<'_>,
@@ -509,6 +573,7 @@ fn collect_bounded_transition_argument_obligations(
                 machine: machine.name.to_string(),
                 state_symbol: state.symbol,
                 state: state.name.to_string(),
+                parameter_symbol: parameter.symbol,
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,
@@ -560,7 +625,9 @@ fn collect_bounded_call_argument_obligations(
                 state_symbol: state.symbol,
                 state: state.name.to_string(),
                 receiver: (!receiver.is_empty()).then(|| display_name_path(receiver)),
+                target_symbol: call.target_symbol,
                 target: call.target.to_string(),
+                parameter_symbol: parameter.symbol,
                 parameter: parameter.name.to_string(),
                 argument,
                 argument_constraints,

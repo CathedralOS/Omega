@@ -1,9 +1,9 @@
 use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, Operation, OperationExpressionRefs,
     OperationKind, PlannedTransitionTarget, ProofFactKind, ProofObligationFact,
-    StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind,
-    StateBorrowSummary, StateBorrowWritableRoot, StateFlow, StateKey, StateParameterFlow,
-    TransitionExpressionRefs, TransitionFlow,
+    ProofObligationOwner, StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall,
+    StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateFlow, StateKey,
+    StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -109,11 +109,99 @@ fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFac
             },
             machine_symbol: obligation.machine_symbol,
             state_symbol: obligation.state_symbol,
-            owner: obligation.owner.clone(),
+            owner: remap_proof_owner(&obligation.owner),
         });
     }
 
     obligations
+}
+
+fn remap_proof_owner(owner: &omega_state_graph::ProofObligationOwner) -> ProofObligationOwner {
+    match owner {
+        omega_state_graph::ProofObligationOwner::Unknown => ProofObligationOwner::Unknown,
+        omega_state_graph::ProofObligationOwner::MachineState {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+        } => ProofObligationOwner::MachineState {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+        },
+        omega_state_graph::ProofObligationOwner::MachineOwnedData {
+            machine_symbol,
+            machine_name,
+            data_symbol,
+            data_name,
+        } => ProofObligationOwner::MachineOwnedData {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            data_symbol: *data_symbol,
+            data_name: data_name.clone(),
+        },
+        omega_state_graph::ProofObligationOwner::StateParameter {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+            parameter_symbol,
+            parameter_name,
+        } => ProofObligationOwner::StateParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter_name.clone(),
+        },
+        omega_state_graph::ProofObligationOwner::StateReturn {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+        } => ProofObligationOwner::StateReturn {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+        },
+        omega_state_graph::ProofObligationOwner::CallParameter {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+            target_symbol,
+            target_name,
+            parameter_symbol,
+            parameter_name,
+        } => ProofObligationOwner::CallParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+            target_symbol: *target_symbol,
+            target_name: target_name.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter_name.clone(),
+        },
+        omega_state_graph::ProofObligationOwner::TransitionParameter {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+            parameter_symbol,
+            parameter_name,
+        } => ProofObligationOwner::TransitionParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter_name.clone(),
+        },
+    }
 }
 
 fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
