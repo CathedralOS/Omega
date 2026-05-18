@@ -4,6 +4,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::types::TypeReferenceHandle;
 use std::sync::Arc;
 
 pub use runtime_flow::{
@@ -250,6 +251,7 @@ pub struct StateBorrowSummary {
 pub struct StateParameterNode {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_reference: TypeReferenceHandle,
     pub type_symbol: SymbolHandle,
     pub type_name: ProgramName,
     pub is_mutable_reference: bool,

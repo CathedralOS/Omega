@@ -209,6 +209,7 @@ fn state_parameters_for_segment(
             StateParameterNode {
                 symbol: parameter.symbol,
                 name: parameter.name.clone(),
+                type_reference: parameter.type_reference,
                 type_symbol: program.type_reference_symbol(parameter.type_reference),
                 type_name: ProgramName::generated(
                     program.display_type_reference(parameter.type_reference),
