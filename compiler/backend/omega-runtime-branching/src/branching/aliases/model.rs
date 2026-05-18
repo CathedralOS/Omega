@@ -30,10 +30,16 @@ pub(crate) struct BranchParameterBindings {
 
 impl BranchParameterBindings {
     pub(crate) fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
+    pub(crate) fn with_capacity(binding_capacity: usize) -> Self {
         Self {
             inline: std::array::from_fn(|_| None),
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(
+                binding_capacity.saturating_sub(INLINE_BRANCH_PARAMETER_BINDING_COUNT),
+            ),
         }
     }
 
@@ -71,10 +77,16 @@ pub(crate) struct RuntimeBranchAliasBuffer {
 
 impl RuntimeBranchAliasBuffer {
     pub(crate) fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
+    pub(crate) fn with_capacity(alias_capacity: usize) -> Self {
         Self {
             inline: std::array::from_fn(|_| None),
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(
+                alias_capacity.saturating_sub(INLINE_RUNTIME_BRANCH_ALIAS_COUNT),
+            ),
         }
     }
 
