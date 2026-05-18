@@ -34,15 +34,65 @@ pub fn build_layout_plan(
 struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,
-    data_visiting: Vec<SymbolHandle>,
+    data_visiting: LayoutVisitStack,
     fields: Arena<FieldLayout>,
     machine_definitions: &'program [Machine],
     machine_layouts: Arena<MachineLayout>,
-    machine_visiting: Vec<SymbolHandle>,
+    machine_visiting: LayoutVisitStack,
     platform_definitions: &'program [Platform],
     program: &'program Program,
     target: NativeTarget,
     variants: Arena<VariantLayout>,
+}
+
+const INLINE_LAYOUT_VISIT_COUNT: usize = 16;
+
+struct LayoutVisitStack {
+    inline: [Option<SymbolHandle>; INLINE_LAYOUT_VISIT_COUNT],
+    len: usize,
+    overflow: Vec<SymbolHandle>,
+}
+
+impl LayoutVisitStack {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_LAYOUT_VISIT_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn contains(&self, symbol: SymbolHandle) -> bool {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_LAYOUT_VISIT_COUNT))
+            .flatten()
+            .any(|candidate| *candidate == symbol)
+            || self.overflow.contains(&symbol)
+    }
+
+    fn push(&mut self, symbol: SymbolHandle) {
+        if self.len < INLINE_LAYOUT_VISIT_COUNT {
+            self.inline[self.len] = Some(symbol);
+        } else {
+            self.overflow.push(symbol);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+
+        self.len -= 1;
+        if self.len < INLINE_LAYOUT_VISIT_COUNT {
+            self.inline[self.len] = None;
+        } else {
+            self.overflow.pop();
+        }
+    }
 }
 
 impl<'program> LayoutBuilder<'program> {
@@ -83,11 +133,11 @@ impl<'program> LayoutBuilder<'program> {
         Self {
             data_definitions,
             data_layouts: Arena::with_capacity(data_definitions.len()),
-            data_visiting: Vec::new(),
+            data_visiting: LayoutVisitStack::new(),
             fields: Arena::with_capacity(field_capacity),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
-            machine_visiting: Vec::new(),
+            machine_visiting: LayoutVisitStack::new(),
             platform_definitions: program.platforms(),
             program,
             target,
@@ -114,7 +164,7 @@ impl<'program> LayoutBuilder<'program> {
             return Ok(data_layout.layout);
         }
 
-        if self.data_visiting.contains(&symbol) {
+        if self.data_visiting.contains(symbol) {
             return Err(Diagnostic::error(format!(
                 "recursive data layout is not supported yet for symbol {}",
                 symbol.arena_index()
@@ -143,7 +193,7 @@ impl<'program> LayoutBuilder<'program> {
             return Ok(machine_layout.layout);
         }
 
-        if self.machine_visiting.contains(&symbol) {
+        if self.machine_visiting.contains(symbol) {
             return Err(Diagnostic::error(format!(
                 "recursive machine layout is not supported yet for symbol {}",
                 symbol.arena_index()
