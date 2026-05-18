@@ -9,15 +9,14 @@ use super::offsets::{
 };
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
-use omega_object::RelocationPlan;
+use omega_object::{ObjectSymbolHandle, RelocationPlan};
 use omega_target_operations::{
-    FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
-    StateGuardOperator,
+    SelectedInstruction, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 
 pub(super) fn collect_instruction_relocations(
     input: RelocationPlanningInput<'_>,
-    function: &FunctionInstructionPlan,
+    function_symbol_handle: ObjectSymbolHandle,
     selected_instruction_index: u32,
     selected_text_offset: usize,
     instruction: &SelectedInstruction,
@@ -25,7 +24,7 @@ pub(super) fn collect_instruction_relocations(
 ) {
     let mut context = InstructionRelocationContext {
         input,
-        function,
+        function_symbol_handle,
         selected_instruction_index,
         selected_text_offset,
         relocation_plan,
@@ -35,7 +34,7 @@ pub(super) fn collect_instruction_relocations(
         SelectedInstructionKind::HostOperation { operands, .. } => {
             collect_data_address_relocations(
                 input,
-                function,
+                function_symbol_handle,
                 selected_instruction_index,
                 *operands,
                 selected_text_offset,

@@ -4,13 +4,11 @@ use omega_object::{
     ObjectSymbolHandle, RelocationPlan, machine_storage_symbol_name, object_symbol_handle_by_name,
     storage_region_symbol_name,
 };
-use omega_target_operations::{
-    FunctionInstructionPlan, RuntimeStorageRegion, TargetDataObjectHandle,
-};
+use omega_target_operations::{RuntimeStorageRegion, TargetDataObjectHandle};
 
 pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
     pub input: RelocationPlanningInput<'plan>,
-    pub function: &'plan FunctionInstructionPlan,
+    pub function_symbol_handle: ObjectSymbolHandle,
     pub selected_instruction_index: u32,
     pub selected_text_offset: usize,
     pub relocation_plan: &'relocations mut RelocationPlan,
@@ -49,7 +47,7 @@ impl InstructionRelocationContext<'_, '_> {
         insert_data_address_relocations(
             self.input,
             self.relocation_plan,
-            self.function,
+            self.function_symbol_handle,
             self.selected_instruction_index,
             byte_offset,
             symbol,

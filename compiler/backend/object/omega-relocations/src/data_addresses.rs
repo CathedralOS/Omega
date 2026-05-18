@@ -5,11 +5,11 @@ use omega_object::{
     object_symbol_handle_by_name, storage_region_symbol_name,
 };
 use omega_target::Architecture;
-use omega_target_operations::{FunctionInstructionPlan, InstructionOperandKind};
+use omega_target_operations::InstructionOperandKind;
 
 pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
-    function: &FunctionInstructionPlan,
+    function_symbol_handle: ObjectSymbolHandle,
     selected_instruction_index: u32,
     operands: omega_core::arena::HandleSpan<omega_target_operations::InstructionOperand>,
     selected_text_offset: usize,
@@ -34,7 +34,7 @@ pub(super) fn collect_data_address_relocations(
                 insert_data_address_relocations(
                     input,
                     relocation_plan,
-                    function,
+                    function_symbol_handle,
                     selected_instruction_index,
                     operand_text_offset,
                     symbol,
@@ -47,7 +47,7 @@ pub(super) fn collect_data_address_relocations(
                 insert_data_address_relocations(
                     input,
                     relocation_plan,
-                    function,
+                    function_symbol_handle,
                     selected_instruction_index,
                     operand_text_offset,
                     symbol,
@@ -64,14 +64,11 @@ pub(super) fn collect_data_address_relocations(
 pub(super) fn insert_data_address_relocations(
     input: RelocationPlanningInput<'_>,
     relocation_plan: &mut RelocationPlan,
-    function: &FunctionInstructionPlan,
+    function_symbol_handle: ObjectSymbolHandle,
     selected_instruction_index: u32,
     operand_text_offset: usize,
     symbol_handle: ObjectSymbolHandle,
 ) {
-    let function_symbol_handle =
-        object_symbol_handle_by_name(&input.object, function.symbol.as_ref());
-
     match input.target.architecture {
         Architecture::Aarch64 => {
             relocation_plan.records.insert(RelocationRecord {
