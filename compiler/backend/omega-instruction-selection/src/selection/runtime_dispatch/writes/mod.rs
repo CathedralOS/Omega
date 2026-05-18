@@ -2,7 +2,7 @@ mod mutation;
 mod static_values;
 mod storage_copy;
 
-use super::super::bindings::RuntimeAliasBinding;
+use super::super::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding_handle};
 use super::super::lookups::state_mutation_for_statement;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -64,8 +64,8 @@ pub(super) fn select_runtime_storage_write_for_operation(
         return;
     };
 
-    if aliases.is_empty()
-        && select_runtime_storage_mutation_write_in_table(
+    if aliases.is_empty() {
+        if select_runtime_storage_mutation_write_in_table(
             input,
             dispatch_index,
             mutation.source_key,
@@ -75,9 +75,41 @@ pub(super) fn select_runtime_storage_write_for_operation(
             static_values,
             runtime_value_operands,
             selected_instructions,
-        )
-    {
-        return;
+        ) {
+            return;
+        }
+    } else {
+        let mut expressions = alias_expressions.clone();
+        let target = expressions.copy_from(&input.state_storage.expressions, mutation.target);
+        let value = expressions.copy_from(&input.state_storage.expressions, mutation.value);
+        let resolved_target = resolve_runtime_alias_binding_handle(
+            target,
+            mutation.source_key,
+            aliases,
+            &mut expressions,
+        );
+        let resolved_value = resolve_runtime_alias_binding_handle(
+            value,
+            mutation.source_key,
+            aliases,
+            &mut expressions,
+        );
+        if select_runtime_storage_resolved_mutation_write_in_table(
+            input,
+            dispatch_index,
+            mutation.source_key,
+            resolved_target.source_key,
+            resolved_value.source_key,
+            mutation.statement_index,
+            &expressions,
+            resolved_target.expression,
+            resolved_value.expression,
+            static_values,
+            runtime_value_operands,
+            selected_instructions,
+        ) {
+            return;
+        }
     }
 
     let (source_machine, source_state) = state_names(input, mutation.source_key);
@@ -111,12 +143,43 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
-    if let Some(kind) = storage_copy::runtime_storage_copy_in_table(
+    select_runtime_storage_resolved_mutation_write_in_table(
         input,
         dispatch_index,
         source_key,
         source_key,
+        source_key,
+        statement_index,
         &input.state_storage.expressions,
+        target,
+        value,
+        static_values,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_storage_resolved_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if let Some(kind) = storage_copy::runtime_storage_copy_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        expressions,
         target,
         value,
     )
@@ -124,9 +187,9 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
         storage_copy::runtime_storage_indirect_copy_in_table(
             input,
             dispatch_index,
-            source_key,
-            source_key,
-            &input.state_storage.expressions,
+            target_source_key,
+            value_source_key,
+            expressions,
             target,
             value,
         )
@@ -135,8 +198,9 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
         mutation::select_runtime_static_mutation_write_in_table(
             input,
             dispatch_index,
-            source_key,
+            target_source_key,
             statement_index,
+            expressions,
             target,
             value,
             static_values,
@@ -146,8 +210,10 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
         mutation::select_runtime_string_mutation_write_in_table(
             input,
             dispatch_index,
-            source_key,
+            operation_source_key,
+            target_source_key,
             statement_index,
+            expressions,
             target,
             value,
         )
@@ -156,8 +222,10 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
         mutation::select_runtime_binary_mutation_write_in_table(
             input,
             dispatch_index,
-            source_key,
+            target_source_key,
+            value_source_key,
             statement_index,
+            expressions,
             target,
             value,
             static_values,
@@ -166,7 +234,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
     }) {
         selected_instructions.push(SelectedInstruction {
             kind,
-            source_key,
+            source_key: operation_source_key,
             source_statement: statement_index,
         });
         return true;
