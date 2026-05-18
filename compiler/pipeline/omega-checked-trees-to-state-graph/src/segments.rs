@@ -61,6 +61,8 @@ pub(super) fn split_state_segments(
     let mut transitions = HandleSpan::empty();
     let mut segment_index = 0usize;
     let mut transition_section_started = false;
+    let mut visiting_branch_states =
+        VisitingStatesBuffer::with_capacity(program.machine_states.len());
 
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
         if let StatementNode::Transition(table) = table_statement {
@@ -76,7 +78,8 @@ pub(super) fn split_state_segments(
         }
 
         if let StatementNode::Call(table_call) = table_statement
-            && branch_call_target(program, machine, table_call).is_some()
+            && branch_call_target(program, machine, table_call, &mut visiting_branch_states)
+                .is_some()
         {
             segments.push(StateSegment {
                 key: StateKey {
@@ -373,9 +376,9 @@ fn branch_call_target<'program>(
     program: &'program Program,
     current_machine: &'program Machine,
     call: &'program TableCall,
+    visiting: &mut VisitingStatesBuffer,
 ) -> Option<&'program State> {
-    let mut visiting = VisitingStatesBuffer::with_capacity(program.machine_states.len());
-    branch_call_target_with_visited(program, current_machine, call, &mut visiting)
+    branch_call_target_with_visited(program, current_machine, call, visiting)
 }
 
 type VisitingStateKey = (SymbolHandle, SymbolHandle);
