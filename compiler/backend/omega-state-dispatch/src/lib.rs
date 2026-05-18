@@ -14,7 +14,9 @@ pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatc
     let workers = WorkerPool::with_available_parallelism();
 
     build_state_dispatch_plan_with_workers(
-        Arc::new(StateDispatchContext::from_runtime_flow(runtime_flow)),
+        Arc::new(StateDispatchContext::from_runtime_flow(Arc::new(
+            runtime_flow.clone(),
+        ))),
         workers.handle(),
     )
 }
@@ -41,7 +43,7 @@ pub fn build_state_dispatch_plan_with_workers(
 
     let mut plan = StateDispatchPlan {
         states: Arena::with_capacity(state_count),
-        edges: Arena::with_capacity(context.edges.len()),
+        edges: Arena::with_capacity(context.runtime_flow.edges.len()),
     };
 
     for dispatch_state in dispatch_states {
@@ -73,6 +75,7 @@ fn build_dispatch_state(
     let mut edges = Arena::with_capacity(dispatch_edge_capacity(context, dispatch_target));
 
     for edge in context
+        .runtime_flow
         .edges
         .iter()
         .map(|(_, edge)| edge)
@@ -112,6 +115,7 @@ fn append_terminal_continuation_edges(
     edges: &mut Arena<DispatchEdge>,
 ) {
     let has_outgoing_edges = context
+        .runtime_flow
         .edges
         .iter()
         .map(|(_, edge)| edge)
@@ -120,7 +124,7 @@ fn append_terminal_continuation_edges(
         return;
     }
 
-    for (_, edge) in context.edges.iter() {
+    for (_, edge) in context.runtime_flow.edges.iter() {
         let RuntimeTransitionTarget::State { key, .. } = &edge.target else {
             continue;
         };
@@ -154,6 +158,7 @@ fn dispatch_edge_capacity(
     dispatch_target: &context::StateDispatchTarget,
 ) -> usize {
     let outgoing_count = context
+        .runtime_flow
         .edges
         .iter()
         .map(|(_, edge)| edge)
@@ -164,6 +169,7 @@ fn dispatch_edge_capacity(
     }
 
     context
+        .runtime_flow
         .edges
         .iter()
         .map(|(_, edge)| edge)

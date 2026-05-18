@@ -77,9 +77,12 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let runtime_flow = record_backend_phase(&mut phase_timings, "runtime flow", || {
         build_runtime_flow_plan(&control_flow, entry_key)
     })?;
+    let runtime_flow = Arc::new(runtime_flow);
     let state_dispatch = record_backend_phase(&mut phase_timings, "state dispatch", || {
         build_state_dispatch_plan_with_workers(
-            Arc::new(StateDispatchContext::from_runtime_flow(&runtime_flow)),
+            Arc::new(StateDispatchContext::from_runtime_flow(Arc::clone(
+                &runtime_flow,
+            ))),
             workers.clone(),
         )
     });
@@ -88,7 +91,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         host_abi,
         host_calls,
         control_flow: Arc::clone(&control_flow),
-        runtime_flow,
+        runtime_flow: Arc::clone(&runtime_flow),
         state_dispatch,
         state_guards: Default::default(),
         layouts,

@@ -1,17 +1,16 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_state_graph::{RuntimeEdge, RuntimeFlowPlan};
+use omega_state_graph::RuntimeFlowPlan;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchContext {
-    pub(super) edges: Arena<RuntimeEdge>,
+    pub(super) runtime_flow: Arc<RuntimeFlowPlan>,
     pub(super) targets: Arena<StateDispatchTarget>,
 }
 
 impl StateDispatchContext {
-    pub fn from_runtime_flow(runtime_flow: &RuntimeFlowPlan) -> Self {
-        let mut edges = Arena::with_capacity(runtime_flow.edges.len());
-        edges.insert_many(runtime_flow.edges.iter().map(|(_, edge)| edge.clone()));
+    pub fn from_runtime_flow(runtime_flow: Arc<RuntimeFlowPlan>) -> Self {
         let mut targets = Arena::with_capacity(runtime_flow.states.len());
         targets.insert_many(runtime_flow.states.iter().map(|(handle, state)| {
             StateDispatchTarget {
@@ -20,7 +19,10 @@ impl StateDispatchContext {
             }
         }));
 
-        Self { edges, targets }
+        Self {
+            runtime_flow,
+            targets,
+        }
     }
 }
 
