@@ -37,7 +37,7 @@ pub fn build_state_graph_with_workers(
 ) -> Result<StateGraph, Diagnostic> {
     if program.machines().is_empty() {
         return Ok(StateGraph::with_capacity(
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ));
     }
 
@@ -82,6 +82,7 @@ pub fn build_state_graph_with_workers(
 
 #[derive(Debug, Clone, Copy, Default)]
 struct StateGraphCapacity {
+    expressions: usize,
     machines: usize,
     contained_machines: usize,
     machine_owned_data: usize,
@@ -99,6 +100,7 @@ struct StateGraphCapacity {
 impl StateGraphCapacity {
     fn for_program(program: &Program) -> Self {
         let mut capacity = Self {
+            expressions: 0,
             machines: program.machines().len(),
             contained_machines: program.machine_contained_objects.len(),
             machine_owned_data: program.machine_owned_data.len(),
@@ -117,6 +119,9 @@ impl StateGraphCapacity {
             capacity.states = capacity
                 .states
                 .saturating_add(estimated_machine_segment_capacity(program, machine));
+            capacity.expressions = capacity
+                .expressions
+                .saturating_add(machine_expression_capacity(program, machine));
         }
 
         capacity
@@ -132,6 +137,7 @@ impl StateGraphCapacity {
             .sum();
 
         Self {
+            expressions: machine_expression_capacity(program, machine),
             machines: 1,
             contained_machines: program.machine_contained_objects(machine).len(),
             machine_owned_data: program.machine_owned_data(machine).len(),
@@ -149,6 +155,7 @@ impl StateGraphCapacity {
 
     fn into_state_graph(self) -> StateGraph {
         StateGraph::with_capacity(
+            self.expressions,
             self.machines,
             self.contained_machines,
             self.machine_owned_data,
@@ -162,6 +169,64 @@ impl StateGraphCapacity {
             self.operations,
             self.transitions,
         )
+    }
+}
+
+fn machine_expression_capacity(program: &Program, machine: &Machine) -> usize {
+    program
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| program.statement_table.statements(state.statement_nodes))
+        .map(|statement| statement_expression_capacity(program, statement))
+        .sum()
+}
+
+fn statement_expression_capacity(
+    program: &Program,
+    statement: &omega_checked_trees::statement::StatementNode,
+) -> usize {
+    match statement {
+        omega_checked_trees::statement::StatementNode::Assignment(_) => 2,
+        omega_checked_trees::statement::StatementNode::Call(call) => program
+            .statement_table
+            .expression_handles(call.arguments)
+            .len(),
+        omega_checked_trees::statement::StatementNode::Expression(_) => 1,
+        omega_checked_trees::statement::StatementNode::Transition(transition) => {
+            transition_guard_expression_capacity(transition.guard).saturating_add(
+                transition_target_expression_capacity(program, transition.target).saturating_add(
+                    transition_target_expression_capacity(program, transition.continuation),
+                ),
+            )
+        }
+        omega_checked_trees::statement::StatementNode::LocalData(_) => 0,
+    }
+}
+
+fn transition_guard_expression_capacity(
+    guard: omega_checked_trees::statement::TransitionGuardNode,
+) -> usize {
+    match guard {
+        omega_checked_trees::statement::TransitionGuardNode::Always => 0,
+        omega_checked_trees::statement::TransitionGuardNode::When(_) => 1,
+    }
+}
+
+fn transition_target_expression_capacity(
+    program: &Program,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
+) -> usize {
+    if !target.is_valid() {
+        return 0;
+    }
+
+    match program.statement_table.transition_target(target) {
+        omega_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+            program.statement_table.expression_handles(*arguments).len()
+        }
+        omega_checked_trees::statement::TransitionTargetNode::Value(_) => 1,
+        omega_checked_trees::statement::TransitionTargetNode::SelfTarget
+        | omega_checked_trees::statement::TransitionTargetNode::Terminal => 0,
     }
 }
 
