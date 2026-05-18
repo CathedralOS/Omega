@@ -455,11 +455,20 @@ fn build_machine_graph(
     }
 
     let mut segments = Vec::with_capacity(estimated_machine_segment_capacity(program, machine));
+    let mut segment_transitions =
+        omega_core::arena::Arena::with_capacity(machine_statement_count(program, machine));
     for state in program.machine_states(machine) {
-        split_state_segments(machine, state, program, state_graph, &mut segments);
+        split_state_segments(
+            machine,
+            state,
+            program,
+            state_graph,
+            &mut segment_transitions,
+            &mut segments,
+        );
     }
 
-    let states = append_machine_states(state_graph, program, &segments)?;
+    let states = append_machine_states(state_graph, program, &segments, &segment_transitions)?;
 
     Ok(MachineGraph {
         symbol: machine_symbol,
@@ -582,11 +591,18 @@ fn append_machine_states(
     state_graph: &mut StateGraph,
     program: &Program,
     segments: &[crate::segments::StateSegment],
+    segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
     let mut states = HandleSpan::empty();
 
     for (index, segment) in segments.iter().enumerate() {
-        let transitions = append_segment_transitions(state_graph, program, segment, segments)?;
+        let transitions = append_segment_transitions(
+            state_graph,
+            program,
+            segment,
+            segments,
+            segment_transitions,
+        )?;
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         state_graph.states.append_to_span(
             &mut states,
@@ -694,17 +710,20 @@ fn append_segment_transitions(
     program: &Program,
     segment: &crate::segments::StateSegment,
     segments: &[crate::segments::StateSegment],
+    segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
     let mut transitions = HandleSpan::empty();
 
-    for (_, transition) in segment.transitions.iter() {
+    for transition in segment_transitions.span_or_empty(segment.transitions) {
         let transition = plan_transition(segment.key, segments, transition, program, state_graph)?;
         state_graph
             .transitions
             .append_to_span(&mut transitions, transition);
     }
 
-    if segment.next_segment_key.is_valid() && !segment_has_unconditional_transition(segment) {
+    if segment.next_segment_key.is_valid()
+        && !segment_has_unconditional_transition(segment, segment_transitions)
+    {
         let next_segment_key = segment.next_segment_key;
         let (next_index, next_segment) = segments
             .iter()

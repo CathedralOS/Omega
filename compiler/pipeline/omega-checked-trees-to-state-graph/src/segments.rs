@@ -19,7 +19,7 @@ pub(super) struct StateSegment {
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameterNode>,
     pub operations: HandleSpan<Operation>,
-    pub transitions: Arena<SegmentTransition>,
+    pub transitions: HandleSpan<SegmentTransition>,
     pub next_segment_key: StateKey,
 }
 
@@ -47,6 +47,7 @@ pub(super) fn split_state_segments(
     state: &State,
     program: &Program,
     state_graph: &mut StateGraph,
+    segment_transitions: &mut Arena<SegmentTransition>,
     segments: &mut Vec<StateSegment>,
 ) {
     let machine_symbol = machine.symbol;
@@ -54,14 +55,15 @@ pub(super) fn split_state_segments(
     let table_statements = program.statement_table.statements(state.statement_nodes);
     let first_segment_index = segments.len();
     let mut operations = HandleSpan::empty();
-    let mut transitions = Arena::with_capacity(table_statements.len());
+    let mut transitions = HandleSpan::empty();
     let mut segment_index = 0usize;
     let mut transition_section_started = false;
 
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
         if let StatementNode::Transition(table) = table_statement {
             transition_section_started = true;
-            transitions.insert(SegmentTransition::Tree { table: *table });
+            segment_transitions
+                .append_to_span(&mut transitions, SegmentTransition::Tree { table: *table });
             continue;
         }
 
@@ -85,13 +87,13 @@ pub(super) fn split_state_segments(
                 transitions: branch_call_transitions(
                     table_call.clone(),
                     statement_index + 1 < table_statements.len(),
+                    segment_transitions,
                 ),
                 next_segment_key: StateKey::default(),
             });
 
-            let remaining_statement_count = table_statements.len() - statement_index;
             operations = HandleSpan::empty();
-            transitions = Arena::with_capacity(remaining_statement_count);
+            transitions = HandleSpan::empty();
             segment_index += 1;
             transition_section_started = false;
             continue;
@@ -116,9 +118,8 @@ pub(super) fn split_state_segments(
                 next_segment_key: StateKey::default(),
             });
 
-            let remaining_statement_count = table_statements.len() - statement_index;
             operations = HandleSpan::empty();
-            transitions = Arena::with_capacity(remaining_statement_count);
+            transitions = HandleSpan::empty();
             segment_index += 1;
             transition_section_started = false;
         }
@@ -164,20 +165,26 @@ pub(super) fn split_state_segments(
 fn branch_call_transitions(
     table: TableCall,
     has_continuation_segment: bool,
-) -> Arena<SegmentTransition> {
-    let mut transitions = Arena::with_capacity(1);
-    transitions.insert(SegmentTransition::BranchCall {
-        table,
-        has_continuation_segment,
-    });
+    segment_transitions: &mut Arena<SegmentTransition>,
+) -> HandleSpan<SegmentTransition> {
+    let mut transitions = HandleSpan::empty();
+    segment_transitions.append_to_span(
+        &mut transitions,
+        SegmentTransition::BranchCall {
+            table,
+            has_continuation_segment,
+        },
+    );
     transitions
 }
 
-pub(super) fn segment_has_unconditional_transition(segment: &StateSegment) -> bool {
-    segment
-        .transitions
+pub(super) fn segment_has_unconditional_transition(
+    segment: &StateSegment,
+    segment_transitions: &Arena<SegmentTransition>,
+) -> bool {
+    segment_transitions
+        .span_or_empty(segment.transitions)
         .iter()
-        .map(|(_, transition)| transition)
         .any(|transition| match transition {
             SegmentTransition::Tree { table } => matches!(table.guard, TransitionGuardNode::Always),
             SegmentTransition::BranchCall { .. } => true,
