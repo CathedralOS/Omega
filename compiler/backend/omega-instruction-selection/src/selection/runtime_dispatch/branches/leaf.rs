@@ -78,7 +78,12 @@ fn select_runtime_leaf_branch_expansion(
         runtime_value_operands,
         selected_instructions,
     );
-    select_runtime_leaf_branch_mutation_writes(input, expansion, selected_instructions);
+    select_runtime_leaf_branch_mutation_writes(
+        input,
+        expansion,
+        runtime_value_operands,
+        selected_instructions,
+    );
     if selected_instructions.len() == write_start {
         selected_instructions.pop();
     }
@@ -168,6 +173,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
 fn select_runtime_leaf_branch_mutation_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(operations) = input
@@ -231,6 +237,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             &expressions,
             resolved_target,
             resolved_value,
+            runtime_value_operands,
             selected_instructions,
         ) {
             continue;
