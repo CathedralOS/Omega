@@ -117,7 +117,7 @@ fn select_entry_instructions(
         operands,
         runtime_value_operands,
         &mut selected_instructions,
-        &mut StateBodyVisitStack::new(),
+        &mut StateBodyVisitStack::with_capacity(input.control_flow.states.len()),
     );
 
     selected_instructions.push(exit_instruction(input));

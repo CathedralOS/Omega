@@ -19,10 +19,16 @@ pub(in crate::selection::runtime_dispatch) struct RuntimeStaticValues {
 
 impl RuntimeStaticValues {
     pub(in crate::selection::runtime_dispatch) fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
+    pub(in crate::selection::runtime_dispatch) fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: std::array::from_fn(|_| None),
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(
+                capacity.saturating_sub(INLINE_RUNTIME_STATIC_VALUE_COUNT),
+            ),
         }
     }
 

@@ -27,11 +27,11 @@ pub(super) struct StateBodyVisitStack {
 }
 
 impl StateBodyVisitStack {
-    pub(super) fn new() -> Self {
+    pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_STATE_BODY_VISIT_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(capacity.saturating_sub(INLINE_STATE_BODY_VISIT_COUNT)),
         }
     }
 
