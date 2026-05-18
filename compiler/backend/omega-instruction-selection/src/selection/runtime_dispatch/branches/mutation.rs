@@ -1,5 +1,7 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{BinaryOperator, Expression};
+use omega_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionTable,
+};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_target_operations::{
@@ -11,11 +13,17 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
     resolve_runtime_storage_place, static_integer_value,
 };
+use super::super::super::storage_places::{
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_storage_place_in_table, static_integer_value_in_table,
+};
 use super::super::text_writes::{
     runtime_text_builder_write_without_aliases_emit, select_runtime_string_descriptor_write,
     string_literal_data_handle,
 };
-use super::super::writes::runtime_storage_copy;
+use super::super::writes::{
+    runtime_storage_copy, runtime_storage_copy_in_table, runtime_storage_indirect_copy_in_table,
+};
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
@@ -244,6 +252,183 @@ pub(crate) fn select_runtime_resolved_mutation_write(
             });
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_runtime_resolved_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    resolved_target: ExpressionHandle,
+    resolved_value: ExpressionHandle,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if let Some(kind) = select_runtime_string_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_key,
+        target_source_key,
+        statement_index,
+        expressions,
+        resolved_target,
+        resolved_value,
+    )
+    .or_else(|| {
+        select_runtime_static_mutation_write_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            resolved_target,
+            resolved_value,
+        )
+    })
+    .or_else(|| {
+        runtime_storage_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            resolved_target,
+            resolved_value,
+        )
+    })
+    .or_else(|| {
+        runtime_storage_indirect_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            resolved_target,
+            resolved_value,
+        )
+    }) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
+    false
+}
+
+fn select_runtime_static_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let value = static_integer_value_in_table(&input.layouts, expressions, value)?;
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            value,
+        });
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeInteger {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+            value,
+        });
+    }
+
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    )?;
+    if !supports_scalar_integer_write(target_place.byte_count) {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+        target_region: target_place.region,
+        byte_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        value,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_string_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_key: StateKey,
+    target_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let value = expressions.string_literal_value(value)?;
+    let data = string_literal_data_handle(input, operation_key, statement_index, &value);
+
+    if data.is_valid()
+        && let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+    {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
+
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )?;
+    if target_place.byte_count != input.target.pointer_size * 2 || !data.is_valid() {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::WriteRuntimeMachineString {
+        byte_offset: target_place.byte_offset,
+        data,
+        byte_length: value.len(),
+    })
 }
 
 fn select_runtime_resolved_binary_mutation_write(
