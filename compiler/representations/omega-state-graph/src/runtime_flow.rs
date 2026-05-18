@@ -62,7 +62,7 @@ impl Default for RuntimeEdge {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeTransitionTarget {
     State { key: StateKey },
     Terminal,
