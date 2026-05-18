@@ -14,7 +14,9 @@ use super::super::storage_places::{
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_guard_call_result_place,
 };
-use omega_runtime_text::places::expression_place_eq_table_tree;
+use omega_runtime_text::places::{
+    expression_place_eq_across_tables, expression_place_eq_table_tree,
+};
 use omega_target_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
@@ -52,6 +54,27 @@ pub(super) fn select_runtime_leaf_branch_guard(
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
         runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+    if let Some(literal_guard) = runtime_text_literal_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    ) {
+        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
+            buffer: literal_guard.buffer,
+            literal: literal_guard.literal,
+        });
+    }
+    if let Some(guard) = runtime_text_storage_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
     ) {
         return Some(guard);
     }
@@ -141,6 +164,27 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
         runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+    if let Some(literal_guard) = runtime_text_literal_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    ) {
+        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
+            buffer: literal_guard.buffer,
+            literal: literal_guard.literal,
+        });
+    }
+    if let Some(guard) = runtime_text_storage_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
     ) {
         return Some(guard);
     }
@@ -469,6 +513,45 @@ fn runtime_text_literal_guard(
     })
 }
 
+fn runtime_text_literal_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> Option<RuntimeTextLiteralGuard> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+
+    let (text_place, literal) = if let Some(literal) = expressions.string_literal_value(binary.left)
+    {
+        (binary.right, literal)
+    } else if let Some(literal) = expressions.string_literal_value(binary.right) {
+        (binary.left, literal)
+    } else {
+        return None;
+    };
+
+    let buffer = runtime_text_input_buffer_data_for_text_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        text_place,
+    );
+    if !buffer.buffer.is_valid() {
+        return None;
+    }
+    Some(RuntimeTextLiteralGuard {
+        buffer: buffer.buffer,
+        literal,
+    })
+}
+
 fn runtime_text_storage_guard(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -512,6 +595,78 @@ fn runtime_text_storage_guard(
         dispatch_index,
         source_key,
         &binary.right,
+    );
+    let string_descriptor_size = input.target.pointer_size * 2;
+
+    if let Some(source_place) = left_place.clone()
+        && right_buffer.buffer.is_valid()
+        && source_place.byte_count == string_descriptor_size
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer: right_buffer.buffer,
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            operator,
+        });
+    }
+
+    if left_buffer.buffer.is_valid()
+        && let Some(source_place) = right_place
+        && source_place.byte_count == string_descriptor_size
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer: left_buffer.buffer,
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            operator,
+        });
+    }
+
+    None
+}
+
+fn runtime_text_storage_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    let operator = StateGuardOperator::Equal;
+
+    let left_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    );
+    let right_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.right,
+    );
+    let left_buffer = runtime_text_input_buffer_data_for_text_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    );
+    let right_buffer = runtime_text_input_buffer_data_for_text_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.right,
     );
     let string_descriptor_size = input.target.pointer_size * 2;
 
@@ -1078,6 +1233,40 @@ fn runtime_text_input_buffer_data_for_text_place_in_state(
             && expression_place_eq_table_tree(
                 &input.runtime_text.expressions,
                 buffer.text_place,
+                expression,
+            ))
+        .then_some(buffer)
+    });
+    let Some(buffer) = buffer else {
+        return invalid_runtime_text_input_buffer_data();
+    };
+
+    let data = input.data.objects.iter().find(|(_, data_object)| {
+        data_object.source_key == buffer.source_key
+            && data_object.source_statement == buffer.statement_index
+    });
+    let Some((data, _)) = data else {
+        return invalid_runtime_text_input_buffer_data();
+    };
+
+    let _ = dispatch_index;
+
+    RuntimeTextInputBufferData { buffer: data }
+}
+
+fn runtime_text_input_buffer_data_for_text_place_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> RuntimeTextInputBufferData {
+    let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
+        (buffer.source_key == source_key
+            && expression_place_eq_across_tables(
+                &input.runtime_text.expressions,
+                buffer.text_place,
+                expressions,
                 expression,
             ))
         .then_some(buffer)
