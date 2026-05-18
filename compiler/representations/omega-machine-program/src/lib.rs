@@ -11,10 +11,20 @@ pub struct MachineProgram {
 
 impl Default for MachineProgram {
     fn default() -> Self {
+        Self::with_capacity(NativeTarget::host(), 0, 0)
+    }
+}
+
+impl MachineProgram {
+    pub fn with_capacity(
+        target: NativeTarget,
+        function_capacity: usize,
+        instruction_capacity: usize,
+    ) -> Self {
         Self {
-            target: NativeTarget::host(),
-            functions: Arena::new(),
-            instructions: Arena::new(),
+            target,
+            functions: Arena::with_capacity(function_capacity),
+            instructions: Arena::with_capacity(instruction_capacity),
         }
     }
 }
