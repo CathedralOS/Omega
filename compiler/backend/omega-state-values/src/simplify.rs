@@ -1,8 +1,9 @@
 use crate::StateValueRole;
 use omega_checked_trees::Program;
 use omega_checked_trees::expression::{
-    BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, NamePath,
-    StructLiteral, StructLiteralField,
+    BinaryExpression, CallExpression, Expression, ExpressionHandle, ExpressionNode,
+    ExpressionTable, IndexedExpression, MemberExpression, NamePath, StructLiteral,
+    StructLiteralField,
 };
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
@@ -195,8 +196,10 @@ fn simple_local_bindings(
         if !local_data.initial_value.is_valid() {
             continue;
         }
-        let value = program.expression_table.to_tree(local_data.initial_value);
-        let Some(value) = simple_local_binding_value(&value) else {
+        let Some(value) = simple_local_binding_value_from_table(
+            &program.expression_table,
+            local_data.initial_value,
+        ) else {
             continue;
         };
         bindings.insert(Binding {
@@ -208,48 +211,59 @@ fn simple_local_bindings(
     bindings
 }
 
-fn simple_local_binding_value(expression: &Expression) -> Option<Expression> {
-    match expression {
-        Expression::Binary(binary) => Some(Expression::Binary(Box::new(BinaryExpression {
-            left: simple_local_binding_value(&binary.left)?,
+fn simple_local_binding_value_from_table(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<Expression> {
+    match table.expression(expression) {
+        ExpressionNode::Binary(binary) => Some(Expression::Binary(Box::new(BinaryExpression {
+            left: simple_local_binding_value_from_table(table, binary.left)?,
             operator: binary.operator,
-            right: simple_local_binding_value(&binary.right)?,
+            right: simple_local_binding_value_from_table(table, binary.right)?,
         }))),
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::String(_) => Some(expression.clone()),
-        Expression::Indexed(indexed) => Some(Expression::Indexed(Box::new(IndexedExpression {
-            collection: simple_local_binding_value(&indexed.collection)?,
-            index: simple_local_binding_value(&indexed.index)?,
-        }))),
-        Expression::Call(call) => Some(Expression::Call(Box::new(CallExpression {
-            receiver: call
-                .receiver
-                .as_ref()
-                .map(|receiver| simple_local_binding_value(receiver).map(Box::new))
-                .flatten(),
+        ExpressionNode::Boolean(value) => Some(Expression::Boolean(*value)),
+        ExpressionNode::Float(value) => Some(Expression::Float(*value)),
+        ExpressionNode::Integer(value) => Some(Expression::Integer(*value)),
+        ExpressionNode::String(value) => Some(Expression::String(value.clone())),
+        ExpressionNode::Indexed(indexed) => {
+            Some(Expression::Indexed(Box::new(IndexedExpression {
+                collection: simple_local_binding_value_from_table(table, indexed.collection)?,
+                index: simple_local_binding_value_from_table(table, indexed.index)?,
+            })))
+        }
+        ExpressionNode::Call(call) => Some(Expression::Call(Box::new(CallExpression {
+            receiver: call.receiver.is_valid().then(|| {
+                simple_local_binding_value_from_table(table, call.receiver).map(Box::new)
+            })?,
             target_symbol: call.target_symbol,
             target: call.target.clone(),
-            arguments: call
-                .arguments
+            arguments: table
+                .expression_handles(call.arguments)
                 .iter()
-                .map(simple_local_binding_value)
+                .map(|argument| simple_local_binding_value_from_table(table, *argument))
                 .collect::<Option<Arc<[_]>>>()?,
         }))),
-        Expression::Mutable(inner) => {
-            simple_local_binding_value(inner).map(|value| Expression::Mutable(Box::new(value)))
+        ExpressionNode::Mutable(inner) => simple_local_binding_value_from_table(table, *inner)
+            .map(|value| Expression::Mutable(Box::new(value))),
+        ExpressionNode::Name(path) => {
+            Some(Expression::Name(NamePath::resolved_with_member_symbols(
+                table.name_path_members(path.members).to_vec(),
+                table.name_path_member_symbols(path.member_symbols).to_vec(),
+                path.head_symbol,
+                path.symbol,
+            )))
         }
-        Expression::Name(_) => Some(expression.clone()),
-        Expression::Member(member) => {
-            let receiver = simple_local_binding_value(&member.receiver)?;
+        ExpressionNode::Member(member) => {
+            let receiver = simple_local_binding_value_from_table(table, member.receiver)?;
             Some(Expression::Member(Box::new(MemberExpression {
                 receiver,
                 member_symbol: member.member_symbol,
                 member: member.member.clone(),
             })))
         }
-        Expression::ArrayLiteral(_) | Expression::Cast(_) | Expression::StructLiteral(_) => None,
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::StructLiteral(_) => None,
     }
 }
 
