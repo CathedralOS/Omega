@@ -7,7 +7,7 @@ mod hierarchy_arena;
 mod ordered_root_arena;
 mod paged_arena;
 
-pub use arena::{Arena, ArenaIter};
+pub use arena::{Arena, ArenaIter, ArenaSpanInserter};
 pub use generational_paged_arena::{GenerationalPagedArena, SlotRef};
 pub use handle::Handle;
 pub use handle_span::HandleSpan;

@@ -12,7 +12,7 @@ pub use model::{
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::{Arena, ArenaSpanInserter, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
 use places::expression_place_eq_across_tables;
@@ -153,49 +153,28 @@ fn collect_builder_segments(
     builder_segments: &mut Arena<RuntimeTextBuilderSegment>,
     expression: ExpressionHandle,
 ) -> HandleSpan<RuntimeTextBuilderSegment> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
-
-    append_builder_segments(
-        expressions,
-        builder_segments,
-        expression,
-        &mut start,
-        &mut count,
-    );
-
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    builder_segments.insert_many_with(|segments| {
+        insert_builder_segments(expressions, segments, expression);
+    })
 }
 
-fn append_builder_segments(
+fn insert_builder_segments(
     expressions: &ExpressionTable,
-    builder_segments: &mut Arena<RuntimeTextBuilderSegment>,
+    builder_segments: &mut ArenaSpanInserter<'_, RuntimeTextBuilderSegment>,
     expression: ExpressionHandle,
-    start: &mut Handle<RuntimeTextBuilderSegment>,
-    count: &mut u32,
 ) {
     if let ExpressionNode::Binary(binary) = expressions.expression(expression)
         && binary.operator == BinaryOperator::Add
     {
-        append_builder_segments(expressions, builder_segments, binary.left, start, count);
-        append_builder_segments(expressions, builder_segments, binary.right, start, count);
+        insert_builder_segments(expressions, builder_segments, binary.left);
+        insert_builder_segments(expressions, builder_segments, binary.right);
         return;
     }
 
-    let handle = builder_segments.append(RuntimeTextBuilderSegment {
+    builder_segments.insert(RuntimeTextBuilderSegment {
         expression,
         kind: classify_runtime_text_builder_segment(expressions, expression),
     });
-    if *count == 0 {
-        *start = handle;
-    }
-    *count = count
-        .checked_add(1)
-        .expect("runtime text builder segment span count overflow");
 }
 
 fn classify_runtime_text_builder_segment(

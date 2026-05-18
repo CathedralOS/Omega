@@ -221,10 +221,7 @@ fn append_state_call_result_slot(
             target_key,
         },
         symbol: SymbolHandle::invalid(),
-        name: ProgramName::generated(&format!(
-            "__call_result_{}_{}",
-            statement_index, call_ordinal
-        )),
+        name: ProgramName::generated_static("__call_result"),
         type_symbol,
         type_name: type_name.into(),
         type_descriptor: type_descriptor(&context.program.type_reference_table, return_type),
