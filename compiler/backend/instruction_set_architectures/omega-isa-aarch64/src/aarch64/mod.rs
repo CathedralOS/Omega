@@ -21,8 +21,8 @@ pub fn encode_host_call_sequence(operands: &[Aarch64CallOperand]) -> Result<Vec<
 pub fn encode_host_call_sequence_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_call_operands(operands.clone())?;
-    bytes.reserve(4);
+    let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(operands.clone()));
+    append_call_operands(&mut bytes, operands)?;
     bytes.extend(encode_branch_link_placeholder());
     Ok(bytes)
 }
@@ -47,10 +47,11 @@ pub fn encode_syscall_sequence_from_operands(
     number_register: u8,
     supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_call_operands(operands.clone())?;
-    bytes.reserve(
-        syscall_sequence_width_from_operands(operands, syscall_number).saturating_sub(bytes.len()),
-    );
+    let mut bytes = Vec::with_capacity(syscall_sequence_width_from_operands(
+        operands.clone(),
+        syscall_number,
+    ));
+    append_call_operands(&mut bytes, operands)?;
     append_unsigned_immediate(&mut bytes, number_register, u64::from(syscall_number));
     bytes.extend(encode_svc(supervisor_call));
     Ok(bytes)
@@ -64,21 +65,16 @@ pub fn encode_return_bytes() -> [u8; 4] {
     encode_instruction(0xD65F03C0)
 }
 
-fn encode_call_operands(
-    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(
-        operands
-            .clone()
-            .map(|operand| operand_width(&operand))
-            .sum(),
-    );
+fn append_call_operands(
+    bytes: &mut Vec<u8>,
+    operands: impl Iterator<Item = Aarch64CallOperand>,
+) -> Result<(), Diagnostic> {
     let mut next_register = 0u8;
 
     for operand in operands {
         match &operand {
             ImmediateInteger(value) => {
-                append_immediate(&mut bytes, next_register, *value)?;
+                append_immediate(bytes, next_register, *value)?;
                 next_register += 1;
             }
             DataAddress { .. } => {
@@ -107,11 +103,11 @@ fn encode_call_operands(
                 next_register += 1;
             }
             ByteLength(value) => {
-                append_unsigned_immediate(&mut bytes, next_register, *value as u64);
+                append_unsigned_immediate(bytes, next_register, *value as u64);
                 next_register += 1;
             }
         }
     }
 
-    Ok(bytes)
+    Ok(())
 }
