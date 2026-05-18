@@ -51,10 +51,7 @@ pub fn encode_syscall_sequence_from_operands(
     bytes.reserve(
         syscall_sequence_width_from_operands(operands, syscall_number).saturating_sub(bytes.len()),
     );
-    bytes.extend(encode_unsigned_immediate(
-        number_register,
-        u64::from(syscall_number),
-    ));
+    append_unsigned_immediate(&mut bytes, number_register, u64::from(syscall_number));
     bytes.extend(encode_svc(supervisor_call));
     Ok(bytes)
 }
@@ -81,7 +78,7 @@ fn encode_call_operands(
     for operand in operands {
         match &operand {
             ImmediateInteger(value) => {
-                bytes.extend(encode_immediate(next_register, *value)?);
+                append_immediate(&mut bytes, next_register, *value)?;
                 next_register += 1;
             }
             DataAddress { .. } => {
@@ -110,7 +107,7 @@ fn encode_call_operands(
                 next_register += 1;
             }
             ByteLength(value) => {
-                bytes.extend(encode_unsigned_immediate(next_register, *value as u64));
+                append_unsigned_immediate(&mut bytes, next_register, *value as u64);
                 next_register += 1;
             }
         }
