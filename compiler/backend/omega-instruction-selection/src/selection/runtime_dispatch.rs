@@ -147,6 +147,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
+                    operands,
                     runtime_value_operands,
                     selected_instructions,
                 );
