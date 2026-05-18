@@ -138,23 +138,23 @@ pub(super) fn select_state_body_instructions(
                 continue;
             }
 
-            let target = input.state_storage.expressions.to_tree(mutation.target);
-            let value = input.state_storage.expressions.to_tree(mutation.value);
-            let resolved_target = resolve_runtime_alias_binding(
-                &target,
-                state.key,
-                aliases.bindings(),
-                alias_expressions,
-            );
-            let resolved_value = resolve_runtime_alias_binding(
-                &value,
-                state.key,
-                aliases.bindings(),
-                alias_expressions,
-            );
             if let Some(dispatch_index) =
                 dispatch_index_for_state(input, state.key).or(dispatch_index)
             {
+                let target = input.state_storage.expressions.to_tree(mutation.target);
+                let value = input.state_storage.expressions.to_tree(mutation.value);
+                let resolved_target = resolve_runtime_alias_binding(
+                    &target,
+                    state.key,
+                    aliases.bindings(),
+                    alias_expressions,
+                );
+                let resolved_value = resolve_runtime_alias_binding(
+                    &value,
+                    state.key,
+                    aliases.bindings(),
+                    alias_expressions,
+                );
                 let (machine_name, state_name) =
                     input.control_flow.state_names_by_key_cloned(state.key);
                 select_runtime_resolved_mutation_write(
