@@ -32,23 +32,17 @@ pub(super) fn layout_for_type_reference(
             ..
         }
         | TypeReferenceNode::Named { symbol, name } => {
-            layout_for_type(context, *symbol, name.as_str())
+            layout_for_named_type(context, *symbol, name.as_str())
         }
         TypeReferenceNode::Unit => TypeLayout::default(),
     }
 }
 
-pub(super) fn layout_for_type(
+fn layout_for_named_type(
     context: &RuntimeStorageContext,
     type_symbol: SymbolHandle,
     type_name: &str,
 ) -> TypeLayout {
-    let type_name = strip_constraint_suffix(type_name);
-
-    if type_name.starts_with('&') {
-        return pointer_layout(context);
-    }
-
     if type_symbol.is_valid() {
         if let Some(data_layout) = context
             .layouts
@@ -79,10 +73,6 @@ pub(super) fn layout_for_type(
         return layout;
     }
 
-    if is_slice_descriptor_name(type_name) {
-        return slice_layout(context);
-    }
-
     TypeLayout::default()
 }
 
@@ -98,10 +88,6 @@ fn slice_layout(context: &RuntimeStorageContext) -> TypeLayout {
         size: context.target.pointer_size * 2,
         alignment: context.target.pointer_alignment,
     }
-}
-
-fn is_slice_descriptor_name(type_name: &str) -> bool {
-    type_name.starts_with('[') && type_name.ends_with(']') && !type_name.contains(';')
 }
 
 fn builtin_type_layout(
@@ -145,16 +131,6 @@ fn builtin_type_layout(
     }
 
     None
-}
-
-fn strip_constraint_suffix(type_name: &str) -> &str {
-    if type_name.ends_with(" constraint]") || type_name.ends_with(" constraints]") {
-        if let Some((base_type, _)) = type_name.rsplit_once('[') {
-            return base_type;
-        }
-    }
-
-    type_name
 }
 
 fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {
