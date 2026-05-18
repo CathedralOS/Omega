@@ -3,9 +3,9 @@ use crate::host_calls::lowering::{
     platform_call_receiver_type,
 };
 use crate::host_calls::static_values::{
-    StaticValue, apply_call_static_effects, apply_static_assignment, initial_static_values,
+    StaticValues, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
-use crate::{HostCall, HostCallPlan, PlaceKey, UnsupportedHostCall};
+use crate::{HostCall, HostCallPlan, UnsupportedHostCall};
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::Program;
 use omega_checked_trees::machine::Machine;
@@ -85,7 +85,7 @@ fn collect_call_host_lowering(
     state: &State,
     statement_index: usize,
     call: &TableCall,
-    static_values: &[(PlaceKey, StaticValue)],
+    static_values: &StaticValues,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
     let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
