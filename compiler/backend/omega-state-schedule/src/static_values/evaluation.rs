@@ -83,7 +83,10 @@ fn evaluate_boolean(
     }
 }
 
-fn static_symbol_value(table: &ExpressionTable, expression: ExpressionHandle) -> Option<StaticValue> {
+fn static_symbol_value(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<StaticValue> {
     let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
     };

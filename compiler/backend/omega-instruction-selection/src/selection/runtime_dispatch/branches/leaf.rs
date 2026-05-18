@@ -53,7 +53,8 @@ fn select_runtime_leaf_branch_expansion(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion, runtime_value_operands) {
+    if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion, runtime_value_operands)
+    {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
@@ -70,11 +71,7 @@ fn select_runtime_leaf_branch_expansion(
         runtime_value_operands,
         selected_instructions,
     );
-    select_runtime_leaf_branch_mutation_writes(
-        input,
-        expansion,
-        selected_instructions,
-    );
+    select_runtime_leaf_branch_mutation_writes(input, expansion, selected_instructions);
     if selected_instructions.len() == write_start {
         selected_instructions.pop();
     }

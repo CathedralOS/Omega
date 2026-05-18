@@ -55,7 +55,8 @@ impl<'source> Lexer<'source> {
             self.lex_identifier_or_keyword(start, character)
         } else if character.is_ascii_digit()
             || (character == '.'
-                && self.peek_character()
+                && self
+                    .peek_character()
                     .is_some_and(|next| next.is_ascii_digit()))
         {
             self.lex_number(start, character)
@@ -644,7 +645,10 @@ impl<'source> Lexer<'source> {
             let Some(parsed) = digit.to_digit(16) else {
                 return Err(LexError::new(
                     "invalid hex escape digit",
-                    Span::new(source_index + offset, source_index + offset + digit.len_utf8()),
+                    Span::new(
+                        source_index + offset,
+                        source_index + offset + digit.len_utf8(),
+                    ),
                 ));
             };
             value = (value << 4) | parsed as u8;
@@ -702,7 +706,10 @@ impl<'source> Lexer<'source> {
             if !digit.is_ascii_hexdigit() {
                 return Err(LexError::new(
                     "invalid unicode escape digit",
-                    Span::new(source_index + offset, source_index + offset + digit.len_utf8()),
+                    Span::new(
+                        source_index + offset,
+                        source_index + offset + digit.len_utf8(),
+                    ),
                 ));
             }
 
@@ -771,7 +778,11 @@ mod tests {
             .collect();
 
         assert_eq!(semantic.len(), 3);
-        assert!(semantic.iter().all(|token| token.kind == TokenKind::Identifier));
+        assert!(
+            semantic
+                .iter()
+                .all(|token| token.kind == TokenKind::Identifier)
+        );
         assert_eq!(semantic[0].lexeme.as_str(), "变量");
         assert_eq!(semantic[1].lexeme.as_str(), "café");
         assert_eq!(semantic[2].lexeme.as_str(), "μέτρο");
@@ -805,7 +816,10 @@ mod tests {
         assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
         assert_eq!(tokens[1].kind, TokenKind::Whitespace);
-        assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Line)));
+        assert!(matches!(
+            tokens[2].kind,
+            TokenKind::Comment(CommentKind::Line)
+        ));
         assert_eq!(tokens[3].kind, TokenKind::Whitespace);
         assert_eq!(tokens[4].kind, TokenKind::Identifier);
         assert_eq!(tokens[4].lexeme.as_str(), "value");
@@ -820,7 +834,10 @@ mod tests {
         assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
         assert_eq!(tokens[1].kind, TokenKind::Whitespace);
-        assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Block)));
+        assert!(matches!(
+            tokens[2].kind,
+            TokenKind::Comment(CommentKind::Block)
+        ));
         assert_eq!(tokens[3].kind, TokenKind::Whitespace);
         assert_eq!(tokens[4].kind, TokenKind::Identifier);
         assert_eq!(tokens[4].lexeme.as_str(), "value");

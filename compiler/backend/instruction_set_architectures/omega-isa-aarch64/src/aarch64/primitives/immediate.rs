@@ -57,7 +57,11 @@ pub(in crate::aarch64) fn encode_unsigned_immediate_padded(register: u8, value: 
     let mut bytes = encode_movz(register, halfword(value, 0));
 
     for halfword_shift in 1..4 {
-        bytes.extend(encode_movk(register, halfword(value, halfword_shift), halfword_shift));
+        bytes.extend(encode_movk(
+            register,
+            halfword(value, halfword_shift),
+            halfword_shift,
+        ));
     }
 
     bytes

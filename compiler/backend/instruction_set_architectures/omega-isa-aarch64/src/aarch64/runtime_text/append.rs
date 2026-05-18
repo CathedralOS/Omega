@@ -319,7 +319,11 @@ fn encode_runtime_frame_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
-    bytes.extend(encode_scale_x_register_by_constant(18, 17, element_byte_size)?);
+    bytes.extend(encode_scale_x_register_by_constant(
+        18,
+        17,
+        element_byte_size,
+    )?);
     bytes.extend(encode_add_x_register(16, 16, 18));
     bytes.extend(encode_add_constant_to_x_register(16, field_byte_offset)?);
     Ok(bytes)
@@ -362,10 +366,7 @@ fn encode_scale_x_register_by_constant(
     Ok(bytes)
 }
 
-fn encode_add_constant_to_x_register(
-    register: u8,
-    value: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+fn encode_add_constant_to_x_register(register: u8, value: usize) -> Result<Vec<u8>, Diagnostic> {
     if value == 0 {
         return Ok(Vec::new());
     }

@@ -1,6 +1,4 @@
-use omega_checked_trees::expression::{
-    BinaryExpression, BinaryOperator, Expression,
-};
+use omega_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
 use std::sync::Arc;
 
 pub(super) fn normalize_guard_expression(expression: Expression) -> Expression {

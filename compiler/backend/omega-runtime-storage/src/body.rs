@@ -200,11 +200,8 @@ fn append_state_call_result_slot(
     };
     let type_symbol = context.program.type_reference_symbol(return_type);
     let type_name = context.program.display_type_reference(return_type);
-    let layout = layout_for_type_reference(
-        context,
-        &context.program.type_reference_table,
-        return_type,
-    );
+    let layout =
+        layout_for_type_reference(context, &context.program.type_reference_table, return_type);
     if layout.size == 0 {
         return;
     }

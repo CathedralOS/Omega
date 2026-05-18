@@ -3,13 +3,11 @@ use omega_target_operations::StateGuardOperator;
 
 use super::primitives::{
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w17_immediate,
-    encode_compare_x17_immediate,
-    encode_compare_w19_immediate, encode_conditional_branch_equal,
+    encode_compare_w19_immediate, encode_compare_x17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_not_equal, encode_load_w17_from_x16, encode_load_x_from_x,
-    encode_movz_w,
-    encode_unconditional_branch,
+    encode_movz_w, encode_unconditional_branch,
 };
 
 pub fn encode_dispatch_loop_enter(entry_dispatch_index: u32) -> Result<Vec<u8>, Diagnostic> {

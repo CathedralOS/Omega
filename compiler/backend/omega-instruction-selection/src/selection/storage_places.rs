@@ -719,7 +719,9 @@ fn descriptor_layout(
                 alignment: input.target.pointer_alignment,
             };
         }
-        TypeLayoutDescriptor::Constrained { base_type } => return descriptor_layout(input, base_type),
+        TypeLayoutDescriptor::Constrained { base_type } => {
+            return descriptor_layout(input, base_type);
+        }
         TypeLayoutDescriptor::FixedArray {
             element_type,
             length,

@@ -180,12 +180,7 @@ fn runtime_frame_operand_layout(
             },
         )
     } else {
-        resolve_nested_slot_layout(
-            layouts,
-            slot.byte_offset,
-            slot.type_symbol,
-            suffix,
-        )?
+        resolve_nested_slot_layout(layouts, slot.byte_offset, slot.type_symbol, suffix)?
     };
 
     Some(ResolvedOperandLayout {
@@ -565,10 +560,7 @@ fn data_layout<'plan>(
         .map(|(_, data_layout)| data_layout)
 }
 
-fn record_fields(
-    layouts: &LayoutPlan,
-    type_symbol: SymbolHandle,
-) -> HandleSpan<FieldLayout> {
+fn record_fields(layouts: &LayoutPlan, type_symbol: SymbolHandle) -> HandleSpan<FieldLayout> {
     if let Some(data_layout) = data_layout(layouts, type_symbol) {
         let DataShape::Record { fields } = &data_layout.shape else {
             return HandleSpan::empty();

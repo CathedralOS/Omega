@@ -5,9 +5,9 @@
 //! boundary is ready for its own representation crate.
 
 use omega_core::arena::{Arena, HandleSpan};
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::Item;
 use omega_syntax_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SourceGraphReport {
@@ -80,7 +80,9 @@ fn collect_state(
         .statements(state.statements)
         .iter()
         .filter_map(|statement| {
-            let StatementNode::Transition(transition) = syntax_trees.statements.statement(*statement) else {
+            let StatementNode::Transition(transition) =
+                syntax_trees.statements.statement(*statement)
+            else {
                 return None;
             };
 
@@ -124,15 +126,15 @@ fn transition_target_name(
         TransitionTargetNode::SelfTarget => "self".to_owned(),
         TransitionTargetNode::Terminal => "terminal".to_owned(),
         TransitionTargetNode::Value(expression) => {
-            format!("value {}", syntax_trees.expressions.display_name(*expression))
+            format!(
+                "value {}",
+                syntax_trees.expressions.display_name(*expression)
+            )
         }
     }
 }
 
-fn transition_guard_name(
-    syntax_trees: &SyntaxTrees,
-    guard: TransitionGuardNode,
-) -> String {
+fn transition_guard_name(syntax_trees: &SyntaxTrees, guard: TransitionGuardNode) -> String {
     match guard {
         TransitionGuardNode::Always => "always".to_owned(),
         TransitionGuardNode::When(expression) => {
@@ -145,11 +147,13 @@ fn transition_guard_name(
 mod tests {
     use super::build_source_graph_report;
     use omega_core::arena::HandleSpan;
+    use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{Item, Machine, State};
-    use omega_syntax_trees::statement::{StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode};
+    use omega_syntax_trees::statement::{
+        StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    };
     use omega_syntax_trees::types::TypeReferenceHandle;
-    use omega_syntax_trees::SyntaxTrees;
 
     #[test]
     fn collects_machine_state_transitions() {
@@ -158,19 +162,21 @@ mod tests {
         let target_path = syntax_trees
             .statements
             .append_identifier_path_member(Identifier::generated("running"));
-        let target = syntax_trees
-            .statements
-            .insert_transition_target(TransitionTargetNode::Named {
-                path: HandleSpan::from_parts(target_path, 1),
-                arguments: HandleSpan::empty(),
-            });
-        let transition = syntax_trees
-            .statements
-            .insert(StatementNode::Transition(TableTransition {
-                target,
-                continuation: omega_syntax_trees::statement::TransitionTargetHandle::invalid(),
-                guard: TransitionGuardNode::Always,
-            }));
+        let target =
+            syntax_trees
+                .statements
+                .insert_transition_target(TransitionTargetNode::Named {
+                    path: HandleSpan::from_parts(target_path, 1),
+                    arguments: HandleSpan::empty(),
+                });
+        let transition =
+            syntax_trees
+                .statements
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: omega_syntax_trees::statement::TransitionTargetHandle::invalid(),
+                    guard: TransitionGuardNode::Always,
+                }));
         let transition = syntax_trees.items.append_statement_handle(transition);
         let state = syntax_trees.items.insert_state(&State {
             name: Identifier::generated("entry"),
