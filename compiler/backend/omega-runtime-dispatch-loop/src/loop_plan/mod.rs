@@ -4,7 +4,7 @@ mod guards;
 mod inputs;
 mod model;
 
-use collection::build_runtime_dispatch_loop_case;
+use collection::{build_runtime_dispatch_loop_case, runtime_dispatch_loop_edges};
 pub use context::RuntimeDispatchLoopContext;
 pub use model::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopCase, RuntimeDispatchLoopEdge,
@@ -53,8 +53,16 @@ pub fn build_runtime_dispatch_loop_plan_with_workers(
         build_runtime_dispatch_loop_case(&context_for_cases, dispatch_state)
     });
 
-    for case in cases {
-        let edges = plan.edges.insert_many(case.edges);
+    for (index, case) in cases.into_iter().enumerate() {
+        let dispatch_state = context
+            .state_dispatch
+            .states
+            .storage_slice()
+            .get(index)
+            .expect("runtime-dispatch-loop case index should be in range");
+        let edges = plan
+            .edges
+            .insert_many(runtime_dispatch_loop_edges(&context, dispatch_state));
 
         plan.cases.insert(RuntimeDispatchLoopCase {
             key: case.key,

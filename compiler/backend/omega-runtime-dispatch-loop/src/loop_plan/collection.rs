@@ -10,25 +10,31 @@ pub(super) struct CollectedRuntimeDispatchLoopCase {
     pub key: StateKey,
     pub dispatch_index: u32,
     pub operation_count: usize,
-    pub edges: Vec<RuntimeDispatchLoopEdge>,
 }
 
 pub(super) fn build_runtime_dispatch_loop_case(
     context: &RuntimeDispatchLoopContext,
     state: &DispatchState,
 ) -> CollectedRuntimeDispatchLoopCase {
-    let Some(case_edges) = context.state_dispatch.edges.span(state.edges) else {
-        return CollectedRuntimeDispatchLoopCase {
-            key: state.key,
-            dispatch_index: state.dispatch_index,
-            operation_count: runtime_body_operation_count(context, state.dispatch_index),
-            edges: Vec::new(),
-        };
-    };
-    let edges = case_edges
-        .iter()
+    CollectedRuntimeDispatchLoopCase {
+        key: state.key,
+        dispatch_index: state.dispatch_index,
+        operation_count: runtime_body_operation_count(context, state.dispatch_index),
+    }
+}
+
+pub(super) fn runtime_dispatch_loop_edges<'context>(
+    context: &'context RuntimeDispatchLoopContext,
+    state: &'context DispatchState,
+) -> impl Iterator<Item = RuntimeDispatchLoopEdge> + 'context {
+    context
+        .state_dispatch
+        .edges
+        .span(state.edges)
+        .into_iter()
+        .flatten()
         .enumerate()
-        .map(|(order, edge)| {
+        .map(move |(order, edge)| {
             let guard_comparison = dispatch_guard_comparison(context, state.dispatch_index, order);
             let guard_expression = dispatch_guard_expression(context, state.dispatch_index, order);
             RuntimeDispatchLoopEdge {
@@ -56,14 +62,6 @@ pub(super) fn build_runtime_dispatch_loop_case(
                 forms_cycle: edge.forms_cycle,
             }
         })
-        .collect();
-
-    CollectedRuntimeDispatchLoopCase {
-        key: state.key,
-        dispatch_index: state.dispatch_index,
-        operation_count: runtime_body_operation_count(context, state.dispatch_index),
-        edges,
-    }
 }
 
 fn dispatch_action(target: &RuntimeTransitionTarget) -> RuntimeDispatchLoopAction {
