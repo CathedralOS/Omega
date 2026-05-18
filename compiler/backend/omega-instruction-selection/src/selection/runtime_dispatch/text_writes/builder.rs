@@ -58,7 +58,7 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn runtime_text_builder_write_without_aliases_emit(
+pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
