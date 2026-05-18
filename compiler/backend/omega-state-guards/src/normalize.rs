@@ -21,8 +21,7 @@ fn normalize_guard_expression_tree(expression: Expression) -> Expression {
                 .iter()
                 .cloned()
                 .map(normalize_guard_expression_tree)
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
+                .collect::<Arc<[_]>>(),
         )),
         Expression::Binary(binary) => {
             let left = normalize_guard_expression_tree(binary.left);
