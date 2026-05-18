@@ -13,7 +13,9 @@ use super::super::super::storage_places::{
     static_integer_value_in_table,
 };
 use super::super::guards::select_runtime_leaf_branch_guard;
-use super::super::text_writes::runtime_text_builder_write_with_handle_resolver_emit;
+use super::super::text_writes::{
+    runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_handle_resolver_emit,
+};
 use super::super::writes::{
     RuntimeStaticValues, runtime_storage_copy, select_runtime_frame_slot_value_write_in_table,
 };
@@ -239,6 +241,34 @@ fn select_runtime_leaf_branch_mutation_writes(
             resolved_value,
             runtime_value_operands,
             selected_instructions,
+        ) {
+            continue;
+        }
+
+        if runtime_text_builder_write_in_table_emit(
+            input,
+            expansion.dispatch_index,
+            operation.source_key,
+            operation.source_key,
+            operation.statement_index,
+            &expressions,
+            resolved_target,
+            ExpressionTable::new(),
+            &|expressions, expression| {
+                resolve_leaf_binding_expression_handle(
+                    &input.runtime_branching_calls.expressions,
+                    expressions,
+                    expression,
+                    bindings,
+                )
+            },
+            &mut |kind| {
+                selected_instructions.push(SelectedInstruction {
+                    kind,
+                    source_key: operation.source_key,
+                    source_statement: operation.statement_index,
+                });
+            },
         ) {
             continue;
         }
