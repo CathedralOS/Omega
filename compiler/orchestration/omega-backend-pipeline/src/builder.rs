@@ -173,6 +173,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         Arc::clone(&control_flow),
         Arc::clone(&backend_plan.layouts),
         Arc::clone(&backend_plan.runtime_bodies),
+        Arc::clone(&backend_plan.state_calls),
         Arc::clone(&backend_plan.state_storage),
         backend_plan.target,
     ));
