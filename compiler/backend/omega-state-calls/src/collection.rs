@@ -351,14 +351,9 @@ fn collect_expression_state_calls_in_table(
     expression: ExpressionHandle,
     calls: &mut Vec<CollectedStateCall>,
 ) {
-    match context
-        .control_flow
-        .expressions
-        .expression(expression)
-        .clone()
-    {
+    match context.control_flow.expressions.expression(expression) {
         ExpressionNode::ArrayLiteral(values) => {
-            for value in context.control_flow.expressions.expression_handles(values) {
+            for value in context.control_flow.expressions.expression_handles(*values) {
                 collect_expression_state_calls_in_table(
                     context,
                     machine,
@@ -543,7 +538,7 @@ fn collect_expression_state_calls_in_table(
             statement_index,
             call_ordinal,
             role,
-            inner,
+            *inner,
             calls,
         ),
         ExpressionNode::StructLiteral(struct_literal) => {
