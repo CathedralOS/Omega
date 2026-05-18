@@ -4,7 +4,7 @@ use omega_checked_trees::expression::{
 };
 use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 use super::storage_places::indexed_expression_path;
@@ -49,24 +49,32 @@ impl RuntimeAliasBuffer {
     }
 
     pub(super) fn set_alias(&mut self, alias: RuntimeAliasBinding) {
-        let existing_handle = self
-            .aliases
-            .iter()
-            .find(|(_, existing_alias)| {
-                self.bindings().iter().any(|binding| {
-                    binding.source_key == existing_alias.source_key
-                        && binding.parameter_symbol == existing_alias.parameter_symbol
-                }) && existing_alias.source_key == alias.source_key
-                    && existing_alias.parameter_symbol == alias.parameter_symbol
-            })
-            .map(|(handle, _)| handle);
-
-        if let Some(handle) = existing_handle {
+        if let Some(handle) = self.alias_handle(alias.source_key, alias.parameter_symbol) {
             *self.aliases.get_mut(handle) = alias;
             return;
         }
 
         self.aliases.append_to_span(&mut self.scope, alias);
+    }
+
+    fn alias_handle(
+        &self,
+        source_key: StateKey,
+        parameter_symbol: SymbolHandle,
+    ) -> Option<Handle<RuntimeAliasBinding>> {
+        let binding_index = self.bindings().iter().position(|binding| {
+            binding.source_key == source_key && binding.parameter_symbol == parameter_symbol
+        })?;
+        let arena_index = self
+            .scope
+            .start()
+            .arena_index()
+            .checked_add(u32::try_from(binding_index).ok()?)?;
+
+        Some(Handle::from_parts(
+            arena_index,
+            self.scope.start().generation(),
+        ))
     }
 }
 
