@@ -16,7 +16,9 @@ use super::super::super::lookups::{
     state_transition_argument_call, state_transition_argument_call_by_ordinal,
 };
 use super::super::guards::select_runtime_straight_line_branch_guard;
-use super::mutation::select_runtime_resolved_mutation_write;
+use super::mutation::{
+    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+};
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_state_calls::{StateCallArgument, StateCallRole};
 use omega_target_operations::RuntimeValueOperand;
@@ -115,6 +117,20 @@ fn select_runtime_straight_line_branch_writes(
                     value,
                     bindings,
                 );
+                if select_runtime_resolved_mutation_write_in_table(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.source_key,
+                    operation.source_key,
+                    operation.statement_index,
+                    &expressions,
+                    resolved_target,
+                    resolved_value,
+                    selected_instructions,
+                ) {
+                    continue;
+                }
                 let resolved_target = expressions.to_tree(resolved_target);
                 let resolved_value = expressions.to_tree(resolved_value);
                 let (operation_machine, operation_state) = state_names(input, operation.source_key);
@@ -236,6 +252,20 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             arguments,
             straight_line_bindings,
         );
+        if select_runtime_resolved_mutation_write_in_table(
+            input,
+            expansion.dispatch_index,
+            target_key,
+            target_key,
+            target_key,
+            leaf_operation.statement_index,
+            &expressions,
+            resolved_target,
+            resolved_value,
+            selected_instructions,
+        ) {
+            continue;
+        }
         let resolved_target = expressions.to_tree(resolved_target);
         let resolved_value = expressions.to_tree(resolved_value);
         select_runtime_resolved_mutation_write(

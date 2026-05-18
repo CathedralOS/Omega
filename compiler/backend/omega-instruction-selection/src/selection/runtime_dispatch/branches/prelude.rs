@@ -15,7 +15,9 @@ use omega_runtime_branching::{
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 use super::super::super::lookups::host_call_for_statement;
-use super::mutation::select_runtime_resolved_mutation_write;
+use super::mutation::{
+    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+};
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for_operation(
     input: &InstructionSelectionInput<'_>,
@@ -104,6 +106,20 @@ fn select_runtime_branch_prelude(
                     value,
                     bindings,
                 );
+                if select_runtime_resolved_mutation_write_in_table(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.source_key,
+                    operation.source_key,
+                    operation.statement_index,
+                    &expressions,
+                    resolved_target,
+                    resolved_value,
+                    selected_instructions,
+                ) {
+                    continue;
+                }
                 let resolved_target = expressions.to_tree(resolved_target);
                 let resolved_value = expressions.to_tree(resolved_value);
                 let (operation_machine, operation_state) = state_names(input, operation.source_key);
