@@ -3,6 +3,7 @@ use omega_control_flow::StateKey;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_state_dispatch::StateDispatchPlan;
 use omega_state_guards::StateGuardPlan;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopContext {
@@ -10,7 +11,7 @@ pub struct RuntimeDispatchLoopContext {
     pub(super) entry_dispatch_index: u32,
     pub(super) state_dispatch: StateDispatchPlan,
     pub(super) state_guards: StateGuardPlan,
-    pub(super) runtime_bodies: RuntimeDispatchBodyPlan,
+    pub(super) runtime_bodies: Arc<RuntimeDispatchBodyPlan>,
 }
 
 impl RuntimeDispatchLoopContext {
@@ -19,7 +20,7 @@ impl RuntimeDispatchLoopContext {
         state_dispatch: &StateDispatchPlan,
         entry_key: StateKey,
         state_guards: StateGuardPlan,
-        runtime_bodies: RuntimeDispatchBodyPlan,
+        runtime_bodies: Arc<RuntimeDispatchBodyPlan>,
     ) -> Self {
         Self {
             needed,

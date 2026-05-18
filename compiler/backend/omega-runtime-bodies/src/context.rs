@@ -13,7 +13,7 @@ pub struct RuntimeDispatchBodyContext {
     pub host_calls: HostCallPlan,
     pub state_dispatch: StateDispatchPlan,
     pub state_calls: StateCallPlan,
-    pub state_storage: StateStoragePlan,
+    pub state_storage: Arc<StateStoragePlan>,
 }
 
 impl RuntimeDispatchBodyContext {
@@ -23,7 +23,7 @@ impl RuntimeDispatchBodyContext {
         host_calls: &HostCallPlan,
         state_dispatch: &StateDispatchPlan,
         state_calls: &StateCallPlan,
-        state_storage: &StateStoragePlan,
+        state_storage: Arc<StateStoragePlan>,
     ) -> Self {
         Self {
             program,
@@ -31,7 +31,7 @@ impl RuntimeDispatchBodyContext {
             host_calls: host_calls.clone(),
             state_dispatch: state_dispatch.clone(),
             state_calls: state_calls.clone(),
-            state_storage: state_storage.clone(),
+            state_storage,
         }
     }
 }

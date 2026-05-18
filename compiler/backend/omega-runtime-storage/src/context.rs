@@ -10,9 +10,9 @@ use std::sync::Arc;
 pub struct RuntimeStorageContext {
     pub program: Arc<Program>,
     pub control_flow: Arc<ControlFlowPlan>,
-    pub layouts: LayoutPlan,
-    pub runtime_bodies: RuntimeDispatchBodyPlan,
-    pub state_storage: StateStoragePlan,
+    pub layouts: Arc<LayoutPlan>,
+    pub runtime_bodies: Arc<RuntimeDispatchBodyPlan>,
+    pub state_storage: Arc<StateStoragePlan>,
     pub target: NativeTarget,
 }
 
@@ -20,17 +20,17 @@ impl RuntimeStorageContext {
     pub fn new(
         program: Arc<Program>,
         control_flow: Arc<ControlFlowPlan>,
-        layouts: &LayoutPlan,
-        runtime_bodies: &RuntimeDispatchBodyPlan,
-        state_storage: &StateStoragePlan,
+        layouts: Arc<LayoutPlan>,
+        runtime_bodies: Arc<RuntimeDispatchBodyPlan>,
+        state_storage: Arc<StateStoragePlan>,
         target: NativeTarget,
     ) -> Self {
         Self {
             program,
             control_flow,
-            layouts: layouts.clone(),
-            runtime_bodies: runtime_bodies.clone(),
-            state_storage: state_storage.clone(),
+            layouts,
+            runtime_bodies,
+            state_storage,
             target,
         }
     }
