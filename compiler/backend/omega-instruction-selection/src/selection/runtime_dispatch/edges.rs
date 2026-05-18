@@ -50,14 +50,14 @@ pub(super) fn select_runtime_dispatch_edge(
                     dispatch_index: edge.target_dispatch_index,
                 },
                 source_key,
-                source_statement: edge.order,
+                source_statement: edge.statement_index,
             });
         }
         RuntimeDispatchLoopAction::Terminate => {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
                 source_key,
-                source_statement: edge.order,
+                source_statement: edge.statement_index,
             });
         }
         RuntimeDispatchLoopAction::Unknown => {}
@@ -112,7 +112,7 @@ fn select_dispatch_guard_instructions(
                 selected_instructions.push(SelectedInstruction {
                     kind,
                     source_key,
-                    source_statement: edge.order,
+                    source_statement: edge.statement_index,
                 });
             }
             return;
@@ -125,7 +125,7 @@ fn select_dispatch_guard_instructions(
                 input,
                 source_dispatch_index,
                 source_key,
-                edge.order,
+                edge.statement_index,
                 &input.state_guards.expressions,
                 edge.guard_expression,
                 runtime_value_operands,
@@ -134,7 +134,7 @@ fn select_dispatch_guard_instructions(
             selected_instructions.push(SelectedInstruction {
                 kind,
                 source_key,
-                source_statement: edge.order,
+                source_statement: edge.statement_index,
             });
             return;
         }
@@ -144,14 +144,14 @@ fn select_dispatch_guard_instructions(
             input,
             source_dispatch_index,
             source_key,
-            edge.order,
+            edge.statement_index,
             &guard,
             runtime_value_operands,
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind,
                 source_key,
-                source_statement: edge.order,
+                source_statement: edge.statement_index,
             });
             return;
         }
@@ -183,7 +183,7 @@ fn select_dispatch_guard_instructions(
     selected_instructions.push(SelectedInstruction {
         kind: guard_instruction,
         source_key,
-        source_statement: edge.order,
+        source_statement: edge.statement_index,
     });
 }
 
