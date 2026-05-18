@@ -9,6 +9,7 @@ use super::primitives::{
     encode_conditional_branch_not_equal, encode_load_w17_from_x16, encode_load_x_from_x,
     encode_movz_w, encode_unconditional_branch,
 };
+use super::widths::{dispatch_guard_compare_static_width, dispatch_state_write_width};
 
 pub fn encode_dispatch_loop_enter(entry_dispatch_index: u32) -> Result<Vec<u8>, Diagnostic> {
     let immediate = u16::try_from(entry_dispatch_index).map_err(|_| {
@@ -38,7 +39,7 @@ pub fn encode_dispatch_state_write(
             "AArch64 MVP encoder cannot encode dispatch index `{dispatch_index}` yet"
         ))
     })?;
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(dispatch_state_write_width());
     bytes.extend(encode_movz_w(19, immediate));
     bytes.extend(encode_unconditional_branch(case_leave_byte_distance)?);
     Ok(bytes)
@@ -55,7 +56,7 @@ pub fn encode_dispatch_guard_compare_static(
     skip_byte_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     match byte_size {
