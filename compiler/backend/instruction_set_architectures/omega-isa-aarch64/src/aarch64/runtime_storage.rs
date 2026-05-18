@@ -15,13 +15,13 @@ use super::primitives::{
     encode_sub_x_register, encode_udiv_x_register,
 };
 use super::widths::{
-    add_constant_width, runtime_frame_index_setup_width, runtime_frame_indexed_binary_write_width,
+    runtime_frame_index_setup_width, runtime_frame_indexed_binary_write_width,
     runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
     runtime_machine_string_write_width, runtime_pointee_binary_write_width,
     runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
     runtime_storage_binary_write_width, runtime_storage_compare_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
-    runtime_storage_value_compare_width, scale_index_width,
+    runtime_storage_value_compare_width, runtime_value_operand_width, scale_index_width,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -110,13 +110,13 @@ pub fn encode_runtime_value_compare(
     failure_branch_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_value_operand(runtime_value_operands, 17, &[18, 15, 14], left)?;
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        18,
-        &[15, 14],
-        right,
-    )?);
+    let mut bytes = Vec::with_capacity(
+        runtime_value_operand_width(runtime_value_operands, left)
+            + runtime_value_operand_width(runtime_value_operands, right)
+            + 8,
+    );
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
     match byte_size {
         1 | 4 => bytes.extend(encode_compare_w_register(17, 18)),
         8 => bytes.extend(encode_compare_x_register(17, 18)),
@@ -218,18 +218,8 @@ pub fn encode_runtime_storage_binary_write(
     ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        17,
-        &[18, 15, 14],
-        left,
-    )?);
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        18,
-        &[15, 14],
-        right,
-    )?);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     append_runtime_storage_result_write(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
@@ -256,18 +246,8 @@ pub fn encode_runtime_pointee_binary_write(
     if field_byte_offset > 0 {
         bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
     }
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        17,
-        &[18, 15, 14],
-        left,
-    )?);
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        18,
-        &[15, 14],
-        right,
-    )?);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -423,18 +403,8 @@ pub fn encode_runtime_frame_indexed_binary_write(
         )
         .saturating_sub(bytes.len()),
     );
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        17,
-        &[18, 15, 14],
-        left,
-    )?);
-    bytes.extend(encode_runtime_value_operand(
-        runtime_value_operands,
-        18,
-        &[15, 14],
-        right,
-    )?);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
@@ -601,12 +571,13 @@ fn encode_runtime_frame_index_target_address(
     Ok(bytes)
 }
 
-fn encode_runtime_value_operand(
+fn append_runtime_value_operand(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
+    bytes: &mut Vec<u8>,
     destination_register: u8,
     scratch_registers: &[u8],
     operand: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     match runtime_value_operands.get(operand) {
         RuntimeValueOperand::Immediate(value) => {
             let value = u64::try_from(*value).map_err(|_| {
@@ -614,20 +585,14 @@ fn encode_runtime_value_operand(
                     "AArch64 MVP encoder cannot materialize runtime immediate `{value}` yet"
                 ))
             })?;
-            let mut bytes = Vec::with_capacity(16);
-            append_unsigned_immediate(&mut bytes, destination_register, value);
-            Ok(bytes)
+            append_unsigned_immediate(bytes, destination_register, value);
+            Ok(())
         }
         RuntimeValueOperand::Storage {
             byte_offset,
             byte_size,
             ..
         } => {
-            let mut bytes = Vec::with_capacity(match byte_size {
-                1 | 4 => 12,
-                8 => 20,
-                _ => 0,
-            });
             bytes.extend(encode_adrp_placeholder(19));
             bytes.extend(encode_add_page_offset_placeholder(19));
             match byte_size {
@@ -648,14 +613,13 @@ fn encode_runtime_value_operand(
                     )));
                 }
             }
-            Ok(bytes)
+            Ok(())
         }
         RuntimeValueOperand::Pointee {
             pointer_byte_offset,
             field_byte_offset,
             byte_size,
         } => {
-            let mut bytes = Vec::with_capacity(20 + add_constant_width(*field_byte_offset));
             bytes.extend(encode_adrp_placeholder(19));
             bytes.extend(encode_add_page_offset_placeholder(19));
             bytes.extend(encode_load_x_from_x(19, 19, *pointer_byte_offset)?);
@@ -676,7 +640,7 @@ fn encode_runtime_value_operand(
                     )));
                 }
             }
-            Ok(bytes)
+            Ok(())
         }
         RuntimeValueOperand::FrameIndexed {
             descriptor_offset,
@@ -685,12 +649,12 @@ fn encode_runtime_value_operand(
             field_byte_offset,
             byte_size,
         } => {
-            let mut bytes = encode_runtime_frame_index_target_address(
+            bytes.extend(encode_runtime_frame_index_target_address(
                 *descriptor_offset,
                 *index_offset,
                 *element_byte_size,
                 *field_byte_offset,
-            )?;
+            )?);
             match byte_size {
                 1 | 4 => bytes.extend(encode_load_w_from_x(
                     destination_register,
@@ -705,7 +669,7 @@ fn encode_runtime_value_operand(
                     )));
                 }
             }
-            Ok(bytes)
+            Ok(())
         }
         RuntimeValueOperand::Binary {
             left,
@@ -718,24 +682,26 @@ fn encode_runtime_value_operand(
                 ));
             };
 
-            let mut bytes = encode_runtime_value_operand(
+            append_runtime_value_operand(
                 runtime_value_operands,
+                bytes,
                 destination_register,
                 scratch_registers,
                 *left,
             )?;
-            bytes.extend(encode_runtime_value_operand(
+            append_runtime_value_operand(
                 runtime_value_operands,
+                bytes,
                 rhs_register,
                 remaining_scratch,
                 *right,
-            )?);
+            )?;
             bytes.extend(encode_runtime_binary_operation(
                 destination_register,
                 *operator,
                 rhs_register,
             )?);
-            Ok(bytes)
+            Ok(())
         }
     }
 }

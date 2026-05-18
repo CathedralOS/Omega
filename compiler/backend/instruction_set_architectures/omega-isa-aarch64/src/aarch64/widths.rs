@@ -263,7 +263,7 @@ fn runtime_storage_copy_data_width(byte_count: usize) -> usize {
     }
 }
 
-fn runtime_value_operand_width(
+pub(in crate::aarch64) fn runtime_value_operand_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
