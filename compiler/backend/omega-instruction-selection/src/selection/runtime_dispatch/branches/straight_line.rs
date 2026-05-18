@@ -97,11 +97,13 @@ fn select_runtime_straight_line_branch_writes(
         .straight_line_bindings
         .span(expansion.bindings)
         .unwrap_or(&[]);
+    let mut expressions = ExpressionTable::new();
+    let mut resolved_segment_expressions = ExpressionTable::new();
 
     for operation in operations {
         match &operation.kind {
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
-                let mut expressions = ExpressionTable::new();
+                expressions.clear();
                 let target =
                     expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
                 let value =
@@ -133,6 +135,7 @@ fn select_runtime_straight_line_branch_writes(
                 ) {
                     continue;
                 }
+                resolved_segment_expressions.clear();
                 if runtime_text_builder_write_in_table_emit(
                     input,
                     expansion.dispatch_index,
@@ -141,7 +144,7 @@ fn select_runtime_straight_line_branch_writes(
                     operation.statement_index,
                     &expressions,
                     resolved_target,
-                    ExpressionTable::new(),
+                    &mut resolved_segment_expressions,
                     &|expressions, expression| {
                         resolve_straight_line_binding_expression_handle(
                             &input.runtime_branching_calls.expressions,
@@ -251,6 +254,8 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         return;
     };
     let (target_machine, target_state) = state_names(input, target_key);
+    let mut expressions = ExpressionTable::new();
+    let mut resolved_segment_expressions = ExpressionTable::new();
     for leaf_operation in operations {
         let Some(mutation) =
             state_mutation_for_statement(input, target_key, leaf_operation.statement_index)
@@ -258,7 +263,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             continue;
         };
 
-        let mut expressions = ExpressionTable::new();
+        expressions.clear();
         let mutation_target =
             expressions.copy_from(&input.state_storage.expressions, mutation.target);
         let mutation_value =
@@ -296,6 +301,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         ) {
             continue;
         }
+        resolved_segment_expressions.clear();
         if runtime_text_builder_write_in_table_emit(
             input,
             expansion.dispatch_index,
@@ -304,7 +310,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             leaf_operation.statement_index,
             &expressions,
             resolved_target,
-            ExpressionTable::new(),
+            &mut resolved_segment_expressions,
             &|expressions, expression| {
                 resolve_leaf_call_expression_handle(
                     input,

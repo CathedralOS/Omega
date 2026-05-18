@@ -104,7 +104,7 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
         source_state,
         statement_index,
         resolved_target,
-        resolved_segment_expressions,
+        &mut resolved_segment_expressions,
         &|expressions, expression| {
             resolve_runtime_alias_binding_handle(
                 expression,
@@ -316,7 +316,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
     source_state: &str,
     statement_index: usize,
     resolved_target: &Expression,
-    mut resolved_segment_expressions: ExpressionTable,
+    resolved_segment_expressions: &mut ExpressionTable,
     resolve_expression: &dyn Fn(&mut ExpressionTable, ExpressionHandle) -> ExpressionHandle,
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
@@ -362,7 +362,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
         buffer,
         &target,
         segments,
-        &mut resolved_segment_expressions,
+        resolved_segment_expressions,
         resolve_expression,
         emit,
     )
@@ -377,7 +377,7 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
     statement_index: usize,
     target_expressions: &ExpressionTable,
     resolved_target: ExpressionHandle,
-    mut resolved_segment_expressions: ExpressionTable,
+    resolved_segment_expressions: &mut ExpressionTable,
     resolve_expression: &dyn Fn(&mut ExpressionTable, ExpressionHandle) -> ExpressionHandle,
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
@@ -435,7 +435,7 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
         buffer,
         &target,
         segments,
-        &mut resolved_segment_expressions,
+        resolved_segment_expressions,
         resolve_expression,
         emit,
     )

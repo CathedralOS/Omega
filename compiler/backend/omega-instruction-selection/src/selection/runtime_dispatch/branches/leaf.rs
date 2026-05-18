@@ -203,12 +203,15 @@ fn select_runtime_leaf_branch_mutation_writes(
         .leaf_bindings
         .span(expansion.bindings)
         .unwrap_or(&[]);
+    let mut expressions = ExpressionTable::new();
+    let mut resolved_segment_expressions = ExpressionTable::new();
+    let mut fallback_segment_expressions = ExpressionTable::new();
 
     for operation in operations {
         let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
             continue;
         };
-        let mut expressions = ExpressionTable::new();
+        expressions.clear();
         let target = expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
         let value = expressions.copy_from(&input.runtime_branching_calls.expressions, *value);
         let resolved_target = resolve_leaf_binding_expression_handle(
@@ -258,6 +261,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
+        resolved_segment_expressions.clear();
         if runtime_text_builder_write_in_table_emit(
             input,
             expansion.dispatch_index,
@@ -266,7 +270,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             operation.statement_index,
             &expressions,
             resolved_target,
-            ExpressionTable::new(),
+            &mut resolved_segment_expressions,
             &|expressions, expression| {
                 resolve_leaf_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
@@ -304,6 +308,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         }
 
         let (operation_machine, operation_state) = state_names(input, operation.source_key);
+        fallback_segment_expressions.clear();
         if runtime_text_builder_write_with_handle_resolver_emit(
             input,
             expansion.dispatch_index,
@@ -312,7 +317,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             &operation_state,
             operation.statement_index,
             &resolved_target,
-            ExpressionTable::new(),
+            &mut fallback_segment_expressions,
             &|expressions, expression| {
                 resolve_leaf_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,

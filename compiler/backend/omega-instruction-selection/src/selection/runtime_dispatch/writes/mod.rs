@@ -388,7 +388,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
         statement_index,
         expressions,
         target,
-        resolved_segment_expressions,
+        &mut resolved_segment_expressions,
         &|expressions, expression| {
             resolve_runtime_alias_binding_handle(
                 expression,

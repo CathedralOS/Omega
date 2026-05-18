@@ -68,6 +68,8 @@ fn select_runtime_branch_prelude(
         .span(expansion.bindings)
         .unwrap_or(&[]);
     let alias_bindings = prelude_alias_bindings(expansion.target_key, bindings);
+    let mut expressions = ExpressionTable::new();
+    let mut resolved_segment_expressions = ExpressionTable::new();
 
     for operation in operations {
         match &operation.kind {
@@ -90,7 +92,7 @@ fn select_runtime_branch_prelude(
                 );
             }
             RuntimeBranchPreludeOperationKind::Mutation { target, value, .. } => {
-                let mut expressions = ExpressionTable::new();
+                expressions.clear();
                 let target =
                     expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
                 let value =
@@ -122,6 +124,7 @@ fn select_runtime_branch_prelude(
                 ) {
                     continue;
                 }
+                resolved_segment_expressions.clear();
                 if runtime_text_builder_write_in_table_emit(
                     input,
                     expansion.dispatch_index,
@@ -130,7 +133,7 @@ fn select_runtime_branch_prelude(
                     operation.statement_index,
                     &expressions,
                     resolved_target,
-                    ExpressionTable::new(),
+                    &mut resolved_segment_expressions,
                     &|expressions, expression| {
                         resolve_branch_prelude_binding_expression_handle(
                             &input.runtime_branching_calls.expressions,
