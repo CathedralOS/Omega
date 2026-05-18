@@ -44,12 +44,16 @@ pub(super) struct StateScheduleWorkspace {
 }
 
 impl StateScheduleWorkspace {
-    pub(super) fn with_state_capacity(state_capacity: usize) -> Self {
+    pub(super) fn with_capacities(
+        state_capacity: usize,
+        static_value_capacity: usize,
+        alias_capacity: usize,
+    ) -> Self {
         Self {
             schedule: Vec::with_capacity(state_capacity),
             visited: VisitedStates::with_capacity(state_capacity),
-            values: Vec::new(),
-            aliases: Vec::new(),
+            values: Vec::with_capacity(static_value_capacity),
+            aliases: Vec::with_capacity(alias_capacity),
         }
     }
 

@@ -42,7 +42,13 @@ pub fn build_entry_state_schedule(
     entry_key: StateKey,
 ) -> Result<Vec<ScheduledState>, String> {
     let state_capacity = context.control_flow.states.len();
-    let mut workspace = StateScheduleWorkspace::with_state_capacity(state_capacity);
+    let static_value_capacity = context.control_flow.machine_owned_data.len();
+    let alias_capacity = context.control_flow.state_parameters.len();
+    let mut workspace = StateScheduleWorkspace::with_capacities(
+        state_capacity,
+        static_value_capacity,
+        alias_capacity,
+    );
 
     append_state_chain(context, entry_key, &mut workspace)?;
 
