@@ -80,6 +80,15 @@ fn emit_function_bytes(
 
     for (machine_instruction_index, machine_instruction) in machine_instructions.iter().enumerate()
     {
+        let laid_out_instruction = &laid_out_instructions[machine_instruction_index];
+        if laid_out_instruction.byte_width == 0 {
+            encoded_plan.instructions.insert(EncodedMachineInstruction {
+                selected_instruction_index: machine_instruction.selected_instruction_index,
+                bytes: HandleSpan::empty(),
+            });
+            continue;
+        }
+
         let selected_handle =
             Handle::from_arena_index(machine_instruction.selected_instruction_index);
         let selected_instruction = emission_context
