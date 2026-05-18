@@ -1,5 +1,7 @@
 use crate::EmissionPlanningInput;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_state_calls::StateCall;
 use omega_state_calls::StateCallLowering;
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 
@@ -29,6 +31,9 @@ pub(super) fn collect_state_call_blockers(
 
         let source_name = state_name(input, state_call.source_key);
         if !state_call.target_key.is_valid() {
+            if unresolved_call_is_host_call(input, state_call) {
+                continue;
+            }
             blockers.insert(blocker(
                 "state calls",
                 &format!(
@@ -88,15 +93,15 @@ pub(super) fn collect_state_call_blockers(
                     proof_scope_suffix(input, state_call.source_key)
                 ),
             )),
-            StateCallLowering::Unresolved => blockers.insert(blocker(
-                "state calls",
-                &format!(
-                    "{} statement {} has unresolved state call through `{}`",
-                    source_name,
-                    state_call.statement_index,
-                    state_call_receiver_name(input, state_call)
-                ),
-            )),
+        StateCallLowering::Unresolved => blockers.insert(blocker(
+            "state calls",
+            &format!(
+                "{} statement {} has unresolved state call through `{}`",
+                source_name,
+                state_call.statement_index,
+                state_call_receiver_name(input, state_call)
+            ),
+        )),
         };
     }
 }
@@ -107,6 +112,9 @@ fn collect_unresolved_state_call_blockers(
 ) {
     for (_, state_call) in input.state_calls.calls.iter() {
         if !state_call.required || state_call.target_key.is_valid() {
+            continue;
+        }
+        if unresolved_call_is_host_call(input, state_call) {
             continue;
         }
 
@@ -121,4 +129,15 @@ fn collect_unresolved_state_call_blockers(
             ),
         ));
     }
+}
+
+fn unresolved_call_is_host_call(input: &EmissionPlanningInput<'_>, state_call: &StateCall) -> bool {
+    input.host_calls.calls.iter().any(|(_, host_call)| {
+        state_key_matches_statement_source(host_call.source_key, state_call.source_key)
+            && host_call.statement_index == state_call.statement_index
+    })
+}
+
+fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
 }

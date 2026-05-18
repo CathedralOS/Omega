@@ -8,6 +8,7 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::TableCall;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 
 pub(crate) fn platform_call_receiver_type<'program>(
     program: &'program Program,
@@ -27,7 +28,9 @@ pub(crate) fn platform_call_receiver_type<'program>(
         .iter()
         .find(|contained_object| contained_object.symbol == call.receiver_symbol)
         .map(|contained_object| contained_object.type_symbol)
+        .or_else(|| data_field_type_symbol(program, call.receiver_symbol))
         .or_else(|| {
+            let receiver_leaf_name = receiver_leaf_name(program, call);
             program
                 .data_definitions()
                 .iter()
@@ -38,7 +41,8 @@ pub(crate) fn platform_call_receiver_type<'program>(
                         .iter()
                         .find_map(|member| match member {
                             omega_checked_trees::data::DataMember::Field(field)
-                                if field.symbol == call.receiver_symbol =>
+                                if field.symbol == call.receiver_symbol
+                                    || receiver_leaf_name == Some(field.name.as_str()) =>
                             {
                                 let type_symbol =
                                     program.type_reference_symbol(field.type_reference);
@@ -84,6 +88,37 @@ pub(crate) fn platform_call_receiver_type<'program>(
         .iter()
         .find(|platform| platform.symbol == receiver_type_symbol)
         .map(|platform| platform.name.as_str())
+}
+
+fn receiver_leaf_name<'program>(
+    program: &'program Program,
+    call: &TableCall,
+) -> Option<&'program str> {
+    program
+        .statement_table
+        .name_path_members(call.receiver)
+        .last()
+        .map(|name| name.as_str())
+}
+
+fn data_field_type_symbol(program: &Program, field_symbol: SymbolHandle) -> Option<SymbolHandle> {
+    program
+        .data_definitions()
+        .iter()
+        .find_map(|data_definition| {
+            program
+                .data_members(data_definition)
+                .iter()
+                .find_map(|member| match member {
+                    omega_checked_trees::data::DataMember::Field(field)
+                        if field.symbol == field_symbol =>
+                    {
+                        let type_symbol = program.type_reference_symbol(field.type_reference);
+                        type_symbol.is_valid().then_some(type_symbol)
+                    }
+                    _ => None,
+                })
+        })
 }
 
 pub(crate) fn find_platform_call_lowering<'abi>(

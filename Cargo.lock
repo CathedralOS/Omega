@@ -495,8 +495,13 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
+ "omega-source-files-to-tokens",
+ "omega-symbol-resolved-trees-to-typed-trees",
+ "omega-syntax-trees-to-symbol-resolved-trees",
  "omega-target",
+ "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
+ "omega-typed-trees-to-checked-trees",
 ]
 
 [[package]]
