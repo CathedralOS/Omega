@@ -102,6 +102,7 @@ pub(super) fn select_state_body_instructions(
         .span_or_empty(state.transitions);
     let mut expressions = ExpressionTable::new();
     let mut child_alias_expressions = ExpressionTable::new();
+    let mut mutation_mutable_expressions = ExpressionTable::new();
     let mut mutation_segment_expressions = ExpressionTable::new();
     let mut storage_write_scratch = RuntimeStorageWriteScratch::default();
     let mut static_values = super::runtime_dispatch::RuntimeStaticValues::with_capacity(
@@ -183,6 +184,7 @@ pub(super) fn select_state_body_instructions(
                     &expressions,
                     resolved_target.expression,
                     resolved_value.expression,
+                    &mut mutation_mutable_expressions,
                     &mut mutation_segment_expressions,
                     runtime_value_operands,
                     selected_instructions,

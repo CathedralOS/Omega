@@ -24,6 +24,7 @@ use super::mutation::{
 #[derive(Default)]
 struct BranchPreludeSelectionScratch {
     expressions: ExpressionTable,
+    mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
 }
 
@@ -131,6 +132,7 @@ fn select_runtime_branch_prelude(
                     &expressions,
                     resolved_target,
                     resolved_value,
+                    &mut scratch.mutable_expressions,
                     &mut scratch.resolved_segment_expressions,
                     runtime_value_operands,
                     selected_instructions,

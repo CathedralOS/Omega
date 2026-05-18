@@ -33,6 +33,7 @@ fn supports_scalar_integer_write(byte_size: usize) -> bool {
 #[derive(Default)]
 struct LeafBranchSelectionScratch {
     expressions: ExpressionTable,
+    mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
     fallback_segment_expressions: ExpressionTable,
 }
@@ -177,6 +178,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
         &expressions,
         target,
         resolved_value,
+        &mut scratch.mutable_expressions,
         &mut scratch.resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
@@ -274,6 +276,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             &expressions,
             resolved_target,
             resolved_value,
+            &mut scratch.mutable_expressions,
             &mut scratch.resolved_segment_expressions,
             runtime_value_operands,
             selected_instructions,
