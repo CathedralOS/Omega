@@ -306,6 +306,57 @@ pub(super) fn select_runtime_dispatch_expression_guard(
         .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, &normalized_guard))
 }
 
+pub(super) fn select_runtime_dispatch_expression_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    if !guard.is_valid() {
+        return None;
+    }
+
+    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+
+    if let Some(literal_guard) =
+        runtime_text_literal_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
+            buffer: literal_guard.buffer,
+            literal: literal_guard.literal,
+        });
+    }
+
+    runtime_text_storage_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+        .or_else(|| {
+            runtime_value_guard_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions,
+                guard,
+                runtime_value_operands,
+            )
+        })
+        .or_else(|| {
+            runtime_storage_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+        })
+}
+
 fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<TransitionGuard> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return None;
