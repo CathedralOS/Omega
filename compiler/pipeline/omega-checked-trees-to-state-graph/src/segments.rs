@@ -261,7 +261,7 @@ fn statement_call_receiver_name(program: &Program, call: &TableCall) -> ProgramN
     receiver
         .last()
         .cloned()
-        .unwrap_or_else(|| ProgramName::generated("self"))
+        .unwrap_or_else(|| ProgramName::generated_static("self"))
 }
 
 fn operation_expression_refs(

@@ -420,7 +420,7 @@ fn append_borrow_call(
 ) {
     let receiver = receiver_path
         .and_then(|receiver| receiver.last().cloned())
-        .unwrap_or_else(|| ProgramName::generated("self"));
+        .unwrap_or_else(|| ProgramName::generated_static("self"));
 
     calls.append_to_span(
         state_calls,

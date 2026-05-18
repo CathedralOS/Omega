@@ -389,7 +389,7 @@ fn collect_expression_state_calls_in_table(
                 receiver_symbol: receiver.symbol,
                 receiver: receiver
                     .last_member
-                    .unwrap_or_else(|| ProgramName::generated("self")),
+                    .unwrap_or_else(|| ProgramName::generated_static("self")),
                 target_key: resolved_target
                     .as_ref()
                     .map(|target| target.key)
