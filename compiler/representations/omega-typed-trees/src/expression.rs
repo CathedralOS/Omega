@@ -39,9 +39,16 @@ impl ExpressionTable {
     }
 
     pub fn with_expression_capacity(expression_capacity: usize) -> Self {
+        Self::with_expression_and_handle_capacity(expression_capacity, 0)
+    }
+
+    pub fn with_expression_and_handle_capacity(
+        expression_capacity: usize,
+        expression_handle_capacity: usize,
+    ) -> Self {
         Self {
             expressions: Arena::with_capacity(expression_capacity),
-            expression_handles: Arena::new(),
+            expression_handles: Arena::with_capacity(expression_handle_capacity),
             name_path_members: Arena::new(),
             name_path_member_symbols: Arena::new(),
             struct_fields: Arena::new(),
