@@ -70,10 +70,10 @@ pub(crate) fn append_state_chain(
     loop {
         let current = ScheduledState { key: current_key };
 
-        if workspace.visited().contains(&current) {
+        if workspace.contains_visited(current) {
             return Err(format!(
                 "cycle {}; native emission does not support loops yet",
-                cycle_path(context, workspace.visited(), &current)
+                cycle_path(context, workspace.visited_iter(), &current)
             ));
         }
 
