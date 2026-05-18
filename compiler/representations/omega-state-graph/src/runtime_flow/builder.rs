@@ -23,11 +23,11 @@ pub(super) struct StateKeyBuffer {
 }
 
 impl StateKeyBuffer {
-    fn new() -> Self {
+    fn with_capacity(state_capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_RUNTIME_STATE_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(state_capacity.saturating_sub(INLINE_RUNTIME_STATE_COUNT)),
         }
     }
 
@@ -86,11 +86,19 @@ impl StateKeyBuffer {
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
     pub(super) fn new(control_flow: &'plan ControlFlowPlan) -> Self {
+        let state_capacity = control_flow.states.len();
+        let edge_capacity = control_flow.transitions.len();
+
         Self {
             control_flow,
-            runtime_flow: RuntimeFlowPlan::default(),
-            active_states: StateKeyBuffer::new(),
-            reached_states: StateKeyBuffer::new(),
+            runtime_flow: RuntimeFlowPlan::with_capacity(
+                state_capacity,
+                edge_capacity,
+                state_capacity,
+                state_capacity,
+            ),
+            active_states: StateKeyBuffer::with_capacity(state_capacity),
+            reached_states: StateKeyBuffer::with_capacity(state_capacity),
         }
     }
 
