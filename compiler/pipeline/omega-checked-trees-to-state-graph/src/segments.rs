@@ -26,9 +26,11 @@ pub(super) struct StateSegment {
 #[derive(Debug, Clone)]
 pub(super) enum SegmentTransition {
     Tree {
+        statement_index: usize,
         table: TableTransition,
     },
     BranchCall {
+        statement_index: usize,
         table: TableCall,
         has_continuation_segment: bool,
     },
@@ -37,6 +39,7 @@ pub(super) enum SegmentTransition {
 impl Default for SegmentTransition {
     fn default() -> Self {
         Self::Tree {
+            statement_index: 0,
             table: TableTransition::default(),
         }
     }
@@ -62,8 +65,13 @@ pub(super) fn split_state_segments(
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
         if let StatementNode::Transition(table) = table_statement {
             transition_section_started = true;
-            segment_transitions
-                .append_to_span(&mut transitions, SegmentTransition::Tree { table: *table });
+            segment_transitions.append_to_span(
+                &mut transitions,
+                SegmentTransition::Tree {
+                    statement_index,
+                    table: *table,
+                },
+            );
             continue;
         }
 
@@ -85,6 +93,7 @@ pub(super) fn split_state_segments(
                 ),
                 operations,
                 transitions: branch_call_transitions(
+                    statement_index,
                     table_call.clone(),
                     statement_index + 1 < table_statements.len(),
                     segment_transitions,
@@ -163,6 +172,7 @@ pub(super) fn split_state_segments(
 }
 
 fn branch_call_transitions(
+    statement_index: usize,
     table: TableCall,
     has_continuation_segment: bool,
     segment_transitions: &mut Arena<SegmentTransition>,
@@ -171,6 +181,7 @@ fn branch_call_transitions(
     segment_transitions.append_to_span(
         &mut transitions,
         SegmentTransition::BranchCall {
+            statement_index,
             table,
             has_continuation_segment,
         },
@@ -186,7 +197,9 @@ pub(super) fn segment_has_unconditional_transition(
         .span_or_empty(segment.transitions)
         .iter()
         .any(|transition| match transition {
-            SegmentTransition::Tree { table } => matches!(table.guard, TransitionGuardNode::Always),
+            SegmentTransition::Tree { table, .. } => {
+                matches!(table.guard, TransitionGuardNode::Always)
+            }
             SegmentTransition::BranchCall { .. } => true,
         })
 }

@@ -386,7 +386,7 @@ fn remap_operation_expression_refs(
 
 fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
     TransitionFlow {
-        statement_index: 0,
+        statement_index: transition.statement_index,
         target: remap_transition_target(&transition.target),
         continuation: remap_transition_target(&transition.continuation),
         expressions: TransitionExpressionRefs {
