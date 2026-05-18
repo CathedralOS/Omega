@@ -2,7 +2,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_object::{ObjectPlan, RelocationPlan};
+use omega_object::{ObjectPlan, RelocationPlan, object_symbol_handle_by_name};
 use omega_target::NativeTarget;
 use omega_target_operations::{FunctionInstructionPlan, InstructionPlan, TargetDataPlan};
 
@@ -49,6 +49,8 @@ fn collect_function_relocations(
     let Some(instructions) = input.instructions.instructions.span(function.instructions) else {
         return Ok(());
     };
+    let function_symbol_handle =
+        object_symbol_handle_by_name(&input.object, function.symbol.as_ref());
 
     for (offset, instruction) in instructions.iter().enumerate() {
         let selected_instruction_index = function
@@ -67,7 +69,7 @@ fn collect_function_relocations(
 
         collect_instruction_relocations(
             input,
-            function,
+            function_symbol_handle,
             selected_instruction_index,
             selected_text_offset,
             instruction,

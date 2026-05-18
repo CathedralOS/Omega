@@ -220,10 +220,7 @@ pub(super) fn collect_runtime_text_relocations(
                     return;
                 };
                 context.relocation_plan.records.insert(RelocationRecord {
-                    function_symbol_handle: object_symbol_handle_by_name(
-                        &context.input.object,
-                        context.function.symbol.as_ref(),
-                    ),
+                    function_symbol_handle: context.function_symbol_handle,
                     selected_instruction_index: context.selected_instruction_index,
                     text_offset: runtime_text_line_read_import_call_offset(
                         context.input.target.architecture,

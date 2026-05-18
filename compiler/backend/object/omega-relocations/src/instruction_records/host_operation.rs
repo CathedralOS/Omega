@@ -26,10 +26,7 @@ pub(super) fn collect_host_operation_relocation(
     };
 
     context.relocation_plan.records.insert(RelocationRecord {
-        function_symbol_handle: object_symbol_handle_by_name(
-            &context.input.object,
-            context.function.symbol.as_ref(),
-        ),
+        function_symbol_handle: context.function_symbol_handle,
         selected_instruction_index: context.selected_instruction_index,
         text_offset: external_call_relocation_offset(
             context.input.target.architecture,
