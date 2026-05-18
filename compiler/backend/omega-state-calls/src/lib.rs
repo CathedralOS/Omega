@@ -10,7 +10,6 @@ use arguments::build_call_arguments;
 use collection::collect_machine_state_calls;
 use lowering::state_call_lowering;
 use omega_control_flow::{ControlFlowPlan, OperationKind, StateKey};
-use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_platform_interface::HostCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
@@ -139,14 +138,16 @@ pub fn build_state_call_plan_with_workers(
         collect_machine_state_calls(&context_for_collection, machine)
     });
 
-    let mut calls = machine_calls.into_iter().flatten().collect::<Vec<_>>();
+    let call_count = machine_calls.iter().map(Vec::len).sum();
+    let mut calls = Vec::with_capacity(call_count);
+    for machine_calls in machine_calls {
+        calls.extend(machine_calls);
+    }
 
     mark_required_state_calls(&context, &mut calls);
 
-    let mut plan = StateCallPlan {
-        calls: Arena::with_capacity(calls.len()),
-        ..StateCallPlan::default()
-    };
+    let argument_count = collected_call_argument_count(&context, &calls);
+    let mut plan = StateCallPlan::with_capacity(calls.len(), argument_count);
     for call in calls {
         let lowering = state_call_lowering(&context, &call);
         let arguments = build_call_arguments(
@@ -180,4 +181,20 @@ pub fn build_state_call_plan_with_workers(
     }
 
     plan
+}
+
+fn collected_call_argument_count(
+    context: &StateCallPlanningContext,
+    calls: &[collection::CollectedStateCall],
+) -> usize {
+    calls
+        .iter()
+        .map(|call| {
+            context
+                .control_flow
+                .expressions
+                .expression_handles(call.raw_arguments)
+                .len()
+        })
+        .sum()
 }

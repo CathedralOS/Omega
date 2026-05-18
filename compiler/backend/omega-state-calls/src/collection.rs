@@ -29,7 +29,7 @@ pub(crate) fn collect_machine_state_calls(
     context: &StateCallPlanningContext,
     machine: &MachineFlow,
 ) -> Vec<CollectedStateCall> {
-    let mut calls = Vec::new();
+    let mut calls = Vec::with_capacity(estimated_machine_state_call_capacity(context, machine));
 
     let Some(states) = context.control_flow.states.span(machine.states) else {
         return calls;
@@ -120,6 +120,68 @@ pub(crate) fn collect_machine_state_calls(
     }
 
     calls
+}
+
+fn estimated_machine_state_call_capacity(
+    context: &StateCallPlanningContext,
+    machine: &MachineFlow,
+) -> usize {
+    let Some(states) = context.control_flow.states.span(machine.states) else {
+        return 0;
+    };
+
+    states
+        .iter()
+        .map(|state| {
+            let operation_capacity = context
+                .control_flow
+                .operations
+                .span(state.operations)
+                .map(|operations| {
+                    operations
+                        .iter()
+                        .map(|operation| {
+                            usize::from(matches!(operation.kind, OperationKind::Call { .. }))
+                                + operation_expression_call_capacity(operation.expressions)
+                        })
+                        .sum::<usize>()
+                })
+                .unwrap_or(0);
+
+            let transition_capacity = context
+                .control_flow
+                .transitions
+                .span(state.transitions)
+                .map(|transitions| {
+                    transitions
+                        .iter()
+                        .map(|transition| {
+                            transition_expression_call_capacity(transition.expressions)
+                        })
+                        .sum::<usize>()
+                })
+                .unwrap_or(0);
+
+            operation_capacity.saturating_add(transition_capacity)
+        })
+        .sum()
+}
+
+fn operation_expression_call_capacity(expressions: OperationExpressionRefs) -> usize {
+    match expressions {
+        OperationExpressionRefs::Assignment { value, .. }
+        | OperationExpressionRefs::Expression(value) => usize::from(value.is_valid()),
+        OperationExpressionRefs::Call { arguments } => arguments.len(),
+        OperationExpressionRefs::None => 0,
+    }
+}
+
+fn transition_expression_call_capacity(expressions: TransitionExpressionRefs) -> usize {
+    usize::from(expressions.guard.is_valid())
+        .saturating_add(expressions.target_arguments.len())
+        .saturating_add(usize::from(expressions.target_value.is_valid()))
+        .saturating_add(expressions.continuation_arguments.len())
+        .saturating_add(usize::from(expressions.continuation_value.is_valid()))
 }
 
 fn collect_expression_state_calls_for_operation(

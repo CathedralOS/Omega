@@ -12,6 +12,14 @@ pub struct StateCallPlan {
 }
 
 impl StateCallPlan {
+    pub fn with_capacity(call_capacity: usize, argument_capacity: usize) -> Self {
+        Self {
+            expressions: ExpressionTable::new(),
+            calls: Arena::with_capacity(call_capacity),
+            arguments: Arena::with_capacity(argument_capacity),
+        }
+    }
+
     fn source_matches(expected: StateKey, actual: StateKey) -> bool {
         expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
     }
