@@ -30,7 +30,7 @@ pub fn build_state_graph_with_workers(
     workers: WorkerPoolHandle,
 ) -> Result<StateGraph, Diagnostic> {
     if program.machines().is_empty() {
-        return Ok(StateGraph::default());
+        return Ok(StateGraph::with_capacity(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     }
 
     let machine_count = program.machines().len();
