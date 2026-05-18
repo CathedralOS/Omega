@@ -147,7 +147,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
         value,
         bindings,
     );
-    let static_values = RuntimeStaticValues::default();
+    let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,
