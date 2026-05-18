@@ -1,11 +1,11 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
-    TableCallExpression,
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    TableCallExpression, TableNamePath,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
 use omega_target_operations::{
@@ -25,8 +25,8 @@ use super::super::super::storage_places::{
     resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::text_writes::{
-    runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
-    string_literal_data_handle,
+    runtime_text_builder_write_emit, runtime_text_builder_write_in_table_emit,
+    select_runtime_string_descriptor_write, string_literal_data_handle,
 };
 use super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value,
@@ -173,15 +173,46 @@ pub(super) fn select_runtime_state_call_result_write(
         return;
     }
 
+    let target = runtime_frame_slot_target_expression(&mut value_expressions, slot);
+    let resolved_segment_expressions = if aliases.is_empty() {
+        ExpressionTable::new()
+    } else {
+        value_expressions.clone()
+    };
+    if runtime_text_builder_write_in_table_emit(
+        input,
+        dispatch_index,
+        operation_source_key,
+        operation_source_key,
+        statement_index,
+        &value_expressions,
+        target,
+        resolved_segment_expressions,
+        &|expressions, expression| {
+            resolve_runtime_alias_binding_handle(
+                expression,
+                operation_source_key,
+                aliases,
+                expressions,
+            )
+            .expression
+        },
+        &mut |kind| {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+        },
+    ) {
+        return;
+    }
+
     let (value_machine, value_state) = input
         .control_flow
         .state_names_by_key_cloned(resolved_value.source_key);
 
-    let target = Expression::Name(NamePath::resolved(
-        vec![slot.name.clone()],
-        slot.symbol,
-        slot.symbol,
-    ));
+    let target = value_expressions.to_tree(target);
     let value = value_expressions.to_tree(resolved_value.expression);
 
     select_runtime_resolved_target_value_source_mutation_writes(
@@ -201,6 +232,24 @@ pub(super) fn select_runtime_state_call_result_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+fn runtime_frame_slot_target_expression(
+    expressions: &mut ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+) -> ExpressionHandle {
+    let mut members = HandleSpan::empty();
+    expressions.push_name_path_member(&mut members, slot.name.clone());
+
+    let mut member_symbols = HandleSpan::empty();
+    expressions.push_name_path_member_symbol(&mut member_symbols, slot.symbol);
+
+    expressions.insert(ExpressionNode::Name(TableNamePath {
+        members,
+        member_symbols,
+        head_symbol: slot.symbol,
+        symbol: slot.symbol,
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
