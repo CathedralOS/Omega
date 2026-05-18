@@ -6,7 +6,7 @@ use omega_target_operations::RuntimeTextReadSource;
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
     literal: &str,
-    failure_branch_distances: Vec<isize>,
+    failure_branch_distances: impl ExactSizeIterator<Item = isize>,
     delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {

@@ -13,14 +13,15 @@ use super::super::widths::{
 
 pub fn encode_runtime_text_literal_compare(
     literal: &str,
-    failure_branch_distances: Vec<isize>,
+    failure_branch_distances: impl ExactSizeIterator<Item = isize>,
     delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if literal.len() != failure_branch_distances.len() {
+    let failure_branch_distance_count = failure_branch_distances.len();
+    if literal.len() != failure_branch_distance_count {
         return Err(Diagnostic::error(format!(
             "AArch64 runtime text guard expected {} branch distance(s), got {}",
             literal.len(),
-            failure_branch_distances.len()
+            failure_branch_distance_count
         )));
     }
 
@@ -28,11 +29,16 @@ pub fn encode_runtime_text_literal_compare(
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
 
-    for (byte_index, expected_byte) in literal.as_bytes().iter().enumerate() {
+    for (byte_index, (expected_byte, failure_branch_distance)) in literal
+        .as_bytes()
+        .iter()
+        .zip(failure_branch_distances)
+        .enumerate()
+    {
         bytes.extend(encode_load_byte_w17_from_x16(byte_index)?);
         bytes.extend(encode_compare_w17_immediate(u32::from(*expected_byte))?);
         bytes.extend(encode_conditional_branch_not_equal(
-            failure_branch_distances[byte_index],
+            failure_branch_distance,
         )?);
     }
 

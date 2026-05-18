@@ -10,7 +10,7 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
-) -> Result<Vec<isize>, Diagnostic> {
+) -> Result<RuntimeMachineWriteEndBranchDistances, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Err(Diagnostic::error(format!(
             "cannot encode runtime text guard: missing machine instruction `{machine_instruction_index}`"
@@ -25,15 +25,41 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
         )));
     };
 
-    let target = machine_write.offset + machine_write.byte_width;
-    let mut distances = Vec::with_capacity(literal.len());
-    for byte_index in 0..literal.len() {
-        let branch_program_counter = current.offset + 8 + byte_index * 12 + 8;
-        distances.push(target as isize - branch_program_counter as isize);
+    Ok(RuntimeMachineWriteEndBranchDistances {
+        current_offset: current.offset,
+        target_offset: machine_write.offset + machine_write.byte_width,
+        byte_index: 0,
+        byte_count: literal.len(),
+    })
+}
+
+pub(crate) struct RuntimeMachineWriteEndBranchDistances {
+    current_offset: usize,
+    target_offset: usize,
+    byte_index: usize,
+    byte_count: usize,
+}
+
+impl Iterator for RuntimeMachineWriteEndBranchDistances {
+    type Item = isize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.byte_index >= self.byte_count {
+            return None;
+        }
+
+        let branch_program_counter = self.current_offset + 8 + self.byte_index * 12 + 8;
+        self.byte_index += 1;
+        Some(self.target_offset as isize - branch_program_counter as isize)
     }
 
-    Ok(distances)
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.byte_count.saturating_sub(self.byte_index);
+        (remaining, Some(remaining))
+    }
 }
+
+impl ExactSizeIterator for RuntimeMachineWriteEndBranchDistances {}
 
 pub(crate) fn byte_distance_to_next_runtime_write_end(
     input: MachineEmissionContext<'_>,
