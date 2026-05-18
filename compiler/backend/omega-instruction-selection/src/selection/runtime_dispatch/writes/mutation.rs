@@ -9,8 +9,8 @@ use omega_core::arena::Arena;
 use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
 use omega_target_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
-    StateGuardOperator,
+    RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
+    SelectedInstructionKind, StateGuardOperator,
 };
 
 use super::super::super::bindings::{
@@ -149,6 +149,27 @@ pub(super) fn select_runtime_state_call_result_write(
     let (value_machine, value_state) = input
         .control_flow
         .state_names_by_key_cloned(value_source_key);
+
+    if aliases.is_empty()
+        && let Some(kind) = select_runtime_state_call_result_write_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            statement_index,
+            slot,
+            value,
+            static_values,
+            runtime_value_operands,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     let target = Expression::Name(NamePath::resolved(
         vec![slot.name.clone()],
         slot.symbol,
@@ -173,6 +194,64 @@ pub(super) fn select_runtime_state_call_result_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_state_call_result_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let expressions = &input.runtime_bodies.expressions;
+
+    if supports_scalar_integer_write(slot.byte_size)
+        && let Some(value) =
+            resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset,
+            byte_size: slot.byte_size,
+            value,
+        });
+    }
+
+    if let Some(source_place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && source_place.byte_count == slot.byte_size
+        && source_place.byte_count > 0
+    {
+        return Some(SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        });
+    }
+
+    select_runtime_storage_binary_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        RuntimeStorageRegion::RuntimeFrame,
+        slot.byte_offset,
+        slot.byte_size,
+        value,
+        static_values,
+        runtime_value_operands,
+    )
 }
 
 pub(super) fn select_runtime_static_mutation_write_in_table(
@@ -300,6 +379,41 @@ pub(super) fn select_runtime_binary_mutation_write_in_table(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let expressions = &input.state_storage.expressions;
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    );
+
+    select_runtime_targeted_binary_mutation_write_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        target,
+        target_place,
+        value,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_targeted_binary_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    target_place: Option<super::super::super::storage_places::RuntimeStoragePlace>,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
     let (operator, left_expression, right_expression) = match expressions.expression(value) {
         ExpressionNode::Binary(binary) => (
             runtime_binary_operator(binary.operator)?,
@@ -320,6 +434,7 @@ pub(super) fn select_runtime_binary_mutation_write_in_table(
         dispatch_index,
         source_key,
         statement_index,
+        expressions,
         left_expression,
         static_values,
         runtime_value_operands,
@@ -329,6 +444,7 @@ pub(super) fn select_runtime_binary_mutation_write_in_table(
         dispatch_index,
         source_key,
         statement_index,
+        expressions,
         right_expression,
         static_values,
         runtime_value_operands,
@@ -370,17 +486,71 @@ pub(super) fn select_runtime_binary_mutation_write_in_table(
         });
     }
 
-    let target_place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        target,
-    )?;
+    let target_place = target_place?;
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_size: target_place.byte_count,
+        left,
+        operator,
+        right,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_storage_binary_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let (operator, left_expression, right_expression) = match expressions.expression(value) {
+        ExpressionNode::Binary(binary) => (
+            runtime_binary_operator(binary.operator)?,
+            binary.left,
+            binary.right,
+        ),
+        ExpressionNode::Call(call) => {
+            let operator = builtin_runtime_call_operator_in_table(input, call)?;
+            let left = expressions.expression_handle_at_offset(call.arguments, 0);
+            let right = expressions.expression_handle_at_offset(call.arguments, 1);
+            (operator, left, right)
+        }
+        _ => return None,
+    };
+
+    let left = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        left_expression,
+        static_values,
+        runtime_value_operands,
+    )?;
+    let right = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        right_expression,
+        static_values,
+        runtime_value_operands,
+    )?;
+
+    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+        target_region,
+        target_offset,
+        byte_size,
         left,
         operator,
         right,
@@ -392,11 +562,11 @@ fn resolve_runtime_value_operand_in_table(
     dispatch_index: u32,
     source_key: StateKey,
     statement_index: usize,
+    expressions: &ExpressionTable,
     expression: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
-    let expressions = &input.state_storage.expressions;
     if let Some(value) =
         resolve_runtime_static_integer_value_in_table(input, expressions, expression, static_values)
     {
@@ -410,6 +580,7 @@ fn resolve_runtime_value_operand_in_table(
             dispatch_index,
             source_key,
             statement_index,
+            expressions,
             binary.left,
             static_values,
             runtime_value_operands,
@@ -419,6 +590,7 @@ fn resolve_runtime_value_operand_in_table(
             dispatch_index,
             source_key,
             statement_index,
+            expressions,
             binary.right,
             static_values,
             runtime_value_operands,
@@ -437,6 +609,7 @@ fn resolve_runtime_value_operand_in_table(
                 dispatch_index,
                 source_key,
                 statement_index,
+                expressions,
                 expressions.expression_handle_at_offset(call.arguments, 0),
                 static_values,
                 runtime_value_operands,
@@ -446,6 +619,7 @@ fn resolve_runtime_value_operand_in_table(
                 dispatch_index,
                 source_key,
                 statement_index,
+                expressions,
                 expressions.expression_handle_at_offset(call.arguments, 1),
                 static_values,
                 runtime_value_operands,
