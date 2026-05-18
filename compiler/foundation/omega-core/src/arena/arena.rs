@@ -431,6 +431,24 @@ impl<T: Default> Arena<T> {
         self.active_count = 0;
     }
 
+    pub fn map<U: Default>(self, mut map_item: impl FnMut(T) -> U) -> Arena<U> {
+        let mut items = Vec::with_capacity(self.items.len());
+        let mut source_items = self.items.into_iter();
+
+        if source_items.next().is_some() {
+            items.push(U::default());
+        }
+        items.extend(source_items.map(&mut map_item));
+
+        Arena {
+            items,
+            generations: self.generations,
+            occupied: self.occupied,
+            free_indices: self.free_indices,
+            active_count: self.active_count,
+        }
+    }
+
     pub fn storage_slice(&self) -> &[T] {
         &self.items[1..]
     }
