@@ -24,10 +24,16 @@ pub struct ProofPlan<'program> {
 
 impl<'program> ProofPlan<'program> {
     fn new(program: &'program TypedTrees) -> Self {
+        let obligation_capacity = estimated_proof_obligation_capacity(program);
+        let constraint_capacity = program
+            .type_reference_table
+            .constraint_count()
+            .saturating_add(obligation_capacity);
+
         Self {
             program,
-            obligations: Arena::new(),
-            type_constraints: Arena::new(),
+            obligations: Arena::with_capacity(obligation_capacity),
+            type_constraints: Arena::with_capacity(constraint_capacity),
         }
     }
 
@@ -475,6 +481,52 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
     }
 
     proof_plan
+}
+
+fn estimated_proof_obligation_capacity(program: &TypedTrees) -> usize {
+    let mut capacity = 0usize;
+
+    for machine in program.machines() {
+        capacity = capacity.saturating_add(program.machine_owned_data(machine).len() * 2);
+
+        for state in program.machine_states(machine) {
+            capacity = capacity.saturating_add(program.state_parameters(state).len());
+
+            if state.return_type.is_valid() {
+                capacity = capacity.saturating_add(2);
+            }
+
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Assignment(_) => capacity = capacity.saturating_add(1),
+                    StatementNode::Call(call) => {
+                        capacity = capacity.saturating_add(
+                            program
+                                .statement_table
+                                .expression_handles(call.arguments)
+                                .len(),
+                        );
+                    }
+                    StatementNode::Transition(transition) => {
+                        if matches!(transition.guard, TransitionGuardNode::When(_)) {
+                            capacity = capacity.saturating_add(1);
+                        }
+
+                        let argument_count = table_transition_target_state_and_arguments(
+                            program,
+                            state,
+                            transition.target,
+                        )
+                        .map_or(0, |(_, arguments)| arguments.len());
+                        capacity = capacity.saturating_add(argument_count);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    capacity
 }
 
 fn collect_bounded_value_obligation(
