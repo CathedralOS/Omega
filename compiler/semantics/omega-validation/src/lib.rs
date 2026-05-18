@@ -1111,6 +1111,42 @@ struct ArgumentAccess<'expression> {
     kind: ArgumentAccessKind,
 }
 
+const INLINE_ARGUMENT_ACCESS_COUNT: usize = 8;
+
+struct ArgumentAccessBuffer<'expression> {
+    inline: [Option<ArgumentAccess<'expression>>; INLINE_ARGUMENT_ACCESS_COUNT],
+    len: usize,
+    overflow: Vec<ArgumentAccess<'expression>>,
+}
+
+impl<'expression> ArgumentAccessBuffer<'expression> {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_ARGUMENT_ACCESS_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn push(&mut self, access: ArgumentAccess<'expression>) {
+        if self.len < INLINE_ARGUMENT_ACCESS_COUNT {
+            self.inline[self.len] = Some(access);
+        } else {
+            self.overflow.push(access);
+        }
+
+        self.len += 1;
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &ArgumentAccess<'expression>> {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_ARGUMENT_ACCESS_COUNT))
+            .filter_map(Option::as_ref)
+            .chain(self.overflow.iter())
+    }
+}
+
 fn validate_argument_borrows_handles(
     program: &TypedTrees,
     arguments: &[ExpressionHandle],
@@ -1118,7 +1154,7 @@ fn validate_argument_borrows_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut accesses = Vec::new();
+    let mut accesses = ArgumentAccessBuffer::new();
 
     for argument in arguments {
         collect_argument_accesses_handle(
@@ -1160,7 +1196,7 @@ fn collect_argument_accesses_handle<'expression>(
     expression: ExpressionHandle,
     target_name: &str,
     writable_roots: &WritableRoots<'_, '_>,
-    accesses: &mut Vec<ArgumentAccess<'expression>>,
+    accesses: &mut ArgumentAccessBuffer<'expression>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.expression_table.expression(expression) {
@@ -1192,7 +1228,7 @@ fn collect_argument_accesses_handle<'expression>(
 fn collect_read_accesses_handle<'expression>(
     program: &'expression TypedTrees,
     expression: ExpressionHandle,
-    accesses: &mut Vec<ArgumentAccess<'expression>>,
+    accesses: &mut ArgumentAccessBuffer<'expression>,
 ) {
     match program.expression_table.expression(expression) {
         ExpressionNode::ArrayLiteral(values) => {
