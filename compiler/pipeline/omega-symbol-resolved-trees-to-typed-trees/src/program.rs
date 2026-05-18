@@ -39,6 +39,14 @@ pub fn lower_symbol_resolved_trees(
     lowerer.finish()
 }
 
+pub fn lower_symbol_resolved_trees_owned(
+    symbol_resolved_trees: SymbolResolvedTrees,
+) -> Result<TypedTrees, Diagnostic> {
+    let mut typed_trees = lower_symbol_resolved_trees(&symbol_resolved_trees)?;
+    typed_trees.symbols = symbol_resolved_trees.symbols;
+    Ok(typed_trees)
+}
+
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
