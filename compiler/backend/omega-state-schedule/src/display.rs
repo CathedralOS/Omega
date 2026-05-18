@@ -5,19 +5,21 @@ use omega_control_flow::StateKey;
 
 pub(super) fn cycle_path(
     context: &StateScheduleContext,
-    visited: &[ScheduledState],
+    visited: impl Iterator<Item = ScheduledState>,
     current: &ScheduledState,
 ) -> String {
-    let start = visited
-        .iter()
-        .position(|state| state == current)
-        .unwrap_or(0);
-    visited[start..]
-        .iter()
-        .chain(std::iter::once(current))
-        .map(|state| state_key_display(context, state.key))
-        .collect::<Vec<_>>()
-        .join(" -> ")
+    let mut inside_cycle = false;
+    let mut path = visited
+        .filter_map(|state| {
+            if state == *current {
+                inside_cycle = true;
+            }
+
+            inside_cycle.then(|| state_key_display(context, state.key))
+        })
+        .collect::<Vec<_>>();
+    path.push(state_key_display(context, current.key));
+    path.join(" -> ")
 }
 
 pub(super) fn state_key_display(context: &StateScheduleContext, key: StateKey) -> String {

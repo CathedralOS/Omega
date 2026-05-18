@@ -1,6 +1,8 @@
 use super::static_values::{PlaceKey, StaticValue};
 use omega_control_flow::StateKey;
 
+const INLINE_VISITED_STATE_COUNT: usize = 8;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScheduledState {
     pub key: StateKey,
@@ -15,7 +17,7 @@ pub(super) struct ScheduleCheckpoint {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct StateScheduleWorkspace {
     schedule: Vec<ScheduledState>,
-    visited: Vec<ScheduledState>,
+    visited: VisitedStates,
     values: Vec<(PlaceKey, StaticValue)>,
     aliases: Vec<(PlaceKey, PlaceKey)>,
 }
@@ -24,7 +26,7 @@ impl StateScheduleWorkspace {
     pub(super) fn with_state_capacity(state_capacity: usize) -> Self {
         Self {
             schedule: Vec::with_capacity(state_capacity),
-            visited: Vec::with_capacity(state_capacity),
+            visited: VisitedStates::new(),
             values: Vec::new(),
             aliases: Vec::new(),
         }
@@ -38,8 +40,12 @@ impl StateScheduleWorkspace {
         &mut self.schedule
     }
 
-    pub(super) fn visited(&self) -> &[ScheduledState] {
-        &self.visited
+    pub(super) fn contains_visited(&self, state: ScheduledState) -> bool {
+        self.visited.contains(state)
+    }
+
+    pub(super) fn visited_iter(&self) -> impl Iterator<Item = ScheduledState> + '_ {
+        self.visited.iter()
     }
 
     pub(super) fn push_visited(&mut self, state: ScheduledState) {
@@ -86,5 +92,60 @@ impl StateScheduleWorkspace {
     pub(super) fn restore(&mut self, checkpoint: ScheduleCheckpoint) {
         self.visited.truncate(checkpoint.visited_len);
         self.aliases.truncate(checkpoint.aliases_len);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VisitedStates {
+    inline: [Option<ScheduledState>; INLINE_VISITED_STATE_COUNT],
+    len: usize,
+    overflow: Vec<ScheduledState>,
+}
+
+impl VisitedStates {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_VISITED_STATE_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn contains(&self, state: ScheduledState) -> bool {
+        self.iter().any(|visited| visited == state)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = ScheduledState> + '_ {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_VISITED_STATE_COUNT))
+            .filter_map(|state| *state)
+            .chain(self.overflow.iter().copied())
+    }
+
+    fn push(&mut self, state: ScheduledState) {
+        if self.len < INLINE_VISITED_STATE_COUNT {
+            self.inline[self.len] = Some(state);
+        } else {
+            self.overflow.push(state);
+        }
+
+        self.len += 1;
+    }
+
+    fn truncate(&mut self, target_len: usize) {
+        while self.len > target_len {
+            self.len -= 1;
+
+            if self.len < INLINE_VISITED_STATE_COUNT {
+                self.inline[self.len] = None;
+            } else {
+                self.overflow.pop();
+            }
+        }
     }
 }
