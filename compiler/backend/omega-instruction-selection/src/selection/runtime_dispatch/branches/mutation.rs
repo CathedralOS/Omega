@@ -295,6 +295,7 @@ pub(crate) fn select_runtime_resolved_mutation_write_in_table(
     ) {
         let source_expressions = expressions;
         let mut expressions = ExpressionTable::new();
+        let mut resolved_segment_expressions = ExpressionTable::new();
         let resolved_target = expressions.copy_from(source_expressions, resolved_target);
         let resolved_value = expressions.copy_from(source_expressions, resolved_value);
         return select_runtime_resolved_mutation_write_in_mutable_table(
@@ -307,6 +308,7 @@ pub(crate) fn select_runtime_resolved_mutation_write_in_table(
             &mut expressions,
             resolved_target,
             resolved_value,
+            &mut resolved_segment_expressions,
             runtime_value_operands,
             selected_instructions,
         );
@@ -338,6 +340,7 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
     expressions: &mut ExpressionTable,
     resolved_target: ExpressionHandle,
     resolved_value: ExpressionHandle,
+    resolved_segment_expressions: &mut ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
@@ -363,6 +366,7 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
                 expressions,
                 field_target,
                 field.value,
+                resolved_segment_expressions,
                 runtime_value_operands,
                 selected_instructions,
             );
@@ -370,7 +374,7 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
         return true;
     }
 
-    select_runtime_resolved_scalar_mutation_write_in_table(
+    select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
         input,
         dispatch_index,
         operation_key,
@@ -380,6 +384,7 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
         expressions,
         resolved_target,
         resolved_value,
+        resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
     )
@@ -400,6 +405,38 @@ fn select_runtime_resolved_scalar_mutation_write_in_table(
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     let mut resolved_segment_expressions = ExpressionTable::new();
+    select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
+        input,
+        dispatch_index,
+        operation_key,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        resolved_target,
+        resolved_value,
+        &mut resolved_segment_expressions,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    resolved_target: ExpressionHandle,
+    resolved_value: ExpressionHandle,
+    resolved_segment_expressions: &mut ExpressionTable,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    resolved_segment_expressions.clear();
     if runtime_text_builder_write_in_table_emit(
         input,
         dispatch_index,
@@ -408,7 +445,7 @@ fn select_runtime_resolved_scalar_mutation_write_in_table(
         statement_index,
         expressions,
         resolved_target,
-        &mut resolved_segment_expressions,
+        resolved_segment_expressions,
         &|_, expression| expression,
         &mut |kind| {
             selected_instructions.push(SelectedInstruction {
