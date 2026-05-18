@@ -12,7 +12,6 @@ pub struct ObjectPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SectionPlan {
-    pub name: String,
     pub kind: SectionKind,
     pub size: usize,
     pub alignment: usize,
@@ -21,7 +20,6 @@ pub struct SectionPlan {
 impl Default for SectionPlan {
     fn default() -> Self {
         Self {
-            name: String::new(),
             kind: SectionKind::Text,
             size: 0,
             alignment: 1,
