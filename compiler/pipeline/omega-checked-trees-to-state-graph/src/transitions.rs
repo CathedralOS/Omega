@@ -10,9 +10,11 @@ use omega_state_graph::{
     PlannedTransitionTarget, StateGraph, StateKey, TransitionEdge, TransitionExpressionRefs,
 };
 
+use crate::StateIndexEntry;
+
 pub(super) fn plan_transition(
     source_key: StateKey,
-    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
+    state_indexes: &[StateIndexEntry<'_>],
     transition: &SegmentTransition,
     program: &Program,
     state_graph: &mut StateGraph,
@@ -131,7 +133,7 @@ fn table_transition_target_value(
 
 fn plan_transition_target(
     source_key: StateKey,
-    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
+    state_indexes: &[StateIndexEntry<'_>],
     target: TransitionTargetHandle,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
@@ -158,21 +160,21 @@ fn plan_transition_target(
                 .then(|| {
                     state_indexes
                         .iter()
-                        .find(|(key, _, _)| key.state == symbol && key.segment_index == 0)
+                        .find(|entry| entry.key.state == symbol && entry.key.segment_index == 0)
                 })
                 .flatten()
                 .or_else(|| {
                     state_indexes
                         .iter()
-                        .find(|(key, _, state_name)| key.segment_index == 0 && *state_name == name)
+                        .find(|entry| entry.key.segment_index == 0 && *entry.name == name)
                 });
-            let (key, index, _) = target.ok_or_else(|| {
+            let target = target.ok_or_else(|| {
                 Diagnostic::error(format!("unknown state transition target `{name}`"))
             })?;
 
             Ok(PlannedTransitionTarget::State {
-                index: *index,
-                key: *key,
+                index: target.index,
+                key: target.key,
                 name,
             })
         }
@@ -201,7 +203,7 @@ fn plan_transition_target(
 
 fn plan_call_target(
     source_key: StateKey,
-    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
+    state_indexes: &[StateIndexEntry<'_>],
     call: &TableCall,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
@@ -215,20 +217,20 @@ fn plan_call_target(
             .then(|| {
                 state_indexes
                     .iter()
-                    .find(|(key, _, _)| key.state == symbol && key.segment_index == 0)
+                    .find(|entry| entry.key.state == symbol && entry.key.segment_index == 0)
             })
             .flatten()
             .or_else(|| {
                 state_indexes
                     .iter()
-                    .find(|(key, _, state_name)| key.segment_index == 0 && *state_name == name)
+                    .find(|entry| entry.key.segment_index == 0 && *entry.name == name)
             });
-        let (key, index, _) = target
+        let target = target
             .ok_or_else(|| Diagnostic::error(format!("unknown state call target `{name}`")))?;
 
         return Ok(PlannedTransitionTarget::State {
-            index: *index,
-            key: *key,
+            index: target.index,
+            key: target.key,
             name,
         });
     }
@@ -265,22 +267,22 @@ fn display_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> S
 
 fn next_segment_target(
     source_key: StateKey,
-    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
+    state_indexes: &[StateIndexEntry<'_>],
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     let next_key = StateKey {
         segment_index: source_key.segment_index + 1,
         ..source_key
     };
-    let (key, index, name) = state_indexes
+    let target = state_indexes
         .iter()
-        .find(|(key, _, _)| *key == next_key)
+        .find(|entry| entry.key == next_key)
         .ok_or_else(|| {
             Diagnostic::error("internal state-call continuation segment was not indexed")
         })?;
 
     Ok(PlannedTransitionTarget::State {
-        index: *index,
-        key: *key,
-        name: name.clone(),
+        index: target.index,
+        key: target.key,
+        name: target.name.clone(),
     })
 }
