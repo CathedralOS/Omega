@@ -100,10 +100,18 @@ pub(super) fn select_state_body_instructions(
         .control_flow
         .transitions
         .span_or_empty(state.transitions);
-    let mut expressions = ExpressionTable::new();
-    let mut child_alias_expressions = ExpressionTable::new();
-    let mut mutation_mutable_expressions = ExpressionTable::new();
-    let mut mutation_segment_expressions = ExpressionTable::new();
+    let alias_capacity = aliases.bindings().len();
+    let operation_capacity = operations.len();
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_capacity
+            .saturating_add(operation_capacity)
+            .saturating_add(2),
+    );
+    let mut child_alias_expressions = ExpressionTable::with_expression_capacity(
+        alias_capacity.saturating_add(operation_capacity),
+    );
+    let mut mutation_mutable_expressions = ExpressionTable::with_expression_capacity(2);
+    let mut mutation_segment_expressions = ExpressionTable::with_expression_capacity(2);
     let mut storage_write_scratch = RuntimeStorageWriteScratch::default();
     let mut static_values = super::runtime_dispatch::RuntimeStaticValues::with_capacity(
         input.runtime_storage.frame_slots.len(),

@@ -29,13 +29,22 @@ pub(super) struct RuntimeAliasBuffer {
 }
 
 impl RuntimeAliasBuffer {
+    pub(super) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            aliases: Arena::with_capacity(capacity),
+            scope: HandleSpan::empty(),
+        }
+    }
+
     pub(super) fn clear(&mut self) {
         self.aliases.reset_retain_capacity();
         self.scope = HandleSpan::empty();
     }
 
     pub(super) fn from_iter(bindings: impl IntoIterator<Item = RuntimeAliasBinding>) -> Self {
-        let mut buffer = Self::default();
+        let bindings = bindings.into_iter();
+        let (capacity, _) = bindings.size_hint();
+        let mut buffer = Self::with_capacity(capacity);
         buffer.scope = buffer.aliases.insert_many(bindings);
         buffer
     }
@@ -45,13 +54,18 @@ impl RuntimeAliasBuffer {
         bindings: &[RuntimeAliasBinding],
         target: &mut ExpressionTable,
     ) -> Self {
-        Self::from_iter(bindings.iter().map(|binding| RuntimeAliasBinding {
-            source_key: binding.source_key,
-            parameter_symbol: binding.parameter_symbol,
-            parameter_name: binding.parameter_name.clone(),
-            expression_source_key: binding.expression_source_key,
-            expression: target.copy_from(source, binding.expression),
-        }))
+        let mut buffer = Self::with_capacity(bindings.len());
+        buffer.scope =
+            buffer
+                .aliases
+                .insert_many(bindings.iter().map(|binding| RuntimeAliasBinding {
+                    source_key: binding.source_key,
+                    parameter_symbol: binding.parameter_symbol,
+                    parameter_name: binding.parameter_name.clone(),
+                    expression_source_key: binding.expression_source_key,
+                    expression: target.copy_from(source, binding.expression),
+                }));
+        buffer
     }
 
     pub(super) fn bindings(&self) -> &[RuntimeAliasBinding] {

@@ -76,8 +76,9 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         source_statement: 0,
     });
 
-    let mut runtime_aliases = RuntimeAliasBuffer::default();
-    let mut runtime_alias_expressions = ExpressionTable::new();
+    let mut runtime_aliases = RuntimeAliasBuffer::with_capacity(input.state_calls.arguments.len());
+    let mut runtime_alias_expressions =
+        ExpressionTable::with_expression_capacity(input.state_calls.arguments.len());
     let mut runtime_static_values =
         writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     let mut runtime_storage_write_scratch = RuntimeStorageWriteScratch::default();
