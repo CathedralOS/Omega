@@ -261,6 +261,7 @@ fn collect_statement_borrow_calls(
         ),
         StatementNode::Call(call) => {
             if statement_call_can_dispatch_to_machine(program, machine, state, call) {
+                let receiver_path = statement_call_receiver_path(program, call);
                 append_borrow_call(
                     calls,
                     state_calls,
@@ -268,7 +269,7 @@ fn collect_statement_borrow_calls(
                     *call_ordinal,
                     call.receiver_symbol,
                     call.target_symbol,
-                    statement_call_receiver_path(program, call),
+                    receiver_path.as_ref(),
                     call.target.clone(),
                     collect_call_argument_accesses(
                         argument_accesses,
@@ -413,10 +414,14 @@ fn append_borrow_call(
     call_ordinal: usize,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-    receiver: Option<NamePath>,
+    receiver_path: Option<&NamePath>,
     target: ProgramName,
     accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {
+    let receiver = receiver_path
+        .and_then(|receiver| receiver.last().cloned())
+        .unwrap_or_else(|| ProgramName::generated("self"));
+
     calls.append_to_span(
         state_calls,
         BorrowCallFact {
@@ -424,6 +429,7 @@ fn append_borrow_call(
             call_ordinal,
             receiver_symbol,
             target_symbol,
+            has_receiver: receiver_path.is_some(),
             receiver,
             target,
             accesses,
@@ -510,7 +516,7 @@ fn collect_expression_borrow_calls(
                     *call_ordinal,
                     receiver_symbol,
                     call.target_symbol,
-                    receiver_path,
+                    receiver_path.as_ref(),
                     call.target.clone(),
                     collect_call_argument_accesses(
                         argument_accesses,

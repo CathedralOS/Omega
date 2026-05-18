@@ -78,7 +78,8 @@ pub struct BorrowCallFact {
     pub call_ordinal: usize,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: Option<expression::NamePath>,
+    pub has_receiver: bool,
+    pub receiver: name::ProgramName,
     pub target: name::ProgramName,
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,
 }
