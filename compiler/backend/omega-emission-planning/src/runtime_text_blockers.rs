@@ -61,12 +61,8 @@ fn state_value_has_planned_text_builder(
     input: &EmissionPlanningInput<'_>,
     value: &StateValueUse,
 ) -> bool {
-    runtime_text_write_for_statement(input, value.source_key, value.statement_index).is_some_and(
-        |text_write| {
-            text_write.kind == RuntimeTextWriteKind::GeneratedString
-                && runtime_text_builder_for_write(input, text_write).is_some()
-        },
-    )
+    runtime_text_write_for_statement(input, value.source_key, value.statement_index)
+        .is_some_and(|text_write| runtime_text_write_is_planned(input, text_write))
 }
 
 fn state_value_has_planned_storage_write(
@@ -251,12 +247,49 @@ pub(super) fn runtime_text_write_is_planned(
     text_write: &RuntimeTextWrite,
 ) -> bool {
     match text_write.kind {
-        RuntimeTextWriteKind::StaticText | RuntimeTextWriteKind::StoredCopy => true,
+        RuntimeTextWriteKind::StaticText | RuntimeTextWriteKind::StoredCopy => {
+            runtime_text_write_has_selected_instruction(input, text_write)
+        }
         RuntimeTextWriteKind::GeneratedString => {
             runtime_text_builder_for_write(input, text_write).is_some()
+                && runtime_text_write_has_selected_instruction(input, text_write)
         }
         RuntimeTextWriteKind::OtherExpression => false,
     }
+}
+
+fn runtime_text_write_has_selected_instruction(
+    input: &EmissionPlanningInput<'_>,
+    text_write: &RuntimeTextWrite,
+) -> bool {
+    input
+        .instructions
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            state_key_matches_statement_source(instruction.source_key, text_write.source_key)
+                && instruction.source_statement == text_write.statement_index
+                && matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                        | SelectedInstructionKind::WriteRuntimeTextLiteral { .. }
+                        | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
+                        | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
+                        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
+                        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextLiteral { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
+                        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::CopyRuntimeStorage { .. }
+                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
+                )
+        })
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {

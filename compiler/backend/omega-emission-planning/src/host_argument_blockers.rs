@@ -6,7 +6,9 @@ use omega_platform_interface::{HostCall, HostCallArgumentKind};
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
-use omega_target_operations::{InstructionOperandKind, SelectedInstructionKind};
+use omega_target_operations::{
+    InstructionOperandKind, SelectedInstructionKind, TargetDataObjectHandle, TargetDataObjectKind,
+};
 
 use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
@@ -48,10 +50,14 @@ pub(super) fn collect_host_argument_blockers(
         };
 
         if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
+            if !host_call_has_selected_operation(input, host_call) {
+                continue;
+            }
+
             let runtime_text_use = runtime_text_use_for_host_call(input, host_call);
-            if runtime_text_use
-                .is_some_and(|text_use| runtime_text_use_has_input_buffer(input, text_use))
-                || host_text_argument_has_planned_text_operands(input, host_call)
+            if runtime_text_use.is_some_and(|text_use| {
+                runtime_text_use_has_materialized_input_buffer(input, text_use)
+            }) || host_text_argument_has_planned_text_operands(input, host_call)
             {
                 continue;
             }
@@ -72,6 +78,68 @@ pub(super) fn collect_host_argument_blockers(
             ));
         }
     }
+
+    collect_selected_runtime_text_buffer_host_blockers(input, blockers);
+}
+
+fn collect_selected_runtime_text_buffer_host_blockers(
+    input: &EmissionPlanningInput<'_>,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, instruction) in input.instructions.instructions.iter() {
+        let SelectedInstructionKind::HostOperation { operands, .. } = instruction.kind else {
+            continue;
+        };
+        let Some(operands) = input.instructions.operands.span(operands) else {
+            continue;
+        };
+
+        for operand in operands {
+            let InstructionOperandKind::DataAddress { data } = operand.kind else {
+                continue;
+            };
+            if !data.is_valid() {
+                continue;
+            }
+            let data_object = input.data.objects.get(data);
+            if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
+                continue;
+            }
+            if runtime_text_buffer_has_selected_producer(input, data) {
+                continue;
+            }
+
+            let source_name = state_name(input, instruction.source_key);
+            blockers.insert(blocker(
+                "host arguments",
+                &format!(
+                    "{} statement {} host text buffer `{}` needs runtime text materialization{}",
+                    source_name,
+                    instruction.source_statement,
+                    data_object.symbol,
+                    proof_scope_suffix(input, instruction.source_key)
+                ),
+            ));
+        }
+    }
+}
+
+fn host_call_has_selected_operation(
+    input: &EmissionPlanningInput<'_>,
+    host_call: &HostCall,
+) -> bool {
+    input
+        .instructions
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            state_key_matches_statement_source(instruction.source_key, host_call.source_key)
+                && instruction.source_statement == host_call.statement_index
+                && matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::HostOperation { .. }
+                )
+        })
 }
 
 fn host_text_argument_has_planned_text_operands(
@@ -108,14 +176,23 @@ fn host_text_argument_has_planned_text_operands(
                     InstructionOperandKind::RuntimeStringLength { .. }
                 )
             });
-            let has_data_address = operands
-                .iter()
-                .any(|operand| matches!(operand.kind, InstructionOperandKind::DataAddress { .. }));
+            let has_materialized_data_address = operands.iter().any(|operand| {
+                let InstructionOperandKind::DataAddress { data } = operand.kind else {
+                    return false;
+                };
+                let data_object = input.data.objects.get(data);
+                if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
+                    return true;
+                }
+
+                runtime_text_buffer_has_selected_producer(input, data)
+            });
             let has_byte_length = operands
                 .iter()
                 .any(|operand| matches!(operand.kind, InstructionOperandKind::ByteLength(_)));
 
-            (has_runtime_pointer && has_runtime_length) || (has_data_address && has_byte_length)
+            (has_runtime_pointer && has_runtime_length)
+                || (has_materialized_data_address && has_byte_length)
         })
 }
 
@@ -138,25 +215,113 @@ fn runtime_text_use_for_host_call<'plan>(
         .map(|(_, text_use)| text_use)
 }
 
-fn runtime_text_use_has_input_buffer(
+fn runtime_text_use_has_materialized_input_buffer(
     input: &EmissionPlanningInput<'_>,
     text_use: &RuntimeTextUse,
 ) -> bool {
-    if input.runtime_text.buffers.iter().any(|(_, buffer)| {
-        state_key_matches_statement_source(buffer.source_key, text_use.source_key)
+    if let Some(buffer) = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
+        (state_key_matches_statement_source(buffer.source_key, text_use.source_key)
             && buffer.statement_index == text_use.statement_index
-            && text_use.source == RuntimeTextSource::StoredPlace
+            && text_use.source == RuntimeTextSource::StoredPlace)
+            .then_some(buffer)
     }) {
-        return true;
+        let data_handle = runtime_text_buffer_data_handle(input, buffer);
+        return data_handle.is_valid()
+            && runtime_text_buffer_has_selected_producer(input, data_handle);
     }
 
-    input.runtime_text.slots.iter().any(|(_, slot)| {
+    let Some(slot) = input.runtime_text.slots.iter().find_map(|(_, slot)| {
         expression_place_eq_in_table(
             &input.runtime_text.expressions,
             slot.place,
             text_use.expression,
-        ) && slot.has_input_buffer
-    })
+        )
+        .then_some(slot)
+    }) else {
+        return false;
+    };
+
+    if !slot.has_input_buffer {
+        return false;
+    }
+
+    input
+        .runtime_text
+        .buffers
+        .iter()
+        .filter(|(_, buffer)| {
+            expression_place_eq_in_table(
+                &input.runtime_text.expressions,
+                buffer.text_place,
+                slot.place,
+            )
+        })
+        .map(|(_, buffer)| runtime_text_buffer_data_handle(input, buffer))
+        .any(|data_handle| {
+            data_handle.is_valid() && runtime_text_buffer_has_selected_producer(input, data_handle)
+        })
+}
+
+fn runtime_text_buffer_data_handle(
+    input: &EmissionPlanningInput<'_>,
+    buffer: &omega_runtime_text::RuntimeTextBuffer,
+) -> TargetDataObjectHandle {
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_key == buffer.source_key
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
+}
+
+fn runtime_text_buffer_has_selected_producer(
+    input: &EmissionPlanningInput<'_>,
+    data_handle: TargetDataObjectHandle,
+) -> bool {
+    input
+        .instructions
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            selected_instruction_writes_runtime_text_buffer(&instruction.kind, data_handle)
+        })
+}
+
+fn selected_instruction_writes_runtime_text_buffer(
+    kind: &SelectedInstructionKind,
+    data_handle: TargetDataObjectHandle,
+) -> bool {
+    match kind {
+        SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, .. }
+        | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { buffer, .. }
+        | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { buffer, .. }
+        | SelectedInstructionKind::MaterializeRuntimeTextBuffer { buffer, .. }
+        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
+            buffer, ..
+        }
+        | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+            buffer,
+            ..
+        }
+        | SelectedInstructionKind::AppendRuntimeTextStoredPlace { buffer, .. }
+        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+            buffer, ..
+        }
+        | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+            buffer,
+            ..
+        }
+        | SelectedInstructionKind::AppendRuntimeTextLiteral { buffer, .. }
+        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { buffer, .. }
+        | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+            buffer, ..
+        } => *buffer == data_handle,
+        _ => false,
+    }
 }
 
 fn host_text_argument_blocker_reason(
