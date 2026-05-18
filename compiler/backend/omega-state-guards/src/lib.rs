@@ -89,6 +89,7 @@ pub fn build_state_guard_plan(
         operands: Arena::with_capacity(state_dispatch.edges.len().saturating_mul(2)),
         ..StateGuardPlan::default()
     };
+    let mut normalized_expressions = ExpressionTable::new();
 
     for (_, state) in state_dispatch.states.iter() {
         let Some(machine) = machine_by_symbol(program, state.key.machine) else {
@@ -111,6 +112,7 @@ pub fn build_state_guard_plan(
                 runtime_storage,
                 entry_machine,
                 machine,
+                &mut normalized_expressions,
                 state.key,
                 state.dispatch_index,
                 statement_order,
@@ -163,6 +165,7 @@ fn build_state_guard(
     runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
     source_machine: &Machine,
+    normalized_expressions: &mut ExpressionTable,
     source: StateKey,
     source_dispatch_index: u32,
     statement_order: usize,
@@ -170,26 +173,26 @@ fn build_state_guard(
     edge: &DispatchEdge,
 ) -> StateGuard {
     let source_guard = edge.expressions.guard;
-    let mut normalized_expressions = ExpressionTable::new();
+    normalized_expressions.clear();
     let normalized_guard = normalized_guard_expression(
         program,
         source_machine,
         source_expressions,
         source_guard,
-        &mut normalized_expressions,
+        normalized_expressions,
     );
-    let kind = classify_transition_guard_expression(&normalized_expressions, normalized_guard);
+    let kind = classify_transition_guard_expression(normalized_expressions, normalized_guard);
     let operator = normalized_guard
         .is_valid()
-        .then(|| guard_operator(&normalized_expressions, normalized_guard))
+        .then(|| guard_operator(normalized_expressions, normalized_guard))
         .unwrap_or(StateGuardOperator::None);
     let expression = normalized_guard
         .is_valid()
-        .then(|| guard_expressions.copy_from(&normalized_expressions, normalized_guard))
+        .then(|| guard_expressions.copy_from(normalized_expressions, normalized_guard))
         .unwrap_or_else(ExpressionHandle::invalid);
     let has_expression = normalized_guard.is_valid();
     let guard_operands = guard_operands(
-        &normalized_expressions,
+        normalized_expressions,
         guard_expressions,
         layouts,
         runtime_storage,
@@ -390,6 +393,7 @@ pub fn lower_guard_conjunction(
     }
 
     let mut clauses = StateGuardClauses::new();
+    let mut scratch_expressions = ExpressionTable::new();
     if lower_guard_conjunction_expression(
         plan,
         layouts,
@@ -400,6 +404,7 @@ pub fn lower_guard_conjunction(
         source_dispatch_index,
         guard.statement_index,
         expression,
+        &mut scratch_expressions,
         &mut clauses,
     )
     .is_none()
@@ -420,6 +425,7 @@ fn lower_guard_conjunction_expression(
     source_dispatch_index: u32,
     statement_index: usize,
     expression: ExpressionHandle,
+    scratch_expressions: &mut ExpressionTable,
     clauses: &mut StateGuardClauses,
 ) -> Option<()> {
     match plan.expressions.expression(expression) {
@@ -434,6 +440,7 @@ fn lower_guard_conjunction_expression(
                 source_dispatch_index,
                 statement_index,
                 binary.left,
+                scratch_expressions,
                 clauses,
             )?;
             lower_guard_conjunction_expression(
@@ -446,6 +453,7 @@ fn lower_guard_conjunction_expression(
                 source_dispatch_index,
                 statement_index,
                 binary.right,
+                scratch_expressions,
                 clauses,
             )
         }
@@ -470,6 +478,7 @@ fn lower_guard_conjunction_expression(
                 source_dispatch_index,
                 statement_index,
                 expression,
+                scratch_expressions,
                 clauses,
             )
         }
@@ -487,14 +496,15 @@ fn lower_guard_leaf(
     source_dispatch_index: u32,
     statement_index: usize,
     expression: ExpressionHandle,
+    scratch_expressions: &mut ExpressionTable,
     clauses: &mut StateGuardClauses,
 ) -> Option<()> {
     let kind = classify_transition_guard_expression(&plan.expressions, expression);
     let operator = guard_operator(&plan.expressions, expression);
-    let mut scratch = ExpressionTable::new();
+    scratch_expressions.clear();
     let operands = guard_operands(
         &plan.expressions,
-        &mut scratch,
+        scratch_expressions,
         layouts,
         runtime_storage,
         entry_machine,
