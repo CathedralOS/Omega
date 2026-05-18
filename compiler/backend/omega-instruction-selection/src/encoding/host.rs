@@ -34,13 +34,6 @@ pub fn encode_syscall_sequence(
     }
 }
 
-pub fn encode_return(architecture: Architecture) -> Result<Vec<u8>, Diagnostic> {
-    match architecture {
-        Architecture::Aarch64 => Ok(aarch64::encode_return()),
-        Architecture::X86_64 => Ok(vec![0xC3]),
-    }
-}
-
 pub fn encode_return_bytes(architecture: Architecture) -> Result<([u8; 4], usize), Diagnostic> {
     match architecture {
         Architecture::Aarch64 => Ok((aarch64::encode_return_bytes(), 4)),

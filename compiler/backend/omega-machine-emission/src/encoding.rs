@@ -6,7 +6,6 @@ mod runtime_text;
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
-use omega_instruction_selection as architecture;
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
 pub(super) fn encode_machine_instruction_bytes(
@@ -27,18 +26,6 @@ pub(super) fn encode_machine_instruction_bytes(
             };
 
             host::encode_host_operation(input, *operation_key, operands)
-        }
-        SelectedInstructionKind::EnterDispatchLoop {
-            entry_dispatch_index,
-            ..
-        } => dispatch::encode_dispatch_loop_enter(input, *entry_dispatch_index),
-        SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => {
-            dispatch::encode_dispatch_case_enter(
-                input,
-                machine_instructions,
-                machine_instruction_index,
-                *dispatch_index,
-            )
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: StateGuardLowering::CompareStaticValue,
@@ -408,30 +395,15 @@ pub(super) fn encode_machine_instruction_bytes(
             *field_byte_offset,
             *byte_count,
         ),
-        SelectedInstructionKind::SetDispatchState { dispatch_index } => {
-            dispatch::encode_dispatch_state_write(
-                input,
-                machine_instructions,
-                machine_instruction_index,
-                *dispatch_index,
-            )
-        }
-        SelectedInstructionKind::TerminateDispatch => dispatch::encode_dispatch_terminal_write(
-            input,
-            machine_instructions,
-            machine_instruction_index,
-        ),
-        SelectedInstructionKind::LeaveDispatchCase => dispatch::encode_dispatch_case_leave(
-            input,
-            machine_instructions,
-            machine_instruction_index,
-        ),
-        SelectedInstructionKind::LeaveFunction => {
-            architecture::encode_return(input.target.architecture)
-        }
         SelectedInstructionKind::EnterFunction
+        | SelectedInstructionKind::EnterDispatchLoop { .. }
+        | SelectedInstructionKind::EnterDispatchCase { .. }
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
+        | SelectedInstructionKind::SetDispatchState { .. }
+        | SelectedInstructionKind::TerminateDispatch
+        | SelectedInstructionKind::LeaveDispatchCase
         | SelectedInstructionKind::LeaveDispatchLoop
+        | SelectedInstructionKind::LeaveFunction
         | SelectedInstructionKind::BeginPlatformCall => Err(Diagnostic::error(
             "internal error: zero-width machine instruction reached byte encoder",
         )),
