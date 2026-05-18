@@ -141,10 +141,12 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 },
             )
         });
-    backend_plan.state_storage = state_storage;
+    backend_plan.state_storage = Arc::new(state_storage);
     backend_plan.state_values = state_values;
-    backend_plan.runtime_bodies =
-        record_backend_phase(&mut phase_timings, "runtime bodies", || {
+    backend_plan.runtime_bodies = Arc::new(record_backend_phase(
+        &mut phase_timings,
+        "runtime bodies",
+        || {
             build_runtime_dispatch_body_plan_with_workers(
                 Arc::new(RuntimeDispatchBodyContext::new(
                     Arc::clone(&program),
@@ -152,17 +154,18 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                     &backend_plan.host_calls,
                     &backend_plan.state_dispatch,
                     &backend_plan.state_calls,
-                    &backend_plan.state_storage,
+                    Arc::clone(&backend_plan.state_storage),
                 )),
                 workers.clone(),
             )
-        });
+        },
+    ));
     let runtime_storage_context = Arc::new(RuntimeStorageContext::new(
         Arc::clone(&program),
         Arc::clone(&control_flow),
-        &backend_plan.layouts,
-        &backend_plan.runtime_bodies,
-        &backend_plan.state_storage,
+        Arc::clone(&backend_plan.layouts),
+        Arc::clone(&backend_plan.runtime_bodies),
+        Arc::clone(&backend_plan.state_storage),
         backend_plan.target,
     ));
     let runtime_storage_workers = workers.clone();
@@ -188,7 +191,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         &backend_plan.state_dispatch,
         backend_plan.entry_key,
         backend_plan.state_guards.clone(),
-        backend_plan.runtime_bodies.clone(),
+        Arc::clone(&backend_plan.runtime_bodies),
     ));
     let runtime_loop_workers = workers.clone();
     backend_plan.runtime_dispatch_loop =
