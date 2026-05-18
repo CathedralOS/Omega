@@ -96,29 +96,33 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         phase_timings,
     });
     let mut phase_timings = std::mem::take(&mut backend_plan.phase_timings);
-    backend_plan.state_calls = record_backend_phase(&mut phase_timings, "state calls", || {
-        build_state_call_plan_with_workers(
-            Arc::new(StateCallPlanningContext {
-                control_flow: Arc::clone(&control_flow),
-                host_calls: backend_plan.host_calls.clone(),
-                runtime_flow: backend_plan.runtime_flow.clone(),
-            }),
-            workers.clone(),
-        )
-    });
+    backend_plan.state_calls = Arc::new(record_backend_phase(
+        &mut phase_timings,
+        "state calls",
+        || {
+            build_state_call_plan_with_workers(
+                Arc::new(StateCallPlanningContext {
+                    control_flow: Arc::clone(&control_flow),
+                    host_calls: Arc::clone(&backend_plan.host_calls),
+                    runtime_flow: Arc::clone(&backend_plan.runtime_flow),
+                }),
+                workers.clone(),
+            )
+        },
+    ));
     backend_plan.alias_flow = record_backend_phase(&mut phase_timings, "alias flow", || {
-        build_alias_flow_plan(&backend_plan.state_calls)
+        build_alias_flow_plan(backend_plan.state_calls.as_ref())
     });
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
     let state_storage_context = Arc::new(StateStoragePlanningContext {
         control_flow: Arc::clone(&control_flow),
-        runtime_flow: backend_plan.runtime_flow.clone(),
-        state_calls: backend_plan.state_calls.clone(),
+        runtime_flow: Arc::clone(&backend_plan.runtime_flow),
+        state_calls: Arc::clone(&backend_plan.state_calls),
     });
     let state_values_context = Arc::new(StateValuePlanningContext {
-        runtime_flow: backend_plan.runtime_flow.clone(),
-        state_calls: backend_plan.state_calls.clone(),
+        runtime_flow: Arc::clone(&backend_plan.runtime_flow),
+        state_calls: Arc::clone(&backend_plan.state_calls),
     });
     let state_storage_workers = workers.clone();
     let state_values_workers = workers.clone();
@@ -151,9 +155,9 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 Arc::new(RuntimeDispatchBodyContext::new(
                     Arc::clone(&program),
                     Arc::clone(&control_flow),
-                    &backend_plan.host_calls,
-                    &backend_plan.state_dispatch,
-                    &backend_plan.state_calls,
+                    Arc::clone(&backend_plan.host_calls),
+                    Arc::clone(&backend_plan.state_dispatch),
+                    Arc::clone(&backend_plan.state_calls),
                     Arc::clone(&backend_plan.state_storage),
                 )),
                 workers.clone(),
@@ -179,18 +183,19 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
             &program,
-            &backend_plan.state_dispatch,
+            backend_plan.state_dispatch.as_ref(),
             &backend_plan.control_flow,
             &backend_plan.layouts,
             &backend_plan.runtime_storage,
             backend_plan.entry_key.machine,
         )
-    });
+    })
+    .into();
     let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_parts(
         !backend_plan.state_dispatch.states.is_empty(),
-        &backend_plan.state_dispatch,
+        Arc::clone(&backend_plan.state_dispatch),
         backend_plan.entry_key,
-        backend_plan.state_guards.clone(),
+        Arc::clone(&backend_plan.state_guards),
         Arc::clone(&backend_plan.runtime_bodies),
     ));
     let runtime_loop_workers = workers.clone();

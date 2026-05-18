@@ -25,8 +25,8 @@ pub use model::{
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateCallPlanningContext {
     pub control_flow: Arc<ControlFlowPlan>,
-    pub host_calls: HostCallPlan,
-    pub runtime_flow: RuntimeFlowPlan,
+    pub host_calls: Arc<HostCallPlan>,
+    pub runtime_flow: Arc<RuntimeFlowPlan>,
 }
 
 impl StateCallPlanningContext {
@@ -114,8 +114,8 @@ pub fn build_state_call_plan(
     build_state_call_plan_with_workers(
         Arc::new(StateCallPlanningContext {
             control_flow: Arc::new(control_flow.clone()),
-            host_calls: host_calls.clone(),
-            runtime_flow: runtime_flow.clone(),
+            host_calls: Arc::new(host_calls.clone()),
+            runtime_flow: Arc::new(runtime_flow.clone()),
         }),
         workers.handle(),
     )

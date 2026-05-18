@@ -10,9 +10,9 @@ use std::sync::Arc;
 pub struct RuntimeDispatchBodyContext {
     pub program: Arc<Program>,
     pub control_flow: Arc<ControlFlowPlan>,
-    pub host_calls: HostCallPlan,
-    pub state_dispatch: StateDispatchPlan,
-    pub state_calls: StateCallPlan,
+    pub host_calls: Arc<HostCallPlan>,
+    pub state_dispatch: Arc<StateDispatchPlan>,
+    pub state_calls: Arc<StateCallPlan>,
     pub state_storage: Arc<StateStoragePlan>,
 }
 
@@ -20,17 +20,17 @@ impl RuntimeDispatchBodyContext {
     pub fn new(
         program: Arc<Program>,
         control_flow: Arc<ControlFlowPlan>,
-        host_calls: &HostCallPlan,
-        state_dispatch: &StateDispatchPlan,
-        state_calls: &StateCallPlan,
+        host_calls: Arc<HostCallPlan>,
+        state_dispatch: Arc<StateDispatchPlan>,
+        state_calls: Arc<StateCallPlan>,
         state_storage: Arc<StateStoragePlan>,
     ) -> Self {
         Self {
             program,
             control_flow,
-            host_calls: host_calls.clone(),
-            state_dispatch: state_dispatch.clone(),
-            state_calls: state_calls.clone(),
+            host_calls,
+            state_dispatch,
+            state_calls,
             state_storage,
         }
     }
