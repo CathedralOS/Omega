@@ -16,6 +16,7 @@ pub struct StateGraph {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineGraph>,
     pub contained_machines: Arena<ContainedGraph>,
+    pub machine_owned_data: Arena<MachineOwnedDataGraph>,
     pub states: Arena<StateNode>,
     pub state_parameters: Arena<StateParameterNode>,
     pub proof_obligations: Arena<ProofObligationFact>,
@@ -31,6 +32,7 @@ impl StateGraph {
     pub fn with_capacity(
         machine_capacity: usize,
         contained_machine_capacity: usize,
+        machine_owned_data_capacity: usize,
         state_capacity: usize,
         state_parameter_capacity: usize,
         proof_obligation_capacity: usize,
@@ -45,6 +47,7 @@ impl StateGraph {
             expressions: ExpressionTable::new(),
             machines: Arena::with_capacity(machine_capacity),
             contained_machines: Arena::with_capacity(contained_machine_capacity),
+            machine_owned_data: Arena::with_capacity(machine_owned_data_capacity),
             states: Arena::with_capacity(state_capacity),
             state_parameters: Arena::with_capacity(state_parameter_capacity),
             proof_obligations: Arena::with_capacity(proof_obligation_capacity),
@@ -80,6 +83,10 @@ impl StateGraph {
 
     pub fn machine_contains(&self, machine: &MachineGraph) -> &[ContainedGraph] {
         self.contained_machines.span_or_empty(machine.contains)
+    }
+
+    pub fn machine_owned_data(&self, machine: &MachineGraph) -> &[MachineOwnedDataGraph] {
+        self.machine_owned_data.span_or_empty(machine.owned_data)
     }
 
     pub fn state_by_key(&self, key: StateKey) -> Option<&StateNode> {
@@ -143,6 +150,7 @@ pub struct MachineGraph {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub contains: HandleSpan<ContainedGraph>,
+    pub owned_data: HandleSpan<MachineOwnedDataGraph>,
     pub states: HandleSpan<StateNode>,
 }
 
@@ -152,6 +160,7 @@ impl Default for MachineGraph {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             contains: HandleSpan::empty(),
+            owned_data: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }
@@ -163,6 +172,13 @@ pub struct ContainedGraph {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: ProgramName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MachineOwnedDataGraph {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+    pub type_reference: TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

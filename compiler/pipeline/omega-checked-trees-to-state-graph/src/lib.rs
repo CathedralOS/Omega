@@ -5,11 +5,11 @@ use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{
-    ContainedGraph, InvariantFact, MachineGraph, Operation, OperationExpressionRefs,
-    PlannedTransitionTarget, ProofFactKind, ProofObligationFact, ProofObligationOwner,
-    StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind,
-    StateBorrowSummary, StateBorrowWritableRoot, StateGraph, StateKey, StateNode, TransitionEdge,
-    TransitionExpressionRefs,
+    ContainedGraph, InvariantFact, MachineGraph, MachineOwnedDataGraph, Operation,
+    OperationExpressionRefs, PlannedTransitionTarget, ProofFactKind, ProofObligationFact,
+    ProofObligationOwner, StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall,
+    StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateGraph, StateKey,
+    StateNode, TransitionEdge, TransitionExpressionRefs,
 };
 use std::sync::Arc;
 
@@ -30,7 +30,9 @@ pub fn build_state_graph_with_workers(
     workers: WorkerPoolHandle,
 ) -> Result<StateGraph, Diagnostic> {
     if program.machines().is_empty() {
-        return Ok(StateGraph::with_capacity(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        return Ok(StateGraph::with_capacity(
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ));
     }
 
     let machine_count = program.machines().len();
@@ -76,6 +78,7 @@ pub fn build_state_graph_with_workers(
 struct StateGraphCapacity {
     machines: usize,
     contained_machines: usize,
+    machine_owned_data: usize,
     states: usize,
     state_parameters: usize,
     proof_obligations: usize,
@@ -92,6 +95,7 @@ impl StateGraphCapacity {
         let mut capacity = Self {
             machines: program.machines().len(),
             contained_machines: program.machine_contained_objects.len(),
+            machine_owned_data: program.machine_owned_data.len(),
             states: 0,
             state_parameters: program.state_parameters.len(),
             proof_obligations: program.facts.proof.obligations.len(),
@@ -124,6 +128,7 @@ impl StateGraphCapacity {
         Self {
             machines: 1,
             contained_machines: program.machine_contained_objects(machine).len(),
+            machine_owned_data: program.machine_owned_data(machine).len(),
             states: state_capacity,
             state_parameters: state_parameter_capacity,
             proof_obligations: 0,
@@ -140,6 +145,7 @@ impl StateGraphCapacity {
         StateGraph::with_capacity(
             self.machines,
             self.contained_machines,
+            self.machine_owned_data,
             self.states,
             self.state_parameters,
             self.proof_obligations,
@@ -320,8 +326,17 @@ fn merge_machine_graph(target: &mut StateGraph, source: &StateGraph, machine_gra
             .cloned(),
     );
 
+    let owned_data = target.machine_owned_data.insert_many(
+        source
+            .machine_owned_data
+            .span_or_empty(machine_graph.owned_data)
+            .iter()
+            .cloned(),
+    );
+
     target.machines.insert(MachineGraph {
         contains,
+        owned_data,
         states,
         ..machine_graph.clone()
     });
@@ -474,8 +489,28 @@ fn build_machine_graph(
         symbol: machine_symbol,
         name: machine.name.clone(),
         contains: machine_contains(state_graph, program, machine),
+        owned_data: machine_owned_data(state_graph, program, machine),
         states,
     })
+}
+
+fn machine_owned_data(
+    state_graph: &mut StateGraph,
+    program: &Program,
+    machine: &Machine,
+) -> HandleSpan<MachineOwnedDataGraph> {
+    state_graph
+        .machine_owned_data
+        .insert_many(
+            program
+                .machine_owned_data(machine)
+                .iter()
+                .map(|data| MachineOwnedDataGraph {
+                    symbol: data.symbol,
+                    name: data.name.clone(),
+                    type_reference: data.type_reference,
+                }),
+        )
 }
 
 fn estimated_machine_segment_capacity(program: &Program, machine: &Machine) -> usize {

@@ -9,6 +9,7 @@ pub struct ControlFlowPlan {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineFlow>,
     pub contained_machines: Arena<ContainedFlow>,
+    pub machine_owned_data: Arena<MachineOwnedDataFlow>,
     pub states: Arena<StateFlow>,
     pub state_parameters: Arena<StateParameterFlow>,
     pub proof_obligations: Arena<ProofObligationFact>,
@@ -44,6 +45,21 @@ impl ControlFlowPlan {
 
     pub fn machine_contains(&self, machine: &MachineFlow) -> &[ContainedFlow] {
         self.contained_machines.span_or_empty(machine.contains)
+    }
+
+    pub fn machine_owned_data(&self, machine: &MachineFlow) -> &[MachineOwnedDataFlow] {
+        self.machine_owned_data.span_or_empty(machine.owned_data)
+    }
+
+    pub fn machine_owned_data_by_symbol(
+        &self,
+        machine_symbol: SymbolHandle,
+        data_symbol: SymbolHandle,
+    ) -> Option<&MachineOwnedDataFlow> {
+        let machine = self.machine_by_symbol(machine_symbol)?;
+        self.machine_owned_data(machine)
+            .iter()
+            .find(|data| data.symbol == data_symbol)
     }
 
     pub fn state_by_key(&self, key: StateKey) -> Option<&StateFlow> {
@@ -107,6 +123,7 @@ pub struct MachineFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub contains: HandleSpan<ContainedFlow>,
+    pub owned_data: HandleSpan<MachineOwnedDataFlow>,
     pub states: HandleSpan<StateFlow>,
 }
 
@@ -116,6 +133,7 @@ impl Default for MachineFlow {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             contains: HandleSpan::empty(),
+            owned_data: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }
@@ -127,6 +145,13 @@ pub struct ContainedFlow {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: ProgramName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MachineOwnedDataFlow {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+    pub type_reference: TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
