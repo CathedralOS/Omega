@@ -15,7 +15,7 @@ pub fn encode_runtime_text_literal_compare(
             failure_branch_distances,
             delimiter_failure_branch_distance,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -33,7 +33,7 @@ pub fn encode_runtime_text_storage_compare(
             delimiter_failure_branch_distance,
             branch_when_equal,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -43,7 +43,7 @@ pub fn encode_runtime_text_literal_write(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_literal_write(literal),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -56,7 +56,7 @@ pub fn encode_runtime_text_literal_segment_write(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_text_literal_segment_write(byte_offset, literal)
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -74,7 +74,7 @@ pub fn encode_runtime_text_stored_suffix_append(
             target_offset,
             length_delta,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -90,7 +90,7 @@ pub fn encode_runtime_text_stored_place_append(
             source_offset,
             target_offset,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -110,7 +110,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -134,7 +134,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -148,7 +148,7 @@ pub fn encode_runtime_text_literal_append(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_text_literal_append(buffer_offset, target_offset, literal)
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -166,7 +166,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
             field_byte_offset,
             literal,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -190,7 +190,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
                 literal,
             )
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -200,7 +200,7 @@ pub fn encode_runtime_text_buffer_materialize(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_buffer_materialize(target_offset),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -216,7 +216,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -236,7 +236,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -263,6 +263,12 @@ pub fn encode_runtime_text_line_read(
                 *supervisor_call,
             ),
         },
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
+}
+
+fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 runtime text encoding is not implemented",
+    ))
 }

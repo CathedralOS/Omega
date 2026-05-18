@@ -12,7 +12,7 @@ pub fn encode_host_call_sequence(
         Architecture::Aarch64 => {
             aarch64::encode_host_call_sequence(&aarch64_call_operands(operands))
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -30,7 +30,7 @@ pub fn encode_syscall_sequence(
             number_register,
             supervisor_call,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -46,4 +46,10 @@ pub fn encode_return_bytes(architecture: Architecture) -> Result<([u8; 4], usize
         Architecture::Aarch64 => Ok((aarch64::encode_return_bytes(), 4)),
         Architecture::X86_64 => Ok(([0xC3, 0, 0, 0], 1)),
     }
+}
+
+fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 host instruction encoding is not implemented",
+    ))
 }
