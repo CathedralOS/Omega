@@ -552,37 +552,6 @@ pub(super) fn resolve_runtime_alias_binding_handle(
     }
 }
 
-pub(super) fn resolve_leaf_binding_expression(
-    table: &ExpressionTable,
-    expression: &Expression,
-    bindings: &[RuntimeLeafBranchBinding],
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => {
-            let resolved_target = resolve_leaf_binding_expression(table, target, bindings);
-            if matches!(resolved_target, Expression::Mutable(_)) {
-                resolved_target
-            } else {
-                Expression::Mutable(Box::new(resolved_target))
-            }
-        }
-        Expression::Name(path) if !path.is_empty() => bindings
-            .iter()
-            .find(|binding| {
-                leaf_binding_matches_path(binding, path)
-                    && binding.kind == RuntimeLeafBranchBindingKind::LeafParameter
-            })
-            .or_else(|| {
-                bindings
-                    .iter()
-                    .find(|binding| leaf_binding_matches_path(binding, path))
-            })
-            .map(|binding| table.to_tree_with_place_suffix(binding.expression, &path[1..]))
-            .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
-    }
-}
-
 pub(super) fn resolve_leaf_binding_expression_handle(
     source_table: &ExpressionTable,
     table: &mut ExpressionTable,
@@ -730,10 +699,6 @@ fn alias_matches_table_path(
     alias.parameter_symbol.is_valid()
         && path.head_symbol.is_valid()
         && alias.parameter_symbol == path.head_symbol
-}
-
-fn leaf_binding_matches_path(binding: &RuntimeLeafBranchBinding, path: &NamePath) -> bool {
-    symbol_matches_path(binding.parameter_symbol, path)
 }
 
 fn leaf_binding_matches_table_path(
