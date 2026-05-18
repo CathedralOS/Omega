@@ -16,6 +16,7 @@ use super::super::super::lookups::{
     state_transition_argument_call, state_transition_argument_call_by_ordinal,
 };
 use super::super::guards::select_runtime_straight_line_branch_guard;
+use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::mutation::{
     select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
 };
@@ -129,6 +130,33 @@ fn select_runtime_straight_line_branch_writes(
                     resolved_value,
                     runtime_value_operands,
                     selected_instructions,
+                ) {
+                    continue;
+                }
+                if runtime_text_builder_write_in_table_emit(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.source_key,
+                    operation.statement_index,
+                    &expressions,
+                    resolved_target,
+                    ExpressionTable::new(),
+                    &|expressions, expression| {
+                        resolve_straight_line_binding_expression_handle(
+                            &input.runtime_branching_calls.expressions,
+                            expressions,
+                            expression,
+                            bindings,
+                        )
+                    },
+                    &mut |kind| {
+                        selected_instructions.push(omega_target_operations::SelectedInstruction {
+                            kind,
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    },
                 ) {
                     continue;
                 }
@@ -265,6 +293,36 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             resolved_value,
             runtime_value_operands,
             selected_instructions,
+        ) {
+            continue;
+        }
+        if runtime_text_builder_write_in_table_emit(
+            input,
+            expansion.dispatch_index,
+            target_key,
+            target_key,
+            leaf_operation.statement_index,
+            &expressions,
+            resolved_target,
+            ExpressionTable::new(),
+            &|expressions, expression| {
+                resolve_leaf_call_expression_handle(
+                    input,
+                    expressions,
+                    target_key,
+                    expression,
+                    leaf_parameters,
+                    arguments,
+                    straight_line_bindings,
+                )
+            },
+            &mut |kind| {
+                selected_instructions.push(omega_target_operations::SelectedInstruction {
+                    kind,
+                    source_key: target_key,
+                    source_statement: leaf_operation.statement_index,
+                });
+            },
         ) {
             continue;
         }
