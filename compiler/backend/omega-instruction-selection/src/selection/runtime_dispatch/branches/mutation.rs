@@ -286,6 +286,7 @@ pub(crate) fn select_runtime_resolved_mutation_write_in_table_with_scratch(
     expressions: &ExpressionTable,
     resolved_target: ExpressionHandle,
     resolved_value: ExpressionHandle,
+    mutable_expressions: &mut ExpressionTable,
     resolved_segment_expressions: &mut ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -295,7 +296,8 @@ pub(crate) fn select_runtime_resolved_mutation_write_in_table_with_scratch(
         ExpressionNode::StructLiteral(_)
     ) {
         let source_expressions = expressions;
-        let mut expressions = ExpressionTable::new();
+        mutable_expressions.clear();
+        let expressions = mutable_expressions;
         let resolved_target = expressions.copy_from(source_expressions, resolved_target);
         let resolved_value = expressions.copy_from(source_expressions, resolved_value);
         return select_runtime_resolved_mutation_write_in_mutable_table(
@@ -305,7 +307,7 @@ pub(crate) fn select_runtime_resolved_mutation_write_in_table_with_scratch(
             target_source_key,
             value_source_key,
             statement_index,
-            &mut expressions,
+            expressions,
             resolved_target,
             resolved_value,
             resolved_segment_expressions,

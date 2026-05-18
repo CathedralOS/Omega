@@ -28,6 +28,7 @@ use omega_target_operations::RuntimeValueOperand;
 #[derive(Default)]
 struct StraightLineBranchSelectionScratch {
     expressions: ExpressionTable,
+    mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
 }
 
@@ -144,6 +145,7 @@ fn select_runtime_straight_line_branch_writes(
                     &expressions,
                     resolved_target,
                     resolved_value,
+                    &mut scratch.mutable_expressions,
                     &mut scratch.resolved_segment_expressions,
                     runtime_value_operands,
                     selected_instructions,
@@ -314,6 +316,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             &expressions,
             resolved_target,
             resolved_value,
+            &mut scratch.mutable_expressions,
             &mut scratch.resolved_segment_expressions,
             runtime_value_operands,
             selected_instructions,
