@@ -14,6 +14,11 @@ use super::primitives::{
     encode_sub_x_register, encode_udiv_x_register, encode_unsigned_immediate,
     encode_unsigned_immediate_padded,
 };
+use super::widths::{
+    runtime_machine_integer_write_width, runtime_pointee_binary_write_width,
+    runtime_pointee_integer_write_width, runtime_storage_binary_write_width,
+    runtime_storage_compare_width, runtime_storage_value_compare_width,
+};
 
 pub fn encode_runtime_storage_compare(
     left_offset: usize,
@@ -22,7 +27,7 @@ pub fn encode_runtime_storage_compare(
     failure_branch_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_storage_compare_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
@@ -58,7 +63,7 @@ pub fn encode_runtime_storage_value_compare(
     failure_branch_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_storage_value_compare_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     match byte_size {
@@ -135,7 +140,7 @@ pub fn encode_runtime_machine_integer_write(
         ))
     })?;
 
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_size));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     match byte_size {
@@ -168,7 +173,7 @@ pub fn encode_runtime_pointee_integer_write(
         ))
     })?;
 
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_pointee_integer_write_width(byte_size));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
@@ -201,7 +206,12 @@ pub fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        right,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_runtime_value_operand(
@@ -233,7 +243,12 @@ pub fn encode_runtime_pointee_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_pointee_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        right,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
@@ -694,7 +709,7 @@ fn encode_runtime_binary_operation(
     operator: StateGuardOperator,
     right_register: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(16);
 
     match operator {
         StateGuardOperator::Add => {
