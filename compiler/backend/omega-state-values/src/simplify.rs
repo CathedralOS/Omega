@@ -11,6 +11,56 @@ use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use std::sync::Arc;
 
+const INLINE_HELPER_STATE_STACK_COUNT: usize = 16;
+
+struct HelperStateStack {
+    inline: [Option<SymbolHandle>; INLINE_HELPER_STATE_STACK_COUNT],
+    len: usize,
+    overflow: Vec<SymbolHandle>,
+}
+
+impl HelperStateStack {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_HELPER_STATE_STACK_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn contains(&self, symbol: SymbolHandle) -> bool {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_HELPER_STATE_STACK_COUNT))
+            .flatten()
+            .any(|candidate| *candidate == symbol)
+            || self.overflow.contains(&symbol)
+    }
+
+    fn push(&mut self, symbol: SymbolHandle) {
+        if self.len < INLINE_HELPER_STATE_STACK_COUNT {
+            self.inline[self.len] = Some(symbol);
+        } else {
+            self.overflow.push(symbol);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+
+        self.len -= 1;
+        if self.len < INLINE_HELPER_STATE_STACK_COUNT {
+            self.inline[self.len] = None;
+        } else {
+            self.overflow.pop();
+        }
+    }
+}
+
 pub fn simplify_expression(
     program: &Program,
     machine: &Machine,
@@ -581,7 +631,7 @@ fn helper_state_match_condition(
         machine,
         bindings,
         expected,
-        &mut Vec::new(),
+        &mut HelperStateStack::new(),
     )
 }
 
@@ -591,9 +641,9 @@ fn helper_state_match_condition_with_stack(
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
-    stack: &mut Vec<SymbolHandle>,
+    stack: &mut HelperStateStack,
 ) -> Option<Expression> {
-    if state.symbol.is_valid() && stack.contains(&state.symbol) {
+    if state.symbol.is_valid() && stack.contains(state.symbol) {
         return None;
     }
     let pushed = state.symbol.is_valid();
@@ -638,7 +688,7 @@ fn expression_match_condition_with_stack(
     machine: &Machine,
     expression: &Expression,
     expected: &Expression,
-    stack: &mut Vec<SymbolHandle>,
+    stack: &mut HelperStateStack,
 ) -> Option<Expression> {
     if expressions_equivalent(expression, expected) {
         return Some(Expression::Boolean(true));
