@@ -1,10 +1,12 @@
 use crate::EmissionPlanningInput;
 use omega_calling_conventions::PlatformCallData;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
+use omega_target_operations::{InstructionOperandKind, SelectedInstructionKind};
 
 use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
@@ -49,6 +51,7 @@ pub(super) fn collect_host_argument_blockers(
             let runtime_text_use = runtime_text_use_for_host_call(input, host_call);
             if runtime_text_use
                 .is_some_and(|text_use| runtime_text_use_has_input_buffer(input, text_use))
+                || host_text_argument_has_planned_text_operands(input, host_call)
             {
                 continue;
             }
@@ -71,6 +74,55 @@ pub(super) fn collect_host_argument_blockers(
     }
 }
 
+fn host_text_argument_has_planned_text_operands(
+    input: &EmissionPlanningInput<'_>,
+    host_call: &HostCall,
+) -> bool {
+    input
+        .instructions
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            if !state_key_matches_statement_source(instruction.source_key, host_call.source_key)
+                || instruction.source_statement != host_call.statement_index
+            {
+                return false;
+            }
+
+            let SelectedInstructionKind::HostOperation { operands, .. } = instruction.kind else {
+                return false;
+            };
+            let Some(operands) = input.instructions.operands.span(operands) else {
+                return false;
+            };
+
+            let has_runtime_pointer = operands.iter().any(|operand| {
+                matches!(
+                    operand.kind,
+                    InstructionOperandKind::RuntimeStringPointer { .. }
+                )
+            });
+            let has_runtime_length = operands.iter().any(|operand| {
+                matches!(
+                    operand.kind,
+                    InstructionOperandKind::RuntimeStringLength { .. }
+                )
+            });
+            let has_data_address = operands
+                .iter()
+                .any(|operand| matches!(operand.kind, InstructionOperandKind::DataAddress { .. }));
+            let has_byte_length = operands
+                .iter()
+                .any(|operand| matches!(operand.kind, InstructionOperandKind::ByteLength(_)));
+
+            (has_runtime_pointer && has_runtime_length) || (has_data_address && has_byte_length)
+        })
+}
+
+fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
+    actual == expected || (actual.machine == expected.machine && actual.state == expected.state)
+}
+
 fn runtime_text_use_for_host_call<'plan>(
     input: &'plan EmissionPlanningInput<'plan>,
     host_call: &HostCall,
@@ -80,7 +132,7 @@ fn runtime_text_use_for_host_call<'plan>(
         .uses
         .iter()
         .find(|(_, text_use)| {
-            text_use.source_key == host_call.source_key
+            state_key_matches_statement_source(text_use.source_key, host_call.source_key)
                 && text_use.statement_index == host_call.statement_index
         })
         .map(|(_, text_use)| text_use)
@@ -90,6 +142,14 @@ fn runtime_text_use_has_input_buffer(
     input: &EmissionPlanningInput<'_>,
     text_use: &RuntimeTextUse,
 ) -> bool {
+    if input.runtime_text.buffers.iter().any(|(_, buffer)| {
+        state_key_matches_statement_source(buffer.source_key, text_use.source_key)
+            && buffer.statement_index == text_use.statement_index
+            && text_use.source == RuntimeTextSource::StoredPlace
+    }) {
+        return true;
+    }
+
     input.runtime_text.slots.iter().any(|(_, slot)| {
         expression_place_eq_in_table(
             &input.runtime_text.expressions,

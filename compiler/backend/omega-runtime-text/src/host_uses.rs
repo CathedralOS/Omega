@@ -137,6 +137,17 @@ fn output_buffer_target_for_text_expression(
         return ExpressionHandle::invalid();
     }
 
+    if let ExpressionNode::Member(member) = source_expression
+        && member.member.as_str() == "text"
+        && host_calls
+            .expressions
+            .expression_is_stored_place(member.receiver)
+    {
+        return plan
+            .expressions
+            .copy_from(&host_calls.expressions, member.receiver);
+    }
+
     plan.buffers
         .iter()
         .find(|(_, buffer)| {
