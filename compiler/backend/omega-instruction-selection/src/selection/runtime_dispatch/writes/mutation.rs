@@ -190,7 +190,7 @@ pub(super) fn select_runtime_state_call_result_write(
         statement_index,
         &value_expressions,
         target,
-        resolved_segment_expressions,
+        &mut resolved_segment_expressions,
         &|expressions, expression| {
             resolve_runtime_alias_binding_handle(
                 expression,

@@ -399,6 +399,7 @@ fn select_runtime_resolved_scalar_mutation_write_in_table(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
+    let mut resolved_segment_expressions = ExpressionTable::new();
     if runtime_text_builder_write_in_table_emit(
         input,
         dispatch_index,
@@ -407,7 +408,7 @@ fn select_runtime_resolved_scalar_mutation_write_in_table(
         statement_index,
         expressions,
         resolved_target,
-        ExpressionTable::new(),
+        &mut resolved_segment_expressions,
         &|_, expression| expression,
         &mut |kind| {
             selected_instructions.push(SelectedInstruction {
