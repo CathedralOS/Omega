@@ -39,7 +39,7 @@ pub enum SectionKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolPlan {
     pub name: String,
-    pub section: Option<String>,
+    pub section: SymbolSection,
     pub offset: usize,
     pub size: usize,
     pub kind: SymbolKind,
@@ -51,12 +51,19 @@ impl Default for SymbolPlan {
     fn default() -> Self {
         Self {
             name: String::new(),
-            section: None,
+            section: SymbolSection::None,
             offset: 0,
             size: 0,
             kind: SymbolKind::Object,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SymbolSection {
+    #[default]
+    None,
+    Section(SectionKind),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,6 +152,13 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
         (_, SectionKind::Text) => ".text".to_owned(),
         (_, SectionKind::Data) => ".data".to_owned(),
         (_, SectionKind::Bss) => ".bss".to_owned(),
+    }
+}
+
+pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+    match section {
+        SymbolSection::None => String::new(),
+        SymbolSection::Section(kind) => section_name(target, kind),
     }
 }
 
@@ -242,7 +256,7 @@ fn write_symbols(bytes: &mut Vec<u8>, object: &ObjectPlan) {
 
     for (_, symbol) in object.symbols.iter() {
         write_string(bytes, &symbol.name);
-        write_string(bytes, symbol.section.as_deref().unwrap_or(""));
+        write_string(bytes, &symbol_section_name(object.target, symbol.section));
         write_u64(
             bytes,
             u64::try_from(symbol.offset).expect("symbol offset overflow"),

@@ -20,9 +20,6 @@ pub(in crate::identity) fn count_object_strings(
     }
     for (_, symbol) in backend_plan.object.symbols.iter() {
         storage.count_generated_symbol(&symbol.name);
-        if let Some(section) = &symbol.section {
-            storage.count_generated_symbol(section);
-        }
     }
 }
 
