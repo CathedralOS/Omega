@@ -10,9 +10,15 @@ pub struct TargetDataPlan {
 
 impl Default for TargetDataPlan {
     fn default() -> Self {
+        Self::with_capacity(0, 0)
+    }
+}
+
+impl TargetDataPlan {
+    pub fn with_capacity(object_capacity: usize, byte_capacity: usize) -> Self {
         Self {
-            objects: Arena::new(),
-            bytes: Arena::new(),
+            objects: Arena::with_capacity(object_capacity),
+            bytes: Arena::with_capacity(byte_capacity),
         }
     }
 }
