@@ -197,3 +197,61 @@ fn copy_host_call_arguments(
             }
         }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_calling_conventions::{PlatformCallData, build_host_abi_plan};
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use omega_typed_trees_to_checked_trees::lower_typed_trees;
+
+    #[test]
+    fn collects_host_call_from_inherited_data_field_receiver() {
+        let source = r#"
+            data ConsoleLine { text: String; }
+            data Game {
+                console: ConsolePlatform;
+                input: ConsoleLine;
+            }
+
+            platform ConsolePlatform {
+                entry read_line(out_line: &mut ConsoleLine);
+            }
+
+            machine Game {
+                pub entry(&mut self) {
+                    self.console.read_line(&mut self.input);
+                }
+            }
+
+            data main { game: Game; }
+
+            machine main {
+                pub entry(&mut self) {
+                    self.game.entry();
+                }
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed).expect("check");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+
+        let plan = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+
+        assert_eq!(plan.calls.len(), 1, "expected one host call: {plan:?}");
+        let (_, call) = plan.calls.iter().next().expect("host call");
+        assert_eq!(
+            call.data,
+            PlatformCallData::MutableOutputBuffer { byte_capacity: 256 }
+        );
+        assert_eq!(call.statement_index, 0);
+    }
+}
