@@ -28,11 +28,23 @@ pub fn encode_dispatch_case_enter(
     dispatch_index: u32,
     skip_byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    Ok(Vec::from(encode_dispatch_case_enter_bytes(
+        architecture,
+        dispatch_index,
+        skip_byte_distance,
+    )?))
+}
+
+pub fn encode_dispatch_case_enter_bytes(
+    architecture: Architecture,
+    dispatch_index: u32,
+    skip_byte_distance: isize,
+) -> Result<[u8; 8], Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::encode_dispatch_case_enter(dispatch_index, skip_byte_distance)
+            aarch64::encode_dispatch_case_enter_bytes(dispatch_index, skip_byte_distance)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => unsupported_x86_64_double_fixed_encoding(),
     }
 }
 
@@ -41,11 +53,23 @@ pub fn encode_dispatch_state_write(
     dispatch_index: u32,
     case_leave_byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    Ok(Vec::from(encode_dispatch_state_write_bytes(
+        architecture,
+        dispatch_index,
+        case_leave_byte_distance,
+    )?))
+}
+
+pub fn encode_dispatch_state_write_bytes(
+    architecture: Architecture,
+    dispatch_index: u32,
+    case_leave_byte_distance: isize,
+) -> Result<[u8; 8], Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::encode_dispatch_state_write(dispatch_index, case_leave_byte_distance)
+            aarch64::encode_dispatch_state_write_bytes(dispatch_index, case_leave_byte_distance)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => unsupported_x86_64_double_fixed_encoding(),
     }
 }
 
@@ -96,6 +120,12 @@ fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
 }
 
 fn unsupported_x86_64_fixed_encoding() -> Result<[u8; 4], Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 dispatch instruction encoding is not implemented",
+    ))
+}
+
+fn unsupported_x86_64_double_fixed_encoding() -> Result<[u8; 8], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 dispatch instruction encoding is not implemented",
     ))
