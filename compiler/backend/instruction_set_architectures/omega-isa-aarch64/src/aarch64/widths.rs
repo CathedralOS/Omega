@@ -53,7 +53,7 @@ pub fn runtime_storage_value_compare_width() -> usize {
     20
 }
 
-fn runtime_text_input_delimiter_check_width() -> usize {
+pub(in crate::aarch64) fn runtime_text_input_delimiter_check_width() -> usize {
     32
 }
 
