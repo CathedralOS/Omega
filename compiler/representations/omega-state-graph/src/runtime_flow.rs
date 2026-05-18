@@ -13,6 +13,22 @@ pub struct RuntimeFlowPlan {
     pub cycle_states: Arena<RuntimeState>,
 }
 
+impl RuntimeFlowPlan {
+    pub fn with_capacity(
+        state_capacity: usize,
+        edge_capacity: usize,
+        cycle_capacity: usize,
+        cycle_state_capacity: usize,
+    ) -> Self {
+        Self {
+            states: Arena::with_capacity(state_capacity),
+            edges: Arena::with_capacity(edge_capacity),
+            cycles: Arena::with_capacity(cycle_capacity),
+            cycle_states: Arena::with_capacity(cycle_state_capacity),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeState {
     pub key: StateKey,
