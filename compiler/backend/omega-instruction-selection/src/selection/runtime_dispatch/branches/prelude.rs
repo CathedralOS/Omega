@@ -1,10 +1,11 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
-    resolve_branch_prelude_binding_expression_handle,
+    resolve_branch_prelude_binding_expression_handle, strip_mutable_expression_handle,
 };
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
 use omega_checked_trees::expression::ExpressionTable;
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
@@ -14,7 +15,7 @@ use omega_runtime_branching::{
 };
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
-use super::super::super::lookups::host_call_for_statement;
+use super::super::super::lookups::{host_call_for_statement, state_call_for_statement};
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::mutation::{
     select_runtime_resolved_mutation_write,
@@ -184,11 +185,89 @@ fn select_runtime_branch_prelude(
                     selected_instructions,
                 );
             }
-            RuntimeBranchPreludeOperationKind::StateCall { .. }
-            | RuntimeBranchPreludeOperationKind::LocalData
+            RuntimeBranchPreludeOperationKind::StateCall {
+                target_key,
+                lowering,
+                ..
+            } => {
+                if matches!(
+                    lowering,
+                    omega_state_calls::StateCallLowering::InlineExpansion
+                        | omega_state_calls::StateCallLowering::InlineLeaf
+                ) {
+                    select_runtime_branch_prelude_inline_state_call(
+                        input,
+                        expansion,
+                        operation.source_key,
+                        operation.statement_index,
+                        *target_key,
+                        bindings,
+                        operands,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
+                }
+            }
+            RuntimeBranchPreludeOperationKind::LocalData
             | RuntimeBranchPreludeOperationKind::Other => {}
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_branch_prelude_inline_state_call(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeBranchPreludeExpansion,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    target_key: omega_control_flow::StateKey,
+    bindings: &[RuntimeBranchPreludeBinding],
+    operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(state_call) = state_call_for_statement(input, source_key, statement_index) else {
+        return;
+    };
+    let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
+        return;
+    };
+
+    let mut child_alias_expressions =
+        ExpressionTable::with_expression_capacity(arguments.len().saturating_mul(2));
+    let mut child_aliases = RuntimeAliasBuffer::with_capacity(arguments.len());
+
+    for argument in arguments {
+        let argument_expression =
+            child_alias_expressions.copy_from(&input.state_calls.expressions, argument.expression);
+        let resolved_expression = resolve_branch_prelude_binding_expression_handle(
+            &input.runtime_branching_calls.expressions,
+            &mut child_alias_expressions,
+            argument_expression,
+            bindings,
+        );
+        let expression =
+            strip_mutable_expression_handle(&mut child_alias_expressions, resolved_expression);
+        child_aliases.set_alias(RuntimeAliasBinding {
+            source_key: target_key,
+            parameter_symbol: argument.parameter_symbol,
+            parameter_name: argument.parameter_name.clone(),
+            expression_source_key: source_key,
+            expression,
+        });
+    }
+
+    select_state_body_instructions(
+        input,
+        target_key,
+        Some(expansion.dispatch_index),
+        &child_aliases,
+        &child_alias_expressions,
+        operands,
+        runtime_value_operands,
+        selected_instructions,
+        &mut StateBodyVisitStack::with_capacity(input.control_flow.states.len()),
+    );
 }
 
 fn prelude_alias_bindings(
