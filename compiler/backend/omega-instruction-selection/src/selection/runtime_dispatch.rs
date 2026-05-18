@@ -46,7 +46,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
     let mut runtime_aliases = RuntimeAliasBuffer::default();
     let mut runtime_alias_expressions = ExpressionTable::new();
-    let mut runtime_static_values = Vec::new();
+    let mut runtime_static_values = writes::RuntimeStaticValues::new();
 
     for (_, dispatch_case) in input.runtime_dispatch_loop.cases.iter() {
         selected_instructions.push(SelectedInstruction {
