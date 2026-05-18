@@ -1,5 +1,5 @@
 use super::aliases::{
-    BranchParameterBinding, RuntimeBranchAlias, branch_parameter_bindings,
+    BranchParameterBinding, RuntimeBranchAliasBuffer, branch_parameter_bindings,
     resolve_branch_expression_handle, resolve_branch_guard_handle,
 };
 use super::lookups::state_parameters;
@@ -29,7 +29,7 @@ pub(super) fn append_branch_prelude_expansion(
     statement_index: usize,
     dispatch_index: u32,
     state_call: &StateCall,
-    aliases: &[RuntimeBranchAlias],
+    aliases: &RuntimeBranchAliasBuffer,
 ) {
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
     let bindings = prelude_bindings.insert_many(branch_bindings.iter().map(|binding| {
@@ -71,7 +71,7 @@ pub(super) fn append_leaf_branch_expansions(
     dispatch_index: u32,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
-    aliases: &[RuntimeBranchAlias],
+    aliases: &RuntimeBranchAliasBuffer,
 ) {
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
 
@@ -140,7 +140,7 @@ pub(super) fn append_straight_line_branch_expansions(
     dispatch_index: u32,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
-    aliases: &[RuntimeBranchAlias],
+    aliases: &RuntimeBranchAliasBuffer,
 ) {
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
 

@@ -7,7 +7,7 @@ mod model;
 
 pub(super) use expressions::resolve_branch_expression_handle;
 use expressions::resolve_runtime_branch_alias_expression_handle;
-pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias};
+pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias, RuntimeBranchAliasBuffer};
 
 pub(super) fn resolve_branch_guard_handle(
     guard: omega_checked_trees::expression::ExpressionHandle,
@@ -24,7 +24,7 @@ pub(super) fn resolve_branch_guard_handle(
 pub(super) fn branch_parameter_bindings(
     context: &RuntimeBranchingContext,
     state_call: &StateCall,
-    aliases: &[RuntimeBranchAlias],
+    aliases: &RuntimeBranchAliasBuffer,
     expression_table: &mut ExpressionTable,
 ) -> Vec<BranchParameterBinding> {
     context
@@ -66,7 +66,7 @@ pub(super) fn branch_parameter_bindings(
 pub(super) fn bind_runtime_branch_aliases(
     context: &RuntimeBranchingContext,
     expression_table: &mut ExpressionTable,
-    aliases: &mut Vec<RuntimeBranchAlias>,
+    aliases: &mut RuntimeBranchAliasBuffer,
     state_call: &StateCall,
 ) {
     let Some(arguments) = context.state_calls.arguments.span(state_call.arguments) else {
@@ -91,25 +91,11 @@ pub(super) fn bind_runtime_branch_aliases(
             aliases,
             expression_table,
         );
-        set_runtime_branch_alias(
-            aliases,
-            RuntimeBranchAlias {
-                source_key: state_call.target_key,
-                parameter_symbol: argument.parameter_symbol,
-                parameter_name: argument.parameter_name.clone(),
-                expression,
-            },
-        );
-    }
-}
-
-fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: RuntimeBranchAlias) {
-    if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
-        existing_alias.source_key == alias.source_key
-            && existing_alias.parameter_symbol == alias.parameter_symbol
-    }) {
-        *existing_alias = alias;
-    } else {
-        aliases.push(alias);
+        aliases.set(RuntimeBranchAlias {
+            source_key: state_call.target_key,
+            parameter_symbol: argument.parameter_symbol,
+            parameter_name: argument.parameter_name.clone(),
+            expression,
+        });
     }
 }
