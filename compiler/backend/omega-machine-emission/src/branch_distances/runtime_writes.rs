@@ -12,7 +12,9 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
     literal: &str,
 ) -> Result<Vec<isize>, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
-        return Ok(Vec::new());
+        return Err(Diagnostic::error(format!(
+            "cannot encode runtime text guard: missing machine instruction `{machine_instruction_index}`"
+        )));
     };
     let Some(machine_write) =
         next_runtime_write_group_end(input, machine_instructions, machine_instruction_index)
@@ -24,15 +26,13 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
     };
 
     let target = machine_write.offset + machine_write.byte_width;
-    Ok(literal
-        .as_bytes()
-        .iter()
-        .enumerate()
-        .map(|(byte_index, _)| {
-            let branch_program_counter = current.offset + 8 + byte_index * 12 + 8;
-            target as isize - branch_program_counter as isize
-        })
-        .collect())
+    let mut distances = Vec::with_capacity(literal.len());
+    for byte_index in 0..literal.len() {
+        let branch_program_counter = current.offset + 8 + byte_index * 12 + 8;
+        distances.push(target as isize - branch_program_counter as isize);
+    }
+
+    Ok(distances)
 }
 
 pub(crate) fn byte_distance_to_next_runtime_write_end(
