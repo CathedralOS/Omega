@@ -313,6 +313,68 @@ pub(super) fn resolve_runtime_frame_indexed_target(
     })
 }
 
+pub(super) fn resolve_runtime_frame_indexed_target_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeFrameIndexedTarget> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let descriptor_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame
+        || index_place.region != RuntimeStorageRegion::RuntimeFrame
+    {
+        return None;
+    }
+
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &root_field,
+        expressions,
+        indexed.suffix_root,
+    )?;
+
+    Some(RuntimeFrameIndexedTarget {
+        descriptor_offset: descriptor_place.byte_offset,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
 pub(super) fn resolve_runtime_pointee_slot_offset(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -356,6 +418,56 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
         resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
             path.member_symbol(index + 1)
         })?
+    };
+    (field_layout.size > 0).then_some(RuntimePointeeTarget {
+        pointer_byte_offset: place.byte_offset,
+        field_byte_offset,
+        pointee_byte_size: field_layout.size,
+    })
+}
+
+pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimePointeeTarget> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.is_empty() {
+        return None;
+    }
+    let place =
+        resolve_runtime_frame_root_place(input, dispatch_index, source_key, path.head_symbol())?;
+    if place.region != RuntimeStorageRegion::RuntimeFrame
+        || place.byte_count != input.target.pointer_size
+    {
+        return None;
+    }
+
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    let pointee_layout = descriptor_layout(input, pointee_descriptor);
+    let suffix = path.suffix(1);
+    let (field_byte_offset, field_layout) = if path.len() <= 1 {
+        (0, pointee_layout)
+    } else {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: 0,
+            type_symbol: pointee_descriptor.storage_symbol(),
+            type_name: "".into(),
+            type_descriptor: pointee_descriptor.clone(),
+            layout: pointee_layout,
+        };
+        resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?
     };
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
         pointer_byte_offset: place.byte_offset,
@@ -555,6 +667,13 @@ struct IndexedTargetPath<'expression> {
     suffix_root: &'expression Expression,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct TableIndexedTargetPath {
+    collection: ExpressionHandle,
+    index: ExpressionHandle,
+    suffix_root: ExpressionHandle,
+}
+
 fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath<'_>> {
     match expression {
         Expression::Mutable(target) => fixed_indexed_target_path(target),
@@ -622,6 +741,29 @@ fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath<'_>>
         Expression::Indexed(indexed) => Some(IndexedTargetPath {
             collection: &indexed.collection,
             index: &indexed.index,
+            suffix_root: expression,
+        }),
+        _ => None,
+    }
+}
+
+fn indexed_target_path_in_table(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<TableIndexedTargetPath> {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => indexed_target_path_in_table(table, *target),
+        ExpressionNode::Member(member) => {
+            let path = indexed_target_path_in_table(table, member.receiver)?;
+            Some(TableIndexedTargetPath {
+                collection: path.collection,
+                index: path.index,
+                suffix_root: expression,
+            })
+        }
+        ExpressionNode::Indexed(indexed) => Some(TableIndexedTargetPath {
+            collection: indexed.collection,
+            index: indexed.index,
             suffix_root: expression,
         }),
         _ => None,
