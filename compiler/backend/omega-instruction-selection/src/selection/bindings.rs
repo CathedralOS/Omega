@@ -659,6 +659,55 @@ pub(super) fn resolve_straight_line_binding_expression(
     }
 }
 
+pub(super) fn resolve_straight_line_binding_expression_handle(
+    source_table: &ExpressionTable,
+    table: &mut ExpressionTable,
+    expression: ExpressionHandle,
+    bindings: &[RuntimeStraightLineBranchBinding],
+) -> ExpressionHandle {
+    match table.expression(expression).clone() {
+        ExpressionNode::Mutable(target) => {
+            let resolved_target = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                target,
+                bindings,
+            );
+            if matches!(
+                table.expression(resolved_target),
+                ExpressionNode::Mutable(_)
+            ) {
+                resolved_target
+            } else {
+                table.insert(ExpressionNode::Mutable(resolved_target))
+            }
+        }
+        ExpressionNode::Name(path) if path.members.count() > 0 => bindings
+            .iter()
+            .find(|binding| {
+                straight_line_binding_matches_table_path(binding, &path)
+                    && binding.kind == RuntimeStraightLineBranchBindingKind::TargetParameter
+            })
+            .or_else(|| {
+                bindings
+                    .iter()
+                    .find(|binding| straight_line_binding_matches_table_path(binding, &path))
+            })
+            .map(|binding| {
+                let expression = table.copy_from(source_table, binding.expression);
+                let resolved = resolve_straight_line_binding_expression_handle(
+                    source_table,
+                    table,
+                    expression,
+                    bindings,
+                );
+                table.insert_copy_with_member_suffix(resolved, path.members, path.member_symbols, 1)
+            })
+            .unwrap_or(expression),
+        _ => expression,
+    }
+}
+
 pub(super) fn resolve_branch_prelude_binding_expression_handle(
     source_table: &ExpressionTable,
     table: &mut ExpressionTable,
@@ -730,6 +779,13 @@ fn straight_line_binding_matches_path(
     path: &NamePath,
 ) -> bool {
     symbol_matches_path(binding.parameter_symbol, path)
+}
+
+fn straight_line_binding_matches_table_path(
+    binding: &RuntimeStraightLineBranchBinding,
+    path: &TableNamePath,
+) -> bool {
+    symbol_matches_table_path(binding.parameter_symbol, path)
 }
 
 fn symbol_matches_path(symbol: SymbolHandle, path: &NamePath) -> bool {
