@@ -1,18 +1,15 @@
 use super::bindings::host_binding_mechanism;
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
-    RuntimeAliasResolutionContext, resolve_runtime_alias_binding,
-    resolve_runtime_alias_binding_handle,
+    RuntimeAliasResolutionContext, resolve_runtime_alias_binding_handle,
 };
 use crate::selection::storage_places::{
-    RuntimeStoragePlace, resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
 };
 use omega_calling_conventions::{
     HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
-};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
@@ -156,36 +153,7 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         return (place.byte_count == input.target.pointer_size * 2).then_some(place);
     }
 
-    let expression = input.host_calls.expressions.to_tree(*expression);
-    let (resolved_source_key, resolved_expression) = alias_context
-        .map(|context| {
-            let resolved = resolve_runtime_alias_binding(
-                &expression,
-                host_call.source_key,
-                context.aliases,
-                context.alias_expressions,
-            );
-            (resolved.source_key, resolved.expression)
-        })
-        .unwrap_or((host_call.source_key, expression));
-    let (resolved_source_key, resolved_expression) =
-        resolve_host_call_alias_expression(input, resolved_source_key, &resolved_expression);
-    let source_machine = input
-        .control_flow
-        .state_machine_name_by_key_cloned(resolved_source_key);
-    let source_state = input
-        .control_flow
-        .state_name_by_key_cloned(resolved_source_key);
-    let place = resolve_runtime_storage_place(
-        input,
-        dispatch_index.unwrap_or(0),
-        resolved_source_key,
-        &source_machine,
-        &source_state,
-        &resolved_expression,
-    )?;
-
-    (place.byte_count == input.target.pointer_size * 2).then_some(place)
+    None
 }
 
 fn host_call_argument_has_alias(
@@ -301,77 +269,6 @@ fn resolve_host_call_alias_expression_handle(
         }
         _ => (source_key, expression),
     }
-}
-
-fn resolve_host_call_alias_expression(
-    input: &InstructionSelectionInput<'_>,
-    source_key: omega_control_flow::StateKey,
-    expression: &Expression,
-) -> (omega_control_flow::StateKey, Expression) {
-    match expression {
-        Expression::Mutable(target) => {
-            let (resolved_source_key, resolved_target) =
-                resolve_host_call_alias_expression(input, source_key, target);
-            (
-                resolved_source_key,
-                Expression::Mutable(Box::new(resolved_target)),
-            )
-        }
-        Expression::Indexed(indexed) => {
-            let (resolved_source_key, resolved_collection) =
-                resolve_host_call_alias_expression(input, source_key, &indexed.collection);
-            let (_, resolved_index) =
-                resolve_host_call_alias_expression(input, source_key, &indexed.index);
-            (
-                resolved_source_key,
-                Expression::Indexed(Box::new(
-                    omega_checked_trees::expression::IndexedExpression {
-                        collection: resolved_collection,
-                        index: resolved_index,
-                    },
-                )),
-            )
-        }
-        Expression::Member(member) => {
-            let (resolved_source_key, resolved_receiver) =
-                resolve_host_call_alias_expression(input, source_key, &member.receiver);
-            (
-                resolved_source_key,
-                Expression::Member(Box::new(
-                    omega_checked_trees::expression::MemberExpression {
-                        receiver: resolved_receiver,
-                        member_symbol: member.member_symbol,
-                        member: member.member.clone(),
-                    },
-                )),
-            )
-        }
-        Expression::Name(path) if !path.is_empty() => {
-            let mut matched_alias = None;
-            for (_, alias) in input.alias_flow.aliases.iter() {
-                if alias.callee_key == source_key && alias_matches_path(alias, path) {
-                    matched_alias = Some(alias);
-                }
-            }
-
-            matched_alias
-                .map(|alias| {
-                    let aliased_expression = input
-                        .alias_flow
-                        .expressions
-                        .to_tree_with_place_suffix(alias.argument, &path[1..]);
-                    resolve_host_call_alias_expression(input, alias.caller_key, &aliased_expression)
-                })
-                .unwrap_or((source_key, expression.clone()))
-        }
-        _ => (source_key, expression.clone()),
-    }
-}
-
-fn alias_matches_path(alias: &omega_state_calls::AliasBinding, path: &NamePath) -> bool {
-    alias.parameter_symbol.is_valid()
-        && path.head_symbol().is_valid()
-        && alias.parameter_symbol == path.head_symbol()
 }
 
 fn alias_matches_table_path(
