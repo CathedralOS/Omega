@@ -11,8 +11,8 @@ mod transitions;
 
 use display::{cycle_path, state_key_display};
 use local_calls::append_local_state_calls;
-pub use model::ScheduledState;
 use model::StateScheduleWorkspace;
+pub use model::{ScheduledState, ScheduledStateCollector};
 use static_values::{apply_static_operations, select_transition as select_static_transition};
 use transitions::next_state;
 

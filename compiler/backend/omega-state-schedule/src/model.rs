@@ -1,11 +1,35 @@
 use super::static_values::{PlaceKey, StaticValue};
 use omega_control_flow::StateKey;
+use std::collections::HashSet;
 
 const INLINE_VISITED_STATE_COUNT: usize = 8;
+type StateKeyId = (u32, u32, usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScheduledState {
     pub key: StateKey,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScheduledStateCollector {
+    states: Vec<ScheduledState>,
+    seen: HashSet<StateKeyId>,
+}
+
+impl ScheduledStateCollector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push_key(&mut self, key: StateKey) {
+        if self.seen.insert(state_key_id(key)) {
+            self.states.push(ScheduledState { key });
+        }
+    }
+
+    pub fn finish(self) -> Vec<ScheduledState> {
+        self.states
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,4 +172,12 @@ impl VisitedStates {
             }
         }
     }
+}
+
+fn state_key_id(key: StateKey) -> StateKeyId {
+    (
+        key.machine.arena_index(),
+        key.state.arena_index(),
+        key.segment_index,
+    )
 }
