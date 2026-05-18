@@ -33,6 +33,36 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
     })
 }
 
+pub fn build_control_flow_plan_owned(
+    state_graph: StateGraph,
+) -> Result<ControlFlowPlan, Diagnostic> {
+    let (machines, contained_machines, machine_owned_data) = remap_machines(&state_graph);
+    let (states, state_parameters) = remap_states(&state_graph);
+    let proof_obligations = remap_proof_obligations(&state_graph);
+    let invariants = remap_invariants(&state_graph);
+    let borrow_writable_roots = remap_borrow_writable_roots(&state_graph);
+    let borrow_argument_accesses = remap_borrow_argument_accesses(&state_graph);
+    let borrow_calls = remap_borrow_calls(&state_graph);
+    let operations = remap_operations(&state_graph);
+    let transitions = remap_transitions(&state_graph);
+
+    Ok(ControlFlowPlan {
+        expressions: state_graph.expressions,
+        machines,
+        contained_machines,
+        machine_owned_data,
+        states,
+        state_parameters,
+        proof_obligations,
+        invariants,
+        borrow_writable_roots,
+        borrow_argument_accesses,
+        borrow_calls,
+        operations,
+        transitions,
+    })
+}
+
 fn remap_machines(
     state_graph: &StateGraph,
 ) -> (
