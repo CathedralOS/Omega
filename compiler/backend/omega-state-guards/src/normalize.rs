@@ -1,99 +1,120 @@
-use omega_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
-use std::sync::Arc;
-
-pub(super) fn normalize_guard_expression(expression: Expression) -> Expression {
-    normalize_top_level_guard_expression(expression)
-}
-
-fn normalize_top_level_guard_expression(expression: Expression) -> Expression {
-    let normalized = normalize_guard_expression_tree(expression);
-    match normalized {
-        Expression::Boolean(value) => Expression::Boolean(value),
-        Expression::Binary(binary) => Expression::Binary(binary),
-        other => boolean_compare(other, true),
+use omega_checked_trees::expression::{
+    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
+    ExpressionTable, TableBinaryExpression,
+};
+pub(super) fn normalize_guard_expression_into_table(
+    expression: Expression,
+    output: &mut ExpressionTable,
+) -> ExpressionHandle {
+    let normalized = normalize_guard_expression_tree_into_table(expression, output);
+    match output.expression(normalized) {
+        ExpressionNode::Boolean(_) | ExpressionNode::Binary(_) => normalized,
+        _ => boolean_compare_into_table(output, normalized, true),
     }
 }
 
-fn normalize_guard_expression_tree(expression: Expression) -> Expression {
+fn normalize_guard_expression_tree_into_table(
+    expression: Expression,
+    output: &mut ExpressionTable,
+) -> ExpressionHandle {
     match expression {
-        Expression::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
-            values
-                .iter()
-                .cloned()
-                .map(normalize_guard_expression_tree)
-                .collect::<Arc<[_]>>(),
-        )),
-        Expression::Binary(binary) => {
-            let left = normalize_guard_expression_tree(binary.left);
-            let right = normalize_guard_expression_tree(binary.right);
-            normalize_binary_expression(BinaryExpression {
-                left,
-                operator: binary.operator,
-                right,
-            })
+        Expression::ArrayLiteral(values) => {
+            let values_span = output.reserve_expression_handles(
+                values
+                    .len()
+                    .try_into()
+                    .expect("array literal expression span count overflow"),
+            );
+            for (offset, value) in values.iter().cloned().enumerate() {
+                let value = normalize_guard_expression_tree_into_table(value, output);
+                output.set_expression_handle_at_offset(
+                    values_span,
+                    offset
+                        .try_into()
+                        .expect("array literal expression span count overflow"),
+                    value,
+                );
+            }
+            output.insert(ExpressionNode::ArrayLiteral(values_span))
         }
-        Expression::Boolean(_)
-        | Expression::Call(_)
-        | Expression::Cast(_)
-        | Expression::Float(_)
-        | Expression::Indexed(_)
-        | Expression::Integer(_)
-        | Expression::Member(_)
-        | Expression::Mutable(_)
-        | Expression::Name(_)
-        | Expression::String(_)
-        | Expression::StructLiteral(_) => expression,
+        Expression::Binary(binary) => normalize_binary_expression_into_table(*binary, output),
+        other => output.insert_tree(&other),
     }
 }
 
-fn normalize_binary_expression(binary: BinaryExpression) -> Expression {
+fn normalize_binary_expression_into_table(
+    binary: BinaryExpression,
+    output: &mut ExpressionTable,
+) -> ExpressionHandle {
     if matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) {
         if let Expression::Boolean(flag) = &binary.right {
-            return normalize_boolean_condition(
+            return normalize_boolean_condition_into_table(
                 binary.left,
                 positive_branch(binary.operator, *flag),
+                output,
             );
         }
         if let Expression::Boolean(flag) = &binary.left {
-            return normalize_boolean_condition(
+            return normalize_boolean_condition_into_table(
                 binary.right,
                 positive_branch(binary.operator, *flag),
+                output,
             );
         }
     }
 
-    Expression::Binary(Box::new(binary))
+    let left = normalize_guard_expression_tree_into_table(binary.left, output);
+    let right = normalize_guard_expression_tree_into_table(binary.right, output);
+    output.insert(ExpressionNode::Binary(TableBinaryExpression {
+        left,
+        operator: binary.operator,
+        right,
+    }))
 }
 
-fn normalize_boolean_condition(expression: Expression, positive: bool) -> Expression {
-    let normalized = normalize_guard_expression_tree(expression);
-    match normalized {
-        Expression::Binary(binary) => {
+fn normalize_boolean_condition_into_table(
+    expression: Expression,
+    positive: bool,
+    output: &mut ExpressionTable,
+) -> ExpressionHandle {
+    let normalized = normalize_guard_expression_tree_into_table(expression, output);
+    match output.expression(normalized) {
+        ExpressionNode::Binary(binary) => {
+            let binary = *binary;
             if let Some(operator) = comparison_operator(binary.operator, positive) {
-                Expression::Binary(Box::new(BinaryExpression {
+                output.insert(ExpressionNode::Binary(TableBinaryExpression {
                     left: binary.left,
                     operator,
                     right: binary.right,
                 }))
             } else if positive {
-                Expression::Binary(binary)
+                normalized
             } else {
-                boolean_compare(Expression::Binary(binary), false)
+                boolean_compare_into_table(output, normalized, false)
             }
         }
-        Expression::Boolean(value) => Expression::Boolean(if positive { value } else { !value }),
-        other => boolean_compare(other, positive),
+        ExpressionNode::Boolean(value) => output.insert(ExpressionNode::Boolean(if positive {
+            *value
+        } else {
+            !*value
+        })),
+        _ => boolean_compare_into_table(output, normalized, positive),
     }
 }
 
-fn boolean_compare(expression: Expression, expected: bool) -> Expression {
-    Expression::Binary(Box::new(BinaryExpression {
+fn boolean_compare_into_table(
+    output: &mut ExpressionTable,
+    expression: ExpressionHandle,
+    expected: bool,
+) -> ExpressionHandle {
+    let right = output.insert(ExpressionNode::Boolean(expected));
+    output.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: expression,
         operator: BinaryOperator::Equal,
-        right: Expression::Boolean(expected),
+        right,
     }))
 }
 

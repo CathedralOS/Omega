@@ -6,7 +6,7 @@ pub use model::{
     StateGuard, StateGuardKind, StateGuardOperand, StateGuardOperandKind, StateGuardOperandStorage,
     StateGuardPlan,
 };
-use normalize::normalize_guard_expression;
+use normalize::normalize_guard_expression_into_table;
 use omega_checked_trees::Program;
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
@@ -310,8 +310,7 @@ fn normalized_guard_expression(
         source_machine,
         &source_expressions.to_tree(source_guard),
     );
-    let normalized_guard = normalize_guard_expression(simplified_guard);
-    normalized_expressions.insert_tree(&normalized_guard)
+    normalize_guard_expression_into_table(simplified_guard, normalized_expressions)
 }
 
 fn normalized_direct_place_boolean_guard(
