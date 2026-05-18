@@ -33,11 +33,11 @@ struct BodyVisitingStates {
 }
 
 impl BodyVisitingStates {
-    fn new() -> Self {
+    fn with_capacity(state_capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_BODY_VISITING_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(state_capacity.saturating_sub(INLINE_BODY_VISITING_COUNT)),
         }
     }
 
@@ -95,7 +95,7 @@ pub(super) fn build_dispatch_body(
         &mut expressions,
         &mut invariant_names,
         &mut type_references,
-        &mut BodyVisitingStates::new(),
+        &mut BodyVisitingStates::with_capacity(context.control_flow.states.len()),
     );
 
     CollectedRuntimeDispatchBody {
