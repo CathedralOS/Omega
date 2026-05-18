@@ -184,7 +184,6 @@ fn runtime_frame_operand_layout(
             layouts,
             slot.byte_offset,
             slot.type_symbol,
-            &slot.type_name,
             suffix,
         )?
     };
@@ -200,12 +199,10 @@ fn resolve_nested_slot_layout(
     layouts: &LayoutPlan,
     root_byte_offset: usize,
     root_type_symbol: SymbolHandle,
-    root_type_name: &str,
     suffix: GuardPathSuffix<'_, '_>,
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_byte_offset;
     let mut type_symbol = root_type_symbol;
-    let mut type_name = root_type_name;
     let mut layout = TypeLayout {
         size: 0,
         alignment: 1,
@@ -213,21 +210,20 @@ fn resolve_nested_slot_layout(
 
     for (segment, field_symbol, field_index) in suffix.iter() {
         let field_segment = parse_field_segment(segment, field_index)?;
-        let fields = record_fields(layouts, type_symbol, type_name);
+        let fields = record_fields(layouts, type_symbol);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
-        type_name = &field.type_name;
         layout = field.layout;
 
         if let Some(index) = field_segment.index {
-            let array = parse_array_type_name(type_name)?;
-            if index >= array.length {
+            let (element_type, length) = field.type_descriptor.fixed_array()?;
+            if index >= length {
                 return None;
             }
-            let element_size = field.layout.size / array.length;
+            let element_size = field.layout.size / length;
             byte_offset += element_size * index;
-            type_name = array.element_type_name;
+            type_symbol = element_type.storage_symbol();
             layout = TypeLayout {
                 size: element_size,
                 alignment: field.layout.alignment,
@@ -526,30 +522,27 @@ fn resolve_nested_field_layout_by_symbol(
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
-    let mut type_name = root_field.type_name.as_ref();
     let mut layout = root_field.layout;
 
     for (segment, field_symbol, field_index) in suffix.iter() {
         let field_segment = parse_field_segment(segment, field_index)?;
-        let fields = record_fields(layouts, type_symbol, type_name);
+        let fields = record_fields(layouts, type_symbol);
         let field = field_layout_by_symbol(layouts, fields, field_symbol)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
-        type_name = &field.type_name;
         layout = field.layout;
 
         if let Some(index) = field_segment.index {
-            let array = parse_array_type_name(type_name)?;
-            if index >= array.length {
+            let (element_type, length) = field.type_descriptor.fixed_array()?;
+            if index >= length {
                 return None;
             }
             let element_layout = TypeLayout {
-                size: layout.size / array.length,
+                size: layout.size / length,
                 alignment: layout.alignment,
             };
             byte_offset += element_layout.size * index;
-            type_symbol = field.type_symbol;
-            type_name = array.element_type_name;
+            type_symbol = element_type.storage_symbol();
             layout = element_layout;
         }
     }
@@ -560,7 +553,6 @@ fn resolve_nested_field_layout_by_symbol(
 fn data_layout<'plan>(
     layouts: &'plan LayoutPlan,
     type_symbol: SymbolHandle,
-    _type_name: &str,
 ) -> Option<&'plan omega_layout::DataLayout> {
     if !type_symbol.is_valid() {
         return None;
@@ -576,9 +568,8 @@ fn data_layout<'plan>(
 fn record_fields(
     layouts: &LayoutPlan,
     type_symbol: SymbolHandle,
-    type_name: &str,
 ) -> HandleSpan<FieldLayout> {
-    if let Some(data_layout) = data_layout(layouts, type_symbol, type_name) {
+    if let Some(data_layout) = data_layout(layouts, type_symbol) {
         let DataShape::Record { fields } = &data_layout.shape else {
             return HandleSpan::empty();
         };
@@ -611,20 +602,6 @@ fn parse_field_segment(segment: &str, explicit_index: Option<usize>) -> Option<F
     };
     let index = index_suffix.strip_suffix(']')?.parse::<usize>().ok()?;
     Some(FieldSegment { index: Some(index) })
-}
-
-struct ArrayTypeName<'name> {
-    element_type_name: &'name str,
-    length: usize,
-}
-
-fn parse_array_type_name(type_name: &str) -> Option<ArrayTypeName<'_>> {
-    let inner = type_name.strip_prefix('[')?.strip_suffix(']')?;
-    let (element_type_name, length) = inner.split_once(';')?;
-    Some(ArrayTypeName {
-        element_type_name: element_type_name.trim(),
-        length: length.trim().parse::<usize>().ok()?,
-    })
 }
 
 fn field_layout_by_symbol<'plan>(

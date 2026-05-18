@@ -1,7 +1,8 @@
 use crate::packing::{PlannedField, pack_fields};
 use crate::sizing::primitive_type_layout;
 use crate::{
-    DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout,
+    DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
+    TypeLayoutDescriptor, VariantLayout,
 };
 use omega_checked_trees::Program;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -204,6 +205,7 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
+                    type_descriptor: self.type_descriptor(field.type_reference),
                     layout,
                 })
             })
@@ -257,6 +259,7 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
+                    type_descriptor: self.type_descriptor(field.type_reference),
                     layout: self.layout_type_reference_handle(field.type_reference)?,
                 });
             }
@@ -273,6 +276,7 @@ impl<'program> LayoutBuilder<'program> {
                     .program
                     .display_type_reference_with_constraints(owned_data.type_reference)
                     .into(),
+                type_descriptor: self.type_descriptor(owned_data.type_reference),
                 layout: self.layout_type_reference_handle(owned_data.type_reference)?,
             });
         }
@@ -287,6 +291,10 @@ impl<'program> LayoutBuilder<'program> {
                     name: contained_object.name.clone(),
                     type_symbol: contained_object.type_symbol,
                     type_name: contained_object.type_name.as_str().into(),
+                    type_descriptor: TypeLayoutDescriptor::Named {
+                        symbol: contained_object.type_symbol,
+                        name: contained_object.type_name.clone(),
+                    },
                     layout: self.layout_machine(contained_object.type_symbol)?,
                 });
             }
@@ -466,5 +474,47 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         None
+    }
+
+    fn type_descriptor(&self, type_reference: TypeReferenceHandle) -> TypeLayoutDescriptor {
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Reference {
+                referee,
+                is_mutable,
+            } => TypeLayoutDescriptor::Reference {
+                referee: Box::new(self.type_descriptor(*referee)),
+                is_mutable: *is_mutable,
+            },
+            TypeReferenceNode::Constrained { base_type, .. } => TypeLayoutDescriptor::Constrained {
+                base_type: Box::new(self.type_descriptor(*base_type)),
+            },
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => TypeLayoutDescriptor::FixedArray {
+                element_type: Box::new(self.type_descriptor(*element_type)),
+                length: *length,
+            },
+            TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
+                element_type: Box::new(self.type_descriptor(*element_type)),
+            },
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => TypeLayoutDescriptor::Named {
+                symbol: *base_symbol,
+                name: base_name.clone(),
+            },
+            TypeReferenceNode::Named { symbol, name } => TypeLayoutDescriptor::Named {
+                symbol: *symbol,
+                name: name.clone(),
+            },
+            TypeReferenceNode::Unit => TypeLayoutDescriptor::Unit,
+        }
     }
 }
