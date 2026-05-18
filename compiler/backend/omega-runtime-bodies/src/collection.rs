@@ -24,6 +24,56 @@ pub(super) struct CollectedRuntimeDispatchBody {
     pub type_references: TypeReferenceTable,
 }
 
+const INLINE_BODY_VISITING_COUNT: usize = 16;
+
+struct BodyVisitingStates {
+    inline: [Option<StateKey>; INLINE_BODY_VISITING_COUNT],
+    len: usize,
+    overflow: Vec<StateKey>,
+}
+
+impl BodyVisitingStates {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_BODY_VISITING_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn contains(&self, key: StateKey) -> bool {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_BODY_VISITING_COUNT))
+            .flatten()
+            .any(|candidate| *candidate == key)
+            || self.overflow.contains(&key)
+    }
+
+    fn push(&mut self, key: StateKey) {
+        if self.len < INLINE_BODY_VISITING_COUNT {
+            self.inline[self.len] = Some(key);
+        } else {
+            self.overflow.push(key);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+
+        self.len -= 1;
+        if self.len < INLINE_BODY_VISITING_COUNT {
+            self.inline[self.len] = None;
+        } else {
+            self.overflow.pop();
+        }
+    }
+}
+
 pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
     dispatch_state: &DispatchState,
@@ -39,7 +89,7 @@ pub(super) fn build_dispatch_body(
         &mut expressions,
         &mut invariant_names,
         &mut type_references,
-        &mut Vec::new(),
+        &mut BodyVisitingStates::new(),
     );
 
     CollectedRuntimeDispatchBody {
@@ -59,9 +109,9 @@ fn append_state_body_operations(
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
     type_references: &mut TypeReferenceTable,
-    visiting: &mut Vec<StateKey>,
+    visiting: &mut BodyVisitingStates,
 ) {
-    if visiting.contains(&state_key) {
+    if visiting.contains(state_key) {
         return;
     }
     visiting.push(state_key);
@@ -192,7 +242,7 @@ fn append_state_call_body_operation(
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
     type_references: &mut TypeReferenceTable,
-    visiting: &mut Vec<StateKey>,
+    visiting: &mut BodyVisitingStates,
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.insert(body_operation(
