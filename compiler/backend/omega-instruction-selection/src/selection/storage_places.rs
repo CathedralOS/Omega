@@ -8,7 +8,9 @@ pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{resolve_machine_owned_place, resolve_machine_owned_place_in_table};
 pub(super) use model::{RuntimeFrameIndexedTarget, RuntimeStoragePlace};
 use omega_target_operations::RuntimeStorageRegion;
-pub(super) use static_values::{enum_variant_value, static_integer_value};
+pub(super) use static_values::{
+    enum_variant_value, enum_variant_value_in_table, static_integer_value,
+};
 
 use crate::InstructionSelectionInput;
 use expressions::{

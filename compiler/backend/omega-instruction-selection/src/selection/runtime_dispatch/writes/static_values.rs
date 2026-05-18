@@ -1,11 +1,13 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{Expression, ExpressionTable};
+use omega_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_control_flow::StateKey;
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
 };
-use super::super::super::storage_places::enum_variant_value;
+use super::super::super::storage_places::{enum_variant_value, enum_variant_value_in_table};
 use omega_platform_interface::PlaceKey;
 
 const INLINE_RUNTIME_STATIC_VALUE_COUNT: usize = 8;
@@ -134,6 +136,35 @@ pub(super) fn resolve_runtime_static_integer_value(
     }
 }
 
+pub(super) fn resolve_runtime_static_integer_value_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+) -> Option<i64> {
+    match expressions.expression(expression) {
+        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Boolean(value) => Some(i64::from(*value)),
+        ExpressionNode::Name(_) => {
+            enum_variant_value_in_table(&input.layouts, expressions, expression).or_else(|| {
+                let key = PlaceKey::from_expression_handle(expressions, expression)?;
+                static_values.get(&key)
+            })
+        }
+        ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Mutable(_) => {
+            let key = PlaceKey::from_expression_handle(expressions, expression)?;
+            static_values.get(&key)
+        }
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::StructLiteral(_) => None,
+    }
+}
+
 fn resolve_runtime_resolved_static_integer_value(
     input: &InstructionSelectionInput<'_>,
     expression: Expression,
@@ -166,6 +197,19 @@ pub(super) fn set_runtime_static_value(
     value: i64,
 ) {
     let Some(target) = PlaceKey::from_expression(&strip_mutable_expression(target)) else {
+        return;
+    };
+
+    static_values.set(target, value);
+}
+
+pub(super) fn set_runtime_static_value_in_table(
+    static_values: &mut RuntimeStaticValues,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: i64,
+) {
+    let Some(target) = PlaceKey::from_expression_handle(expressions, target) else {
         return;
     };
 

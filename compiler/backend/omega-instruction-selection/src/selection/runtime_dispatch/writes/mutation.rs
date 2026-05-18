@@ -19,14 +19,18 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_indexed_target,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::text_writes::{
     runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
     string_literal_data_handle,
 };
 use super::static_values::{
-    RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
+    RuntimeStaticValues, resolve_runtime_static_integer_value,
+    resolve_runtime_static_integer_value_in_table, set_runtime_static_value,
+    set_runtime_static_value_in_table,
 };
 use super::storage_copy::runtime_storage_copy;
 
@@ -149,6 +153,73 @@ pub(super) fn select_runtime_state_call_result_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+pub(super) fn select_runtime_static_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    _statement_index: usize,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+) -> Option<SelectedInstructionKind> {
+    let expressions = &input.state_storage.expressions;
+    let value =
+        resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)?;
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            value,
+        });
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) {
+        set_runtime_static_value_in_table(static_values, expressions, target, value);
+        return Some(SelectedInstructionKind::WriteRuntimePointeeInteger {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+            value,
+        });
+    }
+
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    )?;
+    if !supports_scalar_integer_write(target_place.byte_count) {
+        return None;
+    }
+
+    set_runtime_static_value_in_table(static_values, expressions, target, value);
+    Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+        target_region: target_place.region,
+        byte_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        value,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

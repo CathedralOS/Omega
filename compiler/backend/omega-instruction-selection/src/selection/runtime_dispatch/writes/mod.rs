@@ -96,6 +96,24 @@ pub(super) fn select_runtime_storage_write_for_operation(
         });
         return;
     }
+    if aliases.is_empty()
+        && let Some(kind) = mutation::select_runtime_static_mutation_write_in_table(
+            input,
+            dispatch_index,
+            mutation.source_key,
+            mutation.statement_index,
+            mutation.target,
+            mutation.value,
+            static_values,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: mutation.source_key,
+            source_statement: mutation.statement_index,
+        });
+        return;
+    }
 
     let target = input.state_storage.expressions.to_tree(mutation.target);
     let value = input.state_storage.expressions.to_tree(mutation.value);
