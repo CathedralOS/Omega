@@ -59,13 +59,14 @@ impl Compiler {
         }
 
         validate_selected_target(&source_storage, self.options.target_name.as_deref())?;
+        remove_stale_phase_diagrams(&self.options)?;
 
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(source_storage)?;
         write_phase_diagram(
             &self.options,
-            "02_syntax_trees.mmd",
-            &syntax.syntax_trees.phase_mermaid(),
+            "02_syntax_trees.html",
+            &syntax.syntax_trees.phase_html(),
         )?;
         write_phase_json(
             &self.options,
@@ -78,8 +79,8 @@ impl Compiler {
         let resolved = resolve_program(syntax)?;
         write_phase_diagram(
             &self.options,
-            "03_symbol_resolved_trees.mmd",
-            &resolved.phase_mermaid(),
+            "03_symbol_resolved_trees.html",
+            &resolved.phase_html(),
         )?;
         write_phase_json(
             &self.options,
@@ -87,7 +88,7 @@ impl Compiler {
             &resolved.snapshot_json_pretty().map_err(json_diagnostic)?,
         )?;
         let typed = typecheck_program(resolved)?;
-        write_phase_diagram(&self.options, "04_typed_trees.mmd", &typed.phase_mermaid())?;
+        write_phase_diagram(&self.options, "04_typed_trees.html", &typed.phase_html())?;
         write_phase_json(
             &self.options,
             "04_typed_trees.json",
@@ -361,6 +362,18 @@ fn write_phase_diagram(
     contents: &str,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_text(options, file_name, contents)
+}
+
+fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {
+    let writer =
+        ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+    writer
+        .remove_files([
+            "02_syntax_trees.mmd",
+            "03_symbol_resolved_trees.mmd",
+            "04_typed_trees.mmd",
+        ])
+        .map_err(|diagnostic| vec![diagnostic])
 }
 
 fn write_phase_text(

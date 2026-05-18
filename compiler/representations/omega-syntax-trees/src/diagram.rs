@@ -3,19 +3,21 @@ use crate::item::{Item, StateNode};
 use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_core::diagnostics::PhaseDiagram;
+use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 
 impl PhaseDiagram for SyntaxTrees {
-    fn phase_mermaid(&self) -> String {
-        let mut diagram = MermaidBuilder::new("syntax_trees");
-        let root = diagram.node("root", "SyntaxTrees");
+    fn phase_html(&self) -> String {
+        let mut diagram = PhaseDiagramBuilder::new("syntax_trees");
+        let root = diagram.node("root", "SyntaxTrees", "root", 0);
 
         for (item_index, item_handle) in self.root_item_handles().iter().copied().enumerate() {
             let item_id = diagram.node(
                 format!("item_{item_index}"),
                 item_label(self.root_item(item_handle)),
+                item_kind(self.root_item(item_handle)),
+                1,
             );
-            diagram.edge(&root, &item_id);
+            diagram.containment_edge(&root, &item_id);
 
             if let Item::Machine(machine) = self.root_item(item_handle) {
                 for (state_index, state_handle) in self
@@ -36,7 +38,7 @@ impl PhaseDiagram for SyntaxTrees {
 }
 
 fn append_state(
-    diagram: &mut MermaidBuilder,
+    diagram: &mut PhaseDiagramBuilder,
     syntax: &SyntaxTrees,
     parent_id: &str,
     item_index: usize,
@@ -51,8 +53,10 @@ fn append_state(
             state.parameters.len(),
             state.statements.len()
         ),
+        "state",
+        2,
     );
-    diagram.edge(parent_id, &state_id);
+    diagram.containment_edge(parent_id, &state_id);
 
     let mut previous_id: Option<String> = None;
     for (statement_index, statement_handle) in syntax
@@ -69,12 +73,22 @@ fn append_state(
                 statement_index,
                 statement_label(syntax, syntax.statements.statement(statement_handle))
             ),
+            "statement",
+            3,
         );
-        diagram.edge(&state_id, &statement_id);
+        diagram.containment_edge(&state_id, &statement_id);
         if let Some(previous_id) = previous_id.as_ref() {
-            diagram.edge(previous_id, &statement_id);
+            diagram.sequence_edge(previous_id, &statement_id);
         }
         previous_id = Some(statement_id);
+    }
+}
+
+fn item_kind(item: &Item) -> &'static str {
+    match item {
+        Item::Data(_) => "data",
+        Item::Machine(_) | Item::Platform(_) => "machine",
+        _ => "state",
     }
 }
 
@@ -175,54 +189,4 @@ fn transition_target_label(
         TransitionTargetNode::SelfTarget => "self".to_owned(),
         TransitionTargetNode::Terminal => "terminal".to_owned(),
     }
-}
-
-struct MermaidBuilder {
-    output: String,
-}
-
-impl MermaidBuilder {
-    fn new(title: &str) -> Self {
-        let mut output = String::new();
-        output.push_str("---\n");
-        output.push_str("title: ");
-        output.push_str(title);
-        output.push_str("\n---\nflowchart TD\n");
-        Self { output }
-    }
-
-    fn node(&mut self, id: impl AsRef<str>, label: impl AsRef<str>) -> String {
-        let id = sanitize_id(id.as_ref());
-        self.output.push_str("  ");
-        self.output.push_str(&id);
-        self.output.push_str("[\"");
-        self.output.push_str(&escape_label(label.as_ref()));
-        self.output.push_str("\"]\n");
-        id
-    }
-
-    fn edge(&mut self, from: &str, to: &str) {
-        self.output.push_str("  ");
-        self.output.push_str(from);
-        self.output.push_str(" --> ");
-        self.output.push_str(to);
-        self.output.push('\n');
-    }
-
-    fn finish(self) -> String {
-        self.output
-    }
-}
-
-fn sanitize_id(id: &str) -> String {
-    id.chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
-        .collect()
-}
-
-fn escape_label(label: &str) -> String {
-    label
-        .replace('\\', "\\\\")
-        .replace('"', "&quot;")
-        .replace('\n', "<br/>")
 }

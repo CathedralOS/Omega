@@ -1,12 +1,12 @@
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::{SymbolResolvedTrees, state::State};
-use omega_core::diagnostics::PhaseDiagram;
+use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 use omega_core::symbols::SymbolHandle;
 
 impl PhaseDiagram for SymbolResolvedTrees {
-    fn phase_mermaid(&self) -> String {
-        let mut diagram = MermaidBuilder::new("symbol_resolved_trees");
-        let root = diagram.node("root", "SymbolResolvedTrees");
+    fn phase_html(&self) -> String {
+        let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");
+        let root = diagram.node("root", "SymbolResolvedTrees", "root", 0);
 
         for (data_index, data) in self.roots.data_definitions.iter().enumerate() {
             let data_id = diagram.node(
@@ -17,8 +17,10 @@ impl PhaseDiagram for SymbolResolvedTrees {
                     symbol_label(data.symbol),
                     data.members.len()
                 ),
+                "data",
+                1,
             );
-            diagram.edge(&root, &data_id);
+            diagram.containment_edge(&root, &data_id);
         }
 
         for (machine_index, machine) in self.roots.machines.iter().enumerate() {
@@ -30,8 +32,10 @@ impl PhaseDiagram for SymbolResolvedTrees {
                     symbol_label(machine.symbol),
                     machine.states.len()
                 ),
+                "machine",
+                1,
             );
-            diagram.edge(&root, &machine_id);
+            diagram.containment_edge(&root, &machine_id);
 
             for (state_index, state_handle) in self
                 .machine_state_handles(machine.states)
@@ -55,7 +59,7 @@ impl PhaseDiagram for SymbolResolvedTrees {
 }
 
 fn append_state(
-    diagram: &mut MermaidBuilder,
+    diagram: &mut PhaseDiagramBuilder,
     program: &SymbolResolvedTrees,
     parent_id: &str,
     machine_index: usize,
@@ -71,8 +75,10 @@ fn append_state(
             state.parameters.len(),
             state.statements.len()
         ),
+        "state",
+        2,
     );
-    diagram.edge(parent_id, &state_id);
+    diagram.containment_edge(parent_id, &state_id);
 
     let mut previous_id: Option<String> = None;
     for (statement_index, statement) in program
@@ -83,10 +89,12 @@ fn append_state(
         let statement_id = diagram.node(
             format!("stmt_{machine_index}_{state_index}_{statement_index}"),
             format!("{}: {}", statement_index, statement_label(statement)),
+            "statement",
+            3,
         );
-        diagram.edge(&state_id, &statement_id);
+        diagram.containment_edge(&state_id, &statement_id);
         if let Some(previous_id) = previous_id.as_ref() {
-            diagram.edge(previous_id, &statement_id);
+            diagram.sequence_edge(previous_id, &statement_id);
         }
         previous_id = Some(statement_id);
     }
@@ -138,54 +146,4 @@ fn symbol_label(symbol: SymbolHandle) -> String {
     } else {
         "invalid".to_owned()
     }
-}
-
-struct MermaidBuilder {
-    output: String,
-}
-
-impl MermaidBuilder {
-    fn new(title: &str) -> Self {
-        let mut output = String::new();
-        output.push_str("---\n");
-        output.push_str("title: ");
-        output.push_str(title);
-        output.push_str("\n---\nflowchart TD\n");
-        Self { output }
-    }
-
-    fn node(&mut self, id: impl AsRef<str>, label: impl AsRef<str>) -> String {
-        let id = sanitize_id(id.as_ref());
-        self.output.push_str("  ");
-        self.output.push_str(&id);
-        self.output.push_str("[\"");
-        self.output.push_str(&escape_label(label.as_ref()));
-        self.output.push_str("\"]\n");
-        id
-    }
-
-    fn edge(&mut self, from: &str, to: &str) {
-        self.output.push_str("  ");
-        self.output.push_str(from);
-        self.output.push_str(" --> ");
-        self.output.push_str(to);
-        self.output.push('\n');
-    }
-
-    fn finish(self) -> String {
-        self.output
-    }
-}
-
-fn sanitize_id(id: &str) -> String {
-    id.chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
-        .collect()
-}
-
-fn escape_label(label: &str) -> String {
-    label
-        .replace('\\', "\\\\")
-        .replace('"', "&quot;")
-        .replace('\n', "<br/>")
 }
