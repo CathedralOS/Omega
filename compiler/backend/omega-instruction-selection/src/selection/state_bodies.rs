@@ -99,6 +99,8 @@ pub(super) fn select_state_body_instructions(
         .control_flow
         .transitions
         .span_or_empty(state.transitions);
+    let mut expressions = ExpressionTable::new();
+    let mut child_alias_expressions = ExpressionTable::new();
 
     for operation in operations {
         if let Some(host_call) =
@@ -141,7 +143,7 @@ pub(super) fn select_state_body_instructions(
             if let Some(dispatch_index) =
                 dispatch_index_for_state(input, state.key).or(dispatch_index)
             {
-                let mut expressions = ExpressionTable::new();
+                expressions.clear();
                 let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
                     alias_expressions,
                     aliases.bindings(),
@@ -211,7 +213,7 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
-        let mut child_alias_expressions = ExpressionTable::new();
+        child_alias_expressions.clear();
         let mut child_aliases = RuntimeAliasBuffer::copy_from_bindings(
             alias_expressions,
             aliases.bindings(),
