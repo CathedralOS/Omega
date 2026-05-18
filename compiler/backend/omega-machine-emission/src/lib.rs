@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_machine_program::{MachineInstruction, MachineProgram};
 use omega_target::NativeTarget;
-use omega_target_operations::InstructionPlan;
+use omega_target_operations::{InstructionPlan, SelectedInstructionKind};
 
 mod branch_distances;
 mod encoding;
@@ -116,16 +116,25 @@ fn insert_encoded_machine_instruction(
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
     machine_instruction_index: usize,
-    kind: &omega_target_operations::SelectedInstructionKind,
+    kind: &SelectedInstructionKind,
 ) -> Result<HandleSpan<u8>, Diagnostic> {
     encoded_bytes.try_insert_many_with(|inserter| {
-        for byte in encode_machine_instruction_bytes(
-            emission_context,
-            laid_out_instructions,
-            machine_instruction_index,
-            kind,
-        )? {
-            inserter.insert(byte);
+        if matches!(kind, SelectedInstructionKind::LeaveFunction) {
+            let (bytes, byte_count) = omega_instruction_selection::encode_return_bytes(
+                emission_context.target.architecture,
+            )?;
+            for byte in bytes.into_iter().take(byte_count) {
+                inserter.insert(byte);
+            }
+        } else {
+            for byte in encode_machine_instruction_bytes(
+                emission_context,
+                laid_out_instructions,
+                machine_instruction_index,
+                kind,
+            )? {
+                inserter.insert(byte);
+            }
         }
 
         Ok(())
