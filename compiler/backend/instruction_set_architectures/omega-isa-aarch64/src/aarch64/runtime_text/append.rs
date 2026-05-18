@@ -7,6 +7,13 @@ use super::super::primitives::{
     encode_store_byte_w_post_increment, encode_store_byte_w_to_x, encode_store_x_to_x,
     encode_subs_x_immediate,
 };
+use super::super::widths::{
+    runtime_text_buffer_materialize_to_runtime_frame_indexed_width,
+    runtime_text_buffer_materialize_width,
+    runtime_text_literal_append_to_runtime_frame_indexed_width,
+    runtime_text_stored_place_append_to_runtime_frame_indexed_width,
+    runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
+};
 
 pub fn encode_runtime_text_stored_suffix_append(
     buffer_offset: usize,
@@ -14,7 +21,7 @@ pub fn encode_runtime_text_stored_suffix_append(
     target_offset: usize,
     length_delta: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_stored_suffix_append_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
@@ -43,7 +50,7 @@ pub fn encode_runtime_text_stored_place_append(
     source_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
@@ -84,6 +91,13 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
         element_byte_size,
         field_byte_offset,
     )?;
+    bytes.reserve(
+        runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+        )
+        .saturating_sub(bytes.len()),
+    );
     bytes.extend(encode_load_x_from_x(22, 16, 8)?);
     bytes.extend(encode_move_x_register(24, 22));
     bytes.extend(encode_adrp_placeholder(17));
@@ -115,7 +129,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
@@ -151,7 +165,7 @@ pub fn encode_runtime_text_literal_append(
     target_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_buffer_materialize_width());
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
@@ -217,6 +231,14 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
         element_byte_size,
         field_byte_offset,
     )?;
+    bytes.reserve(
+        runtime_text_literal_append_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        )
+        .saturating_sub(bytes.len()),
+    );
     bytes.extend(encode_load_x_from_x(22, 16, 8)?);
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -298,6 +320,13 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
         element_byte_size,
         field_byte_offset,
     )?;
+    bytes.reserve(
+        runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+        )
+        .saturating_sub(bytes.len()),
+    );
     bytes.extend(encode_load_x_from_x(18, 16, 0)?);
     bytes.extend(encode_load_x_from_x(19, 16, 8)?);
     bytes.extend(encode_move_x_register(23, 19));
