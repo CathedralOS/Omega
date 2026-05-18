@@ -369,8 +369,7 @@ fn resolve_leaf_call_expression(
                             ),
                         },
                     )
-                    .collect::<Vec<_>>()
-                    .into(),
+                    .collect::<std::sync::Arc<[_]>>(),
             })
         }
         Expression::Name(path) if !path.is_empty() => resolve_leaf_call_name(

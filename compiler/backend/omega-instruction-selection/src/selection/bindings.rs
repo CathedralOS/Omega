@@ -288,8 +288,7 @@ pub(super) fn resolve_runtime_alias_binding(
                                     value: resolved.expression,
                                 }
                             })
-                            .collect::<Vec<_>>()
-                            .into(),
+                            .collect::<std::sync::Arc<[_]>>(),
                     },
                 ),
             }
