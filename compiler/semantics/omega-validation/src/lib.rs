@@ -197,10 +197,10 @@ fn validate_state_statement_node(
                 *expression,
                 state.return_type,
                 diagnostics,
-                format!(
-                    "machine `{}` state `{state_name}` terminal expression",
-                    machine.name
-                ),
+                ExpressionTypeOwner::StateTerminalExpression {
+                    machine: machine.name.as_str(),
+                    state: state_name,
+                },
             );
         }
         StatementNode::LocalData(local_data) => validate_type_reference_handle(
@@ -355,6 +355,45 @@ enum TypeReferenceOwner<'program> {
         state: &'program str,
         generic_depth: usize,
     },
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InitialValueOwner<'program> {
+    MachineOwnedData {
+        machine: &'program str,
+        data: &'program str,
+    },
+}
+
+impl fmt::Display for InitialValueOwner<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MachineOwnedData { machine, data } => {
+                write!(formatter, "machine `{machine}` owned data `{data}`")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ExpressionTypeOwner<'program> {
+    StateTerminalExpression {
+        machine: &'program str,
+        state: &'program str,
+    },
+}
+
+impl fmt::Display for ExpressionTypeOwner<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StateTerminalExpression { machine, state } => {
+                write!(
+                    formatter,
+                    "machine `{machine}` state `{state}` terminal expression"
+                )
+            }
+        }
+    }
 }
 
 impl TypeReferenceOwner<'_> {
@@ -882,10 +921,10 @@ fn validate_owned_data(
                 owned_data.type_reference,
                 owned_data.initial_value,
                 diagnostics,
-                format!(
-                    "machine `{}` owned data `{}`",
-                    machine.name, owned_data.name
-                ),
+                InitialValueOwner::MachineOwnedData {
+                    machine: machine.name.as_str(),
+                    data: owned_data.name.as_str(),
+                },
             );
         }
     }
@@ -896,7 +935,7 @@ fn validate_initial_value_handle(
     type_reference: TypeReferenceHandle,
     initial_value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
+    owner: InitialValueOwner<'_>,
 ) {
     if !argument_matches_type_reference_handle(program, initial_value, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
@@ -1345,7 +1384,7 @@ fn validate_expression_type_handle(
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
+    owner: ExpressionTypeOwner<'_>,
 ) {
     if !argument_matches_type_reference_handle(program, expression, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
