@@ -1,7 +1,8 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath,
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    TableCallExpression,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
@@ -62,6 +63,25 @@ fn resolve_runtime_call_result_source_place(
             statement_index,
         )
     })
+}
+
+fn builtin_runtime_call_operator_in_table(
+    input: &InstructionSelectionInput<'_>,
+    call: &TableCallExpression,
+) -> Option<StateGuardOperator> {
+    if call.receiver.is_valid() || call.arguments.count() != 2 {
+        return None;
+    }
+
+    let symbols = &input.program.symbols;
+    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Max) {
+        return Some(StateGuardOperator::Max);
+    }
+    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Min) {
+        return Some(StateGuardOperator::Min);
+    }
+
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -220,6 +240,238 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
         byte_size: target_place.byte_count,
         value,
     })
+}
+
+pub(super) fn select_runtime_binary_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let expressions = &input.state_storage.expressions;
+    let (operator, left_expression, right_expression) = match expressions.expression(value) {
+        ExpressionNode::Binary(binary) => (
+            runtime_binary_operator(binary.operator)?,
+            binary.left,
+            binary.right,
+        ),
+        ExpressionNode::Call(call) => {
+            let operator = builtin_runtime_call_operator_in_table(input, call)?;
+            let left = expressions.expression_handle_at_offset(call.arguments, 0);
+            let right = expressions.expression_handle_at_offset(call.arguments, 1);
+            (operator, left, right)
+        }
+        _ => return None,
+    };
+
+    let left = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        left_expression,
+        static_values,
+        runtime_value_operands,
+    )?;
+    let right = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        right_expression,
+        static_values,
+        runtime_value_operands,
+    )?;
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+            left,
+            operator,
+            right,
+        });
+    }
+
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    )?;
+    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+        target_region: target_place.region,
+        target_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        left,
+        operator,
+        right,
+    })
+}
+
+fn resolve_runtime_value_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    let expressions = &input.state_storage.expressions;
+    if let Some(value) =
+        resolve_runtime_static_integer_value_in_table(input, expressions, expression, static_values)
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
+    }
+
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
+        let operator = runtime_binary_operator(binary.operator)?;
+        let left = resolve_runtime_value_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            binary.left,
+            static_values,
+            runtime_value_operands,
+        )?;
+        let right = resolve_runtime_value_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            binary.right,
+            static_values,
+            runtime_value_operands,
+        )?;
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+        }));
+    }
+
+    if let ExpressionNode::Call(call) = expressions.expression(expression) {
+        if let Some(operator) = builtin_runtime_call_operator_in_table(input, call) {
+            let left = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions.expression_handle_at_offset(call.arguments, 0),
+                static_values,
+                runtime_value_operands,
+            )?;
+            let right = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions.expression_handle_at_offset(call.arguments, 1),
+                static_values,
+                runtime_value_operands,
+            )?;
+            return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+                left,
+                operator,
+                right,
+            }));
+        }
+
+        if let Some(place) = resolve_runtime_call_result_source_place(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+        ) {
+            return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                region: place.region,
+                byte_offset: place.byte_offset,
+                byte_size: place.byte_count,
+            }));
+        }
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && supports_runtime_value_operand(pointer_target.pointee_byte_size)
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+        }));
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    if !supports_runtime_value_operand(place.byte_count) {
+        return None;
+    }
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_size: place.byte_count,
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
