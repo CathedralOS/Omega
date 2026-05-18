@@ -54,11 +54,11 @@ struct LayoutVisitStack {
 }
 
 impl LayoutVisitStack {
-    fn new() -> Self {
+    fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_LAYOUT_VISIT_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(capacity.saturating_sub(INLINE_LAYOUT_VISIT_COUNT)),
         }
     }
 
@@ -133,11 +133,11 @@ impl<'program> LayoutBuilder<'program> {
         Self {
             data_definitions,
             data_layouts: Arena::with_capacity(data_definitions.len()),
-            data_visiting: LayoutVisitStack::new(),
+            data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
             fields: Arena::with_capacity(field_capacity),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
-            machine_visiting: LayoutVisitStack::new(),
+            machine_visiting: LayoutVisitStack::with_capacity(machine_definitions.len()),
             platform_definitions: program.platforms(),
             program,
             target,
