@@ -242,6 +242,53 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
     })
 }
 
+pub(super) fn select_runtime_string_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let expressions = &input.state_storage.expressions;
+    let value = expressions.string_literal_value(value)?;
+    let data = string_literal_data_handle(input, source_key, statement_index, &value);
+
+    if data.is_valid()
+        && let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            target,
+        )
+    {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
+
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    )?;
+    if target_place.byte_count != input.target.pointer_size * 2 || !data.is_valid() {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::WriteRuntimeMachineString {
+        byte_offset: target_place.byte_offset,
+        data,
+        byte_length: value.len(),
+    })
+}
+
 pub(super) fn select_runtime_binary_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
