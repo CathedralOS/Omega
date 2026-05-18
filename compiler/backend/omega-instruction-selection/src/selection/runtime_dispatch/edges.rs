@@ -83,7 +83,7 @@ fn select_dispatch_guard_instructions(
             edge.order,
         );
         if !clauses.is_empty() {
-            for clause in clauses {
+            for clause in clauses.iter().copied() {
                 let kind = if matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
                     && clause.has_storage
                     && clause.has_right_storage

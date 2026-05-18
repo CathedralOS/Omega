@@ -36,6 +36,46 @@ pub struct StateGuardClause {
     pub has_right_storage: bool,
 }
 
+const INLINE_STATE_GUARD_CLAUSE_COUNT: usize = 4;
+
+pub struct StateGuardClauses {
+    inline: [Option<StateGuardClause>; INLINE_STATE_GUARD_CLAUSE_COUNT],
+    len: usize,
+    overflow: Vec<StateGuardClause>,
+}
+
+impl StateGuardClauses {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_STATE_GUARD_CLAUSE_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &StateGuardClause> {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_STATE_GUARD_CLAUSE_COUNT))
+            .filter_map(Option::as_ref)
+            .chain(self.overflow.iter())
+    }
+
+    fn push(&mut self, clause: StateGuardClause) {
+        if self.len < INLINE_STATE_GUARD_CLAUSE_COUNT {
+            self.inline[self.len] = Some(clause);
+        } else {
+            self.overflow.push(clause);
+        }
+
+        self.len += 1;
+    }
+}
+
 pub fn build_state_guard_plan(
     program: &Program,
     state_dispatch: &StateDispatchPlan,
@@ -330,16 +370,16 @@ pub fn lower_guard_conjunction(
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
     statement_order: usize,
-) -> Vec<StateGuardClause> {
+) -> StateGuardClauses {
     let Some(guard) = plan.guard_for_dispatch(source_dispatch_index, statement_order) else {
-        return Vec::new();
+        return StateGuardClauses::new();
     };
     let expression = guard.expression;
     if !expression.is_valid() {
-        return Vec::new();
+        return StateGuardClauses::new();
     }
 
-    let mut clauses = Vec::new();
+    let mut clauses = StateGuardClauses::new();
     if lower_guard_conjunction_expression(
         plan,
         layouts,
@@ -354,7 +394,7 @@ pub fn lower_guard_conjunction(
     )
     .is_none()
     {
-        return Vec::new();
+        return StateGuardClauses::new();
     }
 
     clauses
@@ -370,7 +410,7 @@ fn lower_guard_conjunction_expression(
     source_dispatch_index: u32,
     statement_index: usize,
     expression: ExpressionHandle,
-    clauses: &mut Vec<StateGuardClause>,
+    clauses: &mut StateGuardClauses,
 ) -> Option<()> {
     match plan.expressions.expression(expression) {
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
@@ -437,7 +477,7 @@ fn lower_guard_leaf(
     source_dispatch_index: u32,
     statement_index: usize,
     expression: ExpressionHandle,
-    clauses: &mut Vec<StateGuardClause>,
+    clauses: &mut StateGuardClauses,
 ) -> Option<()> {
     let kind = classify_transition_guard_expression(&plan.expressions, expression);
     let operator = guard_operator(&plan.expressions, expression);
