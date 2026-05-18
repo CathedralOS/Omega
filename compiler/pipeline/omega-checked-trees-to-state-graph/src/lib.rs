@@ -739,6 +739,7 @@ fn append_segment_transitions(
         state_graph.transitions.append_to_span(
             &mut transitions,
             TransitionEdge {
+                statement_index: 0,
                 target: PlannedTransitionTarget::State {
                     index: next_index,
                     key: next_segment.key,
@@ -793,6 +794,7 @@ fn remap_transition(
     transition: &TransitionEdge,
 ) -> TransitionEdge {
     TransitionEdge {
+        statement_index: transition.statement_index,
         target: transition.target.clone(),
         continuation: transition.continuation.clone(),
         expressions: TransitionExpressionRefs {

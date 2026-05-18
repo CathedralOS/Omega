@@ -19,7 +19,10 @@ pub(super) fn plan_transition(
     state_graph: &mut StateGraph,
 ) -> Result<TransitionEdge, Diagnostic> {
     match transition {
-        SegmentTransition::Tree { table } => {
+        SegmentTransition::Tree {
+            statement_index,
+            table,
+        } => {
             let target_arguments =
                 table_transition_target_arguments(table.target, program, state_graph);
             let target_value = table_transition_target_value(table.target, program, state_graph);
@@ -46,6 +49,7 @@ pub(super) fn plan_transition(
                 .unwrap_or_else(ExpressionHandle::invalid);
 
             Ok(TransitionEdge {
+                statement_index: *statement_index,
                 target: plan_transition_target(source_key, segments, table.target, program)?,
                 continuation: if table.continuation.is_valid() {
                     plan_transition_target(source_key, segments, table.continuation, program)?
@@ -62,9 +66,11 @@ pub(super) fn plan_transition(
             })
         }
         SegmentTransition::BranchCall {
+            statement_index,
             table,
             has_continuation_segment,
         } => Ok(TransitionEdge {
+            statement_index: *statement_index,
             target: plan_call_target(source_key, segments, table, program)?,
             continuation: if *has_continuation_segment {
                 next_segment_target(source_key, segments)?
