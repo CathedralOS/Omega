@@ -8,7 +8,10 @@ use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOpera
 use omega_state_calls::StateCallRole;
 
 use super::super::super::bindings::resolve_leaf_binding_expression_handle;
-use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
+use super::super::super::storage_places::{
+    resolve_machine_owned_place, resolve_machine_owned_place_in_table, static_integer_value,
+    static_integer_value_in_table,
+};
 use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_handle_resolver_emit;
 use super::super::writes::{
@@ -197,9 +200,27 @@ fn select_runtime_leaf_branch_mutation_writes(
             value,
             bindings,
         );
+        if let Some((byte_offset, byte_size, value)) = runtime_leaf_machine_integer_write_in_table(
+            input,
+            expansion,
+            &expressions,
+            resolved_target,
+            resolved_value,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                    byte_offset,
+                    byte_size,
+                    value,
+                },
+                source_key: operation.source_key,
+                source_statement: operation.statement_index,
+            });
+            continue;
+        }
+
         let resolved_target = expressions.to_tree(resolved_target);
         let resolved_value = expressions.to_tree(resolved_value);
-
         if let Some((byte_offset, byte_size, value)) =
             runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)
         {
@@ -285,6 +306,27 @@ fn runtime_leaf_machine_integer_write(
     }
     let value = static_integer_value(&input.layouts, value_expression)?;
 
+    Some((byte_offset, byte_size, value))
+}
+
+fn runtime_leaf_machine_integer_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    expressions: &ExpressionTable,
+    target: omega_checked_trees::expression::ExpressionHandle,
+    value_expression: omega_checked_trees::expression::ExpressionHandle,
+) -> Option<(usize, usize, i64)> {
+    let (byte_offset, byte_size) = resolve_machine_owned_place_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        expansion.source_key.machine,
+        expressions,
+        target,
+    )?;
+    if !supports_scalar_integer_write(byte_size) {
+        return None;
+    }
+    let value = static_integer_value_in_table(&input.layouts, expressions, value_expression)?;
     Some((byte_offset, byte_size, value))
 }
 

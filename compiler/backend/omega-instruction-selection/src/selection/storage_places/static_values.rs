@@ -44,6 +44,17 @@ pub(in crate::selection) fn static_integer_value(
     }
 }
 
+pub(in crate::selection) fn static_integer_value_in_table(
+    layouts: &LayoutPlan,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    match expressions.expression(expression) {
+        ExpressionNode::Integer(value) => Some(*value),
+        _ => enum_variant_value_in_table(layouts, expressions, expression),
+    }
+}
+
 pub(in crate::selection) fn enum_variant_value_in_table(
     layouts: &LayoutPlan,
     expressions: &ExpressionTable,

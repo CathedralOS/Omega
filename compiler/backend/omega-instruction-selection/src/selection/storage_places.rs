@@ -10,6 +10,7 @@ pub(super) use model::{RuntimeFrameIndexedTarget, RuntimeStoragePlace};
 use omega_target_operations::RuntimeStorageRegion;
 pub(super) use static_values::{
     enum_variant_value, enum_variant_value_in_table, static_integer_value,
+    static_integer_value_in_table,
 };
 
 use crate::InstructionSelectionInput;
