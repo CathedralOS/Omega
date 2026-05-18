@@ -10,8 +10,78 @@ use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState};
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,
     runtime_flow: RuntimeFlowPlan,
-    active_states: Vec<StateKey>,
-    reached_states: Vec<StateKey>,
+    active_states: StateKeyBuffer,
+    reached_states: StateKeyBuffer,
+}
+
+const INLINE_RUNTIME_STATE_COUNT: usize = 32;
+
+pub(super) struct StateKeyBuffer {
+    inline: [Option<StateKey>; INLINE_RUNTIME_STATE_COUNT],
+    len: usize,
+    overflow: Vec<StateKey>,
+}
+
+impl StateKeyBuffer {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_RUNTIME_STATE_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    pub(super) fn contains(&self, key: &StateKey) -> bool {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_RUNTIME_STATE_COUNT))
+            .flatten()
+            .any(|candidate| candidate == key)
+            || self.overflow.contains(key)
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = &StateKey> {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_RUNTIME_STATE_COUNT))
+            .filter_map(Option::as_ref)
+            .chain(self.overflow.iter())
+    }
+
+    fn push(&mut self, key: StateKey) {
+        if self.len < INLINE_RUNTIME_STATE_COUNT {
+            self.inline[self.len] = Some(key);
+        } else {
+            self.overflow.push(key);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+
+        self.len -= 1;
+        if self.len < INLINE_RUNTIME_STATE_COUNT {
+            self.inline[self.len] = None;
+        } else {
+            self.overflow.pop();
+        }
+    }
+
+    pub(super) fn last(&self) -> Option<StateKey> {
+        if self.len == 0 {
+            return None;
+        }
+
+        if self.len <= INLINE_RUNTIME_STATE_COUNT {
+            return self.inline[self.len - 1];
+        }
+
+        self.overflow.last().copied()
+    }
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
@@ -19,8 +89,8 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         Self {
             control_flow,
             runtime_flow: RuntimeFlowPlan::default(),
-            active_states: Vec::new(),
-            reached_states: Vec::new(),
+            active_states: StateKeyBuffer::new(),
+            reached_states: StateKeyBuffer::new(),
         }
     }
 
