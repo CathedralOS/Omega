@@ -7,7 +7,9 @@ use crate::selection::storage_places::{
 use omega_calling_conventions::{
     HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
-use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+};
 use omega_platform_interface::HostCall;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
@@ -101,6 +103,25 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
     else {
         return None;
     };
+
+    if alias_context.is_none()
+        && !host_call_argument_has_alias(
+            input,
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        )
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        )
+    {
+        return (place.byte_count == input.target.pointer_size * 2).then_some(place);
+    }
+
     let expression = input.host_calls.expressions.to_tree(*expression);
     let (resolved_source_key, resolved_expression) = alias_context
         .map(|context| {
@@ -131,6 +152,32 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
     )?;
 
     (place.byte_count == input.target.pointer_size * 2).then_some(place)
+}
+
+fn host_call_argument_has_alias(
+    input: &InstructionSelectionInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(target) => {
+            host_call_argument_has_alias(input, source_key, expressions, *target)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            host_call_argument_has_alias(input, source_key, expressions, indexed.collection)
+        }
+        ExpressionNode::Member(member) => {
+            host_call_argument_has_alias(input, source_key, expressions, member.receiver)
+        }
+        ExpressionNode::Name(path) => input.alias_flow.aliases.iter().any(|(_, alias)| {
+            alias.callee_key == source_key
+                && alias.parameter_symbol.is_valid()
+                && path.head_symbol.is_valid()
+                && alias.parameter_symbol == path.head_symbol
+        }),
+        _ => false,
+    }
 }
 
 fn resolve_host_call_alias_expression(
