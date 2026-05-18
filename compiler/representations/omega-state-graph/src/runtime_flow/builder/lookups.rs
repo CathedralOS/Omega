@@ -1,6 +1,40 @@
 use super::RuntimeFlowBuilder;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::diagnostics::Diagnostic;
+use std::fmt;
+
+pub(super) struct StateKeyDisplay<'builder, 'plan> {
+    builder: &'builder RuntimeFlowBuilder<'plan>,
+    key: StateKey,
+}
+
+impl fmt::Display for StateKeyDisplay<'_, '_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let machine = self.builder.machine_flow_by_symbol(self.key.machine).ok();
+
+        match machine {
+            Some(machine) => write!(formatter, "{}", machine.name)?,
+            None => write!(formatter, "symbol{}", self.key.machine.arena_index())?,
+        }
+
+        formatter.write_str(".")?;
+
+        let state = machine
+            .and_then(|machine| self.builder.control_flow.states.span(machine.states))
+            .and_then(|states| states.iter().find(|state| state.key == self.key));
+
+        match state {
+            Some(state) => write!(formatter, "{}", state.name)?,
+            None => write!(formatter, "symbol{}", self.key.state.arena_index())?,
+        }
+
+        if self.key.segment_index != 0 {
+            write!(formatter, "#{}", self.key.segment_index)?;
+        }
+
+        Ok(())
+    }
+}
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
     pub(super) fn machine_flow_by_symbol(
@@ -34,20 +68,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             })
     }
 
-    pub(super) fn state_key_display(&self, key: StateKey) -> String {
-        let machine = self
-            .machine_flow_by_symbol(key.machine)
-            .map(|machine| machine.name.to_string())
-            .unwrap_or_else(|_| format!("symbol{}", key.machine.arena_index()));
-        let state = self
-            .state_flow_by_key(key)
-            .map(|state| state.name.to_string())
-            .unwrap_or_else(|_| format!("symbol{}", key.state.arena_index()));
-
-        if key.segment_index == 0 {
-            format!("{machine}.{state}")
-        } else {
-            format!("{machine}.{state}#{}", key.segment_index)
-        }
+    pub(super) fn state_key_display(&self, key: StateKey) -> StateKeyDisplay<'_, 'plan> {
+        StateKeyDisplay { builder: self, key }
     }
 }
