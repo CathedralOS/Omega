@@ -192,6 +192,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
     ) {
         let source_expressions = expressions;
         let mut expressions = ExpressionTable::new();
+        let mut resolved_segment_expressions = ExpressionTable::new();
         let copied_aliases =
             RuntimeAliasBuffer::copy_from_bindings(source_expressions, aliases, &mut expressions);
         let target = expressions.copy_from(source_expressions, target);
@@ -207,6 +208,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
             target,
             value,
             copied_aliases.bindings(),
+            &mut resolved_segment_expressions,
             static_values,
             runtime_value_operands,
             selected_instructions,
@@ -242,6 +244,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     target: ExpressionHandle,
     value: ExpressionHandle,
     aliases: &[RuntimeAliasBinding],
+    resolved_segment_expressions: &mut ExpressionTable,
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -267,6 +270,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 field_target,
                 field.value,
                 aliases,
+                resolved_segment_expressions,
                 static_values,
                 runtime_value_operands,
                 selected_instructions,
@@ -275,7 +279,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
         return true;
     }
 
-    select_runtime_storage_resolved_scalar_mutation_write_in_table(
+    select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         input,
         dispatch_index,
         operation_source_key,
@@ -286,6 +290,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
         target,
         value,
         aliases,
+        resolved_segment_expressions,
         static_values,
         runtime_value_operands,
         selected_instructions,
@@ -304,6 +309,42 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
     target: ExpressionHandle,
     value: ExpressionHandle,
     aliases: &[RuntimeAliasBinding],
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let mut resolved_segment_expressions = ExpressionTable::new();
+    select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+        aliases,
+        &mut resolved_segment_expressions,
+        static_values,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    aliases: &[RuntimeAliasBinding],
+    resolved_segment_expressions: &mut ExpressionTable,
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -374,12 +415,9 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
         return true;
     }
 
-    let mut resolved_segment_expressions = ExpressionTable::new();
-    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
-        expressions,
-        aliases,
-        &mut resolved_segment_expressions,
-    );
+    resolved_segment_expressions.clear();
+    let copied_aliases =
+        RuntimeAliasBuffer::copy_from_bindings(expressions, aliases, resolved_segment_expressions);
     if runtime_text_builder_write_in_table_emit(
         input,
         dispatch_index,
@@ -388,7 +426,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
         statement_index,
         expressions,
         target,
-        &mut resolved_segment_expressions,
+        resolved_segment_expressions,
         &|expressions, expression| {
             resolve_runtime_alias_binding_handle(
                 expression,
