@@ -46,8 +46,11 @@ impl RuntimeAliasBuffer {
         target: &mut ExpressionTable,
     ) -> Self {
         Self::from_iter(bindings.iter().map(|binding| RuntimeAliasBinding {
+            source_key: binding.source_key,
+            parameter_symbol: binding.parameter_symbol,
+            parameter_name: binding.parameter_name.clone(),
+            expression_source_key: binding.expression_source_key,
             expression: target.copy_from(source, binding.expression),
-            ..binding.clone()
         }))
     }
 
