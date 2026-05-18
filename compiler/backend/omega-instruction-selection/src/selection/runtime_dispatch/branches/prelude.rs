@@ -1,10 +1,11 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
-    resolve_branch_prelude_binding_expression,
+    resolve_branch_prelude_binding_expression_handle,
 };
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_checked_trees::expression::ExpressionTable;
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
@@ -86,18 +87,25 @@ fn select_runtime_branch_prelude(
                 );
             }
             RuntimeBranchPreludeOperationKind::Mutation { target, value, .. } => {
-                let target = input.runtime_branching_calls.expressions.to_tree(*target);
-                let value = input.runtime_branching_calls.expressions.to_tree(*value);
-                let resolved_target = resolve_branch_prelude_binding_expression(
+                let mut expressions = ExpressionTable::new();
+                let target =
+                    expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
+                let value =
+                    expressions.copy_from(&input.runtime_branching_calls.expressions, *value);
+                let resolved_target = resolve_branch_prelude_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
-                    &target,
+                    &mut expressions,
+                    target,
                     bindings,
                 );
-                let resolved_value = resolve_branch_prelude_binding_expression(
+                let resolved_value = resolve_branch_prelude_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
-                    &value,
+                    &mut expressions,
+                    value,
                     bindings,
                 );
+                let resolved_target = expressions.to_tree(resolved_target);
+                let resolved_value = expressions.to_tree(resolved_value);
                 let (operation_machine, operation_state) = state_names(input, operation.source_key);
                 select_runtime_resolved_mutation_write(
                     input,
