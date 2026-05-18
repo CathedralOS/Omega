@@ -119,9 +119,7 @@ fn validate_local_data_names(
     state_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut local_names = Vec::new();
-
-    for statement in statements {
+    for (statement_index, statement) in statements.iter().enumerate() {
         let StatementNode::LocalData(local_data) = statement else {
             continue;
         };
@@ -138,14 +136,17 @@ fn validate_local_data_names(
             continue;
         }
 
-        if local_names.contains(&local_data.name.as_str()) {
+        if statements[..statement_index].iter().any(|previous| {
+            matches!(
+                previous,
+                StatementNode::LocalData(previous) if previous.name == local_data.name
+            )
+        }) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{machine_name}` state `{state_name}` has duplicate local data `{}`",
                 local_data.name
             )));
         }
-
-        local_names.push(local_data.name.as_str());
     }
 }
 
@@ -351,17 +352,16 @@ fn validate_platform_state_names(
     platform_states: &[omega_typed_trees::signature::StateSignature],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut state_names = Vec::new();
-
-    for state in platform_states {
-        if state_names.contains(&state.name.as_str()) {
+    for (state_index, state) in platform_states.iter().enumerate() {
+        if platform_states[..state_index]
+            .iter()
+            .any(|previous| previous.name == state.name)
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "platform `{}` has duplicate state `{}`",
                 platform.name, state.name
             )));
         }
-
-        state_names.push(state.name.as_str());
     }
 }
 
@@ -370,17 +370,16 @@ fn validate_state_parameter_names(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut parameter_names = Vec::new();
-
-    for parameter in state.parameters {
-        if parameter_names.contains(&parameter.name.as_str()) {
+    for (parameter_index, parameter) in state.parameters.iter().enumerate() {
+        if state.parameters[..parameter_index]
+            .iter()
+            .any(|previous| previous.name == parameter.name)
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} state `{}` has duplicate parameter `{}`",
                 state.name, parameter.name
             )));
         }
-
-        parameter_names.push(parameter.name.as_str());
     }
 }
 
@@ -430,22 +429,28 @@ fn validate_data_member_names(
     data_members: &[DataMember],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut member_names = Vec::new();
-
-    for member in data_members {
+    for (member_index, member) in data_members.iter().enumerate() {
         let member_name = match member {
             DataMember::Field(field) => field.name.as_str(),
             DataMember::Variant(variant) => variant.name.as_str(),
         };
 
-        if member_names.contains(&member_name) {
+        if data_members[..member_index]
+            .iter()
+            .any(|previous| data_member_name(previous) == member_name)
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "data `{}` has duplicate member `{member_name}`",
                 data_definition.name
             )));
         }
+    }
+}
 
-        member_names.push(member_name);
+fn data_member_name(member: &DataMember) -> &str {
+    match member {
+        DataMember::Field(field) => field.name.as_str(),
+        DataMember::Variant(variant) => variant.name.as_str(),
     }
 }
 
