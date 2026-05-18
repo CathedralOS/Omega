@@ -9,7 +9,10 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
 
-use super::super::super::bindings::resolve_straight_line_binding_expression_handle;
+use super::super::super::bindings::{
+    RuntimeAliasBinding, RuntimeAliasBuffer, resolve_straight_line_binding_expression_handle,
+    strip_mutable_expression_handle,
+};
 use super::super::super::lookups::{
     state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
     state_mutation_for_statement, state_operations, state_parameters,
@@ -22,8 +25,9 @@ use super::mutation::{
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
 use omega_state_calls::{StateCallArgument, StateCallRole};
-use omega_target_operations::RuntimeValueOperand;
+use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 #[derive(Default)]
 struct StraightLineBranchSelectionScratch {
@@ -36,6 +40,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -55,6 +60,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
             input,
             expansion,
             &mut scratch,
+            operands,
             runtime_value_operands,
             selected_instructions,
         );
@@ -65,6 +71,7 @@ fn select_runtime_straight_line_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     scratch: &mut StraightLineBranchSelectionScratch,
+    operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -84,6 +91,7 @@ fn select_runtime_straight_line_branch_expansion(
         input,
         expansion,
         scratch,
+        operands,
         runtime_value_operands,
         selected_instructions,
     );
@@ -96,6 +104,7 @@ fn select_runtime_straight_line_branch_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     scratch: &mut StraightLineBranchSelectionScratch,
+    operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -215,9 +224,81 @@ fn select_runtime_straight_line_branch_writes(
                 runtime_value_operands,
                 selected_instructions,
             ),
+            RuntimeStraightLineBranchOperationKind::StateCall {
+                role: StateCallRole::Statement,
+                target_key,
+                lowering: omega_state_calls::StateCallLowering::InlineExpansion,
+                ..
+            } => select_runtime_straight_line_inline_state_call(
+                input,
+                expansion,
+                operation.source_key,
+                operation.statement_index,
+                *target_key,
+                bindings,
+                operands,
+                runtime_value_operands,
+                selected_instructions,
+            ),
             _ => {}
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_straight_line_inline_state_call(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    source_key: StateKey,
+    statement_index: usize,
+    target_key: StateKey,
+    straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+    operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(state_call) = state_call_for_statement(input, source_key, statement_index) else {
+        return;
+    };
+    let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
+        return;
+    };
+
+    let mut child_alias_expressions =
+        ExpressionTable::with_expression_capacity(arguments.len().saturating_mul(2));
+    let mut child_aliases = RuntimeAliasBuffer::with_capacity(arguments.len());
+
+    for argument in arguments {
+        let argument_expression =
+            child_alias_expressions.copy_from(&input.state_calls.expressions, argument.expression);
+        let resolved_expression = resolve_straight_line_binding_expression_handle(
+            &input.runtime_branching_calls.expressions,
+            &mut child_alias_expressions,
+            argument_expression,
+            straight_line_bindings,
+        );
+        let expression =
+            strip_mutable_expression_handle(&child_alias_expressions, resolved_expression);
+        child_aliases.set_alias(RuntimeAliasBinding {
+            source_key: target_key,
+            parameter_symbol: argument.parameter_symbol,
+            parameter_name: argument.parameter_name.clone(),
+            expression_source_key: source_key,
+            expression,
+        });
+    }
+
+    select_state_body_instructions(
+        input,
+        target_key,
+        Some(expansion.dispatch_index),
+        &child_aliases,
+        &child_alias_expressions,
+        operands,
+        runtime_value_operands,
+        selected_instructions,
+        &mut StateBodyVisitStack::with_capacity(input.control_flow.states.len()),
+    );
 }
 
 fn state_names(input: &InstructionSelectionInput<'_>, key: StateKey) -> (ProgramName, ProgramName) {
