@@ -10,7 +10,8 @@ use omega_state_guards::StateGuardOperator;
 
 use super::super::storage_places::{
     enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_indexed_target,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_guard_call_result_place,
 };
 use omega_runtime_text::places::expression_place_eq_table_tree;
@@ -40,6 +41,28 @@ pub(super) fn select_runtime_leaf_branch_guard(
         expansion.source_key,
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
+    ) {
+        return Some(guard);
+    }
+    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+        runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+    if let Some(guard) = runtime_value_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+        runtime_value_operands,
     ) {
         return Some(guard);
     }
@@ -107,6 +130,28 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         expansion.source_key,
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
+    ) {
+        return Some(guard);
+    }
+    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+        runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+    if let Some(guard) = runtime_value_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+        runtime_value_operands,
     ) {
         return Some(guard);
     }
@@ -303,6 +348,47 @@ fn runtime_boolean_condition_guard(
     })
 }
 
+fn runtime_boolean_condition_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let (expression, expected_true) = boolean_condition_expression_in_table(expressions, guard)?;
+    if matches!(
+        expressions.expression(expression),
+        ExpressionNode::Binary(_)
+    ) {
+        return None;
+    }
+
+    let operand = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        expression,
+        runtime_value_operands,
+    )?;
+    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, operand);
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return None;
+    }
+    let expected =
+        runtime_value_operands.insert(RuntimeValueOperand::Immediate(i64::from(expected_true)));
+
+    Some(SelectedInstructionKind::CompareRuntimeValues {
+        left: operand,
+        right: expected,
+        byte_size,
+        operator: StateGuardOperator::Equal,
+    })
+}
+
 fn boolean_condition_expression(expression: &Expression) -> Option<(&Expression, bool)> {
     let Expression::Binary(binary) = expression else {
         return Some((expression, true));
@@ -313,6 +399,32 @@ fn boolean_condition_expression(expression: &Expression) -> Option<(&Expression,
         (Expression::Boolean(value), inner) => (inner, *value),
         _ => return Some((expression, true)),
     };
+
+    let expected_true = match binary.operator {
+        BinaryOperator::Equal => expected_true,
+        BinaryOperator::NotEqual => !expected_true,
+        _ => return Some((expression, true)),
+    };
+
+    Some((inner, expected_true))
+}
+
+fn boolean_condition_expression_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, bool)> {
+    let ExpressionNode::Binary(binary) = expressions.expression(expression) else {
+        return Some((expression, true));
+    };
+
+    let (inner, expected_true) =
+        if let ExpressionNode::Boolean(value) = expressions.expression(binary.left) {
+            (binary.right, *value)
+        } else if let ExpressionNode::Boolean(value) = expressions.expression(binary.right) {
+            (binary.left, *value)
+        } else {
+            return Some((expression, true));
+        };
 
     let expected_true = match binary.operator {
         BinaryOperator::Equal => expected_true,
@@ -632,6 +744,51 @@ fn runtime_value_guard(
     })
 }
 
+fn runtime_value_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    let operator = runtime_compare_operator(binary.operator)?;
+    let left = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        binary.left,
+        runtime_value_operands,
+    )?;
+    let right = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        binary.right,
+        runtime_value_operands,
+    )?;
+    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, left).max(
+        runtime_value_operand_byte_size(runtime_value_operands, right),
+    );
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return None;
+    }
+    Some(SelectedInstructionKind::CompareRuntimeValues {
+        left,
+        right,
+        byte_size,
+        operator,
+    })
+}
+
 fn static_guard_value(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Boolean(value) => Some(i64::from(*value)),
@@ -741,6 +898,109 @@ fn resolve_runtime_value_operand(
         source_key,
         source_machine,
         source_state,
+        expression,
+    )?;
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_size: place.byte_count,
+    }))
+}
+
+fn resolve_runtime_value_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    if let Some(value) = enum_variant_value_in_table(&input.layouts, expressions, expression)
+        .or_else(|| static_guard_value_in_table(expressions, expression))
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
+    }
+
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
+        let operator = runtime_arithmetic_operator(binary.operator)?;
+        let left = resolve_runtime_value_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            binary.left,
+            runtime_value_operands,
+        )?;
+        let right = resolve_runtime_value_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            binary.right,
+            runtime_value_operands,
+        )?;
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+        }));
+    }
+
+    if matches!(expressions.expression(expression), ExpressionNode::Call(_))
+        && let Some(place) = resolve_runtime_transition_guard_call_result_place(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+        )
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+        }));
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+        }));
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
         expression,
     )?;
     Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
