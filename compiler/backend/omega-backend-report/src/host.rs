@@ -6,6 +6,7 @@ use omega_calling_conventions::{
 };
 use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
+    UnsupportedHostCallReason,
 };
 
 pub(super) fn write_host_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -47,16 +48,25 @@ pub(super) fn write_host_sections(output: &mut String, backend_plan: &BackendRep
         output.push_str("unsupported:\n");
         for (_, unsupported_call) in backend_plan.host_calls.unsupported_calls.iter() {
             let source_name = backend_state_name(backend_plan, unsupported_call.source_key);
+            let reason = unsupported_host_call_reason_text(unsupported_call.reason);
             output.push_str(&format!(
                 "- {} statement {} `{}`: {}\n",
                 source_name,
                 unsupported_call.statement_index,
                 unsupported_call.platform_call,
-                unsupported_call.reason
+                reason
             ));
         }
     }
     output.push('\n');
+}
+
+fn unsupported_host_call_reason_text(reason: UnsupportedHostCallReason) -> String {
+    match reason {
+        UnsupportedHostCallReason::NoNativeLowering { target } => {
+            format!("no native lowering for target {target:?}")
+        }
+    }
 }
 
 fn write_host_binding(output: &mut String, binding: &HostBinding) {
