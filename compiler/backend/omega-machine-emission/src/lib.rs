@@ -163,6 +163,40 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => {
+            let bytes = omega_instruction_selection::encode_dispatch_case_enter_bytes(
+                emission_context.target.architecture,
+                *dispatch_index,
+                branch_distances::byte_distance_to_case_end(
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
+        SelectedInstructionKind::SetDispatchState { dispatch_index } => {
+            insert_dispatch_state_write_bytes(
+                inserter,
+                emission_context,
+                laid_out_instructions,
+                machine_instruction_index,
+                *dispatch_index,
+            )?;
+            Ok(true)
+        }
+        SelectedInstructionKind::TerminateDispatch => {
+            insert_dispatch_state_write_bytes(
+                inserter,
+                emission_context,
+                laid_out_instructions,
+                machine_instruction_index,
+                emission_context.terminal_dispatch_index,
+            )?;
+            Ok(true)
+        }
         SelectedInstructionKind::LeaveDispatchCase => {
             let bytes = omega_instruction_selection::encode_dispatch_case_leave_bytes(
                 emission_context.target.architecture,
@@ -187,6 +221,27 @@ fn insert_fixed_machine_instruction_bytes(
         }
         _ => Ok(false),
     }
+}
+
+fn insert_dispatch_state_write_bytes(
+    inserter: &mut omega_core::arena::ArenaSpanInserter<'_, u8>,
+    emission_context: MachineEmissionContext<'_>,
+    laid_out_instructions: &[layout::LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+    dispatch_index: u32,
+) -> Result<(), Diagnostic> {
+    let bytes = omega_instruction_selection::encode_dispatch_state_write_bytes(
+        emission_context.target.architecture,
+        dispatch_index,
+        branch_distances::byte_distance_to_case_leave(
+            laid_out_instructions,
+            machine_instruction_index,
+        )?,
+    )?;
+    for byte in bytes {
+        inserter.insert(byte);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
