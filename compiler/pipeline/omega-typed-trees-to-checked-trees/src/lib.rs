@@ -48,12 +48,7 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedAssignment,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: state_owner(
-                        obligation.machine_symbol,
-                        obligation.machine.clone(),
-                        obligation.state_symbol,
-                        obligation.state.clone(),
-                    ),
+                    owner: state_owner(obligation.machine_symbol, obligation.state_symbol),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedCallArgument(obligation) => {
@@ -63,13 +58,9 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: ProofObligationOwner::CallParameter {
                         machine_symbol: obligation.machine_symbol,
-                        machine_name: obligation.machine.clone(),
                         state_symbol: obligation.state_symbol,
-                        state_name: obligation.state.clone(),
                         target_symbol: obligation.target_symbol,
-                        target_name: obligation.target.clone(),
                         parameter_symbol: obligation.parameter_symbol,
-                        parameter_name: obligation.parameter.clone(),
                     },
                 }
             }
@@ -88,9 +79,7 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: ProofObligationOwner::StateReturn {
                         machine_symbol: obligation.machine_symbol,
-                        machine_name: obligation.machine.clone(),
                         state_symbol: obligation.state_symbol,
-                        state_name: obligation.state.clone(),
                     },
                 }
             }
@@ -109,11 +98,8 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: ProofObligationOwner::TransitionParameter {
                         machine_symbol: obligation.machine_symbol,
-                        machine_name: obligation.machine.clone(),
                         state_symbol: obligation.state_symbol,
-                        state_name: obligation.state.clone(),
                         parameter_symbol: obligation.parameter_symbol,
-                        parameter_name: obligation.parameter.clone(),
                     },
                 }
             }
@@ -122,12 +108,7 @@ fn build_proof_facts(
                     kind: ProofFactKind::GuardedTransition,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: state_owner(
-                        obligation.machine_symbol,
-                        obligation.machine.clone(),
-                        obligation.state_symbol,
-                        obligation.state.clone(),
-                    ),
+                    owner: state_owner(obligation.machine_symbol, obligation.state_symbol),
                 }
             }
         });
@@ -136,17 +117,10 @@ fn build_proof_facts(
     ProofFacts { obligations }
 }
 
-fn state_owner(
-    machine_symbol: SymbolHandle,
-    machine_name: ProgramName,
-    state_symbol: SymbolHandle,
-    state_name: ProgramName,
-) -> ProofObligationOwner {
+fn state_owner(machine_symbol: SymbolHandle, state_symbol: SymbolHandle) -> ProofObligationOwner {
     ProofObligationOwner::MachineState {
         machine_symbol,
-        machine_name,
         state_symbol,
-        state_name,
     }
 }
 
@@ -155,40 +129,33 @@ fn proof_owner(owner: &omega_proof::obligations::ProofObligationOwner) -> ProofO
         omega_proof::obligations::ProofObligationOwner::Unknown => ProofObligationOwner::Unknown,
         omega_proof::obligations::ProofObligationOwner::MachineOwnedData {
             machine_symbol,
-            machine,
+            machine: _,
             data_symbol,
-            data,
+            data: _,
         } => ProofObligationOwner::MachineOwnedData {
             machine_symbol: *machine_symbol,
-            machine_name: machine.clone(),
             data_symbol: *data_symbol,
-            data_name: data.clone(),
         },
         omega_proof::obligations::ProofObligationOwner::StateParameter {
             machine_symbol,
-            machine,
+            machine: _,
             state_symbol,
-            state,
+            state: _,
             parameter_symbol,
-            parameter,
+            parameter: _,
         } => ProofObligationOwner::StateParameter {
             machine_symbol: *machine_symbol,
-            machine_name: machine.clone(),
             state_symbol: *state_symbol,
-            state_name: state.clone(),
             parameter_symbol: *parameter_symbol,
-            parameter_name: parameter.clone(),
         },
         omega_proof::obligations::ProofObligationOwner::StateReturn {
             machine_symbol,
-            machine,
+            machine: _,
             state_symbol,
-            state,
+            state: _,
         } => ProofObligationOwner::StateReturn {
             machine_symbol: *machine_symbol,
-            machine_name: machine.clone(),
             state_symbol: *state_symbol,
-            state_name: state.clone(),
         },
     }
 }

@@ -1148,7 +1148,7 @@ fn write_checked_semantics_section(output: &mut String, backend_plan: &BackendRe
             output.push_str(&format!(
                 "- {:?}: {}\n",
                 obligation.kind,
-                proof_obligation_owner_display_name(&obligation.owner)
+                proof_obligation_owner_display_name(backend_plan, &obligation.owner)
             ));
         }
     }
@@ -1310,48 +1310,151 @@ fn runtime_transition_target_name(
     }
 }
 
-fn proof_obligation_owner_display_name(owner: &ProofObligationOwner) -> String {
+fn proof_obligation_owner_display_name(
+    backend_plan: &BackendReportInput<'_>,
+    owner: &ProofObligationOwner,
+) -> String {
     match owner {
         ProofObligationOwner::Unknown => "unknown".to_owned(),
         ProofObligationOwner::MachineState {
-            machine_name,
-            state_name,
+            machine_symbol,
+            state_symbol,
             ..
-        } => format!("machine `{machine_name}` state `{state_name}`"),
+        } => {
+            let (machine_name, state_name) =
+                proof_state_names(backend_plan, *machine_symbol, *state_symbol);
+            format!("machine `{machine_name}` state `{state_name}`")
+        }
         ProofObligationOwner::MachineOwnedData {
-            machine_name,
-            data_name,
+            machine_symbol,
+            data_symbol,
             ..
-        } => format!("machine `{machine_name}` owned data `{data_name}`"),
+        } => {
+            let machine_name = proof_machine_name(backend_plan, *machine_symbol);
+            let data_name = backend_plan
+                .control_flow
+                .machine_owned_data_by_symbol(*machine_symbol, *data_symbol)
+                .map(|data| data.name.to_string())
+                .unwrap_or_else(|| "<unknown>".to_owned());
+            format!("machine `{machine_name}` owned data `{data_name}`")
+        }
         ProofObligationOwner::StateParameter {
-            machine_name,
-            state_name,
-            parameter_name,
+            machine_symbol,
+            state_symbol,
+            parameter_symbol,
             ..
-        } => format!("machine `{machine_name}` state `{state_name}` parameter `{parameter_name}`"),
+        } => {
+            let (machine_name, state_name) =
+                proof_state_names(backend_plan, *machine_symbol, *state_symbol);
+            let parameter_name = proof_state_parameter_name(
+                backend_plan,
+                *machine_symbol,
+                *state_symbol,
+                *parameter_symbol,
+            );
+            format!("machine `{machine_name}` state `{state_name}` parameter `{parameter_name}`")
+        }
         ProofObligationOwner::StateReturn {
-            machine_name,
-            state_name,
+            machine_symbol,
+            state_symbol,
             ..
-        } => format!("machine `{machine_name}` state `{state_name}` return"),
+        } => {
+            let (machine_name, state_name) =
+                proof_state_names(backend_plan, *machine_symbol, *state_symbol);
+            format!("machine `{machine_name}` state `{state_name}` return")
+        }
         ProofObligationOwner::CallParameter {
-            machine_name,
-            state_name,
-            target_name,
-            parameter_name,
+            machine_symbol,
+            state_symbol,
+            target_symbol,
+            parameter_symbol,
             ..
-        } => format!(
-            "machine `{machine_name}` state `{state_name}` call `{target_name}` parameter `{parameter_name}`"
-        ),
+        } => {
+            let (machine_name, state_name) =
+                proof_state_names(backend_plan, *machine_symbol, *state_symbol);
+            let target_name = proof_state_name(backend_plan, *machine_symbol, *target_symbol);
+            let parameter_name = proof_state_parameter_name(
+                backend_plan,
+                *machine_symbol,
+                *target_symbol,
+                *parameter_symbol,
+            );
+            format!(
+                "machine `{machine_name}` state `{state_name}` call `{target_name}` parameter `{parameter_name}`"
+            )
+        }
         ProofObligationOwner::TransitionParameter {
-            machine_name,
-            state_name,
-            parameter_name,
+            machine_symbol,
+            state_symbol,
+            parameter_symbol,
             ..
-        } => format!(
-            "machine `{machine_name}` state `{state_name}` transition parameter `{parameter_name}`"
-        ),
+        } => {
+            let (machine_name, state_name) =
+                proof_state_names(backend_plan, *machine_symbol, *state_symbol);
+            let parameter_name = proof_state_parameter_name(
+                backend_plan,
+                *machine_symbol,
+                *state_symbol,
+                *parameter_symbol,
+            );
+            format!(
+                "machine `{machine_name}` state `{state_name}` transition parameter `{parameter_name}`"
+            )
+        }
     }
+}
+
+fn proof_machine_name(
+    backend_plan: &BackendReportInput<'_>,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+) -> String {
+    backend_plan
+        .control_flow
+        .machine_by_symbol(machine_symbol)
+        .map(|machine| machine.name.to_string())
+        .unwrap_or_else(|| "<unknown>".to_owned())
+}
+
+fn proof_state_names(
+    backend_plan: &BackendReportInput<'_>,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: omega_core::symbols::SymbolHandle,
+) -> (String, String) {
+    backend_plan
+        .control_flow
+        .state_key_by_symbols(machine_symbol, state_symbol)
+        .and_then(|key| backend_plan.control_flow.state_names_by_key(key))
+        .map(|(machine, state)| (machine.to_string(), state.to_string()))
+        .unwrap_or_else(|| ("<unknown>".to_owned(), "<unknown>".to_owned()))
+}
+
+fn proof_state_name(
+    backend_plan: &BackendReportInput<'_>,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: omega_core::symbols::SymbolHandle,
+) -> String {
+    proof_state_names(backend_plan, machine_symbol, state_symbol).1
+}
+
+fn proof_state_parameter_name(
+    backend_plan: &BackendReportInput<'_>,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: omega_core::symbols::SymbolHandle,
+    parameter_symbol: omega_core::symbols::SymbolHandle,
+) -> String {
+    backend_plan
+        .control_flow
+        .state_key_by_symbols(machine_symbol, state_symbol)
+        .and_then(|key| backend_plan.control_flow.state_by_key(key))
+        .and_then(|state| {
+            backend_plan
+                .control_flow
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == parameter_symbol)
+        })
+        .map(|parameter| parameter.name.to_string())
+        .unwrap_or_else(|| "<unknown>".to_owned())
 }
 
 fn backend_state_name(backend_plan: &BackendReportInput<'_>, key: StateKey) -> String {
