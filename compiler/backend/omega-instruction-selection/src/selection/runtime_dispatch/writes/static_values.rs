@@ -13,18 +13,18 @@ use omega_platform_interface::PlaceKey;
 const INLINE_RUNTIME_STATIC_VALUE_COUNT: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::selection::runtime_dispatch) struct RuntimeStaticValues {
+pub(crate) struct RuntimeStaticValues {
     inline: [Option<(PlaceKey, i64)>; INLINE_RUNTIME_STATIC_VALUE_COUNT],
     len: usize,
     overflow: Vec<(PlaceKey, i64)>,
 }
 
 impl RuntimeStaticValues {
-    pub(in crate::selection::runtime_dispatch) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::with_capacity(0)
     }
 
-    pub(in crate::selection::runtime_dispatch) fn with_capacity(capacity: usize) -> Self {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: std::array::from_fn(|_| None),
             len: 0,
@@ -34,7 +34,7 @@ impl RuntimeStaticValues {
         }
     }
 
-    pub(in crate::selection::runtime_dispatch) fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         let inline_len = self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT);
         for slot in self.inline.iter_mut().take(inline_len) {
             *slot = None;

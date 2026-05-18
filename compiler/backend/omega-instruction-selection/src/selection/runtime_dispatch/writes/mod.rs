@@ -18,7 +18,7 @@ use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
-pub(super) use static_values::RuntimeStaticValues;
+pub(crate) use static_values::RuntimeStaticValues;
 
 pub(in crate::selection::runtime_dispatch) use mutation::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
@@ -28,13 +28,13 @@ pub(super) use storage_copy::{
 };
 
 #[derive(Default)]
-pub(super) struct RuntimeStorageWriteScratch {
+pub(crate) struct RuntimeStorageWriteScratch {
     expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
 }
 
 impl RuntimeStorageWriteScratch {
-    pub(super) fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.expressions.clear();
         self.resolved_segment_expressions.clear();
     }
@@ -158,32 +158,6 @@ pub(super) fn select_runtime_storage_write_for_operation(
         runtime_value_operands,
         selected_instructions,
     );
-}
-
-pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_write_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    statement_index: usize,
-    target: ExpressionHandle,
-    value: ExpressionHandle,
-    static_values: &mut RuntimeStaticValues,
-    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-    selected_instructions: &mut SelectedInstructionSink,
-) -> bool {
-    let mut scratch = RuntimeStorageWriteScratch::default();
-    select_runtime_storage_mutation_write_in_table_with_scratch(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        target,
-        value,
-        static_values,
-        &mut scratch,
-        runtime_value_operands,
-        selected_instructions,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]
