@@ -57,6 +57,23 @@ pub(super) fn select_host_operation_operands(
             ])
         }
         (_, HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
+            if let Some(place) =
+                runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
+            {
+                return stdout_operands(
+                    operands,
+                    operation_key.operation,
+                    InstructionOperandKind::RuntimeStringPointer {
+                        region: place.region,
+                        byte_offset: place.byte_offset,
+                    },
+                    InstructionOperandKind::RuntimeStringLength {
+                        region: place.region,
+                        byte_offset: place.byte_offset,
+                    },
+                );
+            }
+
             let direct_data_object = find_data_object(input, host_call);
             if direct_data_object.is_valid() {
                 let byte_count = data_object_byte_count(input, direct_data_object);
@@ -72,8 +89,6 @@ pub(super) fn select_host_operation_operands(
 
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
-                && runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
-                    .is_none()
             {
                 return stdout_operands(
                     operands,
@@ -82,23 +97,6 @@ pub(super) fn select_host_operation_operands(
                         data: data_object_handle(input, data_object),
                     },
                     InstructionOperandKind::ByteLength(literal.len()),
-                );
-            }
-
-            if let Some(place) =
-                runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
-            {
-                return stdout_operands(
-                    operands,
-                    operation_key.operation,
-                    InstructionOperandKind::RuntimeStringPointer {
-                        region: place.region,
-                        byte_offset: place.byte_offset,
-                    },
-                    InstructionOperandKind::RuntimeStringLength {
-                        region: place.region,
-                        byte_offset: place.byte_offset,
-                    },
                 );
             }
 
