@@ -37,10 +37,9 @@ impl<'program> ProofPlan<'program> {
 
     fn store_constraints(
         &mut self,
-        constraints: &[ProofConstraint],
+        constraints: Vec<ProofConstraint>,
     ) -> HandleSpan<ProofConstraint> {
-        self.type_constraints
-            .insert_many(constraints.iter().cloned())
+        self.type_constraints.insert_many(constraints)
     }
 
     fn store_constraint_nodes(
@@ -517,8 +516,8 @@ fn collect_bounded_assignment_obligation(
     };
 
     let value = assignment.value;
-    let value_constraints = expression_constraints(program, machine, state, value);
-    let value_constraints = proof_plan.store_constraints(&value_constraints);
+    let value_constraints =
+        proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
     let state_guard = incoming_state_guard(program, machine, state);
 
@@ -563,8 +562,8 @@ fn collect_bounded_transition_argument_obligations(
         };
 
         let argument = *argument;
-        let argument_constraints = expression_constraints(program, machine, state, argument);
-        let argument_constraints = proof_plan.store_constraints(&argument_constraints);
+        let argument_constraints =
+            proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
         proof_plan.push_obligation(ProofObligation::BoundedTransitionArgument(
@@ -613,8 +612,8 @@ fn collect_bounded_call_argument_obligations(
         };
 
         let argument = *argument;
-        let argument_constraints = expression_constraints(program, machine, state, argument);
-        let argument_constraints = proof_plan.store_constraints(&argument_constraints);
+        let argument_constraints =
+            proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
         let receiver = program.statement_table.name_path_members(call.receiver);
 
@@ -656,8 +655,8 @@ fn collect_bounded_state_return_obligation(
         return;
     };
     let value = *value;
-    let value_constraints = expression_constraints(program, machine, state, value);
-    let value_constraints = proof_plan.store_constraints(&value_constraints);
+    let value_constraints =
+        proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
     proof_plan.push_obligation(ProofObligation::BoundedStateReturn(
