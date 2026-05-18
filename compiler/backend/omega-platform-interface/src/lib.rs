@@ -21,12 +21,23 @@ pub struct HostCallPlan {
 
 impl Default for HostCallPlan {
     fn default() -> Self {
+        Self::with_capacity(0, 0, 0, 0)
+    }
+}
+
+impl HostCallPlan {
+    pub fn with_capacity(
+        call_capacity: usize,
+        unsupported_call_capacity: usize,
+        operation_capacity: usize,
+        argument_capacity: usize,
+    ) -> Self {
         Self {
             expressions: ExpressionTable::new(),
-            calls: Arena::new(),
-            unsupported_calls: Arena::new(),
-            operations: Arena::new(),
-            arguments: Arena::new(),
+            calls: Arena::with_capacity(call_capacity),
+            unsupported_calls: Arena::with_capacity(unsupported_call_capacity),
+            operations: Arena::with_capacity(operation_capacity),
+            arguments: Arena::with_capacity(argument_capacity),
         }
     }
 }
