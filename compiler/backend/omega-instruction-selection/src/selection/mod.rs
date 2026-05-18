@@ -21,13 +21,7 @@ use runtime_dispatch::select_runtime_dispatch_loop_instructions;
 use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_body_instructions};
 
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
-    let mut instruction_plan = InstructionPlan {
-        target: input.target,
-        functions: Arena::new(),
-        instructions: Arena::new(),
-        operands: Arena::new(),
-        runtime_value_operands: Arena::new(),
-    };
+    let mut instruction_plan = estimated_instruction_plan(input);
 
     let instructions = select_entry_instructions(
         input,
@@ -43,6 +37,43 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
     });
 
     instruction_plan
+}
+
+fn estimated_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
+    let runtime_dispatch_edges = input.runtime_dispatch_loop.edges.len();
+    let runtime_body_operations = input.runtime_bodies.operations.len();
+    let host_operations = input.host_calls.operations.len();
+    let storage_writes = input.runtime_storage.writes.len();
+    let text_writes = input.runtime_text.writes.len();
+    let state_guards = input.state_guards.guards.len();
+
+    let instruction_capacity = 2usize
+        .saturating_add(runtime_body_operations.saturating_mul(4))
+        .saturating_add(runtime_dispatch_edges.saturating_mul(8))
+        .saturating_add(host_operations.saturating_mul(2))
+        .saturating_add(storage_writes.saturating_mul(4))
+        .saturating_add(text_writes.saturating_mul(4))
+        .saturating_add(state_guards.saturating_mul(2));
+    let operand_capacity = input
+        .host_calls
+        .arguments
+        .len()
+        .saturating_add(host_operations.saturating_mul(2));
+    let runtime_value_operand_capacity = input
+        .runtime_storage
+        .frame_slots
+        .len()
+        .saturating_add(input.runtime_storage.writes.len())
+        .saturating_add(input.state_guards.operands.len())
+        .saturating_add(runtime_dispatch_edges.saturating_mul(2));
+
+    InstructionPlan::with_capacity(
+        input.target,
+        1,
+        instruction_capacity,
+        operand_capacity,
+        runtime_value_operand_capacity,
+    )
 }
 
 fn select_entry_instructions(

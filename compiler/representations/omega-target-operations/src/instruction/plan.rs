@@ -15,12 +15,24 @@ pub struct InstructionPlan {
 
 impl Default for InstructionPlan {
     fn default() -> Self {
+        Self::with_capacity(NativeTarget::host(), 0, 0, 0, 0)
+    }
+}
+
+impl InstructionPlan {
+    pub fn with_capacity(
+        target: NativeTarget,
+        function_capacity: usize,
+        instruction_capacity: usize,
+        operand_capacity: usize,
+        runtime_value_operand_capacity: usize,
+    ) -> Self {
         Self {
-            target: NativeTarget::host(),
-            functions: Arena::new(),
-            instructions: Arena::new(),
-            operands: Arena::new(),
-            runtime_value_operands: Arena::new(),
+            target,
+            functions: Arena::with_capacity(function_capacity),
+            instructions: Arena::with_capacity(instruction_capacity),
+            operands: Arena::with_capacity(operand_capacity),
+            runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
         }
     }
 }
