@@ -43,16 +43,13 @@ pub enum BorrowRootKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowWritableRootFact {
     pub symbol: SymbolHandle,
-    pub name: name::ProgramName,
     pub kind: BorrowRootKind,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowFact {
     pub machine_symbol: SymbolHandle,
-    pub machine_name: name::ProgramName,
     pub state_symbol: SymbolHandle,
-    pub state_name: name::ProgramName,
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
     pub calls: HandleSpan<BorrowCallFact>,
@@ -67,7 +64,7 @@ pub enum BorrowAccessKind {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowArgumentAccessFact {
-    pub root_name: name::ProgramName,
+    pub root_symbol: SymbolHandle,
     pub kind: BorrowAccessKind,
 }
 
@@ -78,8 +75,6 @@ pub struct BorrowCallFact {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,
-    pub receiver: name::ProgramName,
-    pub target: name::ProgramName,
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,
 }
 

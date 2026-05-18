@@ -262,7 +262,6 @@ pub enum StateBorrowRootKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowWritableRoot {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
     pub kind: StateBorrowRootKind,
 }
 
@@ -275,7 +274,7 @@ pub enum StateBorrowAccessKind {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowArgumentAccess {
-    pub root_name: ProgramName,
+    pub root_symbol: SymbolHandle,
     pub kind: StateBorrowAccessKind,
 }
 
@@ -286,8 +285,6 @@ pub struct StateBorrowCall {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,
-    pub receiver: ProgramName,
-    pub target: ProgramName,
     pub accesses: HandleSpan<StateBorrowArgumentAccess>,
 }
 

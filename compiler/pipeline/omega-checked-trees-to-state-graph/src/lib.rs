@@ -651,7 +651,6 @@ fn state_borrow_summary(
             .iter()
             .map(|root| StateBorrowWritableRoot {
                 symbol: root.symbol,
-                name: root.name.clone(),
                 kind: match root.kind {
                     omega_checked_trees::BorrowRootKind::OwnedData => {
                         StateBorrowRootKind::OwnedData
@@ -676,7 +675,7 @@ fn state_borrow_summary(
                 .span_or_empty(call.accesses)
                 .iter()
                 .map(|access| StateBorrowArgumentAccess {
-                    root_name: access.root_name.clone(),
+                    root_symbol: access.root_symbol,
                     kind: match access.kind {
                         omega_checked_trees::BorrowAccessKind::Read => StateBorrowAccessKind::Read,
                         omega_checked_trees::BorrowAccessKind::Mutable => {
@@ -694,8 +693,6 @@ fn state_borrow_summary(
                 receiver_symbol: call.receiver_symbol,
                 target_symbol: call.target_symbol,
                 has_receiver: call.has_receiver,
-                receiver: call.receiver.clone(),
-                target: call.target.clone(),
                 accesses,
             },
         );

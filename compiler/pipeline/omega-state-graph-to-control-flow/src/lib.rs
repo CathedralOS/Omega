@@ -241,7 +241,6 @@ fn remap_borrow_writable_roots(state_graph: &StateGraph) -> Arena<StateBorrowWri
     for (_, root) in state_graph.borrow_writable_roots.iter() {
         writable_roots.append(StateBorrowWritableRoot {
             symbol: root.symbol,
-            name: root.name.clone(),
             kind: match root.kind {
                 omega_state_graph::StateBorrowRootKind::OwnedData => StateBorrowRootKind::OwnedData,
                 omega_state_graph::StateBorrowRootKind::LocalData => StateBorrowRootKind::LocalData,
@@ -260,7 +259,7 @@ fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrow
 
     for (_, access) in state_graph.borrow_argument_accesses.iter() {
         accesses.append(StateBorrowArgumentAccess {
-            root_name: access.root_name.clone(),
+            root_symbol: access.root_symbol,
             kind: match access.kind {
                 omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
                 omega_state_graph::StateBorrowAccessKind::Mutable => StateBorrowAccessKind::Mutable,
@@ -281,8 +280,6 @@ fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
             receiver_symbol: call.receiver_symbol,
             target_symbol: call.target_symbol,
             has_receiver: call.has_receiver,
-            receiver: call.receiver.clone(),
-            target: call.target.clone(),
             accesses: remap_borrow_argument_access_span(call.accesses),
         });
     }
