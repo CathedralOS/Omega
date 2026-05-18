@@ -40,6 +40,7 @@ pub(in crate::selection) fn static_integer_value(
 ) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
+        Expression::Boolean(value) => Some(i64::from(*value)),
         _ => enum_variant_value(layouts, expression),
     }
 }
@@ -51,6 +52,7 @@ pub(in crate::selection) fn static_integer_value_in_table(
 ) -> Option<i64> {
     match expressions.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         _ => enum_variant_value_in_table(layouts, expressions, expression),
     }
 }
