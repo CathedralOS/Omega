@@ -263,20 +263,20 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_frame_slot_value_wr
 pub(super) fn select_runtime_static_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    source_key: StateKey,
+    target_source_key: StateKey,
     _statement_index: usize,
+    expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
     static_values: &mut RuntimeStaticValues,
 ) -> Option<SelectedInstructionKind> {
-    let expressions = &input.state_storage.expressions;
     let value =
         resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)?;
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     ) && supports_scalar_integer_write(indexed_target.byte_count)
@@ -294,7 +294,7 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     ) {
@@ -310,7 +310,7 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     )?;
@@ -330,20 +330,21 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
 pub(super) fn select_runtime_string_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    source_key: StateKey,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
     statement_index: usize,
+    expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
-    let expressions = &input.state_storage.expressions;
     let value = expressions.string_literal_value(value)?;
-    let data = string_literal_data_handle(input, source_key, statement_index, &value);
+    let data = string_literal_data_handle(input, operation_source_key, statement_index, &value);
 
     if data.is_valid()
         && let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
             input,
             dispatch_index,
-            source_key,
+            target_source_key,
             expressions,
             target,
         )
@@ -359,7 +360,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     )?;
@@ -377,18 +378,19 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
 pub(super) fn select_runtime_binary_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
     statement_index: usize,
+    expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
-    let expressions = &input.state_storage.expressions;
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     );
@@ -396,7 +398,8 @@ pub(super) fn select_runtime_binary_mutation_write_in_table(
     select_runtime_targeted_binary_mutation_write_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
+        value_source_key,
         statement_index,
         expressions,
         target,
@@ -411,7 +414,8 @@ pub(super) fn select_runtime_binary_mutation_write_in_table(
 fn select_runtime_targeted_binary_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
     statement_index: usize,
     expressions: &ExpressionTable,
     target: ExpressionHandle,
@@ -438,7 +442,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     let left = resolve_runtime_value_operand_in_table(
         input,
         dispatch_index,
-        source_key,
+        value_source_key,
         statement_index,
         expressions,
         left_expression,
@@ -448,7 +452,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     let right = resolve_runtime_value_operand_in_table(
         input,
         dispatch_index,
-        source_key,
+        value_source_key,
         statement_index,
         expressions,
         right_expression,
@@ -459,7 +463,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     ) {
@@ -478,7 +482,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
-        source_key,
+        target_source_key,
         expressions,
         target,
     ) {
