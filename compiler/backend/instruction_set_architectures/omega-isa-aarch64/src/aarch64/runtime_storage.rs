@@ -15,13 +15,12 @@ use super::primitives::{
     encode_sub_x_register, encode_udiv_x_register,
 };
 use super::widths::{
-    runtime_frame_index_setup_width, runtime_frame_indexed_binary_write_width,
-    runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
-    runtime_machine_string_write_width, runtime_pointee_binary_write_width,
-    runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
-    runtime_storage_binary_write_width, runtime_storage_compare_width,
-    runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
-    runtime_storage_value_compare_width, runtime_value_operand_width,
+    runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
+    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
+    runtime_pointee_string_write_width, runtime_storage_binary_write_width,
+    runtime_storage_compare_width, runtime_storage_copy_to_runtime_pointee_width,
+    runtime_storage_copy_width, runtime_storage_value_compare_width, runtime_value_operand_width,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -346,16 +345,18 @@ pub fn encode_runtime_frame_indexed_integer_write(
         ))
     })?;
 
-    let mut bytes = encode_runtime_frame_index_target_address(
+    let mut bytes = Vec::with_capacity(runtime_frame_indexed_integer_write_width(
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    ));
+    append_runtime_frame_index_target_address(
+        &mut bytes,
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.reserve(
-        runtime_frame_indexed_integer_write_width(element_byte_size, field_byte_offset, byte_size)
-            .saturating_sub(bytes.len()),
-    );
     match byte_size {
         1 | 4 => {
             bytes.extend(encode_movz_w(17, value as u16));
@@ -386,23 +387,21 @@ pub fn encode_runtime_frame_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_frame_index_target_address(
+    let mut bytes = Vec::with_capacity(runtime_frame_indexed_binary_write_width(
+        runtime_value_operands,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        right,
+    ));
+    append_runtime_frame_index_target_address(
+        &mut bytes,
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.reserve(
-        runtime_frame_indexed_binary_write_width(
-            runtime_value_operands,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            left,
-            right,
-        )
-        .saturating_sub(bytes.len()),
-    );
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
     append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
@@ -418,20 +417,20 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     field_byte_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_frame_index_target_address(
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
+    );
+    append_runtime_frame_index_target_address(
+        &mut bytes,
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.reserve(
-        super::widths::runtime_storage_copy_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-            byte_count,
-        )
-        .saturating_sub(bytes.len()),
-    );
 
     for_each_runtime_copy_chunk(
         source_offset,
@@ -547,24 +546,21 @@ fn for_each_runtime_copy_chunk(
     Ok(())
 }
 
-fn encode_runtime_frame_index_target_address(
+fn append_runtime_frame_index_target_address(
+    bytes: &mut Vec<u8>,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_index_setup_width(
-        element_byte_size,
-        field_byte_offset,
-    ));
+) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
-    append_scale_x_register_by_constant(&mut bytes, 18, 17, element_byte_size)?;
+    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
-    append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
-    Ok(bytes)
+    append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    Ok(())
 }
 
 fn append_runtime_value_operand(
@@ -645,12 +641,13 @@ fn append_runtime_value_operand(
             field_byte_offset,
             byte_size,
         } => {
-            bytes.extend(encode_runtime_frame_index_target_address(
+            append_runtime_frame_index_target_address(
+                bytes,
                 *descriptor_offset,
                 *index_offset,
                 *element_byte_size,
                 *field_byte_offset,
-            )?);
+            )?;
             match byte_size {
                 1 | 4 => bytes.extend(encode_load_w_from_x(
                     destination_register,
