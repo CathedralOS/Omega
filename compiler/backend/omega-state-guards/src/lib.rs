@@ -293,6 +293,14 @@ fn normalized_guard_expression(
         }));
     }
 
+    if let Some(normalized_guard) = normalized_direct_place_boolean_guard(
+        source_expressions,
+        source_guard,
+        normalized_expressions,
+    ) {
+        return normalized_guard;
+    }
+
     let simplified_guard = simplify_expression(
         program,
         source_machine,
@@ -300,6 +308,57 @@ fn normalized_guard_expression(
     );
     let normalized_guard = normalize_guard_expression(simplified_guard);
     normalized_expressions.insert_tree(&normalized_guard)
+}
+
+fn normalized_direct_place_boolean_guard(
+    source_expressions: &ExpressionTable,
+    source_guard: ExpressionHandle,
+    normalized_expressions: &mut ExpressionTable,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Binary(binary) = source_expressions.expression(source_guard) else {
+        return None;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return None;
+    }
+
+    let (place, expected) = match (
+        source_expressions.expression(binary.left),
+        source_expressions.expression(binary.right),
+    ) {
+        (_, ExpressionNode::Boolean(value))
+            if source_expressions.expression_is_direct_place_path(binary.left) =>
+        {
+            (binary.left, positive_branch(binary.operator, *value))
+        }
+        (ExpressionNode::Boolean(value), _)
+            if source_expressions.expression_is_direct_place_path(binary.right) =>
+        {
+            (binary.right, positive_branch(binary.operator, *value))
+        }
+        _ => return None,
+    };
+
+    let left = normalized_expressions.copy_from(source_expressions, place);
+    let right = normalized_expressions.insert(ExpressionNode::Boolean(expected));
+    Some(
+        normalized_expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            operator: BinaryOperator::Equal,
+            right,
+        })),
+    )
+}
+
+fn positive_branch(operator: BinaryOperator, flag: bool) -> bool {
+    match operator {
+        BinaryOperator::Equal => flag,
+        BinaryOperator::NotEqual => !flag,
+        _ => true,
+    }
 }
 
 fn machine_by_symbol<'program>(
