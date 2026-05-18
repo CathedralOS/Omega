@@ -8,7 +8,6 @@ use super::super::primitives::{
     encode_subs_x_immediate,
 };
 use super::super::widths::{
-    runtime_frame_index_setup_width,
     runtime_text_buffer_materialize_to_runtime_frame_indexed_width,
     runtime_text_buffer_materialize_width,
     runtime_text_literal_append_to_runtime_frame_indexed_width,
@@ -86,19 +85,19 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_frame_index_target_address(
+    let mut bytes = Vec::with_capacity(
+        runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+        ),
+    );
+    append_runtime_frame_index_target_address(
+        &mut bytes,
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.reserve(
-        runtime_text_stored_place_append_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-        )
-        .saturating_sub(bytes.len()),
-    );
     bytes.extend(encode_load_x_from_x(22, 16, 8)?);
     bytes.extend(encode_move_x_register(24, 22));
     bytes.extend(encode_adrp_placeholder(17));
@@ -226,20 +225,18 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     field_byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_frame_index_target_address(
+    let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_frame_indexed_width(
+        element_byte_size,
+        field_byte_offset,
+        literal,
+    ));
+    append_runtime_frame_index_target_address(
+        &mut bytes,
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.reserve(
-        runtime_text_literal_append_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-            literal,
-        )
-        .saturating_sub(bytes.len()),
-    );
     bytes.extend(encode_load_x_from_x(22, 16, 8)?);
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -315,19 +312,19 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_runtime_frame_index_target_address(
+    let mut bytes = Vec::with_capacity(
+        runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+        ),
+    );
+    append_runtime_frame_index_target_address(
+        &mut bytes,
         descriptor_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.reserve(
-        runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
-            element_byte_size,
-            field_byte_offset,
-        )
-        .saturating_sub(bytes.len()),
-    );
     bytes.extend(encode_load_x_from_x(18, 16, 0)?);
     bytes.extend(encode_load_x_from_x(19, 16, 8)?);
     bytes.extend(encode_move_x_register(23, 19));
@@ -346,24 +343,21 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     Ok(bytes)
 }
 
-fn encode_runtime_frame_index_target_address(
+fn append_runtime_frame_index_target_address(
+    bytes: &mut Vec<u8>,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_frame_index_setup_width(
-        element_byte_size,
-        field_byte_offset,
-    ));
+) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
-    append_scale_x_register_by_constant(&mut bytes, 18, 17, element_byte_size)?;
+    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
-    append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
-    Ok(bytes)
+    append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    Ok(())
 }
 
 fn append_scale_x_register_by_constant(
