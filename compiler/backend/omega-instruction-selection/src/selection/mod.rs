@@ -18,7 +18,7 @@ use omega_target_operations::{
     SelectedInstruction, SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
-use state_bodies::{runtime_reachable_states, select_state_body_instructions};
+use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_body_instructions};
 
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
     let mut instruction_plan = InstructionPlan {
@@ -86,7 +86,7 @@ fn select_entry_instructions(
         operands,
         runtime_value_operands,
         &mut selected_instructions,
-        &mut Vec::new(),
+        &mut StateBodyVisitStack::new(),
     );
 
     selected_instructions.push(exit_instruction(input));
