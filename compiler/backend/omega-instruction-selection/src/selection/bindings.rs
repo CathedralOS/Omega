@@ -628,37 +628,6 @@ pub(super) fn resolve_leaf_binding_expression_handle(
     }
 }
 
-pub(super) fn resolve_straight_line_binding_expression(
-    table: &ExpressionTable,
-    expression: &Expression,
-    bindings: &[RuntimeStraightLineBranchBinding],
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => {
-            let resolved_target = resolve_straight_line_binding_expression(table, target, bindings);
-            if matches!(resolved_target, Expression::Mutable(_)) {
-                resolved_target
-            } else {
-                Expression::Mutable(Box::new(resolved_target))
-            }
-        }
-        Expression::Name(path) if !path.is_empty() => bindings
-            .iter()
-            .find(|binding| {
-                straight_line_binding_matches_path(binding, path)
-                    && binding.kind == RuntimeStraightLineBranchBindingKind::TargetParameter
-            })
-            .or_else(|| {
-                bindings
-                    .iter()
-                    .find(|binding| straight_line_binding_matches_path(binding, path))
-            })
-            .map(|binding| table.to_tree_with_place_suffix(binding.expression, &path[1..]))
-            .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
-    }
-}
-
 pub(super) fn resolve_straight_line_binding_expression_handle(
     source_table: &ExpressionTable,
     table: &mut ExpressionTable,
@@ -772,13 +741,6 @@ fn leaf_binding_matches_table_path(
     path: &TableNamePath,
 ) -> bool {
     symbol_matches_table_path(binding.parameter_symbol, path)
-}
-
-fn straight_line_binding_matches_path(
-    binding: &RuntimeStraightLineBranchBinding,
-    path: &NamePath,
-) -> bool {
-    symbol_matches_path(binding.parameter_symbol, path)
 }
 
 fn straight_line_binding_matches_table_path(
