@@ -61,8 +61,26 @@ impl Compiler {
         validate_selected_target(&source_storage, self.options.target_name.as_deref())?;
 
         let syntax = assemble_syntax(&source_storage)?;
+        write_phase_json(
+            &self.options,
+            "02_syntax_trees.json",
+            &syntax
+                .syntax_trees
+                .snapshot_json_pretty()
+                .map_err(json_diagnostic)?,
+        )?;
         let resolved = resolve_program(syntax)?;
+        write_phase_json(
+            &self.options,
+            "03_symbol_resolved_trees.json",
+            &resolved.snapshot_json_pretty().map_err(json_diagnostic)?,
+        )?;
         let typed = typecheck_program(resolved)?;
+        write_phase_json(
+            &self.options,
+            "04_typed_trees.json",
+            &typed.snapshot_json_pretty().map_err(json_diagnostic)?,
+        )?;
         let checked = check_program(&typed)?;
         let backend_surface = build_backend_surface_report(&checked.program);
         let planned = plan_backend(
@@ -314,6 +332,24 @@ fn write_emission_plan(
     writer
         .write_emission_plan(emission_plan)
         .map_err(|diagnostic| vec![diagnostic])
+}
+
+fn write_phase_json(
+    options: &CompileOptions,
+    file_name: &str,
+    contents: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    let writer =
+        ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+    writer
+        .write_text(file_name, contents)
+        .map_err(|diagnostic| vec![diagnostic])
+}
+
+fn json_diagnostic(error: impl std::fmt::Display) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "failed to serialize phase snapshot: {error}"
+    ))]
 }
 
 fn ensure_emission_ready(

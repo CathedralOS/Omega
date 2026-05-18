@@ -1,5 +1,6 @@
-use crate::{data, expression, invariant, machine, platform, signature, types};
+use crate::{data, expression, invariant, machine, platform, signature, snapshot, types};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::diagnostics::PhaseSnapshot;
 use omega_core::symbols::SymbolTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -218,5 +219,25 @@ impl TypedTrees {
         type_reference: types::TypeReferenceHandle,
     ) -> omega_core::symbols::SymbolHandle {
         self.type_reference_table.type_symbol(type_reference)
+    }
+
+    pub fn snapshot(&self) -> snapshot::TypedTreesSnapshot {
+        snapshot::TypedTreesSnapshot::from_typed_trees(self)
+    }
+
+    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().to_json()
+    }
+
+    pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().to_json_pretty()
+    }
+}
+
+impl PhaseSnapshot for TypedTrees {
+    type Snapshot = snapshot::TypedTreesSnapshot;
+
+    fn snapshot(&self) -> Self::Snapshot {
+        TypedTrees::snapshot(self)
     }
 }
