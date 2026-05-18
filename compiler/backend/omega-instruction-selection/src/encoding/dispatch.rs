@@ -49,27 +49,27 @@ pub fn encode_dispatch_case_leave_bytes(
     }
 }
 
-pub fn encode_dispatch_guard_compare_static(
+pub fn encode_dispatch_guard_compare_static_bytes(
     architecture: Architecture,
     byte_offset: usize,
     byte_size: usize,
     expected_value: i64,
     skip_byte_distance: isize,
     operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 20], Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static(
+        Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static_bytes(
             byte_offset,
             byte_size,
             expected_value,
             skip_byte_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => unsupported_x86_64_guard_compare_static_encoding(),
     }
 }
 
-fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+fn unsupported_x86_64_guard_compare_static_encoding() -> Result<[u8; 20], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 dispatch instruction encoding is not implemented",
     ))
