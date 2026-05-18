@@ -21,12 +21,13 @@ use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::InstructionPlan;
 use omega_target_operations::TargetDataPlan;
+use std::sync::Arc;
 
 pub(super) struct BackendPlanSkeletonInput {
     pub target: NativeTarget,
     pub host_abi: HostAbiPlan,
     pub host_calls: HostCallPlan,
-    pub control_flow: ControlFlowPlan,
+    pub control_flow: Arc<ControlFlowPlan>,
     pub runtime_flow: RuntimeFlowPlan,
     pub state_dispatch: StateDispatchPlan,
     pub state_guards: StateGuardPlan,
