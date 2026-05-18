@@ -19,6 +19,56 @@ use super::runtime_dispatch::select_runtime_resolved_mutation_write;
 use omega_state_calls::StateCall;
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
+const INLINE_STATE_BODY_VISIT_COUNT: usize = 16;
+
+pub(super) struct StateBodyVisitStack {
+    inline: [Option<StateKey>; INLINE_STATE_BODY_VISIT_COUNT],
+    len: usize,
+    overflow: Vec<StateKey>,
+}
+
+impl StateBodyVisitStack {
+    pub(super) fn new() -> Self {
+        Self {
+            inline: [None; INLINE_STATE_BODY_VISIT_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn contains(&self, key: StateKey) -> bool {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_STATE_BODY_VISIT_COUNT))
+            .flatten()
+            .any(|candidate| *candidate == key)
+            || self.overflow.contains(&key)
+    }
+
+    fn push(&mut self, key: StateKey) {
+        if self.len < INLINE_STATE_BODY_VISIT_COUNT {
+            self.inline[self.len] = Some(key);
+        } else {
+            self.overflow.push(key);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+
+        self.len -= 1;
+        if self.len < INLINE_STATE_BODY_VISIT_COUNT {
+            self.inline[self.len] = None;
+        } else {
+            self.overflow.pop();
+        }
+    }
+}
+
 pub(super) fn select_state_body_instructions(
     input: &InstructionSelectionInput<'_>,
     state_key: StateKey,
@@ -28,9 +78,9 @@ pub(super) fn select_state_body_instructions(
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
-    visiting: &mut Vec<StateKey>,
+    visiting: &mut StateBodyVisitStack,
 ) {
-    if visiting.contains(&state_key) {
+    if visiting.contains(state_key) {
         return;
     }
 
@@ -179,7 +229,7 @@ fn follow_transition_target(
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
-    visiting: &mut Vec<StateKey>,
+    visiting: &mut StateBodyVisitStack,
 ) {
     let PlannedTransitionTarget::State { key, .. } = target else {
         return;
