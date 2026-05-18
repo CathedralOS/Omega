@@ -32,7 +32,7 @@ pub(super) fn next_state(
             )?;
             Ok(Some(ScheduledState { key: *key }))
         }
-        PlannedTransitionTarget::Terminal => Ok(None),
+        PlannedTransitionTarget::None | PlannedTransitionTarget::Terminal => Ok(None),
         PlannedTransitionTarget::SelfTarget => Err(format!(
             "{} self-transitions; native emission does not support loops yet",
             state.name
@@ -95,11 +95,11 @@ pub(super) fn next_state(
             aliases.truncate(saved_alias_count);
 
             match &transition.continuation {
-                Some(PlannedTransitionTarget::State {
+                PlannedTransitionTarget::State {
                     index,
                     key,
                     name: _,
-                }) => {
+                } => {
                     validate_state_index(context, machine, *index, &machine.name, &state.name)?;
                     bind_state_arguments_by_key(
                         context,
@@ -110,16 +110,16 @@ pub(super) fn next_state(
                     )?;
                     Ok(Some(ScheduledState { key: *key }))
                 }
-                Some(PlannedTransitionTarget::Terminal) | None => Ok(None),
-                Some(PlannedTransitionTarget::SelfTarget) => Err(format!(
+                PlannedTransitionTarget::Terminal | PlannedTransitionTarget::None => Ok(None),
+                PlannedTransitionTarget::SelfTarget => Err(format!(
                     "{}.{} nested continuation self-transitions; native emission does not support loops yet",
                     machine.name, state.name
                 )),
-                Some(PlannedTransitionTarget::Nested {
+                PlannedTransitionTarget::Nested {
                     receiver,
                     state: nested_state,
                     ..
-                }) => Err(format!(
+                } => Err(format!(
                     "{}.{} nested continuation targets `{receiver}.{nested_state}`; native emission supports one nested call at a time so far",
                     machine.name, state.name
                 )),

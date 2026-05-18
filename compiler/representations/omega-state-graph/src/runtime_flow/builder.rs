@@ -5,7 +5,7 @@ mod targets;
 use omega_control_flow::{ControlFlowPlan, MachineFlow, StateKey, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
 
-use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
+use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState};
 
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,
@@ -88,11 +88,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         transition: &TransitionFlow,
     ) -> Result<(), Diagnostic> {
         let target = self.runtime_target(machine, &transition.target);
-        let continuation = transition
-            .continuation
-            .as_ref()
-            .map(|target| self.runtime_target(machine, target))
-            .unwrap_or(RuntimeTransitionTarget::None);
+        let continuation = self.runtime_target(machine, &transition.continuation);
         let forms_cycle = self.target_is_active(&target);
 
         self.runtime_flow.edges.insert(RuntimeEdge {

@@ -46,18 +46,11 @@ pub(super) fn plan_transition(
 
             Ok(TransitionEdge {
                 target: plan_transition_target(source_key, state_indexes, table.target, program)?,
-                continuation: table
-                    .continuation
-                    .is_valid()
-                    .then(|| {
-                        plan_transition_target(
-                            source_key,
-                            state_indexes,
-                            table.continuation,
-                            program,
-                        )
-                    })
-                    .transpose()?,
+                continuation: if table.continuation.is_valid() {
+                    plan_transition_target(source_key, state_indexes, table.continuation, program)?
+                } else {
+                    PlannedTransitionTarget::None
+                },
                 expressions: TransitionExpressionRefs {
                     target_arguments,
                     target_value,
@@ -72,9 +65,11 @@ pub(super) fn plan_transition(
             has_continuation_segment,
         } => Ok(TransitionEdge {
             target: plan_call_target(source_key, state_indexes, table, program)?,
-            continuation: has_continuation_segment
-                .then(|| next_segment_target(source_key, state_indexes))
-                .transpose()?,
+            continuation: if *has_continuation_segment {
+                next_segment_target(source_key, state_indexes)?
+            } else {
+                PlannedTransitionTarget::None
+            },
             expressions: TransitionExpressionRefs {
                 target_arguments: copy_statement_expression_span(
                     state_graph,

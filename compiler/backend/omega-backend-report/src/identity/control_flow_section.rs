@@ -59,9 +59,7 @@ pub(in crate::identity) fn count_control_flow_strings(
 
     for (_, transition) in backend_plan.control_flow.transitions.iter() {
         count_planned_target_strings(&transition.target, storage);
-        if let Some(continuation) = &transition.continuation {
-            count_planned_target_strings(continuation, storage);
-        }
+        count_planned_target_strings(&transition.continuation, storage);
         count_control_flow_expression_span_strings(
             &backend_plan.control_flow.expressions,
             transition.expressions.target_arguments,

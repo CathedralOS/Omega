@@ -299,7 +299,7 @@ pub enum OperationExpressionRefs {
 pub struct TransitionFlow {
     pub statement_index: usize,
     pub target: PlannedTransitionTarget,
-    pub continuation: Option<PlannedTransitionTarget>,
+    pub continuation: PlannedTransitionTarget,
     pub expressions: TransitionExpressionRefs,
 }
 
@@ -314,6 +314,7 @@ pub struct TransitionExpressionRefs {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlannedTransitionTarget {
+    None,
     State {
         index: usize,
         key: StateKey,
@@ -334,7 +335,7 @@ impl Default for TransitionFlow {
         Self {
             statement_index: 0,
             target: PlannedTransitionTarget::Terminal,
-            continuation: None,
+            continuation: PlannedTransitionTarget::None,
             expressions: TransitionExpressionRefs::default(),
         }
     }

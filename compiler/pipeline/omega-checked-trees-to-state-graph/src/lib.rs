@@ -602,7 +602,7 @@ fn append_segment_transitions(
                     key: next_key,
                     name: next_segment_name,
                 },
-                continuation: None,
+                continuation: PlannedTransitionTarget::None,
                 expressions: TransitionExpressionRefs::default(),
             },
             &mut start,

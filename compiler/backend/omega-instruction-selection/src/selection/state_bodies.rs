@@ -152,13 +152,13 @@ pub(super) fn select_state_body_instructions(
             selected_instructions,
             visiting,
         );
-        if let Some(continuation) = &transition.continuation {
+        if transition.continuation != PlannedTransitionTarget::None {
             follow_transition_target(
                 input,
                 dispatch_index,
                 aliases,
                 alias_expressions,
-                continuation,
+                &transition.continuation,
                 operands,
                 runtime_value_operands,
                 selected_instructions,

@@ -301,10 +301,7 @@ fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
     TransitionFlow {
         statement_index: 0,
         target: remap_transition_target(&transition.target),
-        continuation: transition
-            .continuation
-            .as_ref()
-            .map(remap_transition_target),
+        continuation: remap_transition_target(&transition.continuation),
         expressions: TransitionExpressionRefs {
             target_arguments: transition.expressions.target_arguments,
             target_value: transition.expressions.target_value,
@@ -403,6 +400,7 @@ fn remap_transition_target(
     target: &omega_state_graph::PlannedTransitionTarget,
 ) -> PlannedTransitionTarget {
     match target {
+        omega_state_graph::PlannedTransitionTarget::None => PlannedTransitionTarget::None,
         omega_state_graph::PlannedTransitionTarget::State { index, key, name } => {
             PlannedTransitionTarget::State {
                 index: *index,
