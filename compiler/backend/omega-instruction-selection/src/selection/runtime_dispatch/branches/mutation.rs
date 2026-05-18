@@ -12,7 +12,7 @@ use super::super::super::storage_places::{
     resolve_runtime_storage_place, static_integer_value,
 };
 use super::super::text_writes::{
-    runtime_text_builder_write_with_resolver_emit, select_runtime_string_descriptor_write,
+    runtime_text_builder_write_without_aliases_emit, select_runtime_string_descriptor_write,
     string_literal_data_handle,
 };
 use super::super::writes::runtime_storage_copy;
@@ -79,7 +79,7 @@ pub(crate) fn select_runtime_resolved_mutation_write(
         return;
     }
 
-    if runtime_text_builder_write_with_resolver_emit(
+    if runtime_text_builder_write_without_aliases_emit(
         input,
         dispatch_index,
         operation_key,
@@ -87,7 +87,6 @@ pub(crate) fn select_runtime_resolved_mutation_write(
         operation_state,
         statement_index,
         resolved_target,
-        &|expression| expression.clone(),
         &mut |kind| {
             selected_instructions.push(SelectedInstruction {
                 kind,
