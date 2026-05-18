@@ -7,7 +7,7 @@ use crate::pipeline::source::{ImportQueue, SourceStorage};
 use omega_artifacts::{ArtifactWriter, build_backend_surface_report};
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
 use omega_checked_trees::Program as CheckedProgram;
-use omega_core::diagnostics::Diagnostic;
+use omega_core::diagnostics::{Diagnostic, PhaseDiagram};
 use omega_core::parallel::WorkerPool;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_image_emission::{
@@ -62,6 +62,11 @@ impl Compiler {
 
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(source_storage)?;
+        write_phase_diagram(
+            &self.options,
+            "02_syntax_trees.mmd",
+            &syntax.syntax_trees.phase_mermaid(),
+        )?;
         write_phase_json(
             &self.options,
             "02_syntax_trees.json",
@@ -71,12 +76,18 @@ impl Compiler {
                 .map_err(json_diagnostic)?,
         )?;
         let resolved = resolve_program(syntax)?;
+        write_phase_diagram(
+            &self.options,
+            "03_symbol_resolved_trees.mmd",
+            &resolved.phase_mermaid(),
+        )?;
         write_phase_json(
             &self.options,
             "03_symbol_resolved_trees.json",
             &resolved.snapshot_json_pretty().map_err(json_diagnostic)?,
         )?;
         let typed = typecheck_program(resolved)?;
+        write_phase_diagram(&self.options, "04_typed_trees.mmd", &typed.phase_mermaid())?;
         write_phase_json(
             &self.options,
             "04_typed_trees.json",
@@ -337,6 +348,22 @@ fn write_emission_plan(
 }
 
 fn write_phase_json(
+    options: &CompileOptions,
+    file_name: &str,
+    contents: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    write_phase_text(options, file_name, contents)
+}
+
+fn write_phase_diagram(
+    options: &CompileOptions,
+    file_name: &str,
+    contents: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    write_phase_text(options, file_name, contents)
+}
+
+fn write_phase_text(
     options: &CompileOptions,
     file_name: &str,
     contents: &str,
