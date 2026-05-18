@@ -4,6 +4,7 @@ use omega_state_graph::RuntimeTransitionTarget;
 use std::collections::HashSet;
 
 type StateKeyId = (u32, u32, usize);
+const INLINE_REQUIRED_STATE_COUNT: usize = 8;
 
 use super::collection::CollectedStateCall;
 use super::lookups::state_key_is_valid;
@@ -138,7 +139,7 @@ fn runtime_transition_target(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RequiredStates {
-    states: Vec<StateKey>,
+    states: RequiredStateList,
     set: HashSet<StateKeyId>,
     next_unprocessed: usize,
 }
@@ -146,7 +147,7 @@ struct RequiredStates {
 impl RequiredStates {
     fn new() -> Self {
         Self {
-            states: Vec::new(),
+            states: RequiredStateList::new(),
             set: HashSet::new(),
             next_unprocessed: 0,
         }
@@ -166,9 +167,50 @@ impl RequiredStates {
     }
 
     fn next_unprocessed(&mut self) -> Option<StateKey> {
-        let state_key = *self.states.get(self.next_unprocessed)?;
+        let state_key = self.states.get(self.next_unprocessed)?;
         self.next_unprocessed += 1;
         Some(state_key)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RequiredStateList {
+    inline: [Option<StateKey>; INLINE_REQUIRED_STATE_COUNT],
+    len: usize,
+    overflow: Vec<StateKey>,
+}
+
+impl RequiredStateList {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_REQUIRED_STATE_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn get(&self, index: usize) -> Option<StateKey> {
+        if index >= self.len {
+            return None;
+        }
+
+        if index < INLINE_REQUIRED_STATE_COUNT {
+            return self.inline[index];
+        }
+
+        self.overflow
+            .get(index - INLINE_REQUIRED_STATE_COUNT)
+            .copied()
+    }
+
+    fn push(&mut self, state_key: StateKey) {
+        if self.len < INLINE_REQUIRED_STATE_COUNT {
+            self.inline[self.len] = Some(state_key);
+        } else {
+            self.overflow.push(state_key);
+        }
+
+        self.len += 1;
     }
 }
 
