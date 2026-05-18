@@ -2,6 +2,7 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::Program;
+use omega_checked_trees::expression::ExpressionNode;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::StatementNode;
@@ -162,7 +163,14 @@ fn build_machine_state_storage_plan(
                     let value = if program
                         .expression_table
                         .expression_is_literal(assignment.value)
-                    {
+                        || (expression_is_direct_place_path(
+                            &program.expression_table,
+                            assignment.value,
+                        ) && !state_has_initialized_locals_before(
+                            program,
+                            state,
+                            statement_index,
+                        )) {
                         plan.expressions
                             .copy_from(&program.expression_table, assignment.value)
                     } else {
@@ -202,6 +210,38 @@ fn build_machine_state_storage_plan(
     }
 
     plan
+}
+
+fn state_has_initialized_locals_before(
+    program: &Program,
+    state: &omega_checked_trees::state::State,
+    statement_index: usize,
+) -> bool {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .any(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(local_data) if local_data.initial_value.is_valid()
+            )
+        })
+}
+
+fn expression_is_direct_place_path(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Member(member) => {
+            expression_is_direct_place_path(expressions, member.receiver)
+        }
+        ExpressionNode::Mutable(inner) => expression_is_direct_place_path(expressions, *inner),
+        _ => false,
+    }
 }
 
 fn local_data_requires_storage(
