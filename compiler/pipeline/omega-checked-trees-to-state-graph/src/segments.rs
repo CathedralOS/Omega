@@ -20,7 +20,7 @@ pub(super) struct StateSegment {
     pub parameters: HandleSpan<StateParameterNode>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<SegmentTransition>,
-    pub next_segment_name: Option<ProgramName>,
+    pub next_segment_key: StateKey,
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +85,7 @@ pub(super) fn split_state_segments(
                     table_call.clone(),
                     statement_index + 1 < table_statements.len(),
                 ),
-                next_segment_name: None,
+                next_segment_key: StateKey::default(),
             });
 
             let remaining_statement_count = table_statements.len() - statement_index;
@@ -112,7 +112,7 @@ pub(super) fn split_state_segments(
                 ),
                 operations,
                 transitions,
-                next_segment_name: None,
+                next_segment_key: StateKey::default(),
             });
 
             let remaining_statement_count = table_statements.len() - statement_index;
@@ -144,13 +144,13 @@ pub(super) fn split_state_segments(
         parameters: state_parameters_for_segment(state_graph, program, state, segment_index),
         operations,
         transitions,
-        next_segment_name: None,
+        next_segment_key: StateKey::default(),
     });
 
     if segments.len() > 1 {
         for segment_index in 0..segments.len() - 1 {
-            let next_name = segments[segment_index + 1].name.clone();
-            segments[segment_index].next_segment_name = Some(next_name);
+            let next_key = segments[segment_index + 1].key;
+            segments[segment_index].next_segment_key = next_key;
         }
     }
 
@@ -243,7 +243,10 @@ fn operation_kind(program: &Program, table_statement: &StatementNode) -> Operati
         StatementNode::Call(call) => OperationKind::Call {
             receiver_symbol: call.receiver_symbol,
             target_symbol: call.target_symbol,
-            has_receiver: !program.statement_table.name_path_members(call.receiver).is_empty(),
+            has_receiver: !program
+                .statement_table
+                .name_path_members(call.receiver)
+                .is_empty(),
             receiver: statement_call_receiver_name(program, call),
             target: call.target.clone(),
         },
