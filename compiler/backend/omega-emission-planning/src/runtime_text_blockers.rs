@@ -19,6 +19,10 @@ pub(super) fn collect_state_value_blockers(
             continue;
         }
 
+        if !runtime_body_has_statement(input, value.source_key, value.statement_index) {
+            continue;
+        }
+
         if state_value_is_static_assignment(input, value) {
             continue;
         }
@@ -36,6 +40,21 @@ pub(super) fn collect_state_value_blockers(
             &runtime_value_blocker_reason(input, value),
         ));
     }
+}
+
+fn runtime_body_has_statement(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input
+        .runtime_bodies
+        .operations
+        .iter()
+        .any(|(_, operation)| {
+            state_key_matches_statement_source(operation.source_key, source_key)
+                && operation.statement_index == statement_index
+        })
 }
 
 fn state_value_has_planned_text_builder(
