@@ -14,7 +14,6 @@ use super::super::widths::{
     runtime_text_literal_append_to_runtime_frame_indexed_width,
     runtime_text_stored_place_append_to_runtime_frame_indexed_width,
     runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
-    scale_index_width,
 };
 
 pub fn encode_runtime_text_stored_suffix_append(
@@ -361,28 +360,24 @@ fn encode_runtime_frame_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
-    bytes.extend(encode_scale_x_register_by_constant(
-        18,
-        17,
-        element_byte_size,
-    )?);
+    append_scale_x_register_by_constant(&mut bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
     append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     Ok(bytes)
 }
 
-fn encode_scale_x_register_by_constant(
+fn append_scale_x_register_by_constant(
+    bytes: &mut Vec<u8>,
     destination_register: u8,
     source_register: u8,
     scale: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     if scale == 0 {
         return Err(Diagnostic::error(
             "AArch64 MVP encoder cannot scale indexed runtime text storage by zero",
         ));
     }
 
-    let mut bytes = Vec::with_capacity(scale_index_width(scale));
     bytes.extend(encode_movz_w(destination_register, 0));
     let working_register = 19u8;
     bytes.extend(encode_move_x_register(working_register, source_register));
@@ -406,7 +401,7 @@ fn encode_scale_x_register_by_constant(
         }
     }
 
-    Ok(bytes)
+    Ok(())
 }
 
 fn append_add_constant_to_x_register(

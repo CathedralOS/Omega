@@ -21,7 +21,7 @@ use super::widths::{
     runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
     runtime_storage_binary_write_width, runtime_storage_compare_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
-    runtime_storage_value_compare_width, runtime_value_operand_width, scale_index_width,
+    runtime_storage_value_compare_width, runtime_value_operand_width,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -561,11 +561,7 @@ fn encode_runtime_frame_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
-    bytes.extend(encode_scale_x_register_by_constant(
-        18,
-        17,
-        element_byte_size,
-    )?);
+    append_scale_x_register_by_constant(&mut bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
     append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     Ok(bytes)
@@ -828,19 +824,19 @@ fn encode_conditional_branch_for_operator_bytes(
     })
 }
 
-fn encode_scale_x_register_by_constant(
+fn append_scale_x_register_by_constant(
+    bytes: &mut Vec<u8>,
     destination_register: u8,
     source_register: u8,
     scale: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     if scale == 0 {
         return Err(Diagnostic::error(
             "AArch64 MVP encoder cannot scale indexed runtime storage by zero",
         ));
     }
 
-    let mut bytes = Vec::with_capacity(scale_index_width(scale));
-    append_unsigned_immediate(&mut bytes, destination_register, 0);
+    append_unsigned_immediate(bytes, destination_register, 0);
     let working_register = 19u8;
     bytes.extend(encode_move_x_register(working_register, source_register));
 
@@ -863,7 +859,7 @@ fn encode_scale_x_register_by_constant(
         }
     }
 
-    Ok(bytes)
+    Ok(())
 }
 
 fn append_add_constant_to_x_register(
