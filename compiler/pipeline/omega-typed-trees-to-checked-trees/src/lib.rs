@@ -11,25 +11,26 @@ use omega_checked_trees::{
 use omega_core::symbols::SymbolHandle;
 
 pub fn lower_typed_trees(
-    program: &omega_typed_trees::TypedTrees,
+    program: omega_typed_trees::TypedTrees,
 ) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
-    omega_validation::validate_program(program)?;
+    omega_validation::validate_program(&program)?;
 
-    let proof_plan = omega_proof::obligations::build_proof_plan(program);
+    let proof_plan = omega_proof::obligations::build_proof_plan(&program);
     omega_proof::checker::check_proof_plan(&proof_plan)?;
+    let facts = CheckFacts {
+        borrow: build_borrow_facts(&program),
+        proof: build_proof_facts(&program, &proof_plan),
+        invariants: build_invariant_facts(&program),
+    };
 
     Ok(Program {
-        typed: program.clone(),
-        facts: CheckFacts {
-            borrow: build_borrow_facts(program),
-            proof: build_proof_facts(program, &proof_plan),
-            invariants: build_invariant_facts(program),
-        },
+        typed: program,
+        facts,
     })
 }
 
 pub fn lower_typed_program(
-    program: &omega_typed_trees::TypedTrees,
+    program: omega_typed_trees::TypedTrees,
 ) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     lower_typed_trees(program)
 }

@@ -81,7 +81,7 @@ impl Compiler {
             "04_typed_trees.json",
             &typed.snapshot_json_pretty().map_err(json_diagnostic)?,
         )?;
-        let checked = check_program(&typed)?;
+        let checked = check_program(typed)?;
         let backend_surface = build_backend_surface_report(&checked.program);
         let planned = plan_backend(
             checked,
@@ -203,7 +203,7 @@ fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedTrees, Vec<Di
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn check_program(typed: &TypedTrees) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
+fn check_program(typed: TypedTrees) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
     let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
     Ok(CheckedProgramSurface { program })
 }

@@ -746,7 +746,7 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(&typed).expect("check");
+        let checked = lower_typed_trees(typed).expect("check");
         let state_graph =
             omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
         let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
