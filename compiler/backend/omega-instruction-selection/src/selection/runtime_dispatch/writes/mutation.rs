@@ -151,11 +151,12 @@ pub(super) fn select_runtime_state_call_result_write(
         .state_names_by_key_cloned(value_source_key);
 
     if aliases.is_empty()
-        && let Some(kind) = select_runtime_state_call_result_write_in_table(
+        && let Some(kind) = select_runtime_frame_slot_value_write_in_table(
             input,
             dispatch_index,
             value_source_key,
             statement_index,
+            &input.runtime_bodies.expressions,
             slot,
             value,
             static_values,
@@ -197,18 +198,17 @@ pub(super) fn select_runtime_state_call_result_write(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_runtime_state_call_result_write_in_table(
+pub(in crate::selection::runtime_dispatch) fn select_runtime_frame_slot_value_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     value_source_key: StateKey,
     statement_index: usize,
+    expressions: &ExpressionTable,
     slot: &omega_runtime_storage::RuntimeFrameSlot,
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
-    let expressions = &input.runtime_bodies.expressions;
-
     if supports_scalar_integer_write(slot.byte_size)
         && let Some(value) =
             resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)
