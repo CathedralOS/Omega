@@ -7,7 +7,7 @@ use omega_layout::{LayoutPlan, MachineLayout};
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_object::{
     ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection, entry_symbol_name,
-    machine_storage_symbol_name, runtime_frame_storage_symbol_name, section_name,
+    machine_storage_symbol_name, runtime_frame_storage_symbol_name,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::TargetDataPlan;
@@ -79,19 +79,16 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
 
     object_plan.sections.insert_many([
         SectionPlan {
-            name: section_name(input.target, SectionKind::Text),
             kind: SectionKind::Text,
             size: input.encoded_machine.byte_count,
             alignment: 16,
         },
         SectionPlan {
-            name: section_name(input.target, SectionKind::Data),
             kind: SectionKind::Data,
             size: input.data.bytes.len(),
             alignment: input.target.pointer_alignment,
         },
         SectionPlan {
-            name: section_name(input.target, SectionKind::Bss),
             kind: SectionKind::Bss,
             size: bss_size,
             alignment: bss_alignment,
