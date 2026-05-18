@@ -46,10 +46,14 @@ pub struct StateGuardClauses {
 
 impl StateGuardClauses {
     fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_STATE_GUARD_CLAUSE_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(capacity.saturating_sub(INLINE_STATE_GUARD_CLAUSE_COUNT)),
         }
     }
 
@@ -451,7 +455,9 @@ pub fn lower_guard_conjunction(
         return StateGuardClauses::new();
     }
 
-    let mut clauses = StateGuardClauses::new();
+    let clause_capacity =
+        guard_conjunction_clause_count(&plan.expressions, expression).unwrap_or(0);
+    let mut clauses = StateGuardClauses::with_capacity(clause_capacity);
     let mut scratch_expressions = ExpressionTable::new();
     if lower_guard_conjunction_expression(
         plan,
@@ -472,6 +478,33 @@ pub fn lower_guard_conjunction(
     }
 
     clauses
+}
+
+fn guard_conjunction_clause_count(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<usize> {
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+            let left = guard_conjunction_clause_count(expressions, binary.left)?;
+            let right = guard_conjunction_clause_count(expressions, binary.right)?;
+            Some(left.saturating_add(right))
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+            ) =>
+        {
+            Some(1)
+        }
+        _ => None,
+    }
 }
 
 fn lower_guard_conjunction_expression(
