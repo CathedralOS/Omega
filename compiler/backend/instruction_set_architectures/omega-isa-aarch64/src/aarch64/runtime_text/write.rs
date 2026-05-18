@@ -13,7 +13,8 @@ pub fn encode_runtime_text_literal_segment_write(
     byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
 
     for (byte_index, byte) in literal.as_bytes().iter().enumerate() {

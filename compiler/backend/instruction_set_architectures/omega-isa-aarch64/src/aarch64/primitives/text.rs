@@ -8,7 +8,8 @@ pub(in crate::aarch64) fn encode_runtime_text_input_delimiter_check(
     byte_offset: usize,
     failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_load_byte_w17_from_x16(byte_offset)?;
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_load_byte_w17_from_x16(byte_offset)?);
     bytes.extend(encode_compare_w17_immediate(10)?);
     bytes.extend(encode_conditional_branch_equal(24)?);
     bytes.extend(encode_compare_w17_immediate(13)?);

@@ -21,7 +21,8 @@ pub fn encode_runtime_text_literal_compare(
         )));
     }
 
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
 
     for (byte_index, expected_byte) in literal.as_bytes().iter().enumerate() {
@@ -45,7 +46,8 @@ pub fn encode_runtime_text_storage_compare(
     delimiter_failure_branch_distance: isize,
     branch_when_equal: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));

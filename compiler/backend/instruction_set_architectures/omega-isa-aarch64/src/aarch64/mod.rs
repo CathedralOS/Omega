@@ -38,7 +38,7 @@ pub fn encode_syscall_sequence(
 }
 
 pub fn encode_return() -> Vec<u8> {
-    encode_instruction(0xD65F03C0)
+    Vec::from(encode_instruction(0xD65F03C0))
 }
 
 fn encode_call_operands(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {

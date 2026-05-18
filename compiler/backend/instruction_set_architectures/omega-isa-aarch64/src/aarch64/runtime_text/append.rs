@@ -14,7 +14,8 @@ pub fn encode_runtime_text_stored_suffix_append(
     target_offset: usize,
     length_delta: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -42,7 +43,8 @@ pub fn encode_runtime_text_stored_place_append(
     source_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -113,7 +115,8 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -148,7 +151,8 @@ pub fn encode_runtime_text_literal_append(
     target_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -174,7 +178,8 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     field_byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -231,7 +236,8 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
 }
 
 pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -255,7 +261,8 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -315,7 +322,8 @@ fn encode_runtime_frame_index_target_address(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(20);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
@@ -340,7 +348,8 @@ fn encode_scale_x_register_by_constant(
         ));
     }
 
-    let mut bytes = encode_movz_w(destination_register, 0);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_movz_w(destination_register, 0));
     let working_register = 19u8;
     bytes.extend(encode_move_x_register(working_register, source_register));
 
@@ -371,10 +380,13 @@ fn encode_add_constant_to_x_register(register: u8, value: usize) -> Result<Vec<u
         return Ok(Vec::new());
     }
     if value <= 4095 {
-        return encode_add_x_immediate(register, register, value);
+        return Ok(Vec::from(encode_add_x_immediate(
+            register, register, value,
+        )?));
     }
 
-    let mut bytes = encode_movz_w(19, (value & 0xffff) as u16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_movz_w(19, (value & 0xffff) as u16));
     bytes.extend(encode_add_x_register(register, register, 19));
     Ok(bytes)
 }
