@@ -104,7 +104,9 @@ pub(super) fn select_state_body_instructions(
     let mut child_alias_expressions = ExpressionTable::new();
     let mut mutation_segment_expressions = ExpressionTable::new();
     let mut storage_write_scratch = RuntimeStorageWriteScratch::default();
-    let mut static_values = super::runtime_dispatch::RuntimeStaticValues::default();
+    let mut static_values = super::runtime_dispatch::RuntimeStaticValues::with_capacity(
+        input.runtime_storage.frame_slots.len(),
+    );
 
     for operation in operations {
         if let Some(host_call) =
