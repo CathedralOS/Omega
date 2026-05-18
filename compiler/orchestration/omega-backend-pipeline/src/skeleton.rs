@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 pub(super) struct BackendPlanSkeletonInput {
     pub target: NativeTarget,
-    pub host_abi: HostAbiPlan,
+    pub host_abi: Arc<HostAbiPlan>,
     pub host_calls: HostCallPlan,
     pub control_flow: Arc<ControlFlowPlan>,
     pub runtime_flow: Arc<RuntimeFlowPlan>,
