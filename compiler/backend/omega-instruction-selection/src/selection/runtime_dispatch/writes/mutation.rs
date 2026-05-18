@@ -134,6 +134,7 @@ pub(super) fn select_runtime_state_call_result_write(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    scratch: &mut super::RuntimeStorageWriteScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -146,15 +147,16 @@ pub(super) fn select_runtime_state_call_result_write(
     ) else {
         return;
     };
-    let mut value_expressions = ExpressionTable::new();
+    scratch.expressions.clear();
+    let value_expressions = &mut scratch.expressions;
     let copied_aliases =
-        RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, &mut value_expressions);
+        RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, value_expressions);
     let value_expression = value_expressions.copy_from(&input.runtime_bodies.expressions, value);
     let resolved_value = resolve_runtime_alias_binding_handle(
         value_expression,
         value_source_key,
         copied_aliases.bindings(),
-        &mut value_expressions,
+        value_expressions,
     );
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
@@ -175,12 +177,12 @@ pub(super) fn select_runtime_state_call_result_write(
         return;
     }
 
-    let target = runtime_frame_slot_target_expression(&mut value_expressions, slot);
-    let mut resolved_segment_expressions = ExpressionTable::new();
+    let target = runtime_frame_slot_target_expression(value_expressions, slot);
+    scratch.resolved_segment_expressions.clear();
     let copied_segment_aliases = RuntimeAliasBuffer::copy_from_bindings(
-        &value_expressions,
+        value_expressions,
         copied_aliases.bindings(),
-        &mut resolved_segment_expressions,
+        &mut scratch.resolved_segment_expressions,
     );
     if runtime_text_builder_write_in_table_emit(
         input,
@@ -188,9 +190,9 @@ pub(super) fn select_runtime_state_call_result_write(
         operation_source_key,
         operation_source_key,
         statement_index,
-        &value_expressions,
+        value_expressions,
         target,
-        &mut resolved_segment_expressions,
+        &mut scratch.resolved_segment_expressions,
         &|expressions, expression| {
             resolve_runtime_alias_binding_handle(
                 expression,

@@ -72,6 +72,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
                 aliases,
                 alias_expressions,
                 static_values,
+                scratch,
                 runtime_value_operands,
                 selected_instructions,
             );
