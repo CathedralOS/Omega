@@ -19,6 +19,13 @@ mod transitions;
 use crate::segments::{segment_has_unconditional_transition, split_state_segments};
 use crate::transitions::plan_transition;
 
+#[derive(Debug, Clone, Copy)]
+struct StateIndexEntry<'program> {
+    key: StateKey,
+    index: usize,
+    name: &'program omega_checked_trees::name::ProgramName,
+}
+
 pub fn build_state_graph(program: &Program) -> Result<StateGraph, Diagnostic> {
     let workers = WorkerPool::with_available_parallelism();
 
@@ -396,16 +403,19 @@ fn build_machine_graph(
         )));
     }
 
-    let segments = program
-        .machine_states(machine)
-        .iter()
-        .map(|state| split_state_segments(machine, state, program, state_graph))
-        .collect::<Vec<_>>();
+    let mut segments = Vec::new();
+    for state in program.machine_states(machine) {
+        split_state_segments(machine, state, program, state_graph, &mut segments);
+    }
+
     let state_indexes = segments
         .iter()
-        .flat_map(|state_segments| state_segments.iter())
         .enumerate()
-        .map(|(index, segment)| (segment.key, index, segment.name.clone()))
+        .map(|(index, segment)| StateIndexEntry {
+            key: segment.key,
+            index,
+            name: &segment.name,
+        })
         .collect::<Vec<_>>();
 
     let states = append_machine_states(state_graph, program, &segments, &state_indexes)?;
@@ -516,17 +526,13 @@ fn type_reference_name_handle(
 fn append_machine_states(
     state_graph: &mut StateGraph,
     program: &Program,
-    segments: &[Vec<crate::segments::StateSegment>],
-    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
+    segments: &[crate::segments::StateSegment],
+    state_indexes: &[StateIndexEntry<'_>],
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
-    for (index, segment) in segments
-        .iter()
-        .flat_map(|state_segments| state_segments.iter())
-        .enumerate()
-    {
+    for (index, segment) in segments.iter().enumerate() {
         let mut operations = HandleSpan::empty();
         for (_, operation) in segment.operations.iter() {
             state_graph
@@ -654,7 +660,7 @@ fn append_segment_transitions(
     state_graph: &mut StateGraph,
     program: &Program,
     segment: &crate::segments::StateSegment,
-    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
+    state_indexes: &[StateIndexEntry<'_>],
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
@@ -667,10 +673,9 @@ fn append_segment_transitions(
 
     if segment.next_segment_key.is_valid() && !segment_has_unconditional_transition(segment) {
         let next_segment_key = segment.next_segment_key;
-        let (next_key, next_index, next_segment_name) = state_indexes
+        let next_segment = state_indexes
             .iter()
-            .find(|(key, _, _)| *key == next_segment_key)
-            .map(|(key, index, name)| (*key, *index, name.clone()))
+            .find(|entry| entry.key == next_segment_key)
             .ok_or_else(|| {
                 Diagnostic::error(format!(
                     "internal state-graph segment #{} was not indexed",
@@ -682,9 +687,9 @@ fn append_segment_transitions(
             state_graph,
             TransitionEdge {
                 target: PlannedTransitionTarget::State {
-                    index: next_index,
-                    key: next_key,
-                    name: next_segment_name,
+                    index: next_segment.index,
+                    key: next_segment.key,
+                    name: next_segment.name.clone(),
                 },
                 continuation: PlannedTransitionTarget::None,
                 expressions: TransitionExpressionRefs::default(),

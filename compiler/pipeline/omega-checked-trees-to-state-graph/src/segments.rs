@@ -47,11 +47,12 @@ pub(super) fn split_state_segments(
     state: &State,
     program: &Program,
     state_graph: &mut StateGraph,
-) -> Vec<StateSegment> {
+    segments: &mut Vec<StateSegment>,
+) {
     let machine_symbol = machine.symbol;
     let state_symbol = state.symbol;
     let table_statements = program.statement_table.statements(state.statement_nodes);
-    let mut segments = Vec::new();
+    let first_segment_index = segments.len();
     let mut operations = Arena::with_capacity(table_statements.len());
     let mut transitions = Arena::with_capacity(table_statements.len());
     let mut segment_index = 0usize;
@@ -147,14 +148,14 @@ pub(super) fn split_state_segments(
         next_segment_key: StateKey::default(),
     });
 
-    if segments.len() > 1 {
-        for segment_index in 0..segments.len() - 1 {
+    let new_segment_count = segments.len() - first_segment_index;
+    if new_segment_count > 1 {
+        for offset in 0..new_segment_count - 1 {
+            let segment_index = first_segment_index + offset;
             let next_key = segments[segment_index + 1].key;
             segments[segment_index].next_segment_key = next_key;
         }
     }
-
-    segments
 }
 
 fn branch_call_transitions(
