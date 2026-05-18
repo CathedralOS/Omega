@@ -1,6 +1,6 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
-use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallLowering;
 
 mod aliases;
@@ -32,7 +32,15 @@ pub use model::{
 pub fn build_runtime_branching_call_plan(
     context: &RuntimeBranchingContext,
 ) -> RuntimeBranchingCallPlan {
-    let mut plan = RuntimeBranchingCallPlan::default();
+    let capacity = estimate_runtime_branching_capacity(context);
+    let mut plan = RuntimeBranchingCallPlan::with_capacity(
+        capacity.calls,
+        capacity.edges,
+        capacity.arguments,
+        capacity.expansions,
+        capacity.bindings,
+        capacity.operations,
+    );
 
     for (_, body) in context.runtime_bodies.bodies.iter() {
         let Some(operations) = context
@@ -154,6 +162,78 @@ pub fn build_runtime_branching_call_plan(
     }
 
     plan
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct RuntimeBranchingCapacity {
+    calls: usize,
+    edges: usize,
+    arguments: usize,
+    expansions: usize,
+    bindings: usize,
+    operations: usize,
+}
+
+fn estimate_runtime_branching_capacity(
+    context: &RuntimeBranchingContext,
+) -> RuntimeBranchingCapacity {
+    let mut capacity = RuntimeBranchingCapacity::default();
+
+    for (_, body) in context.runtime_bodies.bodies.iter() {
+        let Some(operations) = context
+            .runtime_bodies
+            .operations
+            .paged_span(body.operations)
+        else {
+            continue;
+        };
+
+        for operation in operations.iter() {
+            if !operation_is_branching_call(operation) {
+                continue;
+            }
+
+            let RuntimeDispatchBodyOperationKind::StateCall {
+                target_key,
+                argument_count,
+                ..
+            } = &operation.kind
+            else {
+                continue;
+            };
+
+            let edge_count = context
+                .control_flow
+                .state_by_key(*target_key)
+                .map(|state| state.transitions.len())
+                .unwrap_or(0);
+
+            capacity.calls = capacity.calls.saturating_add(1);
+            capacity.edges = capacity.edges.saturating_add(edge_count);
+            capacity.arguments = capacity
+                .arguments
+                .saturating_add(edge_count.saturating_mul(*argument_count));
+            capacity.expansions = capacity.expansions.saturating_add(edge_count.max(1));
+            capacity.bindings = capacity
+                .bindings
+                .saturating_add(edge_count.saturating_mul(*argument_count));
+            capacity.operations = capacity
+                .operations
+                .saturating_add(edge_count.saturating_mul(operations.len()));
+        }
+    }
+
+    capacity
+}
+
+fn operation_is_branching_call(operation: &RuntimeDispatchBodyOperation) -> bool {
+    matches!(
+        operation.kind,
+        RuntimeDispatchBodyOperationKind::StateCall {
+            lowering: StateCallLowering::InlineBranching,
+            ..
+        }
+    )
 }
 
 fn branch_target_has_prelude(context: &RuntimeBranchingContext, target_key: StateKey) -> bool {

@@ -1,7 +1,7 @@
 use crate::RuntimeBranchingContext;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCallRole;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard_expression;
@@ -33,10 +33,7 @@ pub(super) fn build_branch_edges(
         .find(|(_, dispatch_state)| dispatch_state.key == state_key)
         .map(|(_, dispatch_state)| dispatch_state.dispatch_index);
 
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
-
-    for (order, transition) in transitions.iter().enumerate() {
+    output_edges.insert_many(transitions.iter().enumerate().map(|(order, transition)| {
         let guard = context
             .state_guards
             .guard_for_dispatch(state_dispatch_index.unwrap_or_default(), order)
@@ -56,7 +53,7 @@ pub(super) fn build_branch_edges(
                     .unwrap_or_else(ExpressionHandle::invalid)
             });
         let target = runtime_transition_target(context, machine, state.key, &transition.target);
-        let handle = output_edges.append(RuntimeBranchingCallEdge {
+        RuntimeBranchingCallEdge {
             order,
             lowering: branch_target_lowering(context, &target),
             target,
@@ -84,20 +81,8 @@ pub(super) fn build_branch_edges(
             },
             guard_kind: classify_transition_guard_expression(expressions, guard),
             guard,
-        });
-        if count == 0 {
-            start = handle;
         }
-        count = count
-            .checked_add(1)
-            .expect("runtime branch edge span count overflow");
-    }
-
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    }))
 }
 
 fn transition_target_arguments(
