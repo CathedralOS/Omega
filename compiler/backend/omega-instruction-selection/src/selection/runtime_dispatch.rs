@@ -26,7 +26,7 @@ use omega_target_operations::{
     InstructionOperand, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 use operation_aliases::bind_runtime_operation_aliases;
-use writes::select_runtime_storage_write_for_operation;
+use writes::{RuntimeStorageWriteScratch, select_runtime_storage_write_for_operation};
 
 pub(crate) use branches::{
     select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
@@ -76,6 +76,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
     let mut runtime_alias_expressions = ExpressionTable::new();
     let mut runtime_static_values =
         writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    let mut runtime_storage_write_scratch = RuntimeStorageWriteScratch::default();
 
     for (_, dispatch_case) in input.runtime_dispatch_loop.cases.iter() {
         selected_instructions.push(SelectedInstruction {
@@ -100,6 +101,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             runtime_aliases.clear();
             runtime_alias_expressions.clear();
             runtime_static_values.clear();
+            runtime_storage_write_scratch.clear();
 
             for operation in operations {
                 bind_runtime_operation_aliases(
@@ -116,6 +118,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     runtime_aliases.bindings(),
                     &runtime_alias_expressions,
                     &mut runtime_static_values,
+                    &mut runtime_storage_write_scratch,
                     runtime_value_operands,
                     selected_instructions,
                 );
