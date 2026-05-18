@@ -20,7 +20,7 @@ pub fn encode_runtime_storage_compare(
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -40,7 +40,7 @@ pub fn encode_runtime_storage_value_compare(
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -62,7 +62,7 @@ pub fn encode_runtime_value_compare(
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -76,7 +76,7 @@ pub fn encode_runtime_machine_integer_write(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -94,7 +94,7 @@ pub fn encode_runtime_pointee_integer_write(
             byte_size,
             value,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -116,7 +116,7 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             right,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -140,7 +140,7 @@ pub fn encode_runtime_pointee_binary_write(
             operator,
             right,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -162,7 +162,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
             byte_size,
             value,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -190,7 +190,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
             operator,
             right,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -203,7 +203,7 @@ pub fn encode_runtime_machine_string_write(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -219,7 +219,7 @@ pub fn encode_runtime_pointee_string_write(
             field_byte_offset,
             byte_length,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -233,7 +233,7 @@ pub fn encode_runtime_storage_copy(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
         }
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -255,7 +255,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
             field_byte_offset,
             byte_count,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
 }
 
@@ -273,6 +273,12 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
             field_byte_offset,
             byte_count,
         ),
-        Architecture::X86_64 => Ok(Vec::new()),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
     }
+}
+
+fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 runtime storage encoding is not implemented",
+    ))
 }
