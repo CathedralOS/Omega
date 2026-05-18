@@ -29,10 +29,8 @@ use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
-pub(crate) use branches::{
-    select_runtime_resolved_mutation_write,
-    select_runtime_resolved_mutation_write_in_table_with_scratch,
-};
+pub(crate) use branches::select_runtime_resolved_mutation_write;
+pub(in crate::selection) use writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(

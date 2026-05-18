@@ -30,6 +30,10 @@ use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use omega_state_calls::StateCallRole;
 
+fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
+}
+
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -71,7 +75,7 @@ pub(super) fn resolve_runtime_storage_place(
         .iter()
         .find(|(_, slot)| {
             slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && state_key_matches_statement_source(slot.source_key, source_key)
                 && slot_matches_path(slot.symbol, path)
         })
         .or_else(|| {
@@ -237,7 +241,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         .iter()
         .find(|(_, slot)| {
             slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && state_key_matches_statement_source(slot.source_key, source_key)
                 && slot_matches_table_path(slot.symbol, &path)
         })
         .or_else(|| {
@@ -491,7 +495,7 @@ fn resolve_runtime_frame_root_place(
         .iter()
         .find(|(_, slot)| {
             slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && state_key_matches_statement_source(slot.source_key, source_key)
                 && slot_matches_root(slot.symbol, root_symbol)
         })
         .or_else(|| {
@@ -542,7 +546,7 @@ fn runtime_frame_slot_for_expression<'plan>(
         .iter()
         .find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && state_key_matches_statement_source(slot.source_key, source_key)
                 && slot_matches_path(slot.symbol, path))
             .then_some(slot)
         })
@@ -563,7 +567,7 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
         .iter()
         .find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && state_key_matches_statement_source(slot.source_key, source_key)
                 && slot_matches_table_path(slot.symbol, &path))
             .then_some(slot)
         })

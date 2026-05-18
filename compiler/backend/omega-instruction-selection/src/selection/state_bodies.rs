@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_state_schedule::{ScheduledState, ScheduledStateCollector};
 
 use super::bindings::{
@@ -15,7 +15,7 @@ use super::lookups::{
 };
 use super::runtime_dispatch::{
     RuntimeStorageWriteScratch, select_runtime_resolved_mutation_write,
-    select_runtime_resolved_mutation_write_in_table_with_scratch,
+    select_runtime_storage_resolved_mutation_write_in_table_with_scratch,
     select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
 use omega_state_calls::StateCall;
@@ -182,7 +182,7 @@ pub(super) fn select_state_body_instructions(
                     &mut expressions,
                 );
                 mutation_segment_expressions.clear();
-                if select_runtime_resolved_mutation_write_in_table_with_scratch(
+                if select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
                     input,
                     dispatch_index,
                     state.key,
@@ -192,6 +192,8 @@ pub(super) fn select_state_body_instructions(
                     &expressions,
                     resolved_target.expression,
                     resolved_value.expression,
+                    copied_aliases.bindings(),
+                    &mut static_values,
                     &mut mutation_mutable_expressions,
                     &mut mutation_segment_expressions,
                     runtime_value_operands,
@@ -262,9 +264,11 @@ pub(super) fn select_state_body_instructions(
         follow_transition_target(
             input,
             dispatch_index,
+            state.key,
             aliases,
             alias_expressions,
             &transition.target,
+            transition.expressions.target_arguments,
             operands,
             runtime_value_operands,
             selected_instructions,
@@ -274,9 +278,11 @@ pub(super) fn select_state_body_instructions(
             follow_transition_target(
                 input,
                 dispatch_index,
+                state.key,
                 aliases,
                 alias_expressions,
                 &transition.continuation,
+                transition.expressions.continuation_arguments,
                 operands,
                 runtime_value_operands,
                 selected_instructions,
@@ -291,9 +297,11 @@ pub(super) fn select_state_body_instructions(
 fn follow_transition_target(
     input: &InstructionSelectionInput<'_>,
     current_dispatch_index: Option<u32>,
+    current_key: StateKey,
     aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     target: &PlannedTransitionTarget,
+    target_arguments: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -307,17 +315,83 @@ fn follow_transition_target(
         return;
     }
 
+    let (child_aliases, child_alias_expressions) = bind_transition_target_aliases(
+        input,
+        current_key,
+        *key,
+        target_arguments,
+        aliases,
+        alias_expressions,
+    );
+
     select_state_body_instructions(
         input,
         *key,
         dispatch_index_for_state(input, *key).or(current_dispatch_index),
-        aliases,
-        alias_expressions,
+        &child_aliases,
+        &child_alias_expressions,
         operands,
         runtime_value_operands,
         selected_instructions,
         visiting,
     );
+}
+
+fn bind_transition_target_aliases(
+    input: &InstructionSelectionInput<'_>,
+    current_key: StateKey,
+    target_key: StateKey,
+    target_arguments: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
+    aliases: &RuntimeAliasBuffer,
+    alias_expressions: &ExpressionTable,
+) -> (RuntimeAliasBuffer, ExpressionTable) {
+    let target_argument_count = target_arguments.len();
+    let mut child_alias_expressions = ExpressionTable::with_expression_capacity(
+        aliases
+            .bindings()
+            .len()
+            .saturating_add(target_argument_count)
+            .saturating_mul(2),
+    );
+    let mut child_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        alias_expressions,
+        aliases.bindings(),
+        &mut child_alias_expressions,
+    );
+
+    let Some(target_state) = input.control_flow.state_by_key(target_key) else {
+        return (child_aliases, child_alias_expressions);
+    };
+    let arguments = input
+        .control_flow
+        .expressions
+        .expression_handles(target_arguments);
+
+    for (parameter, argument) in input
+        .control_flow
+        .state_parameters(target_state)
+        .iter()
+        .zip(arguments.iter().copied())
+    {
+        let argument = child_alias_expressions.copy_from(&input.control_flow.expressions, argument);
+        let resolved_argument = resolve_runtime_alias_binding_handle(
+            argument,
+            current_key,
+            child_aliases.bindings(),
+            &mut child_alias_expressions,
+        );
+        let expression =
+            strip_mutable_expression_handle(&child_alias_expressions, resolved_argument.expression);
+        child_aliases.set_alias(RuntimeAliasBinding {
+            source_key: target_key,
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name.clone(),
+            expression_source_key: resolved_argument.source_key,
+            expression,
+        });
+    }
+
+    (child_aliases, child_alias_expressions)
 }
 
 pub(super) fn runtime_reachable_states(

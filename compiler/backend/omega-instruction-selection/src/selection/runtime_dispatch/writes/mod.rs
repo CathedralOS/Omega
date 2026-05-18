@@ -197,7 +197,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
+pub(in crate::selection) fn select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_source_key: StateKey,
