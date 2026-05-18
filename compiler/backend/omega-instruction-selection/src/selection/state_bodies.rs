@@ -167,6 +167,7 @@ pub(super) fn select_state_body_instructions(
                     &expressions,
                     resolved_target.expression,
                     resolved_value.expression,
+                    runtime_value_operands,
                     selected_instructions,
                 ) {
                     continue;

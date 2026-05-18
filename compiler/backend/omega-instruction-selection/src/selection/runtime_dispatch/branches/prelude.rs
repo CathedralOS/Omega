@@ -116,6 +116,7 @@ fn select_runtime_branch_prelude(
                     &expressions,
                     resolved_target,
                     resolved_value,
+                    runtime_value_operands,
                     selected_instructions,
                 ) {
                     continue;

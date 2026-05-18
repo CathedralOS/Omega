@@ -127,6 +127,7 @@ fn select_runtime_straight_line_branch_writes(
                     &expressions,
                     resolved_target,
                     resolved_value,
+                    runtime_value_operands,
                     selected_instructions,
                 ) {
                     continue;
@@ -262,6 +263,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             &expressions,
             resolved_target,
             resolved_value,
+            runtime_value_operands,
             selected_instructions,
         ) {
             continue;
