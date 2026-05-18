@@ -111,7 +111,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
     let state_storage_context = Arc::new(StateStoragePlanningContext {
-        control_flow: backend_plan.control_flow.clone(),
+        control_flow: Arc::clone(&control_flow),
         runtime_flow: backend_plan.runtime_flow.clone(),
         state_calls: backend_plan.state_calls.clone(),
     });
