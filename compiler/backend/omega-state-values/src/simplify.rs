@@ -169,7 +169,19 @@ fn simple_local_bindings(
     state: &State,
     statement_index: usize,
 ) -> Arena<Binding> {
-    let mut bindings = Arena::new();
+    let local_binding_capacity = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .filter(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(local_data) if local_data.initial_value.is_valid()
+            )
+        })
+        .count();
+    let mut bindings = Arena::with_capacity(local_binding_capacity);
 
     for statement in program
         .statement_table
@@ -427,12 +439,9 @@ fn simplify_call_expression(
     if let Some(target_machine) = resolve_call_target_machine(program, machine, receiver.as_ref())
         && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
-        let mut argument_bindings = Arena::new();
-        for (parameter, argument) in program
-            .state_parameters(state)
-            .iter()
-            .zip(simplified_arguments.iter())
-        {
+        let parameters = program.state_parameters(state);
+        let mut argument_bindings = Arena::with_capacity(parameters.len());
+        for (parameter, argument) in parameters.iter().zip(simplified_arguments.iter()) {
             argument_bindings.insert(Binding {
                 symbol: parameter.symbol,
                 value: argument.clone(),
@@ -509,12 +518,9 @@ fn simplify_helper_call_comparison(
     });
     let target_machine = resolve_call_target_machine(program, machine, receiver.as_ref())?;
     let state = resolve_call_target_state(program, target_machine, call)?;
-    let mut argument_bindings = Arena::new();
-    for (parameter, argument) in program
-        .state_parameters(state)
-        .iter()
-        .zip(call.arguments.iter())
-    {
+    let parameters = program.state_parameters(state);
+    let mut argument_bindings = Arena::with_capacity(parameters.len());
+    for (parameter, argument) in parameters.iter().zip(call.arguments.iter()) {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
             value: simplify_expression_with_bindings(program, machine, argument, bindings, false),
@@ -693,12 +699,9 @@ fn expression_match_condition_with_stack(
     let receiver = call.receiver.as_deref();
     let target_machine = resolve_call_target_machine(program, machine, receiver)?;
     let state = resolve_call_target_state(program, target_machine, call)?;
-    let mut argument_bindings = Arena::new();
-    for (parameter, argument) in program
-        .state_parameters(state)
-        .iter()
-        .zip(call.arguments.iter())
-    {
+    let parameters = program.state_parameters(state);
+    let mut argument_bindings = Arena::with_capacity(parameters.len());
+    for (parameter, argument) in parameters.iter().zip(call.arguments.iter()) {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
             value: argument.clone(),
@@ -721,11 +724,25 @@ fn helper_state_model(
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
 ) -> Option<HelperStateModel> {
-    let mut local_bindings = Arena::new();
-    let mut transitions = Arena::new();
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let local_binding_capacity = statements
+        .iter()
+        .filter(|statement| matches!(statement, StatementNode::LocalData(_)))
+        .count();
+    let transition_capacity = statements
+        .iter()
+        .filter(|statement| {
+            matches!(
+                statement,
+                StatementNode::Transition(_) | StatementNode::Expression(_)
+            )
+        })
+        .count();
+    let mut local_bindings = Arena::with_capacity(local_binding_capacity);
+    let mut transitions = Arena::with_capacity(transition_capacity);
     let mut saw_terminal_expression = false;
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    for statement in statements {
         let scoped_bindings = ScopedBindings {
             parent: bindings,
             locals: &local_bindings,
