@@ -75,7 +75,11 @@ pub fn build_state_value_plan_with_workers(
         build_machine_state_value_plan(&program, &context, machine)
     });
 
-    let mut plan = StateValuePlan::default();
+    let value_count = machine_plans
+        .iter()
+        .map(|machine_plan| machine_plan.values.len())
+        .sum();
+    let mut plan = StateValuePlan::with_value_capacity(value_count);
 
     for machine_plan in machine_plans {
         let StateValuePlan {

@@ -13,7 +13,8 @@ pub(super) fn build_machine_state_value_plan(
     context: &StateValuePlanningContext,
     machine: &Machine,
 ) -> StateValuePlan {
-    let mut plan = StateValuePlan::default();
+    let mut plan =
+        StateValuePlan::with_value_capacity(estimated_machine_value_capacity(program, machine));
 
     for state in program.machine_states(machine) {
         let source_key = StateKey {
@@ -109,6 +110,56 @@ pub(super) fn build_machine_state_value_plan(
     }
 
     plan
+}
+
+fn estimated_machine_value_capacity(program: &Program, machine: &Machine) -> usize {
+    program
+        .machine_states(machine)
+        .iter()
+        .map(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .map(|statement| estimated_statement_value_capacity(program, statement))
+                .sum::<usize>()
+        })
+        .sum()
+}
+
+fn estimated_statement_value_capacity(program: &Program, statement: &StatementNode) -> usize {
+    match statement {
+        StatementNode::Assignment(_) => 2,
+        StatementNode::Call(call) => program
+            .statement_table
+            .expression_handles(call.arguments)
+            .len(),
+        StatementNode::Transition(transition) => {
+            estimated_transition_target_value_capacity(program, transition.target)
+                + transition
+                    .continuation
+                    .is_valid()
+                    .then(|| {
+                        estimated_transition_target_value_capacity(program, transition.continuation)
+                    })
+                    .unwrap_or(0)
+        }
+        StatementNode::Expression(_) => 1,
+        StatementNode::LocalData(_) => 0,
+    }
+}
+
+fn estimated_transition_target_value_capacity(
+    program: &Program,
+    target: TransitionTargetHandle,
+) -> usize {
+    let TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(target)
+    else {
+        return 0;
+    };
+
+    program.statement_table.expression_handles(*arguments).len()
 }
 
 fn collect_transition_arguments(

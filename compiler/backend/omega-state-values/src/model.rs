@@ -8,6 +8,15 @@ pub struct StateValuePlan {
     pub values: Arena<StateValueUse>,
 }
 
+impl StateValuePlan {
+    pub(crate) fn with_value_capacity(value_capacity: usize) -> Self {
+        Self {
+            expressions: ExpressionTable::new(),
+            values: Arena::with_capacity(value_capacity),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateValueUse {
     pub source_key: StateKey,
