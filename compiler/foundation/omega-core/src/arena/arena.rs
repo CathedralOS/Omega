@@ -465,6 +465,14 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    pub fn into_items(self) -> impl Iterator<Item = T> {
+        self.items
+            .into_iter()
+            .zip(self.occupied)
+            .enumerate()
+            .filter_map(|(index, (item, occupied))| (index != 0 && occupied).then_some(item))
+    }
+
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
         for index in 1..self.items.len() {
             if !self.occupied[index] {

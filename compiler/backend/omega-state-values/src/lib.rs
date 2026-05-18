@@ -78,12 +78,18 @@ pub fn build_state_value_plan_with_workers(
     let mut plan = StateValuePlan::default();
 
     for machine_plan in machine_plans {
-        for (_, value) in machine_plan.values.iter() {
+        let StateValuePlan {
+            expressions,
+            values,
+        } = machine_plan;
+        for value in values.into_items() {
             plan.values.append(StateValueUse {
-                expression: plan
-                    .expressions
-                    .copy_from(&machine_plan.expressions, value.expression),
-                ..value.clone()
+                source_key: value.source_key,
+                statement_index: value.statement_index,
+                role: value.role,
+                kind: value.kind,
+                expression: plan.expressions.copy_from(&expressions, value.expression),
+                required: value.required,
             });
         }
     }
