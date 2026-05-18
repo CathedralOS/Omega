@@ -199,7 +199,7 @@ fn resolve_program(syntax: AssembledSyntax) -> Result<SymbolResolvedTrees, Vec<D
 }
 
 fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
-    omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+    omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
         .map_err(|diagnostic| vec![diagnostic])
 }
 
