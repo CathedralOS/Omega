@@ -117,47 +117,31 @@ pub enum ProofObligationOwner {
     Unknown,
     MachineState {
         machine_symbol: SymbolHandle,
-        machine_name: name::ProgramName,
         state_symbol: SymbolHandle,
-        state_name: name::ProgramName,
     },
     MachineOwnedData {
         machine_symbol: SymbolHandle,
-        machine_name: name::ProgramName,
         data_symbol: SymbolHandle,
-        data_name: name::ProgramName,
     },
     StateParameter {
         machine_symbol: SymbolHandle,
-        machine_name: name::ProgramName,
         state_symbol: SymbolHandle,
-        state_name: name::ProgramName,
         parameter_symbol: SymbolHandle,
-        parameter_name: name::ProgramName,
     },
     StateReturn {
         machine_symbol: SymbolHandle,
-        machine_name: name::ProgramName,
         state_symbol: SymbolHandle,
-        state_name: name::ProgramName,
     },
     CallParameter {
         machine_symbol: SymbolHandle,
-        machine_name: name::ProgramName,
         state_symbol: SymbolHandle,
-        state_name: name::ProgramName,
         target_symbol: SymbolHandle,
-        target_name: name::ProgramName,
         parameter_symbol: SymbolHandle,
-        parameter_name: name::ProgramName,
     },
     TransitionParameter {
         machine_symbol: SymbolHandle,
-        machine_name: name::ProgramName,
         state_symbol: SymbolHandle,
-        state_name: name::ProgramName,
         parameter_symbol: SymbolHandle,
-        parameter_name: name::ProgramName,
     },
 }
 
