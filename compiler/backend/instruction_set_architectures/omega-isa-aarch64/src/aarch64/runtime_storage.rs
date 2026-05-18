@@ -53,7 +53,7 @@ pub fn encode_runtime_storage_compare(
             )));
         }
     }
-    bytes.extend(encode_conditional_branch_for_operator(
+    bytes.extend(encode_conditional_branch_for_operator_bytes(
         operator,
         failure_branch_distance,
     )?);
@@ -95,7 +95,7 @@ pub fn encode_runtime_storage_value_compare(
             )));
         }
     }
-    bytes.extend(encode_conditional_branch_for_operator(
+    bytes.extend(encode_conditional_branch_for_operator_bytes(
         operator,
         failure_branch_distance,
     )?);
@@ -126,7 +126,7 @@ pub fn encode_runtime_value_compare(
             )));
         }
     }
-    bytes.extend(encode_conditional_branch_for_operator(
+    bytes.extend(encode_conditional_branch_for_operator_bytes(
         operator,
         failure_branch_distance,
     )?);
@@ -844,11 +844,11 @@ fn append_runtime_storage_result_write(
     Ok(())
 }
 
-fn encode_conditional_branch_for_operator(
+fn encode_conditional_branch_for_operator_bytes(
     operator: StateGuardOperator,
     failure_branch_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let bytes = match operator {
+) -> Result<[u8; 4], Diagnostic> {
+    Ok(match operator {
         StateGuardOperator::Equal => encode_conditional_branch_equal(failure_branch_distance)?,
         StateGuardOperator::NotEqual => {
             encode_conditional_branch_not_equal(failure_branch_distance)?
@@ -864,8 +864,7 @@ fn encode_conditional_branch_for_operator(
         _ => Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot lower runtime compare operator `{operator:?}` yet"
         )))?,
-    };
-    Ok(Vec::from(bytes))
+    })
 }
 
 fn encode_scale_x_register_by_constant(
