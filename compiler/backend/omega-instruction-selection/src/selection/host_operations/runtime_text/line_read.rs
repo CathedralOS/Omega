@@ -1,6 +1,9 @@
 use super::bindings::host_binding_mechanism;
 use crate::InstructionSelectionInput;
-use crate::selection::bindings::{RuntimeAliasResolutionContext, resolve_runtime_alias_binding};
+use crate::selection::bindings::{
+    RuntimeAliasResolutionContext, resolve_runtime_alias_binding,
+    resolve_runtime_alias_binding_handle,
+};
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
 };
@@ -122,6 +125,37 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         return (place.byte_count == input.target.pointer_size * 2).then_some(place);
     }
 
+    let mut expressions = alias_context
+        .map(|context| context.alias_expressions.clone())
+        .unwrap_or_default();
+    let expression_handle = expressions.copy_from(&input.host_calls.expressions, *expression);
+    let (resolved_source_key, resolved_expression) = alias_context
+        .map(|context| {
+            let resolved = resolve_runtime_alias_binding_handle(
+                expression_handle,
+                host_call.source_key,
+                context.aliases,
+                &mut expressions,
+            );
+            (resolved.source_key, resolved.expression)
+        })
+        .unwrap_or((host_call.source_key, expression_handle));
+    let (resolved_source_key, resolved_expression) = resolve_host_call_alias_expression_handle(
+        input,
+        resolved_source_key,
+        &mut expressions,
+        resolved_expression,
+    );
+    if let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        resolved_source_key,
+        &expressions,
+        resolved_expression,
+    ) {
+        return (place.byte_count == input.target.pointer_size * 2).then_some(place);
+    }
+
     let expression = input.host_calls.expressions.to_tree(*expression);
     let (resolved_source_key, resolved_expression) = alias_context
         .map(|context| {
@@ -177,6 +211,95 @@ fn host_call_argument_has_alias(
                 && alias.parameter_symbol == path.head_symbol
         }),
         _ => false,
+    }
+}
+
+fn resolve_host_call_alias_expression_handle(
+    input: &InstructionSelectionInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    expressions: &mut ExpressionTable,
+    expression: ExpressionHandle,
+) -> (omega_control_flow::StateKey, ExpressionHandle) {
+    match expressions.expression(expression).clone() {
+        ExpressionNode::Mutable(target) => {
+            let (resolved_source_key, resolved_target) =
+                resolve_host_call_alias_expression_handle(input, source_key, expressions, target);
+            (
+                resolved_source_key,
+                expressions.insert(ExpressionNode::Mutable(resolved_target)),
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let (resolved_source_key, resolved_collection) =
+                resolve_host_call_alias_expression_handle(
+                    input,
+                    source_key,
+                    expressions,
+                    indexed.collection,
+                );
+            let (_, resolved_index) = resolve_host_call_alias_expression_handle(
+                input,
+                source_key,
+                expressions,
+                indexed.index,
+            );
+            (
+                resolved_source_key,
+                expressions.insert(ExpressionNode::Indexed(
+                    omega_checked_trees::expression::TableIndexedExpression {
+                        collection: resolved_collection,
+                        index: resolved_index,
+                    },
+                )),
+            )
+        }
+        ExpressionNode::Member(member) => {
+            let (resolved_source_key, resolved_receiver) =
+                resolve_host_call_alias_expression_handle(
+                    input,
+                    source_key,
+                    expressions,
+                    member.receiver,
+                );
+            (
+                resolved_source_key,
+                expressions.insert(ExpressionNode::Member(
+                    omega_checked_trees::expression::TableMemberExpression {
+                        receiver: resolved_receiver,
+                        member_symbol: member.member_symbol,
+                        member: member.member,
+                    },
+                )),
+            )
+        }
+        ExpressionNode::Name(path) if path.members.count() > 0 => {
+            let mut matched_alias = None;
+            for (_, alias) in input.alias_flow.aliases.iter() {
+                if alias.callee_key == source_key && alias_matches_table_path(alias, &path) {
+                    matched_alias = Some(alias);
+                }
+            }
+
+            matched_alias
+                .map(|alias| {
+                    let argument =
+                        expressions.copy_from(&input.alias_flow.expressions, alias.argument);
+                    let aliased_expression = expressions.insert_copy_with_member_suffix(
+                        argument,
+                        path.members,
+                        path.member_symbols,
+                        1,
+                    );
+                    resolve_host_call_alias_expression_handle(
+                        input,
+                        alias.caller_key,
+                        expressions,
+                        aliased_expression,
+                    )
+                })
+                .unwrap_or((source_key, expression))
+        }
+        _ => (source_key, expression),
     }
 }
 
@@ -249,4 +372,13 @@ fn alias_matches_path(alias: &omega_state_calls::AliasBinding, path: &NamePath) 
     alias.parameter_symbol.is_valid()
         && path.head_symbol().is_valid()
         && alias.parameter_symbol == path.head_symbol()
+}
+
+fn alias_matches_table_path(
+    alias: &omega_state_calls::AliasBinding,
+    path: &omega_checked_trees::expression::TableNamePath,
+) -> bool {
+    alias.parameter_symbol.is_valid()
+        && path.head_symbol.is_valid()
+        && alias.parameter_symbol == path.head_symbol
 }
