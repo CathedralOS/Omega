@@ -1,7 +1,7 @@
 use omega_checked_trees::Program;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::machine::Machine;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{
@@ -236,8 +236,7 @@ fn append_remapped_states(
     source: &StateGraph,
     states: HandleSpan<StateNode>,
 ) -> HandleSpan<StateNode> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut remapped_states = HandleSpan::empty();
 
     for state in source.states.span_or_empty(states) {
         let parameters = target
@@ -247,26 +246,19 @@ fn append_remapped_states(
         let operations = append_remapped_operations(target, source, state.operations);
         let transitions = append_remapped_transitions(target, source, state.transitions);
         let borrow = remap_state_borrow_summary(target, source, &state.borrow);
-        let handle = target.states.append(StateNode {
-            parameters,
-            borrow,
-            operations,
-            transitions,
-            ..state.clone()
-        });
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state-graph state span count overflow");
+        target.states.append_to_span(
+            &mut remapped_states,
+            StateNode {
+                parameters,
+                borrow,
+                operations,
+                transitions,
+                ..state.clone()
+            },
+        );
     }
 
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    remapped_states
 }
 
 fn remap_state_borrow_summary(
@@ -296,8 +288,7 @@ fn append_remapped_borrow_calls(
     source: &StateGraph,
     calls: HandleSpan<StateBorrowCall>,
 ) -> HandleSpan<StateBorrowCall> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut remapped_calls = HandleSpan::empty();
 
     for call in source.borrow_calls.span_or_empty(calls) {
         let accesses = target.borrow_argument_accesses.insert_many(
@@ -308,23 +299,16 @@ fn append_remapped_borrow_calls(
                 .cloned(),
         );
 
-        let handle = target.borrow_calls.append(StateBorrowCall {
-            accesses,
-            ..call.clone()
-        });
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state-graph borrow call span count overflow");
+        target.borrow_calls.append_to_span(
+            &mut remapped_calls,
+            StateBorrowCall {
+                accesses,
+                ..call.clone()
+            },
+        );
     }
 
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    remapped_calls
 }
 
 fn append_remapped_operations(
@@ -332,25 +316,16 @@ fn append_remapped_operations(
     source: &StateGraph,
     operations: HandleSpan<Operation>,
 ) -> HandleSpan<Operation> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut remapped_operations = HandleSpan::empty();
 
     for operation in source.operations.span_or_empty(operations) {
         let operation = remap_operation(target, source, operation);
-        let handle = target.operations.append(operation);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state-graph operation span count overflow");
+        target
+            .operations
+            .append_to_span(&mut remapped_operations, operation);
     }
 
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    remapped_operations
 }
 
 fn append_remapped_transitions(
@@ -358,25 +333,16 @@ fn append_remapped_transitions(
     source: &StateGraph,
     transitions: HandleSpan<TransitionEdge>,
 ) -> HandleSpan<TransitionEdge> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut remapped_transitions = HandleSpan::empty();
 
     for transition in source.transitions.span_or_empty(transitions) {
         let transition = remap_transition(target, source, transition);
-        let handle = target.transitions.append(transition);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state-graph transition span count overflow");
+        target
+            .transitions
+            .append_to_span(&mut remapped_transitions, transition);
     }
 
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    remapped_transitions
 }
 
 fn build_machine_graph(
@@ -521,34 +487,26 @@ fn append_machine_states(
     program: &Program,
     segments: &[crate::segments::StateSegment],
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut states = HandleSpan::empty();
 
     for (index, segment) in segments.iter().enumerate() {
         let transitions = append_segment_transitions(state_graph, program, segment, segments)?;
         let borrow = state_borrow_summary(state_graph, program, segment.key);
-        let handle = state_graph.states.append(StateNode {
-            key: segment.key,
-            name: segment.name.clone(),
-            index,
-            parameters: segment.parameters,
-            borrow,
-            operations: segment.operations,
-            transitions,
-        });
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state-graph state span count overflow");
+        state_graph.states.append_to_span(
+            &mut states,
+            StateNode {
+                key: segment.key,
+                name: segment.name.clone(),
+                index,
+                parameters: segment.parameters,
+                borrow,
+                operations: segment.operations,
+                transitions,
+            },
+        );
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(states)
 }
 
 fn state_borrow_summary(
@@ -641,12 +599,13 @@ fn append_segment_transitions(
     segment: &crate::segments::StateSegment,
     segments: &[crate::segments::StateSegment],
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut transitions = HandleSpan::empty();
 
     for (_, transition) in segment.transitions.iter() {
         let transition = plan_transition(segment.key, segments, transition, program, state_graph)?;
-        append_transition(state_graph, transition, &mut start, &mut count);
+        state_graph
+            .transitions
+            .append_to_span(&mut transitions, transition);
     }
 
     if segment.next_segment_key.is_valid() && !segment_has_unconditional_transition(segment) {
@@ -662,8 +621,8 @@ fn append_segment_transitions(
                 ))
             })?;
 
-        append_transition(
-            state_graph,
+        state_graph.transitions.append_to_span(
+            &mut transitions,
             TransitionEdge {
                 target: PlannedTransitionTarget::State {
                     index: next_index,
@@ -673,31 +632,10 @@ fn append_segment_transitions(
                 continuation: PlannedTransitionTarget::None,
                 expressions: TransitionExpressionRefs::default(),
             },
-            &mut start,
-            &mut count,
         );
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
-}
-
-fn append_transition(
-    state_graph: &mut StateGraph,
-    transition: TransitionEdge,
-    start: &mut Handle<TransitionEdge>,
-    count: &mut u32,
-) {
-    let handle = state_graph.transitions.append(transition);
-    if *count == 0 {
-        *start = handle;
-    }
-    *count = count
-        .checked_add(1)
-        .expect("state-graph transition span count overflow");
+    Ok(transitions)
 }
 
 fn remap_operation(
