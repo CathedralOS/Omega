@@ -43,12 +43,16 @@ struct TypeSymbol<'program> {
 
 impl<'program> ProgramSymbols<'program> {
     pub fn build(program: &'program TypedTrees, diagnostics: &mut Vec<Diagnostic>) -> Self {
+        let data_definition_count = program.data_definitions().len();
+        let machine_count = program.machines().len();
+        let platform_count = program.platforms().len();
         let mut symbols = Self {
-            data_definitions: Vec::new(),
-            machines: Vec::new(),
-            platforms: Vec::new(),
+            data_definitions: Vec::with_capacity(data_definition_count),
+            machines: Vec::with_capacity(machine_count),
+            platforms: Vec::with_capacity(platform_count),
             types: builtin_type_symbols(program),
         };
+        symbols.types.reserve(data_definition_count);
 
         for data_definition in program.data_definitions() {
             if symbols
@@ -214,10 +218,13 @@ impl<'program> MachineSymbols<'program> {
     ) -> Self {
         let machine_symbol = top_level_symbol(program, machine.name.as_str());
         let mut symbols = Self {
-            contained_objects: Vec::new(),
-            member_symbols: Vec::new(),
-            owned_data_symbols: Vec::new(),
-            states: Vec::new(),
+            contained_objects: Vec::with_capacity(program.machine_contained_objects(machine).len()),
+            member_symbols: Vec::with_capacity(
+                program.machine_contained_objects(machine).len()
+                    + program.machine_owned_data(machine).len(),
+            ),
+            owned_data_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),
+            states: Vec::with_capacity(program.machine_states(machine).len()),
         };
 
         if let Some(data_definition) = program
@@ -418,21 +425,23 @@ fn builtin_type_symbols(program: &TypedTrees) -> Vec<TypeSymbol<'_>> {
     let Some(root_children) = program.symbols.child_handles(program.symbols.root()) else {
         return Vec::new();
     };
+    let (min_count, _) = root_children.size_hint();
+    let mut symbols = Vec::with_capacity(min_count);
 
-    root_children
-        .filter_map(|symbol| {
-            let kind = program.symbols.get(symbol).kind;
+    for symbol in root_children {
+        let kind = program.symbols.get(symbol).kind;
 
-            if kind != SymbolKind::BuiltinType {
-                return None;
-            }
+        if kind != SymbolKind::BuiltinType {
+            continue;
+        }
 
-            Some(TypeSymbol {
-                name: program.symbols.name(symbol),
-                symbol,
-            })
-        })
-        .collect()
+        symbols.push(TypeSymbol {
+            name: program.symbols.name(symbol),
+            symbol,
+        });
+    }
+
+    symbols
 }
 
 fn child_symbol(program: &TypedTrees, parent: SymbolHandle, name: &str) -> SymbolHandle {
