@@ -13,6 +13,7 @@ use omega_typed_trees::statement::{
 use omega_typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use std::fmt;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -207,10 +208,12 @@ fn validate_state_statement_node(
             local_data.type_reference,
             symbols,
             diagnostics,
-            format!(
-                "machine `{}` state `{state_name}` local data `{}`",
-                machine.name, local_data.name
-            ),
+            TypeReferenceOwner::StateLocalData {
+                machine: machine.name.as_str(),
+                state: state_name,
+                local: local_data.name.as_str(),
+                generic_depth: 0,
+            },
         ),
         StatementNode::Transition(transition) => {
             validate_transition_target_node(
@@ -280,7 +283,7 @@ fn validate_callable_state_signatures(
             program,
             symbols,
             diagnostics,
-            format!("machine `{}`", machine.name),
+            StateSignatureOwner::Machine(machine.name.as_str()),
         );
     }
 
@@ -296,7 +299,7 @@ fn validate_callable_state_signatures(
             program,
             symbols,
             diagnostics,
-            format!("platform `{}`", platform.name),
+            StateSignatureOwner::Platform(platform.name.as_str()),
         );
     }
 }
@@ -308,15 +311,175 @@ struct StateSignatureView<'program> {
     return_type: TypeReferenceHandle,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum StateSignatureOwner<'program> {
+    Machine(&'program str),
+    Platform(&'program str),
+}
+
+impl fmt::Display for StateSignatureOwner<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Machine(machine) => write!(formatter, "machine `{machine}`"),
+            Self::Platform(platform) => write!(formatter, "platform `{platform}`"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum TypeReferenceOwner<'program> {
+    DataField {
+        data: &'program str,
+        field: &'program str,
+        generic_depth: usize,
+    },
+    MachineOwnedData {
+        machine: &'program str,
+        data: &'program str,
+        generic_depth: usize,
+    },
+    StateLocalData {
+        machine: &'program str,
+        state: &'program str,
+        local: &'program str,
+        generic_depth: usize,
+    },
+    StateParameter {
+        owner: StateSignatureOwner<'program>,
+        state: &'program str,
+        parameter: &'program str,
+        generic_depth: usize,
+    },
+    StateReturn {
+        owner: StateSignatureOwner<'program>,
+        state: &'program str,
+        generic_depth: usize,
+    },
+}
+
+impl TypeReferenceOwner<'_> {
+    fn generic_argument(self) -> Self {
+        match self {
+            Self::DataField {
+                data,
+                field,
+                generic_depth,
+            } => Self::DataField {
+                data,
+                field,
+                generic_depth: generic_depth + 1,
+            },
+            Self::MachineOwnedData {
+                machine,
+                data,
+                generic_depth,
+            } => Self::MachineOwnedData {
+                machine,
+                data,
+                generic_depth: generic_depth + 1,
+            },
+            Self::StateLocalData {
+                machine,
+                state,
+                local,
+                generic_depth,
+            } => Self::StateLocalData {
+                machine,
+                state,
+                local,
+                generic_depth: generic_depth + 1,
+            },
+            Self::StateParameter {
+                owner,
+                state,
+                parameter,
+                generic_depth,
+            } => Self::StateParameter {
+                owner,
+                state,
+                parameter,
+                generic_depth: generic_depth + 1,
+            },
+            Self::StateReturn {
+                owner,
+                state,
+                generic_depth,
+            } => Self::StateReturn {
+                owner,
+                state,
+                generic_depth: generic_depth + 1,
+            },
+        }
+    }
+}
+
+impl fmt::Display for TypeReferenceOwner<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let generic_depth = match self {
+            Self::DataField {
+                data,
+                field,
+                generic_depth,
+            } => {
+                write!(formatter, "data `{data}` field `{field}`")?;
+                *generic_depth
+            }
+            Self::MachineOwnedData {
+                machine,
+                data,
+                generic_depth,
+            } => {
+                write!(formatter, "machine `{machine}` owned data `{data}`")?;
+                *generic_depth
+            }
+            Self::StateLocalData {
+                machine,
+                state,
+                local,
+                generic_depth,
+            } => {
+                write!(
+                    formatter,
+                    "machine `{machine}` state `{state}` local data `{local}`"
+                )?;
+                *generic_depth
+            }
+            Self::StateParameter {
+                owner,
+                state,
+                parameter,
+                generic_depth,
+            } => {
+                write!(formatter, "{owner} state `{state}` parameter `{parameter}`")?;
+                *generic_depth
+            }
+            Self::StateReturn {
+                owner,
+                state,
+                generic_depth,
+            } => {
+                write!(formatter, "{owner} state `{state}` return type")?;
+                *generic_depth
+            }
+        };
+
+        for _ in 0..generic_depth {
+            formatter.write_str(" generic argument")?;
+        }
+
+        Ok(())
+    }
+}
+
 fn validate_state_signature_types<'program>(
     signatures: impl Iterator<Item = StateSignatureView<'program>>,
     program: &TypedTrees,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
+    owner: StateSignatureOwner<'program>,
 ) {
     for signature in signatures {
-        validate_state_parameter_names(signature, &owner, diagnostics);
+        validate_state_parameter_names(signature, owner, diagnostics);
 
         for parameter in signature.parameters {
             if parameter.is_self {
@@ -328,10 +491,12 @@ fn validate_state_signature_types<'program>(
                 parameter.type_reference,
                 symbols,
                 diagnostics,
-                format!(
-                    "{owner} state `{}` parameter `{}`",
-                    signature.name, parameter.name
-                ),
+                TypeReferenceOwner::StateParameter {
+                    owner,
+                    state: signature.name,
+                    parameter: parameter.name.as_str(),
+                    generic_depth: 0,
+                },
             );
         }
 
@@ -341,7 +506,11 @@ fn validate_state_signature_types<'program>(
                 signature.return_type,
                 symbols,
                 diagnostics,
-                format!("{owner} state `{}` return type", signature.name),
+                TypeReferenceOwner::StateReturn {
+                    owner,
+                    state: signature.name,
+                    generic_depth: 0,
+                },
             );
         }
     }
@@ -367,7 +536,7 @@ fn validate_platform_state_names(
 
 fn validate_state_parameter_names(
     state: StateSignatureView<'_>,
-    owner: &str,
+    owner: StateSignatureOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (parameter_index, parameter) in state.parameters.iter().enumerate() {
@@ -403,7 +572,11 @@ fn validate_data_field_types(
                 field.type_reference,
                 symbols,
                 diagnostics,
-                format!("data `{}` field `{}`", data_definition.name, field.name),
+                TypeReferenceOwner::DataField {
+                    data: data_definition.name.as_str(),
+                    field: field.name.as_str(),
+                    generic_depth: 0,
+                },
             );
         }
     }
@@ -459,7 +632,7 @@ fn validate_type_reference_handle(
     type_reference: TypeReferenceHandle,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
+    owner: TypeReferenceOwner<'_>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -469,13 +642,7 @@ fn validate_type_reference_handle(
             base_type,
             constraints,
         } => {
-            validate_type_reference_handle(
-                program,
-                *base_type,
-                symbols,
-                diagnostics,
-                owner.clone(),
-            );
+            validate_type_reference_handle(program, *base_type, symbols, diagnostics, owner);
             validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
@@ -504,7 +671,7 @@ fn validate_type_reference_handle(
                     *argument,
                     symbols,
                     diagnostics,
-                    format!("{owner} generic argument"),
+                    owner.generic_argument(),
                 );
             }
         }
@@ -524,7 +691,7 @@ fn validate_type_constraints_node(
     base_type: TypeReferenceHandle,
     constraints: omega_core::arena::HandleSpan<TypeConstraintNode>,
     diagnostics: &mut Vec<Diagnostic>,
-    owner: String,
+    owner: TypeReferenceOwner<'_>,
 ) {
     let primitive_type = program.type_reference_table.primitive_type(base_type);
 
@@ -702,10 +869,11 @@ fn validate_owned_data(
             owned_data.type_reference,
             symbols,
             diagnostics,
-            format!(
-                "machine `{}` owned data `{}`",
-                machine.name, owned_data.name
-            ),
+            TypeReferenceOwner::MachineOwnedData {
+                machine: machine.name.as_str(),
+                data: owned_data.name.as_str(),
+                generic_depth: 0,
+            },
         );
 
         if owned_data.initial_value.is_valid() {
