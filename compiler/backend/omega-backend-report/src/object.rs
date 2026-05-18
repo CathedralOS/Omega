@@ -1,6 +1,9 @@
 use crate::BackendReportInput;
 use omega_layout::{DataShape, FieldLayout};
-use omega_object::{RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name};
+use omega_object::{
+    RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name, symbol_section_name,
+};
+use omega_target::NativeTarget;
 
 pub(super) fn write_layout_object_sections(
     output: &mut String,
@@ -67,7 +70,7 @@ pub(super) fn write_layout_object_sections(
 
     output.push_str(&format!("symbols: {}\n", backend_plan.object.symbols.len()));
     for (_, symbol) in backend_plan.object.symbols.iter() {
-        write_symbol_plan(output, symbol);
+        write_symbol_plan(output, backend_plan.object.target, symbol);
     }
     output.push('\n');
 
@@ -116,8 +119,13 @@ fn write_section_plan(output: &mut String, section: &SectionPlan) {
     ));
 }
 
-fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
-    let section = symbol.section.as_deref().unwrap_or("none");
+fn write_symbol_plan(output: &mut String, target: NativeTarget, symbol: &SymbolPlan) {
+    let section = symbol_section_name(target, symbol.section);
+    let section = if section.is_empty() {
+        "none"
+    } else {
+        section.as_str()
+    };
     output.push_str(&format!(
         "- symbol {} {:?}: section {}, offset {}, size {}\n",
         symbol.name, symbol.kind, section, symbol.offset, symbol.size

@@ -8,7 +8,7 @@ pub use model::{
 };
 use omega_core::arena::{Arena, Handle};
 use omega_object::{
-    ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind,
+    ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind, SymbolSection,
     object_symbol_handle_by_name,
 };
 use omega_target::NativeTarget;
@@ -94,21 +94,19 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         relocations: Arena::with_capacity(input.relocations.records.len()),
     };
 
-    image
-        .symbols
-        .insert_many(input.object.symbols.iter().map(|(_, symbol)| {
-            FinalImageSymbol {
+    image.symbols.insert_many(
+        input
+            .object
+            .symbols
+            .iter()
+            .map(|(_, symbol)| FinalImageSymbol {
                 name: symbol.name.clone(),
-                section: symbol
-                    .section
-                    .as_deref()
-                    .map(final_image_section)
-                    .unwrap_or(FinalImageSection::None),
+                section: final_image_section(symbol.section),
                 offset: symbol.offset,
                 size: symbol.size,
                 kind: symbol.kind,
-            }
-        }));
+            }),
+    );
 
     image.imports.insert_many(
         input
@@ -184,12 +182,12 @@ pub fn final_image_symbol_name(image: &FinalImage, symbol: FinalImageSymbolHandl
     }
 }
 
-fn final_image_section(section_name: &str) -> FinalImageSection {
-    match section_name {
-        ".text" | "__TEXT,__text" => FinalImageSection::Text,
-        ".data" | "__DATA,__data" => FinalImageSection::Data,
-        ".bss" | "__DATA,__bss" => FinalImageSection::Bss,
-        _ => FinalImageSection::None,
+fn final_image_section(section: SymbolSection) -> FinalImageSection {
+    match section {
+        SymbolSection::None => FinalImageSection::None,
+        SymbolSection::Section(SectionKind::Text) => FinalImageSection::Text,
+        SymbolSection::Section(SectionKind::Data) => FinalImageSection::Data,
+        SymbolSection::Section(SectionKind::Bss) => FinalImageSection::Bss,
     }
 }
 

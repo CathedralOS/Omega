@@ -6,7 +6,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_layout::{LayoutPlan, MachineLayout};
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_object::{
-    ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, entry_symbol_name,
+    ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection, entry_symbol_name,
     machine_storage_symbol_name, runtime_frame_storage_symbol_name, section_name,
 };
 use omega_target::NativeTarget;
@@ -101,14 +101,14 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
     object_plan.symbols.insert_many([
         SymbolPlan {
             name: object_plan.entry_symbol.clone(),
-            section: Some(section_name(input.target, SectionKind::Text)),
+            section: SymbolSection::Section(SectionKind::Text),
             offset: entry_function.byte_offset,
             size: entry_function.byte_count,
             kind: SymbolKind::Function,
         },
         SymbolPlan {
             name: machine_storage_symbol(main_layout),
-            section: Some(section_name(input.target, SectionKind::Bss)),
+            section: SymbolSection::Section(SectionKind::Bss),
             offset: 0,
             size: main_layout.layout.size,
             kind: SymbolKind::Object,
@@ -117,7 +117,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
     if input.runtime_frame_size > 0 {
         object_plan.symbols.insert(SymbolPlan {
             name: runtime_frame_storage_symbol_name(),
-            section: Some(section_name(input.target, SectionKind::Bss)),
+            section: SymbolSection::Section(SectionKind::Bss),
             offset: runtime_frame_offset,
             size: input.runtime_frame_size,
             kind: SymbolKind::Object,
@@ -130,7 +130,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
             match &binding.mechanism {
                 HostBindingMechanism::Import { symbol, .. } => Some(SymbolPlan {
                     name: symbol.to_string(),
-                    section: None,
+                    section: SymbolSection::None,
                     offset: 0,
                     size: 0,
                     kind: SymbolKind::Import,
@@ -146,7 +146,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
 
             Some(SymbolPlan {
                 name: data_object.symbol.to_string(),
-                section: Some(section_name(input.target, SectionKind::Data)),
+                section: SymbolSection::Section(SectionKind::Data),
                 offset: data_object.offset,
                 size: bytes.len(),
                 kind: SymbolKind::Object,
