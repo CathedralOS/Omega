@@ -57,33 +57,46 @@ pub fn build_state_storage_plan_with_workers(
     let mut plan = StateStoragePlan::default();
 
     for machine_plan in machine_plans {
-        for (_, local) in machine_plan.locals.iter() {
+        let StateStoragePlan {
+            expressions,
+            invariant_names,
+            locals,
+            mutations,
+            type_references,
+        } = machine_plan;
+        for local in locals.into_items() {
+            let local_invariant_names = plan.invariant_names.insert_many(
+                invariant_names
+                    .span_or_empty(local.invariant_names)
+                    .iter()
+                    .cloned(),
+            );
+            let local_type_reference = plan.type_references.copy_from(
+                &type_references,
+                &expressions,
+                &mut plan.expressions,
+                local.type_reference,
+            );
             plan.locals.insert(StateLocalStorage {
-                invariant_names: plan.invariant_names.insert_many(
-                    machine_plan
-                        .invariant_names
-                        .span_or_empty(local.invariant_names)
-                        .iter()
-                        .cloned(),
-                ),
-                type_reference: plan.type_references.copy_from(
-                    &machine_plan.type_references,
-                    &machine_plan.expressions,
-                    &mut plan.expressions,
-                    local.type_reference,
-                ),
-                ..local.clone()
+                source_key: local.source_key,
+                statement_index: local.statement_index,
+                symbol: local.symbol,
+                name: local.name,
+                type_symbol: local.type_symbol,
+                type_reference: local_type_reference,
+                invariant_names: local_invariant_names,
+                required: local.required,
             });
         }
-        for (_, mutation) in machine_plan.mutations.iter() {
+        for mutation in mutations.into_items() {
             plan.mutations.append(StateMutation {
-                target: plan
-                    .expressions
-                    .copy_from(&machine_plan.expressions, mutation.target),
-                value: plan
-                    .expressions
-                    .copy_from(&machine_plan.expressions, mutation.value),
-                ..mutation.clone()
+                source_key: mutation.source_key,
+                statement_index: mutation.statement_index,
+                target: plan.expressions.copy_from(&expressions, mutation.target),
+                value: plan.expressions.copy_from(&expressions, mutation.value),
+                mutation_kind: mutation.mutation_kind,
+                lowering: mutation.lowering,
+                required: mutation.required,
             });
         }
     }
