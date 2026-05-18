@@ -38,9 +38,6 @@ pub(in crate::identity) fn count_state_call_strings(
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    for (_, call) in backend_plan.state_calls.calls.iter() {
-        storage.count_program_name_report(&call.receiver_display);
-    }
     for (_, argument) in backend_plan.state_calls.arguments.iter() {
         storage.count_program_name_identity(&argument.parameter_name);
         count_control_flow_expression_strings(

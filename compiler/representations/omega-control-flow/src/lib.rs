@@ -75,6 +75,70 @@ impl ControlFlowPlan {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
+    pub fn receiver_name_by_symbol(
+        &self,
+        source_key: StateKey,
+        receiver_symbol: SymbolHandle,
+    ) -> Option<&ProgramName> {
+        if !receiver_symbol.is_valid() {
+            return None;
+        }
+
+        let machine = self.machine_by_symbol(source_key.machine)?;
+        if receiver_symbol == machine.symbol {
+            return Some(&machine.name);
+        }
+
+        if let Some(contained) = self
+            .machine_contains(machine)
+            .iter()
+            .find(|contained| contained.symbol == receiver_symbol)
+        {
+            return Some(&contained.name);
+        }
+
+        if let Some(owned_data) = self
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned_data| owned_data.symbol == receiver_symbol)
+        {
+            return Some(&owned_data.name);
+        }
+
+        self.state_by_key(source_key)
+            .and_then(|state| {
+                self.state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == receiver_symbol)
+            })
+            .map(|parameter| &parameter.name)
+    }
+
+    pub fn call_receiver_name_by_statement(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&ProgramName> {
+        let state = self.state_by_key(source_key)?;
+        self.operations
+            .span(state.operations)?
+            .iter()
+            .find_map(|operation| {
+                if operation.statement_index != statement_index {
+                    return None;
+                }
+
+                match &operation.kind {
+                    OperationKind::Call {
+                        has_receiver: true,
+                        receiver,
+                        ..
+                    } => Some(receiver),
+                    _ => None,
+                }
+            })
+    }
+
     pub fn state_names_by_key(&self, key: StateKey) -> Option<(&ProgramName, &ProgramName)> {
         let machine = self.machine_by_symbol(key.machine)?;
         let state = self

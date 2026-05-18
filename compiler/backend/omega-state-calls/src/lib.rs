@@ -169,7 +169,6 @@ pub fn build_state_call_plan_with_workers(
             call_ordinal: call.call_ordinal,
             role: call.role,
             receiver_symbol: call.receiver_symbol,
-            receiver_display: call.receiver,
             target_key: call.target_key,
             argument_count: arguments.len(),
             arguments,

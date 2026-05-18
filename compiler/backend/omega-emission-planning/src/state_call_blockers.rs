@@ -3,7 +3,7 @@ use omega_core::arena::Arena;
 use omega_state_calls::StateCallLowering;
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 
-use super::semantic_scope::{proof_scope_suffix, state_name};
+use super::semantic_scope::{proof_scope_suffix, state_call_receiver_name, state_name};
 use super::{EmissionBlocker, blocker};
 
 mod runtime_body;
@@ -33,7 +33,9 @@ pub(super) fn collect_state_call_blockers(
                 "state calls",
                 &format!(
                     "{} statement {} has unresolved state call through `{}`",
-                    source_name, state_call.statement_index, state_call.receiver_display
+                    source_name,
+                    state_call.statement_index,
+                    state_call_receiver_name(input, state_call)
                 ),
             ));
             continue;
@@ -92,7 +94,7 @@ pub(super) fn collect_state_call_blockers(
                     "{} statement {} has unresolved state call through `{}`",
                     source_name,
                     state_call.statement_index,
-                    state_call.receiver_display
+                    state_call_receiver_name(input, state_call)
                 ),
             )),
         };
@@ -113,7 +115,9 @@ fn collect_unresolved_state_call_blockers(
             "state calls",
             &format!(
                 "{} statement {} has unresolved state call through `{}`",
-                source_name, state_call.statement_index, state_call.receiver_display
+                source_name,
+                state_call.statement_index,
+                state_call_receiver_name(input, state_call)
             ),
         ));
     }

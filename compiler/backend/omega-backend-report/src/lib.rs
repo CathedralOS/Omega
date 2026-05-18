@@ -23,7 +23,7 @@ use omega_runtime_branching::{
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_runtime_text::RuntimeTextPlan;
-use omega_state_calls::{AliasFlowPlan, StateCallPlan};
+use omega_state_calls::{AliasFlowPlan, StateCall, StateCallPlan};
 use omega_state_dispatch::{StateDispatchPlan, state_dispatch_label};
 use omega_state_graph::RuntimeFlowPlan;
 use omega_state_graph::RuntimeTransitionTarget;
@@ -128,7 +128,7 @@ pub fn backend_report_text(
                 "- {} statement {} `{}` -> {} args {} {:?}/{:?} reachable {} required {}\n",
                 source_name,
                 state_call.statement_index,
-                state_call.receiver_display,
+                backend_state_call_receiver_name(backend_plan, state_call),
                 target_name,
                 state_call.argument_count,
                 state_call.resolution,
@@ -1463,6 +1463,28 @@ fn backend_state_name(backend_plan: &BackendReportInput<'_>, key: StateKey) -> S
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))
         .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
+}
+
+fn backend_state_call_receiver_name(
+    backend_plan: &BackendReportInput<'_>,
+    call: &StateCall,
+) -> String {
+    backend_plan
+        .control_flow
+        .receiver_name_by_symbol(call.source_key, call.receiver_symbol)
+        .or_else(|| {
+            backend_plan
+                .control_flow
+                .call_receiver_name_by_statement(call.source_key, call.statement_index)
+        })
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            if call.receiver_symbol.is_valid() {
+                "<unknown>".to_owned()
+            } else {
+                "self".to_owned()
+            }
+        })
 }
 
 fn host_call_name_for_statement<'plan>(
