@@ -176,11 +176,12 @@ pub(super) fn select_runtime_state_call_result_write(
     }
 
     let target = runtime_frame_slot_target_expression(&mut value_expressions, slot);
-    let resolved_segment_expressions = if aliases.is_empty() {
-        ExpressionTable::new()
-    } else {
-        value_expressions.clone()
-    };
+    let mut resolved_segment_expressions = ExpressionTable::new();
+    let copied_segment_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        &value_expressions,
+        copied_aliases.bindings(),
+        &mut resolved_segment_expressions,
+    );
     if runtime_text_builder_write_in_table_emit(
         input,
         dispatch_index,
@@ -194,7 +195,7 @@ pub(super) fn select_runtime_state_call_result_write(
             resolve_runtime_alias_binding_handle(
                 expression,
                 operation_source_key,
-                aliases,
+                copied_segment_aliases.bindings(),
                 expressions,
             )
             .expression

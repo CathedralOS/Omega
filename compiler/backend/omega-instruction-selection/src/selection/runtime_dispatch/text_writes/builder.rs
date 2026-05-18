@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
-    RuntimeAliasBinding, resolve_runtime_alias_binding_handle, strip_mutable_expression,
+    RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
+    strip_mutable_expression,
 };
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place_in_table;
@@ -89,6 +90,12 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
         return true;
     }
 
+    let mut resolved_segment_expressions = ExpressionTable::new();
+    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        alias_expressions,
+        aliases,
+        &mut resolved_segment_expressions,
+    );
     runtime_text_builder_write_with_handle_resolver_emit(
         input,
         dispatch_index,
@@ -97,10 +104,15 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
         source_state,
         statement_index,
         resolved_target,
-        alias_expressions.clone(),
+        resolved_segment_expressions,
         &|expressions, expression| {
-            resolve_runtime_alias_binding_handle(expression, source_key, aliases, expressions)
-                .expression
+            resolve_runtime_alias_binding_handle(
+                expression,
+                source_key,
+                copied_aliases.bindings(),
+                expressions,
+            )
+            .expression
         },
         emit,
     )
