@@ -57,10 +57,6 @@ pub fn encode_syscall_sequence_from_operands(
     Ok(bytes)
 }
 
-pub fn encode_return() -> Vec<u8> {
-    Vec::from(encode_return_bytes())
-}
-
 pub fn encode_return_bytes() -> [u8; 4] {
     encode_instruction(0xD65F03C0)
 }

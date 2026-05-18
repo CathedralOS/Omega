@@ -11,12 +11,6 @@ use super::primitives::{
 };
 use super::widths::dispatch_guard_compare_static_width;
 
-pub fn encode_dispatch_loop_enter(entry_dispatch_index: u32) -> Result<Vec<u8>, Diagnostic> {
-    Ok(Vec::from(encode_dispatch_loop_enter_bytes(
-        entry_dispatch_index,
-    )?))
-}
-
 pub fn encode_dispatch_loop_enter_bytes(entry_dispatch_index: u32) -> Result<[u8; 4], Diagnostic> {
     let immediate = u16::try_from(entry_dispatch_index).map_err(|_| {
         Diagnostic::error(format!(
@@ -24,16 +18,6 @@ pub fn encode_dispatch_loop_enter_bytes(entry_dispatch_index: u32) -> Result<[u8
         ))
     })?;
     Ok(encode_movz_w(19, immediate))
-}
-
-pub fn encode_dispatch_case_enter(
-    dispatch_index: u32,
-    skip_byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
-    Ok(Vec::from(encode_dispatch_case_enter_bytes(
-        dispatch_index,
-        skip_byte_distance,
-    )?))
 }
 
 pub fn encode_dispatch_case_enter_bytes(
@@ -44,16 +28,6 @@ pub fn encode_dispatch_case_enter_bytes(
         encode_compare_w19_immediate(dispatch_index)?,
         encode_conditional_branch_not_equal(skip_byte_distance)?,
     ))
-}
-
-pub fn encode_dispatch_state_write(
-    dispatch_index: u32,
-    case_leave_byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
-    Ok(Vec::from(encode_dispatch_state_write_bytes(
-        dispatch_index,
-        case_leave_byte_distance,
-    )?))
 }
 
 pub fn encode_dispatch_state_write_bytes(
@@ -69,12 +43,6 @@ pub fn encode_dispatch_state_write_bytes(
         encode_movz_w(19, immediate),
         encode_unconditional_branch(case_leave_byte_distance)?,
     ))
-}
-
-pub fn encode_dispatch_case_leave(loop_byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
-    Ok(Vec::from(encode_dispatch_case_leave_bytes(
-        loop_byte_distance,
-    )?))
 }
 
 pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<[u8; 4], Diagnostic> {
