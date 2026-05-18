@@ -4,8 +4,8 @@ use super::super::primitives::{
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_cbz_x,
     encode_compare_w_register, encode_compare_w17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_not_equal, encode_load_byte_w_post_increment,
-    encode_load_byte_w17_from_x16, encode_load_x_from_x, encode_runtime_text_input_delimiter_check,
-    encode_subs_x_immediate,
+    encode_load_byte_w17_from_x16, encode_load_x_from_x,
+    encode_runtime_text_input_delimiter_check_bytes, encode_subs_x_immediate,
 };
 use super::super::widths::{
     runtime_text_literal_compare_width, runtime_text_storage_compare_width,
@@ -42,7 +42,7 @@ pub fn encode_runtime_text_literal_compare(
         )?);
     }
 
-    bytes.extend(encode_runtime_text_input_delimiter_check(
+    bytes.extend(encode_runtime_text_input_delimiter_check_bytes(
         literal.len(),
         delimiter_failure_branch_distance,
     )?);
@@ -74,7 +74,7 @@ pub fn encode_runtime_text_storage_compare(
     });
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-20)?);
-    bytes.extend(encode_runtime_text_input_delimiter_check(
+    bytes.extend(encode_runtime_text_input_delimiter_check_bytes(
         0,
         delimiter_failure_branch_distance,
     )?);
