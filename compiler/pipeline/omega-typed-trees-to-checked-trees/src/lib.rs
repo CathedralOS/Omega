@@ -50,9 +50,9 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: state_owner(
                         obligation.machine_symbol,
-                        &obligation.machine,
+                        obligation.machine.clone(),
                         obligation.state_symbol,
-                        &obligation.state,
+                        obligation.state.clone(),
                     ),
                 }
             }
@@ -63,21 +63,13 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: ProofObligationOwner::CallParameter {
                         machine_symbol: obligation.machine_symbol,
-                        machine_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.machine.as_str(),
-                        ),
+                        machine_name: obligation.machine.clone(),
                         state_symbol: obligation.state_symbol,
-                        state_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.state.as_str(),
-                        ),
+                        state_name: obligation.state.clone(),
                         target_symbol: obligation.target_symbol,
-                        target_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.target.as_str(),
-                        ),
+                        target_name: obligation.target.clone(),
                         parameter_symbol: obligation.parameter_symbol,
-                        parameter_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.parameter.as_str(),
-                        ),
+                        parameter_name: obligation.parameter.clone(),
                     },
                 }
             }
@@ -96,13 +88,9 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: ProofObligationOwner::StateReturn {
                         machine_symbol: obligation.machine_symbol,
-                        machine_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.machine.as_str(),
-                        ),
+                        machine_name: obligation.machine.clone(),
                         state_symbol: obligation.state_symbol,
-                        state_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.state.as_str(),
-                        ),
+                        state_name: obligation.state.clone(),
                     },
                 }
             }
@@ -121,17 +109,11 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: ProofObligationOwner::TransitionParameter {
                         machine_symbol: obligation.machine_symbol,
-                        machine_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.machine.as_str(),
-                        ),
+                        machine_name: obligation.machine.clone(),
                         state_symbol: obligation.state_symbol,
-                        state_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.state.as_str(),
-                        ),
+                        state_name: obligation.state.clone(),
                         parameter_symbol: obligation.parameter_symbol,
-                        parameter_name: omega_checked_trees::name::ProgramName::from(
-                            obligation.parameter.as_str(),
-                        ),
+                        parameter_name: obligation.parameter.clone(),
                     },
                 }
             }
@@ -142,9 +124,9 @@ fn build_proof_facts(
                     state_symbol: obligation.state_symbol,
                     owner: state_owner(
                         obligation.machine_symbol,
-                        &obligation.machine,
+                        obligation.machine.clone(),
                         obligation.state_symbol,
-                        &obligation.state,
+                        obligation.state.clone(),
                     ),
                 }
             }
@@ -156,15 +138,15 @@ fn build_proof_facts(
 
 fn state_owner(
     machine_symbol: SymbolHandle,
-    machine_name: &str,
+    machine_name: ProgramName,
     state_symbol: SymbolHandle,
-    state_name: &str,
+    state_name: ProgramName,
 ) -> ProofObligationOwner {
     ProofObligationOwner::MachineState {
         machine_symbol,
-        machine_name: omega_checked_trees::name::ProgramName::from(machine_name),
+        machine_name,
         state_symbol,
-        state_name: omega_checked_trees::name::ProgramName::from(state_name),
+        state_name,
     }
 }
 

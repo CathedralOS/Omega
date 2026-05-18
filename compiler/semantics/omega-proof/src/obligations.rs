@@ -195,18 +195,18 @@ pub struct BoundedValueObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuardedTransitionObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: String,
+    pub machine: ProgramName,
     pub state_symbol: SymbolHandle,
-    pub state: String,
+    pub state: ProgramName,
     pub guard: TransitionGuardNode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedAssignmentObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: String,
+    pub machine: ProgramName,
     pub state_symbol: SymbolHandle,
-    pub state: String,
+    pub state: ProgramName,
     pub state_guard: Option<TransitionGuardNode>,
     pub target: ExpressionHandle,
     pub value: ExpressionHandle,
@@ -218,14 +218,14 @@ pub struct BoundedAssignmentObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedCallArgumentObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: String,
+    pub machine: ProgramName,
     pub state_symbol: SymbolHandle,
-    pub state: String,
-    pub receiver: Option<String>,
+    pub state: ProgramName,
+    pub receiver: Option<ProgramName>,
     pub target_symbol: SymbolHandle,
-    pub target: String,
+    pub target: ProgramName,
     pub parameter_symbol: SymbolHandle,
-    pub parameter: String,
+    pub parameter: ProgramName,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
@@ -243,9 +243,9 @@ pub struct BoundedInitializerObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedStateReturnObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: String,
+    pub machine: ProgramName,
     pub state_symbol: SymbolHandle,
-    pub state: String,
+    pub state: ProgramName,
     pub value: ExpressionHandle,
     pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
@@ -255,11 +255,11 @@ pub struct BoundedStateReturnObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedTransitionArgumentObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: String,
+    pub machine: ProgramName,
     pub state_symbol: SymbolHandle,
-    pub state: String,
+    pub state: ProgramName,
     pub parameter_symbol: SymbolHandle,
-    pub parameter: String,
+    pub parameter: ProgramName,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
@@ -377,9 +377,9 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                     proof_plan.push_obligation(ProofObligation::GuardedTransition(
                         GuardedTransitionObligation {
                             machine_symbol: machine.symbol,
-                            machine: machine.name.to_string(),
+                            machine: machine.name.clone(),
                             state_symbol: state.symbol,
-                            state: state.name.to_string(),
+                            state: state.name.clone(),
                             guard: transition_guard,
                         },
                     ));
@@ -525,9 +525,9 @@ fn collect_bounded_assignment_obligation(
     proof_plan.push_obligation(ProofObligation::BoundedAssignment(
         BoundedAssignmentObligation {
             machine_symbol: machine.symbol,
-            machine: machine.name.to_string(),
+            machine: machine.name.clone(),
             state_symbol: state.symbol,
-            state: state.name.to_string(),
+            state: state.name.clone(),
             state_guard,
             target,
             value,
@@ -570,11 +570,11 @@ fn collect_bounded_transition_argument_obligations(
         proof_plan.push_obligation(ProofObligation::BoundedTransitionArgument(
             BoundedTransitionArgumentObligation {
                 machine_symbol: machine.symbol,
-                machine: machine.name.to_string(),
+                machine: machine.name.clone(),
                 state_symbol: state.symbol,
-                state: state.name.to_string(),
+                state: state.name.clone(),
                 parameter_symbol: parameter.symbol,
-                parameter: parameter.name.to_string(),
+                parameter: parameter.name.clone(),
                 argument,
                 argument_constraints,
                 base_type,
@@ -621,14 +621,14 @@ fn collect_bounded_call_argument_obligations(
         proof_plan.push_obligation(ProofObligation::BoundedCallArgument(
             BoundedCallArgumentObligation {
                 machine_symbol: machine.symbol,
-                machine: machine.name.to_string(),
+                machine: machine.name.clone(),
                 state_symbol: state.symbol,
-                state: state.name.to_string(),
+                state: state.name.clone(),
                 receiver: (!receiver.is_empty()).then(|| display_name_path(receiver)),
                 target_symbol: call.target_symbol,
-                target: call.target.to_string(),
+                target: call.target.clone(),
                 parameter_symbol: parameter.symbol,
-                parameter: parameter.name.to_string(),
+                parameter: parameter.name.clone(),
                 argument,
                 argument_constraints,
                 base_type,
@@ -663,9 +663,9 @@ fn collect_bounded_state_return_obligation(
     proof_plan.push_obligation(ProofObligation::BoundedStateReturn(
         BoundedStateReturnObligation {
             machine_symbol: machine.symbol,
-            machine: machine.name.to_string(),
+            machine: machine.name.clone(),
             state_symbol: state.symbol,
-            state: state.name.to_string(),
+            state: state.name.clone(),
             value,
             value_constraints,
             base_type,
@@ -681,7 +681,7 @@ fn call_target_parameters<'program>(
     state_by_symbol(program, target_symbol).map(|state| program.state_parameters(state))
 }
 
-fn display_name_path(path: &[ProgramName]) -> String {
+fn display_name_path(path: &[ProgramName]) -> ProgramName {
     let mut display = String::new();
 
     for member in path {
@@ -691,7 +691,7 @@ fn display_name_path(path: &[ProgramName]) -> String {
         display.push_str(member.as_str());
     }
 
-    display
+    ProgramName::generated(display)
 }
 
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
