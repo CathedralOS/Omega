@@ -396,7 +396,7 @@ fn build_machine_graph(
         )));
     }
 
-    let mut segments = Vec::new();
+    let mut segments = Vec::with_capacity(estimated_machine_segment_capacity(program, machine));
     for state in program.machine_states(machine) {
         split_state_segments(machine, state, program, state_graph, &mut segments);
     }
@@ -409,6 +409,20 @@ fn build_machine_graph(
         contains: machine_contains(state_graph, program, machine),
         states,
     })
+}
+
+fn estimated_machine_segment_capacity(program: &Program, machine: &Machine) -> usize {
+    program
+        .machine_states(machine)
+        .iter()
+        .map(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len()
+                .max(1)
+        })
+        .sum()
 }
 
 fn machine_contains(
