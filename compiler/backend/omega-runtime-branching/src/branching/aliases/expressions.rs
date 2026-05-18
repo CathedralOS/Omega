@@ -1,4 +1,6 @@
-use crate::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
+use crate::branching::aliases::{
+    BranchParameterBinding, RuntimeBranchAlias, RuntimeBranchAliasBuffer,
+};
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
     TableIndexedExpression, TableNamePath,
@@ -53,7 +55,7 @@ pub(crate) fn resolve_branch_expression_handle(
 pub(super) fn resolve_runtime_branch_alias_expression_handle(
     expression: ExpressionHandle,
     source_key: StateKey,
-    aliases: &[RuntimeBranchAlias],
+    aliases: &RuntimeBranchAliasBuffer,
     expression_table: &mut ExpressionTable,
 ) -> ExpressionHandle {
     match expression_table.expression(expression).clone() {

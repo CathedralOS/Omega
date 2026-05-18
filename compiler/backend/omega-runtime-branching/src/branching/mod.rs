@@ -11,7 +11,7 @@ mod lookups;
 mod model;
 mod operations;
 
-use aliases::bind_runtime_branch_aliases;
+use aliases::{RuntimeBranchAliasBuffer, bind_runtime_branch_aliases};
 use classify::classify_branch_call_expansion;
 use edges::build_branch_edges;
 use expansions::{
@@ -42,7 +42,7 @@ pub fn build_runtime_branching_call_plan(
         else {
             continue;
         };
-        let mut aliases = Vec::new();
+        let mut aliases = RuntimeBranchAliasBuffer::new();
 
         for operation in operations.iter() {
             let state_call = state_call_for_runtime_operation(context, operation);
