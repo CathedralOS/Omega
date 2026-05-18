@@ -234,7 +234,7 @@ pub(super) fn select_runtime_state_call_result_write(
     );
 }
 
-fn runtime_frame_slot_target_expression(
+pub(in crate::selection::runtime_dispatch) fn runtime_frame_slot_target_expression(
     expressions: &mut ExpressionTable,
     slot: &omega_runtime_storage::RuntimeFrameSlot,
 ) -> ExpressionHandle {

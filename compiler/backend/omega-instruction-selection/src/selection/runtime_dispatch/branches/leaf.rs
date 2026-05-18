@@ -1,5 +1,4 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::NamePath;
 use omega_checked_trees::expression::{Expression, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
@@ -17,7 +16,8 @@ use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_handle_resolver_emit,
 };
 use super::super::writes::{
-    RuntimeStaticValues, runtime_storage_copy, select_runtime_frame_slot_value_write_in_table,
+    RuntimeStaticValues, runtime_frame_slot_target_expression, runtime_storage_copy,
+    select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
     select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
@@ -150,12 +150,25 @@ fn select_runtime_leaf_branch_terminal_value_write(
         return;
     }
 
+    let target = runtime_frame_slot_target_expression(&mut expressions, slot);
+    if select_runtime_resolved_mutation_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.source_key,
+        expansion.source_key,
+        expansion.statement_index,
+        &expressions,
+        target,
+        resolved_value,
+        runtime_value_operands,
+        selected_instructions,
+    ) {
+        return;
+    }
+
+    let target = expressions.to_tree(target);
     let resolved_value = expressions.to_tree(resolved_value);
-    let target = Expression::Name(NamePath::resolved(
-        vec![slot.name.clone()],
-        slot.symbol,
-        slot.symbol,
-    ));
     let (source_machine, source_state) = state_names(input, expansion.source_key);
     select_runtime_resolved_mutation_write(
         input,
