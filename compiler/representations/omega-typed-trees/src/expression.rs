@@ -983,6 +983,16 @@ impl ExpressionTable {
         self.expressions.len()
     }
 
+    pub fn copy_capacity(&self) -> ExpressionTableCapacity {
+        ExpressionTableCapacity {
+            expressions: self.expression_count(),
+            expression_handles: self.expression_handle_count(),
+            name_path_members: self.name_path_member_count(),
+            name_path_member_symbols: self.name_path_member_symbol_count(),
+            struct_fields: self.struct_field_count(),
+        }
+    }
+
     pub fn expression_handle_count(&self) -> usize {
         self.expression_handles.len()
     }

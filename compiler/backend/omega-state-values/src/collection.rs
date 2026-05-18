@@ -3,7 +3,7 @@ use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTableCapacity};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 use omega_control_flow::StateKey;
@@ -13,8 +13,14 @@ pub(super) fn build_machine_state_value_plan(
     context: &StateValuePlanningContext,
     machine: &Machine,
 ) -> StateValuePlan {
-    let mut plan =
-        StateValuePlan::with_value_capacity(estimated_machine_value_capacity(program, machine));
+    let value_capacity = estimated_machine_value_capacity(program, machine);
+    let mut plan = StateValuePlan::with_capacities(
+        value_capacity,
+        ExpressionTableCapacity {
+            expressions: value_capacity,
+            ..ExpressionTableCapacity::default()
+        },
+    );
 
     for state in program.machine_states(machine) {
         let source_key = StateKey {

@@ -1,4 +1,4 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceTable};
 use omega_control_flow::StateKey;
@@ -15,11 +15,13 @@ pub struct StateStoragePlan {
 }
 
 impl StateStoragePlan {
-    pub(crate) fn with_capacity(local_capacity: usize, mutation_capacity: usize) -> Self {
+    pub(crate) fn with_capacities(
+        local_capacity: usize,
+        mutation_capacity: usize,
+        expression_capacity: ExpressionTableCapacity,
+    ) -> Self {
         Self {
-            expressions: ExpressionTable::with_expression_capacity(
-                mutation_capacity.saturating_mul(2),
-            ),
+            expressions: ExpressionTable::with_capacities(expression_capacity),
             invariant_names: Arena::new(),
             locals: Arena::with_capacity(local_capacity),
             mutations: Arena::with_capacity(mutation_capacity),
