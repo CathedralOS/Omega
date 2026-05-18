@@ -15,7 +15,8 @@ use super::super::super::storage_places::{
 use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_handle_resolver_emit;
 use super::super::writes::{
-    RuntimeStaticValues, runtime_storage_copy, select_runtime_frame_slot_value_write_in_table,
+    RuntimeStaticValues, runtime_storage_copy, runtime_storage_copy_in_table,
+    select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -219,6 +220,21 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
+        if let Some(copy) = runtime_leaf_storage_copy_in_table(
+            input,
+            expansion,
+            &expressions,
+            resolved_target,
+            resolved_value,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind: copy,
+                source_key: operation.source_key,
+                source_statement: operation.statement_index,
+            });
+            continue;
+        }
+
         let resolved_target = expressions.to_tree(resolved_target);
         let resolved_value = expressions.to_tree(resolved_value);
         if let Some((byte_offset, byte_size, value)) =
@@ -345,6 +361,24 @@ fn runtime_leaf_storage_copy(
         expansion.source_key,
         operation_machine,
         operation_state,
+        target,
+        value,
+    )
+}
+
+fn runtime_leaf_storage_copy_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    expressions: &ExpressionTable,
+    target: omega_checked_trees::expression::ExpressionHandle,
+    value: omega_checked_trees::expression::ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    runtime_storage_copy_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.source_key,
+        expressions,
         target,
         value,
     )
