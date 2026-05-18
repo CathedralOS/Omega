@@ -31,6 +31,7 @@ pub struct StateGraph {
 impl StateGraph {
     pub fn with_capacity(
         expression_capacity: usize,
+        expression_handle_capacity: usize,
         machine_capacity: usize,
         contained_machine_capacity: usize,
         machine_owned_data_capacity: usize,
@@ -45,7 +46,10 @@ impl StateGraph {
         transition_capacity: usize,
     ) -> Self {
         Self {
-            expressions: ExpressionTable::with_expression_capacity(expression_capacity),
+            expressions: ExpressionTable::with_expression_and_handle_capacity(
+                expression_capacity,
+                expression_handle_capacity,
+            ),
             machines: Arena::with_capacity(machine_capacity),
             contained_machines: Arena::with_capacity(contained_machine_capacity),
             machine_owned_data: Arena::with_capacity(machine_owned_data_capacity),
