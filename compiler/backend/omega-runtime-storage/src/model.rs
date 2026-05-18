@@ -1,4 +1,4 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
 use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
@@ -17,6 +17,20 @@ pub struct RuntimeStoragePlan {
 }
 
 impl RuntimeStoragePlan {
+    pub(crate) fn with_capacities(
+        expression_capacity: ExpressionTableCapacity,
+        invariant_name_capacity: usize,
+        frame_slot_capacity: usize,
+        write_capacity: usize,
+    ) -> Self {
+        Self {
+            expressions: ExpressionTable::with_capacities(expression_capacity),
+            invariant_names: Arena::with_capacity(invariant_name_capacity),
+            frame_slots: Arena::with_capacity(frame_slot_capacity),
+            writes: Arena::with_capacity(write_capacity),
+        }
+    }
+
     fn source_matches(expected: StateKey, actual: StateKey) -> bool {
         expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
     }
