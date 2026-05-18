@@ -1,5 +1,7 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionHandle};
+use omega_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::Arena;
@@ -7,8 +9,9 @@ use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBra
 use omega_state_guards::StateGuardOperator;
 
 use super::super::storage_places::{
-    enum_variant_value, resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
-    resolve_runtime_storage_place, resolve_runtime_transition_guard_call_result_place,
+    enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_indexed_target,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table, resolve_runtime_transition_guard_call_result_place,
 };
 use omega_runtime_text::places::expression_place_eq_table_tree;
 use omega_target_operations::{
@@ -31,6 +34,16 @@ pub(super) fn select_runtime_leaf_branch_guard(
     expansion: &RuntimeLeafBranchExpansion,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(guard) = runtime_storage_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    ) {
+        return Some(guard);
+    }
+
     let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
     let normalized_guard =
         normalized_boolean_wrapped_guard(&resolved_guard).unwrap_or(resolved_guard);
@@ -88,6 +101,16 @@ pub(super) fn select_runtime_straight_line_branch_guard(
     expansion: &RuntimeStraightLineBranchExpansion,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(guard) = runtime_storage_guard_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    ) {
+        return Some(guard);
+    }
+
     let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
     let normalized_guard =
         normalized_boolean_wrapped_guard(&resolved_guard).unwrap_or(resolved_guard);
@@ -484,6 +507,83 @@ fn runtime_storage_guard(
     None
 }
 
+fn runtime_storage_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    let operator = match binary.operator {
+        BinaryOperator::Equal => StateGuardOperator::Equal,
+        BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        _ => return None,
+    };
+
+    let left = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    );
+    let right = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.right,
+    );
+
+    if let (Some(left), Some(right)) = (left.clone(), right.clone()) {
+        if left.byte_count != right.byte_count {
+            return None;
+        }
+
+        return Some(SelectedInstructionKind::CompareRuntimeStorage {
+            left_region: left.region,
+            left_offset: left.byte_offset,
+            right_region: right.region,
+            right_offset: right.byte_offset,
+            byte_size: left.byte_count,
+            operator,
+        });
+    }
+
+    if let Some(place) = left
+        && let Some(expected_value) =
+            enum_variant_value_in_table(&input.layouts, expressions, binary.right)
+                .or_else(|| static_guard_value_in_table(expressions, binary.right))
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+            expected_value,
+            operator,
+        });
+    }
+
+    if let Some(place) = right
+        && let Some(expected_value) =
+            enum_variant_value_in_table(&input.layouts, expressions, binary.left)
+                .or_else(|| static_guard_value_in_table(expressions, binary.left))
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+            expected_value,
+            operator,
+        });
+    }
+
+    None
+}
+
 fn runtime_value_guard(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -536,6 +636,17 @@ fn static_guard_value(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::Integer(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn static_guard_value_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    match expressions.expression(expression) {
+        ExpressionNode::Boolean(value) => Some(i64::from(*value)),
+        ExpressionNode::Integer(value) => Some(*value),
         _ => None,
     }
 }
