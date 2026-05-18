@@ -10,6 +10,7 @@ pub use simplify::{
 
 use collection::build_machine_state_value_plan;
 use omega_checked_trees::Program;
+use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_calls::StateCallPlan;
@@ -79,7 +80,14 @@ pub fn build_state_value_plan_with_workers(
         .iter()
         .map(|machine_plan| machine_plan.values.len())
         .sum();
-    let mut plan = StateValuePlan::with_value_capacity(value_count);
+    let expression_capacity = machine_plans.iter().fold(
+        ExpressionTableCapacity::default(),
+        |mut capacity, machine_plan| {
+            capacity.saturating_add_assign(machine_plan.expressions.copy_capacity());
+            capacity
+        },
+    );
+    let mut plan = StateValuePlan::with_capacities(value_count, expression_capacity);
 
     for machine_plan in machine_plans {
         let StateValuePlan {

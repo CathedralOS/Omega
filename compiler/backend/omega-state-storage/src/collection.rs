@@ -2,6 +2,7 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::Program;
+use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::StatementNode;
@@ -62,7 +63,15 @@ pub fn build_state_storage_plan_with_workers(
         .iter()
         .map(|machine_plan| machine_plan.mutations.len())
         .sum();
-    let mut plan = StateStoragePlan::with_capacity(local_count, mutation_count);
+    let expression_capacity = machine_plans.iter().fold(
+        ExpressionTableCapacity::default(),
+        |mut capacity, machine_plan| {
+            capacity.saturating_add_assign(machine_plan.expressions.copy_capacity());
+            capacity
+        },
+    );
+    let mut plan =
+        StateStoragePlan::with_capacities(local_count, mutation_count, expression_capacity);
 
     for machine_plan in machine_plans {
         let StateStoragePlan {
@@ -118,7 +127,14 @@ fn build_machine_state_storage_plan(
     machine: &Machine,
 ) -> StateStoragePlan {
     let (local_capacity, mutation_capacity) = estimated_machine_storage_capacity(program, machine);
-    let mut plan = StateStoragePlan::with_capacity(local_capacity, mutation_capacity);
+    let mut plan = StateStoragePlan::with_capacities(
+        local_capacity,
+        mutation_capacity,
+        ExpressionTableCapacity {
+            expressions: mutation_capacity.saturating_mul(2),
+            ..ExpressionTableCapacity::default()
+        },
+    );
 
     for state in program.machine_states(machine) {
         let source_key = StateKey {

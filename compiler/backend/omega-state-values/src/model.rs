@@ -1,4 +1,4 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
@@ -9,9 +9,12 @@ pub struct StateValuePlan {
 }
 
 impl StateValuePlan {
-    pub(crate) fn with_value_capacity(value_capacity: usize) -> Self {
+    pub(crate) fn with_capacities(
+        value_capacity: usize,
+        expression_capacity: ExpressionTableCapacity,
+    ) -> Self {
         Self {
-            expressions: ExpressionTable::with_expression_capacity(value_capacity),
+            expressions: ExpressionTable::with_capacities(expression_capacity),
             values: Arena::with_capacity(value_capacity),
         }
     }
