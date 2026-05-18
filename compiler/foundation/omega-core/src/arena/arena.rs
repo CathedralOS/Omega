@@ -473,6 +473,15 @@ impl<T: Default> Arena<T> {
             .filter_map(|(index, (item, occupied))| (index != 0 && occupied).then_some(item))
     }
 
+    pub fn into_span_items(self, span: HandleSpan<T>) -> impl Iterator<Item = T> {
+        let range = self.valid_span_range(span).unwrap_or(1..1);
+
+        self.items
+            .into_iter()
+            .enumerate()
+            .filter_map(move |(index, item)| range.contains(&index).then_some(item))
+    }
+
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
         for index in 1..self.items.len() {
             if !self.occupied[index] {
