@@ -100,8 +100,9 @@ fn for_each_transition_target_from(
     for transition in transitions {
         let target = runtime_transition_target(context, machine, state.key, &transition.target);
         visit(&target);
-        if let Some(continuation) = &transition.continuation {
-            let continuation = runtime_transition_target(context, machine, state.key, continuation);
+        if transition.continuation != PlannedTransitionTarget::None {
+            let continuation =
+                runtime_transition_target(context, machine, state.key, &transition.continuation);
             visit(&continuation);
         }
     }
@@ -114,6 +115,7 @@ fn runtime_transition_target(
     target: &PlannedTransitionTarget,
 ) -> RuntimeTransitionTarget {
     match target {
+        PlannedTransitionTarget::None => RuntimeTransitionTarget::None,
         PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
         PlannedTransitionTarget::Nested {
             receiver_symbol,

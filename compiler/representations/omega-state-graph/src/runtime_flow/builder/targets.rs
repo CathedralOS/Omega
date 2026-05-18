@@ -21,6 +21,7 @@ impl RuntimeFlowBuilder<'_> {
         target: &PlannedTransitionTarget,
     ) -> RuntimeTransitionTarget {
         match target {
+            PlannedTransitionTarget::None => RuntimeTransitionTarget::None,
             PlannedTransitionTarget::State { key, .. } => {
                 RuntimeTransitionTarget::State { key: *key }
             }

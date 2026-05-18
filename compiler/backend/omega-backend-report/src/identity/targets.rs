@@ -15,6 +15,8 @@ pub(in crate::identity) fn count_planned_target_strings(
             storage.count_program_name_identity(receiver);
             storage.count_program_name_identity(state);
         }
-        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => {}
+        PlannedTransitionTarget::None
+        | PlannedTransitionTarget::SelfTarget
+        | PlannedTransitionTarget::Terminal => {}
     }
 }

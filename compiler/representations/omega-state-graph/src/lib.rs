@@ -305,7 +305,7 @@ pub enum OperationExpressionRefs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransitionEdge {
     pub target: PlannedTransitionTarget,
-    pub continuation: Option<PlannedTransitionTarget>,
+    pub continuation: PlannedTransitionTarget,
     pub expressions: TransitionExpressionRefs,
 }
 
@@ -320,6 +320,7 @@ pub struct TransitionExpressionRefs {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlannedTransitionTarget {
+    None,
     State {
         index: usize,
         key: StateKey,
@@ -339,7 +340,7 @@ impl Default for TransitionEdge {
     fn default() -> Self {
         Self {
             target: PlannedTransitionTarget::Terminal,
-            continuation: None,
+            continuation: PlannedTransitionTarget::None,
             expressions: TransitionExpressionRefs::default(),
         }
     }

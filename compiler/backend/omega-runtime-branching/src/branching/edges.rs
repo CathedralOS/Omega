@@ -60,13 +60,12 @@ pub(super) fn build_branch_edges(
             order,
             lowering: branch_target_lowering(context, &target),
             target,
-            continuation: transition
-                .continuation
-                .as_ref()
-                .map(|continuation| {
-                    runtime_transition_target(context, machine, state.key, continuation)
-                })
-                .unwrap_or(RuntimeTransitionTarget::None),
+            continuation: runtime_transition_target(
+                context,
+                machine,
+                state.key,
+                &transition.continuation,
+            ),
             target_arguments: transition_target_arguments(
                 context,
                 transition.expressions.target_arguments,
@@ -164,6 +163,7 @@ fn runtime_transition_target(
     target: &PlannedTransitionTarget,
 ) -> RuntimeTransitionTarget {
     match target {
+        PlannedTransitionTarget::None => RuntimeTransitionTarget::None,
         PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
         PlannedTransitionTarget::Nested {
             receiver_symbol,
