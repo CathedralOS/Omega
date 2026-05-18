@@ -319,6 +319,42 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
         return None;
     }
 
+    select_runtime_dispatch_expression_guard_in_table_once(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+    )
+    .or_else(|| {
+        let normalized_guard = normalized_boolean_wrapped_guard_in_table(expressions, guard)?;
+        select_runtime_dispatch_expression_guard_in_table_once(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            normalized_guard,
+            runtime_value_operands,
+        )
+    })
+}
+
+fn select_runtime_dispatch_expression_guard_in_table_once(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    if !guard.is_valid() {
+        return None;
+    }
+
     if let Some(guard) = runtime_boolean_condition_guard_in_table(
         input,
         dispatch_index,
@@ -398,6 +434,32 @@ fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<Transitio
             right: inner_binary.right.clone(),
         },
     ))))
+}
+
+fn normalized_boolean_wrapped_guard_in_table(
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+
+    let (inner, expected_true) =
+        if let ExpressionNode::Boolean(value) = expressions.expression(binary.left) {
+            (binary.right, *value)
+        } else if let ExpressionNode::Boolean(value) = expressions.expression(binary.right) {
+            (binary.left, *value)
+        } else {
+            return None;
+        };
+
+    let expected_true = match binary.operator {
+        BinaryOperator::Equal => expected_true,
+        BinaryOperator::NotEqual => !expected_true,
+        _ => return None,
+    };
+
+    expected_true.then_some(inner)
 }
 
 fn runtime_boolean_condition_guard(
