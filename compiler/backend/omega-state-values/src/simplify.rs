@@ -510,22 +510,15 @@ fn simplify_helper_call_comparison(
     });
     let target_machine = resolve_call_target_machine(program, machine, receiver.as_ref())?;
     let state = resolve_call_target_state(program, target_machine, call)?;
-    let argument_values: Vec<_> = call
-        .arguments
-        .iter()
-        .map(|argument| {
-            simplify_expression_with_bindings(program, machine, argument, bindings, false)
-        })
-        .collect();
     let mut argument_bindings = Arena::new();
     for (parameter, argument) in program
         .state_parameters(state)
         .iter()
-        .zip(argument_values.iter())
+        .zip(call.arguments.iter())
     {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
-            value: argument.clone(),
+            value: simplify_expression_with_bindings(program, machine, argument, bindings, false),
         });
     }
 
