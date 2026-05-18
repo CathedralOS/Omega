@@ -4,43 +4,43 @@ use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
 use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
-pub fn encode_runtime_storage_compare(
+pub fn encode_runtime_storage_compare_bytes(
     architecture: Architecture,
     left_offset: usize,
     right_offset: usize,
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 32], Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_storage_compare(
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_compare_bytes(
             left_offset,
             right_offset,
             byte_size,
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => unsupported_x86_64_runtime_storage_compare_encoding(),
     }
 }
 
-pub fn encode_runtime_storage_value_compare(
+pub fn encode_runtime_storage_value_compare_bytes(
     architecture: Architecture,
     byte_offset: usize,
     byte_size: usize,
     expected_value: i64,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 20], Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_storage_value_compare(
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_value_compare_bytes(
             byte_offset,
             byte_size,
             expected_value,
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => unsupported_x86_64_runtime_storage_value_compare_encoding(),
     }
 }
 
@@ -278,6 +278,18 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
 }
 
 fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 runtime storage encoding is not implemented",
+    ))
+}
+
+fn unsupported_x86_64_runtime_storage_compare_encoding() -> Result<[u8; 32], Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 runtime storage encoding is not implemented",
+    ))
+}
+
+fn unsupported_x86_64_runtime_storage_value_compare_encoding() -> Result<[u8; 20], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 runtime storage encoding is not implemented",
     ))

@@ -14,9 +14,9 @@ pub use runtime_storage::{
     encode_runtime_machine_integer_write, encode_runtime_machine_string_write,
     encode_runtime_pointee_binary_write, encode_runtime_pointee_integer_write,
     encode_runtime_pointee_string_write, encode_runtime_storage_binary_write,
-    encode_runtime_storage_compare, encode_runtime_storage_copy,
+    encode_runtime_storage_compare_bytes, encode_runtime_storage_copy,
     encode_runtime_storage_copy_to_runtime_frame_indexed,
-    encode_runtime_storage_copy_to_runtime_pointee, encode_runtime_storage_value_compare,
+    encode_runtime_storage_copy_to_runtime_pointee, encode_runtime_storage_value_compare_bytes,
     encode_runtime_value_compare,
 };
 pub use runtime_text::{
