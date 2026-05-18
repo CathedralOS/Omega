@@ -9,7 +9,7 @@ use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperationKind
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutation, StateMutationLowering};
 
-use super::layout::{align_to, layout_for_type, layout_for_type_reference};
+use super::layout::{align_to, layout_for_type_reference};
 
 pub(super) fn build_runtime_storage_body_plan(
     context: &RuntimeStorageContext,
@@ -138,7 +138,11 @@ fn append_parameter_slots(
     };
 
     for parameter in context.control_flow.state_parameters(state) {
-        let layout = layout_for_type(context, parameter.type_symbol, parameter.type_name.as_str());
+        let layout = layout_for_type_reference(
+            context,
+            &context.program.type_reference_table,
+            parameter.type_reference,
+        );
         let byte_offset = align_to(*next_frame_offset, layout.alignment);
         *next_frame_offset = byte_offset
             .checked_add(layout.size)
@@ -188,7 +192,11 @@ fn append_state_call_result_slot(
     };
     let type_symbol = context.program.type_reference_symbol(return_type);
     let type_name = context.program.display_type_reference(return_type);
-    let layout = layout_for_type(context, type_symbol, &type_name);
+    let layout = layout_for_type_reference(
+        context,
+        &context.program.type_reference_table,
+        return_type,
+    );
     if layout.size == 0 {
         return;
     }
