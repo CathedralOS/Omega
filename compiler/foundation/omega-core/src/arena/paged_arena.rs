@@ -136,6 +136,10 @@ impl<T: Default> PagedArena<T> {
         }
     }
 
+    pub fn into_items(self) -> impl Iterator<Item = T> {
+        self.pages.into_iter().flatten()
+    }
+
     fn push(&mut self, item: T) {
         let needs_page = self
             .pages

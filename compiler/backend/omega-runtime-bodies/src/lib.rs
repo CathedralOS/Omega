@@ -48,31 +48,38 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
     };
 
     for collected_body in collected_bodies {
+        let collection::CollectedRuntimeDispatchBody {
+            key,
+            dispatch_index,
+            expressions,
+            invariant_names,
+            operations,
+            type_references,
+        } = collected_body;
         let operations = plan
             .operations
-            .insert_many(collected_body.operations.iter().map(|(_, operation)| {
+            .insert_many(operations.into_items().map(|operation| {
                 RuntimeDispatchBodyOperation {
                     kind: match operation.kind {
                         RuntimeDispatchBodyOperationKind::LocalStorage {
                             symbol,
-                            ref name,
+                            name,
                             type_symbol,
                             type_reference,
-                            invariant_names,
+                            invariant_names: local_invariant_names,
                         } => RuntimeDispatchBodyOperationKind::LocalStorage {
                             symbol,
-                            name: name.clone(),
+                            name,
                             type_symbol,
                             type_reference: plan.type_references.copy_from(
-                                &collected_body.type_references,
-                                &collected_body.expressions,
+                                &type_references,
+                                &expressions,
                                 &mut plan.expressions,
                                 type_reference,
                             ),
                             invariant_names: plan.invariant_names.insert_many(
-                                collected_body
-                                    .invariant_names
-                                    .span_or_empty(invariant_names)
+                                invariant_names
+                                    .span_or_empty(local_invariant_names)
                                     .iter()
                                     .cloned(),
                             ),
@@ -86,11 +93,9 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
                             role,
                             call_ordinal,
                             target_key,
-                            value: plan
-                                .expressions
-                                .copy_from(&collected_body.expressions, value),
+                            value: plan.expressions.copy_from(&expressions, value),
                         },
-                        ref kind => kind.clone(),
+                        kind => kind,
                     },
                     source_key: operation.source_key,
                     statement_index: operation.statement_index,
@@ -98,8 +103,8 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
             }));
 
         plan.bodies.insert(RuntimeDispatchBody {
-            key: collected_body.key,
-            dispatch_index: collected_body.dispatch_index,
+            key,
+            dispatch_index,
             operations,
         });
     }
