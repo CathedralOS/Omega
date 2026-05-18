@@ -1,4 +1,4 @@
-use super::guards::select_runtime_dispatch_expression_guard;
+use super::guards::{runtime_storage_guard_in_table, select_runtime_dispatch_expression_guard};
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
@@ -118,6 +118,23 @@ fn select_dispatch_guard_instructions(
     }
 
     if !guard_can_emit_directly(edge) {
+        if edge.guard_has_expression
+            && let Some(kind) = runtime_storage_guard_in_table(
+                input,
+                source_dispatch_index,
+                source_key,
+                &input.state_guards.expressions,
+                edge.guard_expression,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: edge.order,
+            });
+            return;
+        }
+
         let guard = transition_guard_for_edge(input, edge);
         if let Some(kind) = select_runtime_dispatch_expression_guard(
             input,

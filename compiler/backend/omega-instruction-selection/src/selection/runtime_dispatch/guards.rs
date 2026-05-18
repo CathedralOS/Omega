@@ -507,7 +507,7 @@ fn runtime_storage_guard(
     None
 }
 
-fn runtime_storage_guard_in_table(
+pub(super) fn runtime_storage_guard_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
