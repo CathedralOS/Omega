@@ -211,8 +211,12 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
-        let mut child_aliases = RuntimeAliasBuffer::from_bindings(aliases.bindings());
-        let mut child_alias_expressions = alias_expressions.clone();
+        let mut child_alias_expressions = ExpressionTable::new();
+        let mut child_aliases = RuntimeAliasBuffer::copy_from_bindings(
+            alias_expressions,
+            aliases.bindings(),
+            &mut child_alias_expressions,
+        );
         bind_state_call_aliases(
             input,
             state_call,

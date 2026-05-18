@@ -369,11 +369,12 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
         return true;
     }
 
-    let resolved_segment_expressions = if aliases.is_empty() {
-        ExpressionTable::new()
-    } else {
-        expressions.clone()
-    };
+    let mut resolved_segment_expressions = ExpressionTable::new();
+    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        expressions,
+        aliases,
+        &mut resolved_segment_expressions,
+    );
     if runtime_text_builder_write_in_table_emit(
         input,
         dispatch_index,
@@ -387,7 +388,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
             resolve_runtime_alias_binding_handle(
                 expression,
                 operation_source_key,
-                aliases,
+                copied_aliases.bindings(),
                 expressions,
             )
             .expression

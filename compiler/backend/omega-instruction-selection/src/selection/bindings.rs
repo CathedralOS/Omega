@@ -40,10 +40,6 @@ impl RuntimeAliasBuffer {
         buffer
     }
 
-    pub(super) fn from_bindings(bindings: &[RuntimeAliasBinding]) -> Self {
-        Self::from_iter(bindings.iter().cloned())
-    }
-
     pub(super) fn copy_from_bindings(
         source: &ExpressionTable,
         bindings: &[RuntimeAliasBinding],
