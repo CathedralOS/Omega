@@ -40,10 +40,10 @@ pub(super) fn runtime_dispatch_loop_edges<'context>(
             RuntimeDispatchLoopEdge {
                 order,
                 statement_index: edge.statement_index,
-                target: edge.target.clone(),
+                target: edge.target,
                 target_dispatch_index: edge.target_dispatch_index,
                 target_arguments: edge.expressions.target_arguments,
-                continuation: edge.continuation.clone(),
+                continuation: edge.continuation,
                 continuation_dispatch_index: edge.continuation_dispatch_index,
                 continuation_arguments: edge.expressions.continuation_arguments,
                 guard_expression,

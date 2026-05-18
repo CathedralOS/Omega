@@ -82,9 +82,9 @@ fn build_dispatch_state(
         edges.insert(DispatchEdge {
             statement_index: edge.statement_index,
             target_dispatch_index: target_dispatch_index(context, &edge.target),
-            target: edge.target.clone(),
+            target: edge.target,
             continuation_dispatch_index: target_dispatch_index(context, &edge.continuation),
-            continuation: edge.continuation.clone(),
+            continuation: edge.continuation,
             expressions: edge.expressions,
             forms_cycle: edge.forms_cycle,
         });
@@ -142,7 +142,7 @@ fn append_terminal_continuation_edges(
         edges.insert(DispatchEdge {
             statement_index: 0,
             target_dispatch_index: target_dispatch_index(context, &edge.continuation),
-            target: edge.continuation.clone(),
+            target: edge.continuation,
             continuation_dispatch_index: 0,
             continuation: RuntimeTransitionTarget::None,
             expressions: Default::default(),
