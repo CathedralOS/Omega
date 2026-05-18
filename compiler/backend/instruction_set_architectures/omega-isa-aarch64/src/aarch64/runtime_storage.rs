@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
 use super::primitives::{
+    append_unsigned_immediate, append_unsigned_immediate_padded,
     encode_add_page_offset_placeholder, encode_add_x_immediate, encode_add_x_register,
     encode_adrp_placeholder, encode_compare_w_register, encode_compare_w17_immediate,
     encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
@@ -11,8 +12,7 @@ use super::primitives::{
     encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
     encode_move_x_register, encode_movz_w, encode_msub_x_register, encode_mul_x_register,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_sub_x_register, encode_udiv_x_register, encode_unsigned_immediate,
-    encode_unsigned_immediate_padded,
+    encode_sub_x_register, encode_udiv_x_register,
 };
 use super::widths::{
     add_constant_width, runtime_frame_index_setup_width, runtime_frame_indexed_binary_write_width,
@@ -21,7 +21,7 @@ use super::widths::{
     runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
     runtime_storage_binary_write_width, runtime_storage_compare_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
-    runtime_storage_value_compare_width,
+    runtime_storage_value_compare_width, scale_index_width,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -153,7 +153,7 @@ pub fn encode_runtime_machine_integer_write(
             bytes.extend(encode_store_w17_to_x16(byte_offset, byte_size)?);
         }
         8 => {
-            bytes.extend(encode_unsigned_immediate_padded(17, value));
+            append_unsigned_immediate_padded(&mut bytes, 17, value);
             bytes.extend(encode_store_x17_to_x16(byte_offset)?);
         }
         _ => {
@@ -190,7 +190,7 @@ pub fn encode_runtime_pointee_integer_write(
             bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
         }
         8 => {
-            bytes.extend(encode_unsigned_immediate_padded(17, value));
+            append_unsigned_immediate_padded(&mut bytes, 17, value);
             bytes.extend(encode_store_x_to_x(17, 16, 0)?);
         }
         _ => {
@@ -283,7 +283,7 @@ pub fn encode_runtime_machine_string_write(
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_store_x17_to_x16(byte_offset)?);
-    bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
+    append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
     bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
     Ok(bytes)
 }
@@ -303,7 +303,7 @@ pub fn encode_runtime_pointee_string_write(
         bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
     }
     bytes.extend(encode_store_x_to_x(17, 16, 0)?);
-    bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
+    append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
     bytes.extend(encode_store_x_to_x(17, 16, 8)?);
     Ok(bytes)
 }
@@ -382,7 +382,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
             bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
         }
         8 => {
-            bytes.extend(encode_unsigned_immediate_padded(17, value));
+            append_unsigned_immediate_padded(&mut bytes, 17, value);
             bytes.extend(encode_store_x_to_x(17, 16, 0)?);
         }
         _ => {
@@ -614,7 +614,9 @@ fn encode_runtime_value_operand(
                     "AArch64 MVP encoder cannot materialize runtime immediate `{value}` yet"
                 ))
             })?;
-            Ok(encode_unsigned_immediate(destination_register, value))
+            let mut bytes = Vec::with_capacity(16);
+            append_unsigned_immediate(&mut bytes, destination_register, value);
+            Ok(bytes)
         }
         RuntimeValueOperand::Storage {
             byte_offset,
@@ -877,7 +879,8 @@ fn encode_scale_x_register_by_constant(
         ));
     }
 
-    let mut bytes = encode_unsigned_immediate(destination_register, 0);
+    let mut bytes = Vec::with_capacity(scale_index_width(scale));
+    append_unsigned_immediate(&mut bytes, destination_register, 0);
     let working_register = 19u8;
     bytes.extend(encode_move_x_register(working_register, source_register));
 
@@ -916,7 +919,7 @@ fn append_add_constant_to_x_register(
         return Ok(());
     }
 
-    bytes.extend(encode_unsigned_immediate(19, value as u64));
+    append_unsigned_immediate(bytes, 19, value as u64);
     bytes.extend(encode_add_x_register(register, register, 19));
     Ok(())
 }

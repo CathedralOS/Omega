@@ -1,11 +1,11 @@
 use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
-    encode_add_page_offset_placeholder, encode_add_x_immediate, encode_adrp_placeholder,
-    encode_branch_link_placeholder, encode_cbz_x, encode_compare_w_immediate,
-    encode_conditional_branch_equal, encode_conditional_branch_not_equal,
-    encode_load_byte_w_from_x, encode_move_x_register, encode_movz, encode_store_byte_w_to_x,
-    encode_store_x_to_x, encode_svc, encode_unsigned_immediate,
+    append_unsigned_immediate, encode_add_page_offset_placeholder, encode_add_x_immediate,
+    encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbz_x,
+    encode_compare_w_immediate, encode_conditional_branch_equal,
+    encode_conditional_branch_not_equal, encode_load_byte_w_from_x, encode_move_x_register,
+    encode_movz, encode_store_byte_w_to_x, encode_store_x_to_x, encode_svc,
 };
 use super::super::widths::{
     runtime_text_line_read_import_width, runtime_text_line_read_syscall_width,
@@ -87,10 +87,7 @@ fn encode_runtime_text_line_read(
             number_register,
             supervisor_call,
         } => {
-            bytes.extend(encode_unsigned_immediate(
-                number_register,
-                u64::from(number),
-            ));
+            append_unsigned_immediate(&mut bytes, number_register, u64::from(number));
             bytes.extend(encode_svc(supervisor_call));
         }
     }

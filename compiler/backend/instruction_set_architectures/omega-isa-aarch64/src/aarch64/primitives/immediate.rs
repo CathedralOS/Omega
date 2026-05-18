@@ -27,21 +27,22 @@ pub(in crate::aarch64) fn encode_add_page_offset_placeholder(register: u8) -> [u
     encode_instruction(0x91000000 | (u32::from(register) << 5) | u32::from(register))
 }
 
-pub(in crate::aarch64) fn encode_immediate(
+pub(in crate::aarch64) fn append_immediate(
+    bytes: &mut Vec<u8>,
     register: u8,
     value: i64,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     let value = u64::try_from(value).map_err(|_| {
         Diagnostic::error(format!(
             "AArch64 MVP encoder cannot encode negative immediate `{value}` yet"
         ))
     })?;
 
-    Ok(encode_unsigned_immediate(register, value))
+    append_unsigned_immediate(bytes, register, value);
+    Ok(())
 }
 
-pub(in crate::aarch64) fn encode_unsigned_immediate(register: u8, value: u64) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(16);
+pub(in crate::aarch64) fn append_unsigned_immediate(bytes: &mut Vec<u8>, register: u8, value: u64) {
     bytes.extend(encode_movz(register, halfword(value, 0)));
 
     for halfword_shift in 1..4 {
@@ -50,12 +51,13 @@ pub(in crate::aarch64) fn encode_unsigned_immediate(register: u8, value: u64) ->
             bytes.extend(encode_movk(register, immediate, halfword_shift));
         }
     }
-
-    bytes
 }
 
-pub(in crate::aarch64) fn encode_unsigned_immediate_padded(register: u8, value: u64) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(16);
+pub(in crate::aarch64) fn append_unsigned_immediate_padded(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    value: u64,
+) {
     bytes.extend(encode_movz(register, halfword(value, 0)));
 
     for halfword_shift in 1..4 {
@@ -65,8 +67,6 @@ pub(in crate::aarch64) fn encode_unsigned_immediate_padded(register: u8, value: 
             halfword_shift,
         ));
     }
-
-    bytes
 }
 
 pub(in crate::aarch64) fn halfword(value: u64, halfword_shift: u8) -> u16 {
