@@ -1,12 +1,11 @@
 use crate::RelocationPlanningInput;
 use omega_instruction_selection as architecture;
 use omega_object::{
-    RelocationKind, RelocationPlan, RelocationRecord, object_symbol_handle_by_name,
-    storage_region_symbol_name,
+    ObjectSymbolHandle, RelocationKind, RelocationPlan, RelocationRecord,
+    object_symbol_handle_by_name, storage_region_symbol_name,
 };
 use omega_target::Architecture;
 use omega_target_operations::{FunctionInstructionPlan, InstructionOperandKind};
-use std::sync::Arc;
 
 pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
@@ -28,7 +27,10 @@ pub(super) fn collect_data_address_relocations(
                 if !data.is_valid() {
                     continue;
                 }
-                let symbol = input.data.objects.get(*data).symbol.clone();
+                let symbol = object_symbol_handle_by_name(
+                    &input.object,
+                    input.data.objects.get(*data).symbol.as_ref(),
+                );
                 insert_data_address_relocations(
                     input,
                     relocation_plan,
@@ -40,16 +42,15 @@ pub(super) fn collect_data_address_relocations(
             }
             InstructionOperandKind::RuntimeStringPointer { region, .. }
             | InstructionOperandKind::RuntimeStringLength { region, .. } => {
+                let symbol_name = storage_region_symbol_name(*region, input.entry_machine_name);
+                let symbol = object_symbol_handle_by_name(&input.object, &symbol_name);
                 insert_data_address_relocations(
                     input,
                     relocation_plan,
                     function,
                     selected_instruction_index,
                     operand_text_offset,
-                    Arc::from(storage_region_symbol_name(
-                        *region,
-                        input.entry_machine_name,
-                    )),
+                    symbol,
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
@@ -66,11 +67,10 @@ pub(super) fn insert_data_address_relocations(
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
     operand_text_offset: usize,
-    symbol: Arc<str>,
+    symbol_handle: ObjectSymbolHandle,
 ) {
     let function_symbol_handle =
         object_symbol_handle_by_name(&input.object, function.symbol.as_ref());
-    let symbol_handle = object_symbol_handle_by_name(&input.object, symbol.as_ref());
 
     match input.target.architecture {
         Architecture::Aarch64 => {
