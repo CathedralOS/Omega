@@ -4,6 +4,7 @@ mod storage_copy;
 
 use super::super::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding_handle};
 use super::super::lookups::state_mutation_for_statement;
+use super::text_writes::runtime_text_builder_write_in_table_emit;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_checked_trees::expression::{
@@ -106,6 +107,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
             &expressions,
             resolved_target.expression,
             resolved_value.expression,
+            aliases,
             static_values,
             runtime_value_operands,
             selected_instructions,
@@ -155,6 +157,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
         &input.state_storage.expressions,
         target,
         value,
+        &[],
         static_values,
         runtime_value_operands,
         selected_instructions,
@@ -172,6 +175,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
+    aliases: &[RuntimeAliasBinding],
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -191,6 +195,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
             &mut expressions,
             target,
             value,
+            aliases,
             static_values,
             runtime_value_operands,
             selected_instructions,
@@ -207,6 +212,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
         expressions,
         target,
         value,
+        aliases,
         static_values,
         runtime_value_operands,
         selected_instructions,
@@ -224,6 +230,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     expressions: &mut ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
+    aliases: &[RuntimeAliasBinding],
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -248,6 +255,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 expressions,
                 field_target,
                 field.value,
+                aliases,
                 static_values,
                 runtime_value_operands,
                 selected_instructions,
@@ -266,6 +274,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
         expressions,
         target,
         value,
+        aliases,
         static_values,
         runtime_value_operands,
         selected_instructions,
@@ -283,6 +292,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
+    aliases: &[RuntimeAliasBinding],
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -350,6 +360,40 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
             source_key: operation_source_key,
             source_statement: statement_index,
         });
+        return true;
+    }
+
+    let resolved_segment_expressions = if aliases.is_empty() {
+        ExpressionTable::new()
+    } else {
+        expressions.clone()
+    };
+    if runtime_text_builder_write_in_table_emit(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        statement_index,
+        expressions,
+        target,
+        resolved_segment_expressions,
+        &|expressions, expression| {
+            resolve_runtime_alias_binding_handle(
+                expression,
+                operation_source_key,
+                aliases,
+                expressions,
+            )
+            .expression
+        },
+        &mut |kind| {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+        },
+    ) {
         return true;
     }
 
