@@ -4,17 +4,16 @@ use omega_checked_trees::statement::{TableCall, TransitionTargetHandle, Transiti
 use omega_core::diagnostics::Diagnostic;
 
 use crate::segments::{
-    SegmentTransition, copy_statement_expression_span, table_transition_guard_expression,
+    SegmentTransition, StateSegment, copy_statement_expression_span,
+    table_transition_guard_expression,
 };
 use omega_state_graph::{
     PlannedTransitionTarget, StateGraph, StateKey, TransitionEdge, TransitionExpressionRefs,
 };
 
-use crate::StateIndexEntry;
-
 pub(super) fn plan_transition(
     source_key: StateKey,
-    state_indexes: &[StateIndexEntry<'_>],
+    segments: &[StateSegment],
     transition: &SegmentTransition,
     program: &Program,
     state_graph: &mut StateGraph,
@@ -47,9 +46,9 @@ pub(super) fn plan_transition(
                 .unwrap_or_else(ExpressionHandle::invalid);
 
             Ok(TransitionEdge {
-                target: plan_transition_target(source_key, state_indexes, table.target, program)?,
+                target: plan_transition_target(source_key, segments, table.target, program)?,
                 continuation: if table.continuation.is_valid() {
-                    plan_transition_target(source_key, state_indexes, table.continuation, program)?
+                    plan_transition_target(source_key, segments, table.continuation, program)?
                 } else {
                     PlannedTransitionTarget::None
                 },
@@ -66,9 +65,9 @@ pub(super) fn plan_transition(
             table,
             has_continuation_segment,
         } => Ok(TransitionEdge {
-            target: plan_call_target(source_key, state_indexes, table, program)?,
+            target: plan_call_target(source_key, segments, table, program)?,
             continuation: if *has_continuation_segment {
-                next_segment_target(source_key, state_indexes)?
+                next_segment_target(source_key, segments)?
             } else {
                 PlannedTransitionTarget::None
             },
@@ -133,7 +132,7 @@ fn table_transition_target_value(
 
 fn plan_transition_target(
     source_key: StateKey,
-    state_indexes: &[StateIndexEntry<'_>],
+    segments: &[StateSegment],
     target: TransitionTargetHandle,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
@@ -157,24 +156,16 @@ fn plan_transition_target(
             let symbol = path.symbol;
             let target = symbol
                 .is_valid()
-                .then(|| {
-                    state_indexes
-                        .iter()
-                        .find(|entry| entry.key.state == symbol && entry.key.segment_index == 0)
-                })
+                .then(|| find_initial_segment_by_symbol(segments, symbol))
                 .flatten()
-                .or_else(|| {
-                    state_indexes
-                        .iter()
-                        .find(|entry| entry.key.segment_index == 0 && *entry.name == name)
-                });
+                .or_else(|| find_initial_segment_by_name(segments, &name));
             let target = target.ok_or_else(|| {
                 Diagnostic::error(format!("unknown state transition target `{name}`"))
             })?;
 
             Ok(PlannedTransitionTarget::State {
-                index: target.index,
-                key: target.key,
+                index: target.0,
+                key: target.1.key,
                 name,
             })
         }
@@ -203,7 +194,7 @@ fn plan_transition_target(
 
 fn plan_call_target(
     source_key: StateKey,
-    state_indexes: &[StateIndexEntry<'_>],
+    segments: &[StateSegment],
     call: &TableCall,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
@@ -214,23 +205,15 @@ fn plan_call_target(
         let symbol = call.target_symbol;
         let target = symbol
             .is_valid()
-            .then(|| {
-                state_indexes
-                    .iter()
-                    .find(|entry| entry.key.state == symbol && entry.key.segment_index == 0)
-            })
+            .then(|| find_initial_segment_by_symbol(segments, symbol))
             .flatten()
-            .or_else(|| {
-                state_indexes
-                    .iter()
-                    .find(|entry| entry.key.segment_index == 0 && *entry.name == name)
-            });
+            .or_else(|| find_initial_segment_by_name(segments, &name));
         let target = target
             .ok_or_else(|| Diagnostic::error(format!("unknown state call target `{name}`")))?;
 
         return Ok(PlannedTransitionTarget::State {
-            index: target.index,
-            key: target.key,
+            index: target.0,
+            key: target.1.key,
             name,
         });
     }
@@ -267,22 +250,43 @@ fn display_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> S
 
 fn next_segment_target(
     source_key: StateKey,
-    state_indexes: &[StateIndexEntry<'_>],
+    segments: &[StateSegment],
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     let next_key = StateKey {
         segment_index: source_key.segment_index + 1,
         ..source_key
     };
-    let target = state_indexes
+    let target = segments
         .iter()
-        .find(|entry| entry.key == next_key)
+        .enumerate()
+        .find(|(_, segment)| segment.key == next_key)
         .ok_or_else(|| {
             Diagnostic::error("internal state-call continuation segment was not indexed")
         })?;
 
     Ok(PlannedTransitionTarget::State {
-        index: target.index,
-        key: target.key,
-        name: target.name.clone(),
+        index: target.0,
+        key: target.1.key,
+        name: target.1.name.clone(),
     })
+}
+
+fn find_initial_segment_by_symbol(
+    segments: &[StateSegment],
+    symbol: omega_core::symbols::SymbolHandle,
+) -> Option<(usize, &StateSegment)> {
+    segments
+        .iter()
+        .enumerate()
+        .find(|(_, segment)| segment.key.state == symbol && segment.key.segment_index == 0)
+}
+
+fn find_initial_segment_by_name<'segments>(
+    segments: &'segments [StateSegment],
+    name: &omega_checked_trees::name::ProgramName,
+) -> Option<(usize, &'segments StateSegment)> {
+    segments
+        .iter()
+        .enumerate()
+        .find(|(_, segment)| segment.key.segment_index == 0 && segment.name == *name)
 }
