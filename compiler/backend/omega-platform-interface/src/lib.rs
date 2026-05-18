@@ -34,7 +34,9 @@ impl HostCallPlan {
         argument_capacity: usize,
     ) -> Self {
         Self {
-            expressions: ExpressionTable::new(),
+            expressions: ExpressionTable::with_expression_capacity(
+                operation_capacity.saturating_add(argument_capacity),
+            ),
             calls: Arena::with_capacity(call_capacity),
             unsupported_calls: Arena::with_capacity(unsupported_call_capacity),
             operations: Arena::with_capacity(operation_capacity),

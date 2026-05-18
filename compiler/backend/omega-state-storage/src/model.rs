@@ -17,7 +17,9 @@ pub struct StateStoragePlan {
 impl StateStoragePlan {
     pub(crate) fn with_capacity(local_capacity: usize, mutation_capacity: usize) -> Self {
         Self {
-            expressions: ExpressionTable::new(),
+            expressions: ExpressionTable::with_expression_capacity(
+                mutation_capacity.saturating_mul(2),
+            ),
             invariant_names: Arena::new(),
             locals: Arena::with_capacity(local_capacity),
             mutations: Arena::with_capacity(mutation_capacity),

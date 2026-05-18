@@ -35,7 +35,12 @@ impl RuntimeBranchingCallPlan {
         operation_capacity: usize,
     ) -> Self {
         Self {
-            expressions: ExpressionTable::new(),
+            expressions: ExpressionTable::with_expression_capacity(
+                call_capacity
+                    .saturating_add(argument_capacity)
+                    .saturating_add(binding_capacity)
+                    .saturating_add(operation_capacity),
+            ),
             calls: Arena::with_capacity(call_capacity),
             edges: Arena::with_capacity(edge_capacity),
             target_arguments: Arena::with_capacity(argument_capacity),
