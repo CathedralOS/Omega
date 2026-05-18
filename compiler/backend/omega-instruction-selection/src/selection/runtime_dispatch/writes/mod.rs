@@ -11,7 +11,7 @@ use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
-use static_values::RuntimeStaticValues;
+pub(super) use static_values::RuntimeStaticValues;
 
 pub(super) use storage_copy::runtime_storage_copy;
 

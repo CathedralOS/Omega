@@ -8,7 +8,80 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::enum_variant_value;
 use omega_platform_interface::PlaceKey;
 
-pub(super) type RuntimeStaticValues = Vec<(PlaceKey, i64)>;
+const INLINE_RUNTIME_STATIC_VALUE_COUNT: usize = 8;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::selection::runtime_dispatch) struct RuntimeStaticValues {
+    inline: [Option<(PlaceKey, i64)>; INLINE_RUNTIME_STATIC_VALUE_COUNT],
+    len: usize,
+    overflow: Vec<(PlaceKey, i64)>,
+}
+
+impl RuntimeStaticValues {
+    pub(in crate::selection::runtime_dispatch) fn new() -> Self {
+        Self {
+            inline: std::array::from_fn(|_| None),
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    pub(in crate::selection::runtime_dispatch) fn clear(&mut self) {
+        let inline_len = self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT);
+        for slot in self.inline.iter_mut().take(inline_len) {
+            *slot = None;
+        }
+
+        self.len = 0;
+        self.overflow.clear();
+    }
+
+    fn get(&self, target: &PlaceKey) -> Option<i64> {
+        self.iter()
+            .find(|(existing_target, _)| existing_target == target)
+            .map(|(_, value)| *value)
+    }
+
+    fn set(&mut self, target: PlaceKey, value: i64) {
+        if let Some((_, existing_value)) = self
+            .iter_mut()
+            .find(|(existing_target, _)| existing_target == &target)
+        {
+            *existing_value = value;
+            return;
+        }
+
+        if self.len < INLINE_RUNTIME_STATIC_VALUE_COUNT {
+            self.inline[self.len] = Some((target, value));
+        } else {
+            self.overflow.push((target, value));
+        }
+
+        self.len += 1;
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &(PlaceKey, i64)> {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
+            .filter_map(Option::as_ref)
+            .chain(self.overflow.iter())
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut (PlaceKey, i64)> {
+        self.inline
+            .iter_mut()
+            .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
+            .filter_map(Option::as_mut)
+            .chain(self.overflow.iter_mut())
+    }
+}
+
+impl Default for RuntimeStaticValues {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 pub(super) fn resolve_runtime_static_integer_value(
     input: &InstructionSelectionInput<'_>,
@@ -67,10 +140,7 @@ fn resolve_runtime_resolved_static_integer_value(
         Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
             enum_variant_value(&input.layouts, &expression).or_else(|| {
                 let key = PlaceKey::from_expression(&expression)?;
-                static_values
-                    .iter()
-                    .find(|(target, _)| target == &key)
-                    .map(|(_, value)| *value)
+                static_values.get(&key)
             })
         }
         Expression::Mutable(_)
@@ -93,12 +163,5 @@ pub(super) fn set_runtime_static_value(
         return;
     };
 
-    if let Some((_, existing_value)) = static_values
-        .iter_mut()
-        .find(|(existing_target, _)| existing_target == &target)
-    {
-        *existing_value = value;
-    } else {
-        static_values.push((target, value));
-    }
+    static_values.set(target, value);
 }
