@@ -60,7 +60,8 @@ impl Compiler {
 
         validate_selected_target(&source_storage, self.options.target_name.as_deref())?;
 
-        let syntax = assemble_syntax(&source_storage)?;
+        let source_file_count = source_storage.file_count();
+        let syntax = assemble_syntax(source_storage)?;
         write_phase_json(
             &self.options,
             "02_syntax_trees.json",
@@ -102,7 +103,7 @@ impl Compiler {
 
         Ok(CompileReport {
             root_path: self.options.root_path,
-            source_file_count: source_storage.file_count(),
+            source_file_count,
             wrote_output: self.options.write_output,
         })
     }
@@ -177,7 +178,7 @@ struct EmittedProgram {
     data_bytes: Vec<u8>,
 }
 
-fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+fn assemble_syntax(_sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let mut syntax_trees = SyntaxTrees::new(Default::default());
 
     for (_, file) in _sources.files.iter() {
@@ -186,7 +187,7 @@ fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diag
 
     Ok(AssembledSyntax {
         syntax_trees,
-        sources: Arc::new(_sources.sources.clone()),
+        sources: Arc::new(_sources.sources),
     })
 }
 
