@@ -9,7 +9,8 @@ use omega_instruction_selection::{
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
     runtime_pointee_string_write_width, runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_copy_to_runtime_frame_indexed_width,
+    runtime_storage_compare_width, runtime_storage_copy_from_runtime_frame_indexed_width,
+    runtime_storage_copy_to_runtime_frame_indexed_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
     runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
     runtime_text_line_read_width, runtime_text_literal_append_width,
@@ -250,6 +251,17 @@ fn machine_instruction_width(
             byte_count,
             ..
         } => runtime_storage_copy_to_runtime_frame_indexed_width(
+            input.target.architecture,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+            ..
+        } => runtime_storage_copy_from_runtime_frame_indexed_width(
             input.target.architecture,
             *element_byte_size,
             *field_byte_offset,

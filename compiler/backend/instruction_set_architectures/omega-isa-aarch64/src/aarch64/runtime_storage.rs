@@ -510,6 +510,52 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
+    );
+    append_runtime_frame_index_target_address(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+
+    for_each_runtime_copy_chunk(0, target_offset, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(
+                    17,
+                    20,
+                    target_offset + offset,
+                    chunk_size,
+                )?);
+            }
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 16, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, target_offset + offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     source_offset: usize,
     pointer_byte_offset: usize,

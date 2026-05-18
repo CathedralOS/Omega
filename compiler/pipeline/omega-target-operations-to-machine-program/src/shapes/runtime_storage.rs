@@ -115,6 +115,17 @@ pub(super) fn runtime_storage_copy_to_runtime_frame_indexed_kind(
     MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed
 }
 
+pub(super) fn runtime_storage_copy_from_runtime_frame_indexed_kind(
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+    _byte_count: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexed
+}
+
 pub(super) fn runtime_storage_copy_to_runtime_pointee_kind(
     _source_offset: usize,
     _pointer_byte_offset: usize,

@@ -270,6 +270,14 @@ pub enum SelectedInstructionKind {
         field_byte_offset: usize,
         byte_count: usize,
     },
+    CopyRuntimeFrameIndexedToRuntimeFrame {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeStorageToRuntimePointee {
         source_region: RuntimeStorageRegion,
         source_offset: usize,

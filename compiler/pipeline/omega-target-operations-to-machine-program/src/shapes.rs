@@ -290,6 +290,21 @@ pub(super) fn lower_machine_instruction_kind(
             *field_byte_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => runtime_storage::runtime_storage_copy_from_runtime_frame_indexed_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
             pointer_byte_offset,

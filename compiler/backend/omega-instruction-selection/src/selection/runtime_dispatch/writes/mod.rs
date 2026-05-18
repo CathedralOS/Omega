@@ -399,6 +399,17 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         )
     })
     .or_else(|| {
+        storage_copy::runtime_storage_indexed_source_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            target,
+            value,
+        )
+    })
+    .or_else(|| {
         mutation::select_runtime_static_mutation_write_in_table(
             input,
             dispatch_index,
