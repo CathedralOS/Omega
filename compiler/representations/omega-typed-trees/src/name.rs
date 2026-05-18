@@ -16,6 +16,7 @@ pub struct ProgramName {
 enum ProgramNameText {
     #[default]
     Missing,
+    Static(&'static str),
     Generated(Arc<str>),
 }
 
@@ -26,9 +27,16 @@ impl ProgramName {
         }
     }
 
+    pub fn generated_static(text: &'static str) -> Self {
+        Self {
+            text: ProgramNameText::Static(text),
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         match &self.text {
             ProgramNameText::Missing => "",
+            ProgramNameText::Static(text) => text,
             ProgramNameText::Generated(text) => text.as_ref(),
         }
     }

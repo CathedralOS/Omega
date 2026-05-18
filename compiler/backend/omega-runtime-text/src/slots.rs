@@ -130,7 +130,7 @@ pub(crate) fn text_place_for_buffer_target(
         return expressions.insert(ExpressionNode::Member(TableMemberExpression {
             receiver: target,
             member_symbol: SymbolHandle::invalid(),
-            member: ProgramName::generated("text"),
+            member: ProgramName::generated_static("text"),
         }));
     }
 
