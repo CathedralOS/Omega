@@ -115,6 +115,23 @@ pub(super) fn select_runtime_storage_write_for_operation(
         return;
     }
     if aliases.is_empty()
+        && let Some(kind) = mutation::select_runtime_string_mutation_write_in_table(
+            input,
+            dispatch_index,
+            mutation.source_key,
+            mutation.statement_index,
+            mutation.target,
+            mutation.value,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: mutation.source_key,
+            source_statement: mutation.statement_index,
+        });
+        return;
+    }
+    if aliases.is_empty()
         && let Some(kind) = mutation::select_runtime_binary_mutation_write_in_table(
             input,
             dispatch_index,
