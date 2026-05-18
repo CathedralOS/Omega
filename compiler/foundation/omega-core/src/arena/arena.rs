@@ -12,6 +12,11 @@ pub struct Arena<T> {
     active_count: usize,
 }
 
+pub struct ArenaSpanInserter<'arena, T> {
+    arena: &'arena mut Arena<T>,
+    count: u32,
+}
+
 impl<T: Default> Arena<T> {
     pub fn new() -> Self {
         Self {
@@ -157,6 +162,27 @@ impl<T: Default> Arena<T> {
                 .expect("arena active count overflow");
 
             HandleSpan::from_parts(Handle::from_arena_index(start_index), count)
+        }
+    }
+
+    pub fn insert_many_with(
+        &mut self,
+        insert_items: impl FnOnce(&mut ArenaSpanInserter<'_, T>),
+    ) -> HandleSpan<T> {
+        // Spans promise contiguous storage. This variant lets recursive
+        // producers emit directly into the arena without staging a Vec.
+        let start_index = self.items.len().try_into().expect("arena index overflow");
+        let mut inserter = ArenaSpanInserter {
+            arena: self,
+            count: 0,
+        };
+
+        insert_items(&mut inserter);
+
+        if inserter.count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(Handle::from_arena_index(start_index), inserter.count)
         }
     }
 
@@ -419,6 +445,32 @@ impl<T: Default> Arena<T> {
         } else {
             0
         }
+    }
+}
+
+impl<T: Default> ArenaSpanInserter<'_, T> {
+    pub fn insert(&mut self, item: T) -> Handle<T> {
+        let arena_index = self
+            .arena
+            .items
+            .len()
+            .try_into()
+            .expect("arena index overflow");
+
+        self.arena.items.push(item);
+        self.arena.generations.push(1);
+        self.arena.occupied.push(true);
+        self.arena.active_count = self
+            .arena
+            .active_count
+            .checked_add(1)
+            .expect("arena active count overflow");
+        self.count = self
+            .count
+            .checked_add(1)
+            .expect("arena span count overflow");
+
+        Handle::from_arena_index(arena_index)
     }
 }
 
