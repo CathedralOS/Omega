@@ -110,11 +110,15 @@ fn select_runtime_leaf_branch_terminal_value_write(
         .leaf_bindings
         .span(expansion.bindings)
         .unwrap_or(&[]);
-    let resolved_value = resolve_leaf_binding_expression(
+    let mut expressions = ExpressionTable::new();
+    let value = expressions.copy_from(&input.runtime_branching_calls.expressions, value);
+    let resolved_value = resolve_leaf_binding_expression_handle(
         &input.runtime_branching_calls.expressions,
-        &input.runtime_branching_calls.expressions.to_tree(value),
+        &mut expressions,
+        value,
         bindings,
     );
+    let resolved_value = expressions.to_tree(resolved_value);
     let target = Expression::Name(NamePath::resolved(
         vec![slot.name.clone()],
         slot.symbol,
