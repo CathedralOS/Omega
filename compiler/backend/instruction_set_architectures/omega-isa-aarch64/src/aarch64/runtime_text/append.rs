@@ -8,7 +8,7 @@ use super::super::primitives::{
     encode_subs_x_immediate,
 };
 use super::super::widths::{
-    add_constant_width, runtime_frame_index_setup_width,
+    runtime_frame_index_setup_width,
     runtime_text_buffer_materialize_to_runtime_frame_indexed_width,
     runtime_text_buffer_materialize_width,
     runtime_text_literal_append_to_runtime_frame_indexed_width,
@@ -367,7 +367,7 @@ fn encode_runtime_frame_index_target_address(
         element_byte_size,
     )?);
     bytes.extend(encode_add_x_register(16, 16, 18));
-    bytes.extend(encode_add_constant_to_x_register(16, field_byte_offset)?);
+    append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     Ok(bytes)
 }
 
@@ -409,18 +409,20 @@ fn encode_scale_x_register_by_constant(
     Ok(bytes)
 }
 
-fn encode_add_constant_to_x_register(register: u8, value: usize) -> Result<Vec<u8>, Diagnostic> {
+fn append_add_constant_to_x_register(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    value: usize,
+) -> Result<(), Diagnostic> {
     if value == 0 {
-        return Ok(Vec::new());
+        return Ok(());
     }
     if value <= 4095 {
-        return Ok(Vec::from(encode_add_x_immediate(
-            register, register, value,
-        )?));
+        bytes.extend(encode_add_x_immediate(register, register, value)?);
+        return Ok(());
     }
 
-    let mut bytes = Vec::with_capacity(add_constant_width(value));
     bytes.extend(encode_movz_w(19, (value & 0xffff) as u16));
     bytes.extend(encode_add_x_register(register, register, 19));
-    Ok(bytes)
+    Ok(())
 }
