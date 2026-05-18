@@ -221,8 +221,9 @@ fn plan_backend(
         workers.clone(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    let control_flow = omega_state_graph_to_control_flow::build_control_flow_plan(&state_graph)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let control_flow =
+        omega_state_graph_to_control_flow::build_control_flow_plan_owned(state_graph)
+            .map_err(|diagnostic| vec![diagnostic])?;
 
     omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         checked_program,
