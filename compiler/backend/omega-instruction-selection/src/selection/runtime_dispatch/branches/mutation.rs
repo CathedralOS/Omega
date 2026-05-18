@@ -1,11 +1,11 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-    TableMemberExpression,
+    TableCallExpression, TableMemberExpression,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 use omega_target_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
     StateGuardOperator,
@@ -34,6 +34,25 @@ fn supports_scalar_integer_write(byte_size: usize) -> bool {
 
 fn supports_runtime_value_operand(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
+}
+
+fn builtin_runtime_call_operator_in_table(
+    input: &InstructionSelectionInput<'_>,
+    call: &TableCallExpression,
+) -> Option<StateGuardOperator> {
+    if call.receiver.is_valid() || call.arguments.count() != 2 {
+        return None;
+    }
+
+    let symbols = &input.program.symbols;
+    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Max) {
+        return Some(StateGuardOperator::Max);
+    }
+    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Min) {
+        return Some(StateGuardOperator::Min);
+    }
+
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -585,16 +604,27 @@ fn select_runtime_binary_mutation_write_in_table(
     value: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
-    let ExpressionNode::Binary(binary) = expressions.expression(value) else {
-        return None;
+    let (operator, left_expression, right_expression) = match expressions.expression(value) {
+        ExpressionNode::Binary(binary) => (
+            runtime_binary_operator(binary.operator)?,
+            binary.left,
+            binary.right,
+        ),
+        ExpressionNode::Call(call) => {
+            let operator = builtin_runtime_call_operator_in_table(input, call)?;
+            let left = expressions.expression_handle_at_offset(call.arguments, 0);
+            let right = expressions.expression_handle_at_offset(call.arguments, 1);
+            (operator, left, right)
+        }
+        _ => return None,
     };
-    let operator = runtime_binary_operator(binary.operator)?;
+
     let left = resolve_runtime_value_operand_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
-        binary.left,
+        left_expression,
         runtime_value_operands,
     )?;
     let right = resolve_runtime_value_operand_in_table(
@@ -602,7 +632,7 @@ fn select_runtime_binary_mutation_write_in_table(
         dispatch_index,
         value_source_key,
         expressions,
-        binary.right,
+        right_expression,
         runtime_value_operands,
     )?;
 
@@ -833,29 +863,56 @@ fn resolve_runtime_value_operand_in_table(
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
     }
 
-    if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
-        let operator = runtime_binary_operator(binary.operator)?;
-        let left = resolve_runtime_value_operand_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            binary.left,
-            runtime_value_operands,
-        )?;
-        let right = resolve_runtime_value_operand_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            binary.right,
-            runtime_value_operands,
-        )?;
-        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-        }));
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let operator = runtime_binary_operator(binary.operator)?;
+            let left = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                runtime_value_operands,
+            )?;
+            let right = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.right,
+                runtime_value_operands,
+            )?;
+            return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+                left,
+                operator,
+                right,
+            }));
+        }
+        ExpressionNode::Call(call) => {
+            let operator = builtin_runtime_call_operator_in_table(input, call)?;
+            let left = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                expressions.expression_handle_at_offset(call.arguments, 0),
+                runtime_value_operands,
+            )?;
+            let right = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                expressions.expression_handle_at_offset(call.arguments, 1),
+                runtime_value_operands,
+            )?;
+            return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+                left,
+                operator,
+                right,
+            }));
+        }
+        _ => {}
     }
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
