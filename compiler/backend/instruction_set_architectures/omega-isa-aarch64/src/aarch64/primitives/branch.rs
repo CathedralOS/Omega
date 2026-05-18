@@ -4,7 +4,7 @@ use super::instruction::encode_instruction;
 
 pub(in crate::aarch64) fn encode_conditional_branch_not_equal(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ne")?;
     Ok(encode_instruction(
         0x54000001 | ((instruction_distance as u32 & 0x7ffff) << 5),
@@ -13,7 +13,7 @@ pub(in crate::aarch64) fn encode_conditional_branch_not_equal(
 
 pub(in crate::aarch64) fn encode_conditional_branch_equal(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.eq")?;
     Ok(encode_instruction(
         0x54000000 | ((instruction_distance as u32 & 0x7ffff) << 5),
@@ -22,7 +22,7 @@ pub(in crate::aarch64) fn encode_conditional_branch_equal(
 
 pub(in crate::aarch64) fn encode_conditional_branch_greater(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.gt")?;
     Ok(encode_instruction(
         0x5400000C | ((instruction_distance as u32 & 0x7ffff) << 5),
@@ -31,7 +31,7 @@ pub(in crate::aarch64) fn encode_conditional_branch_greater(
 
 pub(in crate::aarch64) fn encode_conditional_branch_greater_or_equal(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ge")?;
     Ok(encode_instruction(
         0x5400000A | ((instruction_distance as u32 & 0x7ffff) << 5),
@@ -40,7 +40,7 @@ pub(in crate::aarch64) fn encode_conditional_branch_greater_or_equal(
 
 pub(in crate::aarch64) fn encode_conditional_branch_less(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.lt")?;
     Ok(encode_instruction(
         0x5400000B | ((instruction_distance as u32 & 0x7ffff) << 5),
@@ -49,7 +49,7 @@ pub(in crate::aarch64) fn encode_conditional_branch_less(
 
 pub(in crate::aarch64) fn encode_conditional_branch_less_or_equal(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.le")?;
     Ok(encode_instruction(
         0x5400000D | ((instruction_distance as u32 & 0x7ffff) << 5),
@@ -59,7 +59,7 @@ pub(in crate::aarch64) fn encode_conditional_branch_less_or_equal(
 pub(in crate::aarch64) fn encode_cbz_x(
     register: u8,
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "cbz")?;
     Ok(encode_instruction(
         0xB4000000 | ((instruction_distance as u32 & 0x7ffff) << 5) | u32::from(register),
@@ -68,7 +68,7 @@ pub(in crate::aarch64) fn encode_cbz_x(
 
 pub(in crate::aarch64) fn encode_unconditional_branch(
     byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 26, "b")?;
     Ok(encode_instruction(
         0x14000000 | (instruction_distance as u32 & 0x03ff_ffff),

@@ -5,7 +5,7 @@ use super::instruction::encode_instruction;
 pub(in crate::aarch64) fn encode_load_w17_from_x16(
     byte_offset: usize,
     byte_size: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     encode_load_w_from_x(17, 16, byte_offset, byte_size)
 }
 
@@ -14,7 +14,7 @@ pub(in crate::aarch64) fn encode_load_w_from_x(
     base_register: u8,
     byte_offset: usize,
     byte_size: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     match byte_size {
         1 => encode_load_byte_w_from_x(destination_register, base_register, byte_offset),
         4 => {
@@ -38,7 +38,7 @@ pub(in crate::aarch64) fn encode_load_w_from_x(
 
 pub(in crate::aarch64) fn encode_load_byte_w17_from_x16(
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     encode_load_byte_w_from_x(17, 16, byte_offset)
 }
 
@@ -46,7 +46,7 @@ pub(in crate::aarch64) fn encode_load_byte_w_from_x(
     destination_register: u8,
     base_register: u8,
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     if byte_offset > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot load byte at offset `{byte_offset}` yet"
@@ -63,7 +63,7 @@ pub(in crate::aarch64) fn encode_load_byte_w_from_x(
 pub(in crate::aarch64) fn encode_store_w17_to_x16(
     byte_offset: usize,
     byte_size: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     encode_store_w_to_x(17, 16, byte_offset, byte_size)
 }
 
@@ -72,7 +72,7 @@ pub(in crate::aarch64) fn encode_store_w_to_x(
     base_register: u8,
     byte_offset: usize,
     byte_size: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     match byte_size {
         1 => encode_store_byte_w_to_x(source_register, base_register, byte_offset),
         4 => {
@@ -96,7 +96,7 @@ pub(in crate::aarch64) fn encode_store_w_to_x(
 
 pub(in crate::aarch64) fn encode_store_x17_to_x16(
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     encode_store_x_to_x(17, 16, byte_offset)
 }
 
@@ -104,7 +104,7 @@ pub(in crate::aarch64) fn encode_store_x_to_x(
     source_register: u8,
     base_register: u8,
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot store u64 at offset `{byte_offset}` yet"
@@ -122,7 +122,7 @@ pub(in crate::aarch64) fn encode_load_x_from_x(
     destination_register: u8,
     base_register: u8,
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot load u64 at offset `{byte_offset}` yet"
@@ -138,7 +138,7 @@ pub(in crate::aarch64) fn encode_load_x_from_x(
 
 pub(in crate::aarch64) fn encode_store_byte_w17_to_x16(
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     encode_store_byte_w_to_x(17, 16, byte_offset)
 }
 
@@ -146,7 +146,7 @@ pub(in crate::aarch64) fn encode_store_byte_w_to_x(
     source_register: u8,
     base_register: u8,
     byte_offset: usize,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     if byte_offset > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot store byte at offset `{byte_offset}` yet"
@@ -164,7 +164,7 @@ pub(in crate::aarch64) fn encode_load_byte_w_post_increment(
     destination_register: u8,
     base_register: u8,
     byte_increment: i16,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let immediate = signed_memory_immediate_9(byte_increment, "post-increment byte load")?;
     Ok(encode_instruction(
         0x38400400
@@ -178,7 +178,7 @@ pub(in crate::aarch64) fn encode_store_byte_w_post_increment(
     source_register: u8,
     base_register: u8,
     byte_increment: i16,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     let immediate = signed_memory_immediate_9(byte_increment, "post-increment byte store")?;
     Ok(encode_instruction(
         0x38000400

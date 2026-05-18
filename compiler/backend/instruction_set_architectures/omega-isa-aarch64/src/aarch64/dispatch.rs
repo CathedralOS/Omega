@@ -16,14 +16,15 @@ pub fn encode_dispatch_loop_enter(entry_dispatch_index: u32) -> Result<Vec<u8>, 
             "AArch64 MVP encoder cannot encode dispatch index `{entry_dispatch_index}` yet"
         ))
     })?;
-    Ok(encode_movz_w(19, immediate))
+    Ok(Vec::from(encode_movz_w(19, immediate)))
 }
 
 pub fn encode_dispatch_case_enter(
     dispatch_index: u32,
     skip_byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_compare_w19_immediate(dispatch_index)?;
+    let mut bytes = Vec::with_capacity(8);
+    bytes.extend(encode_compare_w19_immediate(dispatch_index)?);
     bytes.extend(encode_conditional_branch_not_equal(skip_byte_distance)?);
     Ok(bytes)
 }
@@ -37,13 +38,14 @@ pub fn encode_dispatch_state_write(
             "AArch64 MVP encoder cannot encode dispatch index `{dispatch_index}` yet"
         ))
     })?;
-    let mut bytes = encode_movz_w(19, immediate);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_movz_w(19, immediate));
     bytes.extend(encode_unconditional_branch(case_leave_byte_distance)?);
     Ok(bytes)
 }
 
 pub fn encode_dispatch_case_leave(loop_byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
-    encode_unconditional_branch(loop_byte_distance)
+    Ok(Vec::from(encode_unconditional_branch(loop_byte_distance)?))
 }
 
 pub fn encode_dispatch_guard_compare_static(
@@ -53,7 +55,8 @@ pub fn encode_dispatch_guard_compare_static(
     skip_byte_distance: isize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_adrp_placeholder(16);
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     match byte_size {
         1 | 4 => {

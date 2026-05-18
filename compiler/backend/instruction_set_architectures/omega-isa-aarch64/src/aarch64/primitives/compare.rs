@@ -2,22 +2,22 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::aarch64) fn encode_compare_w19_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
+pub(in crate::aarch64) fn encode_compare_w19_immediate(value: u32) -> Result<[u8; 4], Diagnostic> {
     encode_compare_w_immediate(19, value)
 }
 
-pub(in crate::aarch64) fn encode_compare_w17_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
+pub(in crate::aarch64) fn encode_compare_w17_immediate(value: u32) -> Result<[u8; 4], Diagnostic> {
     encode_compare_w_immediate(17, value)
 }
 
-pub(in crate::aarch64) fn encode_compare_x17_immediate(value: u64) -> Result<Vec<u8>, Diagnostic> {
+pub(in crate::aarch64) fn encode_compare_x17_immediate(value: u64) -> Result<[u8; 4], Diagnostic> {
     encode_compare_x_immediate(17, value)
 }
 
 pub(in crate::aarch64) fn encode_compare_w_immediate(
     register: u8,
     value: u32,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     if value > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot compare guard value `{value}` yet"
@@ -32,7 +32,7 @@ pub(in crate::aarch64) fn encode_compare_w_immediate(
 pub(in crate::aarch64) fn encode_compare_x_immediate(
     register: u8,
     value: u64,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 4], Diagnostic> {
     if value > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot compare guard value `{value}` yet"
@@ -47,7 +47,7 @@ pub(in crate::aarch64) fn encode_compare_x_immediate(
 pub(in crate::aarch64) fn encode_compare_w_register(
     left_register: u8,
     right_register: u8,
-) -> Vec<u8> {
+) -> [u8; 4] {
     encode_instruction(
         0x6B00001F | (u32::from(right_register) << 16) | (u32::from(left_register) << 5),
     )
@@ -56,7 +56,7 @@ pub(in crate::aarch64) fn encode_compare_w_register(
 pub(in crate::aarch64) fn encode_compare_x_register(
     left_register: u8,
     right_register: u8,
-) -> Vec<u8> {
+) -> [u8; 4] {
     encode_instruction(
         0xEB00001F | (u32::from(right_register) << 16) | (u32::from(left_register) << 5),
     )
