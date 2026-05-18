@@ -32,8 +32,8 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
 }
 
 fn remap_machines(state_graph: &StateGraph) -> (Arena<MachineFlow>, Arena<ContainedFlow>) {
-    let mut machines = Arena::default();
-    let mut contained_machines = Arena::default();
+    let mut machines = Arena::with_capacity(state_graph.machines.len());
+    let mut contained_machines = Arena::with_capacity(state_graph.contained_machines.len());
 
     for (_, machine) in state_graph.machines.iter() {
         machines.append(remap_machine(state_graph, machine, &mut contained_machines));
@@ -47,18 +47,17 @@ fn remap_machine(
     machine: &MachineGraph,
     contained_machines: &mut Arena<ContainedFlow>,
 ) -> MachineFlow {
-    let mut machine_flow = MachineFlow {
+    MachineFlow {
         symbol: machine.symbol,
         name: machine.name.clone(),
-        contains: HandleSpan::empty(),
+        contains: contained_machines.insert_many(
+            state_graph
+                .machine_contains(machine)
+                .iter()
+                .map(remap_contained),
+        ),
         states: remap_state_span(machine.states),
-    };
-
-    for contained in state_graph.machine_contains(machine) {
-        contained_machines.append_to_span(&mut machine_flow.contains, remap_contained(contained));
     }
-
-    machine_flow
 }
 
 fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
@@ -71,8 +70,8 @@ fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
 }
 
 fn remap_states(state_graph: &StateGraph) -> (Arena<StateFlow>, Arena<StateParameterFlow>) {
-    let mut states = Arena::default();
-    let mut state_parameters = Arena::default();
+    let mut states = Arena::with_capacity(state_graph.states.len());
+    let mut state_parameters = Arena::with_capacity(state_graph.state_parameters.len());
 
     for (_, state) in state_graph.states.iter() {
         states.append(remap_state(state_graph, state, &mut state_parameters));
@@ -82,7 +81,7 @@ fn remap_states(state_graph: &StateGraph) -> (Arena<StateFlow>, Arena<StateParam
 }
 
 fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFact> {
-    let mut obligations = Arena::default();
+    let mut obligations = Arena::with_capacity(state_graph.proof_obligations.len());
 
     for (_, obligation) in state_graph.proof_obligations.iter() {
         obligations.append(ProofObligationFact {
@@ -205,7 +204,7 @@ fn remap_proof_owner(owner: &omega_state_graph::ProofObligationOwner) -> ProofOb
 }
 
 fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
-    let mut invariants = Arena::default();
+    let mut invariants = Arena::with_capacity(state_graph.invariants.len());
 
     for (_, invariant) in state_graph.invariants.iter() {
         invariants.append(InvariantFact {
@@ -223,25 +222,24 @@ fn remap_state(
     state: &StateNode,
     state_parameters: &mut Arena<StateParameterFlow>,
 ) -> StateFlow {
-    let mut state_flow = StateFlow {
+    StateFlow {
         key: remap_state_key(state.key),
         name: state.name.clone(),
         index: state.index,
-        parameters: HandleSpan::empty(),
+        parameters: state_parameters.insert_many(
+            state_graph
+                .state_parameters(state)
+                .iter()
+                .map(remap_parameter),
+        ),
         borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
-    };
-
-    for parameter in state_graph.state_parameters(state) {
-        state_parameters.append_to_span(&mut state_flow.parameters, remap_parameter(parameter));
     }
-
-    state_flow
 }
 
 fn remap_borrow_writable_roots(state_graph: &StateGraph) -> Arena<StateBorrowWritableRoot> {
-    let mut writable_roots = Arena::default();
+    let mut writable_roots = Arena::with_capacity(state_graph.borrow_writable_roots.len());
 
     for (_, root) in state_graph.borrow_writable_roots.iter() {
         writable_roots.append(StateBorrowWritableRoot {
@@ -261,7 +259,7 @@ fn remap_borrow_writable_roots(state_graph: &StateGraph) -> Arena<StateBorrowWri
 }
 
 fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrowArgumentAccess> {
-    let mut accesses = Arena::default();
+    let mut accesses = Arena::with_capacity(state_graph.borrow_argument_accesses.len());
 
     for (_, access) in state_graph.borrow_argument_accesses.iter() {
         accesses.append(StateBorrowArgumentAccess {
@@ -277,7 +275,7 @@ fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrow
 }
 
 fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
-    let mut calls = Arena::default();
+    let mut calls = Arena::with_capacity(state_graph.borrow_calls.len());
 
     for (_, call) in state_graph.borrow_calls.iter() {
         calls.append(StateBorrowCall {
@@ -315,7 +313,7 @@ fn remap_parameter(parameter: &StateParameterNode) -> StateParameterFlow {
 }
 
 fn remap_operations(state_graph: &StateGraph) -> Arena<Operation> {
-    let mut operations = Arena::default();
+    let mut operations = Arena::with_capacity(state_graph.operations.len());
 
     for (_, operation) in state_graph.operations.iter() {
         operations.append(remap_operation(operation));
@@ -325,7 +323,7 @@ fn remap_operations(state_graph: &StateGraph) -> Arena<Operation> {
 }
 
 fn remap_transitions(state_graph: &StateGraph) -> Arena<TransitionFlow> {
-    let mut transitions = Arena::default();
+    let mut transitions = Arena::with_capacity(state_graph.transitions.len());
 
     for (_, transition) in state_graph.transitions.iter() {
         transitions.append(remap_transition(transition));
