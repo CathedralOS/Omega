@@ -12,9 +12,8 @@ mod transitions;
 use display::{cycle_path, state_key_display};
 use local_calls::append_local_state_calls;
 pub use model::ScheduledState;
-use static_values::{
-    PlaceKey, StaticValue, apply_static_operations, select_transition as select_static_transition,
-};
+use model::StateScheduleWorkspace;
+use static_values::{apply_static_operations, select_transition as select_static_transition};
 use transitions::next_state;
 
 #[derive(Debug, Clone, Copy)]
@@ -43,21 +42,11 @@ pub fn build_entry_state_schedule(
     entry_key: StateKey,
 ) -> Result<Vec<ScheduledState>, String> {
     let state_capacity = context.control_flow.states.len();
-    let mut schedule = Vec::with_capacity(state_capacity);
-    let mut visited = Vec::<ScheduledState>::with_capacity(state_capacity);
-    let mut values = Vec::<(PlaceKey, StaticValue)>::new();
-    let mut aliases = Vec::<(PlaceKey, PlaceKey)>::new();
+    let mut workspace = StateScheduleWorkspace::with_state_capacity(state_capacity);
 
-    append_state_chain(
-        context,
-        entry_key,
-        &mut schedule,
-        &mut visited,
-        &mut values,
-        &mut aliases,
-    )?;
+    append_state_chain(context, entry_key, &mut workspace)?;
 
-    Ok(schedule)
+    Ok(workspace.finish())
 }
 
 pub fn scheduled_state_contains_key(schedule: &[ScheduledState], state_key: StateKey) -> bool {
@@ -74,29 +63,27 @@ pub fn scheduled_state_flow<'plan>(
 pub(crate) fn append_state_chain(
     context: &StateScheduleContext,
     start_key: StateKey,
-    schedule: &mut Vec<ScheduledState>,
-    visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(PlaceKey, StaticValue)>,
-    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
+    workspace: &mut StateScheduleWorkspace,
 ) -> Result<(), String> {
     let mut current_key = start_key;
 
     loop {
         let current = ScheduledState { key: current_key };
 
-        if visited.contains(&current) {
+        if workspace.visited().contains(&current) {
             return Err(format!(
                 "cycle {}; native emission does not support loops yet",
-                cycle_path(context, visited, &current)
+                cycle_path(context, workspace.visited(), &current)
             ));
         }
 
-        visited.push(current.clone());
-        schedule.push(current.clone());
+        workspace.push_visited(current);
+        workspace.schedule_mut().push(current);
 
         let machine = lookups::machine_flow_by_symbol(context, current.key.machine)?;
         let state = lookups::state_flow_by_key(context, current.key)?;
-        append_local_state_calls(context, machine, state, schedule, visited, values, aliases)?;
+        append_local_state_calls(context, machine, state, workspace)?;
+        let (aliases, values) = workspace.static_bindings_mut();
         apply_static_operations(context, state, aliases, values);
 
         let transitions = context
@@ -111,8 +98,8 @@ pub(crate) fn append_state_chain(
                 let transition = match select_static_transition(
                     &context.control_flow.expressions,
                     transitions,
-                    values,
-                    aliases,
+                    workspace.values(),
+                    workspace.aliases(),
                 ) {
                     Some(Ok(transition)) => transition,
                     Some(Err(())) => {
@@ -128,9 +115,7 @@ pub(crate) fn append_state_chain(
                         ));
                     }
                 };
-                let Some(next_state) = next_state(
-                    context, machine, state, transition, schedule, visited, values, aliases,
-                )?
+                let Some(next_state) = next_state(context, machine, state, transition, workspace)?
                 else {
                     return Ok(());
                 };

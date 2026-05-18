@@ -1,8 +1,8 @@
 use super::append_state_chain;
 use super::lookups::state_flow_by_key;
-use super::model::ScheduledState;
+use super::model::StateScheduleWorkspace;
 use super::static_values::{
-    PlaceKey, StaticValue, argument_binding_place_key, resolve_static_value, set_static_value,
+    PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
 };
 use crate::StateScheduleContext;
 use omega_checked_trees::expression::ExpressionHandle;
@@ -13,34 +13,21 @@ pub(super) fn append_local_state_calls(
     context: &StateScheduleContext,
     _machine: &MachineFlow,
     state: &StateFlow,
-    schedule: &mut Vec<ScheduledState>,
-    visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(PlaceKey, StaticValue)>,
-    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
+    workspace: &mut StateScheduleWorkspace,
 ) -> Result<(), String> {
     for (_, state_call) in context.state_calls.calls.iter().filter(|(_, state_call)| {
         state_call.source_key == state.key && state_call.target_key.is_valid()
     }) {
         let target_state_key = state_call.target_key;
-        let saved_alias_count = aliases.len();
-        let saved_visited_count = visited.len();
+        let checkpoint = workspace.checkpoint();
         bind_state_call_arguments_by_key(
             context,
             target_state_key,
             state_call.arguments,
-            aliases,
-            values,
+            workspace,
         )?;
-        append_state_chain(
-            context,
-            target_state_key,
-            schedule,
-            visited,
-            values,
-            aliases,
-        )?;
-        visited.truncate(saved_visited_count);
-        aliases.truncate(saved_alias_count);
+        append_state_chain(context, target_state_key, workspace)?;
+        workspace.restore(checkpoint);
     }
 
     Ok(())
@@ -50,8 +37,7 @@ pub(super) fn bind_state_arguments_by_key(
     context: &StateScheduleContext,
     state_key: StateKey,
     arguments: HandleSpan<ExpressionHandle>,
-    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
-    values: &mut Vec<(PlaceKey, StaticValue)>,
+    workspace: &mut StateScheduleWorkspace,
 ) -> Result<(), String> {
     let state = state_flow_by_key(context, state_key)?;
     let arguments = context
@@ -65,23 +51,26 @@ pub(super) fn bind_state_arguments_by_key(
         .iter()
         .zip(arguments)
     {
-        let canonical_argument =
-            argument_binding_place_key(&context.control_flow.expressions, *argument, aliases);
+        let canonical_argument = argument_binding_place_key(
+            &context.control_flow.expressions,
+            *argument,
+            workspace.aliases(),
+        );
         if let Some(canonical_argument) = canonical_argument {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
-            set_alias(aliases, parameter_key.clone(), canonical_argument);
+            workspace.set_alias(parameter_key.clone(), canonical_argument);
         }
 
         if let Some(value) = resolve_static_value(
             &context.control_flow.expressions,
             *argument,
-            aliases,
-            values,
+            workspace.aliases(),
+            workspace.values(),
         ) {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
-            set_static_value(values, parameter_key, value);
+            set_static_value(workspace.values_mut(), parameter_key, value);
         }
     }
 
@@ -92,8 +81,7 @@ fn bind_state_call_arguments_by_key(
     context: &StateScheduleContext,
     state_key: StateKey,
     arguments: HandleSpan<omega_state_calls::StateCallArgument>,
-    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
-    values: &mut Vec<(PlaceKey, StaticValue)>,
+    workspace: &mut StateScheduleWorkspace,
 ) -> Result<(), String> {
     let state = state_flow_by_key(context, state_key)?;
     let arguments = context.state_calls.arguments.span(arguments).unwrap_or(&[]);
@@ -107,36 +95,25 @@ fn bind_state_call_arguments_by_key(
         let canonical_argument = argument_binding_place_key(
             &context.state_calls.expressions,
             argument.expression,
-            aliases,
+            workspace.aliases(),
         );
         if let Some(canonical_argument) = canonical_argument {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
-            set_alias(aliases, parameter_key.clone(), canonical_argument);
+            workspace.set_alias(parameter_key.clone(), canonical_argument);
         }
 
         if let Some(value) = resolve_static_value(
             &context.state_calls.expressions,
             argument.expression,
-            aliases,
-            values,
+            workspace.aliases(),
+            workspace.values(),
         ) {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
-            set_static_value(values, parameter_key, value);
+            set_static_value(workspace.values_mut(), parameter_key, value);
         }
     }
 
     Ok(())
-}
-
-fn set_alias(aliases: &mut Vec<(PlaceKey, PlaceKey)>, parameter: PlaceKey, target: PlaceKey) {
-    if let Some((_, existing_target)) = aliases
-        .iter_mut()
-        .find(|(existing_parameter, _)| existing_parameter == &parameter)
-    {
-        *existing_target = target;
-    } else {
-        aliases.push((parameter, target));
-    }
 }
