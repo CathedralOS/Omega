@@ -710,11 +710,15 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
-        self.copy_mapped_span(
-            other.expressions.expression_handles(span).iter().copied(),
-            |this, handle| this.copy_expression_handle(other, handle),
-            |this, handle| this.expressions.append_expression_handle(handle),
-        )
+        let copied_handles: Vec<_> = other
+            .expressions
+            .expression_handles(span)
+            .iter()
+            .copied()
+            .map(|handle| self.copy_expression_handle(other, handle))
+            .collect();
+
+        self.expressions.insert_expression_handles(copied_handles)
     }
 
     fn copy_struct_field_span(
@@ -722,14 +726,17 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
-        self.copy_mapped_span(
-            other.expressions.struct_fields(span),
-            |this, field| TableStructLiteralField {
+        let copied_fields: Vec<_> = other
+            .expressions
+            .struct_fields(span)
+            .iter()
+            .map(|field| TableStructLiteralField {
                 name: field.name.clone(),
-                value: this.copy_expression_handle(other, field.value),
-            },
-            |this, field| this.expressions.append_struct_field(field),
-        )
+                value: self.copy_expression_handle(other, field.value),
+            })
+            .collect();
+
+        self.expressions.insert_struct_fields(copied_fields)
     }
 
     fn copy_item_identifier_span(
@@ -778,11 +785,15 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
-        self.copy_mapped_span(
-            other.statements.expression_handles(span).iter().copied(),
-            |this, handle| this.copy_expression_handle(other, handle),
-            |this, handle| this.statements.append_expression_handle(handle),
-        )
+        let copied_handles: Vec<_> = other
+            .statements
+            .expression_handles(span)
+            .iter()
+            .copied()
+            .map(|handle| self.copy_expression_handle(other, handle))
+            .collect();
+
+        self.statements.insert_expression_handles(copied_handles)
     }
 
     fn copy_mapped_span<S, T>(
@@ -841,10 +852,14 @@ impl Default for SyntaxTrees {
 #[cfg(test)]
 mod tests {
     use super::SyntaxTrees;
+    use crate::expression::{
+        ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
+    };
     use crate::identifier::Identifier;
     use crate::item::{Item, Machine, State};
     use crate::statement::{
-        StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
+        StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
+        TransitionTargetNode,
     };
     use crate::types::{TypeReferenceHandle, TypeReferenceNode};
     use omega_core::arena::HandleSpan;
@@ -985,6 +1000,101 @@ mod tests {
                 .expression_handles(call.arguments)
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
+        let mut file = SyntaxTrees::new(Default::default());
+        let target_name = file
+            .expressions
+            .append_identifier_path_member(Identifier::generated("xp"));
+        let target = file
+            .expressions
+            .insert(ExpressionNode::Name(HandleSpan::from_parts(target_name, 1)));
+
+        let player_name = file
+            .expressions
+            .append_identifier_path_member(Identifier::generated("player"));
+        let player = file
+            .expressions
+            .insert(ExpressionNode::Name(HandleSpan::from_parts(player_name, 1)));
+        let player_level = file
+            .expressions
+            .insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: player,
+                member: Identifier::generated("level"),
+            }));
+
+        let self_value = file.expressions.insert(ExpressionNode::SelfValue);
+        let nested_arguments = file.expressions.insert_expression_handles([player_level]);
+        let nested_call = file
+            .expressions
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver: self_value,
+                target: Identifier::generated("xp_required"),
+                arguments: nested_arguments,
+            }));
+
+        let zero = file.expressions.insert(ExpressionNode::Integer(0));
+        let max_arguments = file
+            .expressions
+            .insert_expression_handles([zero, nested_call]);
+        let max_call = file
+            .expressions
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver: ExpressionHandle::invalid(),
+                target: Identifier::generated("max"),
+                arguments: max_arguments,
+            }));
+
+        let statement = file
+            .statements
+            .insert(StatementNode::Assignment(TableAssignment {
+                target,
+                value: max_call,
+            }));
+        let statement = file.items.append_statement_handle(statement);
+        let state = file.items.insert_state(&State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::empty(),
+            return_type: TypeReferenceHandle::invalid(),
+            statements: HandleSpan::from_parts(statement, 1),
+        });
+        let state = file.items.append_state_handle(state);
+        file.push_root_item(Item::Machine(Machine {
+            name: Identifier::generated("main"),
+            states: HandleSpan::from_parts(state, 1),
+        }));
+
+        let mut assembled = SyntaxTrees::new(Default::default());
+        assembled.extend_from(&file);
+
+        let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+            panic!("expected machine root item");
+        };
+        let state_handle = assembled
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state handle");
+        let state = assembled.items.state(state_handle);
+        let statement_handle = assembled
+            .items
+            .statements(state.statements)
+            .first()
+            .copied()
+            .expect("assignment statement");
+        let StatementNode::Assignment(assignment) =
+            assembled.statements.statement(statement_handle)
+        else {
+            panic!("expected assignment statement");
+        };
+
+        assert_eq!(
+            assembled.expressions.display_name(assignment.value),
+            "max(0, self.xp_required(player.level))"
         );
     }
 }

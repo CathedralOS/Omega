@@ -81,7 +81,6 @@ fn lower_statement_argument_span(
     lowerer: &mut Lowerer,
     arguments: HandleSpan<resolved::expression::ExpressionHandle>,
 ) -> Result<HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
-    let mut lowered_arguments = HandleSpan::empty();
     let arguments = lowerer
         .source_trees
         .tables
@@ -89,16 +88,15 @@ fn lower_statement_argument_span(
         .statements
         .expression_handles(arguments)
         .to_vec();
+    let lowered_arguments = arguments
+        .into_iter()
+        .map(|argument| lower_statement_expression(lowerer, argument))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    for argument in arguments {
-        let argument = lower_statement_expression(lowerer, argument)?;
-        lowerer
-            .typed_trees
-            .statement_table
-            .push_expression_handle(&mut lowered_arguments, argument);
-    }
-
-    Ok(lowered_arguments)
+    Ok(lowerer
+        .typed_trees
+        .statement_table
+        .insert_expression_handles(lowered_arguments))
 }
 
 fn lower_transition_guard(

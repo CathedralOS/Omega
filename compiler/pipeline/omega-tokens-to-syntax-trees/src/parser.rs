@@ -209,6 +209,62 @@ mod tests {
     }
 
     #[test]
+    fn parses_nested_call_arguments_as_contiguous_expression_spans() {
+        let source = r#"
+        data Player {
+            xp: i32;
+            level: i32;
+        }
+
+        machine main {
+            pub entry(&mut self, player: &mut Player) {
+                player.xp = max(0, player.xp - self.xp_required(player.level));
+            }
+
+            state xp_required(&mut self, level: i32) -> i32 {
+                10
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+        let state = parsed.items.state(
+            parsed
+                .items
+                .state_handles(machine.states)
+                .first()
+                .copied()
+                .expect("entry state"),
+        );
+        let statement = parsed.statements.statement(
+            parsed
+                .items
+                .statements(state.statements)
+                .first()
+                .copied()
+                .expect("assignment statement"),
+        );
+        let StatementNode::Assignment(assignment) = statement else {
+            panic!("expected assignment statement");
+        };
+
+        assert_eq!(
+            parsed.expressions.display_name(assignment.value),
+            "max(0, player.xp - self.xp_required(player.level))"
+        );
+    }
+
+    #[test]
     fn rejects_self_as_ordinary_declaration_name() {
         let source = r#"
         data self {}

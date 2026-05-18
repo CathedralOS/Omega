@@ -1,7 +1,7 @@
 use crate::parse_error::ParseError;
 use crate::parser::context::ExpressionContext;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
@@ -37,21 +37,12 @@ pub(super) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<ExpressionHandle>> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut arguments = Vec::new();
 
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
             let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
-            let handle = syntax_trees
-                .expressions
-                .append_expression_handle(expression);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("expression argument span count overflow");
+            arguments.push(expression);
             input = rest;
 
             if input.at_punctuation(PunctuationKind::Comma) {
@@ -67,11 +58,9 @@ pub(super) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let arguments = if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    };
+    let arguments = syntax_trees
+        .expressions
+        .insert_expression_handles(arguments);
     Ok((arguments, input))
 }
 
@@ -418,20 +407,13 @@ fn parse_primary_expression_handle<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
         let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut values = Vec::new();
 
         if !input.at_punctuation(PunctuationKind::RightBracket) {
             loop {
                 let (value, rest) =
                     parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
-                let handle = syntax_trees.expressions.append_expression_handle(value);
-                if count == 0 {
-                    start = handle;
-                }
-                count = count
-                    .checked_add(1)
-                    .expect("array literal expression span count overflow");
+                values.push(value);
                 input = rest;
 
                 if input.at_punctuation(PunctuationKind::Comma) {
@@ -444,11 +426,7 @@ fn parse_primary_expression_handle<'tokens, 'source>(
         }
 
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-        let values = if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        };
+        let values = syntax_trees.expressions.insert_expression_handles(values);
         return Ok((
             syntax_trees
                 .expressions
@@ -492,23 +470,14 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut fields = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (name, rest) = input.take_identifier()?;
         input = rest.take_punctuation(PunctuationKind::Colon, ":")?;
         let (value, rest) = parse_expression_handle(syntax_trees, input)?;
         input = rest;
-        let field = syntax_trees
-            .expressions
-            .append_struct_field(TableStructLiteralField { name, value });
-        if count == 0 {
-            start = field;
-        }
-        count = count
-            .checked_add(1)
-            .expect("struct field span count overflow");
+        fields.push(TableStructLiteralField { name, value });
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -517,11 +486,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let fields = if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    };
+    let fields = syntax_trees.expressions.insert_struct_fields(fields);
     Ok((
         syntax_trees
             .expressions

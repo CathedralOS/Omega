@@ -109,14 +109,14 @@ fn lower_expression_handle_span_from_table(
     target: &mut typed::expression::ExpressionTable,
     expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
 ) -> Result<omega_core::arena::HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
-    let mut lowered = omega_core::arena::HandleSpan::empty();
+    let lowered = source
+        .expression_handles(expressions)
+        .iter()
+        .copied()
+        .map(|expression| lower_expression_handle_from_table(source, target, expression))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    for expression in source.expression_handles(expressions) {
-        let expression = lower_expression_handle_from_table(source, target, *expression)?;
-        target.push_expression_handle(&mut lowered, expression);
-    }
-
-    Ok(lowered)
+    Ok(target.insert_expression_handles(lowered))
 }
 
 fn lower_struct_literal_field_span_from_table(
@@ -124,20 +124,19 @@ fn lower_struct_literal_field_span_from_table(
     target: &mut typed::expression::ExpressionTable,
     fields: omega_core::arena::HandleSpan<resolved::expression::TableStructLiteralField>,
 ) -> Result<omega_core::arena::HandleSpan<typed::expression::TableStructLiteralField>, Diagnostic> {
-    let mut lowered = omega_core::arena::HandleSpan::empty();
-
-    for field in source.struct_fields(fields) {
-        let value = lower_expression_handle_from_table(source, target, field.value)?;
-        target.push_struct_field(
-            &mut lowered,
-            typed::expression::TableStructLiteralField {
+    let lowered = source
+        .struct_fields(fields)
+        .iter()
+        .map(|field| {
+            let value = lower_expression_handle_from_table(source, target, field.value)?;
+            Ok(typed::expression::TableStructLiteralField {
                 name: lower_name(&field.name),
                 value,
-            },
-        );
-    }
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-    Ok(lowered)
+    Ok(target.insert_struct_fields(lowered))
 }
 
 fn lower_name_path_members_into_table(
