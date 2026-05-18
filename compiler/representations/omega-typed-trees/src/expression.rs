@@ -33,6 +33,31 @@ pub struct ExpressionTable {
     struct_fields: Arena<TableStructLiteralField>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ExpressionTableCapacity {
+    pub expressions: usize,
+    pub expression_handles: usize,
+    pub name_path_members: usize,
+    pub name_path_member_symbols: usize,
+    pub struct_fields: usize,
+}
+
+impl ExpressionTableCapacity {
+    pub fn saturating_add_assign(&mut self, other: Self) {
+        self.expressions = self.expressions.saturating_add(other.expressions);
+        self.expression_handles = self
+            .expression_handles
+            .saturating_add(other.expression_handles);
+        self.name_path_members = self
+            .name_path_members
+            .saturating_add(other.name_path_members);
+        self.name_path_member_symbols = self
+            .name_path_member_symbols
+            .saturating_add(other.name_path_member_symbols);
+        self.struct_fields = self.struct_fields.saturating_add(other.struct_fields);
+    }
+}
+
 impl ExpressionTable {
     pub fn new() -> Self {
         Self::with_expression_capacity(0)
@@ -46,12 +71,20 @@ impl ExpressionTable {
         expression_capacity: usize,
         expression_handle_capacity: usize,
     ) -> Self {
+        Self::with_capacities(ExpressionTableCapacity {
+            expressions: expression_capacity,
+            expression_handles: expression_handle_capacity,
+            ..ExpressionTableCapacity::default()
+        })
+    }
+
+    pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
         Self {
-            expressions: Arena::with_capacity(expression_capacity),
-            expression_handles: Arena::with_capacity(expression_handle_capacity),
-            name_path_members: Arena::new(),
-            name_path_member_symbols: Arena::new(),
-            struct_fields: Arena::new(),
+            expressions: Arena::with_capacity(capacity.expressions),
+            expression_handles: Arena::with_capacity(capacity.expression_handles),
+            name_path_members: Arena::with_capacity(capacity.name_path_members),
+            name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
+            struct_fields: Arena::with_capacity(capacity.struct_fields),
         }
     }
 
@@ -948,6 +981,18 @@ impl ExpressionTable {
 
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
+    }
+
+    pub fn expression_handle_count(&self) -> usize {
+        self.expression_handles.len()
+    }
+
+    pub fn name_path_member_count(&self) -> usize {
+        self.name_path_members.len()
+    }
+
+    pub fn name_path_member_symbol_count(&self) -> usize {
+        self.name_path_member_symbols.len()
     }
 
     pub fn struct_field_count(&self) -> usize {
