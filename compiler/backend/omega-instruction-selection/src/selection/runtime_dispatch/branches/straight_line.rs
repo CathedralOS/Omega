@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{Expression, ExpressionTable, NamePath};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
-use omega_control_flow::StateKey;
+use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
@@ -9,10 +9,7 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
 
-use super::super::super::bindings::{
-    append_place_suffix, resolve_straight_line_binding_expression,
-    resolve_straight_line_binding_expression_handle,
-};
+use super::super::super::bindings::resolve_straight_line_binding_expression_handle;
 use super::super::super::lookups::{
     state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
     state_mutation_for_statement, state_operations, state_parameters,
@@ -21,7 +18,7 @@ use super::super::super::lookups::{
 use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_state_calls::StateCallRole;
+use omega_state_calls::{StateCallArgument, StateCallRole};
 use omega_target_operations::RuntimeValueOperand;
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
@@ -215,24 +212,32 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         else {
             continue;
         };
-        let mutation_target = input.state_storage.expressions.to_tree(mutation.target);
-        let mutation_value = input.state_storage.expressions.to_tree(mutation.value);
-        let resolved_target = resolve_leaf_call_expression(
+
+        let mut expressions = ExpressionTable::new();
+        let mutation_target =
+            expressions.copy_from(&input.state_storage.expressions, mutation.target);
+        let mutation_value =
+            expressions.copy_from(&input.state_storage.expressions, mutation.value);
+        let resolved_target = resolve_leaf_call_expression_handle(
             input,
+            &mut expressions,
             target_key,
-            &mutation_target,
+            mutation_target,
             leaf_parameters,
             arguments,
             straight_line_bindings,
         );
-        let resolved_value = resolve_leaf_call_expression(
+        let resolved_value = resolve_leaf_call_expression_handle(
             input,
+            &mut expressions,
             target_key,
-            &mutation_value,
+            mutation_value,
             leaf_parameters,
             arguments,
             straight_line_bindings,
         );
+        let resolved_target = expressions.to_tree(resolved_target);
+        let resolved_value = expressions.to_tree(resolved_value);
         select_runtime_resolved_mutation_write(
             input,
             expansion.dispatch_index,
@@ -249,191 +254,273 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     }
 }
 
-fn resolve_leaf_call_expression(
+fn resolve_leaf_call_expression_handle(
     input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
     target_key: StateKey,
-    expression: &Expression,
-    leaf_parameters: &[omega_control_flow::StateParameterFlow],
-    arguments: &[omega_state_calls::StateCallArgument],
+    expression: ExpressionHandle,
+    leaf_parameters: &[StateParameterFlow],
+    arguments: &[StateCallArgument],
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => {
-            let resolved_target = resolve_leaf_call_expression(
+) -> ExpressionHandle {
+    match table.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(values) => {
+            let copied_values = table.reserve_expression_handles(values.count());
+            for offset in 0..values.count() {
+                let value = table.expression_handle_at_offset(values, offset);
+                let resolved = resolve_leaf_call_expression_handle(
+                    input,
+                    table,
+                    target_key,
+                    value,
+                    leaf_parameters,
+                    arguments,
+                    straight_line_bindings,
+                );
+                table.set_expression_handle_at_offset(copied_values, offset, resolved);
+            }
+            table.insert(ExpressionNode::ArrayLiteral(copied_values))
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = resolve_leaf_call_expression_handle(
                 input,
+                table,
+                target_key,
+                binary.left,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            let right = resolve_leaf_call_expression_handle(
+                input,
+                table,
+                target_key,
+                binary.right,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            table.insert(ExpressionNode::Binary(
+                omega_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                },
+            ))
+        }
+        ExpressionNode::Cast(cast) => {
+            let value = resolve_leaf_call_expression_handle(
+                input,
+                table,
+                target_key,
+                cast.value,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            table.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                },
+            ))
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = call.receiver.is_valid().then(|| {
+                resolve_leaf_call_expression_handle(
+                    input,
+                    table,
+                    target_key,
+                    call.receiver,
+                    leaf_parameters,
+                    arguments,
+                    straight_line_bindings,
+                )
+            });
+            let copied_arguments = table.reserve_expression_handles(call.arguments.count());
+            for offset in 0..call.arguments.count() {
+                let argument = table.expression_handle_at_offset(call.arguments, offset);
+                let resolved = resolve_leaf_call_expression_handle(
+                    input,
+                    table,
+                    target_key,
+                    argument,
+                    leaf_parameters,
+                    arguments,
+                    straight_line_bindings,
+                );
+                table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
+            }
+            table.insert(ExpressionNode::Call(
+                omega_checked_trees::expression::TableCallExpression {
+                    receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    arguments: copied_arguments,
+                },
+            ))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = resolve_leaf_call_expression_handle(
+                input,
+                table,
+                target_key,
+                indexed.collection,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            let index = resolve_leaf_call_expression_handle(
+                input,
+                table,
+                target_key,
+                indexed.index,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            table.insert(ExpressionNode::Indexed(
+                omega_checked_trees::expression::TableIndexedExpression { collection, index },
+            ))
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_leaf_call_expression_handle(
+                input,
+                table,
+                target_key,
+                member.receiver,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            table.insert(ExpressionNode::Member(
+                omega_checked_trees::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member,
+                },
+            ))
+        }
+        ExpressionNode::Mutable(target) => {
+            let resolved_target = resolve_leaf_call_expression_handle(
+                input,
+                table,
                 target_key,
                 target,
                 leaf_parameters,
                 arguments,
                 straight_line_bindings,
             );
-            if matches!(resolved_target, Expression::Mutable(_)) {
+            if matches!(
+                table.expression(resolved_target),
+                ExpressionNode::Mutable(_)
+            ) {
                 resolved_target
             } else {
-                Expression::Mutable(Box::new(resolved_target))
+                table.insert(ExpressionNode::Mutable(resolved_target))
             }
         }
-        Expression::Binary(binary) => Expression::Binary(Box::new(
-            omega_checked_trees::expression::BinaryExpression {
-                left: resolve_leaf_call_expression(
-                    input,
-                    target_key,
-                    &binary.left,
-                    leaf_parameters,
-                    arguments,
-                    straight_line_bindings,
-                ),
-                operator: binary.operator,
-                right: resolve_leaf_call_expression(
-                    input,
-                    target_key,
-                    &binary.right,
-                    leaf_parameters,
-                    arguments,
-                    straight_line_bindings,
-                ),
-            },
-        )),
-        Expression::Call(call) => {
-            Expression::Call(Box::new(omega_checked_trees::expression::CallExpression {
-                receiver: call.receiver.as_ref().map(|receiver| {
-                    Box::new(resolve_leaf_call_expression(
-                        input,
-                        target_key,
-                        receiver,
-                        leaf_parameters,
-                        arguments,
-                        straight_line_bindings,
-                    ))
-                }),
-                target_symbol: call.target_symbol,
-                target: call.target.clone(),
-                arguments: call
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        resolve_leaf_call_expression(
-                            input,
-                            target_key,
-                            argument,
-                            leaf_parameters,
-                            arguments,
-                            straight_line_bindings,
-                        )
-                    })
-                    .collect(),
-            }))
-        }
-        Expression::Member(member) => Expression::Member(Box::new(
-            omega_checked_trees::expression::MemberExpression {
-                receiver: resolve_leaf_call_expression(
-                    input,
-                    target_key,
-                    &member.receiver,
-                    leaf_parameters,
-                    arguments,
-                    straight_line_bindings,
-                ),
-                member_symbol: member.member_symbol,
-                member: member.member.clone(),
-            },
-        )),
-        Expression::Indexed(indexed) => Expression::Indexed(Box::new(
-            omega_checked_trees::expression::IndexedExpression {
-                collection: resolve_leaf_call_expression(
-                    input,
-                    target_key,
-                    &indexed.collection,
-                    leaf_parameters,
-                    arguments,
-                    straight_line_bindings,
-                ),
-                index: resolve_leaf_call_expression(
-                    input,
-                    target_key,
-                    &indexed.index,
-                    leaf_parameters,
-                    arguments,
-                    straight_line_bindings,
-                ),
-            },
-        )),
-        Expression::StructLiteral(struct_literal) => {
-            Expression::StructLiteral(omega_checked_trees::expression::StructLiteral {
-                type_name: struct_literal.type_name.clone(),
-                fields: struct_literal
-                    .fields
-                    .iter()
-                    .map(
-                        |field| omega_checked_trees::expression::StructLiteralField {
-                            name: field.name.clone(),
-                            value: resolve_leaf_call_expression(
-                                input,
-                                target_key,
-                                &field.value,
-                                leaf_parameters,
-                                arguments,
-                                straight_line_bindings,
-                            ),
-                        },
-                    )
-                    .collect::<std::sync::Arc<[_]>>(),
-            })
-        }
-        Expression::Name(path) if !path.is_empty() => resolve_leaf_call_name(
+        ExpressionNode::Name(path) if path.members.count() > 0 => resolve_leaf_call_name_handle(
             input,
+            table,
             target_key,
-            path,
+            &path,
             leaf_parameters,
             arguments,
             straight_line_bindings,
         )
-        .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
+        .unwrap_or(expression),
+        ExpressionNode::StructLiteral(struct_literal) => {
+            let copied_fields = table.reserve_struct_fields(struct_literal.fields.count());
+            for offset in 0..struct_literal.fields.count() {
+                let field = table
+                    .struct_field_at_offset(struct_literal.fields, offset)
+                    .clone();
+                let value = resolve_leaf_call_expression_handle(
+                    input,
+                    table,
+                    target_key,
+                    field.value,
+                    leaf_parameters,
+                    arguments,
+                    straight_line_bindings,
+                );
+                table.set_struct_field_at_offset(
+                    copied_fields,
+                    offset,
+                    omega_checked_trees::expression::TableStructLiteralField {
+                        name: field.name,
+                        value,
+                    },
+                );
+            }
+            table.insert(ExpressionNode::StructLiteral(
+                omega_checked_trees::expression::TableStructLiteral {
+                    type_name: struct_literal.type_name,
+                    fields: copied_fields,
+                },
+            ))
+        }
+        _ => expression,
     }
 }
 
-fn resolve_leaf_call_name(
+fn resolve_leaf_call_name_handle(
     input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
     target_key: StateKey,
-    path: &NamePath,
-    leaf_parameters: &[omega_control_flow::StateParameterFlow],
-    arguments: &[omega_state_calls::StateCallArgument],
+    path: &omega_checked_trees::expression::TableNamePath,
+    leaf_parameters: &[StateParameterFlow],
+    arguments: &[StateCallArgument],
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
-) -> Option<Expression> {
+) -> Option<ExpressionHandle> {
     if let Some(parameter_index) = leaf_parameters.iter().position(|parameter| {
         parameter.symbol.is_valid()
-            && path.head_symbol().is_valid()
-            && parameter.symbol == path.head_symbol()
+            && path.head_symbol.is_valid()
+            && parameter.symbol == path.head_symbol
     }) {
         let argument = arguments.get(parameter_index)?;
-        let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
-        let resolved_argument = resolve_straight_line_binding_expression(
+        let argument_expression =
+            table.copy_from(&input.state_calls.expressions, argument.expression);
+        let resolved_argument = resolve_straight_line_binding_expression_handle(
             &input.runtime_branching_calls.expressions,
-            &argument_expression,
+            table,
+            argument_expression,
             straight_line_bindings,
         );
 
-        return Some(append_place_suffix(&resolved_argument, &path[1..]));
+        return Some(table.insert_copy_with_member_suffix(
+            resolved_argument,
+            path.members,
+            path.member_symbols,
+            1,
+        ));
     }
 
-    let initializer = leaf_local_initializer(input, target_key, path)?;
-    let resolved_initializer = resolve_leaf_call_expression(
+    let initializer = leaf_local_initializer_handle(input, table, target_key, path)?;
+    let resolved_initializer = resolve_leaf_call_expression_handle(
         input,
+        table,
         target_key,
-        &initializer,
+        initializer,
         leaf_parameters,
         arguments,
         straight_line_bindings,
     );
-    Some(append_place_suffix(&resolved_initializer, &path[1..]))
+    Some(table.insert_copy_with_member_suffix(
+        resolved_initializer,
+        path.members,
+        path.member_symbols,
+        1,
+    ))
 }
 
-fn leaf_local_initializer(
+fn leaf_local_initializer_handle(
     input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
     target_key: StateKey,
-    path: &NamePath,
-) -> Option<Expression> {
+    path: &omega_checked_trees::expression::TableNamePath,
+) -> Option<ExpressionHandle> {
     let machine = input
         .program
         .machines()
@@ -452,14 +539,9 @@ fn leaf_local_initializer(
         let omega_checked_trees::statement::StatementNode::LocalData(local_data) = statement else {
             return None;
         };
-        let matches_symbol =
-            path.head_symbol().is_valid() && local_data.symbol == path.head_symbol();
-        (local_data.initial_value.is_valid() && matches_symbol).then(|| {
-            input
-                .program
-                .expression_table
-                .to_tree(local_data.initial_value)
-        })
+        let matches_symbol = path.head_symbol.is_valid() && local_data.symbol == path.head_symbol;
+        (local_data.initial_value.is_valid() && matches_symbol)
+            .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
     })
 }
 
