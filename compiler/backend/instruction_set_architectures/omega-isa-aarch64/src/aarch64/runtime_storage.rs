@@ -220,7 +220,7 @@ pub fn encode_runtime_storage_binary_write(
     bytes.extend(encode_add_page_offset_placeholder(16));
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
-    bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
+    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
     append_runtime_storage_result_write(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
 }
@@ -248,7 +248,7 @@ pub fn encode_runtime_pointee_binary_write(
     }
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
-    bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
+    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
@@ -405,7 +405,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
     );
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
-    bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
+    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
@@ -696,23 +696,18 @@ fn append_runtime_value_operand(
                 remaining_scratch,
                 *right,
             )?;
-            bytes.extend(encode_runtime_binary_operation(
-                destination_register,
-                *operator,
-                rhs_register,
-            )?);
+            append_runtime_binary_operation(bytes, destination_register, *operator, rhs_register)?;
             Ok(())
         }
     }
 }
 
-fn encode_runtime_binary_operation(
+fn append_runtime_binary_operation(
+    bytes: &mut Vec<u8>,
     destination_register: u8,
     operator: StateGuardOperator,
     right_register: u8,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(16);
-
+) -> Result<(), Diagnostic> {
     match operator {
         StateGuardOperator::Add => {
             bytes.extend(encode_add_x_register(
@@ -789,7 +784,7 @@ fn encode_runtime_binary_operation(
         }
     }
 
-    Ok(bytes)
+    Ok(())
 }
 
 fn append_runtime_storage_result_write(
