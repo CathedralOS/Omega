@@ -1,13 +1,15 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::Expression;
 use omega_checked_trees::expression::NamePath;
+use omega_checked_trees::expression::{Expression, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_state_calls::StateCallRole;
 
-use super::super::super::bindings::resolve_leaf_binding_expression;
+use super::super::super::bindings::{
+    resolve_leaf_binding_expression, resolve_leaf_binding_expression_handle,
+};
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
@@ -156,18 +158,23 @@ fn select_runtime_leaf_branch_mutation_writes(
         let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
             continue;
         };
-        let target = input.runtime_branching_calls.expressions.to_tree(*target);
-        let value = input.runtime_branching_calls.expressions.to_tree(*value);
-        let resolved_target = resolve_leaf_binding_expression(
+        let mut expressions = ExpressionTable::new();
+        let target = expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
+        let value = expressions.copy_from(&input.runtime_branching_calls.expressions, *value);
+        let resolved_target = resolve_leaf_binding_expression_handle(
             &input.runtime_branching_calls.expressions,
-            &target,
+            &mut expressions,
+            target,
             bindings,
         );
-        let resolved_value = resolve_leaf_binding_expression(
+        let resolved_value = resolve_leaf_binding_expression_handle(
             &input.runtime_branching_calls.expressions,
-            &value,
+            &mut expressions,
+            value,
             bindings,
         );
+        let resolved_target = expressions.to_tree(resolved_target);
+        let resolved_value = expressions.to_tree(resolved_value);
 
         if let Some((byte_offset, byte_size, value)) =
             runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)
