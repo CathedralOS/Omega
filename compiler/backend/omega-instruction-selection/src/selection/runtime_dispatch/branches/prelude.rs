@@ -17,7 +17,8 @@ use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 use super::super::super::lookups::host_call_for_statement;
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::mutation::{
-    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+    select_runtime_resolved_mutation_write,
+    select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 
 #[derive(Default)]
@@ -120,7 +121,7 @@ fn select_runtime_branch_prelude(
                     value,
                     bindings,
                 );
-                if select_runtime_resolved_mutation_write_in_table(
+                if select_runtime_resolved_mutation_write_in_table_with_scratch(
                     input,
                     expansion.dispatch_index,
                     operation.source_key,
@@ -130,6 +131,7 @@ fn select_runtime_branch_prelude(
                     &expressions,
                     resolved_target,
                     resolved_value,
+                    &mut scratch.resolved_segment_expressions,
                     runtime_value_operands,
                     selected_instructions,
                 ) {
