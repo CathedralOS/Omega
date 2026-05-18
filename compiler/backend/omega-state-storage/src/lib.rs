@@ -14,8 +14,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStoragePlanningContext {
     pub control_flow: Arc<ControlFlowPlan>,
-    pub runtime_flow: RuntimeFlowPlan,
-    pub state_calls: StateCallPlan,
+    pub runtime_flow: Arc<RuntimeFlowPlan>,
+    pub state_calls: Arc<StateCallPlan>,
 }
 
 impl StateStoragePlanningContext {

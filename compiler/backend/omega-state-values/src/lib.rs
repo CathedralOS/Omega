@@ -18,8 +18,8 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateValuePlanningContext {
-    pub runtime_flow: RuntimeFlowPlan,
-    pub state_calls: StateCallPlan,
+    pub runtime_flow: Arc<RuntimeFlowPlan>,
+    pub state_calls: Arc<StateCallPlan>,
 }
 
 impl StateValuePlanningContext {
