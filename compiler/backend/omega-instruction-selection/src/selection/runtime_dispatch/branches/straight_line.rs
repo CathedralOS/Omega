@@ -24,6 +24,12 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_state_calls::{StateCallArgument, StateCallRole};
 use omega_target_operations::RuntimeValueOperand;
 
+#[derive(Default)]
+struct StraightLineBranchSelectionScratch {
+    expressions: ExpressionTable,
+    resolved_segment_expressions: ExpressionTable,
+}
+
 pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -31,6 +37,8 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let mut scratch = StraightLineBranchSelectionScratch::default();
+
     for (_, expansion) in input
         .runtime_branching_calls
         .straight_line_expansions
@@ -44,6 +52,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
         select_runtime_straight_line_branch_expansion(
             input,
             expansion,
+            &mut scratch,
             runtime_value_operands,
             selected_instructions,
         );
@@ -53,6 +62,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
 fn select_runtime_straight_line_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
+    scratch: &mut StraightLineBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -71,6 +81,7 @@ fn select_runtime_straight_line_branch_expansion(
     select_runtime_straight_line_branch_writes(
         input,
         expansion,
+        scratch,
         runtime_value_operands,
         selected_instructions,
     );
@@ -82,6 +93,7 @@ fn select_runtime_straight_line_branch_expansion(
 fn select_runtime_straight_line_branch_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
+    scratch: &mut StraightLineBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -97,26 +109,27 @@ fn select_runtime_straight_line_branch_writes(
         .straight_line_bindings
         .span(expansion.bindings)
         .unwrap_or(&[]);
-    let mut expressions = ExpressionTable::new();
-    let mut resolved_segment_expressions = ExpressionTable::new();
+    scratch.expressions.clear();
+    scratch.resolved_segment_expressions.clear();
 
     for operation in operations {
         match &operation.kind {
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
-                expressions.clear();
+                scratch.expressions.clear();
+                let expressions = &mut scratch.expressions;
                 let target =
                     expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
                 let value =
                     expressions.copy_from(&input.runtime_branching_calls.expressions, *value);
                 let resolved_target = resolve_straight_line_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
-                    &mut expressions,
+                    expressions,
                     target,
                     bindings,
                 );
                 let resolved_value = resolve_straight_line_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
-                    &mut expressions,
+                    expressions,
                     value,
                     bindings,
                 );
@@ -135,7 +148,7 @@ fn select_runtime_straight_line_branch_writes(
                 ) {
                     continue;
                 }
-                resolved_segment_expressions.clear();
+                scratch.resolved_segment_expressions.clear();
                 if runtime_text_builder_write_in_table_emit(
                     input,
                     expansion.dispatch_index,
@@ -144,7 +157,7 @@ fn select_runtime_straight_line_branch_writes(
                     operation.statement_index,
                     &expressions,
                     resolved_target,
-                    &mut resolved_segment_expressions,
+                    &mut scratch.resolved_segment_expressions,
                     &|expressions, expression| {
                         resolve_straight_line_binding_expression_handle(
                             &input.runtime_branching_calls.expressions,
@@ -194,6 +207,7 @@ fn select_runtime_straight_line_branch_writes(
                 *call_ordinal,
                 bindings,
                 *target_key,
+                scratch,
                 runtime_value_operands,
                 selected_instructions,
             ),
@@ -215,6 +229,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     call_ordinal: usize,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
+    scratch: &mut StraightLineBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -254,8 +269,8 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         return;
     };
     let (target_machine, target_state) = state_names(input, target_key);
-    let mut expressions = ExpressionTable::new();
-    let mut resolved_segment_expressions = ExpressionTable::new();
+    scratch.expressions.clear();
+    scratch.resolved_segment_expressions.clear();
     for leaf_operation in operations {
         let Some(mutation) =
             state_mutation_for_statement(input, target_key, leaf_operation.statement_index)
@@ -263,14 +278,15 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             continue;
         };
 
-        expressions.clear();
+        scratch.expressions.clear();
+        let expressions = &mut scratch.expressions;
         let mutation_target =
             expressions.copy_from(&input.state_storage.expressions, mutation.target);
         let mutation_value =
             expressions.copy_from(&input.state_storage.expressions, mutation.value);
         let resolved_target = resolve_leaf_call_expression_handle(
             input,
-            &mut expressions,
+            expressions,
             target_key,
             mutation_target,
             leaf_parameters,
@@ -279,7 +295,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         );
         let resolved_value = resolve_leaf_call_expression_handle(
             input,
-            &mut expressions,
+            expressions,
             target_key,
             mutation_value,
             leaf_parameters,
@@ -301,7 +317,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         ) {
             continue;
         }
-        resolved_segment_expressions.clear();
+        scratch.resolved_segment_expressions.clear();
         if runtime_text_builder_write_in_table_emit(
             input,
             expansion.dispatch_index,
@@ -310,7 +326,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             leaf_operation.statement_index,
             &expressions,
             resolved_target,
-            &mut resolved_segment_expressions,
+            &mut scratch.resolved_segment_expressions,
             &|expressions, expression| {
                 resolve_leaf_call_expression_handle(
                     input,
