@@ -67,29 +67,60 @@ pub(super) fn plan_transition(
         }
         SegmentTransition::BranchCall {
             statement_index,
-            table,
             has_continuation_segment,
-        } => Ok(TransitionEdge {
-            statement_index: *statement_index,
-            target: plan_call_target(source_key, segments, table, program)?,
-            continuation: if *has_continuation_segment {
-                next_segment_target(source_key, segments)?
-            } else {
-                PlannedTransitionTarget::None
-            },
-            expressions: TransitionExpressionRefs {
-                target_arguments: copy_statement_expression_span(
-                    state_graph,
-                    &program.expression_table,
-                    &program.statement_table,
-                    table.arguments,
-                ),
-                target_value: ExpressionHandle::invalid(),
-                continuation_arguments: omega_core::arena::HandleSpan::empty(),
-                continuation_value: ExpressionHandle::invalid(),
-                guard: ExpressionHandle::invalid(),
-            },
-        }),
+        } => {
+            let table = branch_call_statement(program, source_key, *statement_index)?;
+            Ok(TransitionEdge {
+                statement_index: *statement_index,
+                target: plan_call_target(source_key, segments, table, program)?,
+                continuation: if *has_continuation_segment {
+                    next_segment_target(source_key, segments)?
+                } else {
+                    PlannedTransitionTarget::None
+                },
+                expressions: TransitionExpressionRefs {
+                    target_arguments: copy_statement_expression_span(
+                        state_graph,
+                        &program.expression_table,
+                        &program.statement_table,
+                        table.arguments,
+                    ),
+                    target_value: ExpressionHandle::invalid(),
+                    continuation_arguments: omega_core::arena::HandleSpan::empty(),
+                    continuation_value: ExpressionHandle::invalid(),
+                    guard: ExpressionHandle::invalid(),
+                },
+            })
+        }
+    }
+}
+
+fn branch_call_statement(
+    program: &Program,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Result<&TableCall, Diagnostic> {
+    let state = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+        .and_then(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == source_key.state)
+        })
+        .ok_or_else(|| Diagnostic::error("internal branch-call source state was not indexed"))?;
+
+    match program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+    {
+        Some(omega_checked_trees::statement::StatementNode::Call(call)) => Ok(call),
+        _ => Err(Diagnostic::error(
+            "internal branch-call segment did not reference a call statement",
+        )),
     }
 }
 
