@@ -98,7 +98,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.state_calls = record_backend_phase(&mut phase_timings, "state calls", || {
         build_state_call_plan_with_workers(
             Arc::new(StateCallPlanningContext {
-                control_flow: backend_plan.control_flow.clone(),
+                control_flow: Arc::clone(&control_flow),
                 host_calls: backend_plan.host_calls.clone(),
                 runtime_flow: backend_plan.runtime_flow.clone(),
             }),
