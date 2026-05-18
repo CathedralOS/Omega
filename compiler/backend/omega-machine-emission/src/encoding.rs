@@ -34,17 +34,6 @@ pub(super) fn encode_machine_instruction_bytes(
                 literal,
             )
         }
-        SelectedInstructionKind::CompareRuntimeTextStorage {
-            source_offset,
-            operator,
-            ..
-        } => runtime_text::encode_runtime_text_storage_compare(
-            input,
-            machine_instructions,
-            machine_instruction_index,
-            *source_offset,
-            *operator,
-        ),
         SelectedInstructionKind::CompareRuntimeValues {
             left,
             right,
@@ -345,6 +334,7 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::EnterDispatchLoop { .. }
         | SelectedInstructionKind::EnterDispatchCase { .. }
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
+        | SelectedInstructionKind::CompareRuntimeTextStorage { .. }
         | SelectedInstructionKind::CompareRuntimeStorage { .. }
         | SelectedInstructionKind::CompareRuntimeStorageValue { .. }
         | SelectedInstructionKind::SetDispatchState { .. }

@@ -258,6 +258,37 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        SelectedInstructionKind::CompareRuntimeTextStorage {
+            source_offset,
+            operator,
+            ..
+        } => {
+            let storage_compare_width =
+                omega_instruction_selection::runtime_text_storage_compare_width(
+                    emission_context.target.architecture,
+                );
+            let bytes = omega_instruction_selection::encode_runtime_text_storage_compare_bytes(
+                emission_context.target.architecture,
+                *source_offset,
+                branch_distances::byte_distance_to_next_runtime_write_end_from_branch_offset(
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                    40,
+                )?,
+                branch_distances::byte_distance_to_next_runtime_write_end_from_branch_offset(
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                    storage_compare_width.saturating_sub(4),
+                )?,
+                *operator == StateGuardOperator::NotEqual,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             insert_dispatch_state_write_bytes(
                 inserter,

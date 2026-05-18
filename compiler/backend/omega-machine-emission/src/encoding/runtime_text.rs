@@ -1,15 +1,11 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances::{
-    byte_distance_to_next_runtime_write_end,
-    byte_distance_to_next_runtime_write_end_from_branch_offset,
-    byte_distances_to_next_runtime_machine_write_end,
+    byte_distance_to_next_runtime_write_end, byte_distances_to_next_runtime_machine_write_end,
 };
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_instruction_selection::runtime_text_storage_compare_width;
 use omega_target_operations::RuntimeTextReadSource;
-use omega_target_operations::StateGuardOperator;
 
 pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,
@@ -31,32 +27,6 @@ pub(super) fn encode_runtime_text_literal_compare(
             machine_instructions,
             machine_instruction_index,
         )?,
-    )
-}
-
-pub(super) fn encode_runtime_text_storage_compare(
-    input: MachineEmissionContext<'_>,
-    machine_instructions: &[LaidOutMachineInstruction],
-    machine_instruction_index: usize,
-    source_offset: usize,
-    operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_runtime_text_storage_compare(
-        input.target.architecture,
-        source_offset,
-        byte_distance_to_next_runtime_write_end_from_branch_offset(
-            input,
-            machine_instructions,
-            machine_instruction_index,
-            40,
-        )?,
-        byte_distance_to_next_runtime_write_end_from_branch_offset(
-            input,
-            machine_instructions,
-            machine_instruction_index,
-            runtime_text_storage_compare_width(input.target.architecture).saturating_sub(4),
-        )?,
-        operator == StateGuardOperator::NotEqual,
     )
 }
 
