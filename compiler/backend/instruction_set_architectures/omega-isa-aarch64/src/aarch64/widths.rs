@@ -289,11 +289,14 @@ fn runtime_store_data_width(byte_size: usize) -> usize {
     }
 }
 
-fn runtime_frame_index_setup_width(element_byte_size: usize, field_byte_offset: usize) -> usize {
+pub(in crate::aarch64) fn runtime_frame_index_setup_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
     12 + 12 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
 }
 
-fn scale_index_width(element_byte_size: usize) -> usize {
+pub(in crate::aarch64) fn scale_index_width(element_byte_size: usize) -> usize {
     if element_byte_size == 0 {
         return 0;
     }
@@ -304,7 +307,7 @@ fn scale_index_width(element_byte_size: usize) -> usize {
     8 + (doubles + additions) * 4
 }
 
-fn add_constant_width(value: usize) -> usize {
+pub(in crate::aarch64) fn add_constant_width(value: usize) -> usize {
     if value == 0 {
         0
     } else if value <= 4095 {

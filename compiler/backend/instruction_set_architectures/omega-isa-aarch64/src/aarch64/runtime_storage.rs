@@ -15,12 +15,13 @@ use super::primitives::{
     encode_unsigned_immediate_padded,
 };
 use super::widths::{
-    runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
-    runtime_machine_integer_write_width, runtime_machine_string_write_width,
-    runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
-    runtime_pointee_string_write_width, runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_copy_to_runtime_pointee_width,
-    runtime_storage_copy_width, runtime_storage_value_compare_width,
+    add_constant_width, runtime_frame_index_setup_width, runtime_frame_indexed_binary_write_width,
+    runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
+    runtime_machine_string_write_width, runtime_pointee_binary_write_width,
+    runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
+    runtime_storage_binary_write_width, runtime_storage_compare_width,
+    runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
+    runtime_storage_value_compare_width,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -585,7 +586,10 @@ fn encode_runtime_frame_index_target_address(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_frame_index_setup_width(
+        element_byte_size,
+        field_byte_offset,
+    ));
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
@@ -620,7 +624,11 @@ fn encode_runtime_value_operand(
             byte_size,
             ..
         } => {
-            let mut bytes = Vec::with_capacity(32);
+            let mut bytes = Vec::with_capacity(match byte_size {
+                1 | 4 => 12,
+                8 => 20,
+                _ => 0,
+            });
             bytes.extend(encode_adrp_placeholder(19));
             bytes.extend(encode_add_page_offset_placeholder(19));
             match byte_size {
@@ -648,7 +656,7 @@ fn encode_runtime_value_operand(
             field_byte_offset,
             byte_size,
         } => {
-            let mut bytes = Vec::with_capacity(32);
+            let mut bytes = Vec::with_capacity(20 + add_constant_width(*field_byte_offset));
             bytes.extend(encode_adrp_placeholder(19));
             bytes.extend(encode_add_page_offset_placeholder(19));
             bytes.extend(encode_load_x_from_x(19, 19, *pointer_byte_offset)?);
