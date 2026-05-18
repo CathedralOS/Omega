@@ -257,9 +257,9 @@ fn build_state_guard(
     StateGuard {
         source,
         source_dispatch_index,
-        target: edge.target.clone(),
+        target: edge.target,
         target_dispatch_index: edge.target_dispatch_index,
-        continuation: edge.continuation.clone(),
+        continuation: edge.continuation,
         continuation_dispatch_index: edge.continuation_dispatch_index,
         statement_order,
         statement_index,
