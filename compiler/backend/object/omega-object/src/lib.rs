@@ -7,7 +7,7 @@ pub struct ObjectPlan {
     pub target: NativeTarget,
     pub sections: Arena<SectionPlan>,
     pub symbols: Arena<SymbolPlan>,
-    pub entry_symbol: String,
+    pub entry_symbol: ObjectSymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,6 +126,10 @@ pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &s
     } else {
         ""
     }
+}
+
+pub fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
+    object_symbol_name(object, object.entry_symbol)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -147,7 +147,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
 
     EmissionPlan {
         image_format: input.target.object_format,
-        entry_symbol: input.object.entry_symbol.clone(),
+        entry_symbol: omega_object::object_entry_symbol_name(input.object).to_owned(),
         sections: input.object.sections.len(),
         symbols: input.object.symbols.len(),
         host_bindings: input.host_abi.bindings.len(),

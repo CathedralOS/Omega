@@ -1,11 +1,11 @@
 use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle};
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_program::MachineProgram;
-use omega_object::{ObjectPlan, RelocationPlan, entry_symbol_name};
+use omega_object::{ObjectPlan, RelocationPlan, SymbolPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
@@ -62,7 +62,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
             target: input.target,
             sections: omega_core::arena::Arena::new(),
             symbols: omega_core::arena::Arena::new(),
-            entry_symbol: entry_symbol_name(input.target),
+            entry_symbol: Handle::<SymbolPlan>::invalid(),
         },
         relocations: RelocationPlan {
             target: input.target,

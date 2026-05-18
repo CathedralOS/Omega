@@ -12,6 +12,7 @@ use omega_data_planning::build_target_data_plan;
 use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
+use omega_object::object_entry_symbol_name;
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
@@ -224,7 +225,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_instruction_plan(&InstructionSelectionInput {
             target: backend_plan.target,
             entry_key: backend_plan.entry_key,
-            entry_symbol: backend_plan.object.entry_symbol.as_str().into(),
+            entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
             program: program.as_ref(),
             host_abi: &backend_plan.host_abi,
             control_flow: &backend_plan.control_flow,
