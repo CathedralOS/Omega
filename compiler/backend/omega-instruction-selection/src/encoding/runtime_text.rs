@@ -19,21 +19,21 @@ pub fn encode_runtime_text_literal_compare(
     }
 }
 
-pub fn encode_runtime_text_storage_compare(
+pub fn encode_runtime_text_storage_compare_bytes(
     architecture: Architecture,
     source_offset: usize,
     compare_failure_branch_distance: isize,
     delimiter_failure_branch_distance: isize,
     branch_when_equal: bool,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<[u8; 84], Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare(
+        Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare_bytes(
             source_offset,
             compare_failure_branch_distance,
             delimiter_failure_branch_distance,
             branch_when_equal,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => unsupported_x86_64_runtime_text_storage_compare_encoding(),
     }
 }
 
@@ -268,6 +268,12 @@ pub fn encode_runtime_text_line_read(
 }
 
 fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 runtime text encoding is not implemented",
+    ))
+}
+
+fn unsupported_x86_64_runtime_text_storage_compare_encoding() -> Result<[u8; 84], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 runtime text encoding is not implemented",
     ))
