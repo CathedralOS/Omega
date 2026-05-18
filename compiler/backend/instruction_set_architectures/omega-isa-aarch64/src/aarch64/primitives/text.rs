@@ -1,5 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 
+use super::super::widths::runtime_text_input_delimiter_check_width;
 use super::branch::{encode_conditional_branch_equal, encode_unconditional_branch};
 use super::compare::encode_compare_w17_immediate;
 use super::memory::encode_load_byte_w17_from_x16;
@@ -8,7 +9,7 @@ pub(in crate::aarch64) fn encode_runtime_text_input_delimiter_check(
     byte_offset: usize,
     failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(32);
+    let mut bytes = Vec::with_capacity(runtime_text_input_delimiter_check_width());
     bytes.extend(encode_load_byte_w17_from_x16(byte_offset)?);
     bytes.extend(encode_compare_w17_immediate(10)?);
     bytes.extend(encode_conditional_branch_equal(24)?);
