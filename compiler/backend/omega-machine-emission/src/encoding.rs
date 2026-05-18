@@ -21,7 +21,9 @@ pub(super) fn encode_machine_instruction(
             operands,
         } => {
             let Some(operands) = input.instructions.operands.span(*operands) else {
-                return Ok(Vec::new());
+                return Err(Diagnostic::error(
+                    "cannot encode host operation: missing operand span",
+                ));
             };
 
             host::encode_host_operation(input, *operation_key, operands)
@@ -430,6 +432,8 @@ pub(super) fn encode_machine_instruction(
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop
-        | SelectedInstructionKind::BeginPlatformCall => Ok(Vec::new()),
+        | SelectedInstructionKind::BeginPlatformCall => Err(Diagnostic::error(
+            "internal error: zero-width machine instruction reached byte encoder",
+        )),
     }
 }
