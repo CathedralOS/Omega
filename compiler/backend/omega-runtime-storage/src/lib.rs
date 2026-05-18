@@ -41,21 +41,22 @@ pub fn build_runtime_storage_plan_with_workers(
     let mut plan = RuntimeStoragePlan::default();
 
     for body_plan in body_plans {
-        plan.frame_slots.insert_many(
-            body_plan
-                .frame_slots
-                .iter()
-                .map(|(_, frame_slot)| frame_slot.clone()),
-        );
-        for (_, write) in body_plan.writes.iter() {
+        let RuntimeStoragePlan {
+            expressions,
+            invariant_names: _,
+            frame_slots,
+            writes,
+        } = body_plan;
+        plan.frame_slots.insert_many(frame_slots.into_items());
+        for write in writes.into_items() {
             plan.writes.append(RuntimeStorageWrite {
-                target: plan
-                    .expressions
-                    .copy_from(&body_plan.expressions, write.target),
-                value: plan
-                    .expressions
-                    .copy_from(&body_plan.expressions, write.value),
-                ..write.clone()
+                dispatch_index: write.dispatch_index,
+                source_key: write.source_key,
+                statement_index: write.statement_index,
+                target: plan.expressions.copy_from(&expressions, write.target),
+                value: plan.expressions.copy_from(&expressions, write.value),
+                mutation_kind: write.mutation_kind,
+                lowering: write.lowering,
             });
         }
     }
