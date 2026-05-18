@@ -293,7 +293,10 @@ pub(crate) fn select_runtime_resolved_mutation_write_in_table(
         expressions.expression(resolved_value),
         ExpressionNode::StructLiteral(_)
     ) {
-        let mut expressions = expressions.clone();
+        let source_expressions = expressions;
+        let mut expressions = ExpressionTable::new();
+        let resolved_target = expressions.copy_from(source_expressions, resolved_target);
+        let resolved_value = expressions.copy_from(source_expressions, resolved_value);
         return select_runtime_resolved_mutation_write_in_mutable_table(
             input,
             dispatch_index,

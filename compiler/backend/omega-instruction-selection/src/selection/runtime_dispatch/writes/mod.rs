@@ -190,7 +190,12 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
         expressions.expression(value),
         ExpressionNode::StructLiteral(_)
     ) {
-        let mut expressions = expressions.clone();
+        let source_expressions = expressions;
+        let mut expressions = ExpressionTable::new();
+        let copied_aliases =
+            RuntimeAliasBuffer::copy_from_bindings(source_expressions, aliases, &mut expressions);
+        let target = expressions.copy_from(source_expressions, target);
+        let value = expressions.copy_from(source_expressions, value);
         return select_runtime_storage_resolved_mutation_write_in_mutable_table(
             input,
             dispatch_index,
@@ -201,7 +206,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table(
             &mut expressions,
             target,
             value,
-            aliases,
+            copied_aliases.bindings(),
             static_values,
             runtime_value_operands,
             selected_instructions,
