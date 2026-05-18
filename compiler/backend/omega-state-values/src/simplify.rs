@@ -260,8 +260,7 @@ fn simplify_expression_with_bindings(
                         preserve_call_locals,
                     )
                 })
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
+                .collect::<Arc<[_]>>(),
         )),
         Expression::Binary(binary) => {
             simplify_binary_expression(program, machine, binary, bindings, preserve_call_locals)
@@ -346,8 +345,7 @@ fn simplify_expression_with_bindings(
                             preserve_call_locals,
                         ),
                     })
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
+                    .collect::<Arc<[_]>>(),
             ),
         }),
     }
