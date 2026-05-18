@@ -309,10 +309,11 @@ fn merge_machine_graph(target: &mut StateGraph, source: &StateGraph, machine_gra
     );
 
     target.machines.insert(MachineGraph {
+        symbol: machine_graph.symbol,
+        name: machine_graph.name.clone(),
         contains,
         owned_data,
         states,
-        ..machine_graph.clone()
     });
 }
 
@@ -334,11 +335,13 @@ fn append_remapped_states(
         target.states.append_to_span(
             &mut remapped_states,
             StateNode {
+                key: state.key,
+                name: state.name.clone(),
+                index: state.index,
                 parameters,
                 borrow,
                 operations,
                 transitions,
-                ..state.clone()
             },
         );
     }
@@ -387,8 +390,12 @@ fn append_remapped_borrow_calls(
         target.borrow_calls.append_to_span(
             &mut remapped_calls,
             StateBorrowCall {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                receiver_symbol: call.receiver_symbol,
+                target_symbol: call.target_symbol,
+                has_receiver: call.has_receiver,
                 accesses,
-                ..call.clone()
             },
         );
     }
