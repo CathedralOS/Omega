@@ -1,4 +1,4 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::{MachineFunction, MachineInstruction, MachineProgram};
 use omega_target_operations::InstructionPlan;
@@ -36,31 +36,19 @@ fn append_machine_instructions(
         return Ok(HandleSpan::empty());
     };
 
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    output_instructions.try_insert_many(selected_instructions.iter().enumerate().map(
+        |(selected_offset, selected_instruction)| {
+            let selected_instruction_index = function
+                .instructions
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
+                .expect("selected instruction overflow");
 
-    for (selected_offset, selected_instruction) in selected_instructions.iter().enumerate() {
-        let selected_instruction_index = function
-            .instructions
-            .start()
-            .arena_index()
-            .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
-            .expect("selected instruction overflow");
-        let handle = output_instructions.append(MachineInstruction {
-            selected_instruction_index,
-            kind: lower_machine_instruction_kind(&selected_instruction.kind)?,
-        });
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("machine instruction span count overflow");
-    }
-
-    Ok(if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    })
+            Ok(MachineInstruction {
+                selected_instruction_index,
+                kind: lower_machine_instruction_kind(&selected_instruction.kind)?,
+            })
+        },
+    ))
 }
