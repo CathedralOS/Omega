@@ -1,7 +1,7 @@
 use super::bindings::host_binding_mechanism;
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
-    RuntimeAliasResolutionContext, resolve_runtime_alias_binding_handle,
+    RuntimeAliasBuffer, RuntimeAliasResolutionContext, resolve_runtime_alias_binding_handle,
 };
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
@@ -122,16 +122,22 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         return (place.byte_count == input.target.pointer_size * 2).then_some(place);
     }
 
-    let mut expressions = alias_context
-        .map(|context| context.alias_expressions.clone())
-        .unwrap_or_default();
+    let mut expressions = ExpressionTable::new();
+    let copied_aliases = alias_context.map(|context| {
+        RuntimeAliasBuffer::copy_from_bindings(
+            context.alias_expressions,
+            context.aliases,
+            &mut expressions,
+        )
+    });
     let expression_handle = expressions.copy_from(&input.host_calls.expressions, *expression);
-    let (resolved_source_key, resolved_expression) = alias_context
-        .map(|context| {
+    let (resolved_source_key, resolved_expression) = copied_aliases
+        .as_ref()
+        .map(|aliases| {
             let resolved = resolve_runtime_alias_binding_handle(
                 expression_handle,
                 host_call.source_key,
-                context.aliases,
+                aliases.bindings(),
                 &mut expressions,
             );
             (resolved.source_key, resolved.expression)
