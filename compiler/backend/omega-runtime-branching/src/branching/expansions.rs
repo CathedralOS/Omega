@@ -1,5 +1,5 @@
 use super::aliases::{
-    BranchParameterBinding, RuntimeBranchAliasBuffer, branch_parameter_bindings,
+    BranchParameterBindings, RuntimeBranchAliasBuffer, branch_parameter_bindings,
     resolve_branch_expression_handle, resolve_branch_guard_handle,
 };
 use super::lookups::state_parameters;
@@ -193,7 +193,7 @@ pub(super) fn append_straight_line_branch_expansions(
 }
 
 fn leaf_branch_bindings<'a>(
-    branch_bindings: &'a [BranchParameterBinding],
+    branch_bindings: &'a BranchParameterBindings,
     context: &'a RuntimeBranchingContext,
     leaf_key: StateKey,
     expression_table: &'a mut ExpressionTable,
@@ -220,7 +220,7 @@ fn leaf_branch_bindings<'a>(
 }
 
 fn leaf_argument_bindings<'a>(
-    branch_bindings: &'a [BranchParameterBinding],
+    branch_bindings: &'a BranchParameterBindings,
     context: &'a RuntimeBranchingContext,
     leaf_key: StateKey,
     expression_table: &'a mut ExpressionTable,
@@ -244,7 +244,7 @@ fn leaf_argument_bindings<'a>(
 }
 
 fn straight_line_branch_bindings<'a>(
-    branch_bindings: &'a [BranchParameterBinding],
+    branch_bindings: &'a BranchParameterBindings,
     context: &'a RuntimeBranchingContext,
     target_key: StateKey,
     expression_table: &'a mut ExpressionTable,
@@ -271,7 +271,7 @@ fn straight_line_branch_bindings<'a>(
 }
 
 fn straight_line_argument_bindings<'a>(
-    branch_bindings: &'a [BranchParameterBinding],
+    branch_bindings: &'a BranchParameterBindings,
     context: &'a RuntimeBranchingContext,
     target_key: StateKey,
     expression_table: &'a mut ExpressionTable,

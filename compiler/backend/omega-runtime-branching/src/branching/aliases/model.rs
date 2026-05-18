@@ -4,6 +4,7 @@ use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
 const INLINE_RUNTIME_BRANCH_ALIAS_COUNT: usize = 8;
+const INLINE_BRANCH_PARAMETER_BINDING_COUNT: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct RuntimeBranchAlias {
@@ -18,6 +19,47 @@ pub(crate) struct BranchParameterBinding {
     pub(crate) parameter_symbol: SymbolHandle,
     pub(crate) parameter_name: ProgramName,
     pub(crate) expression: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BranchParameterBindings {
+    inline: [Option<BranchParameterBinding>; INLINE_BRANCH_PARAMETER_BINDING_COUNT],
+    len: usize,
+    overflow: Vec<BranchParameterBinding>,
+}
+
+impl BranchParameterBindings {
+    pub(crate) fn new() -> Self {
+        Self {
+            inline: std::array::from_fn(|_| None),
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    pub(crate) fn push(&mut self, binding: BranchParameterBinding) {
+        if self.len < INLINE_BRANCH_PARAMETER_BINDING_COUNT {
+            self.inline[self.len] = Some(binding);
+        } else {
+            self.overflow.push(binding);
+        }
+
+        self.len += 1;
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &BranchParameterBinding> {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_BRANCH_PARAMETER_BINDING_COUNT))
+            .filter_map(Option::as_ref)
+            .chain(self.overflow.iter())
+    }
+}
+
+impl Default for BranchParameterBindings {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
