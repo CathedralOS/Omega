@@ -195,7 +195,6 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     &mut writable_roots_span,
                     BorrowWritableRootFact {
                         symbol: owned.symbol,
-                        name: owned.name.clone(),
                         kind: BorrowRootKind::OwnedData,
                     },
                 );
@@ -209,7 +208,6 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     &mut writable_roots_span,
                     BorrowWritableRootFact {
                         symbol: local_data.symbol,
-                        name: local_data.name.clone(),
                         kind: BorrowRootKind::LocalData,
                     },
                 );
@@ -224,7 +222,6 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     &mut writable_roots_span,
                     BorrowWritableRootFact {
                         symbol: parameter.symbol,
-                        name: parameter.name.clone(),
                         kind: BorrowRootKind::MutableParameter,
                     },
                 );
@@ -259,9 +256,7 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
 
             states.append(StateBorrowFact {
                 machine_symbol: machine.symbol,
-                machine_name: machine.name.clone(),
                 state_symbol: state.symbol,
-                state_name: state.name.clone(),
                 writable_roots: writable_roots_span,
                 mutable_parameter_count,
                 calls: calls_span,
@@ -349,7 +344,6 @@ fn collect_statement_borrow_calls(
                     call.receiver_symbol,
                     call.target_symbol,
                     receiver_path.as_ref(),
-                    call.target.clone(),
                     collect_call_argument_accesses(
                         argument_accesses,
                         &program.expression_table,
@@ -494,13 +488,8 @@ fn append_borrow_call(
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     receiver_path: Option<&NamePath>,
-    target: ProgramName,
     accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) {
-    let receiver = receiver_path
-        .and_then(|receiver| receiver.last().cloned())
-        .unwrap_or_else(|| ProgramName::generated_static("self"));
-
     calls.append_to_span(
         state_calls,
         BorrowCallFact {
@@ -509,8 +498,6 @@ fn append_borrow_call(
             receiver_symbol,
             target_symbol,
             has_receiver: receiver_path.is_some(),
-            receiver,
-            target,
             accesses,
         },
     );
@@ -596,7 +583,6 @@ fn collect_expression_borrow_calls(
                     receiver_symbol,
                     call.target_symbol,
                     receiver_path.as_ref(),
-                    call.target.clone(),
                     collect_call_argument_accesses(
                         argument_accesses,
                         &program.expression_table,
@@ -971,13 +957,13 @@ fn collect_argument_accesses(
 ) {
     match expressions.expression(expression) {
         ExpressionNode::Mutable(inner_expression) => {
-            if let Some(root_name) =
-                expression_root_name(*inner_expression, expressions, machine_symbol)
+            if let Some(root_symbol) =
+                expression_root_symbol(*inner_expression, expressions, machine_symbol)
             {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
-                        root_name,
+                        root_symbol,
                         kind: BorrowAccessKind::Mutable,
                     },
                 );
@@ -1057,13 +1043,13 @@ fn collect_read_accesses(
             machine_symbol,
         ),
         ExpressionNode::Indexed(indexed) => {
-            if let Some(root_name) =
-                expression_root_name(indexed.collection, expressions, machine_symbol)
+            if let Some(root_symbol) =
+                expression_root_symbol(indexed.collection, expressions, machine_symbol)
             {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
-                        root_name,
+                        root_symbol,
                         kind: BorrowAccessKind::Read,
                     },
                 );
@@ -1085,11 +1071,11 @@ fn collect_read_accesses(
             machine_symbol,
         ),
         ExpressionNode::Name(path) => {
-            if let Some(root_name) = expressions.name_path_members(path.members).first() {
+            if let Some(root_symbol) = first_valid_name_path_symbol(path, expressions) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
-                        root_name: root_name.clone(),
+                        root_symbol,
                         kind: BorrowAccessKind::Read,
                     },
                 );
@@ -1120,14 +1106,14 @@ fn collect_read_accesses(
     }
 }
 
-fn expression_root_name(
+fn expression_root_symbol(
     expression: ExpressionHandle,
     expressions: &omega_typed_trees::expression::ExpressionTable,
     machine_symbol: SymbolHandle,
-) -> Option<ProgramName> {
+) -> Option<SymbolHandle> {
     match expressions.expression(expression) {
         ExpressionNode::Indexed(indexed) => {
-            expression_root_name(indexed.collection, expressions, machine_symbol)
+            expression_root_symbol(indexed.collection, expressions, machine_symbol)
         }
         ExpressionNode::Member(member) => match expressions.expression(member.receiver) {
             ExpressionNode::Name(path)
@@ -1135,13 +1121,29 @@ fn expression_root_name(
                     && path.symbol.is_valid()
                     && path.symbol == machine_symbol =>
             {
-                Some(member.member.clone())
+                member
+                    .member_symbol
+                    .is_valid()
+                    .then_some(member.member_symbol)
             }
-            _ => expression_root_name(member.receiver, expressions, machine_symbol),
+            _ => expression_root_symbol(member.receiver, expressions, machine_symbol),
         },
-        ExpressionNode::Name(path) => expressions.name_path_members(path.members).first().cloned(),
+        ExpressionNode::Name(path) => first_valid_name_path_symbol(path, expressions),
         _ => None,
     }
+}
+
+fn first_valid_name_path_symbol(
+    path: &omega_typed_trees::expression::TableNamePath,
+    expressions: &omega_typed_trees::expression::ExpressionTable,
+) -> Option<SymbolHandle> {
+    expressions
+        .name_path_member_symbols(path.member_symbols)
+        .first()
+        .copied()
+        .filter(|symbol| symbol.is_valid())
+        .or_else(|| path.head_symbol.is_valid().then_some(path.head_symbol))
+        .or_else(|| path.symbol.is_valid().then_some(path.symbol))
 }
 
 #[cfg(test)]
@@ -1250,9 +1252,9 @@ mod tests {
         assert_eq!(calls.len(), 2);
         assert_eq!(calls[0].statement_index, 0);
         assert_eq!(calls[0].call_ordinal, 0);
-        assert_eq!(calls[0].target, ProgramName::generated("outer"));
+        assert_eq!(calls[0].target_symbol, outer_symbol);
         assert_eq!(calls[1].statement_index, 0);
         assert_eq!(calls[1].call_ordinal, 1);
-        assert_eq!(calls[1].target, ProgramName::generated("inner"));
+        assert_eq!(calls[1].target_symbol, inner_symbol);
     }
 }
