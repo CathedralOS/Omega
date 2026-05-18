@@ -20,11 +20,13 @@ struct HelperStateStack {
 }
 
 impl HelperStateStack {
-    fn new() -> Self {
+    fn with_capacity(state_capacity: usize) -> Self {
         Self {
             inline: [None; INLINE_HELPER_STATE_STACK_COUNT],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(
+                state_capacity.saturating_sub(INLINE_HELPER_STATE_STACK_COUNT),
+            ),
         }
     }
 
@@ -621,7 +623,7 @@ fn helper_state_match_condition(
         machine,
         bindings,
         expected,
-        &mut HelperStateStack::new(),
+        &mut HelperStateStack::with_capacity(program.machine_states.len()),
     )
 }
 
