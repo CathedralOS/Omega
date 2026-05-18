@@ -24,7 +24,16 @@ pub fn build_runtime_text_plan(
     host_calls: &HostCallPlan,
     state_storage: &StateStoragePlan,
 ) -> RuntimeTextPlan {
-    let mut plan = RuntimeTextPlan::default();
+    let mut plan = RuntimeTextPlan::with_capacity(
+        host_calls.calls.len(),
+        host_calls
+            .calls
+            .len()
+            .saturating_add(state_storage.mutations.len()),
+        state_storage.mutations.len(),
+        state_storage.mutations.len(),
+        state_storage.mutations.len(),
+    );
 
     for (_, host_call) in host_calls.calls.iter() {
         collect_host_call_runtime_text(host_calls, host_call, &mut plan);
@@ -86,6 +95,19 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
         ..
     } = plan;
 
+    let builder_capacity = writes
+        .iter()
+        .filter(|(_, write)| write.kind == RuntimeTextWriteKind::GeneratedString)
+        .count();
+    let builder_segment_capacity = writes
+        .iter()
+        .filter(|(_, write)| write.kind == RuntimeTextWriteKind::GeneratedString)
+        .map(|(_, write)| runtime_text_builder_segment_count(expressions, write.value))
+        .sum();
+    builders.reserve(builder_capacity);
+    buffers.reserve(builder_capacity);
+    builder_segments.reserve(builder_segment_capacity);
+
     for (_, write) in writes.iter() {
         if write.kind != RuntimeTextWriteKind::GeneratedString {
             continue;
@@ -106,6 +128,24 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
             byte_capacity: DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY,
         });
     }
+}
+
+fn runtime_text_builder_segment_count(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> usize {
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression)
+        && binary.operator == BinaryOperator::Add
+    {
+        return runtime_text_builder_segment_count(expressions, binary.left)
+            .checked_add(runtime_text_builder_segment_count(
+                expressions,
+                binary.right,
+            ))
+            .expect("runtime text builder segment count overflow");
+    }
+
+    1
 }
 
 fn collect_builder_segments(
