@@ -9,11 +9,7 @@ pub fn operand_width(architecture: Architecture, operand: &InstructionOperand) -
     }
 }
 
-pub fn aarch64_call_operands(operands: &[InstructionOperand]) -> Vec<Aarch64CallOperand> {
-    operands.iter().map(aarch64_call_operand).collect()
-}
-
-fn aarch64_call_operand(operand: &InstructionOperand) -> Aarch64CallOperand {
+pub(crate) fn aarch64_call_operand(operand: &InstructionOperand) -> Aarch64CallOperand {
     match &operand.kind {
         InstructionOperandKind::DataAddress { .. } => Aarch64CallOperand::DataAddress,
         InstructionOperandKind::RuntimeStringPointer { byte_offset, .. } => {
