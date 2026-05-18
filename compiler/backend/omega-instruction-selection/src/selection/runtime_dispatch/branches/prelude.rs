@@ -20,6 +20,12 @@ use super::mutation::{
     select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
 };
 
+#[derive(Default)]
+struct BranchPreludeSelectionScratch {
+    expressions: ExpressionTable,
+    resolved_segment_expressions: ExpressionTable,
+}
+
 pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -28,6 +34,8 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let mut scratch = BranchPreludeSelectionScratch::default();
+
     for (_, expansion) in input
         .runtime_branching_calls
         .prelude_expansions
@@ -41,6 +49,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
         select_runtime_branch_prelude(
             input,
             expansion,
+            &mut scratch,
             operands,
             runtime_value_operands,
             selected_instructions,
@@ -51,6 +60,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
 fn select_runtime_branch_prelude(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeBranchPreludeExpansion,
+    scratch: &mut BranchPreludeSelectionScratch,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -68,8 +78,8 @@ fn select_runtime_branch_prelude(
         .span(expansion.bindings)
         .unwrap_or(&[]);
     let alias_bindings = prelude_alias_bindings(expansion.target_key, bindings);
-    let mut expressions = ExpressionTable::new();
-    let mut resolved_segment_expressions = ExpressionTable::new();
+    scratch.expressions.clear();
+    scratch.resolved_segment_expressions.clear();
 
     for operation in operations {
         match &operation.kind {
@@ -92,20 +102,21 @@ fn select_runtime_branch_prelude(
                 );
             }
             RuntimeBranchPreludeOperationKind::Mutation { target, value, .. } => {
-                expressions.clear();
+                scratch.expressions.clear();
+                let expressions = &mut scratch.expressions;
                 let target =
                     expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
                 let value =
                     expressions.copy_from(&input.runtime_branching_calls.expressions, *value);
                 let resolved_target = resolve_branch_prelude_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
-                    &mut expressions,
+                    expressions,
                     target,
                     bindings,
                 );
                 let resolved_value = resolve_branch_prelude_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
-                    &mut expressions,
+                    expressions,
                     value,
                     bindings,
                 );
@@ -124,7 +135,7 @@ fn select_runtime_branch_prelude(
                 ) {
                     continue;
                 }
-                resolved_segment_expressions.clear();
+                scratch.resolved_segment_expressions.clear();
                 if runtime_text_builder_write_in_table_emit(
                     input,
                     expansion.dispatch_index,
@@ -133,7 +144,7 @@ fn select_runtime_branch_prelude(
                     operation.statement_index,
                     &expressions,
                     resolved_target,
-                    &mut resolved_segment_expressions,
+                    &mut scratch.resolved_segment_expressions,
                     &|expressions, expression| {
                         resolve_branch_prelude_binding_expression_handle(
                             &input.runtime_branching_calls.expressions,
