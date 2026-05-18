@@ -15,7 +15,7 @@ use omega_target_operations::{
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
-    strip_mutable_expression,
+    resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
@@ -146,23 +146,25 @@ pub(super) fn select_runtime_state_call_result_write(
     ) else {
         return;
     };
-    let (value_machine, value_state) = input
-        .control_flow
-        .state_names_by_key_cloned(value_source_key);
-
-    if aliases.is_empty()
-        && let Some(kind) = select_runtime_frame_slot_value_write_in_table(
-            input,
-            dispatch_index,
-            value_source_key,
-            statement_index,
-            &input.runtime_bodies.expressions,
-            slot,
-            value,
-            static_values,
-            runtime_value_operands,
-        )
-    {
+    let mut value_expressions = alias_expressions.clone();
+    let value_expression = value_expressions.copy_from(&input.runtime_bodies.expressions, value);
+    let resolved_value = resolve_runtime_alias_binding_handle(
+        value_expression,
+        value_source_key,
+        aliases,
+        &mut value_expressions,
+    );
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        dispatch_index,
+        resolved_value.source_key,
+        statement_index,
+        &value_expressions,
+        slot,
+        resolved_value.expression,
+        static_values,
+        runtime_value_operands,
+    ) {
         selected_instructions.push(SelectedInstruction {
             kind,
             source_key: operation_source_key,
@@ -171,19 +173,23 @@ pub(super) fn select_runtime_state_call_result_write(
         return;
     }
 
+    let (value_machine, value_state) = input
+        .control_flow
+        .state_names_by_key_cloned(resolved_value.source_key);
+
     let target = Expression::Name(NamePath::resolved(
         vec![slot.name.clone()],
         slot.symbol,
         slot.symbol,
     ));
-    let value = input.runtime_bodies.expressions.to_tree(value);
+    let value = value_expressions.to_tree(resolved_value.expression);
 
     select_runtime_resolved_target_value_source_mutation_writes(
         input,
         dispatch_index,
         operation_source_key,
         operation_source_key,
-        value_source_key,
+        resolved_value.source_key,
         &value_machine,
         &value_state,
         statement_index,
