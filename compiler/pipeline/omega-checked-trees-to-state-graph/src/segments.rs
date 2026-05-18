@@ -31,7 +31,6 @@ pub(super) enum SegmentTransition {
     },
     BranchCall {
         statement_index: usize,
-        table: TableCall,
         has_continuation_segment: bool,
     },
 }
@@ -97,7 +96,6 @@ pub(super) fn split_state_segments(
                 operations,
                 transitions: branch_call_transitions(
                     statement_index,
-                    table_call.clone(),
                     statement_index + 1 < table_statements.len(),
                     segment_transitions,
                 ),
@@ -176,7 +174,6 @@ pub(super) fn split_state_segments(
 
 fn branch_call_transitions(
     statement_index: usize,
-    table: TableCall,
     has_continuation_segment: bool,
     segment_transitions: &mut Arena<SegmentTransition>,
 ) -> HandleSpan<SegmentTransition> {
@@ -185,7 +182,6 @@ fn branch_call_transitions(
         &mut transitions,
         SegmentTransition::BranchCall {
             statement_index,
-            table,
             has_continuation_segment,
         },
     );
