@@ -1026,13 +1026,12 @@ impl ExpressionTable {
 
     pub fn to_tree(&self, expression: ExpressionHandle) -> Expression {
         match self.expression(expression) {
-            ExpressionNode::ArrayLiteral(values) => Expression::ArrayLiteral(Arc::from(
+            ExpressionNode::ArrayLiteral(values) => Expression::ArrayLiteral(
                 self.expression_handles(*values)
                     .iter()
                     .map(|value| self.to_tree(*value))
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-            )),
+                    .collect::<Arc<[_]>>(),
+            ),
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
                 left: self.to_tree(binary.left),
                 operator: binary.operator,
@@ -1052,13 +1051,11 @@ impl ExpressionTable {
                     .then(|| Box::new(self.to_tree(call.receiver))),
                 target_symbol: call.target_symbol,
                 target: call.target.clone(),
-                arguments: Arc::from(
-                    self.expression_handles(call.arguments)
-                        .iter()
-                        .map(|argument| self.to_tree(*argument))
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice(),
-                ),
+                arguments: self
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| self.to_tree(*argument))
+                    .collect::<Arc<[_]>>(),
             })),
             ExpressionNode::Float(value) => Expression::Float(*value),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
@@ -1083,16 +1080,14 @@ impl ExpressionTable {
             ExpressionNode::StructLiteral(struct_literal) => {
                 Expression::StructLiteral(StructLiteral {
                     type_name: struct_literal.type_name.clone(),
-                    fields: Arc::from(
-                        self.struct_fields(struct_literal.fields)
-                            .iter()
-                            .map(|field| StructLiteralField {
-                                name: field.name.clone(),
-                                value: self.to_tree(field.value),
-                            })
-                            .collect::<Vec<_>>()
-                            .into_boxed_slice(),
-                    ),
+                    fields: self
+                        .struct_fields(struct_literal.fields)
+                        .iter()
+                        .map(|field| StructLiteralField {
+                            name: field.name.clone(),
+                            value: self.to_tree(field.value),
+                        })
+                        .collect::<Arc<[_]>>(),
                 })
             }
             ExpressionNode::String(value) => Expression::String(value.clone()),
