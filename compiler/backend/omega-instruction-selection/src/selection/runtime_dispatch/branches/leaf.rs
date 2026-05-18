@@ -202,6 +202,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             &operation_state,
             operation.statement_index,
             &resolved_target,
+            ExpressionTable::new(),
             &|expressions, expression| {
                 resolve_leaf_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
