@@ -6,11 +6,13 @@ use super::super::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding_
 use super::super::lookups::state_mutation_for_statement;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
+};
 use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
 pub(super) use static_values::RuntimeStaticValues;
@@ -161,6 +163,117 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
 
 #[allow(clippy::too_many_arguments)]
 fn select_runtime_storage_resolved_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if matches!(
+        expressions.expression(value),
+        ExpressionNode::StructLiteral(_)
+    ) {
+        let mut expressions = expressions.clone();
+        return select_runtime_storage_resolved_mutation_write_in_mutable_table(
+            input,
+            dispatch_index,
+            operation_source_key,
+            target_source_key,
+            value_source_key,
+            statement_index,
+            &mut expressions,
+            target,
+            value,
+            static_values,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
+
+    select_runtime_storage_resolved_scalar_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+        static_values,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &mut ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
+        for offset in 0..struct_literal.fields.count() {
+            let field = expressions
+                .struct_field_at_offset(struct_literal.fields, offset)
+                .clone();
+            let field_target = expressions.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: target,
+                member_symbol: SymbolHandle::invalid(),
+                member: field.name,
+            }));
+            select_runtime_storage_resolved_mutation_write_in_mutable_table(
+                input,
+                dispatch_index,
+                operation_source_key,
+                target_source_key,
+                value_source_key,
+                statement_index,
+                expressions,
+                field_target,
+                field.value,
+                static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
+        }
+        return true;
+    }
+
+    select_runtime_storage_resolved_scalar_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+        static_values,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_storage_resolved_scalar_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_source_key: StateKey,

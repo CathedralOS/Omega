@@ -1,9 +1,11 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    TableMemberExpression,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use omega_target_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
     StateGuardOperator,
@@ -256,6 +258,113 @@ pub(crate) fn select_runtime_resolved_mutation_write(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_resolved_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    resolved_target: ExpressionHandle,
+    resolved_value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if matches!(
+        expressions.expression(resolved_value),
+        ExpressionNode::StructLiteral(_)
+    ) {
+        let mut expressions = expressions.clone();
+        return select_runtime_resolved_mutation_write_in_mutable_table(
+            input,
+            dispatch_index,
+            operation_key,
+            target_source_key,
+            value_source_key,
+            statement_index,
+            &mut expressions,
+            resolved_target,
+            resolved_value,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
+
+    select_runtime_resolved_scalar_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_key,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        resolved_target,
+        resolved_value,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_resolved_mutation_write_in_mutable_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &mut ExpressionTable,
+    resolved_target: ExpressionHandle,
+    resolved_value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if let ExpressionNode::StructLiteral(struct_literal) =
+        expressions.expression(resolved_value).clone()
+    {
+        for offset in 0..struct_literal.fields.count() {
+            let field = expressions
+                .struct_field_at_offset(struct_literal.fields, offset)
+                .clone();
+            let field_target = expressions.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: resolved_target,
+                member_symbol: SymbolHandle::invalid(),
+                member: field.name,
+            }));
+            select_runtime_resolved_mutation_write_in_mutable_table(
+                input,
+                dispatch_index,
+                operation_key,
+                target_source_key,
+                value_source_key,
+                statement_index,
+                expressions,
+                field_target,
+                field.value,
+                runtime_value_operands,
+                selected_instructions,
+            );
+        }
+        return true;
+    }
+
+    select_runtime_resolved_scalar_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_key,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        resolved_target,
+        resolved_value,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_resolved_scalar_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_key: StateKey,
