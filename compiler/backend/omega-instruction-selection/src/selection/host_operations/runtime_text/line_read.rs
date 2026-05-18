@@ -122,7 +122,12 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         return (place.byte_count == input.target.pointer_size * 2).then_some(place);
     }
 
-    let mut expressions = ExpressionTable::new();
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context
+            .map(|context| context.aliases.len())
+            .unwrap_or(0)
+            .saturating_add(4),
+    );
     let copied_aliases = alias_context.map(|context| {
         RuntimeAliasBuffer::copy_from_bindings(
             context.alias_expressions,
