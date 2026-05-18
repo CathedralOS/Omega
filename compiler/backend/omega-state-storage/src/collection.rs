@@ -54,7 +54,15 @@ pub fn build_state_storage_plan_with_workers(
         build_machine_state_storage_plan(&program, &context, machine)
     });
 
-    let mut plan = StateStoragePlan::default();
+    let local_count = machine_plans
+        .iter()
+        .map(|machine_plan| machine_plan.locals.len())
+        .sum();
+    let mutation_count = machine_plans
+        .iter()
+        .map(|machine_plan| machine_plan.mutations.len())
+        .sum();
+    let mut plan = StateStoragePlan::with_capacity(local_count, mutation_count);
 
     for machine_plan in machine_plans {
         let StateStoragePlan {
@@ -109,7 +117,8 @@ fn build_machine_state_storage_plan(
     context: &StateStoragePlanningContext,
     machine: &Machine,
 ) -> StateStoragePlan {
-    let mut plan = StateStoragePlan::default();
+    let (local_capacity, mutation_capacity) = estimated_machine_storage_capacity(program, machine);
+    let mut plan = StateStoragePlan::with_capacity(local_capacity, mutation_capacity);
 
     for state in program.machine_states(machine) {
         let source_key = StateKey {
@@ -209,6 +218,28 @@ fn build_machine_state_storage_plan(
     }
 
     plan
+}
+
+fn estimated_machine_storage_capacity(program: &Program, machine: &Machine) -> (usize, usize) {
+    program
+        .machine_states(machine)
+        .iter()
+        .fold((0usize, 0usize), |(locals, mutations), state| {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let state_locals = statements
+                .iter()
+                .filter(|statement| matches!(statement, StatementNode::LocalData(_)))
+                .count();
+            let state_mutations = statements
+                .iter()
+                .filter(|statement| matches!(statement, StatementNode::Assignment(_)))
+                .count();
+
+            (
+                locals.saturating_add(state_locals),
+                mutations.saturating_add(state_mutations),
+            )
+        })
 }
 
 fn state_has_initialized_locals_before(

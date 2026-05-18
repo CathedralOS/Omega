@@ -14,6 +14,18 @@ pub struct StateStoragePlan {
     pub type_references: TypeReferenceTable,
 }
 
+impl StateStoragePlan {
+    pub(crate) fn with_capacity(local_capacity: usize, mutation_capacity: usize) -> Self {
+        Self {
+            expressions: ExpressionTable::new(),
+            invariant_names: Arena::new(),
+            locals: Arena::with_capacity(local_capacity),
+            mutations: Arena::with_capacity(mutation_capacity),
+            type_references: TypeReferenceTable::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StateLocalStorage {
     pub source_key: StateKey,
