@@ -62,7 +62,13 @@ fn encode_runtime_text_line_read(
             "AArch64 runtime line read cannot compare capacity `{byte_capacity}` yet"
         )));
     }
-    let mut bytes = Vec::new();
+    let encoded_capacity = match call {
+        RuntimeTextReadCall::Import => runtime_text_line_read_import_width(byte_capacity),
+        RuntimeTextReadCall::Syscall { number, .. } => {
+            runtime_text_line_read_syscall_width(byte_capacity, number)
+        }
+    };
+    let mut bytes = Vec::with_capacity(encoded_capacity);
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_move_x_register(21, 20));
