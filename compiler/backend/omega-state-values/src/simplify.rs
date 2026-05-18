@@ -221,8 +221,7 @@ fn simple_local_binding_value(expression: &Expression) -> Option<Expression> {
                 .arguments
                 .iter()
                 .map(simple_local_binding_value)
-                .collect::<Option<Vec<_>>>()?
-                .into(),
+                .collect::<Option<Arc<[_]>>>()?,
         }))),
         Expression::Mutable(inner) => {
             simple_local_binding_value(inner).map(|value| Expression::Mutable(Box::new(value)))
@@ -409,7 +408,7 @@ fn simplify_call_expression(
             preserve_call_locals,
         )
     });
-    let simplified_arguments: Vec<_> = call
+    let simplified_arguments: Arc<[_]> = call
         .arguments
         .iter()
         .map(|argument| {
@@ -453,7 +452,7 @@ fn simplify_call_expression(
         receiver: receiver.map(Box::new),
         target_symbol: call.target_symbol,
         target: call.target.clone(),
-        arguments: simplified_arguments.into(),
+        arguments: simplified_arguments,
     }))
 }
 
