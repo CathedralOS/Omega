@@ -14,7 +14,9 @@ use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
-use super::runtime_dispatch::select_runtime_resolved_mutation_write;
+use super::runtime_dispatch::{
+    select_runtime_resolved_mutation_write, select_runtime_unaliased_storage_mutation_write,
+};
 use omega_state_calls::StateCall;
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
@@ -119,6 +121,23 @@ pub(super) fn select_state_body_instructions(
         if let Some(mutation) =
             state_mutation_for_statement(input, state.key, operation.statement_index)
         {
+            if aliases.bindings().is_empty()
+                && let Some(dispatch_index) =
+                    dispatch_index_for_state(input, state.key).or(dispatch_index)
+                && select_runtime_unaliased_storage_mutation_write(
+                    input,
+                    dispatch_index,
+                    state.key,
+                    operation.statement_index,
+                    mutation.target,
+                    mutation.value,
+                    runtime_value_operands,
+                    selected_instructions,
+                )
+            {
+                continue;
+            }
+
             let target = input.state_storage.expressions.to_tree(mutation.target);
             let value = input.state_storage.expressions.to_tree(mutation.value);
             let resolved_target = resolve_runtime_alias_binding(

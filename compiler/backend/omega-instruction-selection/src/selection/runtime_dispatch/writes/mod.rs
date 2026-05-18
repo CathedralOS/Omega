@@ -6,8 +6,10 @@ use super::super::bindings::RuntimeAliasBinding;
 use super::super::lookups::state_mutation_for_statement;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_checked_trees::name::ProgramName;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
@@ -59,80 +61,8 @@ pub(super) fn select_runtime_storage_write_for_operation(
         return;
     };
 
-    let (source_machine, source_state) = state_names(input, mutation.source_key);
     if aliases.is_empty()
-        && let Some(copy) = storage_copy::runtime_storage_copy_in_table(
-            input,
-            dispatch_index,
-            mutation.source_key,
-            mutation.source_key,
-            &input.state_storage.expressions,
-            mutation.target,
-            mutation.value,
-        )
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind: copy,
-            source_key: mutation.source_key,
-            source_statement: mutation.statement_index,
-        });
-        return;
-    }
-    if aliases.is_empty()
-        && let Some(copy) = storage_copy::runtime_storage_indirect_copy_in_table(
-            input,
-            dispatch_index,
-            mutation.source_key,
-            mutation.source_key,
-            &input.state_storage.expressions,
-            mutation.target,
-            mutation.value,
-        )
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind: copy,
-            source_key: mutation.source_key,
-            source_statement: mutation.statement_index,
-        });
-        return;
-    }
-    if aliases.is_empty()
-        && let Some(kind) = mutation::select_runtime_static_mutation_write_in_table(
-            input,
-            dispatch_index,
-            mutation.source_key,
-            mutation.statement_index,
-            mutation.target,
-            mutation.value,
-            static_values,
-        )
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind,
-            source_key: mutation.source_key,
-            source_statement: mutation.statement_index,
-        });
-        return;
-    }
-    if aliases.is_empty()
-        && let Some(kind) = mutation::select_runtime_string_mutation_write_in_table(
-            input,
-            dispatch_index,
-            mutation.source_key,
-            mutation.statement_index,
-            mutation.target,
-            mutation.value,
-        )
-    {
-        selected_instructions.push(SelectedInstruction {
-            kind,
-            source_key: mutation.source_key,
-            source_statement: mutation.statement_index,
-        });
-        return;
-    }
-    if aliases.is_empty()
-        && let Some(kind) = mutation::select_runtime_binary_mutation_write_in_table(
+        && select_runtime_storage_mutation_write_in_table(
             input,
             dispatch_index,
             mutation.source_key,
@@ -141,16 +71,13 @@ pub(super) fn select_runtime_storage_write_for_operation(
             mutation.value,
             static_values,
             runtime_value_operands,
+            selected_instructions,
         )
     {
-        selected_instructions.push(SelectedInstruction {
-            kind,
-            source_key: mutation.source_key,
-            source_statement: mutation.statement_index,
-        });
         return;
     }
 
+    let (source_machine, source_state) = state_names(input, mutation.source_key);
     let target = input.state_storage.expressions.to_tree(mutation.target);
     let value = input.state_storage.expressions.to_tree(mutation.value);
     mutation::select_runtime_mutation_writes(
@@ -168,6 +95,81 @@ pub(super) fn select_runtime_storage_write_for_operation(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if let Some(kind) = storage_copy::runtime_storage_copy_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        source_key,
+        &input.state_storage.expressions,
+        target,
+        value,
+    )
+    .or_else(|| {
+        storage_copy::runtime_storage_indirect_copy_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            source_key,
+            &input.state_storage.expressions,
+            target,
+            value,
+        )
+    })
+    .or_else(|| {
+        mutation::select_runtime_static_mutation_write_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            target,
+            value,
+            static_values,
+        )
+    })
+    .or_else(|| {
+        mutation::select_runtime_string_mutation_write_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            target,
+            value,
+        )
+    })
+    .or_else(|| {
+        mutation::select_runtime_binary_mutation_write_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            target,
+            value,
+            static_values,
+            runtime_value_operands,
+        )
+    }) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
+    false
 }
 
 fn state_names(
