@@ -1,5 +1,5 @@
-use crate::host_calls::static_values::{StaticValue, resolve_static_value_handle};
-use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
+use crate::host_calls::static_values::{StaticValue, StaticValues, resolve_static_value_handle};
+use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
 use omega_calling_conventions::{
     HostAbiPlan, HostOperationKey, PlatformCallLowering, PlatformCallLoweringHandle,
 };
@@ -105,7 +105,7 @@ pub(crate) fn host_operation(operation_key: HostOperationKey) -> LoweredHostOper
 pub(crate) fn lower_host_call_arguments(
     program: &Program,
     call: &TableCall,
-    static_values: &[(PlaceKey, StaticValue)],
+    static_values: &StaticValues,
     expressions: &mut ExpressionTable,
     arguments: &mut Arena<HostCallArgument>,
 ) -> HandleSpan<HostCallArgument> {
@@ -162,7 +162,7 @@ fn lowering_matches(
 fn lower_host_call_argument(
     program: &Program,
     argument: ExpressionHandle,
-    static_values: &[(PlaceKey, StaticValue)],
+    static_values: &StaticValues,
     expressions: &mut ExpressionTable,
 ) -> HostCallArgumentKind {
     match program.expression_table.expression(argument) {
