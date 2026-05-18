@@ -7,9 +7,19 @@ pub fn encode_dispatch_loop_enter(
     architecture: Architecture,
     entry_dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
+    Ok(Vec::from(encode_dispatch_loop_enter_bytes(
+        architecture,
+        entry_dispatch_index,
+    )?))
+}
+
+pub fn encode_dispatch_loop_enter_bytes(
+    architecture: Architecture,
+    entry_dispatch_index: u32,
+) -> Result<[u8; 4], Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_dispatch_loop_enter(entry_dispatch_index),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::Aarch64 => aarch64::encode_dispatch_loop_enter_bytes(entry_dispatch_index),
+        Architecture::X86_64 => unsupported_x86_64_fixed_encoding(),
     }
 }
 
@@ -43,9 +53,19 @@ pub fn encode_dispatch_case_leave(
     architecture: Architecture,
     loop_byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
+    Ok(Vec::from(encode_dispatch_case_leave_bytes(
+        architecture,
+        loop_byte_distance,
+    )?))
+}
+
+pub fn encode_dispatch_case_leave_bytes(
+    architecture: Architecture,
+    loop_byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_dispatch_case_leave(loop_byte_distance),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::Aarch64 => aarch64::encode_dispatch_case_leave_bytes(loop_byte_distance),
+        Architecture::X86_64 => unsupported_x86_64_fixed_encoding(),
     }
 }
 
@@ -70,6 +90,12 @@ pub fn encode_dispatch_guard_compare_static(
 }
 
 fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "X86_64 dispatch instruction encoding is not implemented",
+    ))
+}
+
+fn unsupported_x86_64_fixed_encoding() -> Result<[u8; 4], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 dispatch instruction encoding is not implemented",
     ))
