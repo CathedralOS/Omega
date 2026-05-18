@@ -23,28 +23,53 @@ use super::widths::{
     runtime_storage_copy_width, runtime_storage_value_compare_width, runtime_value_operand_width,
 };
 
-pub fn encode_runtime_storage_compare(
+pub fn encode_runtime_storage_compare_bytes(
     left_offset: usize,
     right_offset: usize,
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_compare_width());
-    bytes.extend(encode_adrp_placeholder(16));
-    bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_adrp_placeholder(17));
-    bytes.extend(encode_add_page_offset_placeholder(17));
+) -> Result<[u8; 32], Diagnostic> {
+    let mut bytes = [0; 32];
+    let mut cursor = 0usize;
+    append_fixed_instruction(&mut bytes, &mut cursor, encode_adrp_placeholder(16));
+    append_fixed_instruction(
+        &mut bytes,
+        &mut cursor,
+        encode_add_page_offset_placeholder(16),
+    );
+    append_fixed_instruction(&mut bytes, &mut cursor, encode_adrp_placeholder(17));
+    append_fixed_instruction(
+        &mut bytes,
+        &mut cursor,
+        encode_add_page_offset_placeholder(17),
+    );
     match byte_size {
         1 | 4 => {
-            bytes.extend(encode_load_w_from_x(18, 16, left_offset, byte_size)?);
-            bytes.extend(encode_load_w_from_x(19, 17, right_offset, byte_size)?);
-            bytes.extend(encode_compare_w_register(18, 19));
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_load_w_from_x(18, 16, left_offset, byte_size)?,
+            );
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_load_w_from_x(19, 17, right_offset, byte_size)?,
+            );
+            append_fixed_instruction(&mut bytes, &mut cursor, encode_compare_w_register(18, 19));
         }
         8 => {
-            bytes.extend(encode_load_x_from_x(18, 16, left_offset)?);
-            bytes.extend(encode_load_x_from_x(19, 17, right_offset)?);
-            bytes.extend(encode_compare_x_register(18, 19));
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_load_x_from_x(18, 16, left_offset)?,
+            );
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_load_x_from_x(19, 17, right_offset)?,
+            );
+            append_fixed_instruction(&mut bytes, &mut cursor, encode_compare_x_register(18, 19));
         }
         _ => {
             return Err(Diagnostic::error(format!(
@@ -52,23 +77,30 @@ pub fn encode_runtime_storage_compare(
             )));
         }
     }
-    bytes.extend(encode_conditional_branch_for_operator_bytes(
-        operator,
-        failure_branch_distance,
-    )?);
+    append_fixed_instruction(
+        &mut bytes,
+        &mut cursor,
+        encode_conditional_branch_for_operator_bytes(operator, failure_branch_distance)?,
+    );
+    debug_assert_eq!(cursor, runtime_storage_compare_width());
     Ok(bytes)
 }
 
-pub fn encode_runtime_storage_value_compare(
+pub fn encode_runtime_storage_value_compare_bytes(
     byte_offset: usize,
     byte_size: usize,
     expected_value: i64,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_value_compare_width());
-    bytes.extend(encode_adrp_placeholder(16));
-    bytes.extend(encode_add_page_offset_placeholder(16));
+) -> Result<[u8; 20], Diagnostic> {
+    let mut bytes = [0; 20];
+    let mut cursor = 0usize;
+    append_fixed_instruction(&mut bytes, &mut cursor, encode_adrp_placeholder(16));
+    append_fixed_instruction(
+        &mut bytes,
+        &mut cursor,
+        encode_add_page_offset_placeholder(16),
+    );
     match byte_size {
         1 | 4 => {
             let expected_value = u32::try_from(expected_value).map_err(|_| {
@@ -76,8 +108,16 @@ pub fn encode_runtime_storage_value_compare(
                     "AArch64 MVP encoder cannot compare negative runtime guard value `{expected_value}` yet"
                 ))
             })?;
-            bytes.extend(encode_load_w_from_x(17, 16, byte_offset, byte_size)?);
-            bytes.extend(encode_compare_w17_immediate(expected_value)?);
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_load_w_from_x(17, 16, byte_offset, byte_size)?,
+            );
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_compare_w17_immediate(expected_value)?,
+            );
         }
         8 => {
             let expected_value = u64::try_from(expected_value).map_err(|_| {
@@ -85,8 +125,16 @@ pub fn encode_runtime_storage_value_compare(
                     "AArch64 MVP encoder cannot compare negative runtime guard value `{expected_value}` yet"
                 ))
             })?;
-            bytes.extend(encode_load_x_from_x(17, 16, byte_offset)?);
-            bytes.extend(encode_compare_x17_immediate(expected_value)?);
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_load_x_from_x(17, 16, byte_offset)?,
+            );
+            append_fixed_instruction(
+                &mut bytes,
+                &mut cursor,
+                encode_compare_x17_immediate(expected_value)?,
+            );
         }
         _ => {
             return Err(Diagnostic::error(format!(
@@ -94,10 +142,12 @@ pub fn encode_runtime_storage_value_compare(
             )));
         }
     }
-    bytes.extend(encode_conditional_branch_for_operator_bytes(
-        operator,
-        failure_branch_distance,
-    )?);
+    append_fixed_instruction(
+        &mut bytes,
+        &mut cursor,
+        encode_conditional_branch_for_operator_bytes(operator, failure_branch_distance)?,
+    );
+    debug_assert_eq!(cursor, runtime_storage_value_compare_width());
     Ok(bytes)
 }
 
@@ -819,6 +869,15 @@ fn encode_conditional_branch_for_operator_bytes(
             "AArch64 MVP encoder cannot lower runtime compare operator `{operator:?}` yet"
         )))?,
     })
+}
+
+fn append_fixed_instruction<const BYTE_COUNT: usize>(
+    bytes: &mut [u8; BYTE_COUNT],
+    cursor: &mut usize,
+    instruction: [u8; 4],
+) {
+    bytes[*cursor..*cursor + 4].copy_from_slice(&instruction);
+    *cursor += 4;
 }
 
 fn append_scale_x_register_by_constant(
