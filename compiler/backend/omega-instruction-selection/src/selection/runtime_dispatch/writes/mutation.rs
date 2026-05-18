@@ -25,7 +25,7 @@ use super::super::super::storage_places::{
     resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::text_writes::{
-    runtime_text_builder_write_emit, runtime_text_builder_write_in_table_emit,
+    runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_scratch_emit,
     select_runtime_string_descriptor_write, string_literal_data_handle,
 };
 use super::static_values::{
@@ -97,6 +97,7 @@ pub(super) fn select_runtime_mutation_writes(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    resolved_segment_expressions: &mut ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -116,6 +117,7 @@ pub(super) fn select_runtime_mutation_writes(
         aliases,
         alias_expressions,
         static_values,
+        resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
     );
@@ -219,6 +221,7 @@ pub(super) fn select_runtime_state_call_result_write(
 
     let target = value_expressions.to_tree(target);
     let value = value_expressions.to_tree(resolved_value.expression);
+    scratch.resolved_segment_expressions.clear();
 
     select_runtime_resolved_target_value_source_mutation_writes(
         input,
@@ -234,6 +237,7 @@ pub(super) fn select_runtime_state_call_result_write(
         aliases,
         alias_expressions,
         static_values,
+        &mut scratch.resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
     );
@@ -774,6 +778,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
+    resolved_segment_expressions: &mut ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -795,6 +800,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
                 aliases,
                 alias_expressions,
                 static_values,
+                resolved_segment_expressions,
                 runtime_value_operands,
                 selected_instructions,
             );
@@ -841,7 +847,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    if runtime_text_builder_write_emit(
+    if runtime_text_builder_write_with_scratch_emit(
         input,
         dispatch_index,
         operation_source_key,
@@ -851,6 +857,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         resolved_target,
         aliases,
         alias_expressions,
+        resolved_segment_expressions,
         &mut |kind| {
             selected_instructions.push(SelectedInstruction {
                 kind,

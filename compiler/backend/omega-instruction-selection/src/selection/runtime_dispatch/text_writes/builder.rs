@@ -63,7 +63,7 @@ impl RuntimeTextTarget {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection) fn runtime_text_builder_write_emit(
+pub(in crate::selection) fn runtime_text_builder_write_with_scratch_emit(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -73,6 +73,7 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
     resolved_target: &Expression,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
+    resolved_segment_expressions: &mut ExpressionTable,
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
     if aliases.is_empty()
@@ -90,11 +91,11 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
         return true;
     }
 
-    let mut resolved_segment_expressions = ExpressionTable::new();
+    resolved_segment_expressions.clear();
     let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
         alias_expressions,
         aliases,
-        &mut resolved_segment_expressions,
+        resolved_segment_expressions,
     );
     runtime_text_builder_write_with_handle_resolver_emit(
         input,
@@ -104,7 +105,7 @@ pub(in crate::selection) fn runtime_text_builder_write_emit(
         source_state,
         statement_index,
         resolved_target,
-        &mut resolved_segment_expressions,
+        resolved_segment_expressions,
         &|expressions, expression| {
             resolve_runtime_alias_binding_handle(
                 expression,
