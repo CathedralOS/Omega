@@ -618,6 +618,15 @@ impl ExpressionTable {
         )
     }
 
+    pub fn expression_is_direct_place_path(&self, handle: ExpressionHandle) -> bool {
+        match self.expression(handle) {
+            ExpressionNode::Name(_) => true,
+            ExpressionNode::Member(member) => self.expression_is_direct_place_path(member.receiver),
+            ExpressionNode::Mutable(inner) => self.expression_is_direct_place_path(*inner),
+            _ => false,
+        }
+    }
+
     pub fn expression_is_stored_place(&self, handle: ExpressionHandle) -> bool {
         matches!(
             self.expression(handle),

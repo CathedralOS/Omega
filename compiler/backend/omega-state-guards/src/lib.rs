@@ -280,7 +280,7 @@ fn normalized_guard_expression(
         return normalized_expressions.insert(ExpressionNode::Boolean(*value));
     }
 
-    if expression_is_direct_place_path(source_expressions, source_guard) {
+    if source_expressions.expression_is_direct_place_path(source_guard) {
         let left = normalized_expressions.copy_from(source_expressions, source_guard);
         let right = normalized_expressions.insert(ExpressionNode::Boolean(true));
         return normalized_expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
@@ -297,20 +297,6 @@ fn normalized_guard_expression(
     );
     let normalized_guard = normalize_guard_expression(simplified_guard);
     normalized_expressions.insert_tree(&normalized_guard)
-}
-
-fn expression_is_direct_place_path(
-    expressions: &ExpressionTable,
-    expression: ExpressionHandle,
-) -> bool {
-    match expressions.expression(expression) {
-        ExpressionNode::Name(_) => true,
-        ExpressionNode::Member(member) => {
-            expression_is_direct_place_path(expressions, member.receiver)
-        }
-        ExpressionNode::Mutable(inner) => expression_is_direct_place_path(expressions, *inner),
-        _ => false,
-    }
 }
 
 fn machine_by_symbol<'program>(
