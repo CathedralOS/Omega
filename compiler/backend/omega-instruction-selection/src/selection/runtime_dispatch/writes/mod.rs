@@ -30,12 +30,14 @@ pub(super) use storage_copy::{
 #[derive(Default)]
 pub(crate) struct RuntimeStorageWriteScratch {
     expressions: ExpressionTable,
+    mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
 }
 
 impl RuntimeStorageWriteScratch {
     pub(crate) fn clear(&mut self) {
         self.expressions.clear();
+        self.mutable_expressions.clear();
         self.resolved_segment_expressions.clear();
     }
 }
@@ -132,6 +134,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
             resolved_value.expression,
             copied_aliases.bindings(),
             static_values,
+            &mut scratch.mutable_expressions,
             &mut scratch.resolved_segment_expressions,
             runtime_value_operands,
             selected_instructions,
@@ -186,6 +189,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_mutation_wr
         value,
         &[],
         static_values,
+        &mut scratch.mutable_expressions,
         &mut scratch.resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
@@ -205,6 +209,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
     value: ExpressionHandle,
     aliases: &[RuntimeAliasBinding],
     static_values: &mut RuntimeStaticValues,
+    mutable_expressions: &mut ExpressionTable,
     resolved_segment_expressions: &mut ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -214,9 +219,10 @@ fn select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
         ExpressionNode::StructLiteral(_)
     ) {
         let source_expressions = expressions;
-        let mut expressions = ExpressionTable::new();
+        mutable_expressions.clear();
+        let expressions = mutable_expressions;
         let copied_aliases =
-            RuntimeAliasBuffer::copy_from_bindings(source_expressions, aliases, &mut expressions);
+            RuntimeAliasBuffer::copy_from_bindings(source_expressions, aliases, expressions);
         let target = expressions.copy_from(source_expressions, target);
         let value = expressions.copy_from(source_expressions, value);
         return select_runtime_storage_resolved_mutation_write_in_mutable_table(
@@ -226,7 +232,7 @@ fn select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
             target_source_key,
             value_source_key,
             statement_index,
-            &mut expressions,
+            expressions,
             target,
             value,
             copied_aliases.bindings(),
