@@ -6,9 +6,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{
     ContainedGraph, InvariantFact, MachineGraph, Operation, OperationExpressionRefs,
-    PlannedTransitionTarget, ProofFactKind, ProofObligationFact, StateBorrowAccessKind,
-    StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind, StateBorrowSummary,
-    StateBorrowWritableRoot, StateGraph, StateKey, StateNode, TransitionEdge,
+    PlannedTransitionTarget, ProofFactKind, ProofObligationFact, ProofObligationOwner,
+    StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind,
+    StateBorrowSummary, StateBorrowWritableRoot, StateGraph, StateKey, StateNode, TransitionEdge,
     TransitionExpressionRefs,
 };
 use std::sync::Arc;
@@ -101,11 +101,99 @@ fn remap_proof_obligations<'a>(
             },
             machine_symbol: fact.machine_symbol,
             state_symbol: fact.state_symbol,
-            owner: fact.owner.clone(),
+            owner: remap_proof_owner(&fact.owner),
         });
     }
 
     obligations
+}
+
+fn remap_proof_owner(owner: &omega_checked_trees::ProofObligationOwner) -> ProofObligationOwner {
+    match owner {
+        omega_checked_trees::ProofObligationOwner::Unknown => ProofObligationOwner::Unknown,
+        omega_checked_trees::ProofObligationOwner::MachineState {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+        } => ProofObligationOwner::MachineState {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+        },
+        omega_checked_trees::ProofObligationOwner::MachineOwnedData {
+            machine_symbol,
+            machine_name,
+            data_symbol,
+            data_name,
+        } => ProofObligationOwner::MachineOwnedData {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            data_symbol: *data_symbol,
+            data_name: data_name.clone(),
+        },
+        omega_checked_trees::ProofObligationOwner::StateParameter {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+            parameter_symbol,
+            parameter_name,
+        } => ProofObligationOwner::StateParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter_name.clone(),
+        },
+        omega_checked_trees::ProofObligationOwner::StateReturn {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+        } => ProofObligationOwner::StateReturn {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+        },
+        omega_checked_trees::ProofObligationOwner::CallParameter {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+            target_symbol,
+            target_name,
+            parameter_symbol,
+            parameter_name,
+        } => ProofObligationOwner::CallParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+            target_symbol: *target_symbol,
+            target_name: target_name.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter_name.clone(),
+        },
+        omega_checked_trees::ProofObligationOwner::TransitionParameter {
+            machine_symbol,
+            machine_name,
+            state_symbol,
+            state_name,
+            parameter_symbol,
+            parameter_name,
+        } => ProofObligationOwner::TransitionParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine_name.clone(),
+            state_symbol: *state_symbol,
+            state_name: state_name.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter_name.clone(),
+        },
+    }
 }
 
 fn remap_invariants<'a>(

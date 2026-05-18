@@ -6,10 +6,9 @@ use omega_checked_trees::statement::{
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckFacts, InvariantFact, InvariantFacts, Program, ProofFactKind,
-    ProofFacts, ProofObligationFact, StateBorrowFact,
+    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::symbols::SymbolHandle;
-use std::sync::Arc;
 
 pub fn lower_typed_trees(
     program: &omega_typed_trees::TypedTrees,
@@ -48,10 +47,12 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedAssignment,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: Arc::from(format!(
-                        "machine `{}` state `{}`",
-                        obligation.machine, obligation.state
-                    )),
+                    owner: state_owner(
+                        obligation.machine_symbol,
+                        &obligation.machine,
+                        obligation.state_symbol,
+                        &obligation.state,
+                    ),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedCallArgument(obligation) => {
@@ -59,13 +60,24 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedCallArgument,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: Arc::from(format!(
-                        "machine `{}` state `{}` call `{}` parameter `{}`",
-                        obligation.machine,
-                        obligation.state,
-                        obligation.target,
-                        obligation.parameter
-                    )),
+                    owner: ProofObligationOwner::CallParameter {
+                        machine_symbol: obligation.machine_symbol,
+                        machine_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.machine.as_str(),
+                        ),
+                        state_symbol: obligation.state_symbol,
+                        state_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.state.as_str(),
+                        ),
+                        target_symbol: obligation.target_symbol,
+                        target_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.target.as_str(),
+                        ),
+                        parameter_symbol: obligation.parameter_symbol,
+                        parameter_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.parameter.as_str(),
+                        ),
+                    },
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedInitializer(obligation) => {
@@ -73,7 +85,7 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedInitializer,
                     machine_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     state_symbol: omega_core::symbols::SymbolHandle::invalid(),
-                    owner: Arc::from(obligation.owner.as_str()),
+                    owner: proof_owner(&obligation.owner),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedStateReturn(obligation) => {
@@ -81,10 +93,16 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedStateReturn,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: Arc::from(format!(
-                        "machine `{}` state `{}` return",
-                        obligation.machine, obligation.state
-                    )),
+                    owner: ProofObligationOwner::StateReturn {
+                        machine_symbol: obligation.machine_symbol,
+                        machine_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.machine.as_str(),
+                        ),
+                        state_symbol: obligation.state_symbol,
+                        state_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.state.as_str(),
+                        ),
+                    },
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedValue(obligation) => {
@@ -92,7 +110,7 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedValue,
                     machine_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     state_symbol: omega_core::symbols::SymbolHandle::invalid(),
-                    owner: Arc::from(obligation.owner.as_str()),
+                    owner: proof_owner(&obligation.owner),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedTransitionArgument(obligation) => {
@@ -100,10 +118,20 @@ fn build_proof_facts(
                     kind: ProofFactKind::BoundedTransitionArgument,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: Arc::from(format!(
-                        "machine `{}` state `{}` transition parameter `{}`",
-                        obligation.machine, obligation.state, obligation.parameter
-                    )),
+                    owner: ProofObligationOwner::TransitionParameter {
+                        machine_symbol: obligation.machine_symbol,
+                        machine_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.machine.as_str(),
+                        ),
+                        state_symbol: obligation.state_symbol,
+                        state_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.state.as_str(),
+                        ),
+                        parameter_symbol: obligation.parameter_symbol,
+                        parameter_name: omega_checked_trees::name::ProgramName::from(
+                            obligation.parameter.as_str(),
+                        ),
+                    },
                 }
             }
             omega_proof::obligations::ProofObligation::GuardedTransition(obligation) => {
@@ -111,16 +139,75 @@ fn build_proof_facts(
                     kind: ProofFactKind::GuardedTransition,
                     machine_symbol: obligation.machine_symbol,
                     state_symbol: obligation.state_symbol,
-                    owner: Arc::from(format!(
-                        "machine `{}` state `{}` guard",
-                        obligation.machine, obligation.state
-                    )),
+                    owner: state_owner(
+                        obligation.machine_symbol,
+                        &obligation.machine,
+                        obligation.state_symbol,
+                        &obligation.state,
+                    ),
                 }
             }
         });
     }
 
     ProofFacts { obligations }
+}
+
+fn state_owner(
+    machine_symbol: SymbolHandle,
+    machine_name: &str,
+    state_symbol: SymbolHandle,
+    state_name: &str,
+) -> ProofObligationOwner {
+    ProofObligationOwner::MachineState {
+        machine_symbol,
+        machine_name: omega_checked_trees::name::ProgramName::from(machine_name),
+        state_symbol,
+        state_name: omega_checked_trees::name::ProgramName::from(state_name),
+    }
+}
+
+fn proof_owner(owner: &omega_proof::obligations::ProofObligationOwner) -> ProofObligationOwner {
+    match owner {
+        omega_proof::obligations::ProofObligationOwner::Unknown => ProofObligationOwner::Unknown,
+        omega_proof::obligations::ProofObligationOwner::MachineOwnedData {
+            machine_symbol,
+            machine,
+            data_symbol,
+            data,
+        } => ProofObligationOwner::MachineOwnedData {
+            machine_symbol: *machine_symbol,
+            machine_name: machine.clone(),
+            data_symbol: *data_symbol,
+            data_name: data.clone(),
+        },
+        omega_proof::obligations::ProofObligationOwner::StateParameter {
+            machine_symbol,
+            machine,
+            state_symbol,
+            state,
+            parameter_symbol,
+            parameter,
+        } => ProofObligationOwner::StateParameter {
+            machine_symbol: *machine_symbol,
+            machine_name: machine.clone(),
+            state_symbol: *state_symbol,
+            state_name: state.clone(),
+            parameter_symbol: *parameter_symbol,
+            parameter_name: parameter.clone(),
+        },
+        omega_proof::obligations::ProofObligationOwner::StateReturn {
+            machine_symbol,
+            machine,
+            state_symbol,
+            state,
+        } => ProofObligationOwner::StateReturn {
+            machine_symbol: *machine_symbol,
+            machine_name: machine.clone(),
+            state_symbol: *state_symbol,
+            state_name: state.clone(),
+        },
+    }
 }
 
 fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {

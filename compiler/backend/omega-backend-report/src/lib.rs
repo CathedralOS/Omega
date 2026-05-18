@@ -8,7 +8,7 @@ mod stats;
 use omega_artifacts::BackendSurfaceReport;
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_control_flow::{ControlFlowPlan, StateKey};
+use omega_control_flow::{ControlFlowPlan, ProofObligationOwner, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
@@ -1145,7 +1145,11 @@ fn write_checked_semantics_section(output: &mut String, backend_plan: &BackendRe
         output.push_str("none\n");
     } else {
         for (_, obligation) in backend_plan.control_flow.proof_obligations.iter() {
-            output.push_str(&format!("- {:?}: {}\n", obligation.kind, obligation.owner));
+            output.push_str(&format!(
+                "- {:?}: {}\n",
+                obligation.kind,
+                proof_obligation_owner_display_name(&obligation.owner)
+            ));
         }
     }
 
@@ -1303,6 +1307,50 @@ fn runtime_transition_target_name(
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown => "unknown".to_owned(),
+    }
+}
+
+fn proof_obligation_owner_display_name(owner: &ProofObligationOwner) -> String {
+    match owner {
+        ProofObligationOwner::Unknown => "unknown".to_owned(),
+        ProofObligationOwner::MachineState {
+            machine_name,
+            state_name,
+            ..
+        } => format!("machine `{machine_name}` state `{state_name}`"),
+        ProofObligationOwner::MachineOwnedData {
+            machine_name,
+            data_name,
+            ..
+        } => format!("machine `{machine_name}` owned data `{data_name}`"),
+        ProofObligationOwner::StateParameter {
+            machine_name,
+            state_name,
+            parameter_name,
+            ..
+        } => format!("machine `{machine_name}` state `{state_name}` parameter `{parameter_name}`"),
+        ProofObligationOwner::StateReturn {
+            machine_name,
+            state_name,
+            ..
+        } => format!("machine `{machine_name}` state `{state_name}` return"),
+        ProofObligationOwner::CallParameter {
+            machine_name,
+            state_name,
+            target_name,
+            parameter_name,
+            ..
+        } => format!(
+            "machine `{machine_name}` state `{state_name}` call `{target_name}` parameter `{parameter_name}`"
+        ),
+        ProofObligationOwner::TransitionParameter {
+            machine_name,
+            state_name,
+            parameter_name,
+            ..
+        } => format!(
+            "machine `{machine_name}` state `{state_name}` transition parameter `{parameter_name}`"
+        ),
     }
 }
 
