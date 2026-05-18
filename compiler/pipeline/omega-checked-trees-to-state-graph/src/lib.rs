@@ -515,22 +515,15 @@ fn append_machine_states(
     let mut count = 0u32;
 
     for (index, segment) in segments.iter().enumerate() {
-        let mut operations = HandleSpan::empty();
-        for (_, operation) in segment.operations.iter() {
-            state_graph
-                .operations
-                .append_to_span(&mut operations, operation.clone());
-        }
-
         let transitions = append_segment_transitions(state_graph, program, segment, segments)?;
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         let handle = state_graph.states.append(StateNode {
             key: segment.key,
             name: segment.name.clone(),
             index,
-            parameters: segment.parameters.clone(),
+            parameters: segment.parameters,
             borrow,
-            operations,
+            operations: segment.operations,
             transitions,
         });
         if count == 0 {

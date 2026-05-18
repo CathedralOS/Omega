@@ -18,7 +18,7 @@ pub(super) struct StateSegment {
     pub key: StateKey,
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameterNode>,
-    pub operations: Arena<Operation>,
+    pub operations: HandleSpan<Operation>,
     pub transitions: Arena<SegmentTransition>,
     pub next_segment_key: StateKey,
 }
@@ -53,7 +53,7 @@ pub(super) fn split_state_segments(
     let state_symbol = state.symbol;
     let table_statements = program.statement_table.statements(state.statement_nodes);
     let first_segment_index = segments.len();
-    let mut operations = Arena::with_capacity(table_statements.len());
+    let mut operations = HandleSpan::empty();
     let mut transitions = Arena::with_capacity(table_statements.len());
     let mut segment_index = 0usize;
     let mut transition_section_started = false;
@@ -90,7 +90,7 @@ pub(super) fn split_state_segments(
             });
 
             let remaining_statement_count = table_statements.len() - statement_index;
-            operations = Arena::with_capacity(remaining_statement_count);
+            operations = HandleSpan::empty();
             transitions = Arena::with_capacity(remaining_statement_count);
             segment_index += 1;
             transition_section_started = false;
@@ -117,13 +117,13 @@ pub(super) fn split_state_segments(
             });
 
             let remaining_statement_count = table_statements.len() - statement_index;
-            operations = Arena::with_capacity(remaining_statement_count);
+            operations = HandleSpan::empty();
             transitions = Arena::with_capacity(remaining_statement_count);
             segment_index += 1;
             transition_section_started = false;
         }
 
-        operations.insert(Operation {
+        let operation = Operation {
             statement_index,
             kind: operation_kind(program, table_statement),
             expressions: operation_expression_refs(
@@ -132,7 +132,10 @@ pub(super) fn split_state_segments(
                 state_graph,
                 &program.statement_table,
             ),
-        });
+        };
+        state_graph
+            .operations
+            .append_to_span(&mut operations, operation);
     }
 
     segments.push(StateSegment {
