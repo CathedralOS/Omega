@@ -155,6 +155,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
         aliases,
         alias_expressions,
         static_values,
+        &mut scratch.resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
     );
