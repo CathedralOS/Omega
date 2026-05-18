@@ -78,9 +78,15 @@ pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
-    let mut operations = Arena::new();
+    let mut operations = Arena::with_capacity(estimated_body_operation_capacity(
+        context,
+        dispatch_state.key,
+    ));
     let mut expressions = ExpressionTable::new();
-    let mut invariant_names = Arena::new();
+    let mut invariant_names = Arena::with_capacity(estimated_body_invariant_name_capacity(
+        context,
+        dispatch_state.key,
+    ));
     let mut type_references = TypeReferenceTable::new();
     append_state_body_operations(
         context,
@@ -100,6 +106,32 @@ pub(super) fn build_dispatch_body(
         operations,
         type_references,
     }
+}
+
+fn estimated_body_operation_capacity(
+    context: &RuntimeDispatchBodyContext,
+    state_key: StateKey,
+) -> usize {
+    state_operations(context, state_key).map_or(0, <[omega_control_flow::Operation]>::len)
+        + context
+            .state_calls
+            .calls
+            .iter()
+            .filter(|(_, state_call)| state_call.source_key == state_key)
+            .count()
+}
+
+fn estimated_body_invariant_name_capacity(
+    context: &RuntimeDispatchBodyContext,
+    state_key: StateKey,
+) -> usize {
+    context
+        .state_storage
+        .locals
+        .iter()
+        .filter(|(_, local)| local.source_key == state_key)
+        .map(|(_, local)| local.invariant_names.len())
+        .sum()
 }
 
 fn append_state_body_operations(
