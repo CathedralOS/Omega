@@ -120,6 +120,13 @@ impl TypeReferenceTable {
         self.constraints.span_or_empty(span)
     }
 
+    pub fn constraint_span(
+        &self,
+        span: HandleSpan<TypeConstraintNode>,
+    ) -> Option<&[TypeConstraintNode]> {
+        self.constraints.span(span)
+    }
+
     pub fn type_reference_count(&self) -> usize {
         self.type_references.len()
     }

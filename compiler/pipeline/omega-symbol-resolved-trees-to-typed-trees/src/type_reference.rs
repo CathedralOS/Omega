@@ -309,8 +309,8 @@ fn lower_type_constraints_with_context(
         let constraint =
             lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
         typed_trees
-            .type_constraints
-            .append_to_span(&mut span, constraint);
+            .type_reference_table
+            .push_constraint(&mut span, constraint);
     }
 
     Ok(span)

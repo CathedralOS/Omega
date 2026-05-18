@@ -67,7 +67,10 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
 fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for invariant in program.invariant_definitions() {
-        let Some(constraints) = program.type_constraints.span(invariant.constraints) else {
+        let Some(constraints) = program
+            .type_reference_table
+            .constraint_span(invariant.constraints)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "invariant `{}` references invalid constraint storage",
                 invariant.name
