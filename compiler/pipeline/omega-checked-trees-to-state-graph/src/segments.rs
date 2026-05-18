@@ -354,14 +354,67 @@ fn branch_call_target<'program>(
     current_machine: &'program Machine,
     call: &'program TableCall,
 ) -> Option<&'program State> {
-    branch_call_target_with_visited(program, current_machine, call, &mut Vec::new())
+    let mut visiting = VisitingStatesBuffer::new();
+    branch_call_target_with_visited(program, current_machine, call, &mut visiting)
+}
+
+type VisitingStateKey = (SymbolHandle, SymbolHandle);
+
+const INLINE_VISITING_STATE_COUNT: usize = 16;
+
+struct VisitingStatesBuffer {
+    inline: [Option<VisitingStateKey>; INLINE_VISITING_STATE_COUNT],
+    len: usize,
+    overflow: Vec<VisitingStateKey>,
+}
+
+impl VisitingStatesBuffer {
+    fn new() -> Self {
+        Self {
+            inline: [None; INLINE_VISITING_STATE_COUNT],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    fn contains(&self, key: &VisitingStateKey) -> bool {
+        self.inline
+            .iter()
+            .take(self.len.min(INLINE_VISITING_STATE_COUNT))
+            .flatten()
+            .any(|candidate| candidate == key)
+            || self.overflow.contains(key)
+    }
+
+    fn push(&mut self, key: VisitingStateKey) {
+        if self.len < INLINE_VISITING_STATE_COUNT {
+            self.inline[self.len] = Some(key);
+        } else {
+            self.overflow.push(key);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+
+        self.len -= 1;
+        if self.len < INLINE_VISITING_STATE_COUNT {
+            self.inline[self.len] = None;
+        } else {
+            self.overflow.pop();
+        }
+    }
 }
 
 fn branch_call_target_with_visited<'program>(
     program: &'program Program,
     current_machine: &'program Machine,
     call: &'program TableCall,
-    visiting: &mut Vec<(SymbolHandle, SymbolHandle)>,
+    visiting: &mut VisitingStatesBuffer,
 ) -> Option<&'program State> {
     let receiver = program.statement_table.name_path_members(call.receiver);
     let target_machine = if receiver.is_empty() || call.receiver_symbol == current_machine.symbol {
@@ -452,7 +505,7 @@ fn state_has_branching_flow(
     program: &Program,
     current_machine: &Machine,
     state: &State,
-    visiting: &mut Vec<(SymbolHandle, SymbolHandle)>,
+    visiting: &mut VisitingStatesBuffer,
 ) -> bool {
     let visit_key = (current_machine.symbol, state.symbol);
     if visiting.contains(&visit_key) {
