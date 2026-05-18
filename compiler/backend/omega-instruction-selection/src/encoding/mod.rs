@@ -5,7 +5,7 @@ mod runtime_text;
 
 pub use dispatch::{
     encode_dispatch_case_enter_bytes, encode_dispatch_case_leave_bytes,
-    encode_dispatch_guard_compare_static, encode_dispatch_loop_enter_bytes,
+    encode_dispatch_guard_compare_static_bytes, encode_dispatch_loop_enter_bytes,
     encode_dispatch_state_write_bytes,
 };
 pub use host::{encode_host_call_sequence, encode_return_bytes, encode_syscall_sequence};

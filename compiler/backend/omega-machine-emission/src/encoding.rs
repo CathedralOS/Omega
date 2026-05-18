@@ -1,4 +1,3 @@
-mod dispatch;
 mod host;
 mod runtime_storage;
 mod runtime_text;
@@ -6,7 +5,7 @@ mod runtime_text;
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
-use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
+use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn encode_machine_instruction_bytes(
     input: MachineEmissionContext<'_>,
@@ -27,29 +26,6 @@ pub(super) fn encode_machine_instruction_bytes(
 
             host::encode_host_operation(input, *operation_key, operands)
         }
-        SelectedInstructionKind::EvaluateDispatchGuard {
-            guard_lowering: StateGuardLowering::CompareStaticValue,
-            operator:
-                operator @ (StateGuardOperator::Equal
-                | StateGuardOperator::NotEqual
-                | StateGuardOperator::Greater
-                | StateGuardOperator::GreaterOrEqual
-                | StateGuardOperator::Less
-                | StateGuardOperator::LessOrEqual),
-            byte_offset,
-            byte_size,
-            expected_value,
-            has_storage: true,
-            ..
-        } => dispatch::encode_dispatch_guard_compare_static(
-            input,
-            machine_instructions,
-            machine_instruction_index,
-            *byte_offset,
-            *byte_size,
-            *expected_value,
-            *operator,
-        ),
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
             runtime_text::encode_runtime_text_literal_compare(
                 input,

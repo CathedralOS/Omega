@@ -4,7 +4,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_machine_program::{MachineInstruction, MachineProgram};
 use omega_target::NativeTarget;
-use omega_target_operations::{InstructionPlan, SelectedInstructionKind};
+use omega_target_operations::{
+    InstructionPlan, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+};
 
 mod branch_distances;
 mod encoding;
@@ -171,6 +173,37 @@ fn insert_fixed_machine_instruction_bytes(
                     laid_out_instructions,
                     machine_instruction_index,
                 )?,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::CompareStaticValue,
+            operator:
+                operator @ (StateGuardOperator::Equal
+                | StateGuardOperator::NotEqual
+                | StateGuardOperator::Greater
+                | StateGuardOperator::GreaterOrEqual
+                | StateGuardOperator::Less
+                | StateGuardOperator::LessOrEqual),
+            byte_offset,
+            byte_size,
+            expected_value,
+            has_storage: true,
+            ..
+        } => {
+            let bytes = omega_instruction_selection::encode_dispatch_guard_compare_static_bytes(
+                emission_context.target.architecture,
+                *byte_offset,
+                *byte_size,
+                *expected_value,
+                branch_distances::byte_distance_to_next_state_write_end(
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+                *operator,
             )?;
             for byte in bytes {
                 inserter.insert(byte);
