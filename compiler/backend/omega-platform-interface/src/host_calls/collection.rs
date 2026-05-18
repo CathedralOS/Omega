@@ -5,7 +5,7 @@ use crate::host_calls::lowering::{
 use crate::host_calls::static_values::{
     StaticValues, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
-use crate::{HostCall, HostCallPlan, UnsupportedHostCall};
+use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReason};
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::Program;
 use omega_checked_trees::machine::Machine;
@@ -100,7 +100,7 @@ fn collect_call_host_lowering(
             source_key: state_key(machine, state),
             statement_index,
             platform_call,
-            reason: format!("no native lowering for target {target:?}"),
+            reason: UnsupportedHostCallReason::NoNativeLowering { target },
         });
         return Ok(());
     };

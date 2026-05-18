@@ -1,7 +1,7 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_control_flow_expression_strings;
-use omega_platform_interface::HostCallArgumentKind;
+use omega_platform_interface::{HostCallArgumentKind, UnsupportedHostCallReason};
 
 pub(in crate::identity) fn count_host_call_strings(
     backend_plan: &BackendReportInput<'_>,
@@ -9,7 +9,7 @@ pub(in crate::identity) fn count_host_call_strings(
 ) {
     for (_, unsupported) in backend_plan.host_calls.unsupported_calls.iter() {
         storage.count_identity(&unsupported.platform_call);
-        storage.count_report(&unsupported.reason);
+        storage.count_report(&unsupported_host_call_reason_text(unsupported.reason));
     }
     for (_, argument) in backend_plan.host_calls.arguments.iter() {
         match &argument.kind {
@@ -22,6 +22,14 @@ pub(in crate::identity) fn count_host_call_strings(
                 );
             }
             HostCallArgumentKind::Integer(_) => {}
+        }
+    }
+}
+
+fn unsupported_host_call_reason_text(reason: UnsupportedHostCallReason) -> String {
+    match reason {
+        UnsupportedHostCallReason::NoNativeLowering { target } => {
+            format!("no native lowering for target {target:?}")
         }
     }
 }

@@ -2,6 +2,7 @@ use omega_calling_conventions::{HostOperationKey, PlatformCallData, PlatformCall
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_target::NativeTarget;
 use std::sync::Arc;
 
 mod host_calls;
@@ -47,7 +48,20 @@ pub struct UnsupportedHostCall {
     pub source_key: StateKey,
     pub statement_index: usize,
     pub platform_call: String,
-    pub reason: String,
+    pub reason: UnsupportedHostCallReason,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnsupportedHostCallReason {
+    NoNativeLowering { target: NativeTarget },
+}
+
+impl Default for UnsupportedHostCallReason {
+    fn default() -> Self {
+        Self::NoNativeLowering {
+            target: NativeTarget::host(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

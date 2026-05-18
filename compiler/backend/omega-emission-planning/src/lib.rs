@@ -7,7 +7,7 @@ use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_program::MachineProgram;
 use omega_object::{ObjectPlan, RelocationPlan};
-use omega_platform_interface::HostCallPlan;
+use omega_platform_interface::{HostCallPlan, UnsupportedHostCallReason};
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
@@ -111,7 +111,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
                 state_name(input, unsupported_call.source_key),
                 unsupported_call.statement_index,
                 unsupported_call.platform_call,
-                unsupported_call.reason,
+                unsupported_host_call_reason_text(unsupported_call.reason),
                 proof_scope_suffix(input, unsupported_call.source_key)
             ),
         ));
@@ -190,4 +190,12 @@ fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
 
 fn blocker(stage: &str, reason: &str) -> EmissionBlocker {
     emission_blocker(stage, reason)
+}
+
+fn unsupported_host_call_reason_text(reason: UnsupportedHostCallReason) -> String {
+    match reason {
+        UnsupportedHostCallReason::NoNativeLowering { target } => {
+            format!("no native lowering for target {target:?}")
+        }
+    }
 }
