@@ -1499,22 +1499,11 @@ fn derived_extrema_call_constraints(
         )));
     }
 
-    if let (Some(left_range), Some(right_range)) = (
+    if let Some(range) = extrema_integer_range(
+        is_max,
         integer_range_from_constraints(&left_constraints),
         integer_range_from_constraints(&right_constraints),
     ) {
-        let range = if is_max {
-            IntegerRange {
-                minimum: left_range.minimum.max(right_range.minimum),
-                maximum: left_range.maximum.max(right_range.maximum),
-            }
-        } else {
-            IntegerRange {
-                minimum: left_range.minimum.min(right_range.minimum),
-                maximum: left_range.maximum.min(right_range.maximum),
-            }
-        };
-
         constraints.push(ProofConstraint::IntegerRange {
             minimum: range.minimum,
             maximum: range.maximum,
@@ -1527,6 +1516,32 @@ fn derived_extrema_call_constraints(
 
     augment_constraints_with_named_facts(&mut constraints);
     Some(constraints)
+}
+
+fn extrema_integer_range(
+    is_max: bool,
+    left: Option<IntegerRange>,
+    right: Option<IntegerRange>,
+) -> Option<IntegerRange> {
+    match (is_max, left, right) {
+        (true, Some(left), Some(right)) => Some(IntegerRange {
+            minimum: left.minimum.max(right.minimum),
+            maximum: left.maximum.max(right.maximum),
+        }),
+        (true, Some(range), None) | (true, None, Some(range)) => Some(IntegerRange {
+            minimum: range.minimum,
+            maximum: i64::MAX,
+        }),
+        (false, Some(left), Some(right)) => Some(IntegerRange {
+            minimum: left.minimum.min(right.minimum),
+            maximum: left.maximum.min(right.maximum),
+        }),
+        (false, Some(range), None) | (false, None, Some(range)) => Some(IntegerRange {
+            minimum: i64::MIN,
+            maximum: range.maximum,
+        }),
+        (_, None, None) => None,
+    }
 }
 
 fn derived_range_call_constraints(
