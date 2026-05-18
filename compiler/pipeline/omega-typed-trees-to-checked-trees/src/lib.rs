@@ -131,8 +131,8 @@ fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFa
             symbol: definition.symbol,
             name: definition.name.clone(),
             constraint_count: program
-                .type_constraints
-                .span_or_empty(definition.constraints)
+                .type_reference_table
+                .constraints(definition.constraints)
                 .len(),
         });
     }

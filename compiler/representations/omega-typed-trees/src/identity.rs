@@ -142,8 +142,13 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
-    for (_, constraint) in typed_trees.type_constraints.iter() {
-        count_type_constraint(&typed_trees.expression_table, constraint, &mut counts);
+    for invariant in typed_trees.invariant_definitions() {
+        for constraint in typed_trees
+            .type_reference_table
+            .constraints(invariant.constraints)
+        {
+            count_type_constraint(&typed_trees.expression_table, constraint, &mut counts);
+        }
     }
 
     counts
