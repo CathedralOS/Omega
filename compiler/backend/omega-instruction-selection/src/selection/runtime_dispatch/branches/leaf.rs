@@ -29,6 +29,13 @@ fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
 }
 
+#[derive(Default)]
+struct LeafBranchSelectionScratch {
+    expressions: ExpressionTable,
+    resolved_segment_expressions: ExpressionTable,
+    fallback_segment_expressions: ExpressionTable,
+}
+
 pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -36,6 +43,8 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let mut scratch = LeafBranchSelectionScratch::default();
+
     for (_, expansion) in
         input
             .runtime_branching_calls
@@ -50,6 +59,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
         select_runtime_leaf_branch_expansion(
             input,
             expansion,
+            &mut scratch,
             runtime_value_operands,
             selected_instructions,
         );
@@ -59,6 +69,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
 fn select_runtime_leaf_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -77,12 +88,14 @@ fn select_runtime_leaf_branch_expansion(
     select_runtime_leaf_branch_terminal_value_write(
         input,
         expansion,
+        scratch,
         runtime_value_operands,
         selected_instructions,
     );
     select_runtime_leaf_branch_mutation_writes(
         input,
         expansion,
+        scratch,
         runtime_value_operands,
         selected_instructions,
     );
@@ -94,6 +107,7 @@ fn select_runtime_leaf_branch_expansion(
 fn select_runtime_leaf_branch_terminal_value_write(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -122,11 +136,12 @@ fn select_runtime_leaf_branch_terminal_value_write(
         .leaf_bindings
         .span(expansion.bindings)
         .unwrap_or(&[]);
-    let mut expressions = ExpressionTable::new();
+    scratch.expressions.clear();
+    let expressions = &mut scratch.expressions;
     let value = expressions.copy_from(&input.runtime_branching_calls.expressions, value);
     let resolved_value = resolve_leaf_binding_expression_handle(
         &input.runtime_branching_calls.expressions,
-        &mut expressions,
+        expressions,
         value,
         bindings,
     );
@@ -150,7 +165,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
         return;
     }
 
-    let target = runtime_frame_slot_target_expression(&mut expressions, slot);
+    let target = runtime_frame_slot_target_expression(expressions, slot);
     if select_runtime_resolved_mutation_write_in_table(
         input,
         expansion.dispatch_index,
@@ -188,6 +203,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
 fn select_runtime_leaf_branch_mutation_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -203,26 +219,27 @@ fn select_runtime_leaf_branch_mutation_writes(
         .leaf_bindings
         .span(expansion.bindings)
         .unwrap_or(&[]);
-    let mut expressions = ExpressionTable::new();
-    let mut resolved_segment_expressions = ExpressionTable::new();
-    let mut fallback_segment_expressions = ExpressionTable::new();
+    scratch.expressions.clear();
+    scratch.resolved_segment_expressions.clear();
+    scratch.fallback_segment_expressions.clear();
 
     for operation in operations {
         let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
             continue;
         };
-        expressions.clear();
+        scratch.expressions.clear();
+        let expressions = &mut scratch.expressions;
         let target = expressions.copy_from(&input.runtime_branching_calls.expressions, *target);
         let value = expressions.copy_from(&input.runtime_branching_calls.expressions, *value);
         let resolved_target = resolve_leaf_binding_expression_handle(
             &input.runtime_branching_calls.expressions,
-            &mut expressions,
+            expressions,
             target,
             bindings,
         );
         let resolved_value = resolve_leaf_binding_expression_handle(
             &input.runtime_branching_calls.expressions,
-            &mut expressions,
+            expressions,
             value,
             bindings,
         );
@@ -261,7 +278,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
-        resolved_segment_expressions.clear();
+        scratch.resolved_segment_expressions.clear();
         if runtime_text_builder_write_in_table_emit(
             input,
             expansion.dispatch_index,
@@ -270,7 +287,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             operation.statement_index,
             &expressions,
             resolved_target,
-            &mut resolved_segment_expressions,
+            &mut scratch.resolved_segment_expressions,
             &|expressions, expression| {
                 resolve_leaf_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
@@ -308,7 +325,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         }
 
         let (operation_machine, operation_state) = state_names(input, operation.source_key);
-        fallback_segment_expressions.clear();
+        scratch.fallback_segment_expressions.clear();
         if runtime_text_builder_write_with_handle_resolver_emit(
             input,
             expansion.dispatch_index,
@@ -317,7 +334,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             &operation_state,
             operation.statement_index,
             &resolved_target,
-            &mut fallback_segment_expressions,
+            &mut scratch.fallback_segment_expressions,
             &|expressions, expression| {
                 resolve_leaf_binding_expression_handle(
                     &input.runtime_branching_calls.expressions,
