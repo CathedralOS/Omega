@@ -9,10 +9,11 @@ pub use model::{
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_state_calls::StateCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStoragePlanningContext {
-    pub control_flow: ControlFlowPlan,
+    pub control_flow: Arc<ControlFlowPlan>,
     pub runtime_flow: RuntimeFlowPlan,
     pub state_calls: StateCallPlan,
 }
