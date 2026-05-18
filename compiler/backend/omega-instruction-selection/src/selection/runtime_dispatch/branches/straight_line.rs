@@ -18,7 +18,8 @@ use super::super::super::lookups::{
 use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::mutation::{
-    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+    select_runtime_resolved_mutation_write,
+    select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_state_calls::{StateCallArgument, StateCallRole};
@@ -133,7 +134,7 @@ fn select_runtime_straight_line_branch_writes(
                     value,
                     bindings,
                 );
-                if select_runtime_resolved_mutation_write_in_table(
+                if select_runtime_resolved_mutation_write_in_table_with_scratch(
                     input,
                     expansion.dispatch_index,
                     operation.source_key,
@@ -143,6 +144,7 @@ fn select_runtime_straight_line_branch_writes(
                     &expressions,
                     resolved_target,
                     resolved_value,
+                    &mut scratch.resolved_segment_expressions,
                     runtime_value_operands,
                     selected_instructions,
                 ) {
@@ -302,7 +304,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             arguments,
             straight_line_bindings,
         );
-        if select_runtime_resolved_mutation_write_in_table(
+        if select_runtime_resolved_mutation_write_in_table_with_scratch(
             input,
             expansion.dispatch_index,
             target_key,
@@ -312,6 +314,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             &expressions,
             resolved_target,
             resolved_value,
+            &mut scratch.resolved_segment_expressions,
             runtime_value_operands,
             selected_instructions,
         ) {

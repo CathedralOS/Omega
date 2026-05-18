@@ -20,7 +20,8 @@ use super::super::writes::{
     select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
-    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+    select_runtime_resolved_mutation_write,
+    select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind};
@@ -166,7 +167,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
     }
 
     let target = runtime_frame_slot_target_expression(expressions, slot);
-    if select_runtime_resolved_mutation_write_in_table(
+    if select_runtime_resolved_mutation_write_in_table_with_scratch(
         input,
         expansion.dispatch_index,
         expansion.source_key,
@@ -176,6 +177,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
         &expressions,
         target,
         resolved_value,
+        &mut scratch.resolved_segment_expressions,
         runtime_value_operands,
         selected_instructions,
     ) {
@@ -262,7 +264,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
-        if select_runtime_resolved_mutation_write_in_table(
+        if select_runtime_resolved_mutation_write_in_table_with_scratch(
             input,
             expansion.dispatch_index,
             operation.source_key,
@@ -272,6 +274,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             &expressions,
             resolved_target,
             resolved_value,
+            &mut scratch.resolved_segment_expressions,
             runtime_value_operands,
             selected_instructions,
         ) {
