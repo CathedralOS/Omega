@@ -6,8 +6,7 @@ use omega_state_schedule::{ScheduledState, ScheduledStateCollector};
 
 use super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
-    resolve_runtime_alias_binding, resolve_runtime_alias_binding_handle,
-    strip_mutable_expression_handle,
+    resolve_runtime_alias_binding_handle, strip_mutable_expression_handle,
 };
 use super::host_operations::select_host_call;
 use super::instruction_sink::SelectedInstructionSink;
@@ -15,7 +14,8 @@ use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
 use super::runtime_dispatch::{
-    select_runtime_resolved_mutation_write, select_runtime_unaliased_storage_mutation_write,
+    select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
+    select_runtime_unaliased_storage_mutation_write,
 };
 use omega_state_calls::StateCall;
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
@@ -141,20 +141,38 @@ pub(super) fn select_state_body_instructions(
             if let Some(dispatch_index) =
                 dispatch_index_for_state(input, state.key).or(dispatch_index)
             {
-                let target = input.state_storage.expressions.to_tree(mutation.target);
-                let value = input.state_storage.expressions.to_tree(mutation.value);
-                let resolved_target = resolve_runtime_alias_binding(
-                    &target,
+                let mut expressions = alias_expressions.clone();
+                let target =
+                    expressions.copy_from(&input.state_storage.expressions, mutation.target);
+                let value = expressions.copy_from(&input.state_storage.expressions, mutation.value);
+                let resolved_target = resolve_runtime_alias_binding_handle(
+                    target,
                     state.key,
                     aliases.bindings(),
-                    alias_expressions,
+                    &mut expressions,
                 );
-                let resolved_value = resolve_runtime_alias_binding(
-                    &value,
+                let resolved_value = resolve_runtime_alias_binding_handle(
+                    value,
                     state.key,
                     aliases.bindings(),
-                    alias_expressions,
+                    &mut expressions,
                 );
+                if select_runtime_resolved_mutation_write_in_table(
+                    input,
+                    dispatch_index,
+                    state.key,
+                    resolved_target.source_key,
+                    resolved_value.source_key,
+                    operation.statement_index,
+                    &expressions,
+                    resolved_target.expression,
+                    resolved_value.expression,
+                    selected_instructions,
+                ) {
+                    continue;
+                }
+                let resolved_target = expressions.to_tree(resolved_target.expression);
+                let resolved_value = expressions.to_tree(resolved_value.expression);
                 let (machine_name, state_name) =
                     input.control_flow.state_names_by_key_cloned(state.key);
                 select_runtime_resolved_mutation_write(
@@ -165,8 +183,8 @@ pub(super) fn select_state_body_instructions(
                     &machine_name,
                     &state_name,
                     operation.statement_index,
-                    &resolved_target.expression,
-                    &resolved_value.expression,
+                    &resolved_target,
+                    &resolved_value,
                     runtime_value_operands,
                     selected_instructions,
                 );
