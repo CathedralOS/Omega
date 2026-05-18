@@ -15,6 +15,7 @@ use omega_runtime_branching::{
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 use super::super::super::lookups::host_call_for_statement;
+use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::mutation::{
     select_runtime_resolved_mutation_write, select_runtime_resolved_mutation_write_in_table,
 };
@@ -118,6 +119,33 @@ fn select_runtime_branch_prelude(
                     resolved_value,
                     runtime_value_operands,
                     selected_instructions,
+                ) {
+                    continue;
+                }
+                if runtime_text_builder_write_in_table_emit(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.source_key,
+                    operation.statement_index,
+                    &expressions,
+                    resolved_target,
+                    ExpressionTable::new(),
+                    &|expressions, expression| {
+                        resolve_branch_prelude_binding_expression_handle(
+                            &input.runtime_branching_calls.expressions,
+                            expressions,
+                            expression,
+                            bindings,
+                        )
+                    },
+                    &mut |kind| {
+                        selected_instructions.push(omega_target_operations::SelectedInstruction {
+                            kind,
+                            source_key: operation.source_key,
+                            source_statement: operation.statement_index,
+                        });
+                    },
                 ) {
                     continue;
                 }
