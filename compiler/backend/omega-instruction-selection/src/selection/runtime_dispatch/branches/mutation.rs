@@ -20,8 +20,8 @@ use super::super::super::storage_places::{
     resolve_runtime_storage_place_in_table, static_integer_value_in_table,
 };
 use super::super::text_writes::{
-    runtime_text_builder_write_without_aliases_emit, select_runtime_string_descriptor_write,
-    string_literal_data_handle,
+    runtime_text_builder_write_in_table_emit, runtime_text_builder_write_without_aliases_emit,
+    select_runtime_string_descriptor_write, string_literal_data_handle,
 };
 use super::super::writes::{
     runtime_storage_copy, runtime_storage_copy_in_table, runtime_storage_indirect_copy_in_table,
@@ -377,6 +377,27 @@ fn select_runtime_resolved_scalar_mutation_write_in_table(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
+    if runtime_text_builder_write_in_table_emit(
+        input,
+        dispatch_index,
+        operation_key,
+        target_source_key,
+        statement_index,
+        expressions,
+        resolved_target,
+        ExpressionTable::new(),
+        &|_, expression| expression,
+        &mut |kind| {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation_key,
+                source_statement: statement_index,
+            });
+        },
+    ) {
+        return true;
+    }
+
     if let Some(kind) = select_runtime_string_mutation_write_in_table(
         input,
         dispatch_index,

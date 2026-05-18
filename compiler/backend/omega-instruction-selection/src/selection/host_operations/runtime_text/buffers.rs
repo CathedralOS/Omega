@@ -1,8 +1,10 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::Expression;
+use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 use omega_platform_interface::HostCall;
 use omega_runtime_text::RuntimeTextSource;
-use omega_runtime_text::places::{expression_place_eq_in_table, expression_place_eq_table_tree};
+use omega_runtime_text::places::{
+    expression_place_eq_across_tables, expression_place_eq_in_table, expression_place_eq_table_tree,
+};
 use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data(
@@ -87,6 +89,41 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place(
         ) || expression_place_eq_table_tree(
             &input.runtime_text.expressions,
             buffer.target,
+            text_place,
+        ))
+        .then_some(buffer)
+    });
+    let Some(buffer) = buffer else {
+        return TargetDataObjectHandle::invalid();
+    };
+
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_key == buffer.source_key
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(TargetDataObjectHandle::invalid)
+}
+
+pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place_in_table(
+    input: &InstructionSelectionInput<'_>,
+    text_place_expressions: &ExpressionTable,
+    text_place: ExpressionHandle,
+) -> TargetDataObjectHandle {
+    let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
+        (expression_place_eq_across_tables(
+            &input.runtime_text.expressions,
+            buffer.text_place,
+            text_place_expressions,
+            text_place,
+        ) || expression_place_eq_across_tables(
+            &input.runtime_text.expressions,
+            buffer.target,
+            text_place_expressions,
             text_place,
         ))
         .then_some(buffer)
