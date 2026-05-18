@@ -9,7 +9,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
-pub(super) fn encode_machine_instruction(
+pub(super) fn encode_machine_instruction_bytes(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,

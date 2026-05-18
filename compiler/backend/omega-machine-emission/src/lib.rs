@@ -11,7 +11,7 @@ mod encoding;
 mod host_bindings;
 mod layout;
 
-use encoding::encode_machine_instruction;
+use encoding::encode_machine_instruction_bytes;
 use layout::layout_machine_instructions;
 
 #[derive(Debug)]
@@ -119,7 +119,7 @@ fn insert_encoded_machine_instruction(
     kind: &omega_target_operations::SelectedInstructionKind,
 ) -> Result<HandleSpan<u8>, Diagnostic> {
     encoded_bytes.try_insert_many_with(|inserter| {
-        for byte in encode_machine_instruction(
+        for byte in encode_machine_instruction_bytes(
             emission_context,
             laid_out_instructions,
             machine_instruction_index,
