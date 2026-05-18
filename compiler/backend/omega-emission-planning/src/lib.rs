@@ -73,7 +73,7 @@ pub struct EmissionPlanningInput<'plan> {
 }
 
 pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
-    let mut blockers = Arena::new();
+    let mut blockers = Arena::with_capacity(estimated_emission_blocker_capacity(input));
     let schedule_context =
         StateScheduleContext::new(&input.control_flow, &input.host_calls, input.state_calls);
     let (state_schedule, needs_runtime_dispatch) =
@@ -160,6 +160,27 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         relocations: input.relocations.records.len(),
         blockers,
     }
+}
+
+fn estimated_emission_blocker_capacity(input: &EmissionPlanningInput<'_>) -> usize {
+    let fixed_blockers = 6usize;
+
+    fixed_blockers
+        .saturating_add(input.host_calls.unsupported_calls.len())
+        .saturating_add(input.host_abi.bindings.len())
+        .saturating_add(input.host_calls.calls.len())
+        .saturating_add(input.state_calls.calls.len().saturating_mul(2))
+        .saturating_add(input.state_storage.locals.len())
+        .saturating_add(input.state_storage.mutations.len())
+        .saturating_add(input.state_values.values.len())
+        .saturating_add(input.runtime_flow.cycles.len())
+        .saturating_add(input.runtime_bodies.operations.len())
+        .saturating_add(input.runtime_storage.frame_slots.len())
+        .saturating_add(input.runtime_storage.writes.len())
+        .saturating_add(input.runtime_text.uses.len())
+        .saturating_add(input.runtime_text.writes.len())
+        .saturating_add(input.state_guards.guards.len())
+        .saturating_add(input.control_flow.operations.len())
 }
 
 fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
