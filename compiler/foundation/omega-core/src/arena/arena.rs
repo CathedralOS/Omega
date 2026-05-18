@@ -186,6 +186,38 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    pub fn try_insert_many_with<E>(
+        &mut self,
+        insert_items: impl FnOnce(&mut ArenaSpanInserter<'_, T>) -> Result<(), E>,
+    ) -> Result<HandleSpan<T>, E> {
+        // Spans promise contiguous storage. This fallible variant lets
+        // producers emit directly into the arena while preserving rollback.
+        let start_len = self.items.len();
+        let start_active_count = self.active_count;
+        let start_index = start_len.try_into().expect("arena index overflow");
+        let mut inserter = ArenaSpanInserter {
+            arena: self,
+            count: 0,
+        };
+
+        if let Err(error) = insert_items(&mut inserter) {
+            inserter.arena.items.truncate(start_len);
+            inserter.arena.generations.truncate(start_len);
+            inserter.arena.occupied.truncate(start_len);
+            inserter.arena.active_count = start_active_count;
+            return Err(error);
+        }
+
+        if inserter.count == 0 {
+            Ok(HandleSpan::empty())
+        } else {
+            Ok(HandleSpan::from_parts(
+                Handle::from_arena_index(start_index),
+                inserter.count,
+            ))
+        }
+    }
+
     pub fn try_insert_many<E>(
         &mut self,
         items: impl IntoIterator<Item = Result<T, E>>,
@@ -626,6 +658,45 @@ mod tests {
         let span = arena
             .try_insert_many::<&str>([Ok("alpha".to_owned()), Ok("beta".to_owned())])
             .expect("fallible insert should succeed");
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 2);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned()]
+        );
+    }
+
+    #[test]
+    fn fallible_direct_span_insert_rolls_back_partial_appends() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        let result = arena.try_insert_many_with(|inserter| {
+            inserter.insert("beta".to_owned());
+            Err("boom")
+        });
+
+        assert_eq!(result, Err("boom"));
+        assert_eq!(arena.len(), 1);
+        assert_eq!(arena.get(first).as_str(), "alpha");
+
+        let next = arena.append("delta".to_owned());
+
+        assert_eq!(next.arena_index(), 2);
+        assert_eq!(arena.get(next).as_str(), "delta");
+    }
+
+    #[test]
+    fn fallible_direct_span_insert_returns_contiguous_span_on_success() {
+        let mut arena = Arena::new();
+        let span = arena
+            .try_insert_many_with::<&str>(|inserter| {
+                inserter.insert("alpha".to_owned());
+                inserter.insert("beta".to_owned());
+                Ok(())
+            })
+            .expect("fallible direct insert should succeed");
 
         assert_eq!(span.start().arena_index(), 1);
         assert_eq!(span.count(), 2);
