@@ -117,7 +117,7 @@ machine MazeBuilder::build {
         branch_id: u32[exact, non_negative]
     ) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
-        let index: usize = self.cell_index(cell);
+        let index: usize[exact, range<0, 15>] = self.cell_index(cell);
         rooms[index].cell = cell;
         rooms[index].depth = depth;
         rooms[index].branch = branch_id;
@@ -152,8 +152,21 @@ machine MazeBuilder::build {
         direction: Direction,
         destination: CellId
     ) {
+        transition room.exit_count < 4 {
+            true -> append_exit_at(room, command, direction, destination, room.exit_count)
+            false -> {}
+        }
+    }
+
+    state append_exit_at(
+        &mut self,
+        room: &mut Room,
+        command: String,
+        direction: Direction,
+        destination: CellId,
+        index: usize[exact, range<0, 3>]
+    ) {
         let exits: &mut [Exit] = room.exits.as_mut_slice();
-        let index: usize = room.exit_count;
         exits[index] = Exit { command: command, direction: direction, destination: destination };
         room.exit_count = index + 1;
     }
@@ -182,7 +195,7 @@ machine MazeBuilder::build {
     entry cell_index(
         &mut self,
         cell: CellId
-    ) -> usize {
+    ) -> usize[exact, range<0, 15>] {
         -> 0 when cell == CellId::R00;
         -> 1 when cell == CellId::R01;
         -> 2 when cell == CellId::R02;

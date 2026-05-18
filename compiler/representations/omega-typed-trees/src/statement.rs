@@ -43,6 +43,13 @@ impl StatementTable {
         self.expression_handles.append_to_span(span, expression);
     }
 
+    pub fn insert_expression_handles(
+        &mut self,
+        expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
+    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        self.expression_handles.insert_many(expressions)
+    }
+
     pub fn reserve_expression_handles(
         &mut self,
         count: u32,
