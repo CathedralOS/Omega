@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
 mod branches;
@@ -28,6 +29,31 @@ use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 
 pub(crate) use branches::select_runtime_resolved_mutation_write;
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_runtime_unaliased_storage_mutation_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let mut static_values = writes::RuntimeStaticValues::default();
+    writes::select_runtime_storage_mutation_write_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        target,
+        value,
+        &mut static_values,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
 
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
