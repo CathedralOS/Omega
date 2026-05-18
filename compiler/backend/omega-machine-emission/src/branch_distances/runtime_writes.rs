@@ -151,6 +151,7 @@ fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
             | MachineInstructionKind::RuntimeStorageCopy
             | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed
+            | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexed
             | MachineInstructionKind::RuntimeTextBufferMaterialize
             | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee
             | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed

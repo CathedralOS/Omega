@@ -128,6 +128,10 @@ pub(super) fn collect_instruction_relocations(
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
         }
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. } => {
+            let symbol = context.runtime_frame_symbol_handle();
+            context.insert_data_address_at_instruction_start(symbol);
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
             let source_symbol = context.storage_region_symbol_handle(*source_region);
             context.insert_data_address_at_instruction_start(source_symbol);

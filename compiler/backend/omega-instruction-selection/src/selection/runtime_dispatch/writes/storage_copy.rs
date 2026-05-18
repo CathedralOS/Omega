@@ -145,3 +145,46 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         },
     )
 }
+
+pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_copy_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )?;
+    if target_place.region != RuntimeStorageRegion::RuntimeFrame || target_place.byte_count == 0 {
+        return None;
+    }
+
+    let indexed_source = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    )?;
+    if target_place.byte_count != indexed_source.byte_count {
+        return None;
+    }
+
+    Some(
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+            descriptor_offset: indexed_source.descriptor_offset,
+            index_offset: indexed_source.index_offset,
+            element_byte_size: indexed_source.element_byte_size,
+            field_byte_offset: indexed_source.field_byte_offset,
+            target_offset: target_place.byte_offset,
+            byte_count: target_place.byte_count,
+        },
+    )
+}

@@ -106,6 +106,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                         | SelectedInstructionKind::CopyRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
         })
@@ -287,6 +288,7 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
         })

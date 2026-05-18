@@ -259,6 +259,28 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     }
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        ),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     architecture: Architecture,
     source_offset: usize,

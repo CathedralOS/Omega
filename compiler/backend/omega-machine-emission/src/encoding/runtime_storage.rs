@@ -204,6 +204,26 @@ pub(super) fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     )
 }
 
+pub(super) fn encode_runtime_storage_copy_from_runtime_frame_indexed(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_frame_indexed(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    )
+}
+
 pub(super) fn encode_runtime_storage_copy_to_runtime_pointee(
     input: MachineEmissionContext<'_>,
     source_offset: usize,

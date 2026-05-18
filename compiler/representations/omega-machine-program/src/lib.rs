@@ -92,6 +92,7 @@ pub enum MachineInstructionKind {
     RuntimeTextLineRead,
     RuntimeStorageCopy,
     RuntimeStorageCopyToRuntimeFrameIndexed,
+    RuntimeStorageCopyFromRuntimeFrameIndexed,
     RuntimeStorageCopyToRuntimePointee,
     DispatchStateWrite,
     DispatchTerminate,

@@ -523,6 +523,18 @@ fn selected_instruction_name(
                 "copy runtime storage {source_symbol}@{source_offset} -> runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => {
+            format!(
+                "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_region,
             source_offset,
