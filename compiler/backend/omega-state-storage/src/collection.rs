@@ -26,6 +26,15 @@ pub fn build_state_storage_plan(
     )
 }
 
+pub fn build_state_storage_plan_owned(
+    program: Program,
+    context: StateStoragePlanningContext,
+) -> StateStoragePlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_state_storage_plan_with_workers(Arc::new(program), Arc::new(context), workers.handle())
+}
+
 pub fn build_state_storage_plan_with_workers(
     program: Arc<Program>,
     context: Arc<StateStoragePlanningContext>,

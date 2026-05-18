@@ -25,6 +25,12 @@ pub fn build_state_graph(program: &Program) -> Result<StateGraph, Diagnostic> {
     build_state_graph_with_workers(Arc::new(program.clone()), workers.handle())
 }
 
+pub fn build_state_graph_owned(program: Program) -> Result<StateGraph, Diagnostic> {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_state_graph_with_workers(Arc::new(program), workers.handle())
+}
+
 pub fn build_state_graph_with_workers(
     program: Arc<Program>,
     workers: WorkerPoolHandle,

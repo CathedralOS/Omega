@@ -47,6 +47,15 @@ pub fn build_state_value_plan(
     )
 }
 
+pub fn build_state_value_plan_owned(
+    program: Program,
+    context: StateValuePlanningContext,
+) -> StateValuePlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_state_value_plan_with_workers(Arc::new(program), Arc::new(context), workers.handle())
+}
+
 pub fn build_state_value_plan_with_workers(
     program: Arc<Program>,
     context: Arc<StateValuePlanningContext>,
