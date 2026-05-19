@@ -1,4 +1,7 @@
+use crate::data::DataMember;
+use crate::machine::Machine;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+use crate::types::TypeReference;
 use crate::{SymbolResolvedTrees, state::State};
 use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 use omega_core::symbols::SymbolHandle;
@@ -7,6 +10,7 @@ impl PhaseDiagram for SymbolResolvedTrees {
     fn phase_html(&self) -> String {
         let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");
         let root = diagram.node("root", "SymbolResolvedTrees", "root", 0);
+        let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
         for (data_index, data) in self.roots.data_definitions.iter().enumerate() {
             let data_id = diagram.node(
@@ -21,6 +25,21 @@ impl PhaseDiagram for SymbolResolvedTrees {
                 1,
             );
             diagram.containment_edge(&root, &data_id);
+            data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
+        }
+
+        for (data_index, data) in self.roots.data_definitions.iter().enumerate() {
+            let Some((_, data_id, _)) = data_nodes.get(data_index) else {
+                continue;
+            };
+            for member in self.data_members(data.members) {
+                if let DataMember::Field(field) = member {
+                    let target_symbol = type_reference_symbol(self, &field.type_reference);
+                    if let Some(target_id) = data_id_for_symbol(&data_nodes, target_symbol) {
+                        diagram.edge(data_id, target_id, "field_type");
+                    }
+                }
+            }
         }
 
         for (machine_index, machine) in self.roots.machines.iter().enumerate() {
@@ -36,6 +55,14 @@ impl PhaseDiagram for SymbolResolvedTrees {
                 1,
             );
             diagram.containment_edge(&root, &machine_id);
+            append_machine_relationships(
+                &mut diagram,
+                self,
+                &data_nodes,
+                &machine_id,
+                machine_index,
+                machine,
+            );
 
             for (state_index, state_handle) in self
                 .machine_state_handles(machine.states)
@@ -55,6 +82,67 @@ impl PhaseDiagram for SymbolResolvedTrees {
         }
 
         diagram.finish()
+    }
+}
+
+fn append_machine_relationships(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &SymbolResolvedTrees,
+    data_nodes: &[(SymbolHandle, String, String)],
+    machine_id: &str,
+    machine_index: usize,
+    machine: &Machine,
+) {
+    if let Some(data_id) = data_id_for_name(data_nodes, machine.name.as_str()) {
+        diagram.edge(data_id, machine_id, "implements_data");
+    }
+
+    for (object_index, object) in program
+        .machine_contained_objects(machine.contains)
+        .iter()
+        .enumerate()
+    {
+        let object_id = diagram.node(
+            format!("object_{machine_index}_{object_index}"),
+            format!(
+                "contains {}\ntype: {}\nsymbol: {}\ntype symbol: {}",
+                object.name.as_str(),
+                object.type_name.as_str(),
+                symbol_label(object.symbol),
+                symbol_label(object.type_symbol)
+            ),
+            "object",
+            2,
+        );
+        diagram.containment_edge(machine_id, &object_id);
+        if let Some(data_id) = data_id_for_symbol(data_nodes, object.type_symbol) {
+            diagram.edge(&object_id, data_id, "contained_object");
+        }
+    }
+
+    for (owned_index, owned) in program
+        .machine_owned_data(machine.owned_data)
+        .iter()
+        .enumerate()
+    {
+        let object_id = diagram.node(
+            format!("owned_{machine_index}_{owned_index}"),
+            format!(
+                "owns {}\ntype: {}\nsymbol: {}",
+                owned.name.as_str(),
+                owned
+                    .type_reference
+                    .display_name_with_constraints(&program.tables.types.constraints),
+                symbol_label(owned.symbol)
+            ),
+            "object",
+            2,
+        );
+        diagram.containment_edge(machine_id, &object_id);
+        let target_symbol = type_reference_symbol(program, &owned.type_reference);
+        if let Some(data_id) = data_id_for_symbol(data_nodes, target_symbol) {
+            diagram.edge(&object_id, data_id, "owned_data");
+        }
     }
 }
 
@@ -146,4 +234,71 @@ fn symbol_label(symbol: SymbolHandle) -> String {
     } else {
         "invalid".to_owned()
     }
+}
+
+fn type_reference_symbol(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> SymbolHandle {
+    match type_reference {
+        TypeReference::Reference(reference) => type_reference_symbol(
+            program,
+            program
+                .tables
+                .declarations
+                .child_type_references
+                .get(reference.referee),
+        ),
+        TypeReference::Constrained(constrained) => type_reference_symbol(
+            program,
+            program
+                .tables
+                .declarations
+                .child_type_references
+                .get(constrained.base_type),
+        ),
+        TypeReference::FixedArray(fixed_array) => type_reference_symbol(
+            program,
+            program
+                .tables
+                .declarations
+                .child_type_references
+                .get(fixed_array.element_type),
+        ),
+        TypeReference::Slice(slice) => type_reference_symbol(
+            program,
+            program
+                .tables
+                .declarations
+                .child_type_references
+                .get(slice.element_type),
+        ),
+        TypeReference::Generic(generic) => generic.base_symbol,
+        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol,
+        TypeReference::Unit => SymbolHandle::invalid(),
+    }
+}
+
+fn data_id_for_symbol(
+    data_nodes: &[(SymbolHandle, String, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    data_nodes
+        .iter()
+        .find(|(data_symbol, _, _)| *data_symbol == symbol)
+        .map(|(_, data_id, _)| data_id.as_str())
+}
+
+fn data_id_for_name<'a>(
+    data_nodes: &'a [(SymbolHandle, String, String)],
+    name: &str,
+) -> Option<&'a str> {
+    data_nodes
+        .iter()
+        .find(|(_, _, data_name)| data_name == name)
+        .map(|(_, data_id, _)| data_id.as_str())
 }
