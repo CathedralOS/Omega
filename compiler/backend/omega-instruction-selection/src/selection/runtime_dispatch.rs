@@ -2,6 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 
 mod branches;
 mod edges;
@@ -17,6 +18,7 @@ use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
 use crate::selection::bindings::{RuntimeAliasBuffer, RuntimeAliasResolutionContext};
 use branches::{
+    BranchPreludeSelectionScratch, LeafBranchSelectionScratch, StraightLineBranchSelectionScratch,
     select_runtime_branch_preludes_for_operation,
     select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_straight_line_branch_expansions_for_operation,
@@ -80,8 +82,16 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
     let mut runtime_static_values =
         writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     let mut runtime_storage_write_scratch = RuntimeStorageWriteScratch::default();
+    let mut prelude_expansion_cursor = 0usize;
+    let mut leaf_expansion_cursor = 0usize;
+    let mut straight_line_expansion_cursor = 0usize;
+    let mut prelude_selection_scratch = BranchPreludeSelectionScratch::default();
+    let mut leaf_selection_scratch = LeafBranchSelectionScratch::default();
+    let mut straight_line_selection_scratch = StraightLineBranchSelectionScratch::default();
 
-    for (_, dispatch_case) in input.runtime_dispatch_loop.cases.iter() {
+    for (dispatch_case_index, (_, dispatch_case)) in
+        input.runtime_dispatch_loop.cases.iter().enumerate()
+    {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::EnterDispatchCase {
                 dispatch_index: dispatch_case.dispatch_index,
@@ -93,9 +103,17 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         if let Some(runtime_body) = input
             .runtime_bodies
             .bodies
-            .iter()
-            .find(|(_, body)| body.dispatch_index == dispatch_case.dispatch_index)
-            .map(|(_, body)| body)
+            .storage_slice()
+            .get(dispatch_case_index)
+            .filter(|body| body.dispatch_index == dispatch_case.dispatch_index)
+            .or_else(|| {
+                input
+                    .runtime_bodies
+                    .bodies
+                    .iter()
+                    .find(|(_, body)| body.dispatch_index == dispatch_case.dispatch_index)
+                    .map(|(_, body)| body)
+            })
             && let Some(operations) = input
                 .runtime_bodies
                 .operations
@@ -130,6 +148,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
+                    &mut prelude_expansion_cursor,
+                    &mut prelude_selection_scratch,
                     operands,
                     runtime_value_operands,
                     selected_instructions,
@@ -138,6 +158,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
+                    &mut leaf_expansion_cursor,
+                    &mut leaf_selection_scratch,
                     runtime_value_operands,
                     selected_instructions,
                 );
@@ -145,13 +167,19 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
+                    &mut straight_line_expansion_cursor,
+                    &mut straight_line_selection_scratch,
                     operands,
                     runtime_value_operands,
                     selected_instructions,
                 );
 
-                if let Some(host_call) =
-                    host_call_for_statement(input, operation.source_key, operation.statement_index)
+                if matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)
+                    && let Some(host_call) = host_call_for_statement(
+                        input,
+                        operation.source_key,
+                        operation.statement_index,
+                    )
                 {
                     let alias_bindings = runtime_aliases.bindings();
                     let alias_context =

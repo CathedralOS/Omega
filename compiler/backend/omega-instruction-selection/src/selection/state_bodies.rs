@@ -118,8 +118,9 @@ pub(super) fn select_state_body_instructions(
     );
 
     for operation in operations {
-        if let Some(host_call) =
-            host_call_for_statement(input, state.key, operation.statement_index)
+        if matches!(operation.kind, OperationKind::Call { .. })
+            && let Some(host_call) =
+                host_call_for_statement(input, state.key, operation.statement_index)
         {
             select_host_call(
                 input,
@@ -135,7 +136,12 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
-        if let Some(mutation) =
+        if matches!(
+            operation.kind,
+            OperationKind::Assignment
+                | OperationKind::ConstantIntegerAssignment
+                | OperationKind::StaticAssignment
+        ) && let Some(mutation) =
             state_mutation_for_statement(input, state.key, operation.statement_index)
         {
             if aliases.bindings().is_empty()

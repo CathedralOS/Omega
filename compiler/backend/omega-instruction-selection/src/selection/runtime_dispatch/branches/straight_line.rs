@@ -30,7 +30,7 @@ use omega_state_calls::{StateCallArgument, StateCallRole};
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 #[derive(Default)]
-struct StraightLineBranchSelectionScratch {
+pub(in crate::selection::runtime_dispatch) struct StraightLineBranchSelectionScratch {
     expressions: ExpressionTable,
     mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
@@ -40,31 +40,42 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    expansion_cursor: &mut usize,
+    scratch: &mut StraightLineBranchSelectionScratch,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let mut scratch = StraightLineBranchSelectionScratch::default();
-
-    for (_, expansion) in input
+    let expansions = input
         .runtime_branching_calls
         .straight_line_expansions
-        .iter()
-        .filter(|(_, expansion)| {
-            expansion.dispatch_index == dispatch_index
-                && expansion.source_key == operation.source_key
-                && expansion.statement_index == operation.statement_index
-        })
-    {
+        .storage_slice();
+
+    while let Some(expansion) = expansions.get(*expansion_cursor) {
+        if !straight_line_expansion_matches_operation(expansion, dispatch_index, operation) {
+            break;
+        }
+
         select_runtime_straight_line_branch_expansion(
             input,
             expansion,
-            &mut scratch,
+            scratch,
             operands,
             runtime_value_operands,
             selected_instructions,
         );
+        *expansion_cursor += 1;
     }
+}
+
+fn straight_line_expansion_matches_operation(
+    expansion: &RuntimeStraightLineBranchExpansion,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+) -> bool {
+    expansion.dispatch_index == dispatch_index
+        && expansion.source_key == operation.source_key
+        && expansion.statement_index == operation.statement_index
 }
 
 fn select_runtime_straight_line_branch_expansion(

@@ -31,7 +31,7 @@ fn supports_scalar_integer_write(byte_size: usize) -> bool {
 }
 
 #[derive(Default)]
-struct LeafBranchSelectionScratch {
+pub(in crate::selection::runtime_dispatch) struct LeafBranchSelectionScratch {
     expressions: ExpressionTable,
     mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
@@ -42,30 +42,40 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    expansion_cursor: &mut usize,
+    scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let mut scratch = LeafBranchSelectionScratch::default();
+    let expansions = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice();
 
-    for (_, expansion) in
-        input
-            .runtime_branching_calls
-            .leaf_expansions
-            .iter()
-            .filter(|(_, expansion)| {
-                expansion.dispatch_index == dispatch_index
-                    && expansion.source_key == operation.source_key
-                    && expansion.statement_index == operation.statement_index
-            })
-    {
+    while let Some(expansion) = expansions.get(*expansion_cursor) {
+        if !leaf_expansion_matches_operation(expansion, dispatch_index, operation) {
+            break;
+        }
+
         select_runtime_leaf_branch_expansion(
             input,
             expansion,
-            &mut scratch,
+            scratch,
             runtime_value_operands,
             selected_instructions,
         );
+        *expansion_cursor += 1;
     }
+}
+
+fn leaf_expansion_matches_operation(
+    expansion: &RuntimeLeafBranchExpansion,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+) -> bool {
+    expansion.dispatch_index == dispatch_index
+        && expansion.source_key == operation.source_key
+        && expansion.statement_index == operation.statement_index
 }
 
 fn select_runtime_leaf_branch_expansion(
