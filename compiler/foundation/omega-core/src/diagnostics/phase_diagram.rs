@@ -94,6 +94,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
         "<label><input id=\"show-data\" type=\"checkbox\" checked> Data definitions</label>\n",
     );
     html.push_str("<p id=\"counts\"></p>\n");
+    html.push_str("<nav id=\"outline\" aria-label=\"Graph outline\"></nav>\n");
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
     html.push_str("</aside>\n");
     html.push_str("<main><svg id=\"canvas\" role=\"img\" aria-label=\"Phase graph\"><g id=\"viewport\"><g id=\"edges\"></g><g id=\"nodes\"></g></g></svg></main>\n");
@@ -228,6 +229,39 @@ button {
 button:hover { background: #2b3747; }
 label { display: block; color: var(--muted); margin: 10px 0; }
 #counts { color: var(--muted); }
+#outline {
+  border: 1px solid #283343;
+  border-radius: 12px;
+  background: #0d1117;
+  margin: 12px 0;
+  max-height: 34vh;
+  overflow: auto;
+  padding: 8px;
+}
+#outline button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d8e2ef;
+  display: block;
+  font: inherit;
+  overflow: hidden;
+  padding: 5px 7px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#outline button:hover { background: #202a38; }
+#outline details { margin-left: 10px; }
+#outline summary {
+  color: var(--muted);
+  cursor: pointer;
+  margin: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #details {
   white-space: pre-wrap;
   border: 1px solid #283343;
@@ -247,6 +281,10 @@ main { min-width: 0; min-height: 0; position: relative; }
 #canvas.dragging { cursor: grabbing; }
 .edge { stroke: var(--edge); stroke-width: 1.2; fill: none; opacity: 0.45; }
 .edge.sequence { stroke: var(--sequence); opacity: 0.55; stroke-dasharray: 6 5; }
+.edge.field_type { stroke: #75b57c; opacity: 0.75; stroke-dasharray: 2 4; }
+.edge.owned_data { stroke: #ffd166; opacity: 0.8; }
+.edge.contained_object { stroke: #ff9f7f; opacity: 0.72; }
+.edge.implements_data { stroke: #b089f0; opacity: 0.82; stroke-dasharray: 10 5; }
 .node rect {
   fill: #151c26;
   stroke: #405168;
@@ -256,6 +294,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.root rect { fill: #263247; stroke: #8ab4ff; }
 .node.data rect { fill: #1b2a22; stroke: #75b57c; }
 .node.machine rect { fill: #272132; stroke: #b089f0; }
+.node.object rect { fill: #2e291b; stroke: #ffd166; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
 .node text { fill: var(--text); font-size: 12px; pointer-events: none; }
@@ -275,6 +314,7 @@ const nodeLayer = document.getElementById("nodes");
 const search = document.getElementById("search");
 const details = document.getElementById("details");
 const counts = document.getElementById("counts");
+const outline = document.getElementById("outline");
 const showSequence = document.getElementById("show-sequence");
 const showData = document.getElementById("show-data");
 const NS = "http://www.w3.org/2000/svg";
@@ -353,10 +393,21 @@ function layoutOwnerGrid(ownerIds, x, y) {
 
 function layoutOwnerSection(ownerId, x, y) {
   positions.set(ownerId, { x, y, width: NODE_W, height: NODE_H });
-  const stateIds = containmentChildren.get(ownerId) || [];
+  const childIds = containmentChildren.get(ownerId) || [];
+  const objectIds = childIds.filter(id => nodeById.get(id)?.kind === "object");
+  const stateIds = childIds.filter(id => nodeById.get(id)?.kind === "state");
+  objectIds.forEach((objectId, index) => {
+    positions.set(objectId, {
+      x: x + NODE_W + RANK_GAP,
+      y: y + index * (NODE_H + ROW_GAP),
+      width: NODE_W,
+      height: NODE_H
+    });
+  });
+  const objectHeight = objectIds.length === 0 ? 0 : objectIds.length * (NODE_H + ROW_GAP) + ROW_GAP;
   if (stateIds.length === 0) return NODE_H;
 
-  let cursorY = y;
+  let cursorY = y + objectHeight;
   for (const stateId of stateIds) {
     const statementIds = containmentChildren.get(stateId) || [];
     const statementRows = Math.max(1, Math.ceil(statementIds.length / STATEMENT_COLUMNS));
@@ -433,9 +484,62 @@ function render() {
   nodeLayer.replaceChildren();
   for (const edge of GRAPH.edges) drawEdge(edge);
   for (const node of GRAPH.nodes) drawNode(node);
+  renderOutline();
   calculateBounds();
   counts.textContent = `${GRAPH.nodes.length} nodes, ${GRAPH.edges.length} edges`;
   applyFilters();
+}
+
+function renderOutline() {
+  outline.replaceChildren();
+  const rootId = nodeById.has("root") ? "root" : GRAPH.nodes[0]?.id;
+  if (!rootId) return;
+  const topLevel = containmentChildren.get(rootId) || [];
+  const groups = [
+    ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
+    ["Machines", topLevel.filter(id => nodeById.get(id)?.kind === "machine")],
+    ["Other", topLevel.filter(id => !["data", "machine"].includes(nodeById.get(id)?.kind))]
+  ];
+  for (const [title, ids] of groups) {
+    if (ids.length === 0) continue;
+    const section = document.createElement("details");
+    section.open = title !== "Data";
+    const summary = document.createElement("summary");
+    summary.textContent = `${title} (${ids.length})`;
+    section.appendChild(summary);
+    for (const id of ids) section.appendChild(outlineNode(id, 0));
+    outline.appendChild(section);
+  }
+}
+
+function outlineNode(id, depth) {
+  const node = nodeById.get(id);
+  const children = (containmentChildren.get(id) || [])
+    .filter(childId => ["object", "state"].includes(nodeById.get(childId)?.kind));
+  if (children.length === 0 || depth >= 2) {
+    const button = document.createElement("button");
+    button.textContent = outlineLabel(node);
+    button.title = node.label;
+    button.addEventListener("click", () => selectNode(id, true));
+    return button;
+  }
+  const detailsElement = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = outlineLabel(node);
+  summary.title = node.label;
+  summary.addEventListener("click", event => {
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      selectNode(id, true);
+    }
+  });
+  detailsElement.appendChild(summary);
+  for (const childId of children) detailsElement.appendChild(outlineNode(childId, depth + 1));
+  return detailsElement;
+}
+
+function outlineLabel(node) {
+  return node.label.split("\n")[0];
 }
 
 function edgePath(from, to, kind) {

@@ -2,6 +2,7 @@ use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
 use crate::{TypedTrees, state::State};
+use crate::{data::DataMember, machine::Machine};
 use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 use omega_core::symbols::SymbolHandle;
 
@@ -9,6 +10,7 @@ impl PhaseDiagram for TypedTrees {
     fn phase_html(&self) -> String {
         let mut diagram = PhaseDiagramBuilder::new("typed_trees");
         let root = diagram.node("root", "TypedTrees", "root", 0);
+        let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
         for (data_index, data) in self.data_definitions().iter().enumerate() {
             let data_id = diagram.node(
@@ -23,6 +25,21 @@ impl PhaseDiagram for TypedTrees {
                 1,
             );
             diagram.containment_edge(&root, &data_id);
+            data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
+        }
+
+        for (data_index, data) in self.data_definitions().iter().enumerate() {
+            let Some((_, data_id, _)) = data_nodes.get(data_index) else {
+                continue;
+            };
+            for member in self.data_members(data) {
+                if let DataMember::Field(field) = member {
+                    let target_symbol = self.type_reference_symbol(field.type_reference);
+                    if let Some(target_id) = data_id_for_symbol(&data_nodes, target_symbol) {
+                        diagram.edge(data_id, target_id, "field_type");
+                    }
+                }
+            }
         }
 
         for (machine_index, machine) in self.machines().iter().enumerate() {
@@ -38,6 +55,14 @@ impl PhaseDiagram for TypedTrees {
                 1,
             );
             diagram.containment_edge(&root, &machine_id);
+            append_machine_relationships(
+                &mut diagram,
+                self,
+                &data_nodes,
+                &machine_id,
+                machine_index,
+                machine,
+            );
 
             for (state_index, state) in self.machine_states(machine).iter().enumerate() {
                 append_state(
@@ -52,6 +77,61 @@ impl PhaseDiagram for TypedTrees {
         }
 
         diagram.finish()
+    }
+}
+
+fn append_machine_relationships(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &TypedTrees,
+    data_nodes: &[(SymbolHandle, String, String)],
+    machine_id: &str,
+    machine_index: usize,
+    machine: &Machine,
+) {
+    if let Some(data_id) = data_id_for_name(data_nodes, machine.name.as_str()) {
+        diagram.edge(data_id, machine_id, "implements_data");
+    }
+
+    for (object_index, object) in program
+        .machine_contained_objects(machine)
+        .iter()
+        .enumerate()
+    {
+        let object_id = diagram.node(
+            format!("object_{machine_index}_{object_index}"),
+            format!(
+                "contains {}\ntype: {}\nsymbol: {}\ntype symbol: {}",
+                object.name.as_str(),
+                object.type_name.as_str(),
+                symbol_label(object.symbol),
+                symbol_label(object.type_symbol)
+            ),
+            "object",
+            2,
+        );
+        diagram.containment_edge(machine_id, &object_id);
+        if let Some(data_id) = data_id_for_symbol(data_nodes, object.type_symbol) {
+            diagram.edge(&object_id, data_id, "contained_object");
+        }
+    }
+
+    for (owned_index, owned) in program.machine_owned_data(machine).iter().enumerate() {
+        let object_id = diagram.node(
+            format!("owned_{machine_index}_{owned_index}"),
+            format!(
+                "owns {}\ntype: {}\nsymbol: {}",
+                owned.name.as_str(),
+                program.display_type_reference(owned.type_reference),
+                symbol_label(owned.symbol)
+            ),
+            "object",
+            2,
+        );
+        diagram.containment_edge(machine_id, &object_id);
+        let target_symbol = program.type_reference_symbol(owned.type_reference);
+        if let Some(data_id) = data_id_for_symbol(data_nodes, target_symbol) {
+            diagram.edge(&object_id, data_id, "owned_data");
+        }
     }
 }
 
@@ -166,4 +246,28 @@ fn symbol_label(symbol: SymbolHandle) -> String {
     } else {
         "invalid".to_owned()
     }
+}
+
+fn data_id_for_symbol(
+    data_nodes: &[(SymbolHandle, String, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    data_nodes
+        .iter()
+        .find(|(data_symbol, _, _)| *data_symbol == symbol)
+        .map(|(_, data_id, _)| data_id.as_str())
+}
+
+fn data_id_for_name<'a>(
+    data_nodes: &'a [(SymbolHandle, String, String)],
+    name: &str,
+) -> Option<&'a str> {
+    data_nodes
+        .iter()
+        .find(|(_, _, data_name)| data_name == name)
+        .map(|(_, data_id, _)| data_id.as_str())
 }
