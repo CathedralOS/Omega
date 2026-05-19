@@ -96,6 +96,31 @@ pub(super) fn runtime_pointee_string_write_kind(
     MachineInstructionKind::RuntimePointeeStringWrite
 }
 
+pub(super) fn runtime_frame_indexed_string_write_kind(
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_length: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameIndexedStringWrite
+}
+
+pub(super) fn runtime_storage_address_to_runtime_frame_write_kind(
+    _source_offset: usize,
+    _target_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageAddressToRuntimeFrameWrite
+}
+
+pub(super) fn runtime_pointee_address_to_runtime_frame_write_kind(
+    _pointer_byte_offset: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimePointeeAddressToRuntimeFrameWrite
+}
+
 pub(super) fn runtime_storage_copy_kind(
     _source_offset: usize,
     _target_offset: usize,
@@ -124,6 +149,17 @@ pub(super) fn runtime_storage_copy_from_runtime_frame_indexed_kind(
     _byte_count: usize,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexed
+}
+
+pub(super) fn runtime_storage_copy_from_runtime_frame_fixed_indexed_kind(
+    _descriptor_offset: usize,
+    _element_index: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+    _byte_count: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameFixedIndexed
 }
 
 pub(super) fn runtime_storage_copy_to_runtime_pointee_kind(

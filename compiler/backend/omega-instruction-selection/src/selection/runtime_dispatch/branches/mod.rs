@@ -5,6 +5,7 @@ mod straight_line;
 
 pub(super) use leaf::{
     LeafBranchSelectionScratch, select_runtime_leaf_branch_expansions_for_operation,
+    select_runtime_leaf_branch_expansions_matching_operation,
 };
 pub(crate) use mutation::select_runtime_resolved_mutation_write;
 pub(super) use prelude::{

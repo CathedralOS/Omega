@@ -11,7 +11,7 @@ use super::super::super::storage_places::{
     resolve_machine_owned_place, resolve_machine_owned_place_in_table, static_integer_value,
     static_integer_value_in_table,
 };
-use super::super::guards::select_runtime_leaf_branch_guard;
+use super::super::guards::select_runtime_leaf_branch_guards;
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_handle_resolver_emit,
 };
@@ -68,6 +68,32 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     }
 }
 
+pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_matching_operation(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+    scratch: &mut LeafBranchSelectionScratch,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let expansions = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice();
+
+    for expansion in expansions {
+        if leaf_expansion_matches_operation(expansion, dispatch_index, operation) {
+            select_runtime_leaf_branch_expansion(
+                input,
+                expansion,
+                scratch,
+                runtime_value_operands,
+                selected_instructions,
+            );
+        }
+    }
+}
+
 fn leaf_expansion_matches_operation(
     expansion: &RuntimeLeafBranchExpansion,
     dispatch_index: u32,
@@ -85,15 +111,17 @@ fn select_runtime_leaf_branch_expansion(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion, runtime_value_operands)
-    {
+    let guards = select_runtime_leaf_branch_guards(input, expansion, runtime_value_operands);
+    if guards.is_empty() && expansion.guard_kind != omega_state_guards::StateGuardKind::Always {
+        return;
+    }
+    let guard_start = selected_instructions.len();
+    for guard in guards {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
-    } else {
-        return;
     }
 
     let write_start = selected_instructions.len();
@@ -112,7 +140,9 @@ fn select_runtime_leaf_branch_expansion(
         selected_instructions,
     );
     if selected_instructions.len() == write_start {
-        selected_instructions.pop();
+        while selected_instructions.len() > guard_start {
+            selected_instructions.pop();
+        }
     }
 }
 

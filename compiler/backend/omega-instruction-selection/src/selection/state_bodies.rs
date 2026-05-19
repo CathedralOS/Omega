@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_schedule::{ScheduledState, ScheduledStateCollector};
@@ -14,12 +15,13 @@ use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
 use super::runtime_dispatch::{
-    RuntimeStorageWriteScratch, select_runtime_resolved_mutation_write,
+    RuntimeStorageWriteScratch, select_runtime_frame_slot_value_write_in_table,
+    select_runtime_resolved_mutation_write,
     select_runtime_storage_resolved_mutation_write_in_table_with_scratch,
     select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
 use omega_state_calls::StateCall;
-use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
+use omega_target_operations::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
 
 const INLINE_STATE_BODY_VISIT_COUNT: usize = 16;
 
@@ -118,6 +120,26 @@ pub(super) fn select_state_body_instructions(
     );
 
     for operation in operations {
+        if matches!(operation.kind, OperationKind::LocalData)
+            && let Some(dispatch_index) =
+                dispatch_index_for_state(input, state.key).or(dispatch_index)
+        {
+            select_runtime_state_body_local_initializer_write(
+                input,
+                dispatch_index,
+                state.key,
+                operation.statement_index,
+                aliases,
+                alias_expressions,
+                &mut expressions,
+                &mut mutation_segment_expressions,
+                &mut static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
+            continue;
+        }
+
         if matches!(operation.kind, OperationKind::Call { .. })
             && let Some(host_call) =
                 host_call_for_statement(input, state.key, operation.statement_index)
@@ -199,6 +221,22 @@ pub(super) fn select_state_body_instructions(
                     resolved_target.expression,
                     resolved_value.expression,
                     copied_aliases.bindings(),
+                    &mut static_values,
+                    &mut mutation_mutable_expressions,
+                    &mut mutation_segment_expressions,
+                    runtime_value_operands,
+                    selected_instructions,
+                ) {
+                    continue;
+                }
+                if select_assignment_value_call_terminal_fallback_write(
+                    input,
+                    dispatch_index,
+                    state.key,
+                    operation.statement_index,
+                    resolved_target.source_key,
+                    resolved_target.expression,
+                    &mut expressions,
                     &mut static_values,
                     &mut mutation_mutable_expressions,
                     &mut mutation_segment_expressions,
@@ -298,6 +336,185 @@ pub(super) fn select_state_body_instructions(
     }
 
     visiting.pop();
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_assignment_value_call_terminal_fallback_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target_source_key: StateKey,
+    resolved_target: omega_checked_trees::expression::ExpressionHandle,
+    expressions: &mut ExpressionTable,
+    static_values: &mut super::runtime_dispatch::RuntimeStaticValues,
+    mutable_expressions: &mut ExpressionTable,
+    resolved_segment_expressions: &mut ExpressionTable,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(state_call) =
+        super::lookups::state_assignment_value_call(input, source_key, statement_index)
+    else {
+        return false;
+    };
+    let Some(terminal_value) = terminal_state_value_expression(input, state_call.target_key) else {
+        return false;
+    };
+    let terminal_value = expressions.copy_from(&input.program.expression_table, terminal_value);
+    select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
+        input,
+        dispatch_index,
+        source_key,
+        target_source_key,
+        state_call.target_key,
+        statement_index,
+        expressions,
+        resolved_target,
+        terminal_value,
+        &[],
+        static_values,
+        mutable_expressions,
+        resolved_segment_expressions,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_state_body_local_initializer_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    state_key: StateKey,
+    statement_index: usize,
+    aliases: &RuntimeAliasBuffer,
+    alias_expressions: &ExpressionTable,
+    expressions: &mut ExpressionTable,
+    _segment_expressions: &mut ExpressionTable,
+    static_values: &mut super::runtime_dispatch::RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == state_key
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+    expressions.clear();
+    let Some(initializer) =
+        local_initializer_handle(input, expressions, state_key, statement_index)
+    else {
+        return;
+    };
+    let copied_aliases =
+        RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases.bindings(), expressions);
+    let resolved_initializer = resolve_runtime_alias_binding_handle(
+        initializer,
+        state_key,
+        copied_aliases.bindings(),
+        expressions,
+    );
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        dispatch_index,
+        resolved_initializer.source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer.expression,
+        static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: state_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+}
+
+fn local_initializer_handle(
+    input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statement = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+    local_data
+        .initial_value
+        .is_valid()
+        .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
+}
+
+fn terminal_state_value_expression(
+    input: &InstructionSelectionInput<'_>,
+    target_key: StateKey,
+) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == target_key.state)?;
+    let statement = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()?;
+
+    match statement {
+        StatementNode::Expression(expression) => expression.is_valid().then_some(*expression),
+        StatementNode::Transition(transition)
+            if !transition.continuation.is_valid()
+                && matches!(transition.guard, TransitionGuardNode::Always) =>
+        {
+            match input
+                .program
+                .statement_table
+                .transition_target(transition.target)
+            {
+                TransitionTargetNode::Value(expression) => {
+                    expression.is_valid().then_some(*expression)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn follow_transition_target(

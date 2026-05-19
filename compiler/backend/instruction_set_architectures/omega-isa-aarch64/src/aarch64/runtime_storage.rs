@@ -16,11 +16,13 @@ use super::primitives::{
 };
 use super::widths::{
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
-    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_frame_indexed_string_write_width, runtime_machine_integer_write_width,
+    runtime_machine_string_write_width, runtime_pointee_address_to_runtime_frame_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
-    runtime_pointee_string_write_width, runtime_storage_binary_write_width,
-    runtime_storage_compare_width, runtime_storage_copy_to_runtime_pointee_width,
-    runtime_storage_copy_width, runtime_storage_value_compare_width, runtime_value_operand_width,
+    runtime_pointee_string_write_width, runtime_storage_address_to_runtime_frame_write_width,
+    runtime_storage_binary_write_width, runtime_storage_compare_width,
+    runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
+    runtime_storage_value_compare_width, runtime_value_operand_width,
 };
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -263,6 +265,7 @@ pub fn encode_runtime_storage_binary_write(
         runtime_value_operands,
         byte_size,
         left,
+        operator,
         right,
     ));
     bytes.extend(encode_adrp_placeholder(16));
@@ -287,6 +290,7 @@ pub fn encode_runtime_pointee_binary_write(
         runtime_value_operands,
         byte_size,
         left,
+        operator,
         right,
     ));
     bytes.extend(encode_adrp_placeholder(16));
@@ -337,12 +341,71 @@ pub fn encode_runtime_pointee_string_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_frame_indexed_string_write(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_frame_indexed_string_write_width(
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    ));
+    append_runtime_frame_index_target_address(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+    append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, 8)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_storage_address_to_runtime_frame_write(
+    source_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_storage_address_to_runtime_frame_write_width());
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_add_x_immediate(17, 17, source_offset)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_store_x_to_x(17, 16, target_offset)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_pointee_address_to_runtime_frame_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_address_to_runtime_frame_write_width());
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_x_from_x(17, 16, pointer_byte_offset)?);
+    bytes.extend(encode_add_x_immediate(17, 17, field_byte_offset)?);
+    bytes.extend(encode_store_x_to_x(17, 16, target_offset)?);
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy(
     source_offset: usize,
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_storage_copy_width(byte_count));
+    let mut bytes = Vec::with_capacity(runtime_storage_copy_width(
+        source_offset,
+        target_offset,
+        byte_count,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
@@ -443,6 +506,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
         field_byte_offset,
         byte_size,
         left,
+        operator,
         right,
     ));
     append_runtime_frame_index_target_address(
@@ -469,6 +533,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         super::widths::runtime_storage_copy_to_runtime_frame_indexed_width(
+            source_offset,
             element_byte_size,
             field_byte_offset,
             byte_count,
@@ -522,6 +587,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
         super::widths::runtime_storage_copy_from_runtime_frame_indexed_width(
             element_byte_size,
             field_byte_offset,
+            target_offset,
             byte_count,
         ),
     );
@@ -556,6 +622,57 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        ),
+    );
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
+    let source_offset = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|offset| offset.checked_add(field_byte_offset))
+        .ok_or_else(|| {
+            Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed copy")
+        })?;
+    append_add_constant_to_x_register(&mut bytes, 16, source_offset)?;
+
+    for_each_runtime_copy_chunk(0, target_offset, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(
+                    17,
+                    20,
+                    target_offset + offset,
+                    chunk_size,
+                )?);
+            }
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 16, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, target_offset + offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     source_offset: usize,
     pointer_byte_offset: usize,
@@ -563,6 +680,7 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_copy_to_runtime_pointee_width(
+        source_offset,
         field_byte_offset,
         byte_count,
     ));
@@ -899,17 +1017,19 @@ fn encode_conditional_branch_for_operator_bytes(
     failure_branch_distance: isize,
 ) -> Result<[u8; 4], Diagnostic> {
     Ok(match operator {
-        StateGuardOperator::Equal => encode_conditional_branch_equal(failure_branch_distance)?,
-        StateGuardOperator::NotEqual => {
-            encode_conditional_branch_not_equal(failure_branch_distance)?
+        StateGuardOperator::Equal => encode_conditional_branch_not_equal(failure_branch_distance)?,
+        StateGuardOperator::NotEqual => encode_conditional_branch_equal(failure_branch_distance)?,
+        StateGuardOperator::Greater => {
+            encode_conditional_branch_less_or_equal(failure_branch_distance)?
         }
-        StateGuardOperator::Greater => encode_conditional_branch_greater(failure_branch_distance)?,
         StateGuardOperator::GreaterOrEqual => {
+            encode_conditional_branch_less(failure_branch_distance)?
+        }
+        StateGuardOperator::Less => {
             encode_conditional_branch_greater_or_equal(failure_branch_distance)?
         }
-        StateGuardOperator::Less => encode_conditional_branch_less(failure_branch_distance)?,
         StateGuardOperator::LessOrEqual => {
-            encode_conditional_branch_less_or_equal(failure_branch_distance)?
+            encode_conditional_branch_greater(failure_branch_distance)?
         }
         _ => Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot lower runtime compare operator `{operator:?}` yet"

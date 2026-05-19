@@ -42,6 +42,11 @@ pub(super) fn state_call_for_operation<'plan>(
     context
         .state_calls
         .statement_call(source_key, statement_index)
+        .or_else(|| {
+            context
+                .state_calls
+                .assignment_value_call(source_key, statement_index)
+        })
 }
 
 pub(super) fn state_call_for_runtime_operation<'plan>(

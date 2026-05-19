@@ -261,6 +261,37 @@ pub(super) fn lower_machine_instruction_kind(
             *field_byte_offset,
             *byte_length,
         ),
+        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+            ..
+        } => runtime_storage::runtime_frame_indexed_string_write_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_length,
+        ),
+        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_offset,
+            target_offset,
+            ..
+        } => runtime_storage::runtime_storage_address_to_runtime_frame_write_kind(
+            *source_offset,
+            *target_offset,
+        ),
+        SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
+            pointer_byte_offset,
+            field_byte_offset,
+            target_offset,
+        } => runtime_storage::runtime_pointee_address_to_runtime_frame_write_kind(
+            *pointer_byte_offset,
+            *field_byte_offset,
+            *target_offset,
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,
@@ -300,6 +331,21 @@ pub(super) fn lower_machine_instruction_kind(
         } => runtime_storage::runtime_storage_copy_from_runtime_frame_indexed_kind(
             *descriptor_offset,
             *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => runtime_storage::runtime_storage_copy_from_runtime_frame_fixed_indexed_kind(
+            *descriptor_offset,
+            *element_index,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,

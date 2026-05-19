@@ -104,6 +104,35 @@ fn emit_function_bytes(
             machine_instruction_index,
             &selected_instruction.kind,
         )?;
+        if byte_span.len() != laid_out_instruction.byte_width {
+            let operand_note = match &selected_instruction.kind {
+                SelectedInstructionKind::WriteRuntimeStorageBinary { left, right, .. }
+                | SelectedInstructionKind::WriteRuntimePointeeBinary { left, right, .. }
+                | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, right, .. } => {
+                    format!(
+                        "; operands: left={:?}, right={:?}",
+                        emission_context
+                            .instructions
+                            .runtime_value_operands
+                            .get(*left),
+                        emission_context
+                            .instructions
+                            .runtime_value_operands
+                            .get(*right),
+                    )
+                }
+                _ => String::new(),
+            };
+            return Err(Diagnostic::error(format!(
+                "encoded instruction width mismatch for selected #{} ({:?} from {:?}): layout planned {} byte(s), encoder emitted {} byte(s){}",
+                machine_instruction.selected_instruction_index,
+                selected_instruction.kind,
+                machine_instruction.kind,
+                laid_out_instruction.byte_width,
+                byte_span.len(),
+                operand_note,
+            )));
+        }
         encoded_plan.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,

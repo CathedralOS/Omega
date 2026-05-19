@@ -104,9 +104,13 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
+                        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
         })
@@ -274,6 +278,9 @@ fn runtime_text_write_has_selected_instruction(
                     instruction.kind,
                     SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
+                        | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteral { .. }
                         | SelectedInstructionKind::WriteRuntimeTextLiteralSegment { .. }
                         | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
@@ -289,6 +296,7 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::CopyRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
         })

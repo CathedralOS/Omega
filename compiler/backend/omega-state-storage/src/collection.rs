@@ -156,7 +156,7 @@ fn build_machine_state_storage_plan(
                         statement_index,
                         local_data.symbol,
                         local_data.initial_value.is_valid(),
-                        uses_runtime_flow,
+                        uses_runtime_flow || required,
                     ) {
                         continue;
                     }

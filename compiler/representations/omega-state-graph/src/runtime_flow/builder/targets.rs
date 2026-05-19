@@ -32,38 +32,47 @@ impl RuntimeFlowBuilder<'_> {
                 receiver,
                 state,
                 ..
-            } => self
-                .control_flow
-                .machine_by_symbol(machine_symbol)
-                .and_then(|machine| {
-                    self.control_flow
-                        .machine_contains(machine)
-                        .iter()
-                        .find(|contained| {
-                            (receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
-                                || contained.name == *receiver
-                        })
-                })
-                .and_then(|contained| {
-                    self.control_flow
-                        .machines
-                        .iter()
-                        .find(|(_, machine)| machine.symbol == contained.type_symbol)
-                        .map(|(_, machine)| machine)
-                })
-                .and_then(|target_machine| {
-                    self.control_flow
-                        .states
-                        .span(target_machine.states)
-                        .and_then(|states| {
-                            states.iter().find(|candidate| {
-                                (state_symbol.is_valid() && candidate.key.state == *state_symbol)
-                                    || candidate.name == *state
+            } => {
+                let target_machine =
+                    if *receiver_symbol == machine_symbol || receiver.as_str() == "self" {
+                        self.control_flow.machine_by_symbol(machine_symbol)
+                    } else {
+                        self.control_flow
+                            .machine_by_symbol(machine_symbol)
+                            .and_then(|machine| {
+                                self.control_flow.machine_contains(machine).iter().find(
+                                    |contained| {
+                                        (receiver_symbol.is_valid()
+                                            && contained.symbol == *receiver_symbol)
+                                            || contained.name == *receiver
+                                    },
+                                )
                             })
-                        })
-                })
-                .map(|state| RuntimeTransitionTarget::State { key: state.key })
-                .unwrap_or(RuntimeTransitionTarget::Unknown),
+                            .and_then(|contained| {
+                                self.control_flow
+                                    .machines
+                                    .iter()
+                                    .find(|(_, machine)| machine.symbol == contained.type_symbol)
+                                    .map(|(_, machine)| machine)
+                            })
+                    };
+
+                target_machine
+                    .and_then(|target_machine| {
+                        self.control_flow
+                            .states
+                            .span(target_machine.states)
+                            .and_then(|states| {
+                                states.iter().find(|candidate| {
+                                    (state_symbol.is_valid()
+                                        && candidate.key.state == *state_symbol)
+                                        || candidate.name == *state
+                                })
+                            })
+                    })
+                    .map(|state| RuntimeTransitionTarget::State { key: state.key })
+                    .unwrap_or(RuntimeTransitionTarget::Unknown)
+            }
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
                 key: self.active_states.last().unwrap_or_default(),
             },

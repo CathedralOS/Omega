@@ -1,33 +1,44 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
-use omega_control_flow::{StateKey, StateParameterFlow};
+use omega_checked_trees::statement::StatementNode;
+use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
-    RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchExpansion,
-    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
+    RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
+    RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
+    RuntimeStraightLineBranchOperationKind,
 };
 
 use super::super::super::bindings::{
-    RuntimeAliasBinding, RuntimeAliasBuffer, resolve_straight_line_binding_expression_handle,
-    strip_mutable_expression_handle,
+    RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
+    resolve_straight_line_binding_expression_handle, strip_mutable_expression_handle,
 };
 use super::super::super::lookups::{
-    state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
-    state_mutation_for_statement, state_operations, state_parameters,
+    host_call_for_statement, state_assignment_value_call, state_assignment_value_call_by_ordinal,
+    state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
     state_transition_argument_call, state_transition_argument_call_by_ordinal,
 };
-use super::super::guards::select_runtime_straight_line_branch_guard;
+use super::super::guards::select_runtime_straight_line_branch_guards;
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
+use super::super::writes::{
+    RuntimeStaticValues, runtime_frame_slot_target_expression,
+    select_runtime_frame_slot_value_write_in_table,
+};
 use super::mutation::{
     select_runtime_resolved_mutation_write,
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
+use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
-use omega_state_calls::{StateCallArgument, StateCallRole};
-use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
+use omega_state_calls::{StateCallArgument, StateCallLowering, StateCallRole};
+use omega_state_guards::StateGuardLowering;
+use omega_target_operations::{
+    InstructionOperand, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
+    SelectedInstructionKind, StateGuardOperator,
+};
 
 #[derive(Default)]
 pub(in crate::selection::runtime_dispatch) struct StraightLineBranchSelectionScratch {
@@ -86,16 +97,16 @@ fn select_runtime_straight_line_branch_expansion(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let mut emitted_guard = false;
-    if let Some(guard) =
-        select_runtime_straight_line_branch_guard(input, expansion, runtime_value_operands)
-    {
+    let guards =
+        select_runtime_straight_line_branch_guards(input, expansion, runtime_value_operands);
+    let emitted_guard = !guards.is_empty();
+    let guard_start = selected_instructions.len();
+    for guard in guards {
         selected_instructions.push(omega_target_operations::SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
-        emitted_guard = true;
     }
     let write_start = selected_instructions.len();
     select_runtime_straight_line_branch_writes(
@@ -107,7 +118,23 @@ fn select_runtime_straight_line_branch_expansion(
         selected_instructions,
     );
     if emitted_guard && selected_instructions.len() == write_start {
-        selected_instructions.pop();
+        while selected_instructions.len() > guard_start {
+            selected_instructions.pop();
+        }
+    } else if emitted_guard {
+        selected_instructions.push(omega_target_operations::SelectedInstruction {
+            kind: omega_target_operations::SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::NoOp,
+                operator: StateGuardOperator::Equal,
+                storage_region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_size: 0,
+                expected_value: 0,
+                has_storage: false,
+            },
+            source_key: expansion.source_key,
+            source_statement: expansion.statement_index,
+        });
     }
 }
 
@@ -136,6 +163,39 @@ fn select_runtime_straight_line_branch_writes(
 
     for operation in operations {
         match &operation.kind {
+            RuntimeStraightLineBranchOperationKind::LocalData => {
+                select_runtime_straight_line_local_initializer_write(
+                    input,
+                    expansion,
+                    operation,
+                    bindings,
+                    scratch,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+            }
+            RuntimeStraightLineBranchOperationKind::HostCall => {
+                let Some(host_call) =
+                    host_call_for_statement(input, operation.source_key, operation.statement_index)
+                else {
+                    continue;
+                };
+                let alias_bindings = straight_line_alias_bindings(expansion, bindings);
+                let alias_context = (!alias_bindings.bindings().is_empty()).then_some(
+                    RuntimeAliasResolutionContext {
+                        aliases: alias_bindings.bindings(),
+                        alias_expressions: &input.runtime_branching_calls.expressions,
+                    },
+                );
+                select_host_call(
+                    input,
+                    host_call,
+                    Some(expansion.dispatch_index),
+                    alias_context,
+                    operands,
+                    selected_instructions,
+                );
+            }
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
                 scratch.expressions.clear();
                 let expressions = &mut scratch.expressions;
@@ -221,39 +281,326 @@ fn select_runtime_straight_line_branch_writes(
                 role,
                 call_ordinal,
                 target_key,
-                lowering: omega_state_calls::StateCallLowering::InlineLeaf,
+                lowering: StateCallLowering::InlineLeaf,
                 ..
-            } => select_runtime_straight_line_leaf_state_call_writes(
-                input,
-                expansion,
-                operation,
-                *role,
-                *call_ordinal,
-                bindings,
-                *target_key,
-                scratch,
-                runtime_value_operands,
-                selected_instructions,
-            ),
+            } => {
+                select_runtime_straight_line_leaf_state_call_writes(
+                    input,
+                    expansion,
+                    operation,
+                    *role,
+                    *call_ordinal,
+                    bindings,
+                    *target_key,
+                    scratch,
+                    operands,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+                select_assignment_value_call_result_local_copy(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.statement_index,
+                    *role,
+                    *call_ordinal,
+                    selected_instructions,
+                );
+            }
             RuntimeStraightLineBranchOperationKind::StateCall {
-                role: StateCallRole::Statement,
+                role,
+                call_ordinal,
                 target_key,
-                lowering: omega_state_calls::StateCallLowering::InlineExpansion,
+                lowering: StateCallLowering::InlineExpansion,
                 ..
-            } => select_runtime_straight_line_inline_state_call(
-                input,
-                expansion,
-                operation.source_key,
-                operation.statement_index,
-                *target_key,
-                bindings,
-                operands,
-                runtime_value_operands,
-                selected_instructions,
-            ),
+            } => {
+                select_runtime_straight_line_inline_state_call(
+                    input,
+                    expansion,
+                    operation.source_key,
+                    operation.statement_index,
+                    *role,
+                    *call_ordinal,
+                    *target_key,
+                    bindings,
+                    operands,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+                select_assignment_value_call_result_local_copy(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.statement_index,
+                    *role,
+                    *call_ordinal,
+                    selected_instructions,
+                );
+            }
+            RuntimeStraightLineBranchOperationKind::StateCall {
+                role,
+                call_ordinal,
+                lowering: StateCallLowering::InlineBranching,
+                ..
+            } => {
+                select_runtime_straight_line_nested_branch_expansions_for_operation(
+                    input,
+                    expansion.dispatch_index,
+                    operation,
+                    scratch,
+                    operands,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+                select_assignment_value_call_result_local_copy(
+                    input,
+                    expansion.dispatch_index,
+                    operation.source_key,
+                    operation.statement_index,
+                    *role,
+                    *call_ordinal,
+                    selected_instructions,
+                );
+            }
             _ => {}
         }
     }
+}
+
+fn select_runtime_straight_line_local_initializer_write(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    operation: &RuntimeStraightLineBranchOperation,
+    bindings: &[RuntimeStraightLineBranchBinding],
+    scratch: &mut StraightLineBranchSelectionScratch,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == expansion.dispatch_index
+                && slot.source_key == operation.source_key
+                && slot.statement_index == operation.statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+    let Some(initializer) = local_initializer_handle(
+        input,
+        &mut scratch.expressions,
+        operation.source_key,
+        operation.statement_index,
+    ) else {
+        return;
+    };
+    let expressions = &mut scratch.expressions;
+    let resolved_initializer = resolve_straight_line_binding_expression_handle(
+        &input.runtime_branching_calls.expressions,
+        expressions,
+        initializer,
+        bindings,
+    );
+    let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        operation.statement_index,
+        expressions,
+        slot,
+        resolved_initializer,
+        &static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation.source_key,
+            source_statement: operation.statement_index,
+        });
+        return;
+    }
+
+    let target = runtime_frame_slot_target_expression(expressions, slot);
+    scratch.resolved_segment_expressions.clear();
+    if runtime_text_builder_write_in_table_emit(
+        input,
+        expansion.dispatch_index,
+        operation.source_key,
+        expansion.source_key,
+        operation.statement_index,
+        expressions,
+        target,
+        &mut scratch.resolved_segment_expressions,
+        &|expressions, expression| {
+            resolve_straight_line_binding_expression_handle(
+                &input.runtime_branching_calls.expressions,
+                expressions,
+                expression,
+                bindings,
+            )
+        },
+        &mut |kind| {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation.source_key,
+                source_statement: operation.statement_index,
+            });
+        },
+    ) {}
+}
+
+fn local_initializer_handle(
+    input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<ExpressionHandle> {
+    table.clear();
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statement = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+    local_data
+        .initial_value
+        .is_valid()
+        .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
+}
+
+fn select_runtime_straight_line_nested_branch_expansions_for_operation(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation: &RuntimeStraightLineBranchOperation,
+    scratch: &mut StraightLineBranchSelectionScratch,
+    operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let body_operation = RuntimeDispatchBodyOperation {
+        source_key: operation.source_key,
+        statement_index: operation.statement_index,
+        kind: omega_runtime_bodies::RuntimeDispatchBodyOperationKind::Other,
+    };
+    let mut leaf_scratch = super::LeafBranchSelectionScratch::default();
+    super::select_runtime_leaf_branch_expansions_matching_operation(
+        input,
+        dispatch_index,
+        &body_operation,
+        &mut leaf_scratch,
+        runtime_value_operands,
+        selected_instructions,
+    );
+
+    let expansions = input
+        .runtime_branching_calls
+        .straight_line_expansions
+        .storage_slice();
+    for expansion in expansions {
+        if straight_line_expansion_matches_operation(expansion, dispatch_index, &body_operation) {
+            select_runtime_straight_line_branch_expansion(
+                input,
+                expansion,
+                scratch,
+                operands,
+                runtime_value_operands,
+                selected_instructions,
+            );
+        }
+    }
+}
+
+fn select_assignment_value_call_result_local_copy(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    role: StateCallRole,
+    call_ordinal: usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    if role != StateCallRole::AssignmentValue {
+        return;
+    }
+    let Some(source_slot) = input.runtime_storage.call_result_slot_by_ordinal(
+        dispatch_index,
+        source_key,
+        statement_index,
+        role,
+        call_ordinal,
+    ) else {
+        return;
+    };
+    let Some(target_slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+    if source_slot.byte_size != target_slot.byte_size || source_slot.byte_size == 0 {
+        return;
+    }
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: RuntimeStorageRegion::RuntimeFrame,
+            source_offset: source_slot.byte_offset,
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: target_slot.byte_offset,
+            byte_count: source_slot.byte_size,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+}
+
+fn straight_line_alias_bindings(
+    expansion: &RuntimeStraightLineBranchExpansion,
+    bindings: &[RuntimeStraightLineBranchBinding],
+) -> RuntimeAliasBuffer {
+    RuntimeAliasBuffer::from_iter(bindings.iter().map(|binding| {
+        let source_key = match binding.kind {
+            RuntimeStraightLineBranchBindingKind::BranchParameter => expansion.branch_key,
+            RuntimeStraightLineBranchBindingKind::TargetParameter => expansion.target_key,
+        };
+        RuntimeAliasBinding {
+            source_key,
+            parameter_symbol: binding.parameter_symbol,
+            parameter_name: binding.parameter_name.clone(),
+            expression_source_key: expansion.source_key,
+            expression: binding.expression,
+        }
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -262,15 +609,30 @@ fn select_runtime_straight_line_inline_state_call(
     expansion: &RuntimeStraightLineBranchExpansion,
     source_key: StateKey,
     statement_index: usize,
+    role: StateCallRole,
+    call_ordinal: usize,
     target_key: StateKey,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(state_call) = state_call_for_statement(input, source_key, statement_index) else {
-        return;
+    let state_call = match role {
+        StateCallRole::Statement => state_call_for_statement(input, source_key, statement_index),
+        StateCallRole::AssignmentValue => {
+            state_assignment_value_call_by_ordinal(input, source_key, statement_index, call_ordinal)
+                .or_else(|| state_assignment_value_call(input, source_key, statement_index))
+        }
+        StateCallRole::TransitionArgument => state_transition_argument_call_by_ordinal(
+            input,
+            source_key,
+            statement_index,
+            call_ordinal,
+        )
+        .or_else(|| state_transition_argument_call(input, source_key, statement_index)),
+        _ => None,
     };
+    let Some(state_call) = state_call else { return };
     let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
         return;
     };
@@ -326,6 +688,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
     scratch: &mut StraightLineBranchSelectionScratch,
+    operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -365,9 +728,54 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         return;
     };
     let (target_machine, target_state) = state_names(input, target_key);
+    let (child_aliases, child_alias_expressions) = leaf_call_alias_bindings(
+        input,
+        operation.source_key,
+        target_key,
+        arguments,
+        straight_line_bindings,
+    );
     scratch.expressions.clear();
     scratch.resolved_segment_expressions.clear();
     for leaf_operation in operations {
+        if matches!(leaf_operation.kind, OperationKind::Call { .. }) {
+            let Some(host_call) =
+                host_call_for_statement(input, target_key, leaf_operation.statement_index)
+            else {
+                continue;
+            };
+            let alias_context =
+                (!child_aliases.bindings().is_empty()).then_some(RuntimeAliasResolutionContext {
+                    aliases: child_aliases.bindings(),
+                    alias_expressions: &child_alias_expressions,
+                });
+            select_host_call(
+                input,
+                host_call,
+                Some(expansion.dispatch_index),
+                alias_context,
+                operands,
+                selected_instructions,
+            );
+            continue;
+        }
+
+        if matches!(leaf_operation.kind, OperationKind::LocalData) {
+            select_runtime_leaf_state_call_local_initializer_write(
+                input,
+                expansion,
+                target_key,
+                leaf_operation.statement_index,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+                scratch,
+                runtime_value_operands,
+                selected_instructions,
+            );
+            continue;
+        }
+
         let Some(mutation) =
             state_mutation_for_statement(input, target_key, leaf_operation.statement_index)
         else {
@@ -461,6 +869,105 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             runtime_value_operands,
             selected_instructions,
         );
+    }
+}
+
+fn leaf_call_alias_bindings(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    target_key: StateKey,
+    arguments: &[StateCallArgument],
+    straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+) -> (RuntimeAliasBuffer, ExpressionTable) {
+    let mut child_alias_expressions =
+        ExpressionTable::with_expression_capacity(arguments.len().saturating_mul(2));
+    let mut child_aliases = RuntimeAliasBuffer::with_capacity(arguments.len());
+
+    for argument in arguments {
+        let argument_expression =
+            child_alias_expressions.copy_from(&input.state_calls.expressions, argument.expression);
+        let resolved_expression = resolve_straight_line_binding_expression_handle(
+            &input.runtime_branching_calls.expressions,
+            &mut child_alias_expressions,
+            argument_expression,
+            straight_line_bindings,
+        );
+        let expression =
+            strip_mutable_expression_handle(&child_alias_expressions, resolved_expression);
+        child_aliases.set_alias(RuntimeAliasBinding {
+            source_key: target_key,
+            parameter_symbol: argument.parameter_symbol,
+            parameter_name: argument.parameter_name.clone(),
+            expression_source_key: source_key,
+            expression,
+        });
+    }
+
+    (child_aliases, child_alias_expressions)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_leaf_state_call_local_initializer_write(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    target_key: StateKey,
+    statement_index: usize,
+    leaf_parameters: &[StateParameterFlow],
+    arguments: &[StateCallArgument],
+    straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+    scratch: &mut StraightLineBranchSelectionScratch,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == expansion.dispatch_index
+                && slot.source_key == target_key
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+
+    let Some(initializer) =
+        local_initializer_handle(input, &mut scratch.expressions, target_key, statement_index)
+    else {
+        return;
+    };
+    let resolved_initializer = resolve_leaf_call_expression_handle(
+        input,
+        &mut scratch.expressions,
+        target_key,
+        initializer,
+        leaf_parameters,
+        arguments,
+        straight_line_bindings,
+    );
+    let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        statement_index,
+        &scratch.expressions,
+        slot,
+        resolved_initializer,
+        &static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: target_key,
+            source_statement: statement_index,
+        });
     }
 }
 

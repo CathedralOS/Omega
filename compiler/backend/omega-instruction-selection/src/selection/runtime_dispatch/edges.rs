@@ -26,6 +26,10 @@ pub(super) fn select_runtime_dispatch_edge(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    if matches!(edge.action, RuntimeDispatchLoopAction::Unknown) {
+        return;
+    }
+
     select_dispatch_guard_instructions(
         input,
         edge,

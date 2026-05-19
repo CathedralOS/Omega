@@ -80,8 +80,25 @@ pub(super) fn straight_line_operations(
         return HandleSpan::empty();
     };
 
-    output_operations.insert_many(operations.iter().map(|operation| {
-        RuntimeStraightLineBranchOperation {
+    let mut branch_operations = Vec::with_capacity(operations.len());
+    for operation in operations {
+        if let Some(state_call) =
+            state_call_for_operation(context, source_key, operation.statement_index)
+        {
+            branch_operations.push(RuntimeStraightLineBranchOperation {
+                source_key,
+                statement_index: operation.statement_index,
+                kind: RuntimeStraightLineBranchOperationKind::StateCall {
+                    role: state_call.role,
+                    call_ordinal: state_call.call_ordinal,
+                    target_key: state_call.target_key,
+                    argument_count: state_call.argument_count,
+                    lowering: state_call.lowering,
+                },
+            });
+        }
+
+        branch_operations.push(RuntimeStraightLineBranchOperation {
             source_key,
             statement_index: operation.statement_index,
             kind: straight_line_operation_kind(
@@ -91,8 +108,10 @@ pub(super) fn straight_line_operations(
                 operation.statement_index,
                 &operation.kind,
             ),
-        }
-    }))
+        });
+    }
+
+    output_operations.insert_many(branch_operations)
 }
 
 fn prelude_operation_kind(
@@ -170,16 +189,6 @@ fn straight_line_operation_kind(
             lowering: mutation.lowering,
             target: expressions.copy_from(&context.state_storage.expressions, mutation.target),
             value: expressions.copy_from(&context.state_storage.expressions, mutation.value),
-        };
-    }
-
-    if let Some(state_call) = state_call_for_operation(context, source_key, statement_index) {
-        return RuntimeStraightLineBranchOperationKind::StateCall {
-            role: state_call.role,
-            call_ordinal: state_call.call_ordinal,
-            target_key: state_call.target_key,
-            argument_count: state_call.argument_count,
-            lowering: state_call.lowering,
         };
     }
 

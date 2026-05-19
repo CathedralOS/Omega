@@ -153,32 +153,45 @@ fn runtime_transition_target(
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
+            receiver,
             ..
-        } => context
-            .control_flow
-            .machine_contains(machine)
-            .iter()
-            .find(|contained| receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
-            .and_then(|contained| {
-                context
+        } => {
+            if *receiver_symbol == current_state.machine || receiver.as_str() == "self" {
+                return context
                     .control_flow
-                    .machine_by_symbol(contained.type_symbol)
-            })
-            .and_then(|target_machine| {
-                context
-                    .control_flow
-                    .states
-                    .span(target_machine.states)
-                    .and_then(|states| {
-                        states.iter().find(|candidate| {
-                            state_symbol.is_valid() && candidate.key.state == *state_symbol
+                    .state_key_by_symbols(current_state.machine, *state_symbol)
+                    .map(|key| RuntimeTransitionTarget::State { key })
+                    .unwrap_or(RuntimeTransitionTarget::Unknown);
+            }
+
+            context
+                .control_flow
+                .machine_contains(machine)
+                .iter()
+                .find(|contained| {
+                    receiver_symbol.is_valid() && contained.symbol == *receiver_symbol
+                })
+                .and_then(|contained| {
+                    context
+                        .control_flow
+                        .machine_by_symbol(contained.type_symbol)
+                })
+                .and_then(|target_machine| {
+                    context
+                        .control_flow
+                        .states
+                        .span(target_machine.states)
+                        .and_then(|states| {
+                            states.iter().find(|candidate| {
+                                state_symbol.is_valid() && candidate.key.state == *state_symbol
+                            })
                         })
-                    })
-            })
-            .map(|target_state| RuntimeTransitionTarget::State {
-                key: target_state.key,
-            })
-            .unwrap_or(RuntimeTransitionTarget::Unknown),
+                })
+                .map(|target_state| RuntimeTransitionTarget::State {
+                    key: target_state.key,
+                })
+                .unwrap_or(RuntimeTransitionTarget::Unknown)
+        }
         PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State { key: current_state }
         }

@@ -173,6 +173,9 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
+                    | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
+                    | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed { .. }
@@ -186,6 +189,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                    | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
         })

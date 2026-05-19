@@ -478,6 +478,37 @@ fn selected_instruction_name(
                 "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeFrameIndexedString {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            data,
+            byte_length,
+        } => {
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
+            format!(
+                "write runtime-frame indexed string descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region,
+            source_offset,
+            target_offset,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            format!(
+                "write runtime-frame pointer @{target_offset} = &{source_symbol}@{source_offset}"
+            )
+        }
+        SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
+            pointer_byte_offset,
+            field_byte_offset,
+            target_offset,
+        } => format!(
+            "write runtime-frame pointer @{target_offset} = *(runtime_frame@{pointer_byte_offset}) +{field_byte_offset}"
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer,
             target_region,
@@ -533,6 +564,18 @@ fn selected_instruction_name(
         } => {
             format!(
                 "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => {
+            format!(
+                "copy runtime-frame fixed-indexed descriptor@{descriptor_offset} index {element_index} elem {element_byte_size} field +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
             )
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {

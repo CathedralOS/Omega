@@ -619,6 +619,26 @@ fn select_runtime_string_mutation_write_in_table(
         });
     }
 
+    if data.is_valid()
+        && let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.byte_count == input.target.pointer_size * 2
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
+
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,

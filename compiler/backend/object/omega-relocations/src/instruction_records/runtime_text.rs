@@ -1,5 +1,9 @@
 use super::super::offsets::{
     runtime_text_buffer_materialize_target_address_offset,
+    runtime_text_indexed_buffer_materialize_buffer_address_offset,
+    runtime_text_indexed_literal_append_buffer_address_offset,
+    runtime_text_indexed_stored_place_buffer_address_offset,
+    runtime_text_indexed_stored_place_source_address_offset,
     runtime_text_line_read_import_call_offset, runtime_text_line_read_target_address_offset,
     runtime_text_literal_append_target_address_offset,
     runtime_text_stored_place_source_address_offset,
@@ -98,18 +102,28 @@ pub(super) fn collect_runtime_text_relocations(
         SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
             buffer,
             source_region,
+            element_byte_size,
+            field_byte_offset,
             ..
         } => {
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
             let source_symbol = context.storage_region_symbol_handle(*source_region);
             let target_symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_instruction_start(target_symbol);
             context.insert_data_address_at_relative_offset(
-                runtime_text_stored_place_target_address_offset(context.input.target.architecture),
-                target_symbol,
+                runtime_text_indexed_stored_place_buffer_address_offset(
+                    context.input.target.architecture,
+                    *element_byte_size,
+                    *field_byte_offset,
+                ),
+                buffer_symbol,
             );
             context.insert_data_address_at_relative_offset(
-                runtime_text_stored_place_source_address_offset(context.input.target.architecture),
+                runtime_text_indexed_stored_place_source_address_offset(
+                    context.input.target.architecture,
+                    *element_byte_size,
+                    *field_byte_offset,
+                ),
                 source_symbol,
             );
         }
@@ -140,16 +154,21 @@ pub(super) fn collect_runtime_text_relocations(
             );
         }
         SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-            buffer, ..
+            buffer,
+            element_byte_size,
+            field_byte_offset,
+            ..
         } => {
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
             let target_symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_instruction_start(target_symbol);
             context.insert_data_address_at_relative_offset(
-                runtime_text_literal_append_target_address_offset(
+                runtime_text_indexed_literal_append_buffer_address_offset(
                     context.input.target.architecture,
+                    *element_byte_size,
+                    *field_byte_offset,
                 ),
-                target_symbol,
+                buffer_symbol,
             );
         }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
@@ -182,16 +201,20 @@ pub(super) fn collect_runtime_text_relocations(
         }
         SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
             buffer,
+            element_byte_size,
+            field_byte_offset,
             ..
         } => {
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
             let target_symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_instruction_start(target_symbol);
             context.insert_data_address_at_relative_offset(
-                runtime_text_buffer_materialize_target_address_offset(
+                runtime_text_indexed_buffer_materialize_buffer_address_offset(
                     context.input.target.architecture,
+                    *element_byte_size,
+                    *field_byte_offset,
                 ),
-                target_symbol,
+                buffer_symbol,
             );
         }
         SelectedInstructionKind::ReadRuntimeTextLine {

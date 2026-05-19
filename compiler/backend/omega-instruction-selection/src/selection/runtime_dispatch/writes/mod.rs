@@ -20,7 +20,7 @@ use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOper
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
 pub(crate) use static_values::RuntimeStaticValues;
 
-pub(in crate::selection::runtime_dispatch) use mutation::{
+pub(in crate::selection) use mutation::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
 pub(super) use storage_copy::{
@@ -378,7 +378,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
-    if let Some(kind) = storage_copy::runtime_storage_copy_in_table(
+    if let Some(kind) = storage_copy::runtime_storage_indexed_source_copy_in_table(
         input,
         dispatch_index,
         target_source_key,
@@ -388,7 +388,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         value,
     )
     .or_else(|| {
-        storage_copy::runtime_storage_indirect_copy_in_table(
+        storage_copy::runtime_storage_fixed_indexed_source_copy_in_table(
             input,
             dispatch_index,
             target_source_key,
@@ -399,7 +399,18 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         )
     })
     .or_else(|| {
-        storage_copy::runtime_storage_indexed_source_copy_in_table(
+        storage_copy::runtime_storage_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            target,
+            value,
+        )
+    })
+    .or_else(|| {
+        storage_copy::runtime_storage_indirect_copy_in_table(
             input,
             dispatch_index,
             target_source_key,

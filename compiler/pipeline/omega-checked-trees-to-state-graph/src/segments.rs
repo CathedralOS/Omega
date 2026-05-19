@@ -312,6 +312,13 @@ fn operation_expression_refs(
                 .expressions
                 .copy_from(source_expressions, *expression),
         ),
+        StatementNode::LocalData(local_data) if local_data.initial_value.is_valid() => {
+            OperationExpressionRefs::Expression(
+                state_graph
+                    .expressions
+                    .copy_from(source_expressions, local_data.initial_value),
+            )
+        }
         StatementNode::LocalData(_) | StatementNode::Transition(_) => OperationExpressionRefs::None,
     }
 }

@@ -1,6 +1,8 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use crate::selection::storage_places::resolve_runtime_storage_place;
+use crate::selection::storage_places::{
+    resolve_runtime_frame_indexed_target, resolve_runtime_storage_place,
+};
 use omega_checked_trees::expression::Expression;
 use omega_control_flow::StateKey;
 use omega_target_operations::TargetDataObjectHandle;
@@ -19,6 +21,33 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     value: &str,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let data = string_literal_data_object(input, literal_source_key, statement_index, value);
+    if !data.is_valid() {
+        return;
+    };
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && indexed_target.byte_count == input.target.pointer_size * 2
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeFrameIndexedString {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                data,
+                byte_length: value.len(),
+            },
+            source_key: literal_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     let Some(target_place) = resolve_runtime_storage_place(
         input,
         dispatch_index,
@@ -32,10 +61,6 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     if target_place.byte_count != input.target.pointer_size * 2 {
         return;
     }
-    let data = string_literal_data_object(input, literal_source_key, statement_index, value);
-    if !data.is_valid() {
-        return;
-    };
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::WriteRuntimeMachineString {
