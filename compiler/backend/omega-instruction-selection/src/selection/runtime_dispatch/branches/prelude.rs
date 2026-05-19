@@ -23,7 +23,7 @@ use super::mutation::{
 };
 
 #[derive(Default)]
-struct BranchPreludeSelectionScratch {
+pub(in crate::selection::runtime_dispatch) struct BranchPreludeSelectionScratch {
     expressions: ExpressionTable,
     mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
@@ -33,31 +33,42 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    expansion_cursor: &mut usize,
+    scratch: &mut BranchPreludeSelectionScratch,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let mut scratch = BranchPreludeSelectionScratch::default();
-
-    for (_, expansion) in input
+    let expansions = input
         .runtime_branching_calls
         .prelude_expansions
-        .iter()
-        .filter(|(_, expansion)| {
-            expansion.dispatch_index == dispatch_index
-                && expansion.source_key == operation.source_key
-                && expansion.statement_index == operation.statement_index
-        })
-    {
+        .storage_slice();
+
+    while let Some(expansion) = expansions.get(*expansion_cursor) {
+        if !prelude_expansion_matches_operation(expansion, dispatch_index, operation) {
+            break;
+        }
+
         select_runtime_branch_prelude(
             input,
             expansion,
-            &mut scratch,
+            scratch,
             operands,
             runtime_value_operands,
             selected_instructions,
         );
+        *expansion_cursor += 1;
     }
+}
+
+fn prelude_expansion_matches_operation(
+    expansion: &RuntimeBranchPreludeExpansion,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+) -> bool {
+    expansion.dispatch_index == dispatch_index
+        && expansion.source_key == operation.source_key
+        && expansion.statement_index == operation.statement_index
 }
 
 fn select_runtime_branch_prelude(
