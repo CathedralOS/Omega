@@ -303,6 +303,25 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node .subtitle { fill: var(--muted); font-size: 11px; }
 .node.dim { opacity: 0.16; }
 .edge.dim { opacity: 0.05; }
+.node.unrelated { opacity: 0.24; }
+.edge.unrelated { opacity: 0.04; }
+.edge.related {
+  opacity: 1;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(77, 212, 198, 0.65));
+}
+.edge.related.transition_target {
+  stroke: #6fffea;
+  stroke-width: 4;
+}
+.node.related rect {
+  stroke: #6fffea;
+  stroke-width: 2.4;
+}
+.node.hovered rect {
+  stroke: #ffffff;
+  stroke-width: 3.4;
+}
 .node.match rect { stroke: var(--match); stroke-width: 3; }
 .node.selected rect { stroke: #ffffff; stroke-width: 3; }
 .hidden { display: none; }
@@ -345,6 +364,7 @@ const STATEMENT_COLUMNS = 3;
 const positions = new Map();
 let graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
 let selectedId = null;
+let hoveredId = null;
 let scopedId = null;
 let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
@@ -628,6 +648,19 @@ function drawNode(node) {
     event.stopPropagation();
     selectNode(node.id, true);
   });
+  group.addEventListener("dblclick", event => {
+    event.stopPropagation();
+    const targetId = transitionTargetFor(node.id);
+    selectNode(targetId || node.id, true);
+  });
+  group.addEventListener("pointerenter", () => {
+    hoveredId = node.id;
+    applyRelationshipHighlight();
+  });
+  group.addEventListener("pointerleave", () => {
+    if (hoveredId === node.id) hoveredId = null;
+    applyRelationshipHighlight();
+  });
   nodeLayer.appendChild(group);
 }
 
@@ -726,6 +759,7 @@ function applyFilters() {
   const visibleEdges = Array.from(document.querySelectorAll(".edge")).filter(edge => !edge.classList.contains("hidden")).length;
   const scopeLabel = scopedId ? ` scoped to ${outlineLabel(nodeById.get(scopedId))}` : "";
   counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}`;
+  applyRelationshipHighlight();
 }
 
 function transitionTargetFor(id) {
@@ -734,6 +768,51 @@ function transitionTargetFor(id) {
 
 function updateFollowTarget() {
   followTarget.disabled = !transitionTargetFor(selectedId);
+}
+
+function activeFocusId() {
+  return hoveredId || selectedId;
+}
+
+function applyRelationshipHighlight() {
+  const focusId = activeFocusId();
+  document.querySelectorAll(".node").forEach(node => {
+    node.classList.remove("hovered", "related", "unrelated");
+  });
+  document.querySelectorAll(".edge").forEach(edge => {
+    edge.classList.remove("related", "unrelated");
+  });
+  if (!focusId) return;
+
+  const relatedNodeIds = new Set([focusId]);
+  const relatedEdgeElements = [];
+  for (const edge of document.querySelectorAll(".edge")) {
+    if (edge.classList.contains("hidden")) continue;
+    const related = edge.dataset.from === focusId || edge.dataset.to === focusId;
+    if (!related) continue;
+    relatedEdgeElements.push(edge);
+    relatedNodeIds.add(edge.dataset.from);
+    relatedNodeIds.add(edge.dataset.to);
+  }
+
+  for (const node of document.querySelectorAll(".node")) {
+    if (node.classList.contains("hidden")) continue;
+    const id = node.dataset.id;
+    node.classList.toggle("hovered", id === focusId);
+    node.classList.toggle("related", relatedNodeIds.has(id) && id !== focusId);
+    node.classList.toggle("unrelated", !relatedNodeIds.has(id));
+  }
+  for (const edge of document.querySelectorAll(".edge")) {
+    if (edge.classList.contains("hidden")) continue;
+    const related = relatedEdgeElements.includes(edge);
+    edge.classList.toggle("related", related);
+    edge.classList.toggle("unrelated", !related);
+    if (related) edgeLayer.appendChild(edge);
+  }
+  for (const id of relatedNodeIds) {
+    const node = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+    if (node) nodeLayer.appendChild(node);
+  }
 }
 
 function setTransform(next) {
@@ -764,6 +843,7 @@ function centerOn(id) {
 
 let drag = null;
 svg.addEventListener("pointerdown", event => {
+  if (event.target.closest(".node")) return;
   drag = { x: event.clientX, y: event.clientY, tx: transform.x, ty: transform.y };
   svg.setPointerCapture(event.pointerId);
   svg.classList.add("dragging");
@@ -796,6 +876,7 @@ svg.addEventListener("click", () => {
   selectedId = null;
   document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
   updateFollowTarget();
+  applyRelationshipHighlight();
 });
 search.addEventListener("input", applyFilters);
 showSequence.addEventListener("change", applyFilters);
