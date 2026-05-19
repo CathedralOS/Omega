@@ -844,4 +844,75 @@ mod tests {
             "expected contained assignment-value call, got {calls:?}"
         );
     }
+
+    #[test]
+    fn collects_local_initializer_assignment_value_call() {
+        let source = r#"
+            data Random {}
+            data main { rng: Random; }
+
+            machine Random::one -> i32 {
+                pub entry(&mut self) {
+                    -> 1;
+                }
+            }
+
+            machine main {
+                pub entry(&mut self) {
+                    let value: i32 = self.rng.one();
+                }
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed).expect("check");
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        let entry_key = control_flow
+            .states
+            .iter()
+            .find_map(|(_, state)| {
+                let operations = control_flow.operations.span(state.operations)?;
+                operations
+                    .iter()
+                    .any(|operation| {
+                        matches!(operation.kind, omega_control_flow::OperationKind::LocalData)
+                            && matches!(
+                                operation.expressions,
+                                omega_control_flow::OperationExpressionRefs::Expression(_)
+                            )
+                    })
+                    .then_some(state.key)
+            })
+            .expect("state with initialized local");
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let context = StateCallPlanningContext {
+            control_flow: Arc::new(control_flow.clone()),
+            host_calls: Arc::new(host_calls),
+            runtime_flow: Arc::new(runtime_flow),
+        };
+        let machine = control_flow
+            .machine_by_symbol(entry_key.machine)
+            .expect("machine flow");
+
+        let calls = collect_machine_state_calls(&context, machine);
+        assert!(
+            calls.iter().any(|call| {
+                call.role == StateCallRole::AssignmentValue
+                    && call.source_key.machine == entry_key.machine
+                    && call.source_key.state == entry_key.state
+                    && call.statement_index == 0
+                    && call.receiver_symbol.is_valid()
+                    && call.resolution == StateCallResolution::ContainedMachine
+            }),
+            "expected local-initializer assignment-value call, got {calls:?}"
+        );
+    }
 }

@@ -98,6 +98,109 @@ pub(super) fn runtime_text_buffer_materialize_target_address_offset(
     }
 }
 
+pub(super) fn runtime_text_indexed_literal_append_buffer_address_offset(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 4
+        }
+        Architecture::X86_64 => 8,
+    }
+}
+
+pub(super) fn runtime_text_indexed_stored_place_buffer_address_offset(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 8
+        }
+        Architecture::X86_64 => 8,
+    }
+}
+
+pub(super) fn runtime_text_indexed_stored_place_source_address_offset(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 24
+        }
+        Architecture::X86_64 => 8,
+    }
+}
+
+pub(super) fn runtime_text_indexed_buffer_materialize_buffer_address_offset(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 12
+        }
+        Architecture::X86_64 => 8,
+    }
+}
+
+pub(super) fn runtime_frame_indexed_string_data_address_offset(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        }
+        Architecture::X86_64 => 8,
+    }
+}
+
+fn runtime_frame_index_setup_width(element_byte_size: usize, field_byte_offset: usize) -> usize {
+    match element_byte_size {
+        0 => 20 + add_constant_width(field_byte_offset),
+        _ => 20 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset),
+    }
+}
+
+fn scale_index_width(element_byte_size: usize) -> usize {
+    let highest_bit = usize::BITS - element_byte_size.leading_zeros();
+    let doubles = highest_bit.saturating_sub(1) as usize;
+    let additions = element_byte_size.count_ones() as usize;
+    8 + (doubles + additions) * 4
+}
+
+fn add_constant_width(value: usize) -> usize {
+    if value == 0 {
+        0
+    } else if value <= 4095 {
+        4
+    } else {
+        unsigned_immediate_width(value as u64) + 4
+    }
+}
+
+fn unsigned_immediate_width(value: u64) -> usize {
+    if value == 0 {
+        return 4;
+    }
+
+    let mut width = 0;
+    for halfword_index in 0..4 {
+        if ((value >> (halfword_index * 16)) & 0xffff) != 0 {
+            width += 4;
+        }
+    }
+    width
+}
+
 pub(super) fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
     source: &omega_target_operations::RuntimeTextReadSource,

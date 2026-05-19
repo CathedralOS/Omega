@@ -1,3 +1,4 @@
+use super::string_literal_data_handle;
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
@@ -15,8 +16,11 @@ use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTa
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_target_operations::{
-    RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle,
+    RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle, TargetDataObjectKind,
 };
+use std::sync::Arc;
+
+const UNSUPPORTED_RUNTIME_TEXT_SEGMENT: &str = "<expr>";
 
 #[derive(Debug, Clone)]
 struct RuntimeTextTarget {
@@ -145,7 +149,11 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         return false;
     };
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let buffer = runtime_text_input_buffer_data_for_text_place(input, &resolved_target);
+    let buffer =
+        runtime_text_input_buffer_for_builder(input, builder.source_key, builder.statement_index)
+            .unwrap_or_else(|| {
+                runtime_text_input_buffer_data_for_text_place(input, &resolved_target)
+            });
     if !buffer.is_valid() {
         return false;
     };
@@ -201,8 +209,30 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         );
     }
 
-    let mut emitted = false;
-    for segment in segments {
+    let Some(target) = RuntimeTextTarget::new(
+        input,
+        target_place.clone(),
+        target_indexed.clone(),
+        target_pointee,
+    ) else {
+        return false;
+    };
+
+    let initialized_first_segment = initialize_runtime_text_target_with_first_literal_segment(
+        input,
+        source_key,
+        statement_index,
+        buffer,
+        &target,
+        segments,
+        emit,
+    );
+
+    let mut emitted = initialized_first_segment;
+    for (segment_index, segment) in segments.iter().enumerate() {
+        if initialized_first_segment && segment_index == 0 {
+            continue;
+        }
         match segment.kind {
             RuntimeTextBuilderSegmentKind::StoredPlace => {
                 let Some(source_place) = resolve_runtime_storage_place_in_table(
@@ -217,7 +247,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                 if source_place.byte_count != input.target.pointer_size * 2 {
                     return false;
                 }
-                if let Some(target_place) = target_place.as_ref() {
+                if let Some(target_place) = target.place.as_ref() {
                     if source_place.region == target_place.region
                         && source_place.byte_offset == target_place.byte_offset
                     {
@@ -236,7 +266,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                         target_region: target_place.region,
                         target_offset: target_place.byte_offset,
                     });
-                } else if let Some(target) = target_pointee.as_ref() {
+                } else if let Some(target) = target.pointee.as_ref() {
                     emit(
                         SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
                             buffer,
@@ -246,7 +276,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                             field_byte_offset: target.field_byte_offset,
                         },
                     );
-                } else if let Some(target) = target_indexed.as_ref() {
+                } else if let Some(target) = target.indexed.as_ref() {
                     emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
                         buffer,
                         source_region: source_place.region,
@@ -269,39 +299,31 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                 else {
                     return false;
                 };
-                if let Some(target_place) = target_place.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
-                        buffer,
-                        target_region: target_place.region,
-                        target_offset: target_place.byte_offset,
-                        literal,
-                    });
-                } else if let Some(target) = target_pointee.as_ref() {
-                    emit(
-                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
-                            buffer,
-                            pointer_byte_offset: target.pointer_byte_offset,
-                            field_byte_offset: target.field_byte_offset,
-                            literal,
-                        },
-                    );
-                } else if let Some(target) = target_indexed.as_ref() {
-                    emit(
-                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-                            buffer,
-                            descriptor_offset: target.descriptor_offset,
-                            index_offset: target.index_offset,
-                            element_byte_size: target.element_byte_size,
-                            field_byte_offset: target.field_byte_offset,
-                            literal,
-                        },
-                    );
-                } else {
+                if !append_runtime_text_literal_to_target(
+                    buffer,
+                    target.place.as_ref(),
+                    target.pointee.as_ref(),
+                    target.indexed.as_ref(),
+                    literal,
+                    emit,
+                ) {
                     return false;
                 }
                 emitted = true;
             }
-            RuntimeTextBuilderSegmentKind::OtherExpression => return false,
+            RuntimeTextBuilderSegmentKind::OtherExpression => {
+                if !append_runtime_text_literal_to_target(
+                    buffer,
+                    target.place.as_ref(),
+                    target.pointee.as_ref(),
+                    target.indexed.as_ref(),
+                    Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
+                    emit,
+                ) {
+                    return false;
+                }
+                emitted = true;
+            }
         }
     }
 
@@ -336,7 +358,11 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
         return false;
     };
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let buffer = runtime_text_input_buffer_data_for_text_place(input, &resolved_target);
+    let buffer =
+        runtime_text_input_buffer_for_builder(input, builder.source_key, builder.statement_index)
+            .unwrap_or_else(|| {
+                runtime_text_input_buffer_data_for_text_place(input, &resolved_target)
+            });
     if !buffer.is_valid() {
         return false;
     };
@@ -360,6 +386,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
         input,
         dispatch_index,
         source_key,
+        statement_index,
         buffer,
         &target,
         segments,
@@ -396,11 +423,15 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
     let Some(segments) = input.runtime_text.builder_segments.span(builder.segments) else {
         return false;
     };
-    let buffer = runtime_text_input_buffer_data_for_text_place_in_table(
-        input,
-        target_expressions,
-        resolved_target,
-    );
+    let buffer =
+        runtime_text_input_buffer_for_builder(input, builder.source_key, builder.statement_index)
+            .unwrap_or_else(|| {
+                runtime_text_input_buffer_data_for_text_place_in_table(
+                    input,
+                    target_expressions,
+                    resolved_target,
+                )
+            });
     if !buffer.is_valid() {
         return false;
     };
@@ -433,6 +464,7 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
         input,
         dispatch_index,
         builder_source_key,
+        statement_index,
         buffer,
         &target,
         segments,
@@ -447,6 +479,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
+    statement_index: usize,
     buffer: TargetDataObjectHandle,
     target: &RuntimeTextTarget,
     segments: &[omega_runtime_text::RuntimeTextBuilderSegment],
@@ -474,8 +507,21 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
         );
     }
 
-    let mut emitted = false;
-    for segment in segments {
+    let initialized_first_segment = initialize_runtime_text_target_with_first_literal_segment(
+        input,
+        source_key,
+        statement_index,
+        buffer,
+        target,
+        segments,
+        emit,
+    );
+
+    let mut emitted = initialized_first_segment;
+    for (segment_index, segment) in segments.iter().enumerate() {
+        if initialized_first_segment && segment_index == 0 {
+            continue;
+        }
         match segment.kind {
             RuntimeTextBuilderSegmentKind::StoredPlace => {
                 let segment_expression = resolved_segment_expressions
@@ -545,43 +591,159 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                 else {
                     return false;
                 };
-                if let Some(target_place) = target.place.as_ref() {
-                    emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
-                        buffer,
-                        target_region: target_place.region,
-                        target_offset: target_place.byte_offset,
-                        literal,
-                    });
-                } else if let Some(target) = target.pointee.as_ref() {
-                    emit(
-                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
-                            buffer,
-                            pointer_byte_offset: target.pointer_byte_offset,
-                            field_byte_offset: target.field_byte_offset,
-                            literal,
-                        },
-                    );
-                } else if let Some(target) = target.indexed.as_ref() {
-                    emit(
-                        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-                            buffer,
-                            descriptor_offset: target.descriptor_offset,
-                            index_offset: target.index_offset,
-                            element_byte_size: target.element_byte_size,
-                            field_byte_offset: target.field_byte_offset,
-                            literal,
-                        },
-                    );
-                } else {
+                if !append_runtime_text_literal_to_target(
+                    buffer,
+                    target.place.as_ref(),
+                    target.pointee.as_ref(),
+                    target.indexed.as_ref(),
+                    literal,
+                    emit,
+                ) {
                     return false;
                 }
                 emitted = true;
             }
-            RuntimeTextBuilderSegmentKind::OtherExpression => return false,
+            RuntimeTextBuilderSegmentKind::OtherExpression => {
+                if !append_runtime_text_literal_to_target(
+                    buffer,
+                    target.place.as_ref(),
+                    target.pointee.as_ref(),
+                    target.indexed.as_ref(),
+                    Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
+                    emit,
+                ) {
+                    return false;
+                }
+                emitted = true;
+            }
         }
     }
 
     emitted
+}
+
+fn append_runtime_text_literal_to_target(
+    buffer: TargetDataObjectHandle,
+    target_place: Option<&RuntimeStoragePlace>,
+    target_pointee: Option<&RuntimePointeeTarget>,
+    target_indexed: Option<&RuntimeFrameIndexedTarget>,
+    literal: Arc<str>,
+    emit: &mut dyn FnMut(SelectedInstructionKind),
+) -> bool {
+    if let Some(target_place) = target_place {
+        emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
+            buffer,
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            literal,
+        });
+    } else if let Some(target) = target_pointee {
+        emit(
+            SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+                buffer,
+                pointer_byte_offset: target.pointer_byte_offset,
+                field_byte_offset: target.field_byte_offset,
+                literal,
+            },
+        );
+    } else if let Some(target) = target_indexed {
+        emit(
+            SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+                buffer,
+                descriptor_offset: target.descriptor_offset,
+                index_offset: target.index_offset,
+                element_byte_size: target.element_byte_size,
+                field_byte_offset: target.field_byte_offset,
+                literal,
+            },
+        );
+    } else {
+        return false;
+    }
+
+    true
+}
+
+fn initialize_runtime_text_target_with_first_literal_segment(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    buffer: TargetDataObjectHandle,
+    target: &RuntimeTextTarget,
+    segments: &[omega_runtime_text::RuntimeTextBuilderSegment],
+    emit: &mut dyn FnMut(SelectedInstructionKind),
+) -> bool {
+    let Some(first) = segments.first() else {
+        return false;
+    };
+    if first.kind != RuntimeTextBuilderSegmentKind::StaticText {
+        return false;
+    }
+    let Some(literal) = input
+        .runtime_text
+        .expressions
+        .string_literal_value(first.expression)
+    else {
+        return false;
+    };
+    let data = string_literal_data_handle(input, source_key, statement_index, &literal);
+    if !data.is_valid() {
+        return false;
+    }
+
+    emit(SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+        buffer,
+        byte_offset: 0,
+        literal: literal.clone(),
+    });
+
+    if let Some(target_place) = target.place.as_ref() {
+        if target_place.region != RuntimeStorageRegion::Machine {
+            return false;
+        }
+        emit(SelectedInstructionKind::WriteRuntimeMachineString {
+            byte_offset: target_place.byte_offset,
+            data,
+            byte_length: literal.len(),
+        });
+    } else if let Some(target) = target.pointee.as_ref() {
+        emit(SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset: target.pointer_byte_offset,
+            field_byte_offset: target.field_byte_offset,
+            data,
+            byte_length: literal.len(),
+        });
+    } else if let Some(target) = target.indexed.as_ref() {
+        emit(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
+            descriptor_offset: target.descriptor_offset,
+            index_offset: target.index_offset,
+            element_byte_size: target.element_byte_size,
+            field_byte_offset: target.field_byte_offset,
+            data,
+            byte_length: literal.len(),
+        });
+    } else {
+        return false;
+    }
+
+    true
+}
+
+fn runtime_text_input_buffer_for_builder(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<TargetDataObjectHandle> {
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.kind == TargetDataObjectKind::RuntimeTextBuffer
+                && data_object.source_key == source_key
+                && data_object.source_statement == statement_index
+        })
+        .map(|(handle, _)| handle)
 }
 
 #[allow(clippy::too_many_arguments)]

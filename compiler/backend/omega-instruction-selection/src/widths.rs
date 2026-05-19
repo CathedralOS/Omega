@@ -4,6 +4,7 @@ use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
 use omega_target_operations::{
     InstructionOperand, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
+    StateGuardOperator,
 };
 
 pub fn host_call_sequence_width(
@@ -216,6 +217,7 @@ pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
@@ -223,6 +225,7 @@ pub fn runtime_storage_binary_write_width(
             runtime_value_operands,
             byte_size,
             left,
+            operator,
             right,
         ),
         Architecture::X86_64 => 0,
@@ -234,6 +237,7 @@ pub fn runtime_pointee_binary_write_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
@@ -241,6 +245,7 @@ pub fn runtime_pointee_binary_write_width(
             runtime_value_operands,
             byte_size,
             left,
+            operator,
             right,
         ),
         Architecture::X86_64 => 0,
@@ -250,17 +255,27 @@ pub fn runtime_pointee_binary_write_width(
 pub fn runtime_value_compare_width(
     architecture: Architecture,
     runtime_value_operands: &Arena<RuntimeValueOperand>,
-    byte_size: usize,
+    _byte_size: usize,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(
-            runtime_value_operands,
-            byte_size,
-            left,
-            right,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::runtime_value_compare_width(runtime_value_operands, left, right)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_value_operand_width(
+    architecture: Architecture,
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    operand: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_value_operand_width(runtime_value_operands, operand)
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -288,6 +303,7 @@ pub fn runtime_frame_indexed_binary_write_width(
     field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
@@ -297,6 +313,7 @@ pub fn runtime_frame_indexed_binary_write_width(
             field_byte_offset,
             byte_size,
             left,
+            operator,
             right,
         ),
         Architecture::X86_64 => 0,
@@ -313,6 +330,36 @@ pub fn runtime_machine_string_write_width(architecture: Architecture, byte_lengt
 pub fn runtime_pointee_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_pointee_string_write_width(byte_length),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_frame_indexed_string_write_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_frame_indexed_string_write_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        ),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_storage_address_to_runtime_frame_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_address_to_runtime_frame_write_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_pointee_address_to_runtime_frame_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_pointee_address_to_runtime_frame_write_width(),
         Architecture::X86_64 => 0,
     }
 }
@@ -359,21 +406,30 @@ pub fn runtime_text_line_read_import_call_offset(architecture: Architecture) -> 
     }
 }
 
-pub fn runtime_storage_copy_width(architecture: Architecture, byte_count: usize) -> usize {
+pub fn runtime_storage_copy_width(
+    architecture: Architecture,
+    source_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_storage_copy_width(byte_count),
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_width(source_offset, target_offset, byte_count)
+        }
         Architecture::X86_64 => 0,
     }
 }
 
 pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
     architecture: Architecture,
+    source_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_copy_to_runtime_frame_indexed_width(
+            source_offset,
             element_byte_size,
             field_byte_offset,
             byte_count,
@@ -386,27 +442,54 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
     architecture: Architecture,
     element_byte_size: usize,
     field_byte_offset: usize,
+    target_offset: usize,
     byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_copy_from_runtime_frame_indexed_width(
             element_byte_size,
             field_byte_offset,
+            target_offset,
             byte_count,
         ),
         Architecture::X86_64 => 0,
     }
 }
 
-pub fn runtime_storage_copy_to_runtime_pointee_width(
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
     architecture: Architecture,
+    element_index: usize,
+    element_byte_size: usize,
     field_byte_offset: usize,
+    target_offset: usize,
     byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_to_runtime_pointee_width(field_byte_offset, byte_count)
+            aarch64::runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
         }
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_storage_copy_to_runtime_pointee_width(
+    architecture: Architecture,
+    source_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_copy_to_runtime_pointee_width(
+            source_offset,
+            field_byte_offset,
+            byte_count,
+        ),
         Architecture::X86_64 => 0,
     }
 }

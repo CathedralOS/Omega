@@ -247,6 +247,24 @@ pub enum SelectedInstructionKind {
         data: TargetDataObjectHandle,
         byte_length: usize,
     },
+    WriteRuntimeFrameIndexedString {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        data: TargetDataObjectHandle,
+        byte_length: usize,
+    },
+    WriteRuntimeStorageAddressToRuntimeFrame {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        target_offset: usize,
+    },
+    WriteRuntimePointeeAddressToRuntimeFrame {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     ReadRuntimeTextLine {
         buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
@@ -273,6 +291,14 @@ pub enum SelectedInstructionKind {
     CopyRuntimeFrameIndexedToRuntimeFrame {
         descriptor_offset: usize,
         index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimeFrameFixedIndexedToRuntimeFrame {
+        descriptor_offset: usize,
+        element_index: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
         target_offset: usize,

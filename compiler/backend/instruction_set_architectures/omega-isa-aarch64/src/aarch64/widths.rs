@@ -1,7 +1,7 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
 use omega_core::arena::Arena;
-use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
+use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
     host_call_sequence_width_from_operands(operands.iter().copied())
@@ -69,6 +69,16 @@ pub fn runtime_storage_compare_width() -> usize {
 
 pub fn runtime_storage_value_compare_width() -> usize {
     20
+}
+
+pub fn runtime_value_compare_width(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + 8
 }
 
 pub(in crate::aarch64) fn runtime_text_input_delimiter_check_width() -> usize {
@@ -141,22 +151,26 @@ pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     8 + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(byte_size)
+        + runtime_binary_operation_width(operator)
+        + runtime_result_write_width(byte_size)
 }
 
 pub fn runtime_pointee_binary_write_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     12 + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(byte_size)
+        + runtime_binary_operation_width(operator)
+        + runtime_result_write_width(byte_size)
 }
 
 pub fn runtime_frame_indexed_integer_write_width(
@@ -174,12 +188,14 @@ pub fn runtime_frame_indexed_binary_write_width(
     field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(byte_size)
+        + runtime_binary_operation_width(operator)
+        + runtime_result_write_width(byte_size)
 }
 
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
@@ -188,6 +204,26 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
 
 pub fn runtime_pointee_string_write_width(byte_length: usize) -> usize {
     28 + unsigned_immediate_width(byte_length as u64)
+}
+
+pub fn runtime_frame_indexed_string_write_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + 8
+        + 4
+        + unsigned_immediate_width(byte_length as u64)
+        + 4
+}
+
+pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
+    24
+}
+
+pub fn runtime_pointee_address_to_runtime_frame_write_width() -> usize {
+    20
 }
 
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {
@@ -210,34 +246,55 @@ pub fn runtime_text_line_read_import_call_offset() -> usize {
     28
 }
 
-pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
-    16 + runtime_storage_copy_data_width(byte_count)
+pub fn runtime_storage_copy_width(
+    source_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    16 + runtime_storage_copy_data_width(source_offset, target_offset, byte_count)
 }
 
 pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
+    source_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-        + 8
-        + runtime_storage_copy_data_width(byte_count)
+        + runtime_storage_copy_data_width(source_offset, field_byte_offset, byte_count)
 }
 
 pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
     element_byte_size: usize,
     field_byte_offset: usize,
+    target_offset: usize,
     byte_count: usize,
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-        + runtime_storage_copy_data_width(byte_count)
+        + runtime_storage_copy_data_width(0, target_offset, byte_count)
+}
+
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let source_offset = element_index
+        .saturating_mul(element_byte_size)
+        .saturating_add(field_byte_offset);
+    12 + add_constant_width(source_offset)
+        + runtime_storage_copy_data_width(0, target_offset, byte_count)
 }
 
 pub fn runtime_storage_copy_to_runtime_pointee_width(
+    source_offset: usize,
     field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
-    20 + add_constant_width(field_byte_offset) + runtime_storage_copy_data_width(byte_count)
+    20 + add_constant_width(field_byte_offset)
+        + runtime_storage_copy_data_width(source_offset, field_byte_offset, byte_count)
 }
 
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
@@ -264,30 +321,51 @@ fn unsigned_immediate_width(value: u64) -> usize {
     4 + high_nonzero_halfwords * 4
 }
 
-fn runtime_storage_copy_data_width(byte_count: usize) -> usize {
-    match byte_count {
-        1 | 4 => 8,
-        _ if byte_count.is_multiple_of(8) => (byte_count / 8) * 8,
-        _ => 0,
+fn runtime_storage_copy_data_width(
+    source_base_offset: usize,
+    target_base_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let mut remaining = byte_count;
+    let mut offset = 0usize;
+    let mut width = 0usize;
+
+    while remaining > 0 {
+        let source_offset = source_base_offset + offset;
+        let target_offset = target_base_offset + offset;
+        let chunk_size =
+            if remaining >= 8 && source_offset.is_multiple_of(8) && target_offset.is_multiple_of(8)
+            {
+                8
+            } else if remaining >= 4
+                && source_offset.is_multiple_of(4)
+                && target_offset.is_multiple_of(4)
+            {
+                4
+            } else {
+                1
+            };
+
+        width += 8;
+        offset += chunk_size;
+        remaining -= chunk_size;
     }
+
+    width
 }
 
-pub(in crate::aarch64) fn runtime_value_operand_width(
+pub fn runtime_value_operand_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
     match runtime_value_operands.get(operand) {
         RuntimeValueOperand::Immediate(value) => immediate_width(*value),
-        RuntimeValueOperand::Storage { byte_size, .. } => match byte_size {
-            1 | 4 => 12,
-            8 => 20,
-            _ => 0,
-        },
+        RuntimeValueOperand::Storage { byte_size, .. } => 8 + runtime_load_data_width(*byte_size),
         RuntimeValueOperand::Pointee {
             field_byte_offset,
             byte_size,
             ..
-        } => 20 + add_constant_width(*field_byte_offset) + runtime_store_data_width(*byte_size),
+        } => 12 + add_constant_width(*field_byte_offset) + runtime_load_data_width(*byte_size),
         RuntimeValueOperand::FrameIndexed {
             element_byte_size,
             field_byte_offset,
@@ -295,23 +373,53 @@ pub(in crate::aarch64) fn runtime_value_operand_width(
             ..
         } => {
             runtime_frame_index_setup_width(*element_byte_size, *field_byte_offset)
-                + runtime_store_data_width(*byte_size)
+                + runtime_load_data_width(*byte_size)
         }
-        RuntimeValueOperand::Binary { left, right, .. } => {
+        RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+        } => {
             runtime_value_operand_width(runtime_value_operands, *left)
                 + runtime_value_operand_width(runtime_value_operands, *right)
-                + 4
+                + runtime_binary_operation_width(*operator)
         }
     }
 }
 
-fn runtime_binary_operation_width(byte_size: usize) -> usize {
-    16 + runtime_store_data_width(byte_size)
+fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
+    match operator {
+        StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply => 4,
+        StateGuardOperator::Modulo => 8,
+        StateGuardOperator::Max | StateGuardOperator::Min => 12,
+        StateGuardOperator::Equal
+        | StateGuardOperator::NotEqual
+        | StateGuardOperator::Greater
+        | StateGuardOperator::GreaterOrEqual
+        | StateGuardOperator::Less
+        | StateGuardOperator::LessOrEqual => 16,
+        _ => 0,
+    }
 }
 
 fn runtime_store_data_width(byte_size: usize) -> usize {
     match byte_size {
-        1 | 4 | 8 => 12,
+        1 | 4 => 8,
+        8 => 20,
+        _ => 0,
+    }
+}
+
+fn runtime_load_data_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 4 | 8 => 4,
+        _ => 0,
+    }
+}
+
+fn runtime_result_write_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 4 | 8 => 4,
         _ => 0,
     }
 }
@@ -320,7 +428,7 @@ pub(in crate::aarch64) fn runtime_frame_index_setup_width(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    12 + 12 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
+    20 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
 }
 
 pub(in crate::aarch64) fn scale_index_width(element_byte_size: usize) -> usize {

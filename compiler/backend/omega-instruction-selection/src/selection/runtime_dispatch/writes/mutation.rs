@@ -243,7 +243,7 @@ pub(super) fn select_runtime_state_call_result_write(
     );
 }
 
-pub(in crate::selection::runtime_dispatch) fn runtime_frame_slot_target_expression(
+pub(in crate::selection) fn runtime_frame_slot_target_expression(
     expressions: &mut ExpressionTable,
     slot: &omega_runtime_storage::RuntimeFrameSlot,
 ) -> ExpressionHandle {
@@ -262,7 +262,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_frame_slot_target_expressi
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection::runtime_dispatch) fn select_runtime_frame_slot_value_write_in_table(
+pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     value_source_key: StateKey,
@@ -273,6 +273,19 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_frame_slot_value_wr
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if slot.byte_size == input.target.pointer_size
+        && let Some(kind) = select_runtime_frame_slot_address_write_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            slot,
+            value,
+        )
+    {
+        return Some(kind);
+    }
+
     if supports_scalar_integer_write(slot.byte_size)
         && let Some(value) =
             resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)
@@ -315,6 +328,56 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_frame_slot_value_wr
         value,
         static_values,
         runtime_value_operands,
+    )
+}
+
+fn select_runtime_frame_slot_address_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Call(call) = expressions.expression(value) else {
+        return None;
+    };
+    if !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return None;
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
+    let source_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    )?;
+    Some(
+        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_offset: slot.byte_offset,
+        },
     )
 }
 
@@ -410,6 +473,26 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
         return Some(SelectedInstructionKind::WriteRuntimePointeeString {
             pointer_byte_offset: pointer_target.pointer_byte_offset,
             field_byte_offset: pointer_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
+
+    if data.is_valid()
+        && let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.byte_count == input.target.pointer_size * 2
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
             data,
             byte_length: value.len(),
         });

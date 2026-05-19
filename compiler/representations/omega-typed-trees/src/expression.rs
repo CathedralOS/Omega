@@ -860,11 +860,43 @@ impl ExpressionTable {
                         symbol: SymbolHandle::invalid(),
                     }))
                 } else {
-                    self.insert_copy(expression)
+                    let copied = self.insert_copy(expression);
+                    self.insert_member_suffix_chain(
+                        copied,
+                        suffix_members,
+                        suffix_member_symbols,
+                        suffix_start_offset,
+                    )
                 }
             }
             _ => self.insert_copy(expression),
         }
+    }
+
+    fn insert_member_suffix_chain(
+        &mut self,
+        expression: ExpressionHandle,
+        suffix_members: HandleSpan<ProgramName>,
+        suffix_member_symbols: HandleSpan<SymbolHandle>,
+        suffix_start_offset: u32,
+    ) -> ExpressionHandle {
+        let mut expression = expression;
+        for offset in suffix_start_offset..suffix_members.count() {
+            let member = self
+                .name_path_member_at_offset(suffix_members, offset)
+                .clone();
+            let member_symbol = if offset < suffix_member_symbols.count() {
+                *self.name_path_member_symbol_at_offset(suffix_member_symbols, offset)
+            } else {
+                SymbolHandle::invalid()
+            };
+            expression = self.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: expression,
+                member_symbol,
+                member,
+            }));
+        }
+        expression
     }
 
     pub fn insert_copy(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
@@ -1180,7 +1212,16 @@ impl ExpressionTable {
                     indexed_path.extend_from_slice(suffix);
                     Expression::Name(indexed_path)
                 } else {
-                    self.to_tree(expression)
+                    suffix
+                        .iter()
+                        .cloned()
+                        .fold(self.to_tree(expression), |receiver, member| {
+                            Expression::Member(Box::new(MemberExpression {
+                                receiver,
+                                member_symbol: SymbolHandle::invalid(),
+                                member,
+                            }))
+                        })
                 }
             }
             ExpressionNode::Mutable(target) => {

@@ -415,7 +415,6 @@ fn append_branch_operation_storage(
             dispatch_index,
             local_storage,
         );
-        return;
     }
 
     if let Some(state_call) = context

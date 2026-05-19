@@ -628,6 +628,117 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
     bindings: &[RuntimeStraightLineBranchBinding],
 ) -> ExpressionHandle {
     match table.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(values) => {
+            let copied_values = table.reserve_expression_handles(values.count());
+            for offset in 0..values.count() {
+                let value = table.expression_handle_at_offset(values, offset);
+                let resolved = resolve_straight_line_binding_expression_handle(
+                    source_table,
+                    table,
+                    value,
+                    bindings,
+                );
+                table.set_expression_handle_at_offset(copied_values, offset, resolved);
+            }
+            table.insert(ExpressionNode::ArrayLiteral(copied_values))
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                binary.left,
+                bindings,
+            );
+            let right = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                binary.right,
+                bindings,
+            );
+            table.insert(ExpressionNode::Binary(
+                omega_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                },
+            ))
+        }
+        ExpressionNode::Cast(cast) => {
+            let value = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                cast.value,
+                bindings,
+            );
+            table.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                },
+            ))
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = call.receiver.is_valid().then(|| {
+                resolve_straight_line_binding_expression_handle(
+                    source_table,
+                    table,
+                    call.receiver,
+                    bindings,
+                )
+            });
+            let copied_arguments = table.reserve_expression_handles(call.arguments.count());
+            for offset in 0..call.arguments.count() {
+                let argument = table.expression_handle_at_offset(call.arguments, offset);
+                let resolved = resolve_straight_line_binding_expression_handle(
+                    source_table,
+                    table,
+                    argument,
+                    bindings,
+                );
+                table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
+            }
+            table.insert(ExpressionNode::Call(
+                omega_checked_trees::expression::TableCallExpression {
+                    receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    arguments: copied_arguments,
+                },
+            ))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                indexed.collection,
+                bindings,
+            );
+            let index = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                indexed.index,
+                bindings,
+            );
+            table.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }))
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_straight_line_binding_expression_handle(
+                source_table,
+                table,
+                member.receiver,
+                bindings,
+            );
+            table.insert(ExpressionNode::Member(
+                omega_checked_trees::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member.clone(),
+                },
+            ))
+        }
         ExpressionNode::Mutable(target) => {
             let resolved_target = resolve_straight_line_binding_expression_handle(
                 source_table,
@@ -666,6 +777,34 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
                 table.insert_copy_with_member_suffix(resolved, path.members, path.member_symbols, 1)
             })
             .unwrap_or(expression),
+        ExpressionNode::StructLiteral(struct_literal) => {
+            let copied_fields = table.reserve_struct_fields(struct_literal.fields.count());
+            for offset in 0..struct_literal.fields.count() {
+                let field = table
+                    .struct_field_at_offset(struct_literal.fields, offset)
+                    .clone();
+                let value = resolve_straight_line_binding_expression_handle(
+                    source_table,
+                    table,
+                    field.value,
+                    bindings,
+                );
+                table.set_struct_field_at_offset(
+                    copied_fields,
+                    offset,
+                    omega_checked_trees::expression::TableStructLiteralField {
+                        name: field.name,
+                        value,
+                    },
+                );
+            }
+            table.insert(ExpressionNode::StructLiteral(
+                omega_checked_trees::expression::TableStructLiteral {
+                    type_name: struct_literal.type_name.clone(),
+                    fields: copied_fields,
+                },
+            ))
+        }
         _ => expression,
     }
 }
@@ -713,16 +852,21 @@ pub(super) fn resolve_branch_prelude_binding_expression_handle(
 
 fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
     symbol_matches_path(alias.parameter_symbol, path)
+        || path
+            .first()
+            .is_some_and(|name| *name == alias.parameter_name)
 }
 
 fn alias_matches_table_path(
     alias: &RuntimeAliasBinding,
-    _table: &ExpressionTable,
+    table: &ExpressionTable,
     path: &TableNamePath,
 ) -> bool {
-    alias.parameter_symbol.is_valid()
-        && path.head_symbol.is_valid()
-        && alias.parameter_symbol == path.head_symbol
+    symbol_matches_table_path(alias.parameter_symbol, path)
+        || table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|name| *name == alias.parameter_name)
 }
 
 fn leaf_binding_matches_table_path(

@@ -87,7 +87,8 @@ pub fn build_runtime_branching_call_plan(
                 &mut plan.target_values,
                 &mut plan.edges,
             );
-            let branch_edges_slice = plan.edges.span_or_empty(branch_edges);
+            let branch_edges_vec = plan.edges.span_or_empty(branch_edges).to_vec();
+            let branch_edges_slice = branch_edges_vec.as_slice();
             let mut expansion = classify_branch_call_expansion(branch_edges_slice);
             let has_prelude = branch_target_has_prelude(context, state_call.target_key);
             if has_prelude {
@@ -129,6 +130,8 @@ pub fn build_runtime_branching_call_plan(
                     branch_edges_slice,
                     state_call,
                     &aliases,
+                    omega_checked_trees::expression::ExpressionHandle::invalid(),
+                    omega_state_guards::StateGuardKind::Always,
                 );
             }
             if matches!(
@@ -139,7 +142,12 @@ pub fn build_runtime_branching_call_plan(
                 append_straight_line_branch_expansions(
                     context,
                     &mut plan.expressions,
-                    &plan.target_arguments,
+                    &mut plan.target_arguments,
+                    &mut plan.target_values,
+                    &mut plan.edges,
+                    &mut plan.leaf_expansions,
+                    &mut plan.leaf_bindings,
+                    &mut plan.leaf_operations,
                     &mut plan.straight_line_expansions,
                     &mut plan.straight_line_bindings,
                     &mut plan.straight_line_operations,

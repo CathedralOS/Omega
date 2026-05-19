@@ -1,5 +1,8 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::statement::StatementNode;
+use omega_control_flow::StateKey;
+use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 
@@ -19,6 +22,8 @@ pub(super) fn bind_runtime_operation_aliases(
     aliases: &mut RuntimeAliasBuffer,
     alias_expressions: &mut ExpressionTable,
 ) {
+    bind_prior_local_aliases(input, operation, aliases, alias_expressions);
+
     match &operation.kind {
         RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
         | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
@@ -95,5 +100,123 @@ pub(super) fn bind_runtime_operation_aliases(
             expression_source_key: resolved_expression.source_key,
             expression,
         });
+    }
+}
+
+fn bind_prior_local_aliases(
+    input: &InstructionSelectionInput<'_>,
+    operation: &RuntimeDispatchBodyOperation,
+    aliases: &mut RuntimeAliasBuffer,
+    alias_expressions: &mut ExpressionTable,
+) {
+    let Some(machine) = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == operation.source_key.machine)
+    else {
+        return;
+    };
+    let Some(state) = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == operation.source_key.state)
+    else {
+        return;
+    };
+
+    let statements = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes);
+    for (statement_index, statement) in statements
+        .iter()
+        .enumerate()
+        .take(operation.statement_index)
+    {
+        let StatementNode::LocalData(local_data) = statement else {
+            continue;
+        };
+        if !local_data.initial_value.is_valid()
+            || local_requires_runtime_storage(
+                input,
+                operation.source_key,
+                statement_index,
+                local_data.symbol,
+            )
+            || local_is_assigned_between(
+                input,
+                statements,
+                statement_index + 1,
+                operation.statement_index,
+                local_data.symbol,
+            )
+        {
+            continue;
+        }
+
+        let initializer =
+            alias_expressions.copy_from(&input.program.expression_table, local_data.initial_value);
+        let resolved_initializer = resolve_runtime_alias_binding_handle(
+            initializer,
+            operation.source_key,
+            aliases.bindings(),
+            alias_expressions,
+        );
+        aliases.set_alias(RuntimeAliasBinding {
+            source_key: operation.source_key,
+            parameter_symbol: local_data.symbol,
+            parameter_name: local_data.name.clone(),
+            expression_source_key: resolved_initializer.source_key,
+            expression: resolved_initializer.expression,
+        });
+    }
+}
+
+fn local_requires_runtime_storage(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    symbol: SymbolHandle,
+) -> bool {
+    input.state_storage.locals.iter().any(|(_, local)| {
+        local.source_key == source_key
+            && local.statement_index == statement_index
+            && local.symbol == symbol
+    })
+}
+
+fn local_is_assigned_between(
+    input: &InstructionSelectionInput<'_>,
+    statements: &[StatementNode],
+    start: usize,
+    end: usize,
+    symbol: SymbolHandle,
+) -> bool {
+    statements
+        .iter()
+        .skip(start)
+        .take(end.saturating_sub(start))
+        .any(|statement| {
+            let StatementNode::Assignment(assignment) = statement else {
+                return false;
+            };
+            assignment_target_head_symbol(input, assignment.target) == symbol
+        })
+}
+
+fn assignment_target_head_symbol(
+    input: &InstructionSelectionInput<'_>,
+    expression: ExpressionHandle,
+) -> SymbolHandle {
+    match input.program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => path.head_symbol,
+        ExpressionNode::Member(member) => assignment_target_head_symbol(input, member.receiver),
+        ExpressionNode::Indexed(indexed) => {
+            assignment_target_head_symbol(input, indexed.collection)
+        }
+        ExpressionNode::Mutable(inner) => assignment_target_head_symbol(input, *inner),
+        _ => SymbolHandle::invalid(),
     }
 }

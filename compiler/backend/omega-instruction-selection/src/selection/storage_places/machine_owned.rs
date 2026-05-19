@@ -57,14 +57,24 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
     if table_path_targets_source_machine(path, source_machine) {
         let field_name = path.member(1)?;
         let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
-        let machine_layout = layouts
+        if let Some(machine_layout) = layouts
             .machine_layouts
             .iter()
             .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
-            .map(|(_, machine_layout)| machine_layout)?;
-        let root_field = field_layout_by_symbol_or_name(
+            .map(|(_, machine_layout)| machine_layout)
+            && let Some(root_field) = field_layout_by_symbol_or_name(
+                layouts,
+                machine_layout.fields,
+                path.member_symbol(1),
+                field_name,
+            )
+        {
+            return Some((machine_base_offset, root_field, 2));
+        }
+
+        let (machine_base_offset, root_field) = machine_field_layout_by_symbol_or_name(
             layouts,
-            machine_layout.fields,
+            entry_machine,
             path.member_symbol(1),
             field_name,
         )?;
@@ -115,14 +125,24 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
             return None;
         };
         let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
-        let machine_layout = layouts
+        if let Some(machine_layout) = layouts
             .machine_layouts
             .iter()
             .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
-            .map(|(_, machine_layout)| machine_layout)?;
-        let root_field = field_layout_by_symbol_or_name(
+            .map(|(_, machine_layout)| machine_layout)
+            && let Some(root_field) = field_layout_by_symbol_or_name(
+                layouts,
+                machine_layout.fields,
+                self_field_symbol,
+                field_name,
+            )
+        {
+            return Some((machine_base_offset, root_field, rest, 2));
+        }
+
+        let (machine_base_offset, root_field) = machine_field_layout_by_symbol_or_name(
             layouts,
-            machine_layout.fields,
+            entry_machine,
             self_field_symbol,
             field_name,
         )?;
@@ -226,6 +246,45 @@ fn root_machine_field_layout_by_symbol_or_name<'plan>(
                 root_symbol,
                 root_name,
             )?;
+            Some((machine_base_offset, root_field))
+        })
+}
+
+fn machine_field_layout_by_symbol_or_name<'plan>(
+    layouts: &'plan LayoutPlan,
+    entry_machine: SymbolHandle,
+    field_symbol: SymbolHandle,
+    field_name: &ProgramName,
+) -> Option<(usize, &'plan FieldLayout)> {
+    if field_symbol.is_valid()
+        && let Some(layout) = layouts
+            .machine_layouts
+            .iter()
+            .find_map(|(_, machine_layout)| {
+                let machine_base_offset =
+                    machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+                let root_field = layouts
+                    .fields
+                    .span(machine_layout.fields)?
+                    .iter()
+                    .find(|field| field.symbol == field_symbol)?;
+                Some((machine_base_offset, root_field))
+            })
+    {
+        return Some(layout);
+    }
+
+    layouts
+        .machine_layouts
+        .iter()
+        .find_map(|(_, machine_layout)| {
+            let machine_base_offset =
+                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+            let root_field = layouts
+                .fields
+                .span(machine_layout.fields)?
+                .iter()
+                .find(|field| field.name == *field_name)?;
             Some((machine_base_offset, root_field))
         })
 }

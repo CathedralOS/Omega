@@ -32,6 +32,7 @@ use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
 pub(crate) use branches::select_runtime_resolved_mutation_write;
+pub(in crate::selection) use writes::select_runtime_frame_slot_value_write_in_table;
 pub(in crate::selection) use writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch;
 
 #[allow(clippy::too_many_arguments)]
@@ -219,7 +220,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             }
         }
 
-        if let Some(edges) = input.runtime_dispatch_loop.edges.span(dispatch_case.edges) {
+        let case_edges = input.runtime_dispatch_loop.edges.span(dispatch_case.edges);
+        if let Some(edges) = case_edges {
             for edge in edges {
                 select_runtime_dispatch_edge(
                     input,
@@ -229,6 +231,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     selected_instructions,
                 );
             }
+        }
+        if case_edges.map_or(true, <[_]>::is_empty) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::TerminateDispatch,
+                source_key: dispatch_case.key,
+                source_statement: 0,
+            });
         }
 
         selected_instructions.push(SelectedInstruction {

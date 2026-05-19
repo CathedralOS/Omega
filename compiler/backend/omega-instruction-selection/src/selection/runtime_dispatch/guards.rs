@@ -6,7 +6,7 @@ use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::Arena;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
-use omega_state_guards::StateGuardOperator;
+use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
     enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_indexed_target,
@@ -32,21 +32,16 @@ struct RuntimeTextInputBufferData {
     buffer: TargetDataObjectHandle,
 }
 
-pub(super) fn select_runtime_leaf_branch_guard(
+pub(super) fn select_runtime_leaf_branch_guards(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-) -> Option<SelectedInstructionKind> {
-    if let Some(guard) = runtime_storage_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-    ) {
-        return Some(guard);
+) -> Vec<SelectedInstructionKind> {
+    if expansion.guard_kind == StateGuardKind::Always || !expansion.resolved_guard.is_valid() {
+        return Vec::new();
     }
-    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+
+    select_runtime_branch_guard_conjuncts_in_table(
         input,
         expansion.dispatch_index,
         expansion.source_key,
@@ -54,109 +49,19 @@ pub(super) fn select_runtime_leaf_branch_guard(
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
         runtime_value_operands,
-    ) {
-        return Some(guard);
-    }
-    if let Some(literal_guard) = runtime_text_literal_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-    ) {
-        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
-            buffer: literal_guard.buffer,
-            literal: literal_guard.literal,
-        });
-    }
-    if let Some(guard) = runtime_text_storage_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-    ) {
-        return Some(guard);
-    }
-    if let Some(guard) = runtime_value_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        expansion.statement_index,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-        runtime_value_operands,
-    ) {
-        return Some(guard);
-    }
-
-    let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
-    let normalized_guard =
-        normalized_boolean_wrapped_guard(&resolved_guard).unwrap_or(resolved_guard);
-    if let Some(guard) = runtime_boolean_condition_guard(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        expansion.statement_index,
-        &normalized_guard,
-        runtime_value_operands,
-    ) {
-        return Some(guard);
-    }
-
-    if let Some(literal_guard) = runtime_text_literal_guard(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &normalized_guard,
-    ) {
-        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
-            buffer: literal_guard.buffer,
-            literal: literal_guard.literal,
-        });
-    }
-
-    runtime_text_storage_guard(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &normalized_guard,
     )
-    .or_else(|| {
-        runtime_value_guard(
-            input,
-            expansion.dispatch_index,
-            expansion.source_key,
-            expansion.statement_index,
-            &normalized_guard,
-            runtime_value_operands,
-        )
-    })
-    .or_else(|| {
-        runtime_storage_guard(
-            input,
-            expansion.dispatch_index,
-            expansion.source_key,
-            &normalized_guard,
-        )
-    })
 }
 
-pub(super) fn select_runtime_straight_line_branch_guard(
+pub(super) fn select_runtime_straight_line_branch_guards(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-) -> Option<SelectedInstructionKind> {
-    if let Some(guard) = runtime_storage_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-    ) {
-        return Some(guard);
+) -> Vec<SelectedInstructionKind> {
+    if expansion.guard_kind == StateGuardKind::Always || !expansion.resolved_guard.is_valid() {
+        return Vec::new();
     }
-    if let Some(guard) = runtime_boolean_condition_guard_in_table(
+
+    select_runtime_branch_guard_conjuncts_in_table(
         input,
         expansion.dispatch_index,
         expansion.source_key,
@@ -164,102 +69,82 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
         runtime_value_operands,
-    ) {
-        return Some(guard);
-    }
-    if let Some(literal_guard) = runtime_text_literal_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-    ) {
-        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
-            buffer: literal_guard.buffer,
-            literal: literal_guard.literal,
-        });
-    }
-    if let Some(guard) = runtime_text_storage_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-    ) {
-        return Some(guard);
-    }
-    if let Some(guard) = runtime_value_guard_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        expansion.statement_index,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
-        runtime_value_operands,
-    ) {
-        return Some(guard);
-    }
-
-    let resolved_guard = runtime_branch_guard(input, expansion.resolved_guard);
-    let normalized_guard =
-        normalized_boolean_wrapped_guard(&resolved_guard).unwrap_or(resolved_guard);
-    if let Some(guard) = runtime_boolean_condition_guard(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        expansion.statement_index,
-        &normalized_guard,
-        runtime_value_operands,
-    ) {
-        return Some(guard);
-    }
-
-    if let Some(literal_guard) = runtime_text_literal_guard(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &normalized_guard,
-    ) {
-        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
-            buffer: literal_guard.buffer,
-            literal: literal_guard.literal,
-        });
-    }
-
-    runtime_text_storage_guard(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &normalized_guard,
     )
-    .or_else(|| {
-        runtime_value_guard(
-            input,
-            expansion.dispatch_index,
-            expansion.source_key,
-            expansion.statement_index,
-            &normalized_guard,
-            runtime_value_operands,
-        )
-    })
-    .or_else(|| {
-        runtime_storage_guard(
-            input,
-            expansion.dispatch_index,
-            expansion.source_key,
-            &normalized_guard,
-        )
-    })
 }
 
-fn runtime_branch_guard(
+fn select_runtime_branch_guard_conjuncts_in_table(
     input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
     guard: ExpressionHandle,
-) -> TransitionGuard {
-    if guard.is_valid() {
-        TransitionGuard::When(input.runtime_branching_calls.expressions.to_tree(guard))
-    } else {
-        TransitionGuard::Always
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Vec<SelectedInstructionKind> {
+    let mut guards = Vec::new();
+    collect_runtime_branch_guard_conjuncts_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+        &mut guards,
+    );
+    guards
+}
+
+fn collect_runtime_branch_guard_conjuncts_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    guards: &mut Vec<SelectedInstructionKind>,
+) {
+    if !guard.is_valid() {
+        return;
+    }
+
+    if let ExpressionNode::Binary(binary) = expressions.expression(guard)
+        && binary.operator == BinaryOperator::And
+    {
+        collect_runtime_branch_guard_conjuncts_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            binary.left,
+            runtime_value_operands,
+            guards,
+        );
+        collect_runtime_branch_guard_conjuncts_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            binary.right,
+            runtime_value_operands,
+            guards,
+        );
+        return;
+    }
+
+    if let Some(guard) = select_runtime_dispatch_expression_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+    ) {
+        guards.push(guard);
     }
 }
 
@@ -514,6 +399,10 @@ fn runtime_boolean_condition_guard_in_table(
     guard: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if !guard.is_valid() {
+        return None;
+    }
+
     let (expression, expected_true) = boolean_condition_expression_in_table(expressions, guard)?;
     if matches!(
         expressions.expression(expression),

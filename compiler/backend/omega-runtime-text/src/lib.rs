@@ -244,13 +244,12 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
                 && is_runtime_text_segment_like(table, binary.right)
         }
         ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Boolean(_)
+        ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::StructLiteral(_) => false,
+        | ExpressionNode::Integer(_) => true,
+        ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => false,
     }
 }
 
