@@ -3,6 +3,7 @@ use crate::item::{Item, StateNode};
 use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 
 impl PhaseDiagram for SyntaxTrees {
@@ -20,15 +21,36 @@ impl PhaseDiagram for SyntaxTrees {
             diagram.containment_edge(&root, &item_id);
 
             if let Item::Machine(machine) = self.root_item(item_handle) {
-                for (state_index, state_handle) in self
+                let state_handles = self
                     .items
                     .state_handles(machine.states)
                     .iter()
                     .copied()
+                    .collect::<Vec<_>>();
+                let state_nodes = state_handles
+                    .iter()
+                    .copied()
                     .enumerate()
-                {
+                    .map(|(state_index, state_handle)| {
+                        let state = self.items.state(state_handle);
+                        (
+                            state.name.as_str().to_owned(),
+                            format!("state_{item_index}_{state_index}"),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
                     let state = self.items.state(state_handle);
-                    append_state(&mut diagram, self, &item_id, item_index, state_index, state);
+                    append_state(
+                        &mut diagram,
+                        self,
+                        &item_id,
+                        &state_nodes,
+                        item_index,
+                        state_index,
+                        state,
+                    );
                 }
             }
         }
@@ -41,6 +63,7 @@ fn append_state(
     diagram: &mut PhaseDiagramBuilder,
     syntax: &SyntaxTrees,
     parent_id: &str,
+    state_nodes: &[(String, String)],
     item_index: usize,
     state_index: usize,
     state: &StateNode,
@@ -79,6 +102,12 @@ fn append_state(
         diagram.containment_edge(&state_id, &statement_id);
         if let Some(previous_id) = previous_id.as_ref() {
             diagram.sequence_edge(previous_id, &statement_id);
+        }
+        if let StatementNode::Transition(transition) = syntax.statements.statement(statement_handle)
+        {
+            if let Some(target_id) = transition_target_id(syntax, state_nodes, transition) {
+                diagram.edge(&statement_id, target_id, "transition_target");
+            }
         }
         previous_id = Some(statement_id);
     }
@@ -189,4 +218,41 @@ fn transition_target_label(
         TransitionTargetNode::SelfTarget => "self".to_owned(),
         TransitionTargetNode::Terminal => "terminal".to_owned(),
     }
+}
+
+fn transition_target_id<'a>(
+    syntax: &SyntaxTrees,
+    state_nodes: &'a [(String, String)],
+    transition: &TableTransition,
+) -> Option<&'a str> {
+    if !transition.target.is_valid() {
+        return None;
+    }
+
+    match syntax.statements.transition_target(transition.target) {
+        TransitionTargetNode::Named { path, .. } => {
+            state_id_for_name(state_nodes, transition_target_name(syntax, *path)?)
+        }
+        TransitionTargetNode::Value(_)
+        | TransitionTargetNode::SelfTarget
+        | TransitionTargetNode::Terminal => None,
+    }
+}
+
+fn transition_target_name(
+    syntax: &SyntaxTrees,
+    path: HandleSpan<crate::identifier::Identifier>,
+) -> Option<&str> {
+    syntax
+        .statements
+        .identifier_path_members(path)
+        .last()
+        .map(|member| member.as_str())
+}
+
+fn state_id_for_name<'a>(state_nodes: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    state_nodes
+        .iter()
+        .find(|(state_name, _)| state_name == name)
+        .map(|(_, state_id)| state_id.as_str())
 }

@@ -86,7 +86,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str(&escape_html(title));
     html.push_str("</h1>\n");
     html.push_str("<input id=\"search\" type=\"search\" placeholder=\"Search labels, symbols, states...\" autocomplete=\"off\">\n");
-    html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button><button id=\"clear-scope\">Clear Scope</button></div>\n");
+    html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button><button id=\"clear-scope\">Clear Scope</button><button id=\"follow-target\" disabled>Follow Target</button></div>\n");
     html.push_str(
         "<label><input id=\"show-sequence\" type=\"checkbox\" checked> Statement flow</label>\n",
     );
@@ -286,6 +286,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .edge.owned_data { stroke: #ffd166; opacity: 0.8; }
 .edge.contained_object { stroke: #ff9f7f; opacity: 0.72; }
 .edge.implements_data { stroke: #b089f0; opacity: 0.82; stroke-dasharray: 10 5; }
+.edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
 .node rect {
   fill: #151c26;
   stroke: #405168;
@@ -319,6 +320,7 @@ const outline = document.getElementById("outline");
 const showSequence = document.getElementById("show-sequence");
 const showData = document.getElementById("show-data");
 const clearScope = document.getElementById("clear-scope");
+const followTarget = document.getElementById("follow-target");
 const NS = "http://www.w3.org/2000/svg";
 
 const nodeById = new Map(GRAPH.nodes.map(node => [node.id, node]));
@@ -639,7 +641,10 @@ function selectNode(id, center) {
   const element = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
   if (element) element.classList.add("selected");
   const node = nodeById.get(id);
-  details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}\n\n${node.label}`;
+  const targetId = transitionTargetFor(id);
+  const targetText = targetId ? `\n\ntransition target: ${outlineLabel(nodeById.get(targetId))}` : "";
+  details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}${targetText}\n\n${node.label}`;
+  updateFollowTarget();
   if (center) centerOn(id);
 }
 
@@ -647,6 +652,7 @@ function setScope(id, fit) {
   scopedId = id === "root" ? null : id;
   selectedId = id;
   details.textContent = scopeDetails(id);
+  updateFollowTarget();
   applyFilters();
   if (fit) fitGraph();
 }
@@ -655,6 +661,7 @@ function clearGraphScope(fit) {
   scopedId = null;
   selectedId = null;
   details.textContent = "Full graph scope. Click an outline item to focus a slice.";
+  updateFollowTarget();
   applyFilters();
   if (fit) fitGraph();
 }
@@ -721,6 +728,14 @@ function applyFilters() {
   counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}`;
 }
 
+function transitionTargetFor(id) {
+  return GRAPH.edges.find(edge => edge.kind === "transition_target" && edge.from === id)?.to || null;
+}
+
+function updateFollowTarget() {
+  followTarget.disabled = !transitionTargetFor(selectedId);
+}
+
 function setTransform(next) {
   transform = next;
   viewport.setAttribute("transform", `translate(${transform.x} ${transform.y}) scale(${transform.scale})`);
@@ -780,6 +795,7 @@ svg.addEventListener("wheel", event => {
 svg.addEventListener("click", () => {
   selectedId = null;
   document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
+  updateFollowTarget();
 });
 search.addEventListener("input", applyFilters);
 showSequence.addEventListener("change", applyFilters);
@@ -787,6 +803,10 @@ showData.addEventListener("change", applyFilters);
 document.getElementById("fit").addEventListener("click", fitGraph);
 document.getElementById("reset").addEventListener("click", () => setTransform({ x: 0, y: 0, scale: 1 }));
 clearScope.addEventListener("click", () => clearGraphScope(true));
+followTarget.addEventListener("click", () => {
+  const targetId = transitionTargetFor(selectedId);
+  if (targetId) selectNode(targetId, true);
+});
 window.addEventListener("resize", fitGraph);
 
 render();
