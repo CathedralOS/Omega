@@ -86,7 +86,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str(&escape_html(title));
     html.push_str("</h1>\n");
     html.push_str("<input id=\"search\" type=\"search\" placeholder=\"Search labels, symbols, states...\" autocomplete=\"off\">\n");
-    html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button></div>\n");
+    html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button><button id=\"clear-scope\">Clear Scope</button></div>\n");
     html.push_str(
         "<label><input id=\"show-sequence\" type=\"checkbox\" checked> Statement flow</label>\n",
     );
@@ -253,6 +253,7 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   white-space: nowrap;
 }
 #outline button:hover { background: #202a38; }
+#outline button.scoped { background: #263247; color: #ffffff; }
 #outline details { margin-left: 10px; }
 #outline summary {
   color: var(--muted);
@@ -317,6 +318,7 @@ const counts = document.getElementById("counts");
 const outline = document.getElementById("outline");
 const showSequence = document.getElementById("show-sequence");
 const showData = document.getElementById("show-data");
+const clearScope = document.getElementById("clear-scope");
 const NS = "http://www.w3.org/2000/svg";
 
 const nodeById = new Map(GRAPH.nodes.map(node => [node.id, node]));
@@ -341,6 +343,8 @@ const STATEMENT_COLUMNS = 3;
 const positions = new Map();
 let graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
 let selectedId = null;
+let scopedId = null;
+let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
 
 function layoutGraph() {
@@ -458,12 +462,23 @@ function fallbackLayout() {
 layoutGraph();
 
 function calculateBounds() {
+  calculateBoundsFor(visibleNodeIds);
+}
+
+function calculateBoundsFor(nodeIds) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const box of positions.values()) {
+  const ids = nodeIds && nodeIds.size > 0 ? nodeIds : new Set(GRAPH.nodes.map(node => node.id));
+  for (const id of ids) {
+    const box = positions.get(id);
+    if (!box) continue;
     minX = Math.min(minX, box.x);
     minY = Math.min(minY, box.y);
     maxX = Math.max(maxX, box.x + box.width);
     maxY = Math.max(maxY, box.y + box.height);
+  }
+  if (!Number.isFinite(minX)) {
+    graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
+    return;
   }
   graphBounds = {
     x: minX - 80,
@@ -486,7 +501,6 @@ function render() {
   for (const node of GRAPH.nodes) drawNode(node);
   renderOutline();
   calculateBounds();
-  counts.textContent = `${GRAPH.nodes.length} nodes, ${GRAPH.edges.length} edges`;
   applyFilters();
 }
 
@@ -520,7 +534,14 @@ function outlineNode(id, depth) {
     const button = document.createElement("button");
     button.textContent = outlineLabel(node);
     button.title = node.label;
-    button.addEventListener("click", () => selectNode(id, true));
+    button.dataset.scopeId = id;
+    button.addEventListener("click", event => {
+      if (event.metaKey || event.ctrlKey) {
+        selectNode(id, true);
+      } else {
+        setScope(id, true);
+      }
+    });
     return button;
   }
   const detailsElement = document.createElement("details");
@@ -534,6 +555,12 @@ function outlineNode(id, depth) {
     }
   });
   detailsElement.appendChild(summary);
+  const scopeButton = document.createElement("button");
+  scopeButton.textContent = `Scope ${outlineLabel(node)}`;
+  scopeButton.title = node.label;
+  scopeButton.dataset.scopeId = id;
+  scopeButton.addEventListener("click", () => setScope(id, true));
+  detailsElement.appendChild(scopeButton);
   for (const childId of children) detailsElement.appendChild(outlineNode(childId, depth + 1));
   return detailsElement;
 }
@@ -616,28 +643,82 @@ function selectNode(id, center) {
   if (center) centerOn(id);
 }
 
+function setScope(id, fit) {
+  scopedId = id === "root" ? null : id;
+  selectedId = id;
+  details.textContent = scopeDetails(id);
+  applyFilters();
+  if (fit) fitGraph();
+}
+
+function clearGraphScope(fit) {
+  scopedId = null;
+  selectedId = null;
+  details.textContent = "Full graph scope. Click an outline item to focus a slice.";
+  applyFilters();
+  if (fit) fitGraph();
+}
+
+function scopeDetails(id) {
+  const node = nodeById.get(id);
+  const scopedNodes = scopedNodeSet(id);
+  return `Scope: ${outlineLabel(node)}\n${scopedNodes.size} nodes visible including one-hop relationships\n\n${node.id}\nkind: ${node.kind}\nrank: ${node.rank}\n\n${node.label}`;
+}
+
+function scopedNodeSet(id) {
+  if (!id || id === "root") return new Set(GRAPH.nodes.map(node => node.id));
+  const result = new Set();
+  const stack = [id];
+  while (stack.length > 0) {
+    const next = stack.pop();
+    if (result.has(next)) continue;
+    result.add(next);
+    for (const childId of containmentChildren.get(next) || []) stack.push(childId);
+  }
+  const contained = new Set(result);
+  for (const edge of GRAPH.edges) {
+    if (edge.kind === "contains" || edge.kind === "sequence") continue;
+    if (contained.has(edge.from)) result.add(edge.to);
+    if (contained.has(edge.to)) result.add(edge.from);
+  }
+  return result;
+}
+
 function applyFilters() {
   const query = search.value.trim().toLowerCase();
   const showDataNodes = showData.checked;
+  const scopedNodes = scopedNodeSet(scopedId);
   const matched = new Set();
+  visibleNodeIds = new Set();
   for (const node of GRAPH.nodes) {
-    const visible = showDataNodes || node.kind !== "data";
+    const inScope = scopedNodes.has(node.id);
+    const visible = inScope && (showDataNodes || node.kind !== "data");
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
     const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
     if (!element) continue;
     element.classList.toggle("hidden", !visible);
     element.classList.toggle("dim", query && !isMatch);
     element.classList.toggle("match", query && isMatch);
+    element.classList.toggle("selected", node.id === selectedId);
+    if (visible) visibleNodeIds.add(node.id);
     if (isMatch && visible) matched.add(node.id);
   }
   for (const edgeElement of document.querySelectorAll(".edge")) {
     const kind = edgeElement.dataset.kind;
     const visibleKind = kind !== "sequence" || showSequence.checked;
-    const visibleData = showDataNodes || (nodeById.get(edgeElement.dataset.to)?.kind !== "data");
+    const fromVisible = visibleNodeIds.has(edgeElement.dataset.from);
+    const toVisible = visibleNodeIds.has(edgeElement.dataset.to);
     const visibleSearch = !query || matched.has(edgeElement.dataset.from) || matched.has(edgeElement.dataset.to);
-    edgeElement.classList.toggle("hidden", !visibleKind || !visibleData);
+    edgeElement.classList.toggle("hidden", !visibleKind || !fromVisible || !toVisible);
     edgeElement.classList.toggle("dim", query && !visibleSearch);
   }
+  outline.querySelectorAll("button[data-scope-id]").forEach(button => {
+    button.classList.toggle("scoped", button.dataset.scopeId === scopedId);
+  });
+  calculateBounds();
+  const visibleEdges = Array.from(document.querySelectorAll(".edge")).filter(edge => !edge.classList.contains("hidden")).length;
+  const scopeLabel = scopedId ? ` scoped to ${outlineLabel(nodeById.get(scopedId))}` : "";
+  counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}`;
 }
 
 function setTransform(next) {
@@ -705,6 +786,7 @@ showSequence.addEventListener("change", applyFilters);
 showData.addEventListener("change", applyFilters);
 document.getElementById("fit").addEventListener("click", fitGraph);
 document.getElementById("reset").addEventListener("click", () => setTransform({ x: 0, y: 0, scale: 1 }));
+clearScope.addEventListener("click", () => clearGraphScope(true));
 window.addEventListener("resize", fitGraph);
 
 render();
