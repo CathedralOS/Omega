@@ -64,16 +64,31 @@ impl PhaseDiagram for SymbolResolvedTrees {
                 machine,
             );
 
-            for (state_index, state_handle) in self
+            let state_handles = self
                 .machine_state_handles(machine.states)
                 .iter()
                 .copied()
+                .collect::<Vec<_>>();
+            let state_nodes = state_handles
+                .iter()
+                .copied()
                 .enumerate()
-            {
+                .map(|(state_index, state_handle)| {
+                    let state = self.machine_state(state_handle);
+                    (
+                        state.symbol,
+                        state.name.as_str().to_owned(),
+                        format!("state_{machine_index}_{state_index}"),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
                 append_state(
                     &mut diagram,
                     self,
                     &machine_id,
+                    &state_nodes,
                     machine_index,
                     state_index,
                     self.machine_state(state_handle),
@@ -150,6 +165,7 @@ fn append_state(
     diagram: &mut PhaseDiagramBuilder,
     program: &SymbolResolvedTrees,
     parent_id: &str,
+    state_nodes: &[(SymbolHandle, String, String)],
     machine_index: usize,
     state_index: usize,
     state: &State,
@@ -183,6 +199,11 @@ fn append_state(
         diagram.containment_edge(&state_id, &statement_id);
         if let Some(previous_id) = previous_id.as_ref() {
             diagram.sequence_edge(previous_id, &statement_id);
+        }
+        if let Statement::Transition(transition) = statement {
+            if let Some(target_id) = transition_target_id(state_nodes, transition) {
+                diagram.edge(&statement_id, target_id, "transition_target");
+            }
         }
         previous_id = Some(statement_id);
     }
@@ -225,6 +246,18 @@ fn transition_target_label(target: &TransitionTarget) -> String {
         TransitionTarget::Value(_) => "value".to_owned(),
         TransitionTarget::SelfTarget => "self".to_owned(),
         TransitionTarget::Terminal => "terminal".to_owned(),
+    }
+}
+
+fn transition_target_id<'a>(
+    state_nodes: &'a [(SymbolHandle, String, String)],
+    transition: &Transition,
+) -> Option<&'a str> {
+    match &transition.target {
+        TransitionTarget::Named(named) => state_id_for_symbol(state_nodes, named.symbol),
+        TransitionTarget::Value(_) | TransitionTarget::SelfTarget | TransitionTarget::Terminal => {
+            None
+        }
     }
 }
 
@@ -301,4 +334,18 @@ fn data_id_for_name<'a>(
         .iter()
         .find(|(_, _, data_name)| data_name == name)
         .map(|(_, data_id, _)| data_id.as_str())
+}
+
+fn state_id_for_symbol(
+    state_nodes: &[(SymbolHandle, String, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    state_nodes
+        .iter()
+        .find(|(state_symbol, _, _)| *state_symbol == symbol)
+        .map(|(_, _, state_id)| state_id.as_str())
 }

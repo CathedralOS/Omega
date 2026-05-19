@@ -64,11 +64,25 @@ impl PhaseDiagram for TypedTrees {
                 machine,
             );
 
-            for (state_index, state) in self.machine_states(machine).iter().enumerate() {
+            let states = self.machine_states(machine);
+            let state_nodes = states
+                .iter()
+                .enumerate()
+                .map(|(state_index, state)| {
+                    (
+                        state.symbol,
+                        state.name.as_str().to_owned(),
+                        format!("state_{machine_index}_{state_index}"),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            for (state_index, state) in states.iter().enumerate() {
                 append_state(
                     &mut diagram,
                     self,
                     &machine_id,
+                    &state_nodes,
                     machine_index,
                     state_index,
                     state,
@@ -139,6 +153,7 @@ fn append_state(
     diagram: &mut PhaseDiagramBuilder,
     program: &TypedTrees,
     parent_id: &str,
+    state_nodes: &[(SymbolHandle, String, String)],
     machine_index: usize,
     state_index: usize,
     state: &State,
@@ -177,6 +192,11 @@ fn append_state(
         diagram.containment_edge(&state_id, &statement_id);
         if let Some(previous_id) = previous_id.as_ref() {
             diagram.sequence_edge(previous_id, &statement_id);
+        }
+        if let StatementNode::Transition(transition) = statement {
+            if let Some(target_id) = transition_target_id(program, state_nodes, transition) {
+                diagram.edge(&statement_id, target_id, "transition_target");
+            }
         }
         previous_id = Some(statement_id);
     }
@@ -240,6 +260,35 @@ fn transition_target_label(
     }
 }
 
+fn transition_target_id<'a>(
+    program: &TypedTrees,
+    state_nodes: &'a [(SymbolHandle, String, String)],
+    transition: &TableTransition,
+) -> Option<&'a str> {
+    if !transition.target.is_valid() {
+        return None;
+    }
+
+    match program.statement_table.transition_target(transition.target) {
+        TransitionTargetNode::Named { path, .. } => state_id_for_symbol(state_nodes, path.symbol)
+            .or_else(|| state_id_for_name(state_nodes, transition_target_name(program, *path)?)),
+        TransitionTargetNode::Value(_)
+        | TransitionTargetNode::SelfTarget
+        | TransitionTargetNode::Terminal => None,
+    }
+}
+
+fn transition_target_name(
+    program: &TypedTrees,
+    path: crate::statement::TableNamePath,
+) -> Option<&str> {
+    program
+        .statement_table
+        .name_path_members(path.members)
+        .last()
+        .map(|member| member.as_str())
+}
+
 fn symbol_label(symbol: SymbolHandle) -> String {
     if symbol.is_valid() {
         format!("#{}", symbol.arena_index())
@@ -270,4 +319,28 @@ fn data_id_for_name<'a>(
         .iter()
         .find(|(_, _, data_name)| data_name == name)
         .map(|(_, data_id, _)| data_id.as_str())
+}
+
+fn state_id_for_symbol(
+    state_nodes: &[(SymbolHandle, String, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    state_nodes
+        .iter()
+        .find(|(state_symbol, _, _)| *state_symbol == symbol)
+        .map(|(_, _, state_id)| state_id.as_str())
+}
+
+fn state_id_for_name<'a>(
+    state_nodes: &'a [(SymbolHandle, String, String)],
+    name: &str,
+) -> Option<&'a str> {
+    state_nodes
+        .iter()
+        .find(|(_, state_name, _)| state_name == name)
+        .map(|(_, _, state_id)| state_id.as_str())
 }
