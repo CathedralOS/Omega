@@ -178,6 +178,8 @@ Likely obligations:
   compatible or have adapters.
 - Scheduled work: no queued transition, callback, interrupt continuation, or
   timer can re-enter old code after replacement.
+- Concurrent work: no spawned graph is executing old code or holding state that
+  migration will invalidate, unless coexistence mode explicitly models it.
 - Effect safety: migration performs only effects allowed in the swap context.
 - Failure story: migration is infallible, or rollback and abort behavior are
   explicit.

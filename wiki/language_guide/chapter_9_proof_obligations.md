@@ -41,6 +41,9 @@ Likely obligations:
 - Every transition leaving a `relax` scope either re-establishes the invariant or carries an explicit proof obligation into a compatible target.
 - Every generic invariant is instantiated with compile-time or proof-visible facts.
 - Every float invariant is checked as a semantic fact, not treated as an optimization permission.
+- Every spawned graph captures only moved, copied, or concurrency-safe values.
+- Every blocking operation exposes a waitable contract or crosses an explicit
+  trust boundary.
 
 ## Example
 

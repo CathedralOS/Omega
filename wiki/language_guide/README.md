@@ -19,5 +19,6 @@ The syntax is not final. These chapters exist so language ideas can be organized
 - [Chapter 13: Versioned Data And Machine Replacement](chapter_13_versioned_data.md)
 - [Chapter 14: Wire Protocols](chapter_14_wire_protocols.md)
 - [Chapter 15: Inline Assembly](chapter_15_inline_assembly.md)
-- [Chapter 16: Tooling And UX](chapter_16_tooling_and_ux.md)
+- [Chapter 16: Concurrency](chapter_16_concurrency.md)
+- [Chapter 17: Tooling And UX](chapter_17_tooling_and_ux.md)
 - [Appendix: Open Questions](appendix_open_questions.md)
