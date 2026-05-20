@@ -198,15 +198,15 @@ Omega/
 |   |   `-- [CRATE] omega-machine-bytes/                # Encoded machine bytes and relocation-ready emission payload.
 |   |
 |   |-- pipeline/
-|   |   |-- [CRATE] omega-source-files-to-tokens/                # Source files to per-file token streams.
-|   |   |-- [CRATE] omega-tokens-to-syntax-trees/                # Token streams to parsed syntax trees.
-|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/ # Syntax trees to SymbolResolvedTrees with symbol identity attached.
-|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/  # SymbolResolvedTrees to typed/effect-annotated trees.
-|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/          # Typed trees to validated/proof-checked trees with semantic facts.
-|   |   |-- [CRATE] omega-checked-trees-to-state-graph/          # Checked trees to explicit machine/state graph.
-|   |   |-- [CRATE] omega-state-graph-to-control-flow/           # State graph to control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-control-flow-to-target-operations/     # Control flow to target-aware operations.
-|   |   `-- [CRATE] omega-target-operations-to-machine-program/  # Target-aware operations to symbolic machine program, before bytes.
+|   |   |-- [CRATE] omega-source-files-to-tokens/                # Stage 01: SourceFiles -> TokenStreams.
+|   |   |-- [CRATE] omega-tokens-to-syntax-trees/                # Stage 02: TokenStreams -> SyntaxTrees.
+|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/ # Stage 03: SyntaxTrees -> SymbolResolvedTrees.
+|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/  # Stage 04: SymbolResolvedTrees -> TypedTrees.
+|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/          # Stage 05: TypedTrees -> CheckedTrees.
+|   |   |-- [CRATE] omega-checked-trees-to-state-graph/          # Stage 06: CheckedTrees -> StateGraph.
+|   |   |-- [CRATE] omega-state-graph-to-control-flow/           # Stage 07: StateGraph -> ControlFlow.
+|   |   |-- [CRATE] omega-control-flow-to-target-operations/     # Stage 08: ControlFlow -> TargetOperations.
+|   |   `-- [CRATE] omega-target-operations-to-machine-program/  # Stage 09: TargetOperations -> MachineProgram before bytes.
 |   |
 |   |-- backend/
 |   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.

@@ -45,57 +45,73 @@ impl Compiler {
         while imports.has_pending() {
             let frontier = imports.take_frontier();
             let first_source_id = source_storage.next_source_id();
-            let sources =
-                timings.record("load sources", || load_sources(frontier, first_source_id))?;
-            let lexed = timings.record("lex sources", || lex_sources(sources))?;
-            let parsed = timings.record("parse sources", || {
+            let sources = timings.record("Stage 00: ImportQueue -> SourceFiles", || {
+                load_sources(frontier, first_source_id)
+            })?;
+            let lexed = timings.record("Stage 01: SourceFiles -> TokenStreams", || {
+                lex_sources(sources)
+            })?;
+            let parsed = timings.record("Stage 02: TokenStreams -> SyntaxTrees", || {
                 parse_sources(lexed, &mut source_storage.syntax_trees)
             })?;
-            let discovered_imports = timings.record("discover imports", || {
-                discover_imports(
-                    &parsed,
-                    &source_storage.syntax_trees,
-                    &self.options.root_path,
-                    self.options.target_name.as_deref(),
-                )
-            })?;
+            let discovered_imports =
+                timings.record("Stage 00: SyntaxTrees -> ImportQueue", || {
+                    discover_imports(
+                        &parsed,
+                        &source_storage.syntax_trees,
+                        &self.options.root_path,
+                        self.options.target_name.as_deref(),
+                    )
+                })?;
 
             imports.enqueue(discovered_imports)?;
-            timings.record("store sources", || {
+            timings.record("Stage 00: ParsedFrontier -> SourceStorage", || {
                 extend_source_storage(&mut source_storage, parsed)
             })?;
         }
 
-        timings.record("validate target", || {
+        timings.record("Stage 00: SourceStorage -> TargetSelection", || {
             validate_selected_target(&source_storage, self.options.target_name.as_deref())
         })?;
         remove_stale_phase_diagrams(&self.options)?;
 
         let source_file_count = source_storage.file_count();
-        let syntax = timings.record("syntax assembly", || assemble_syntax(source_storage))?;
+        let syntax = timings.record("Stage 02: SourceStorage -> SyntaxTrees", || {
+            assemble_syntax(source_storage)
+        })?;
         write_syntax_snapshot(&self.options, &syntax.syntax_trees)?;
-        let resolved = timings.record("resolve", || resolve_program(syntax))?;
+        let resolved = timings.record("Stage 03: SyntaxTrees -> SymbolResolvedTrees", || {
+            resolve_program(syntax)
+        })?;
         write_resolved_snapshot(&self.options, &resolved)?;
-        let typed = timings.record("typecheck", || typecheck_program(resolved))?;
+        let typed = timings.record("Stage 04: SymbolResolvedTrees -> TypedTrees", || {
+            typecheck_program(resolved)
+        })?;
         write_typed_snapshot(&self.options, &typed)?;
-        let checked = timings.record("checked program", || check_program(typed))?;
+        let checked = timings.record("Stage 05: TypedTrees -> CheckedTrees", || {
+            check_program(typed)
+        })?;
         let backend_surface = build_backend_surface_report(&checked.program);
-        let planned = timings.record("backend plan", || {
+        let planned = timings.record("Stage 06-09: CheckedTrees -> BackendPlan", || {
             plan_backend(
                 checked,
                 self.options.target_name.as_deref(),
                 workers.handle(),
             )
         })?;
-        let emission_plan = timings.record("emission plan", || Ok(plan_emission(&planned)))?;
+        let emission_plan = timings.record("Stage 10: BackendPlan -> EmissionPlan", || {
+            Ok(plan_emission(&planned))
+        })?;
         if self.options.write_output {
             write_backend_report(&self.options, &backend_surface, &planned)?;
             write_emission_plan(&self.options, &emission_plan)?;
         }
-        timings.record("emission readiness", || {
+        timings.record("Stage 10: EmissionPlan -> EmissionReady", || {
             ensure_emission_ready(&emission_plan)
         })?;
-        let emitted = timings.record("emit backend", || emit_backend(&planned))?;
+        let emitted = timings.record("Stage 11: BackendPlan -> MachineBytes", || {
+            emit_backend(&planned)
+        })?;
 
         if self.options.write_output {
             write_output(&self.options, emitted)?;
