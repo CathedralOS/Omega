@@ -1,4 +1,4 @@
-# Chapter 14: Versioned Data And Machine Replacement
+# Chapter 13: Versioned Data And Machine Replacement
 
 Omega should treat runtime data evolution as a first-class systems problem.
 
@@ -94,7 +94,7 @@ Sketch:
 
 ```omega
 machine Counter v2 replaces v1
-    migrates Counter::v1 -> Counter
+    migrates Counter::from_v1
     requires quiescent
 {
     self.counter.increment();
@@ -118,17 +118,29 @@ proof obligation.
 Versioned runtime data needs explicit migration paths.
 
 ```omega
-migrate Counter::v1 -> Counter
-    effects pure, alloc
-    requires exclusive(in)
-    ensures Counter::invariants(out)
+trait RuntimeMigratable<Old, New> {
+    machine New::from_old(old: Old, out: &mut New);
+}
+
+machine Counter::from_v1(
+    old: Counter::v1,
+    out: &mut Counter
+)
+satisfies RuntimeMigratable<Counter::v1, Counter>
+effects
+    pure, alloc
+requires
+    exclusive(old)
+ensures
+    Counter::invariants(out)
 {
-    out.counter = AtomicI32::new(in.counter);
+    out.counter = AtomicI32::new(old.counter);
     out.timestamp = DateTime::now();
 }
 ```
 
-Syntax is provisional. The important part is that migration has a contract.
+Syntax is provisional. The important part is that migration is ordinary typed
+machine code with a contract.
 
 Migrations should describe:
 
@@ -203,7 +215,7 @@ If Omega supports coexistence, it should be explicit.
 ```omega
 machine Driver v2 replaces v1
     coexist until requests_drained
-    migrates DriverState::v1 -> DriverState
+    migrates DriverState::from_v1
 {
 }
 ```

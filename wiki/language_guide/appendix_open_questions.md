@@ -6,9 +6,9 @@ This page tracks design pressure that is not fully nailed down yet.
 
 - `const` parameters are compile-time values, proof constants, or both. Omega should use every fact it can soundly know.
 - `&mut self` is the working spelling for machine member functions and states that need machine state. The goal is not to be different for the sake of being different.
-- `fn` is the spelling for a frame boundary. Calling a function creates a stack frame and continuation; transitioning to a plain `state` does not.
-- Plain states are graph nodes inside the active function frame. They may take arguments and return-compatible values, but they are reached by `transition`, not by normal call syntax.
-- Terminal value completion is useful: `-> value` completes the active function frame with a value, while `transition { _ -> state_name(args) }` transitions to a plain state.
+- `machine` is the callable boundary. Calling a machine creates the callable activation; transitioning to an internal `state` does not.
+- States are graph labels inside the current machine. They may take arguments and participate in return-value compatibility, but they are reached by `transition`, not by normal call syntax.
+- Terminal value completion is useful: a final value completes the active machine with a value, while `transition { _ -> state_name(args) }` jumps to an internal state.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
 - `domain` names a type-scoped proof predicate over an existing value. Domains
@@ -27,7 +27,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
 - Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
-- `fn entry(&mut self)` is the current runtime entry spelling for a machine entry that mutates or drives machine state. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
+- A machine enters at the top of its body. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
 - Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
 
 ## Still Open
@@ -49,5 +49,4 @@ This page tracks design pressure that is not fully nailed down yet.
 - When should manual assembly contracts be allowed to supplement known instruction contracts, and when should they be rejected as too opaque?
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should imported library/syscall signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
-- If the paradigm shifts again, should `fn` remain the spelling for frame boundaries or should it collapse back into a state-only model?
-- Should Omega eventually support explicit tail calls into functions, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?
+- Should the language eventually support explicit tail calls into machines, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?

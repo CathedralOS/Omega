@@ -25,7 +25,7 @@ machine MazeBuilder::build(
     transition {
         _ -> branch(level, &mut random, CellId::R00, 0, 0)
     }
-    
+
 
     state branch(
         &mut self,
@@ -159,7 +159,7 @@ machine MazeBuilder::append_exit(
         true -> append_exit_at(room, command, direction, destination, room.exit_count)
         false -> {}
     }
-    
+
 
     state append_exit_at(
         &mut self,

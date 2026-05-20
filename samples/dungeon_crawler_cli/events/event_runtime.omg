@@ -27,7 +27,7 @@ machine EventRuntime::describe(
     -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
     -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
     -> quiet_room(out_line);
-    
+
 
     state describe_fountain(
         &mut self,
@@ -76,7 +76,7 @@ machine EventRuntime::use_event(
     -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
     -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
     -> no_usable_event(out_line);
-    
+
 
     state use_fountain(
         &mut self,
@@ -118,7 +118,7 @@ machine EventRuntime::fight_event(
 ) {
     -> fight_enemy_event(player, room, random, round, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
     -> no_enemy(out_line);
-    
+
 
     state fight_enemy_event(
         &mut self,

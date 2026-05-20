@@ -28,7 +28,7 @@ machine CombatSystem::fight(
         true -> defeated_enemy(player, event, random, round)
         false -> enemy_retaliates(player, event, random, round)
     }
-    
+
 
     state defeated_enemy(
         &mut self,

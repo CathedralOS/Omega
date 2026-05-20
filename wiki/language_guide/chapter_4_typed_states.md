@@ -1,43 +1,98 @@
-# Chapter 4: Typed States
+# Chapter 4: Typed Machine Graphs
 
-A function or plain state may accept explicit entry data and declare the value shape its graph eventually produces.
+A machine may declare the value shape its graph eventually produces.
 
 ```omega
-fn clamp(value: f32, min: f32, max: f32) -> f32 {
-    match (value < min, value > max) {
-        (true, _) -> min
-        (false, true) -> max
-        (false, false) -> value
+machine main(&mut self) -> i32 {
+    self.game.initialize(7);
+
+    transition {
+        _ -> running()
+    }
+
+    state running(&mut self) {
+        self.game.run_game_loop();
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
     }
 }
 ```
 
-Plain states may also be typed when they are part of a function's internal transition graph:
-
-```omega
-fn fight_rat(player: &mut Player) -> bool {
-    transition player.health == 0 {
-        true -> defeated()
-        false -> survived()
-    }
-}
-
-state defeated() -> bool {
-    -> false
-}
-
-state survived() -> bool {
-    -> true
-}
-```
+`main` promises `i32`. Every reachable terminal path in `main` must produce an
+`i32`.
 
 Working interpretation:
 
-- Parameters are local entry data.
-- `&mut` parameters are mutable borrows; borrow checking is the long-term model even if early compiler passes treat them as mutable aliases.
-- A function return type is the value shape its active graph must eventually produce.
-- A plain state return type must be compatible with the function activation that can reach it.
-- A body may end in terminal value transitions, plain state transitions, or a final expression.
-- A transition to another plain state is a typed goto, not a stack return.
+- Machine parameters are entry data.
+- `&mut` parameters are unique mutable borrows.
+- A machine return type is the value shape its internal graph must eventually
+  produce.
+- Internal states do not create separate public return contracts.
+- A state may end by transitioning to another state or by producing the
+  machine's terminal value.
+- A transition to another state is a typed jump, not a stack return.
 
-This makes the syntax function-shaped where stack behavior exists, while keeping plain states as explicit graph nodes.
+## Typed Helper Machines
+
+Helper machines are ordinary callable boundaries.
+
+```omega
+machine CommandParser::resolve_command(
+    &mut self,
+    line: &ConsoleLine
+) -> NavigationChoice {
+    transition line.text {
+        "quit" -> NavigationChoice::Quit
+        "look" -> NavigationChoice::Look
+        _ -> NavigationChoice::Invalid
+    }
+}
+```
+
+This machine has no internal states. Its dispatch arms produce values directly.
+
+## State Arguments
+
+State arguments are checked against the target state's parameter list.
+
+```omega
+machine RoomLookup::find_room(
+    &self,
+    target: CellId,
+    out: &mut Room
+) {
+    transition {
+        _ -> find_room_at(target, 0, out)
+    }
+
+    state find_room_at(
+        target: CellId,
+        index: usize,
+        out: &mut Room
+    ) {
+        let found: bool = self.rooms[index].cell == target;
+        let next_index: usize = index + 1;
+
+        transition found {
+            true -> apply_room(index, out)
+            false -> find_room_at(target, next_index, out)
+        }
+    }
+
+    state apply_room(
+        index: usize,
+        out: &mut Room
+    ) {
+        out = self.rooms[index];
+    }
+}
+```
+
+The compiler checks both the value types and the borrow facts crossing each
+transition edge.

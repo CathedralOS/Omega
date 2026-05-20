@@ -9,13 +9,14 @@ targets may jump through firmware tables. The shared concept is not "Unix
 syscall." The shared concept is an imported boundary whose implementation is
 not Omega code.
 
-## Imported Libraries
+## Platform Entries
 
-A dynamic or platform library declaration names the binary interface directly.
+A platform declaration names imported entries whose implementation is outside
+Omega code.
 
 ```omega
-library Kernel32 = "Kernel32.dll" calling_convention winapi {
-    fn ReadFile(
+platform Kernel32 {
+    entry ReadFile(
         handle: HANDLE<[read]>,
         buffer: &mut [u8, [writable, initialized]],
         bytes_to_read: usize,
@@ -27,41 +28,40 @@ library Kernel32 = "Kernel32.dll" calling_convention winapi {
 
 Working interpretation:
 
-- `library` means the implementation lives outside Omega code.
-- The optional name, `Kernel32`, is the Omega namespace for references and
-  reports.
-- The string, `"Kernel32.dll"`, is the platform library artifact.
-- `calling_convention winapi` is the default calling convention for functions
-  in the block.
-- `fn` is used because imported library entries are stack calls, not
-  state-machine transitions.
-- `trust` is per function and names the trusted contract root that allows
-  Omega to use the imported function's guarantees.
+- `platform` means the implementation lives outside Omega code.
+- `Kernel32` is the Omega namespace for references and reports.
+- `entry` names an imported callable boundary.
+- `trust` names the contract root that allows Omega to use the imported entry's
+  guarantees.
+- Target metadata such as library artifact, symbol, and calling convention can
+  be attached to entries or supplied by target host packages.
 
-Anonymous library declarations are allowed when no namespace is needed:
+The dungeon crawler uses the same shape for console capabilities:
 
 ```omega
-library "libSystem.B.dylib" calling_convention c {
-    fn write(fd: i32, buffer: &[u8, [initialized]], count: usize) -> SyscallResult<usize>
-        symbol "_write"
-        trust omega_darwin_libsystem_write
+platform ConsolePlatform {
+    entry write(text: String);
+    entry write_line(text: String);
+    entry read_line(out_line: &mut ConsoleLine);
+    entry exit_process(return_code: i32);
 }
 ```
 
-Function-level metadata can override library defaults where the platform needs
-it:
+Entry-level metadata can describe the native ABI where the platform needs it:
 
 ```omega
-library User32 = "User32.dll" calling_convention winapi {
-    fn MessageBoxW(...) -> i32
+platform User32 {
+    entry MessageBoxW(...) -> i32
+        library "User32.dll"
+        calling_convention winapi
         symbol "MessageBoxW"
         trust omega_windows_user32_message_box
 }
 ```
 
-The compiler should understand libraries, symbols, calling conventions, trust
-roots, and target image imports generically. It should not special-case every
-Windows, Darwin, Linux, or SDK API.
+The compiler should understand platforms, entries, libraries, symbols, calling
+conventions, trust roots, and target image imports generically. It should not
+special-case every Windows, Darwin, Linux, or SDK API.
 
 ## Syscall Tables
 
@@ -70,7 +70,7 @@ Linux can expose a target syscall surface directly.
 
 ```omega
 syscalls linux_aarch64 {
-    fn write(fd: i32, buffer: &[u8, [initialized]], count: usize) -> SyscallResult<usize>
+    entry write(fd: i32, buffer: &[u8, [initialized]], count: usize) -> SyscallResult<usize>
         number 64
         trust omega_linux_write
 }

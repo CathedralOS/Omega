@@ -45,7 +45,7 @@ machine RoomFormatter::write_adjacent_rooms(
 ) {
     -> north_path(out_line) when cell == CellId::R00;
     -> south_path(out_line) when cell == CellId::R01;
-    
+
 
     state north_path(
         &mut self,
@@ -75,7 +75,7 @@ machine RoomFormatter::write_inventory(
     out_line: &mut ConsoleLine
 ) {
     out_line.text = "Inventory: a few coins and useful gear.";
-    
+
 
     state wealthy_inventory(
         &mut self,
@@ -105,7 +105,7 @@ machine RoomFormatter::write_character(
     out_line: &mut ConsoleLine
 ) {
     out_line.text = "Character: ready for trouble.";
-    
+
 
     state wounded_character(
         &mut self,

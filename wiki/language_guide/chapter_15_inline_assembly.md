@@ -1,4 +1,4 @@
-# Chapter 13: Inline Assembly
+# Chapter 15: Inline Assembly
 
 Inline assembly is not an escape hatch from Omega's proof model.
 
@@ -29,17 +29,23 @@ An assembly block should still be able to describe what it reads, writes, clobbe
 Sketch:
 
 ```omega
-state my_state() {
-}
-
-state my_state_with_asm() {
-    transition self.value > 0 {
-        true -> some_other_state()
-        false -> {}
+machine Driver::step(&mut self) {
+    transition {
+        _ -> my_state_with_asm()
     }
 
-    asm {
-        jmp my_state()
+    state my_state(&mut self) {
+    }
+
+    state my_state_with_asm(&mut self) {
+        transition self.value > 0 {
+            true -> some_other_state()
+            false -> my_state()
+        }
+
+        asm {
+            jmp my_state()
+        }
     }
 }
 ```

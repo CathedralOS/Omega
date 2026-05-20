@@ -58,7 +58,7 @@ machine PlayerSystem::grant_xp(
         true -> level_up(player)
         false -> {}
     }
-    
+
 
     state level_up(
         &mut self,

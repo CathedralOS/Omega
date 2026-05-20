@@ -1,4 +1,4 @@
-# Chapter 15: Wire Protocols
+# Chapter 14: Wire Protocols
 
 Omega should treat protocol schemas as first-class source-visible contracts.
 
@@ -56,22 +56,39 @@ wire data CounterMessage {
 }
 ```
 
-Conversion should be explicit.
+Conversion should be explicit, and ordinary machines should describe the
+runtime transform.
 
 ```omega
-encode Counter -> CounterMessage {
+trait WireWritable<Message> {
+    machine Self::to_wire(&self, out: &mut Message);
+}
+
+trait WireReadable<Message> {
+    machine Self::from_wire(message: Message, out: &mut Self);
+}
+
+machine Counter::to_wire(
+    &self,
+    out: &mut CounterMessage
+) satisfies WireWritable<CounterMessage> {
     out.counter = self.counter.load();
     out.timestamp_millis = self.timestamp.to_unix_millis();
 }
 
-decode CounterMessage -> Counter {
-    out.counter = AtomicI32::new(self.counter);
-    out.timestamp = DateTime::from_unix_millis(self.timestamp_millis);
+machine Counter::from_wire(
+    message: CounterMessage,
+    out: &mut Counter
+) satisfies WireReadable<CounterMessage> {
+    out.counter = AtomicI32::new(message.counter);
+    out.timestamp = DateTime::from_unix_millis(message.timestamp_millis);
 }
 ```
 
-The exact syntax is provisional. The important rule is that protocol boundaries
-are typed, generated, and auditable instead of hidden in hand-written byte code.
+The exact trait names are provisional. The important rule is that protocol
+boundaries are typed, generated, and auditable instead of hidden in hand-written
+byte code. Omega does not need special `encode` or `decode` keywords just to
+name transform code.
 
 ## Compatibility Rules
 
@@ -140,33 +157,39 @@ They are not a replacement for stable field numbering. If every field change
 creates a new wire version, the protocol becomes harder to evolve and harder to
 interoperate with.
 
-## Decode And Migration
+## Decode And Runtime Conversion
 
 Wire decoding and runtime migration are different operations.
 
-Decoding turns bytes into a valid wire value:
+Decoding bytes into a valid `wire data` value can be generated from the schema
+and encoding family:
+
+```text
+bytes -> CounterMessage
+```
+
+Runtime conversion from that wire value into runtime data should still be an
+ordinary machine:
 
 ```omega
-decode bytes -> CounterMessage {
-    // Validate tags, field encodings, bounds, presence, and canonical form.
+machine Counter::from_wire(
+    message: CounterMessage,
+    out: &mut Counter
+) satisfies WireReadable<CounterMessage> {
+    out.counter = AtomicI32::new(message.counter);
+    out.timestamp = DateTime::from_unix_millis(message.timestamp_millis);
 }
 ```
 
-Conversion turns a wire value into runtime data:
+If old wire versions exist, they can have conversion machines into the current
+runtime shape.
 
 ```omega
-decode CounterMessage -> Counter {
-    out.counter = AtomicI32::new(self.counter);
-    out.timestamp = DateTime::from_unix_millis(self.timestamp_millis);
-}
-```
-
-If old wire versions exist, they can have decode paths into the current runtime
-shape.
-
-```omega
-decode CounterMessage::v1 -> Counter {
-    out.counter = AtomicI32::new(self.counter);
+machine Counter::from_wire_v1(
+    message: CounterMessage::v1,
+    out: &mut Counter
+) satisfies WireReadable<CounterMessage::v1> {
+    out.counter = AtomicI32::new(message.counter);
     out.timestamp = DateTime::unix_epoch();
 }
 ```
@@ -174,7 +197,7 @@ decode CounterMessage::v1 -> Counter {
 This looks migration-like, but the obligations are protocol obligations:
 validation, compatibility, unknown fields, canonical encoding, and external
 stability. Runtime hot-swap migration has a different set of obligations and is
-covered in the next chapter.
+covered in the previous chapter.
 
 ## Encoding Families
 

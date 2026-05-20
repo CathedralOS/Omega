@@ -10,7 +10,7 @@ machine main(&mut self) -> i32 {
     transition {
         _ -> running()
     }
-    
+
 
     state running(&mut self) {
         self.game.run_game_loop();

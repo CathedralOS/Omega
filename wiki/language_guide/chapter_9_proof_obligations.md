@@ -1,4 +1,4 @@
-# Chapter 10: Proof Obligations
+# Chapter 9: Proof Obligations
 
 Typed states and bounded values imply compiler-generated obligations.
 
@@ -45,9 +45,14 @@ Likely obligations:
 ## Example
 
 ```omega
-owns health: i32[exact, range<0, 100>];
+data Player {
+    health: i32[exact, range<0, 100>];
+}
 
-state take_damage(&mut self, damage: i32[range<0, 100>]) {
+machine Player::take_damage(
+    &mut self,
+    damage: i32[range<0, 100>]
+) {
     self.health -= damage;
 }
 ```
@@ -65,7 +70,7 @@ This maps well onto TLA+ style action checking:
 - Machine fields are variables.
 - State parameters are action inputs.
 - Transitions are guarded next-state relations.
-- Bounded types are invariants or pre/postconditions.
+- Value constraints are invariants or pre/postconditions.
 - Relax scopes are local invariant weakening with mandatory restoration.
 
 Invariants are not RTTI. If proof fails, the normal result is a compiler diagnostic, not a hidden runtime tag check. Runtime validation may exist as an explicit debug or proof-emission mode, but it should not define the semantics.

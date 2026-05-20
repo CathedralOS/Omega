@@ -1,11 +1,13 @@
-# Chapter 8: Relax Scopes
+# Chapter 10: Relax Scopes
 
 Some transformations temporarily violate invariants but restore them before the value escapes.
 
 ```omega
-owns mass: i32[range<1, 100>];
+data Body {
+    mass: i32[range<1, 100>];
+}
 
-state whatever() {
+machine Body::whatever(&mut self) {
     relax self.mass {
         self.mass -= 50000;
         self.mass += 50001;
