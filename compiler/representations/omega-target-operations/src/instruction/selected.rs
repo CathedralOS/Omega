@@ -314,6 +314,10 @@ pub enum SelectedInstructionKind {
     SetDispatchState {
         dispatch_index: u32,
     },
+    WriteReturnRegisterInteger {
+        byte_size: usize,
+        value: i64,
+    },
     TerminateDispatch,
     LeaveDispatchCase,
     LeaveDispatchLoop,

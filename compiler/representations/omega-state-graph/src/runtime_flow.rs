@@ -3,7 +3,7 @@ mod builder;
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
 
-pub use builder::build_runtime_flow_plan;
+pub use builder::{build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeFlowPlan {
@@ -60,6 +60,13 @@ impl Default for RuntimeEdge {
             forms_cycle: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RuntimeStateCallEdge {
+    pub source_key: StateKey,
+    pub statement_index: usize,
+    pub target_key: StateKey,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

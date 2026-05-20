@@ -2,10 +2,6 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::aarch64) fn encode_compare_w19_immediate(value: u32) -> Result<[u8; 4], Diagnostic> {
-    encode_compare_w_immediate(19, value)
-}
-
 pub(in crate::aarch64) fn encode_compare_w17_immediate(value: u32) -> Result<[u8; 4], Diagnostic> {
     encode_compare_w_immediate(17, value)
 }

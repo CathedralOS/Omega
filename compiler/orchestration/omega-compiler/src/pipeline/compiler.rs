@@ -4,9 +4,10 @@ use crate::pipeline::frontend::{
     discover_imports, extend_source_storage, lex_sources, load_sources, parse_sources,
 };
 use crate::pipeline::source::{ImportQueue, SourceStorage};
-use omega_artifacts::{ArtifactWriter, build_backend_surface_report};
+use omega_artifacts::{ArtifactWriter, PhaseTiming, build_backend_surface_report};
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
 use omega_checked_trees::Program as CheckedProgram;
+use omega_core::allocations::snapshot as allocation_snapshot;
 use omega_core::diagnostics::{Diagnostic, PhaseDiagram};
 use omega_core::parallel::WorkerPool;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
@@ -19,6 +20,7 @@ use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::TypedTrees;
 use std::sync::Arc;
+use std::time::Instant;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     Compiler::new(options).compile()
@@ -39,78 +41,88 @@ impl Compiler {
             imports.seed(root);
         }
         let workers = WorkerPool::with_available_parallelism();
+        let mut timings = CompileTimings::default();
 
         let mut source_storage = SourceStorage::default();
 
         while imports.has_pending() {
             let frontier = imports.take_frontier();
             let first_source_id = source_storage.next_source_id();
-            let sources = load_sources(frontier, first_source_id)?;
-            let lexed = lex_sources(sources)?;
-            let parsed = parse_sources(lexed)?;
-            let discovered_imports = discover_imports(
-                &parsed,
-                &self.options.root_path,
-                self.options.target_name.as_deref(),
-            )?;
+            let sources =
+                timings.record("load sources", || load_sources(frontier, first_source_id))?;
+            let lexed = timings.record("lex sources", || lex_sources(sources))?;
+            let parsed = timings.record("parse sources", || {
+                parse_sources(lexed, &mut source_storage.syntax_trees)
+            })?;
+            let discovered_imports = timings.record("discover imports", || {
+                discover_imports(
+                    &parsed,
+                    &source_storage.syntax_trees,
+                    &self.options.root_path,
+                    self.options.target_name.as_deref(),
+                )
+            })?;
 
             imports.enqueue(discovered_imports)?;
-            extend_source_storage(&mut source_storage, parsed)?;
+            timings.record("store sources", || {
+                extend_source_storage(&mut source_storage, parsed)
+            })?;
         }
 
-        validate_selected_target(&source_storage, self.options.target_name.as_deref())?;
+        timings.record("validate target", || {
+            validate_selected_target(&source_storage, self.options.target_name.as_deref())
+        })?;
         remove_stale_phase_diagrams(&self.options)?;
 
         let source_file_count = source_storage.file_count();
-        let syntax = assemble_syntax(source_storage)?;
-        write_phase_diagram(
-            &self.options,
-            "02_syntax_trees.html",
-            &syntax.syntax_trees.phase_html(),
-        )?;
-        write_phase_json(
-            &self.options,
-            "02_syntax_trees.json",
-            &syntax
-                .syntax_trees
-                .snapshot_json_pretty()
-                .map_err(json_diagnostic)?,
-        )?;
-        let resolved = resolve_program(syntax)?;
+        let syntax = timings.record("syntax assembly", || assemble_syntax(source_storage))?;
+        let syntax_html = syntax.syntax_trees.phase_html();
+        write_phase_diagram(&self.options, "02_syntax_trees.html", &syntax_html)?;
+        let syntax_json = syntax
+            .syntax_trees
+            .snapshot_json_pretty()
+            .map_err(json_diagnostic)?;
+        write_phase_json(&self.options, "02_syntax_trees.json", &syntax_json)?;
+        let resolved = timings.record("resolve", || resolve_program(syntax))?;
+        let resolved_html = resolved.phase_html();
         write_phase_diagram(
             &self.options,
             "03_symbol_resolved_trees.html",
-            &resolved.phase_html(),
+            &resolved_html,
         )?;
+        let resolved_json = resolved.snapshot_json_pretty().map_err(json_diagnostic)?;
         write_phase_json(
             &self.options,
             "03_symbol_resolved_trees.json",
-            &resolved.snapshot_json_pretty().map_err(json_diagnostic)?,
+            &resolved_json,
         )?;
-        let typed = typecheck_program(resolved)?;
-        write_phase_diagram(&self.options, "04_typed_trees.html", &typed.phase_html())?;
-        write_phase_json(
-            &self.options,
-            "04_typed_trees.json",
-            &typed.snapshot_json_pretty().map_err(json_diagnostic)?,
-        )?;
-        let checked = check_program(typed)?;
+        let typed = timings.record("typecheck", || typecheck_program(resolved))?;
+        let typed_html = typed.phase_html();
+        write_phase_diagram(&self.options, "04_typed_trees.html", &typed_html)?;
+        let typed_json = typed.snapshot_json_pretty().map_err(json_diagnostic)?;
+        write_phase_json(&self.options, "04_typed_trees.json", &typed_json)?;
+        let checked = timings.record("checked program", || check_program(typed))?;
         let backend_surface = build_backend_surface_report(&checked.program);
-        let planned = plan_backend(
-            checked,
-            self.options.target_name.as_deref(),
-            workers.handle(),
-        )?;
-        let emission_plan = plan_emission(&planned);
+        let planned = timings.record("backend plan", || {
+            plan_backend(
+                checked,
+                self.options.target_name.as_deref(),
+                workers.handle(),
+            )
+        })?;
+        let emission_plan = timings.record("emission plan", || Ok(plan_emission(&planned)))?;
         if self.options.write_output {
             write_backend_report(&self.options, &backend_surface, &planned)?;
             write_emission_plan(&self.options, &emission_plan)?;
         }
-        ensure_emission_ready(&emission_plan)?;
-        let emitted = emit_backend(&planned)?;
+        timings.record("emission readiness", || {
+            ensure_emission_ready(&emission_plan)
+        })?;
+        let emitted = timings.record("emit backend", || emit_backend(&planned))?;
 
         if self.options.write_output {
             write_output(&self.options, emitted)?;
+            write_timings(&self.options, timings.as_slice())?;
         }
 
         Ok(CompileReport {
@@ -118,6 +130,58 @@ impl Compiler {
             source_file_count,
             wrote_output: self.options.write_output,
         })
+    }
+}
+
+#[derive(Default)]
+struct CompileTimings {
+    phases: Vec<PhaseTiming>,
+}
+
+impl CompileTimings {
+    fn record<T>(
+        &mut self,
+        phase: impl Into<String>,
+        work: impl FnOnce() -> Result<T, Vec<Diagnostic>>,
+    ) -> Result<T, Vec<Diagnostic>> {
+        let phase = phase.into();
+        let allocation_start = allocation_snapshot();
+        let time_start = Instant::now();
+        let result = work();
+        let microseconds = time_start.elapsed().as_micros();
+        let allocations = allocation_snapshot().delta_since(allocation_start);
+
+        if let Some(existing) = self.phases.iter_mut().find(|timing| timing.phase == phase) {
+            existing.microseconds = existing.microseconds.saturating_add(microseconds);
+            existing.allocations.allocation_calls = existing
+                .allocations
+                .allocation_calls
+                .saturating_add(allocations.allocation_calls);
+            existing.allocations.deallocation_calls = existing
+                .allocations
+                .deallocation_calls
+                .saturating_add(allocations.deallocation_calls);
+            existing.allocations.allocated_bytes = existing
+                .allocations
+                .allocated_bytes
+                .saturating_add(allocations.allocated_bytes);
+            existing.allocations.deallocated_bytes = existing
+                .allocations
+                .deallocated_bytes
+                .saturating_add(allocations.deallocated_bytes);
+        } else {
+            self.phases.push(PhaseTiming {
+                phase,
+                microseconds,
+                allocations,
+            });
+        }
+
+        result
+    }
+
+    fn as_slice(&self) -> &[PhaseTiming] {
+        &self.phases
     }
 }
 
@@ -155,7 +219,8 @@ fn validate_selected_target(
     };
 
     let target_found = source_storage.files.iter().any(|(_, file)| {
-        file.syntax_trees.root_items().any(|item| {
+        file.root_items.iter().any(|root_item| {
+            let item = source_storage.syntax_trees.root_item(*root_item);
             matches!(
                 item,
                 omega_syntax_trees::item::Item::Target(target) if target.name.as_str() == target_name
@@ -190,16 +255,10 @@ struct EmittedProgram {
     data_bytes: Vec<u8>,
 }
 
-fn assemble_syntax(_sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
-    let mut syntax_trees = SyntaxTrees::new(Default::default());
-
-    for (_, file) in _sources.files.iter() {
-        syntax_trees.extend_from(&file.syntax_trees);
-    }
-
+fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     Ok(AssembledSyntax {
-        syntax_trees,
-        sources: Arc::new(_sources.sources),
+        syntax_trees: sources.syntax_trees,
+        sources: Arc::new(sources.sources),
     })
 }
 
@@ -348,6 +407,14 @@ fn write_emission_plan(
         .map_err(|diagnostic| vec![diagnostic])
 }
 
+fn write_timings(options: &CompileOptions, timings: &[PhaseTiming]) -> Result<(), Vec<Diagnostic>> {
+    let writer =
+        ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+    writer
+        .write_timings(timings)
+        .map_err(|diagnostic| vec![diagnostic])
+}
+
 fn write_phase_json(
     options: &CompileOptions,
     file_name: &str,
@@ -426,8 +493,8 @@ fn write_output(options: &CompileOptions, emitted: EmittedProgram) -> Result<(),
         .map_err(|diagnostic| vec![diagnostic])?;
 
         let output_path = build_dir.join(&image.file_name);
-        std::fs::write(&output_path, &image.bytes).map_err(io_diagnostic)?;
-        mark_executable_if_needed(&output_path).map_err(|diagnostic| vec![diagnostic])?;
+        write_output_file(&output_path, &image.bytes, true)
+            .map_err(|diagnostic| vec![diagnostic])?;
         return Ok(());
     }
 
@@ -439,7 +506,8 @@ fn write_output(options: &CompileOptions, emitted: EmittedProgram) -> Result<(),
         data_bytes: &emitted.data_bytes,
     });
     let output_path = build_dir.join(&object_container.file_name);
-    std::fs::write(&output_path, &object_container.bytes).map_err(io_diagnostic)?;
+    write_output_file(&output_path, &object_container.bytes, false)
+        .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
 }
 
@@ -454,6 +522,40 @@ fn object_text_size(object: &omega_object::ObjectPlan) -> usize {
         .find(|(_, section)| section.kind == SectionKind::Text)
         .map(|(_, section)| section.size)
         .unwrap_or(0)
+}
+
+fn write_output_file(
+    output_path: &std::path::Path,
+    bytes: &[u8],
+    executable: bool,
+) -> Result<(), Diagnostic> {
+    let temp_path = output_path.with_file_name(format!(
+        ".{}.{}.tmp",
+        output_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("omega-output"),
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&temp_path);
+    std::fs::write(&temp_path, bytes).map_err(|error| {
+        Diagnostic::error(format!("failed to write {}: {error}", temp_path.display()))
+    })?;
+
+    if executable {
+        mark_executable_if_needed(&temp_path)?;
+    }
+
+    match std::fs::rename(&temp_path, output_path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = std::fs::remove_file(&temp_path);
+            Err(Diagnostic::error(format!(
+                "failed to install {}: {error}",
+                output_path.display()
+            )))
+        }
+    }
 }
 
 #[cfg(unix)]

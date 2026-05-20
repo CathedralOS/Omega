@@ -155,15 +155,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     runtime_value_operands,
                     selected_instructions,
                 );
-                select_runtime_leaf_branch_expansions_for_operation(
-                    input,
-                    dispatch_case.dispatch_index,
-                    operation,
-                    &mut leaf_expansion_cursor,
-                    &mut leaf_selection_scratch,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
                 select_runtime_straight_line_branch_expansions_for_operation(
                     input,
                     dispatch_case.dispatch_index,
@@ -171,6 +162,15 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     &mut straight_line_expansion_cursor,
                     &mut straight_line_selection_scratch,
                     operands,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+                select_runtime_leaf_branch_expansions_for_operation(
+                    input,
+                    dispatch_case.dispatch_index,
+                    operation,
+                    &mut leaf_expansion_cursor,
+                    &mut leaf_selection_scratch,
                     runtime_value_operands,
                     selected_instructions,
                 );

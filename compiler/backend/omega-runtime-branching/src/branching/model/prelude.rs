@@ -76,6 +76,7 @@ pub enum RuntimeBranchPreludeOperationKind {
     },
     StateCall {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,

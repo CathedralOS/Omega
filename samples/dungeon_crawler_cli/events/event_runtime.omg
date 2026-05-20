@@ -132,6 +132,7 @@ machine EventRuntime::fight_event {
         out_line: &mut ConsoleLine
     ) {
         self.combat.fight(player, &mut room.event, random, round);
+        out_line.text = "You trade blows with the monster.";
 
         -> player_died(out_line) when round.player_defeated;
         -> enemy_died(room.event.reward, out_line) when round.enemy_defeated;
@@ -157,7 +158,30 @@ machine EventRuntime::fight_event {
         reward: Reward,
         out_line: &mut ConsoleLine
     ) {
-        out_line.text = "The enemy collapses. You gain " + reward.gold.to_string() + " gold.";
+        -> rich_reward(out_line) when reward.gold >= 20;
+        -> small_reward(out_line) when reward.gold > 0;
+        -> empty_reward(out_line);
+    }
+
+    state rich_reward(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "The enemy collapses. You scoop up a serious pile of gold.";
+    }
+
+    state small_reward(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "The enemy collapses. You find a little gold.";
+    }
+
+    state empty_reward(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "The enemy collapses. Nothing useful remains.";
     }
 
     state exchange_blows(
@@ -165,6 +189,37 @@ machine EventRuntime::fight_event {
         round: CombatRound,
         out_line: &mut ConsoleLine
     ) {
-        out_line.text = "You strike for " + round.player_damage.to_string() + ", then take " + round.enemy_damage.to_string() + ".";
+        -> heavy_exchange(out_line) when round.player_damage > 10;
+        -> clean_hit(out_line) when round.enemy_damage == 0;
+        -> painful_exchange(out_line) when round.enemy_damage >= 5;
+        -> glancing_exchange(out_line);
+    }
+
+    state heavy_exchange(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "You deal more than 10 damage, but the enemy keeps moving.";
+    }
+
+    state clean_hit(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "You hit cleanly and avoid the counterattack.";
+    }
+
+    state painful_exchange(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "You trade blows and take 5 or more damage.";
+    }
+
+    state glancing_exchange(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Steel scrapes in the dark as you exchange blows.";
     }
 }

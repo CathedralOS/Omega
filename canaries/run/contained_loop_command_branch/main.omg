@@ -1,0 +1,98 @@
+platform Console {
+    entry write_line(text: String);
+    entry read_line(out_line: &mut ConsoleLine);
+    entry exit_process(return_code: i32);
+}
+
+data ConsoleLine {
+    text: String;
+}
+
+enum Command {
+    Look,
+    Quit,
+    Invalid,
+}
+
+data Navigation {
+    choice: Command;
+    destination: i32;
+}
+
+data Parser {
+}
+
+machine Parser::resolve_navigation -> Navigation {
+    pub entry(&mut self, line: &ConsoleLine) {
+        let choice: Command = self.resolve_command(line);
+        -> self.navigation(choice, 0);
+    }
+
+    entry resolve_command(&mut self, line: &ConsoleLine) -> Command {
+        -> Command::Look when line.text == "look";
+        -> Command::Quit when line.text == "quit";
+        -> Command::Invalid;
+    }
+
+    entry navigation(&mut self, choice: Command, destination: i32) -> Navigation {
+        Navigation { choice: choice, destination: destination }
+    }
+}
+
+data Game {
+    console: Console;
+    line: ConsoleLine;
+    parser: Parser;
+    navigation: Navigation;
+    health: i32;
+}
+
+machine Game::run {
+    pub entry(&mut self) {
+        self.health = 10;
+        transition { _ -> prompt() }
+    }
+
+    state prompt(&mut self) {
+        self.console.read_line(&mut self.line);
+        self.navigation = self.parser.resolve_navigation(&self.line);
+
+        transition self.navigation.choice {
+            Command::Look -> look()
+            Command::Quit -> finished()
+            Command::Invalid -> invalid()
+        }
+    }
+
+    state look(&mut self) {
+        self.console.write_line("look");
+        transition { _ -> prompt() }
+    }
+
+    state invalid(&mut self) {
+        self.console.write_line("invalid");
+        transition { _ -> prompt() }
+    }
+
+    state finished(&mut self) {
+    }
+}
+
+data main {
+    game: Game;
+}
+
+machine main -> i32 {
+    pub entry(&mut self) {
+        transition { _ -> running() }
+    }
+
+    state running(&mut self) {
+        self.game.run();
+        transition { _ -> shutdown() }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}

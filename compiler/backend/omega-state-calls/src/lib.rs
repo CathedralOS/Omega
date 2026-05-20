@@ -144,10 +144,11 @@ pub fn build_state_call_plan_with_workers(
         calls.extend(machine_calls);
     }
 
-    mark_required_state_calls(&context, &mut calls);
+    let required_states = mark_required_state_calls(&context, &mut calls);
 
     let argument_count = collected_call_argument_count(&context, &calls);
-    let mut plan = StateCallPlan::with_capacity(calls.len(), argument_count);
+    let mut plan = StateCallPlan::with_capacity(calls.len(), argument_count, required_states.len());
+    plan.required_states.insert_many(required_states);
     for call in calls {
         let lowering = state_call_lowering(&context, &call);
         let arguments = build_call_arguments(

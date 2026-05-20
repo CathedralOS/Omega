@@ -57,8 +57,49 @@ pub fn encode_syscall_sequence_from_operands(
     Ok(bytes)
 }
 
-pub fn encode_return_bytes() -> [u8; 4] {
-    encode_instruction(0xD65F03C0)
+pub fn encode_function_enter_bytes() -> [u8; 28] {
+    let mut bytes = [0; 28];
+    bytes[0..4].copy_from_slice(&encode_instruction(0xA9BA7BFD));
+    bytes[4..8].copy_from_slice(&encode_instruction(0x910003FD));
+    bytes[8..12].copy_from_slice(&encode_instruction(0xA90153F3));
+    bytes[12..16].copy_from_slice(&encode_instruction(0xA9025BF5));
+    bytes[16..20].copy_from_slice(&encode_instruction(0xA90363F7));
+    bytes[20..24].copy_from_slice(&encode_instruction(0xA9046BF9));
+    bytes[24..28].copy_from_slice(&encode_instruction(0xA90573FB));
+    bytes
+}
+
+pub fn encode_return_bytes() -> [u8; 28] {
+    let mut bytes = [0; 28];
+    bytes[0..4].copy_from_slice(&encode_instruction(0xA94153F3));
+    bytes[4..8].copy_from_slice(&encode_instruction(0xA9425BF5));
+    bytes[8..12].copy_from_slice(&encode_instruction(0xA94363F7));
+    bytes[12..16].copy_from_slice(&encode_instruction(0xA9446BF9));
+    bytes[16..20].copy_from_slice(&encode_instruction(0xA94573FB));
+    bytes[20..24].copy_from_slice(&encode_instruction(0xA8C67BFD));
+    bytes[24..28].copy_from_slice(&encode_instruction(0xD65F03C0));
+    bytes
+}
+
+pub fn encode_return_register_integer_write_bytes(
+    byte_size: usize,
+    value: i64,
+) -> Result<[u8; 4], Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write {byte_size}-byte return integers yet"
+        )));
+    }
+    let immediate = u16::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write return integer `{value}` yet"
+        ))
+    })?;
+    Ok(if byte_size == 8 {
+        encode_movz(0, immediate)
+    } else {
+        encode_movz_w(0, immediate)
+    })
 }
 
 fn append_call_operands(

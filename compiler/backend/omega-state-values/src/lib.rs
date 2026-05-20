@@ -29,7 +29,7 @@ impl StateValuePlanningContext {
             .states
             .iter()
             .any(|(_, state)| state.key == state_key)
-            || self.state_calls.required_source_or_target(state_key)
+            || self.state_calls.required_state(state_key)
     }
 }
 

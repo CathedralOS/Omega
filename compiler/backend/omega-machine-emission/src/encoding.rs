@@ -404,6 +404,7 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::CompareRuntimeStorage { .. }
         | SelectedInstructionKind::CompareRuntimeStorageValue { .. }
         | SelectedInstructionKind::SetDispatchState { .. }
+        | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
         | SelectedInstructionKind::TerminateDispatch
         | SelectedInstructionKind::LeaveDispatchCase
         | SelectedInstructionKind::LeaveDispatchLoop

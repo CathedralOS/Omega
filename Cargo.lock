@@ -536,6 +536,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-state-calls",
  "omega-state-dispatch",
+ "omega-state-graph",
  "omega-state-storage",
 ]
 

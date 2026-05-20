@@ -32,6 +32,7 @@ impl Default for RuntimeBranchingCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeBranchingCallEdge {
     pub order: usize,
+    pub statement_index: usize,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: ExpressionHandle,
@@ -45,6 +46,7 @@ impl Default for RuntimeBranchingCallEdge {
     fn default() -> Self {
         Self {
             order: 0,
+            statement_index: 0,
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
             guard: ExpressionHandle::invalid(),

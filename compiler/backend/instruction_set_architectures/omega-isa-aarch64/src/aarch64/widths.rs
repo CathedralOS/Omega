@@ -31,7 +31,15 @@ pub fn syscall_sequence_width_from_operands(
         + 4
 }
 
+pub fn function_enter_width() -> usize {
+    28
+}
+
 pub fn return_width() -> usize {
+    28
+}
+
+pub fn return_register_integer_write_width() -> usize {
     4
 }
 

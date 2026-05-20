@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 use crate::source::SourceId;
-use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::item::ItemHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub source_id: SourceId,
     pub path: PathBuf,
-    pub syntax_trees: SyntaxTrees,
+    pub root_items: Vec<ItemHandle>,
 }
 
 impl Default for SourceFile {
@@ -15,7 +15,7 @@ impl Default for SourceFile {
         Self {
             source_id: SourceId::default(),
             path: PathBuf::default(),
-            syntax_trees: SyntaxTrees::default(),
+            root_items: Vec::new(),
         }
     }
 }

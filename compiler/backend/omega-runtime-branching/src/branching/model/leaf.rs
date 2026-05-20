@@ -13,6 +13,7 @@ pub struct RuntimeLeafBranchExpansion {
     pub source_key: StateKey,
     pub statement_index: usize,
     pub branch_key: StateKey,
+    pub target_statement_index: usize,
     pub edge_order: usize,
     pub guard: ExpressionHandle,
     pub resolved_guard: ExpressionHandle,
@@ -20,6 +21,7 @@ pub struct RuntimeLeafBranchExpansion {
     pub role: StateCallRole,
     pub leaf_key: StateKey,
     pub target_value: ExpressionHandle,
+    pub is_default_target: bool,
     pub bindings: HandleSpan<RuntimeLeafBranchBinding>,
     pub operations: HandleSpan<RuntimeLeafBranchOperation>,
 }
@@ -31,6 +33,7 @@ impl Default for RuntimeLeafBranchExpansion {
             source_key: StateKey::default(),
             statement_index: 0,
             branch_key: StateKey::default(),
+            target_statement_index: 0,
             edge_order: 0,
             guard: ExpressionHandle::invalid(),
             resolved_guard: ExpressionHandle::invalid(),
@@ -38,6 +41,7 @@ impl Default for RuntimeLeafBranchExpansion {
             role: StateCallRole::Statement,
             leaf_key: StateKey::default(),
             target_value: ExpressionHandle::invalid(),
+            is_default_target: false,
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }

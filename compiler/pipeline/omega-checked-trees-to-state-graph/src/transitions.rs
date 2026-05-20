@@ -65,6 +65,23 @@ pub(super) fn plan_transition(
                 },
             })
         }
+        SegmentTransition::ReturnExpression {
+            statement_index,
+            expression,
+        } => Ok(TransitionEdge {
+            statement_index: *statement_index,
+            target: PlannedTransitionTarget::Terminal,
+            continuation: PlannedTransitionTarget::None,
+            expressions: TransitionExpressionRefs {
+                target_arguments: omega_core::arena::HandleSpan::empty(),
+                target_value: state_graph
+                    .expressions
+                    .copy_from(&program.expression_table, *expression),
+                continuation_arguments: omega_core::arena::HandleSpan::empty(),
+                continuation_value: ExpressionHandle::invalid(),
+                guard: ExpressionHandle::invalid(),
+            },
+        }),
         SegmentTransition::BranchCall {
             statement_index,
             has_continuation_segment,

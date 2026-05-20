@@ -7,21 +7,39 @@ pub(in crate::selection) fn enum_variant_value(
     layouts: &LayoutPlan,
     expression: &Expression,
 ) -> Option<i64> {
-    let Expression::Name(path) = expression else {
-        return None;
+    let (type_symbol, variant_symbol, type_name, variant_name) = match expression {
+        Expression::Name(path) => {
+            let [type_name, variant_name] = path.members() else {
+                return None;
+            };
+            (
+                path.head_symbol(),
+                path.symbol(),
+                type_name.as_str(),
+                variant_name.as_str(),
+            )
+        }
+        Expression::Member(member) => {
+            let Expression::Name(path) = &member.receiver else {
+                return None;
+            };
+            let type_name = path.last()?;
+            (
+                path.symbol(),
+                member.member_symbol,
+                type_name.as_str(),
+                member.member.as_str(),
+            )
+        }
+        _ => return None,
     };
-    let [_, _] = path.members() else {
-        return None;
-    };
-    let type_symbol = path.head_symbol();
-    let variant_symbol = path.symbol();
-    if !type_symbol.is_valid() || !variant_symbol.is_valid() {
-        return None;
-    }
     let data_layout = layouts
         .data_layouts
         .iter()
-        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
+        .find(|(_, data_layout)| {
+            (type_symbol.is_valid() && data_layout.symbol == type_symbol)
+                || data_layout.name.as_str() == type_name
+        })
         .map(|(_, data_layout)| data_layout)?;
     let DataShape::Enum { variants } = &data_layout.shape else {
         return None;
@@ -30,7 +48,10 @@ pub(in crate::selection) fn enum_variant_value(
         .variants
         .span_or_empty(*variants)
         .iter()
-        .position(|variant| variant.symbol == variant_symbol)
+        .position(|variant| {
+            (variant_symbol.is_valid() && variant.symbol == variant_symbol)
+                || variant.name.as_str() == variant_name
+        })
         .and_then(|index| i64::try_from(index).ok())
 }
 
@@ -62,21 +83,40 @@ pub(in crate::selection) fn enum_variant_value_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<i64> {
-    let ExpressionNode::Name(path) = expressions.expression(expression) else {
-        return None;
-    };
-    if expressions.name_path_members(path.members).len() != 2 {
-        return None;
-    }
-    let type_symbol = path.head_symbol;
-    let variant_symbol = path.symbol;
-    if !type_symbol.is_valid() || !variant_symbol.is_valid() {
-        return None;
-    }
+    let (type_symbol, variant_symbol, type_name, variant_name) =
+        match expressions.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let [type_name, variant_name] = expressions.name_path_members(path.members) else {
+                    return None;
+                };
+                (
+                    path.head_symbol,
+                    path.symbol,
+                    type_name.as_str(),
+                    variant_name.as_str(),
+                )
+            }
+            ExpressionNode::Member(member) => {
+                let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+                    return None;
+                };
+                let type_name = expressions.name_path_members(path.members).last()?;
+                (
+                    path.symbol,
+                    member.member_symbol,
+                    type_name.as_str(),
+                    member.member.as_str(),
+                )
+            }
+            _ => return None,
+        };
     let data_layout = layouts
         .data_layouts
         .iter()
-        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
+        .find(|(_, data_layout)| {
+            (type_symbol.is_valid() && data_layout.symbol == type_symbol)
+                || data_layout.name.as_str() == type_name
+        })
         .map(|(_, data_layout)| data_layout)?;
     let DataShape::Enum { variants } = &data_layout.shape else {
         return None;
@@ -85,6 +125,9 @@ pub(in crate::selection) fn enum_variant_value_in_table(
         .variants
         .span_or_empty(*variants)
         .iter()
-        .position(|variant| variant.symbol == variant_symbol)
+        .position(|variant| {
+            (variant_symbol.is_valid() && variant.symbol == variant_symbol)
+                || variant.name.as_str() == variant_name
+        })
         .and_then(|index| i64::try_from(index).ok())
 }

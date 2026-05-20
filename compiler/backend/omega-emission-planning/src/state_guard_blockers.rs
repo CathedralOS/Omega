@@ -179,7 +179,8 @@ fn runtime_value_expression_can_emit(
         | Expression::Indexed(_)
         | Expression::Mutable(_)
         | Expression::Boolean(_)
-        | Expression::Integer(_) => true,
+        | Expression::Integer(_)
+        | Expression::String(_) => true,
         Expression::Call(_) => input
             .runtime_storage
             .transition_guard_result_slot(source_dispatch_index, source_key, statement_index)

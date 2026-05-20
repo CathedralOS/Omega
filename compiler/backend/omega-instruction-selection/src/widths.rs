@@ -33,10 +33,24 @@ pub fn syscall_sequence_width(
     }
 }
 
+pub fn function_enter_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::function_enter_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn return_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_width(),
         Architecture::X86_64 => 1,
+    }
+}
+
+pub fn return_register_integer_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::return_register_integer_write_width(),
+        Architecture::X86_64 => 0,
     }
 }
 

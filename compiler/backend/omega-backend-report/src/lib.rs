@@ -977,6 +977,17 @@ pub fn backend_report_text(
                     )
                 ));
             }
+            if expansion.target_value.is_valid() {
+                output.push_str(&format!(
+                    "  target value: {}\n",
+                    backend_plan
+                        .runtime_branching_calls
+                        .expressions
+                        .display_name(expansion.target_value)
+                ));
+            } else {
+                output.push_str("  target value: none\n");
+            }
 
             match backend_plan
                 .runtime_branching_calls

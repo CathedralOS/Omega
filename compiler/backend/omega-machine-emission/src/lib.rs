@@ -181,6 +181,15 @@ fn insert_fixed_machine_instruction_bytes(
     kind: &SelectedInstructionKind,
 ) -> Result<bool, Diagnostic> {
     match kind {
+        SelectedInstructionKind::EnterFunction => {
+            let (bytes, byte_count) = omega_instruction_selection::encode_function_enter_bytes(
+                emission_context.target.architecture,
+            )?;
+            for byte in bytes.into_iter().take(byte_count) {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..
@@ -328,14 +337,31 @@ fn insert_fixed_machine_instruction_bytes(
             )?;
             Ok(true)
         }
+        SelectedInstructionKind::WriteReturnRegisterInteger { byte_size, value } => {
+            let (bytes, byte_count) =
+                omega_instruction_selection::encode_return_register_integer_write_bytes(
+                    emission_context.target.architecture,
+                    *byte_size,
+                    *value,
+                )?;
+            for byte in bytes.into_iter().take(byte_count) {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::TerminateDispatch => {
-            insert_dispatch_state_write_bytes(
-                inserter,
-                emission_context,
-                laid_out_instructions,
-                machine_instruction_index,
+            let bytes = omega_instruction_selection::encode_dispatch_state_write_bytes(
+                emission_context.target.architecture,
                 emission_context.terminal_dispatch_index,
+                branch_distances::byte_distance_to_dispatch_loop_leave(
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
             )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
             Ok(true)
         }
         SelectedInstructionKind::LeaveDispatchCase => {

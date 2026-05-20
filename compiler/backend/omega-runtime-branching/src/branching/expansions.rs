@@ -26,9 +26,18 @@ use omega_state_guards::StateGuardKind;
 pub(super) fn append_branch_prelude_expansion(
     context: &RuntimeBranchingContext,
     expressions: &mut ExpressionTable,
+    target_arguments_arena: &mut Arena<ExpressionHandle>,
+    target_values: &mut Arena<ExpressionHandle>,
+    output_edges: &mut Arena<RuntimeBranchingCallEdge>,
     prelude_expansions: &mut Arena<RuntimeBranchPreludeExpansion>,
     prelude_bindings: &mut Arena<RuntimeBranchPreludeBinding>,
     prelude_operations_arena: &mut Arena<RuntimeBranchPreludeOperation>,
+    leaf_expansions: &mut Arena<RuntimeLeafBranchExpansion>,
+    leaf_bindings: &mut Arena<RuntimeLeafBranchBinding>,
+    leaf_operations_arena: &mut Arena<RuntimeLeafBranchOperation>,
+    straight_line_expansions: &mut Arena<RuntimeStraightLineBranchExpansion>,
+    straight_line_bindings_arena: &mut Arena<RuntimeStraightLineBranchBinding>,
+    straight_line_operations_arena: &mut Arena<RuntimeStraightLineBranchOperation>,
     source_key: StateKey,
     branch_key: StateKey,
     statement_index: usize,
@@ -60,6 +69,36 @@ pub(super) fn append_branch_prelude_expansion(
         bindings,
         operations,
     });
+
+    let operations = straight_line_operations(
+        context,
+        expressions,
+        straight_line_operations_arena,
+        state_call.target_key,
+    );
+    let operations = straight_line_operations_arena
+        .span(operations)
+        .map(|operations| operations.to_vec())
+        .unwrap_or_default();
+    append_nested_operation_branch_expansions_with_bindings(
+        context,
+        expressions,
+        target_arguments_arena,
+        target_values,
+        output_edges,
+        leaf_expansions,
+        leaf_bindings,
+        leaf_operations_arena,
+        straight_line_expansions,
+        straight_line_bindings_arena,
+        straight_line_operations_arena,
+        dispatch_index,
+        operations,
+        &branch_bindings,
+        ExpressionHandle::invalid(),
+        StateGuardKind::Always,
+        &mut Vec::new(),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -81,7 +120,43 @@ pub(super) fn append_leaf_branch_expansions(
     inherited_guard_kind: StateGuardKind,
 ) {
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
+    append_leaf_branch_expansions_with_bindings(
+        context,
+        expressions,
+        target_arguments,
+        leaf_expansions,
+        leaf_bindings,
+        leaf_operations_arena,
+        source_key,
+        branch_key,
+        statement_index,
+        dispatch_index,
+        edges,
+        state_call,
+        &branch_bindings,
+        inherited_guard,
+        inherited_guard_kind,
+    );
+}
 
+#[allow(clippy::too_many_arguments)]
+fn append_leaf_branch_expansions_with_bindings(
+    context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
+    target_arguments: &Arena<ExpressionHandle>,
+    leaf_expansions: &mut Arena<RuntimeLeafBranchExpansion>,
+    leaf_bindings: &mut Arena<RuntimeLeafBranchBinding>,
+    leaf_operations_arena: &mut Arena<RuntimeLeafBranchOperation>,
+    source_key: StateKey,
+    branch_key: StateKey,
+    statement_index: usize,
+    dispatch_index: u32,
+    edges: &[RuntimeBranchingCallEdge],
+    state_call: &StateCall,
+    branch_bindings: &BranchParameterBindings,
+    inherited_guard: ExpressionHandle,
+    inherited_guard_kind: StateGuardKind,
+) {
     for edge in edges {
         let (leaf_key, bindings, operations) = match &edge.target {
             RuntimeTransitionTarget::State { key: leaf_key, .. }
@@ -125,6 +200,7 @@ pub(super) fn append_leaf_branch_expansions(
             source_key,
             statement_index,
             branch_key,
+            target_statement_index: edge.statement_index,
             edge_order: edge.order,
             guard: resolved_guard,
             resolved_guard,
@@ -132,6 +208,7 @@ pub(super) fn append_leaf_branch_expansions(
             role: state_call.role,
             leaf_key,
             target_value: edge.target_value,
+            is_default_target: edge.guard_kind == StateGuardKind::Always,
             bindings,
             operations,
         });
@@ -178,6 +255,7 @@ pub(super) fn append_straight_line_branch_expansions(
         statement_index,
         dispatch_index,
         edges,
+        state_call,
         &branch_bindings,
         ExpressionHandle::invalid(),
         StateGuardKind::Always,
@@ -203,6 +281,7 @@ fn append_straight_line_branch_expansions_for_edges(
     statement_index: usize,
     dispatch_index: u32,
     edges: &[RuntimeBranchingCallEdge],
+    state_call: &StateCall,
     branch_bindings: &BranchParameterBindings,
     inherited_guard: ExpressionHandle,
     inherited_guard_kind: StateGuardKind,
@@ -251,34 +330,56 @@ fn append_straight_line_branch_expansions_for_edges(
             statement_index,
             branch_key,
             target_key: *target_key,
+            target_statement_index: edge.statement_index,
             edge_order: edge.order,
             guard: resolved_guard,
             resolved_guard,
             guard_kind,
+            role: state_call.role,
+            call_ordinal: state_call.call_ordinal,
+            target_value: edge.target_value,
             bindings,
             operations,
         });
 
+        let nested_branch_bindings = nested_branch_parameter_bindings(
+            branch_bindings,
+            context,
+            *target_key,
+            expressions,
+            target_arguments,
+        );
+        let nested_edges = build_branch_edges(
+            context,
+            *target_key,
+            expressions,
+            target_arguments_arena,
+            target_values,
+            output_edges,
+        );
+        let nested_edges = output_edges.span_or_empty(nested_edges).to_vec();
+        append_leaf_branch_expansions_with_bindings(
+            context,
+            expressions,
+            target_arguments_arena,
+            leaf_expansions,
+            leaf_bindings,
+            leaf_operations_arena,
+            source_key,
+            *target_key,
+            statement_index,
+            dispatch_index,
+            &nested_edges,
+            state_call,
+            &nested_branch_bindings,
+            resolved_guard,
+            guard_kind,
+        );
+
         if edge.lowering == RuntimeBranchTargetLowering::InlineBranching
             && !visited.contains(target_key)
         {
-            let nested_branch_bindings = nested_branch_parameter_bindings(
-                branch_bindings,
-                context,
-                *target_key,
-                expressions,
-                target_arguments,
-            );
             visited.push(*target_key);
-            let nested_edges = build_branch_edges(
-                context,
-                *target_key,
-                expressions,
-                target_arguments_arena,
-                target_values,
-                output_edges,
-            );
-            let nested_edges = output_edges.span_or_empty(nested_edges).to_vec();
             append_straight_line_branch_expansions_for_edges(
                 context,
                 expressions,
@@ -296,6 +397,7 @@ fn append_straight_line_branch_expansions_for_edges(
                 statement_index,
                 dispatch_index,
                 &nested_edges,
+                state_call,
                 &nested_branch_bindings,
                 resolved_guard,
                 guard_kind,
@@ -352,6 +454,47 @@ fn append_nested_operation_branch_expansions(
     let parent_bindings = straight_line_bindings_arena.span_or_empty(*parent_bindings);
     let parent_branch_bindings = branch_parameter_bindings_from_straight_line(parent_bindings);
 
+    append_nested_operation_branch_expansions_with_bindings(
+        context,
+        expressions,
+        target_arguments_arena,
+        target_values,
+        output_edges,
+        leaf_expansions,
+        leaf_bindings,
+        leaf_operations_arena,
+        straight_line_expansions,
+        straight_line_bindings_arena,
+        straight_line_operations_arena,
+        dispatch_index,
+        operations.into(),
+        &parent_branch_bindings,
+        inherited_guard,
+        inherited_guard_kind,
+        visited,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_nested_operation_branch_expansions_with_bindings(
+    context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
+    target_arguments_arena: &mut Arena<ExpressionHandle>,
+    target_values: &mut Arena<ExpressionHandle>,
+    output_edges: &mut Arena<RuntimeBranchingCallEdge>,
+    leaf_expansions: &mut Arena<RuntimeLeafBranchExpansion>,
+    leaf_bindings: &mut Arena<RuntimeLeafBranchBinding>,
+    leaf_operations_arena: &mut Arena<RuntimeLeafBranchOperation>,
+    straight_line_expansions: &mut Arena<RuntimeStraightLineBranchExpansion>,
+    straight_line_bindings_arena: &mut Arena<RuntimeStraightLineBranchBinding>,
+    straight_line_operations_arena: &mut Arena<RuntimeStraightLineBranchOperation>,
+    dispatch_index: u32,
+    operations: Vec<RuntimeStraightLineBranchOperation>,
+    parent_branch_bindings: &BranchParameterBindings,
+    inherited_guard: ExpressionHandle,
+    inherited_guard_kind: StateGuardKind,
+    visited: &mut Vec<StateKey>,
+) {
     for operation in &operations {
         let RuntimeStraightLineBranchOperationKind::StateCall {
             role,
@@ -382,6 +525,62 @@ fn append_nested_operation_branch_expansions(
             &parent_branch_bindings,
             state_call,
         );
+        let target_prelude_operations = straight_line_operations(
+            context,
+            expressions,
+            straight_line_operations_arena,
+            target_key,
+        );
+        if let Some(target_prelude_operations_slice) =
+            straight_line_operations_arena.span(target_prelude_operations)
+            && !target_prelude_operations_slice.is_empty()
+        {
+            let target_prelude_bindings =
+                straight_line_bindings_arena.insert_many(nested_branch_bindings.iter().map(
+                    |binding| RuntimeStraightLineBranchBinding {
+                        parameter_symbol: binding.parameter_symbol,
+                        parameter_name: binding.parameter_name.clone(),
+                        expression: binding.expression,
+                        kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+                    },
+                ));
+            straight_line_expansions.insert(RuntimeStraightLineBranchExpansion {
+                dispatch_index,
+                source_key: operation.source_key,
+                statement_index: operation.statement_index,
+                branch_key: target_key,
+                target_key,
+                target_statement_index: 0,
+                edge_order: 0,
+                guard: inherited_guard,
+                resolved_guard: inherited_guard,
+                guard_kind: inherited_guard_kind,
+                role: state_call.role,
+                call_ordinal: state_call.call_ordinal,
+                target_value: ExpressionHandle::invalid(),
+                bindings: target_prelude_bindings,
+                operations: target_prelude_operations,
+            });
+            append_nested_operation_branch_expansions_with_bindings(
+                context,
+                expressions,
+                target_arguments_arena,
+                target_values,
+                output_edges,
+                leaf_expansions,
+                leaf_bindings,
+                leaf_operations_arena,
+                straight_line_expansions,
+                straight_line_bindings_arena,
+                straight_line_operations_arena,
+                dispatch_index,
+                target_prelude_operations_slice.to_vec(),
+                &nested_branch_bindings,
+                inherited_guard,
+                inherited_guard_kind,
+                visited,
+            );
+        }
         let nested_edges = build_branch_edges(
             context,
             target_key,
@@ -391,7 +590,7 @@ fn append_nested_operation_branch_expansions(
             output_edges,
         );
         let nested_edges = output_edges.span_or_empty(nested_edges).to_vec();
-        append_leaf_branch_expansions(
+        append_leaf_branch_expansions_with_bindings(
             context,
             expressions,
             target_arguments_arena,
@@ -404,7 +603,7 @@ fn append_nested_operation_branch_expansions(
             dispatch_index,
             &nested_edges,
             state_call,
-            &RuntimeBranchAliasBuffer::new(),
+            &nested_branch_bindings,
             inherited_guard,
             inherited_guard_kind,
         );
@@ -426,6 +625,7 @@ fn append_nested_operation_branch_expansions(
             operation.statement_index,
             dispatch_index,
             &nested_edges,
+            state_call,
             &nested_branch_bindings,
             inherited_guard,
             inherited_guard_kind,

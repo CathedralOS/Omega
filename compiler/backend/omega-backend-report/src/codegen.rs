@@ -621,6 +621,9 @@ fn selected_instruction_name(
                 selected_instruction_operands_name(backend_plan, *operands)
             )
         }
+        SelectedInstructionKind::WriteReturnRegisterInteger { byte_size, value } => {
+            format!("write return register integer bytes {byte_size} value {value}")
+        }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
     }
 }

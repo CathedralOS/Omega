@@ -378,15 +378,27 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
-    if let Some(kind) = storage_copy::runtime_storage_indexed_source_copy_in_table(
+    if let Some(kind) = mutation::select_runtime_static_mutation_write_in_table(
         input,
         dispatch_index,
         target_source_key,
-        value_source_key,
+        statement_index,
         expressions,
         target,
         value,
+        static_values,
     )
+    .or_else(|| {
+        storage_copy::runtime_storage_indexed_source_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            target,
+            value,
+        )
+    })
     .or_else(|| {
         storage_copy::runtime_storage_fixed_indexed_source_copy_in_table(
             input,
@@ -418,18 +430,6 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
             expressions,
             target,
             value,
-        )
-    })
-    .or_else(|| {
-        mutation::select_runtime_static_mutation_write_in_table(
-            input,
-            dispatch_index,
-            target_source_key,
-            statement_index,
-            expressions,
-            target,
-            value,
-            static_values,
         )
     })
     .or_else(|| {

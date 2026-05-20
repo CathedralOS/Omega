@@ -8,7 +8,10 @@ pub use dispatch::{
     encode_dispatch_guard_compare_static_bytes, encode_dispatch_loop_enter_bytes,
     encode_dispatch_state_write_bytes,
 };
-pub use host::{encode_host_call_sequence, encode_return_bytes, encode_syscall_sequence};
+pub use host::{
+    encode_function_enter_bytes, encode_host_call_sequence, encode_return_bytes,
+    encode_return_register_integer_write_bytes, encode_syscall_sequence,
+};
 pub use runtime_storage::{
     encode_runtime_frame_indexed_binary_write, encode_runtime_frame_indexed_integer_write,
     encode_runtime_frame_indexed_string_write, encode_runtime_machine_integer_write,

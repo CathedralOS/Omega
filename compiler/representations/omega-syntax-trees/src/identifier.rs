@@ -15,6 +15,10 @@ enum IdentifierText {
     #[default]
     Missing,
     Shared(Arc<str>),
+    SourceBacked {
+        source: Arc<str>,
+        source_span: SourceSpan,
+    },
 }
 
 impl Identifier {
@@ -32,10 +36,24 @@ impl Identifier {
         }
     }
 
+    pub fn source_backed(source: Arc<str>, source_span: SourceSpan) -> Self {
+        Self {
+            text: IdentifierText::SourceBacked {
+                source,
+                source_span,
+            },
+            source_span,
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         match &self.text {
             IdentifierText::Missing => "",
             IdentifierText::Shared(text) => text.as_ref(),
+            IdentifierText::SourceBacked {
+                source,
+                source_span,
+            } => &source[source_span.span.start..source_span.span.end],
         }
     }
 

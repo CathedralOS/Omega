@@ -34,10 +34,43 @@ pub fn encode_syscall_sequence(
     }
 }
 
-pub fn encode_return_bytes(architecture: Architecture) -> Result<([u8; 4], usize), Diagnostic> {
+pub fn encode_function_enter_bytes(
+    architecture: Architecture,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Ok((aarch64::encode_return_bytes(), 4)),
-        Architecture::X86_64 => Ok(([0xC3, 0, 0, 0], 1)),
+        Architecture::Aarch64 => {
+            let bytes = aarch64::encode_function_enter_bytes().to_vec();
+            let byte_count = bytes.len();
+            Ok((bytes, byte_count))
+        }
+        Architecture::X86_64 => Ok((Vec::new(), 0)),
+    }
+}
+
+pub fn encode_return_bytes(architecture: Architecture) -> Result<(Vec<u8>, usize), Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            let bytes = aarch64::encode_return_bytes().to_vec();
+            let byte_count = bytes.len();
+            Ok((bytes, byte_count))
+        }
+        Architecture::X86_64 => Ok((vec![0xC3], 1)),
+    }
+}
+
+pub fn encode_return_register_integer_write_bytes(
+    architecture: Architecture,
+    byte_size: usize,
+    value: i64,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            let bytes =
+                aarch64::encode_return_register_integer_write_bytes(byte_size, value)?.to_vec();
+            let byte_count = bytes.len();
+            Ok((bytes, byte_count))
+        }
+        Architecture::X86_64 => unsupported_x86_64_encoding().map(|bytes| (bytes, 0)),
     }
 }
 

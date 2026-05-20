@@ -14,7 +14,7 @@ machine GameView::render_title {
     ) {
         console.write_line("Omega Dungeon");
         console.write_line("A tiny generated crawl for compiler stress.");
-        console.write_line("Type look, exits, a direction, or quit.");
+        console.write_line("Type look, exits, inventory, character, use, fight, or quit.");
     }
 }
 

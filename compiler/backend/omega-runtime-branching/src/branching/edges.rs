@@ -55,6 +55,7 @@ pub(super) fn build_branch_edges(
         let target = runtime_transition_target(context, machine, state.key, &transition.target);
         RuntimeBranchingCallEdge {
             order,
+            statement_index: transition.statement_index,
             lowering: branch_target_lowering(context, &target),
             target,
             continuation: runtime_transition_target(

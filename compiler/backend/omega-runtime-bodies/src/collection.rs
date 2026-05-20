@@ -13,6 +13,7 @@ use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering};
 use omega_state_dispatch::DispatchState;
+use omega_state_graph::RuntimeTransitionTarget;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
@@ -164,6 +165,9 @@ fn append_state_body_operations(
         if let Some(state_call) =
             state_call_for_statement(context, state_key, operation.statement_index)
         {
+            if state_call_is_dispatched(context, state_call) {
+                continue;
+            }
             append_state_call_body_operation(
                 context,
                 state_call,
@@ -263,6 +267,24 @@ fn append_state_body_operations(
     }
 
     visiting.pop();
+}
+
+fn state_call_is_dispatched(context: &RuntimeDispatchBodyContext, state_call: &StateCall) -> bool {
+    context
+        .state_dispatch
+        .states
+        .iter()
+        .find(|(_, state)| state.key == state_call.source_key)
+        .and_then(|(_, state)| context.state_dispatch.edges.span(state.edges))
+        .is_some_and(|edges| {
+            edges.iter().any(|edge| {
+                edge.statement_index == state_call.statement_index
+                    && matches!(
+                        edge.target,
+                        RuntimeTransitionTarget::State { key } if key == state_call.target_key
+                    )
+            })
+        })
 }
 
 fn append_state_call_body_operation(

@@ -3,10 +3,13 @@ use omega_checked_trees::expression::{Expression, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
+use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_state_calls::StateCallRole;
 
 use super::super::super::bindings::resolve_leaf_binding_expression_handle;
+use super::super::super::lookups::state_mutation_for_statement;
+use super::super::super::storage_places::resolve_runtime_storage_place_in_table;
 use super::super::super::storage_places::{
     resolve_machine_owned_place, resolve_machine_owned_place_in_table, static_integer_value,
     static_integer_value_in_table,
@@ -24,7 +27,10 @@ use super::mutation::{
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind};
+use omega_runtime_dispatch_loop::RuntimeDispatchLoopAction;
+use omega_target_operations::{
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+};
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
@@ -42,21 +48,24 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
-    expansion_cursor: &mut usize,
+    _expansion_cursor: &mut usize,
     scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let expansions = input
+    let mut matching_expansions = input
         .runtime_branching_calls
         .leaf_expansions
-        .storage_slice();
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            leaf_expansion_matches_operation(expansion, dispatch_index, operation, false)
+        })
+        .collect::<Vec<_>>();
 
-    while let Some(expansion) = expansions.get(*expansion_cursor) {
-        if !leaf_expansion_matches_operation(expansion, dispatch_index, operation) {
-            break;
-        }
+    order_return_value_fallbacks_first(&mut matching_expansions);
 
+    for expansion in matching_expansions {
         select_runtime_leaf_branch_expansion(
             input,
             expansion,
@@ -64,7 +73,6 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
             runtime_value_operands,
             selected_instructions,
         );
-        *expansion_cursor += 1;
     }
 }
 
@@ -76,21 +84,26 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let expansions = input
+    let mut matching_expansions = input
         .runtime_branching_calls
         .leaf_expansions
-        .storage_slice();
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            leaf_expansion_matches_operation(expansion, dispatch_index, operation, true)
+        })
+        .collect::<Vec<_>>();
 
-    for expansion in expansions {
-        if leaf_expansion_matches_operation(expansion, dispatch_index, operation) {
-            select_runtime_leaf_branch_expansion(
-                input,
-                expansion,
-                scratch,
-                runtime_value_operands,
-                selected_instructions,
-            );
-        }
+    order_return_value_fallbacks_first(&mut matching_expansions);
+
+    for expansion in matching_expansions {
+        select_runtime_leaf_branch_expansion(
+            input,
+            expansion,
+            scratch,
+            runtime_value_operands,
+            selected_instructions,
+        );
     }
 }
 
@@ -98,10 +111,25 @@ fn leaf_expansion_matches_operation(
     expansion: &RuntimeLeafBranchExpansion,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
+    allow_synthetic_nested_operation: bool,
 ) -> bool {
     expansion.dispatch_index == dispatch_index
         && expansion.source_key == operation.source_key
         && expansion.statement_index == operation.statement_index
+        && (matches!(
+            operation.kind,
+            RuntimeDispatchBodyOperationKind::StateCall { .. }
+        ) || (allow_synthetic_nested_operation
+            && matches!(operation.kind, RuntimeDispatchBodyOperationKind::Other)))
+}
+
+fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpansion]) {
+    expansions.sort_by_key(|expansion| {
+        (
+            !(expansion.target_value.is_valid() && expansion.is_default_target),
+            expansion.edge_order,
+        )
+    });
 }
 
 fn select_runtime_leaf_branch_expansion(
@@ -115,6 +143,7 @@ fn select_runtime_leaf_branch_expansion(
     if guards.is_empty() && expansion.guard_kind != omega_state_guards::StateGuardKind::Always {
         return;
     }
+    let guards_were_empty = guards.is_empty();
     let guard_start = selected_instructions.len();
     for guard in guards {
         selected_instructions.push(SelectedInstruction {
@@ -132,6 +161,8 @@ fn select_runtime_leaf_branch_expansion(
         runtime_value_operands,
         selected_instructions,
     );
+    select_runtime_leaf_assignment_value_target_copy(input, expansion, selected_instructions);
+    select_runtime_leaf_assignment_value_local_copy(input, expansion, selected_instructions);
     select_runtime_leaf_branch_mutation_writes(
         input,
         expansion,
@@ -139,11 +170,87 @@ fn select_runtime_leaf_branch_expansion(
         runtime_value_operands,
         selected_instructions,
     );
+    select_runtime_leaf_branch_completion_dispatch(input, expansion, selected_instructions);
     if selected_instructions.len() == write_start {
         while selected_instructions.len() > guard_start {
             selected_instructions.pop();
         }
+    } else if !guards_were_empty {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: omega_target_operations::StateGuardLowering::NoOp,
+                operator: omega_target_operations::StateGuardOperator::Equal,
+                storage_region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_size: 0,
+                expected_value: 0,
+                has_storage: false,
+            },
+            source_key: expansion.source_key,
+            source_statement: expansion.statement_index,
+        });
     }
+}
+
+fn select_runtime_leaf_branch_completion_dispatch(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    if expansion.role != StateCallRole::Statement || expansion.target_value.is_valid() {
+        return;
+    }
+    if !leaf_state_is_empty(input, expansion.leaf_key) {
+        return;
+    }
+    let Some(dispatch_index) = source_completion_dispatch_index(input, expansion) else {
+        return;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::SetDispatchState { dispatch_index },
+        source_key: expansion.source_key,
+        source_statement: expansion.statement_index,
+    });
+}
+
+fn leaf_state_is_empty(
+    input: &InstructionSelectionInput<'_>,
+    key: omega_control_flow::StateKey,
+) -> bool {
+    let Some(state) = input.control_flow.state_by_key(key) else {
+        return false;
+    };
+    input
+        .control_flow
+        .operations
+        .span(state.operations)
+        .map_or(true, <[_]>::is_empty)
+        && input
+            .control_flow
+            .transitions
+            .span(state.transitions)
+            .map_or(true, <[_]>::is_empty)
+}
+
+fn source_completion_dispatch_index(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+) -> Option<u32> {
+    let case = input
+        .runtime_dispatch_loop
+        .cases
+        .iter()
+        .find_map(|(_, case)| (case.key == expansion.source_key).then_some(case))?;
+    let edges = input.runtime_dispatch_loop.edges.span(case.edges)?;
+    let mut targets = edges.iter().filter_map(|edge| match edge.action {
+        RuntimeDispatchLoopAction::EnterState | RuntimeDispatchLoopAction::Terminate => {
+            Some(edge.target_dispatch_index)
+        }
+        RuntimeDispatchLoopAction::Unknown => None,
+    });
+    let first = targets.next()?;
+    targets.next().is_none().then_some(first)
 }
 
 fn select_runtime_leaf_branch_terminal_value_write(
@@ -191,8 +298,8 @@ fn select_runtime_leaf_branch_terminal_value_write(
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,
-        expansion.source_key,
-        expansion.statement_index,
+        expansion.branch_key,
+        expansion.target_statement_index,
         &expressions,
         slot,
         resolved_value,
@@ -201,8 +308,8 @@ fn select_runtime_leaf_branch_terminal_value_write(
     ) {
         selected_instructions.push(SelectedInstruction {
             kind,
-            source_key: expansion.source_key,
-            source_statement: expansion.statement_index,
+            source_key: expansion.branch_key,
+            source_statement: expansion.target_statement_index,
         });
         return;
     }
@@ -211,10 +318,10 @@ fn select_runtime_leaf_branch_terminal_value_write(
     if select_runtime_resolved_mutation_write_in_table_with_scratch(
         input,
         expansion.dispatch_index,
+        expansion.branch_key,
         expansion.source_key,
-        expansion.source_key,
-        expansion.source_key,
-        expansion.statement_index,
+        expansion.branch_key,
+        expansion.target_statement_index,
         &expressions,
         target,
         resolved_value,
@@ -228,20 +335,117 @@ fn select_runtime_leaf_branch_terminal_value_write(
 
     let target = expressions.to_tree(target);
     let resolved_value = expressions.to_tree(resolved_value);
-    let (source_machine, source_state) = state_names(input, expansion.source_key);
+    let (source_machine, source_state) = state_names(input, expansion.branch_key);
     select_runtime_resolved_mutation_write(
         input,
         expansion.dispatch_index,
-        expansion.source_key,
+        expansion.branch_key,
         &source_machine,
         &source_machine,
         &source_state,
-        expansion.statement_index,
+        expansion.target_statement_index,
         &target,
         &resolved_value,
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+fn select_runtime_leaf_assignment_value_target_copy(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    if expansion.role != StateCallRole::AssignmentValue || !expansion.target_value.is_valid() {
+        return;
+    }
+    let Some(source_slot) = input.runtime_storage.call_result_slot(
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expansion.role,
+    ) else {
+        return;
+    };
+    let Some(mutation) =
+        state_mutation_for_statement(input, expansion.source_key, expansion.statement_index)
+    else {
+        return;
+    };
+    let Some(target_place) = resolve_runtime_storage_place_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.state_storage.expressions,
+        mutation.target,
+    ) else {
+        return;
+    };
+    if source_slot.byte_size != target_place.byte_count || source_slot.byte_size == 0 {
+        return;
+    }
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: RuntimeStorageRegion::RuntimeFrame,
+            source_offset: source_slot.byte_offset,
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            byte_count: source_slot.byte_size,
+        },
+        source_key: expansion.source_key,
+        source_statement: expansion.statement_index,
+    });
+}
+
+fn select_runtime_leaf_assignment_value_local_copy(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    if expansion.role != StateCallRole::AssignmentValue || !expansion.target_value.is_valid() {
+        return;
+    }
+    let Some(source_slot) = input.runtime_storage.call_result_slot(
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expansion.role,
+    ) else {
+        return;
+    };
+    let Some(target_slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == expansion.dispatch_index
+                && slot.source_key == expansion.source_key
+                && slot.statement_index == expansion.statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+    if source_slot.byte_size != target_slot.byte_size || source_slot.byte_size == 0 {
+        return;
+    }
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: RuntimeStorageRegion::RuntimeFrame,
+            source_offset: source_slot.byte_offset,
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: target_slot.byte_offset,
+            byte_count: source_slot.byte_size,
+        },
+        source_key: expansion.source_key,
+        source_statement: expansion.statement_index,
+    });
 }
 
 fn select_runtime_leaf_branch_mutation_writes(

@@ -1,0 +1,61 @@
+platform Console {
+    entry write_line(text: String);
+    entry read_line(out_line: &mut ConsoleLine);
+    entry exit_process(return_code: i32);
+}
+
+data ConsoleLine {
+    text: String;
+}
+
+enum Command {
+    Look,
+    Quit,
+    Invalid,
+}
+
+data Parser {
+}
+
+machine Parser::resolve -> Command {
+    pub entry(&mut self, line: &ConsoleLine) {
+        -> Command::Look when line.text == "look";
+        -> Command::Quit when line.text == "quit";
+        -> Command::Invalid;
+    }
+}
+
+data main {
+    console: Console;
+    line: ConsoleLine;
+    parser: Parser;
+    command: Command;
+}
+
+machine main {
+    pub entry(&mut self) {
+        self.console.read_line(&mut self.line);
+        self.command = self.parser.resolve(&self.line);
+
+        transition self.command {
+            Command::Look -> look()
+            Command::Quit -> quit()
+            Command::Invalid -> invalid()
+        }
+    }
+
+    state look(&mut self) {
+        self.console.write_line("look");
+        self.console.exit_process(0);
+    }
+
+    state quit(&mut self) {
+        self.console.write_line("quit");
+        self.console.exit_process(0);
+    }
+
+    state invalid(&mut self) {
+        self.console.write_line("invalid");
+        self.console.exit_process(1);
+    }
+}

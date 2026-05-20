@@ -22,7 +22,7 @@ use crate::parse_error::ParseError;
 use file::parse_file;
 use input::Input;
 use omega_core::source::SourceId;
-use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::{SyntaxTrees, item::ItemHandle};
 use omega_tokens::Token;
 
 pub fn parse_syntax_trees(tokens: &[Token<'_>]) -> Result<SyntaxTrees, ParseError> {
@@ -33,9 +33,20 @@ pub fn parse_syntax_trees_with_id(
     source_id: SourceId,
     tokens: &[Token<'_>],
 ) -> Result<SyntaxTrees, ParseError> {
-    let input = Input::new(source_id, tokens);
     let mut syntax_trees = SyntaxTrees::new(source_id);
-    let ((), rest) = parse_file(&mut syntax_trees, input)?;
+    parse_syntax_trees_into_with_id(&mut syntax_trees, source_id, tokens)?;
+
+    Ok(syntax_trees)
+}
+
+pub fn parse_syntax_trees_into_with_id(
+    syntax_trees: &mut SyntaxTrees,
+    source_id: SourceId,
+    tokens: &[Token<'_>],
+) -> Result<Vec<ItemHandle>, ParseError> {
+    let input = Input::new(source_id, tokens);
+    let mut root_items = Vec::new();
+    let ((), rest) = parse_file(syntax_trees, input, &mut root_items)?;
 
     if let Some(token) = rest.tokens.first() {
         return Err(ParseError::at_source_span(
@@ -44,7 +55,7 @@ pub fn parse_syntax_trees_with_id(
         ));
     }
 
-    Ok(syntax_trees)
+    Ok(root_items)
 }
 
 #[cfg(test)]

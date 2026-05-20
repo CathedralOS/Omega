@@ -1,0 +1,52 @@
+platform Console {
+    entry write_line(text: String);
+}
+
+enum Command {
+    Look,
+    Quit,
+    Invalid,
+}
+
+data main {
+    console: Console;
+    choice: Command;
+    health: i32;
+}
+
+machine main {
+    pub entry(&mut self) {
+        self.health = 10;
+
+        transition self.health == 0 {
+            true -> dead()
+            false -> choose()
+        }
+    }
+
+    state choose(&mut self) {
+        self.choice = Command::Invalid;
+
+        transition self.choice {
+            Command::Look -> look()
+            Command::Quit -> quit()
+            Command::Invalid -> invalid()
+        }
+    }
+
+    state dead(&mut self) {
+        self.console.write_line("dead");
+    }
+
+    state look(&mut self) {
+        self.console.write_line("look");
+    }
+
+    state quit(&mut self) {
+        self.console.write_line("quit");
+    }
+
+    state invalid(&mut self) {
+        self.console.write_line("invalid");
+    }
+}
