@@ -24,7 +24,7 @@ machine InventorySystem::add_reward(
         RewardKind::Item -> add_item(inventory, reward.item)
         RewardKind::GoldAndItem -> add_gold_and_item(inventory, reward)
     }
-    
+
 
     state add_gold(
         &mut self,
@@ -71,7 +71,7 @@ machine InventorySystem::add_item(
         true -> increment_item(&mut inventory.items[existing_index.unwrap()], 1)
         false -> append_item(inventory, kind)
     }
-    
+
 
     state append_item(
         &mut self,

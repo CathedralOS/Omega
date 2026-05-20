@@ -28,10 +28,12 @@ runtime diagnostic/checking build.
 
 ## State Contracts
 
-States and functions can require or guarantee domains.
+Machines and states can require or guarantee domains.
 
 ```omega
-state respawn(player: &mut Player)
+machine PlayerSystem::respawn(
+    player: &mut Player
+)
     requires player in Player::Dead
     ensures player in Player::Alive
 {
@@ -40,11 +42,11 @@ state respawn(player: &mut Player)
 ```
 
 This is shorthand for a named bundle of proof obligations. The caller must
-prove `player in Player::Dead` before entering `respawn`. The state must prove
-`player in Player::Alive` before returning or transitioning to a target that
-requires that domain.
+prove `player in Player::Dead` before entering `respawn`. The machine must
+prove `player in Player::Alive` before completing or transitioning to a target
+that requires that domain.
 
-Machine-owned state uses the same model:
+Receiver state uses the same model:
 
 ```omega
 data Game {
@@ -68,7 +70,7 @@ domain Playing for Game
     self.winner == None;
 }
 
-state start_game(&mut self)
+machine Game::start_game(&mut self)
     requires self in Game::NewGame
     ensures self in Game::Playing
 {
@@ -97,15 +99,18 @@ That desugars to `domain Dead for Player { self.health <= 0; ... }`.
 Some operations naturally produce one of several semantic states.
 
 ```omega
-fn apply_move(game: &mut Game, pos: BoardPos) -> MoveResult
-    requires game in Game::Playing
-    ensures game in Game::Playing | Game::Finished
+machine Game::apply_move(
+    &mut self,
+    pos: BoardPos
+) -> MoveResult
+    requires self in Game::Playing
+    ensures self in Game::Playing | Game::Finished
 {
 }
 ```
 
-`game in Game::Playing | Game::Finished` means the compiler knows `game` is in
-one of those domains after the function, but not which one until control flow
+`self in Game::Playing | Game::Finished` means the compiler knows `self` is in
+one of those domains after the machine, but not which one until control flow
 splits again.
 
 Callers split that union by matching the value against type-qualified domain

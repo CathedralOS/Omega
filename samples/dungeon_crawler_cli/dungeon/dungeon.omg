@@ -30,7 +30,7 @@ machine Dungeon::enter_room(&mut self) {
     transition {
         _ -> mark_current_room_discovered()
     }
-    
+
     state mark_current_room_discovered(&mut self) {
         let room: Room;
         self.lookup.find_room(self.level, self.current_cell, &mut room);

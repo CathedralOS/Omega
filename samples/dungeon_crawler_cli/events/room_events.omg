@@ -19,7 +19,7 @@ machine RoomEvents::roll_event(
 ) {
     let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
     self.apply_event(depth, random, event, roll);
-    
+
 }
 
 machine RoomEvents::event_action(
@@ -49,7 +49,7 @@ machine RoomEvents::apply_event(
         RoomEventAction::Reward -> reward_event(depth, random, event, roll)
         RoomEventAction::Enemy -> enemy(depth, random, event)
     }
-    
+
 
     state reward_event(
         &mut self,

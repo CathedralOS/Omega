@@ -1,11 +1,16 @@
-# Chapter 9: Invariant Propagation
+# Chapter 8: Invariant Propagation
 
 Omega should be able to weaken an invariant temporarily, then prove that each transition either restores the invariant or transfers a narrower proof obligation to the next state.
 
 ```omega
-owns health: i32[range<1, 100>] = 100;
+data Player {
+    health: i32[range<1, 100>];
+}
 
-fn take_damage(amount: i32[range<1, 100>]) {
+machine Player::take_damage(
+    &mut self,
+    amount: i32[range<1, 100>]
+) {
     relax self.health {
         self.health -= amount;
 
@@ -18,13 +23,16 @@ fn take_damage(amount: i32[range<1, 100>]) {
             (false, false) -> still_alive()
         }
     }
-}
 
-state bloodied(amount: i32[range<1, 50>]) {
-}
+    state bloodied(amount: i32[range<1, 50>]) {
+    }
 
-state revive() {
-    self.health = 100;
+    state revive(&mut self) {
+        self.health = 100;
+    }
+
+    state still_alive(&mut self) {
+    }
 }
 ```
 

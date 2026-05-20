@@ -27,7 +27,7 @@ machine Game::run_game_loop(&mut self) {
     transition {
         _ -> enter_room()
     }
-    
+
 
     state enter_room(&mut self) {
         self.dungeon.enter_room();

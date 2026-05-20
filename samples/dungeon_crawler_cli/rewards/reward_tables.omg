@@ -40,7 +40,7 @@ machine RewardTables::roll_enemy_reward(
         true -> enemy_item(enemy, random, reward)
         false -> enemy_gold(enemy, random, reward)
     }
-    
+
 
     state enemy_item(
         &mut self,

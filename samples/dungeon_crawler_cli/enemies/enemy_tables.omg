@@ -13,7 +13,7 @@ machine EnemyTables::roll_enemy(
     enemy: &mut Enemy
 ) {
     self.roll_enemy_kind(depth, random, enemy);
-    
+
 }
 
 machine EnemyTables::tier_for_depth(
@@ -48,7 +48,7 @@ machine EnemyTables::roll_enemy_kind(
         EnemyTier::Hellhound -> hellhound(random, enemy)
         EnemyTier::PitFiend -> pit_fiend(random, enemy)
     }
-    
+
 
     state bat(
         &mut self,
