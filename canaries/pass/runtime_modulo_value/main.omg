@@ -2,11 +2,9 @@ data Health {
     value: i32;
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        health: &mut Health
-    ) {
-        health.value = 17 % 5;
-    }
+machine main(
+    &mut self,
+    health: &mut Health
+) {
+    health.value = 17 % 5;
 }

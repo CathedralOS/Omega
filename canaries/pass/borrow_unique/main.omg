@@ -1,10 +1,11 @@
-machine main {
-    owns left: i32 = 1;
-    owns right: i32 = 2;
+data main {
+    left: i32 = 1;
+    right: i32 = 2;
+}
 
-    pub entry() {
-        copy(mut left, right);
-    }
+machine main(&mut self) {
+    copy(mut self.left, self.right);
+
 
     state copy(out_value: &mut i32, input_value: i32) {
         out_value = input_value;

@@ -27,19 +27,17 @@ data main {
     selected_exit: Exit;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        self.room.cell = CellId::A1;
-        self.room.label = "A1";
-        self.room.description = "A1: a stone entry.";
-        self.room.exits[0] = Exit { command: "north", destination: CellId::A2 };
-        self.room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
-        self.selected_exit = self.room.exits[0];
+machine main(&mut self) -> i32 {
+    self.room.cell = CellId::A1;
+    self.room.label = "A1";
+    self.room.description = "A1: a stone entry.";
+    self.room.exits[0] = Exit { command: "north", destination: CellId::A2 };
+    self.room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
+    self.selected_exit = self.room.exits[0];
 
-        self.console.write_line(self.room.label);
-        self.console.write_line(self.room.description);
-        self.console.write_line(self.selected_exit.command);
-        self.console.exit_process(0);
-        0
-    }
+    self.console.write_line(self.room.label);
+    self.console.write_line(self.room.description);
+    self.console.write_line(self.selected_exit.command);
+    self.console.exit_process(0);
+    0
 }

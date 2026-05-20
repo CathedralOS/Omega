@@ -8,65 +8,39 @@ data RewardTables {
     rng: Random;
 }
 
-machine RewardTables::roll_room_treasure {
-    pub entry(
-        &mut self,
-        depth: u32[exact, non_negative],
-        random: &mut RandomState,
-        reward: &mut Reward
-    ) {
-        reward.kind = RewardKind::GoldAndItem;
-        reward.gold = 20 + depth * 8 + self.rng.range(random, 15);
-        reward.item = self.roll_item(depth, random);
-    }
-
-    entry roll_item(
-        &mut self,
-        depth: u32[exact, non_negative],
-        random: &mut RandomState
-    ) -> ItemKind {
-        let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
-
-        let is_early_dagger: bool = depth <= 2 && roll < 50;
-        let is_early_buckler: bool = depth <= 3 && roll < 75;
-        let is_healing_charm: bool = roll < 85;
-        let is_ember_blade: bool = depth >= 5 && roll < 96;
-        let is_deep_key: bool = depth >= 8;
-
-        -> ItemKind::RustedDagger when is_early_dagger;
-        -> ItemKind::CrackedBuckler when is_early_buckler;
-        -> ItemKind::HealingCharm when is_healing_charm;
-        -> ItemKind::EmberBlade when is_ember_blade;
-        -> ItemKind::DeepKey when is_deep_key;
-        -> ItemKind::RustedDagger;
-    }
+machine RewardTables::roll_room_treasure(
+    &mut self,
+    depth: u32[exact, non_negative],
+    random: &mut RandomState,
+    reward: &mut Reward
+) {
+    reward.kind = RewardKind::GoldAndItem;
+    reward.gold = 20 + depth * 8 + self.rng.range(random, 15);
+    reward.item = self.roll_item(depth, random);
 }
 
-machine RewardTables::roll_gold_cache {
-    pub entry(
-        &mut self,
-        depth: u32[exact, non_negative],
-        random: &mut RandomState,
-        reward: &mut Reward
-    ) {
-        reward.kind = RewardKind::Gold;
-        reward.gold = 8 + depth * 5 + self.rng.range(random, 12);
-        reward.item = ItemKind::RustedDagger;
-    }
+machine RewardTables::roll_gold_cache(
+    &mut self,
+    depth: u32[exact, non_negative],
+    random: &mut RandomState,
+    reward: &mut Reward
+) {
+    reward.kind = RewardKind::Gold;
+    reward.gold = 8 + depth * 5 + self.rng.range(random, 12);
+    reward.item = ItemKind::RustedDagger;
 }
 
-machine RewardTables::roll_enemy_reward {
-    pub entry(
-        &mut self,
-        enemy: Enemy,
-        random: &mut RandomState,
-        reward: &mut Reward
-    ) {
-        transition self.rng.chance(random, 1, 4) {
-            true -> enemy_item(enemy, random, reward)
-            false -> enemy_gold(enemy, random, reward)
-        }
+machine RewardTables::roll_enemy_reward(
+    &mut self,
+    enemy: Enemy,
+    random: &mut RandomState,
+    reward: &mut Reward
+) {
+    transition self.rng.chance(random, 1, 4) {
+        true -> enemy_item(enemy, random, reward)
+        false -> enemy_gold(enemy, random, reward)
     }
+    
 
     state enemy_item(
         &mut self,
@@ -89,25 +63,25 @@ machine RewardTables::roll_enemy_reward {
         reward.gold = 2 + enemy.depth * 2 + self.rng.range(random, 6);
         reward.item = ItemKind::RustedDagger;
     }
+}
 
-    entry roll_item(
-        &mut self,
-        depth: u32[exact, non_negative],
-        random: &mut RandomState
+machine RewardTables::roll_item(
+    &mut self,
+    depth: u32[exact, non_negative],
+    random: &mut RandomState
     ) -> ItemKind {
-        let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
+    let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
 
-        let is_early_dagger: bool = depth <= 2 && roll < 50;
-        let is_early_buckler: bool = depth <= 3 && roll < 75;
-        let is_healing_charm: bool = roll < 85;
-        let is_ember_blade: bool = depth >= 5 && roll < 96;
-        let is_deep_key: bool = depth >= 8;
+    let is_early_dagger: bool = depth <= 2 && roll < 50;
+    let is_early_buckler: bool = depth <= 3 && roll < 75;
+    let is_healing_charm: bool = roll < 85;
+    let is_ember_blade: bool = depth >= 5 && roll < 96;
+    let is_deep_key: bool = depth >= 8;
 
-        -> ItemKind::RustedDagger when is_early_dagger;
-        -> ItemKind::CrackedBuckler when is_early_buckler;
-        -> ItemKind::HealingCharm when is_healing_charm;
-        -> ItemKind::EmberBlade when is_ember_blade;
-        -> ItemKind::DeepKey when is_deep_key;
-        -> ItemKind::RustedDagger;
-    }
+    -> ItemKind::RustedDagger when is_early_dagger;
+    -> ItemKind::CrackedBuckler when is_early_buckler;
+    -> ItemKind::HealingCharm when is_healing_charm;
+    -> ItemKind::EmberBlade when is_ember_blade;
+    -> ItemKind::DeepKey when is_deep_key;
+    -> ItemKind::RustedDagger;
 }

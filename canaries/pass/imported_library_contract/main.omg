@@ -13,7 +13,5 @@ trust omega_test_host_write {
     owner test
 }
 
-machine main {
-    pub entry() {
-    }
+machine main() {
 }

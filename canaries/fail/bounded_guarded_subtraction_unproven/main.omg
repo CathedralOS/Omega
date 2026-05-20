@@ -1,13 +1,12 @@
-machine main {
-    pub entry(
-        level: u32[exact, positive],
-        xp: u32[exact, non_negative]
-    ) {
-        transition xp >= cost(level) {
-            true -> spend(level, xp)
-            false -> {}
-        }
+machine main(
+    level: u32[exact, positive],
+    xp: u32[exact, non_negative]
+) {
+    transition xp >= cost(level) {
+        true -> spend(level, xp)
+        false -> {}
     }
+    
 
     state spend(
         level: u32[exact, positive],
@@ -15,10 +14,11 @@ machine main {
     ) -> u32[exact, non_negative] {
         -> xp - cost(level);
     }
+}
 
-    entry cost(
-        level: u32[exact, positive]
+machine main::cost(
+    level: u32[exact, positive]
     ) -> u32[exact, positive] {
-        -> 10 + level * 5;
-    }
+    -> 10 + level * 5;
+    
 }

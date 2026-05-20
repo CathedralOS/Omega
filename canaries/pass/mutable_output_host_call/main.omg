@@ -14,11 +14,9 @@ data main {
     line: ConsoleLine;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.console.write("> ");
-        self.console.read_line(&mut self.line);
-        self.console.write_line("read");
-        self.console.exit_process(0);
-    }
+machine main(&mut self) {
+    self.console.write("> ");
+    self.console.read_line(&mut self.line);
+    self.console.write_line("read");
+    self.console.exit_process(0);
 }

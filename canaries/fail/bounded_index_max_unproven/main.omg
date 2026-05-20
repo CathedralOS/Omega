@@ -1,8 +1,6 @@
-machine main {
-    pub entry(
-        room_count: u32[exact, range<1, 16>],
-        index: usize
+machine main(
+    room_count: u32[exact, range<1, 16>],
+    index: usize
     ) -> u32[exact, range<1, 16>] {
-        max(room_count, index + 1)
-    }
+    max(room_count, index + 1)
 }

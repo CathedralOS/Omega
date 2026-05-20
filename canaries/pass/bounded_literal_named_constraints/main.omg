@@ -1,10 +1,9 @@
-machine main {
-    pub entry(
-        &mut self
-    ) {
-        self.take_non_negative(0);
-        self.take_positive(1);
-    }
+machine main(
+    &mut self
+) {
+    self.take_non_negative(0);
+    self.take_positive(1);
+    
 
     state take_non_negative(
         &mut self,

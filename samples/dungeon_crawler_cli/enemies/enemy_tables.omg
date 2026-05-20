@@ -6,40 +6,49 @@ data EnemyTables {
     rng: Random;
 }
 
-machine EnemyTables::roll_enemy {
-    pub entry(
-        &mut self,
-        depth: u32[exact, non_negative],
-        random: &mut RandomState,
-        enemy: &mut Enemy
-    ) {
-        transition self.tier_for_depth(depth) {
-            EnemyTier::Bat -> bat(random, enemy)
-            EnemyTier::Spider -> spider(random, enemy)
-            EnemyTier::Skeleton -> skeleton(random, enemy)
-            EnemyTier::Cultist -> cultist(random, enemy)
-            EnemyTier::Hellhound -> hellhound(random, enemy)
-            EnemyTier::PitFiend -> pit_fiend(random, enemy)
-        }
-    }
+machine EnemyTables::roll_enemy(
+    &mut self,
+    depth: u32[exact, non_negative],
+    random: &mut RandomState,
+    enemy: &mut Enemy
+) {
+    self.roll_enemy_kind(depth, random, enemy);
+    
+}
 
-    entry tier_for_depth(
-        &mut self,
-        depth: u32[exact, non_negative]
+machine EnemyTables::tier_for_depth(
+    &mut self,
+    depth: u32[exact, non_negative]
     ) -> EnemyTier {
-        let is_bat_depth: bool = depth <= 1;
-        let is_spider_depth: bool = depth <= 2;
-        let is_skeleton_depth: bool = depth <= 4;
-        let is_cultist_depth: bool = depth <= 6;
-        let is_hellhound_depth: bool = depth <= 8;
+    let is_bat_depth: bool = depth <= 1;
+    let is_spider_depth: bool = depth <= 2;
+    let is_skeleton_depth: bool = depth <= 4;
+    let is_cultist_depth: bool = depth <= 6;
+    let is_hellhound_depth: bool = depth <= 8;
 
-        -> EnemyTier::Bat when is_bat_depth;
-        -> EnemyTier::Spider when is_spider_depth;
-        -> EnemyTier::Skeleton when is_skeleton_depth;
-        -> EnemyTier::Cultist when is_cultist_depth;
-        -> EnemyTier::Hellhound when is_hellhound_depth;
-        -> EnemyTier::PitFiend;
+    -> EnemyTier::Bat when is_bat_depth;
+    -> EnemyTier::Spider when is_spider_depth;
+    -> EnemyTier::Skeleton when is_skeleton_depth;
+    -> EnemyTier::Cultist when is_cultist_depth;
+    -> EnemyTier::Hellhound when is_hellhound_depth;
+    -> EnemyTier::PitFiend;
+}
+
+machine EnemyTables::roll_enemy_kind(
+    &mut self,
+    depth: u32[exact, non_negative],
+    random: &mut RandomState,
+    enemy: &mut Enemy
+) {
+    transition self.tier_for_depth(depth) {
+        EnemyTier::Bat -> bat(random, enemy)
+        EnemyTier::Spider -> spider(random, enemy)
+        EnemyTier::Skeleton -> skeleton(random, enemy)
+        EnemyTier::Cultist -> cultist(random, enemy)
+        EnemyTier::Hellhound -> hellhound(random, enemy)
+        EnemyTier::PitFiend -> pit_fiend(random, enemy)
     }
+    
 
     state bat(
         &mut self,

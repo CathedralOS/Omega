@@ -1,15 +1,17 @@
-machine main {
-    pub entry(&mut self, flag: bool, out: &mut u32) {
-        out = self.pick(flag);
-    }
+machine main(&mut self, flag: bool, out: &mut u32) {
+    out = self.pick(flag);
+    
 
-    entry pick(&mut self, flag: bool) -> u32 {
-        -> self.branch(flag) when flag;
-        -> 0;
-    }
+}
 
-    entry branch(&mut self, flag: bool) -> u32 {
-        -> 1 when flag;
-        -> 2;
-    }
+machine main::pick(&mut self, flag: bool) -> u32 {
+    -> self.branch(flag) when flag;
+    -> 0;
+    
+}
+
+machine main::branch(&mut self, flag: bool) -> u32 {
+    -> 1 when flag;
+    -> 2;
+    
 }

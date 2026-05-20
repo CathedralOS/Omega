@@ -6,68 +6,59 @@ data PlayerSystem {
     inventory: InventorySystem;
 }
 
-machine PlayerSystem::create {
-    pub entry(
-        &mut self,
-        name: String,
-        player: &mut Player
-    ) {
-        player.name = name;
-        player.level = 1;
-        player.xp = 0;
-        player.max_health = 30;
-        player.health = player.max_health;
-        player.attack = 4;
-        player.defense = 1;
-        self.inventory.clear(&mut player.inventory);
-    }
+machine PlayerSystem::create(
+    &mut self,
+    name: String,
+    player: &mut Player
+) {
+    player.name = name;
+    player.level = 1;
+    player.xp = 0;
+    player.max_health = 30;
+    player.health = player.max_health;
+    player.attack = 4;
+    player.defense = 1;
+    self.inventory.clear(&mut player.inventory);
 }
 
-machine PlayerSystem::heal {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        amount: i32[exact, positive]
-    ) {
-        player.health = min(player.max_health, player.health + amount);
-    }
+machine PlayerSystem::heal(
+    &mut self,
+    player: &mut Player,
+    amount: i32[exact, positive]
+) {
+    player.health = min(player.max_health, player.health + amount);
 }
 
-machine PlayerSystem::take_damage {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        amount: i32[exact, non_negative]
-    ) {
-        let prevented: i32[exact, non_negative] = min(amount, player.defense);
-        let actual: i32[exact, non_negative] = amount - prevented;
-        player.health = max(0, player.health - actual);
-    }
+machine PlayerSystem::take_damage(
+    &mut self,
+    player: &mut Player,
+    amount: i32[exact, non_negative]
+) {
+    let prevented: i32[exact, non_negative] = min(amount, player.defense);
+    let actual: i32[exact, non_negative] = amount - prevented;
+    player.health = max(0, player.health - actual);
 }
 
-machine PlayerSystem::grant_reward {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        reward: Reward
-    ) {
-        self.inventory.add_reward(&mut player.inventory, reward);
-    }
+machine PlayerSystem::grant_reward(
+    &mut self,
+    player: &mut Player,
+    reward: Reward
+) {
+    self.inventory.add_reward(&mut player.inventory, reward);
 }
 
-machine PlayerSystem::grant_xp {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        amount: u32[exact, non_negative]
-    ) {
-        player.xp = player.xp + amount;
+machine PlayerSystem::grant_xp(
+    &mut self,
+    player: &mut Player,
+    amount: u32[exact, non_negative]
+) {
+    player.xp = player.xp + amount;
 
-        transition player.xp >= self.xp_required(player.level) {
-            true -> level_up(player)
-            false -> {}
-        }
+    transition player.xp >= self.xp_required(player.level) {
+        true -> level_up(player)
+        false -> {}
     }
+    
 
     state level_up(
         &mut self,
@@ -84,11 +75,11 @@ machine PlayerSystem::grant_xp {
             false -> {}
         }
     }
+}
 
-    entry xp_required(
-        &mut self,
-        level: u32[exact, positive]
+machine PlayerSystem::xp_required(
+    &mut self,
+    level: u32[exact, positive]
     ) -> u32[exact, positive] {
-        -> 10 + level * 5;
-    }
+    -> 10 + level * 5;
 }

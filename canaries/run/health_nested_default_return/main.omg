@@ -16,19 +16,21 @@ data Navigation {
 data Parser {
 }
 
-machine Parser::resolve_navigation -> Navigation {
-    pub entry(&mut self) {
-        let choice: Command = self.resolve_command();
-        -> self.navigation(choice, 0);
-    }
+machine Parser::resolve_navigation(&mut self) -> Navigation {
+    let choice: Command = self.resolve_command();
+    -> self.navigation(choice, 0);
+    
 
-    entry resolve_command(&mut self) -> Command {
-        -> Command::Invalid;
-    }
+}
 
-    entry navigation(&mut self, choice: Command, destination: i32) -> Navigation {
-        Navigation { choice: choice, destination: destination }
-    }
+machine Parser::resolve_command(&mut self) -> Command {
+    -> Command::Invalid;
+    
+}
+
+machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {
+    Navigation { choice: choice, destination: destination }
+    
 }
 
 data main {
@@ -38,15 +40,14 @@ data main {
     health: i32;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.health = 10;
+machine main(&mut self) {
+    self.health = 10;
 
-        transition self.health == 0 {
-            true -> dead()
-            false -> prompt()
-        }
+    transition self.health == 0 {
+        true -> dead()
+        false -> prompt()
     }
+    
 
     state prompt(&mut self) {
         self.navigation = self.parser.resolve_navigation();

@@ -2,14 +2,13 @@ data Room {
     exit_count: u32[exact, range<0, 4>];
 }
 
-machine main {
-    pub entry(
-        &mut self
-    ) {
-        let room: Room = Room { exit_count: 1 };
+machine main(
+    &mut self
+) {
+    let room: Room = Room { exit_count: 1 };
 
-        -> append(room.exit_count) when room.exit_count > 0;
-    }
+    -> append(room.exit_count) when room.exit_count > 0;
+    
 
     state append(
         &mut self,

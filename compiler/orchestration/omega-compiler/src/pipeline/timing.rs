@@ -1,4 +1,6 @@
+use crate::pipeline::stage::StageMeta;
 use omega_artifacts::PhaseTiming;
+use omega_core::allocations::AllocationDelta;
 use omega_core::allocations::snapshot as allocation_snapshot;
 use omega_core::diagnostics::Diagnostic;
 use std::time::Instant;
@@ -11,16 +13,27 @@ pub(super) struct CompileTimings {
 impl CompileTimings {
     pub(super) fn record<T>(
         &mut self,
-        phase: impl Into<String>,
+        stage: StageMeta,
         work: impl FnOnce() -> Result<T, Vec<Diagnostic>>,
     ) -> Result<T, Vec<Diagnostic>> {
-        let phase = phase.into();
         let allocation_start = allocation_snapshot();
         let time_start = Instant::now();
         let result = work();
         let microseconds = time_start.elapsed().as_micros();
         let allocations = allocation_snapshot().delta_since(allocation_start);
 
+        self.add_completed(stage, microseconds, allocations);
+
+        result
+    }
+
+    pub(super) fn add_completed(
+        &mut self,
+        stage: StageMeta,
+        microseconds: u128,
+        allocations: AllocationDelta,
+    ) {
+        let phase = stage.label();
         if let Some(existing) = self.phases.iter_mut().find(|timing| timing.phase == phase) {
             existing.microseconds = existing.microseconds.saturating_add(microseconds);
             existing.allocations.allocation_calls = existing
@@ -46,8 +59,6 @@ impl CompileTimings {
                 allocations,
             });
         }
-
-        result
     }
 
     pub(super) fn as_slice(&self) -> &[PhaseTiming] {

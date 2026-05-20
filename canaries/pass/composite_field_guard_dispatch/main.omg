@@ -18,14 +18,13 @@ data main {
     event: Event;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.event.kind = EventKind::Treasure;
-        self.event.consumed = false;
+machine main(&mut self) {
+    self.event.kind = EventKind::Treasure;
+    self.event.consumed = false;
 
-        -> describe_reward() when self.event.kind == EventKind::Treasure && self.event.consumed == false;
-        -> describe_quiet();
-    }
+    -> describe_reward() when self.event.kind == EventKind::Treasure && self.event.consumed == false;
+    -> describe_quiet();
+    
 
     state describe_reward(&mut self) {
         self.console.write_line("reward");

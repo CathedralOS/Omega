@@ -8,16 +8,15 @@ data ConsoleLine {
     text: String;
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+    line: ConsoleLine;
+}
 
-    owns line: ConsoleLine;
-
-    pub entry() {
-        console.read_line(mut line);
-        console.write_line(line.text);
-        console.read_line(mut line);
-        console.write_line(line.text);
-        console.exit_process(0);
-    }
+machine main(&mut self) {
+    self.console.read_line(mut self.line);
+    self.console.write_line(self.line.text);
+    self.console.read_line(mut self.line);
+    self.console.write_line(self.line.text);
+    self.console.exit_process(0);
 }

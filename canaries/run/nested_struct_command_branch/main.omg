@@ -22,27 +22,31 @@ data Navigation {
 data Parser {
 }
 
-machine Parser::resolve_navigation -> Navigation {
-    pub entry(&mut self, line: &ConsoleLine) {
-        let choice: Command = self.resolve_command(line);
+machine Parser::resolve_navigation(&mut self, line: &ConsoleLine) -> Navigation {
+    let choice: Command = self.resolve_command(line);
 
-        -> self.resolve_exit() when choice == Command::Invalid;
-        -> self.navigation(choice, 0);
-    }
+    -> self.resolve_exit() when choice == Command::Invalid;
+    -> self.navigation(choice, 0);
+    
 
-    entry resolve_command(&mut self, line: &ConsoleLine) -> Command {
-        -> Command::Look when line.text == "look";
-        -> Command::Quit when line.text == "quit";
-        -> Command::Invalid;
-    }
 
-    entry resolve_exit(&mut self) -> Navigation {
-        -> self.navigation(Command::Invalid, 99);
-    }
+}
 
-    entry navigation(&mut self, choice: Command, destination: i32) -> Navigation {
-        Navigation { choice: choice, destination: destination }
-    }
+machine Parser::resolve_command(&mut self, line: &ConsoleLine) -> Command {
+    -> Command::Look when line.text == "look";
+    -> Command::Quit when line.text == "quit";
+    -> Command::Invalid;
+    
+}
+
+machine Parser::resolve_exit(&mut self) -> Navigation {
+    -> self.navigation(Command::Invalid, 99);
+    
+}
+
+machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {
+    Navigation { choice: choice, destination: destination }
+    
 }
 
 data main {
@@ -52,17 +56,16 @@ data main {
     navigation: Navigation;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.console.read_line(&mut self.line);
-        self.navigation = self.parser.resolve_navigation(&self.line);
+machine main(&mut self) {
+    self.console.read_line(&mut self.line);
+    self.navigation = self.parser.resolve_navigation(&self.line);
 
-        transition self.navigation.choice {
-            Command::Look -> look()
-            Command::Quit -> quit()
-            Command::Invalid -> invalid()
-        }
+    transition self.navigation.choice {
+        Command::Look -> look()
+        Command::Quit -> quit()
+        Command::Invalid -> invalid()
     }
+    
 
     state look(&mut self) {
         self.console.write_line("look");

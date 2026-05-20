@@ -10,49 +10,42 @@ data RoomFormatter {
     lookup: RoomLookup;
 }
 
-machine RoomFormatter::write_current_cell {
-    pub entry(
-        &mut self,
-        level: Level,
-        cell: CellId,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = "Room Branch Room";
-    }
+machine RoomFormatter::write_current_cell(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_line: &mut ConsoleLine
+) {
+    out_line.text = "Room Branch Room";
 }
 
-machine RoomFormatter::write_room_info {
-    pub entry(
-        &mut self,
-        level: Level,
-        cell: CellId,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = "A bottomless dark room near the dungeon heart.";
-    }
+machine RoomFormatter::write_room_info(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_line: &mut ConsoleLine
+) {
+    out_line.text = "A bottomless dark room near the dungeon heart.";
 }
 
-machine RoomFormatter::write_room_event {
-    pub entry(
-        &mut self,
-        level: Level,
-        cell: CellId,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = "Something stirs here. Try look, use, or fight.";
-    }
+machine RoomFormatter::write_room_event(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_line: &mut ConsoleLine
+) {
+    out_line.text = "Something stirs here. Try look, use, or fight.";
 }
 
-machine RoomFormatter::write_adjacent_rooms {
-    pub entry(
-        &mut self,
-        level: Level,
-        cell: CellId,
-        out_line: &mut ConsoleLine
-    ) {
-        -> north_path(out_line) when cell == CellId::R00;
-        -> south_path(out_line) when cell == CellId::R01;
-    }
+machine RoomFormatter::write_adjacent_rooms(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_line: &mut ConsoleLine
+) {
+    -> north_path(out_line) when cell == CellId::R00;
+    -> south_path(out_line) when cell == CellId::R01;
+    
 
     state north_path(
         &mut self,
@@ -76,14 +69,13 @@ machine RoomFormatter::write_adjacent_rooms {
     }
 }
 
-machine RoomFormatter::write_inventory {
-    pub entry(
-        &mut self,
-        player: Player,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = "Inventory: a few coins and useful gear.";
-    }
+machine RoomFormatter::write_inventory(
+    &mut self,
+    player: Player,
+    out_line: &mut ConsoleLine
+) {
+    out_line.text = "Inventory: a few coins and useful gear.";
+    
 
     state wealthy_inventory(
         &mut self,
@@ -107,14 +99,13 @@ machine RoomFormatter::write_inventory {
     }
 }
 
-machine RoomFormatter::write_character {
-    pub entry(
-        &mut self,
-        player: Player,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = "Character: ready for trouble.";
-    }
+machine RoomFormatter::write_character(
+    &mut self,
+    player: Player,
+    out_line: &mut ConsoleLine
+) {
+    out_line.text = "Character: ready for trouble.";
+    
 
     state wounded_character(
         &mut self,

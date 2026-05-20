@@ -18,16 +18,15 @@ data main {
     command: Command;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        self.command.kind = CommandKind::Look;
+machine main(&mut self) -> i32 {
+    self.command.kind = CommandKind::Look;
 
-        transition self.command.kind {
-            CommandKind::Look -> look()
-            CommandKind::Quit -> quit()
-            _ -> invalid()
-        }
+    transition self.command.kind {
+        CommandKind::Look -> look()
+        CommandKind::Quit -> quit()
+        _ -> invalid()
     }
+    
 
     state look(&mut self) {
         self.console.write_line("look");

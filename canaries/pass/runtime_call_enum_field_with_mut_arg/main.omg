@@ -11,22 +11,22 @@ data Counter {
     value: u32
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        counter: &mut Counter,
-        reward: &mut Reward
-    ) {
-        reward.item = self.pick(counter);
-    }
+machine main(
+    &mut self,
+    counter: &mut Counter,
+    reward: &mut Reward
+) {
+    reward.item = self.pick(counter);
+    
+}
 
-    entry pick(
-        &mut self,
-        counter: &mut Counter
+machine main::pick(
+    &mut self,
+    counter: &mut Counter
     ) -> ItemKind {
-        transition counter.value > 3 {
-            true -> ItemKind::DeepKey
-            false -> ItemKind::RustedDagger
-        }
+    transition counter.value > 3 {
+        true -> ItemKind::DeepKey
+        false -> ItemKind::RustedDagger
     }
+    
 }

@@ -2,13 +2,11 @@ data Room {
     exit_count: u32;
 }
 
-machine main {
-    pub entry(&mut self) {
-        let rooms: [Room; 1] = [Room { exit_count: 0 }];
-        let index: usize = 0;
+machine main(&mut self) {
+    let rooms: [Room; 1] = [Room { exit_count: 0 }];
+    let index: usize = 0;
 
-        rooms[index].exit_count = rooms[index].exit_count + 1;
+    rooms[index].exit_count = rooms[index].exit_count + 1;
 
-        -> entry() when true;
-    }
+    -> entry() when true;
 }

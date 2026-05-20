@@ -3,17 +3,18 @@ platform Console {
     entry exit_process(return_code: i32);
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+}
 
-    pub entry() {
-        console.write_line("first");
+machine main(&mut self) {
+    self.console.write_line("first");
 
-        -> second();
-    }
+    -> second();
+
 
     state second() {
-        console.write_line("second");
-        console.exit_process(0);
+        self.console.write_line("second");
+        self.console.exit_process(0);
     }
 }

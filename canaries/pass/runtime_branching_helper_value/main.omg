@@ -1,12 +1,12 @@
-machine main {
-    pub entry(&mut self, flag: bool, out: &mut i32) {
-        out = self.pick(flag);
-    }
+machine main(&mut self, flag: bool, out: &mut i32) {
+    out = self.pick(flag);
+    
+}
 
-    entry pick(&mut self, flag: bool) -> i32 {
-        transition flag {
-            true -> 1
-            false -> 2
-        }
+machine main::pick(&mut self, flag: bool) -> i32 {
+    transition flag {
+        true -> 1
+        false -> 2
     }
+    
 }

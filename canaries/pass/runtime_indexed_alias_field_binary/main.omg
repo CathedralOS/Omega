@@ -2,12 +2,10 @@ data Exit {
     count: i32;
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        exits: &mut [Exit],
-        index: usize
-    ) {
-        exits[index].count = exits[index].count + 1;
-    }
+machine main(
+    &mut self,
+    exits: &mut [Exit],
+    index: usize
+) {
+    exits[index].count = exits[index].count + 1;
 }

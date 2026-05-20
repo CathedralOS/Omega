@@ -1,15 +1,17 @@
-machine main {
-    owns value: i32 = 1;
+data main {
+    value: i32 = 1;
+}
 
-    pub entry() {
-        write(value);
-    }
+machine main(&mut self) {
+    write(self.value);
 
-    entry write(input_value: i32) {
-        copy(mut input_value);
-    }
+
 
     state copy(out_value: &mut i32) {
         out_value = 2;
     }
+}
+machine main::write(input_value: i32) {
+    copy(mut input_value);
+    
 }

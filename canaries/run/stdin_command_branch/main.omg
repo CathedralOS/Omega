@@ -17,12 +17,10 @@ enum Command {
 data Parser {
 }
 
-machine Parser::resolve -> Command {
-    pub entry(&mut self, line: &ConsoleLine) {
-        -> Command::Look when line.text == "look";
-        -> Command::Quit when line.text == "quit";
-        -> Command::Invalid;
-    }
+machine Parser::resolve(&mut self, line: &ConsoleLine) -> Command {
+    -> Command::Look when line.text == "look";
+    -> Command::Quit when line.text == "quit";
+    -> Command::Invalid;
 }
 
 data main {
@@ -32,17 +30,16 @@ data main {
     command: Command;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.console.read_line(&mut self.line);
-        self.command = self.parser.resolve(&self.line);
+machine main(&mut self) {
+    self.console.read_line(&mut self.line);
+    self.command = self.parser.resolve(&self.line);
 
-        transition self.command {
-            Command::Look -> look()
-            Command::Quit -> quit()
-            Command::Invalid -> invalid()
-        }
+    transition self.command {
+        Command::Look -> look()
+        Command::Quit -> quit()
+        Command::Invalid -> invalid()
     }
+    
 
     state look(&mut self) {
         self.console.write_line("look");

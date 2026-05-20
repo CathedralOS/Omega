@@ -9,17 +9,13 @@ data main {
     rng: Random;
 }
 
-machine Random::one -> i32 {
-    pub entry(&mut self) {
-        -> 1;
-    }
+machine Random::one(&mut self) -> i32 {
+    -> 1;
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        reward: &mut Reward
-    ) {
-        reward.gold = 1 + self.rng.one();
-    }
+machine main(
+    &mut self,
+    reward: &mut Reward
+) {
+    reward.gold = 1 + self.rng.one();
 }

@@ -1,6 +1,4 @@
 use omega::language::std::option;
 
-machine main {
-    pub entry(&mut self) {
-    }
+machine main(&mut self) {
 }

@@ -1,20 +1,24 @@
-machine main {
-    pub entry(&mut self, flag: bool, out: &mut u32) {
-        out = self.pick(flag);
-    }
+machine main(&mut self, flag: bool, out: &mut u32) {
+    out = self.pick(flag);
+    
 
-    entry pick(&mut self, flag: bool) -> u32 {
-        let choice: bool = self.identity(flag);
-        -> self.branch(choice) when choice;
-        -> 0;
-    }
 
-    entry identity(&mut self, flag: bool) -> bool {
-        -> flag;
-    }
+}
 
-    entry branch(&mut self, flag: bool) -> u32 {
-        -> 1 when flag;
-        -> 2;
-    }
+machine main::pick(&mut self, flag: bool) -> u32 {
+    let choice: bool = self.identity(flag);
+    -> self.branch(choice) when choice;
+    -> 0;
+    
+}
+
+machine main::identity(&mut self, flag: bool) -> bool {
+    -> flag;
+    
+}
+
+machine main::branch(&mut self, flag: bool) -> u32 {
+    -> 1 when flag;
+    -> 2;
+    
 }

@@ -2,15 +2,13 @@ data Room {
     x: i32;
 }
 
-machine main {
-    pub entry(
-        &mut self
-    ) {
-        let rooms: [Room; 1] = [Room { x: 0 }];
-        let index: UInt = 0;
+machine main(
+    &mut self
+) {
+    let rooms: [Room; 1] = [Room { x: 0 }];
+    let index: UInt = 0;
 
-        rooms[index].x = 1;
+    rooms[index].x = 1;
 
-        -> entry() when true;
-    }
+    -> entry() when true;
 }

@@ -17,15 +17,14 @@ data main {
     line: Line;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        self.room.label = "A1";
-        self.line.text = "Room " + self.room.label;
+machine main(&mut self) -> i32 {
+    self.room.label = "A1";
+    self.line.text = "Room " + self.room.label;
 
-        transition {
-            _ -> shutdown()
-        }
+    transition {
+        _ -> shutdown()
     }
+    
 
     state shutdown(&mut self) {
         self.console.write_line(self.line.text);

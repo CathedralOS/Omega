@@ -1,6 +1,6 @@
-machine main {
-    owns value: i32[magic] = 0;
+data main {
+    value: i32[magic] = 0;
+}
 
-    pub entry() {
-    }
+machine main(&mut self) {
 }

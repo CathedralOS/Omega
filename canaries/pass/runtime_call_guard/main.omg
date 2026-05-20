@@ -5,14 +5,12 @@ data Counter {
 data Random {
 }
 
-machine Random::chance -> bool {
-    pub entry(
-        &mut self,
-        state: &mut Counter
-    ) {
-        state.calls = state.calls + 1;
-        -> state.calls > 0;
-    }
+machine Random::chance(
+    &mut self,
+    state: &mut Counter
+    ) -> bool {
+    state.calls = state.calls + 1;
+    -> state.calls > 0;
 }
 
 data main {
@@ -20,11 +18,10 @@ data main {
     counter: Counter;
 }
 
-machine main {
-    pub entry(&mut self) {
-        -> success() when self.rng.chance(&mut self.counter) == true;
-        -> failure();
-    }
+machine main(&mut self) {
+    -> success() when self.rng.chance(&mut self.counter) == true;
+    -> failure();
+    
 
     state success(&mut self) {}
 

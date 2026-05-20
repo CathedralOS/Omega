@@ -17,4 +17,6 @@ The syntax is not final. These chapters exist so language ideas can be organized
 - [Chapter 11: Tooling And UX](chapter_11_tooling_and_ux.md)
 - [Chapter 12: Host Libraries And Trust Boundaries](chapter_12_host_trust_boundaries.md)
 - [Chapter 13: Inline Assembly](chapter_13_inline_assembly.md)
+- [Chapter 14: Wire Protocols](chapter_14_wire_protocols.md)
+- [Chapter 15: Versioned Data And Machine Replacement](chapter_15_versioned_data.md)
 - [Appendix: Open Questions](appendix_open_questions.md)

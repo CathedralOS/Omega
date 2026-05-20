@@ -1,10 +1,9 @@
-machine main {
-    pub entry(
-        &mut self,
-        branch_id: u32[exact, non_negative]
-    ) {
-        -> consume(branch_id + 1);
-    }
+machine main(
+    &mut self,
+    branch_id: u32[exact, non_negative]
+) {
+    -> consume(branch_id + 1);
+    
 
     state consume(
         &mut self,

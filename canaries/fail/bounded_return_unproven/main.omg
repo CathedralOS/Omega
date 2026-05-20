@@ -1,6 +1,5 @@
-machine main -> i32[range<1, 50>] {
-    pub entry() {
-    }
+machine main() -> i32[range<1, 50>] {
+    
 
     state answer() {
         100

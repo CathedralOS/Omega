@@ -5,60 +5,41 @@ use omega::language::std::option;
 data InventorySystem {
 }
 
-machine InventorySystem::clear {
-    pub entry(
-        &mut self,
-        inventory: &mut Inventory
-    ) {
-        inventory.item_count = 0;
-        inventory.gold = 0;
-    }
+machine InventorySystem::clear(
+    &mut self,
+    inventory: &mut Inventory
+) {
+    inventory.item_count = 0;
+    inventory.gold = 0;
 }
 
-machine InventorySystem::add_reward {
-    pub entry(
-        &mut self,
-        inventory: &mut Inventory,
-        reward: Reward
-    ) {
-        transition reward.kind {
-            RewardKind::None -> {}
-            RewardKind::Gold -> add_gold(inventory, reward.gold)
-            RewardKind::Item -> add_item(inventory, reward.item)
-            RewardKind::GoldAndItem -> add_gold_and_item(inventory, reward)
-        }
+machine InventorySystem::add_reward(
+    &mut self,
+    inventory: &mut Inventory,
+    reward: Reward
+) {
+    transition reward.kind {
+        RewardKind::None -> {}
+        RewardKind::Gold -> add_gold(inventory, reward.gold)
+        RewardKind::Item -> add_item(inventory, reward.item)
+        RewardKind::GoldAndItem -> add_gold_and_item(inventory, reward)
     }
+    
 
-    entry add_gold(
+    state add_gold(
         &mut self,
         inventory: &mut Inventory,
         amount: u32[exact, non_negative]
     ) {
-        inventory.gold = inventory.gold + amount;
+        self.add_gold(inventory, amount);
     }
 
-    entry add_item(
+    state add_item(
         &mut self,
         inventory: &mut Inventory,
         kind: ItemKind
     ) {
-        let existing_index: Option<usize> = self.find_item(inventory, kind);
-
-        transition existing_index.is_some() {
-            true -> increment_item(&mut inventory.items[existing_index.unwrap()], 1)
-            false -> append_item(inventory, kind)
-        }
-    }
-
-    entry append_item(
-        &mut self,
-        inventory: &mut Inventory,
-        kind: ItemKind
-    ) {
-        let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
-        let index: usize = inventory.item_count;
-        items[index] = InventoryItem { kind: kind, count: 1 };
-        inventory.item_count = inventory.item_count + 1;
+        self.add_item(inventory, kind);
     }
 
     state add_gold_and_item(
@@ -69,54 +50,103 @@ machine InventorySystem::add_reward {
         self.add_gold(inventory, reward.gold);
         self.add_item(inventory, reward.item);
     }
+}
 
-    entry find_item(
+machine InventorySystem::add_gold(
+    &mut self,
+    inventory: &mut Inventory,
+    amount: u32[exact, non_negative]
+) {
+    inventory.gold = inventory.gold + amount;
+}
+
+machine InventorySystem::add_item(
+    &mut self,
+    inventory: &mut Inventory,
+    kind: ItemKind
+) {
+    let existing_index: Option<usize> = self.find_item(inventory, kind);
+
+    transition existing_index.is_some() {
+        true -> increment_item(&mut inventory.items[existing_index.unwrap()], 1)
+        false -> append_item(inventory, kind)
+    }
+    
+
+    state append_item(
         &mut self,
-        inventory: &Inventory,
+        inventory: &mut Inventory,
         kind: ItemKind
-    ) -> Option<usize> {
-        let items: &[InventoryItem] = inventory.items.as_slice();
-
-        match inventory.item_count > 0 {
-            true -> self.find_item_at(items, kind, 0)
-            false -> None
-        }
+    ) {
+        self.append_item(inventory, kind);
     }
 
-    entry find_item_at(
-        &mut self,
-        items: &[InventoryItem],
-        kind: ItemKind,
-        index: usize
-    ) -> Option<usize> {
-        let found: bool = items[index].kind == kind;
-        let next_index: usize = index + 1;
-
-        match found {
-            true -> index
-            false -> self.find_item_after(items, kind, next_index)
-        }
-    }
-
-    entry find_item_after(
-        &mut self,
-        items: &[InventoryItem],
-        kind: ItemKind,
-        next_index: usize
-    ) -> Option<usize> {
-        let has_next: bool = next_index < items.len;
-
-        match has_next {
-            true -> self.find_item_at(items, kind, next_index)
-            false -> None
-        }
-    }
-
-    entry increment_item(
+    state increment_item(
         &mut self,
         item: &mut InventoryItem,
         amount: u32[exact, positive]
     ) {
-        item.count = item.count + amount;
+        self.increment_item(item, amount);
     }
+}
+
+machine InventorySystem::append_item(
+    &mut self,
+    inventory: &mut Inventory,
+    kind: ItemKind
+) {
+    let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
+    let index: usize = inventory.item_count;
+    items[index] = InventoryItem { kind: kind, count: 1 };
+    inventory.item_count = inventory.item_count + 1;
+}
+
+machine InventorySystem::find_item(
+    &mut self,
+    inventory: &Inventory,
+    kind: ItemKind
+    ) -> Option<usize> {
+    let items: &[InventoryItem] = inventory.items.as_slice();
+
+    match inventory.item_count > 0 {
+        true -> self.find_item_at(items, kind, 0)
+        false -> None
+    }
+}
+
+machine InventorySystem::find_item_at(
+    &mut self,
+    items: &[InventoryItem],
+    kind: ItemKind,
+    index: usize
+    ) -> Option<usize> {
+    let found: bool = items[index].kind == kind;
+    let next_index: usize = index + 1;
+
+    match found {
+        true -> index
+        false -> self.find_item_after(items, kind, next_index)
+    }
+}
+
+machine InventorySystem::find_item_after(
+    &mut self,
+    items: &[InventoryItem],
+    kind: ItemKind,
+    next_index: usize
+    ) -> Option<usize> {
+    let has_next: bool = next_index < items.len;
+
+    match has_next {
+        true -> self.find_item_at(items, kind, next_index)
+        false -> None
+    }
+}
+
+machine InventorySystem::increment_item(
+    &mut self,
+    item: &mut InventoryItem,
+    amount: u32[exact, positive]
+) {
+    item.count = item.count + amount;
 }

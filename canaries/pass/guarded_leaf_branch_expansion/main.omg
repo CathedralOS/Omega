@@ -17,22 +17,22 @@ platform Console {
     entry write_line(text: String);
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+    selected: Cell;
+    line: CellLine;
+    first: Cell = Cell { id: CellId::A1, label: "A1" };
+    second: Cell = Cell { id: CellId::A2, label: "A2" };
+}
 
-    owns selected: Cell;
-    owns line: CellLine;
-    owns first: Cell = Cell { id: CellId::A1, label: "A1" };
-    owns second: Cell = Cell { id: CellId::A2, label: "A2" };
+machine main(&mut self) {
+    scan(self.first, CellId::A2, mut self.selected);
+    scan(self.second, CellId::A2, mut self.selected);
+    self.line.text = self.selected.label;
+    self.console.write_line(self.line.text);
 
-    pub entry() {
-        scan(first, CellId::A2, mut selected);
-        scan(second, CellId::A2, mut selected);
-        line.text = selected.label;
-        console.write_line(line.text);
+    -> self();
 
-        -> self();
-    }
 
     state scan(cell: Cell, id: CellId, out_cell: &mut Cell) {
         -> apply(cell, mut out_cell) when cell.id == id;

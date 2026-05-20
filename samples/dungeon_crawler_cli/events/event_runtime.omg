@@ -17,18 +17,17 @@ data EventRuntime {
     player_system: PlayerSystem;
 }
 
-machine EventRuntime::describe {
-    pub entry(
-        &mut self,
-        room: Room,
-        out_line: &mut ConsoleLine
-    ) {
-        -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
-        -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
-        -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
-        -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
-        -> quiet_room(out_line);
-    }
+machine EventRuntime::describe(
+    &mut self,
+    room: Room,
+    out_line: &mut ConsoleLine
+) {
+    -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
+    -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
+    -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
+    -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
+    -> quiet_room(out_line);
+    
 
     state describe_fountain(
         &mut self,
@@ -67,18 +66,17 @@ machine EventRuntime::describe {
     }
 }
 
-machine EventRuntime::use_event {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        room: &mut Room,
-        out_line: &mut ConsoleLine
-    ) {
-        -> use_fountain(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
-        -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
-        -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
-        -> no_usable_event(out_line);
-    }
+machine EventRuntime::use_event(
+    &mut self,
+    player: &mut Player,
+    room: &mut Room,
+    out_line: &mut ConsoleLine
+) {
+    -> use_fountain(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
+    -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
+    -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
+    -> no_usable_event(out_line);
+    
 
     state use_fountain(
         &mut self,
@@ -110,18 +108,17 @@ machine EventRuntime::use_event {
     }
 }
 
-machine EventRuntime::fight_event {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        room: &mut Room,
-        random: &mut RandomState,
-        round: &mut CombatRound,
-        out_line: &mut ConsoleLine
-    ) {
-        -> fight_enemy_event(player, room, random, round, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
-        -> no_enemy(out_line);
-    }
+machine EventRuntime::fight_event(
+    &mut self,
+    player: &mut Player,
+    room: &mut Room,
+    random: &mut RandomState,
+    round: &mut CombatRound,
+    out_line: &mut ConsoleLine
+) {
+    -> fight_enemy_event(player, room, random, round, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
+    -> no_enemy(out_line);
+    
 
     state fight_enemy_event(
         &mut self,
