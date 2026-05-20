@@ -1,8 +1,6 @@
-machine main {
-    pub entry(
-        &mut self,
-        label: &mut String
-    ) {
-        label = "hello";
-    }
+machine main(
+    &mut self,
+    label: &mut String
+) {
+    label = "hello";
 }

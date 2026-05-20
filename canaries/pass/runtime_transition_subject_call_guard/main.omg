@@ -2,19 +2,19 @@ data Flag {
     value: bool;
 }
 
-machine main {
-    pub entry(&mut self, flag: Flag) {
-        transition self.pick(flag) {
-            true -> yes()
-            false -> no()
-        }
+machine main(&mut self, flag: Flag) {
+    transition self.pick(flag) {
+        true -> yes()
+        false -> no()
     }
+    
 
     state yes(&mut self) {}
 
     state no(&mut self) {}
+}
 
-    entry pick(&mut self, flag: Flag) -> bool {
-        -> flag.value;
-    }
+machine main::pick(&mut self, flag: Flag) -> bool {
+    -> flag.value;
+    
 }

@@ -9,24 +9,25 @@ data MazeBuilder {
     rng: Random;
 }
 
-machine MazeBuilder::build {
-    pub entry(
-        &mut self,
-        seed: u64[wrapping],
-        level: &mut Level
-    ) {
-        let random: RandomState;
-        self.rng.seed(seed, &mut random);
+machine MazeBuilder::build(
+    &mut self,
+    seed: u64[wrapping],
+    level: &mut Level
+) {
+    let random: RandomState;
+    self.rng.seed(seed, &mut random);
 
-        level.start_cell = CellId::R00;
-        level.room_count = 0;
-        level.deepest_depth = 0;
+    level.start_cell = CellId::R00;
+    level.room_count = 0;
+    level.deepest_depth = 0;
 
-        self.carve_room(level, &mut random, CellId::R00, 0, 0);
-        self.branch(level, &mut random, CellId::R00, 0, 0);
+    self.carve_room(level, &mut random, CellId::R00, 0, 0);
+    transition {
+        _ -> branch(level, &mut random, CellId::R00, 0, 0)
     }
+    
 
-    entry branch(
+    state branch(
         &mut self,
         level: &mut Level,
         random: &mut RandomState,
@@ -97,67 +98,68 @@ machine MazeBuilder::build {
             false -> {}
         }
     }
+}
 
-    entry should_carve(
-        &mut self,
-        random: &mut RandomState,
-        depth: u32[exact, non_negative]
+machine MazeBuilder::should_carve(
+    &mut self,
+    random: &mut RandomState,
+    depth: u32[exact, non_negative]
     ) -> bool {
-        let chance: u32[exact, range<0, 100>] = max(15, 80 - depth * 6);
-        let rolled: bool = self.rng.chance(random, chance, 100);
+    let chance: u32[exact, range<0, 100>] = max(15, 80 - depth * 6);
+    let rolled: bool = self.rng.chance(random, chance, 100);
 
-        -> rolled;
+    -> rolled;
+}
+
+machine MazeBuilder::carve_room(
+    &mut self,
+    level: &mut Level,
+    random: &mut RandomState,
+    cell: CellId,
+    depth: u32[exact, non_negative],
+    branch_id: u32[exact, non_negative]
+) {
+    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    let index: usize[exact, range<0, 15>] = self.cell_index(cell);
+    rooms[index].cell = cell;
+    rooms[index].depth = depth;
+    rooms[index].branch = branch_id;
+    rooms[index].label = self.room_label(cell);
+    rooms[index].description = self.room_description(depth, branch_id);
+    rooms[index].exit_count = 0;
+    rooms[index].discovered = cell == level.start_cell;
+    self.events.roll_event(depth, random, &mut rooms[index].event);
+    level.room_count = max(level.room_count, index + 1);
+    level.deepest_depth = max(level.deepest_depth, depth);
+}
+
+machine MazeBuilder::connect(
+    &mut self,
+    level: &mut Level,
+    from: CellId,
+    to: CellId,
+    direction: Direction
+) {
+    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    let from_index: usize = self.cell_index(from);
+    let to_index: usize = self.cell_index(to);
+
+    self.append_exit(&mut rooms[from_index], self.direction_command(direction), direction, to);
+    self.append_exit(&mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
+}
+
+machine MazeBuilder::append_exit(
+    &mut self,
+    room: &mut Room,
+    command: String,
+    direction: Direction,
+    destination: CellId
+) {
+    transition room.exit_count < 4 {
+        true -> append_exit_at(room, command, direction, destination, room.exit_count)
+        false -> {}
     }
-
-    entry carve_room(
-        &mut self,
-        level: &mut Level,
-        random: &mut RandomState,
-        cell: CellId,
-        depth: u32[exact, non_negative],
-        branch_id: u32[exact, non_negative]
-    ) {
-        let rooms: &mut [Room] = level.rooms.as_mut_slice();
-        let index: usize[exact, range<0, 15>] = self.cell_index(cell);
-        rooms[index].cell = cell;
-        rooms[index].depth = depth;
-        rooms[index].branch = branch_id;
-        rooms[index].label = self.room_label(cell);
-        rooms[index].description = self.room_description(depth, branch_id);
-        rooms[index].exit_count = 0;
-        rooms[index].discovered = cell == level.start_cell;
-        self.events.roll_event(depth, random, &mut rooms[index].event);
-        level.room_count = max(level.room_count, index + 1);
-        level.deepest_depth = max(level.deepest_depth, depth);
-    }
-
-    entry connect(
-        &mut self,
-        level: &mut Level,
-        from: CellId,
-        to: CellId,
-        direction: Direction
-    ) {
-        let rooms: &mut [Room] = level.rooms.as_mut_slice();
-        let from_index: usize = self.cell_index(from);
-        let to_index: usize = self.cell_index(to);
-
-        self.append_exit(&mut rooms[from_index], self.direction_command(direction), direction, to);
-        self.append_exit(&mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
-    }
-
-    entry append_exit(
-        &mut self,
-        room: &mut Room,
-        command: String,
-        direction: Direction,
-        destination: CellId
-    ) {
-        transition room.exit_count < 4 {
-            true -> append_exit_at(room, command, direction, destination, room.exit_count)
-            false -> {}
-        }
-    }
+    
 
     state append_exit_at(
         &mut self,
@@ -171,87 +173,87 @@ machine MazeBuilder::build {
         exits[index] = Exit { command: command, direction: direction, destination: destination };
         room.exit_count = index + 1;
     }
+}
 
-    entry next_unused_cell(
-        &mut self,
-        level: Level
+machine MazeBuilder::next_unused_cell(
+    &mut self,
+    level: Level
     ) -> CellId {
-        -> CellId::R01 when level.room_count == 1;
-        -> CellId::R02 when level.room_count == 2;
-        -> CellId::R03 when level.room_count == 3;
-        -> CellId::R04 when level.room_count == 4;
-        -> CellId::R05 when level.room_count == 5;
-        -> CellId::R06 when level.room_count == 6;
-        -> CellId::R07 when level.room_count == 7;
-        -> CellId::R08 when level.room_count == 8;
-        -> CellId::R09 when level.room_count == 9;
-        -> CellId::R10 when level.room_count == 10;
-        -> CellId::R11 when level.room_count == 11;
-        -> CellId::R12 when level.room_count == 12;
-        -> CellId::R13 when level.room_count == 13;
-        -> CellId::R14 when level.room_count == 14;
-        -> CellId::R15;
-    }
+    -> CellId::R01 when level.room_count == 1;
+    -> CellId::R02 when level.room_count == 2;
+    -> CellId::R03 when level.room_count == 3;
+    -> CellId::R04 when level.room_count == 4;
+    -> CellId::R05 when level.room_count == 5;
+    -> CellId::R06 when level.room_count == 6;
+    -> CellId::R07 when level.room_count == 7;
+    -> CellId::R08 when level.room_count == 8;
+    -> CellId::R09 when level.room_count == 9;
+    -> CellId::R10 when level.room_count == 10;
+    -> CellId::R11 when level.room_count == 11;
+    -> CellId::R12 when level.room_count == 12;
+    -> CellId::R13 when level.room_count == 13;
+    -> CellId::R14 when level.room_count == 14;
+    -> CellId::R15;
+}
 
-    entry cell_index(
-        &mut self,
-        cell: CellId
+machine MazeBuilder::cell_index(
+    &mut self,
+    cell: CellId
     ) -> usize[exact, range<0, 15>] {
-        -> 0 when cell == CellId::R00;
-        -> 1 when cell == CellId::R01;
-        -> 2 when cell == CellId::R02;
-        -> 3 when cell == CellId::R03;
-        -> 4 when cell == CellId::R04;
-        -> 5 when cell == CellId::R05;
-        -> 6 when cell == CellId::R06;
-        -> 7 when cell == CellId::R07;
-        -> 8 when cell == CellId::R08;
-        -> 9 when cell == CellId::R09;
-        -> 10 when cell == CellId::R10;
-        -> 11 when cell == CellId::R11;
-        -> 12 when cell == CellId::R12;
-        -> 13 when cell == CellId::R13;
-        -> 14 when cell == CellId::R14;
-        -> 15;
-    }
+    -> 0 when cell == CellId::R00;
+    -> 1 when cell == CellId::R01;
+    -> 2 when cell == CellId::R02;
+    -> 3 when cell == CellId::R03;
+    -> 4 when cell == CellId::R04;
+    -> 5 when cell == CellId::R05;
+    -> 6 when cell == CellId::R06;
+    -> 7 when cell == CellId::R07;
+    -> 8 when cell == CellId::R08;
+    -> 9 when cell == CellId::R09;
+    -> 10 when cell == CellId::R10;
+    -> 11 when cell == CellId::R11;
+    -> 12 when cell == CellId::R12;
+    -> 13 when cell == CellId::R13;
+    -> 14 when cell == CellId::R14;
+    -> 15;
+}
 
-    entry room_label(
-        &mut self,
-        cell: CellId
+machine MazeBuilder::room_label(
+    &mut self,
+    cell: CellId
     ) -> String {
-        -> "Gate" when cell == CellId::R00;
-        -> "Branch Room";
-    }
+    -> "Gate" when cell == CellId::R00;
+    -> "Branch Room";
+}
 
-    entry room_description(
-        &mut self,
-        depth: u32[exact, non_negative],
-        branch_id: u32[exact, non_negative]
+machine MazeBuilder::room_description(
+    &mut self,
+    depth: u32[exact, non_negative],
+    branch_id: u32[exact, non_negative]
     ) -> String {
-        -> "The old gate room breathes cold air from below." when depth == 0;
-        -> "A shallow limestone room with fresh claw marks." when depth <= 2;
-        -> "A winding branch room where the walls sweat mineral dust." when depth <= 5;
-        -> "A deep chamber with old bones underfoot." when depth <= 8;
-        -> "A bottomless dark room near the dungeon heart.";
-    }
+    -> "The old gate room breathes cold air from below." when depth == 0;
+    -> "A shallow limestone room with fresh claw marks." when depth <= 2;
+    -> "A winding branch room where the walls sweat mineral dust." when depth <= 5;
+    -> "A deep chamber with old bones underfoot." when depth <= 8;
+    -> "A bottomless dark room near the dungeon heart.";
+}
 
-    entry direction_command(
-        &mut self,
-        direction: Direction
+machine MazeBuilder::direction_command(
+    &mut self,
+    direction: Direction
     ) -> String {
-        -> "north" when direction == Direction::North;
-        -> "south" when direction == Direction::South;
-        -> "east" when direction == Direction::East;
-        -> "west";
-    }
+    -> "north" when direction == Direction::North;
+    -> "south" when direction == Direction::South;
+    -> "east" when direction == Direction::East;
+    -> "west";
+}
 
-    entry opposite(
-        &mut self,
-        direction: Direction
+machine MazeBuilder::opposite(
+    &mut self,
+    direction: Direction
     ) -> Direction {
-        -> Direction::South when direction == Direction::North;
-        -> Direction::North when direction == Direction::South;
-        -> Direction::West when direction == Direction::East;
-        -> Direction::East;
-    }
+    -> Direction::South when direction == Direction::North;
+    -> Direction::North when direction == Direction::South;
+    -> Direction::West when direction == Direction::East;
+    -> Direction::East;
 }

@@ -7,22 +7,22 @@ data Reward {
     item: ItemKind
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        depth: u32,
-        reward: &mut Reward
-    ) {
-        reward.item = self.pick(depth);
-    }
+machine main(
+    &mut self,
+    depth: u32,
+    reward: &mut Reward
+) {
+    reward.item = self.pick(depth);
+    
+}
 
-    entry pick(
-        &mut self,
-        depth: u32
+machine main::pick(
+    &mut self,
+    depth: u32
     ) -> ItemKind {
-        transition depth > 3 {
-            true -> ItemKind::DeepKey
-            false -> ItemKind::RustedDagger
-        }
+    transition depth > 3 {
+        true -> ItemKind::DeepKey
+        false -> ItemKind::RustedDagger
     }
+    
 }

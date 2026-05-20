@@ -1,6 +1,6 @@
-machine main {
-    owns count: i32[finite] = 0;
+data main {
+    count: i32[finite] = 0;
+}
 
-    pub entry() {
-    }
+machine main(&mut self) {
 }

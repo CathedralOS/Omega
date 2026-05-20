@@ -7,10 +7,8 @@ data Banner {
     console: Console;
 }
 
-machine Banner::entry {
-    pub entry(&mut self) {
-        self.console.write_line("nested");
-    }
+machine Banner::entry(&mut self) {
+    self.console.write_line("nested");
 }
 
 data main {
@@ -18,10 +16,8 @@ data main {
     console: Console;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.banner.entry();
-        self.console.write_line("continued");
-        self.console.exit_process(0);
-    }
+machine main(&mut self) {
+    self.banner.entry();
+    self.console.write_line("continued");
+    self.console.exit_process(0);
 }

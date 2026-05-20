@@ -3,23 +3,27 @@ enum CellId { Empty; }
 data Navigation { choice: NavigationChoice; destination: CellId; }
 data ConsoleLine { text: String; }
 
-machine main {
-    pub entry(&mut self, line: &ConsoleLine) -> Navigation {
-        let choice: NavigationChoice = self.resolve_command(line);
-        -> self.resolve_exit(line) when choice == NavigationChoice::Invalid;
-        -> self.navigation(choice, CellId::Empty);
-    }
+machine main(&mut self, line: &ConsoleLine) -> Navigation {
+    let choice: NavigationChoice = self.resolve_command(line);
+    -> self.resolve_exit(line) when choice == NavigationChoice::Invalid;
+    -> self.navigation(choice, CellId::Empty);
+    
 
-    entry resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
-        -> NavigationChoice::Invalid when line.text == "quit";
-        -> NavigationChoice::Move;
-    }
 
-    entry resolve_exit(&mut self, line: &ConsoleLine) -> Navigation {
-        -> self.navigation(NavigationChoice::Move, CellId::Empty);
-    }
+}
 
-    entry navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
-        Navigation { choice: choice, destination: destination }
-    }
+machine main::resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
+    -> NavigationChoice::Invalid when line.text == "quit";
+    -> NavigationChoice::Move;
+    
+}
+
+machine main::resolve_exit(&mut self, line: &ConsoleLine) -> Navigation {
+    -> self.navigation(NavigationChoice::Move, CellId::Empty);
+    
+}
+
+machine main::navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
+    Navigation { choice: choice, destination: destination }
+    
 }

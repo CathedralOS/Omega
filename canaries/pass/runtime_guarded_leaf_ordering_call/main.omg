@@ -4,13 +4,13 @@ enum ItemKind { RustedDagger; DeepKey; }
 
 data Reward { item: ItemKind; }
 
-machine main {
-    pub entry(&mut self, depth: u32, random: &mut RandomState, reward: &mut Reward) {
-        reward.item = self.roll_item(depth, random);
-    }
+machine main(&mut self, depth: u32, random: &mut RandomState, reward: &mut Reward) {
+    reward.item = self.roll_item(depth, random);
+    
+}
 
-    entry roll_item(&mut self, depth: u32, random: &mut RandomState) -> ItemKind {
-        -> ItemKind::DeepKey when depth > 0;
-        -> ItemKind::RustedDagger;
-    }
+machine main::roll_item(&mut self, depth: u32, random: &mut RandomState) -> ItemKind {
+    -> ItemKind::DeepKey when depth > 0;
+    -> ItemKind::RustedDagger;
+    
 }

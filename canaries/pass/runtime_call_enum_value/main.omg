@@ -3,17 +3,17 @@ enum ItemKind {
     DeepKey
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        out: &mut ItemKind
-    ) {
-        out = self.pick();
-    }
+machine main(
+    &mut self,
+    out: &mut ItemKind
+) {
+    out = self.pick();
+    
+}
 
-    entry pick(
-        &mut self
+machine main::pick(
+    &mut self
     ) -> ItemKind {
-        -> ItemKind::DeepKey;
-    }
+    -> ItemKind::DeepKey;
+    
 }

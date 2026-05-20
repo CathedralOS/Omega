@@ -14,15 +14,14 @@ data main {
     health: i32;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.health = 10;
+machine main(&mut self) {
+    self.health = 10;
 
-        transition self.health == 0 {
-            true -> dead()
-            false -> choose()
-        }
+    transition self.health == 0 {
+        true -> dead()
+        false -> choose()
     }
+    
 
     state choose(&mut self) {
         self.choice = Command::Invalid;

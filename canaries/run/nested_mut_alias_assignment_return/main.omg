@@ -10,52 +10,44 @@ data RandomState {
 data Random {
 }
 
-machine Random::seed {
-    pub entry(
-        &mut self,
-        value: u64[wrapping],
-        state: &mut RandomState
-    ) {
-        state.seed = value;
-        state.calls = 0;
-    }
+machine Random::seed(
+    &mut self,
+    value: u64[wrapping],
+    state: &mut RandomState
+) {
+    state.seed = value;
+    state.calls = 0;
 }
 
-machine Random::next_u32 -> u32[wrapping] {
-    pub entry(
-        &mut self,
-        state: &mut RandomState
-    ) {
-        state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
-        state.calls = state.calls + 1;
+machine Random::next_u32(
+    &mut self,
+    state: &mut RandomState
+    ) -> u32[wrapping] {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+    state.calls = state.calls + 1;
 
-        -> ((state.seed >> 32) as u32);
-    }
+    -> ((state.seed >> 32) as u32);
 }
 
-machine Random::range -> u32[exact, range<0, exclusive_max>] {
-    pub entry(
-        &mut self,
-        state: &mut RandomState,
-        exclusive_max: u32[exact, positive]
-    ) {
-        let raw: u32[wrapping] = self.next_u32(state);
+machine Random::range(
+    &mut self,
+    state: &mut RandomState,
+    exclusive_max: u32[exact, positive]
+    ) -> u32[exact, range<0, exclusive_max>] {
+    let raw: u32[wrapping] = self.next_u32(state);
 
-        -> raw % exclusive_max;
-    }
+    -> raw % exclusive_max;
 }
 
-machine Random::chance -> bool {
-    pub entry(
-        &mut self,
-        state: &mut RandomState,
-        numerator: u32[exact],
-        denominator: u32[exact, positive]
-    ) {
-        let roll: u32[exact, range<0, denominator>] = self.range(state, denominator);
+machine Random::chance(
+    &mut self,
+    state: &mut RandomState,
+    numerator: u32[exact],
+    denominator: u32[exact, positive]
+    ) -> bool {
+    let roll: u32[exact, range<0, denominator>] = self.range(state, denominator);
 
-        -> roll < numerator;
-    }
+    -> roll < numerator;
 }
 
 data Generator {
@@ -63,29 +55,18 @@ data Generator {
     rng: Random;
 }
 
-machine Generator::run {
-    pub entry(&mut self) {
-        let random: RandomState;
-        self.rng.seed(1, &mut random);
+machine Generator::run(&mut self) {
+    let random: RandomState;
+    self.rng.seed(1, &mut random);
 
-        let carve: bool = self.should_carve(&mut random, 1);
+    let carve: bool = self.should_carve(&mut random, 1);
 
-        transition carve {
-            true -> yes()
-            false -> no()
-        }
+    transition carve {
+        true -> yes()
+        false -> no()
     }
+    
 
-    entry should_carve(
-        &mut self,
-        random: &mut RandomState,
-        depth: u32[exact, non_negative]
-    ) -> bool {
-        let chance: u32[exact, range<0, 100>] = 99;
-        let rolled: bool = self.rng.chance(random, chance, 100);
-
-        -> rolled;
-    }
 
     state yes(&mut self) {
         self.console.write_line("yes");
@@ -96,13 +77,23 @@ machine Generator::run {
     }
 }
 
+machine Generator::should_carve(
+    &mut self,
+    random: &mut RandomState,
+    depth: u32[exact, non_negative]
+    ) -> bool {
+    let chance: u32[exact, range<0, 100>] = 99;
+    let rolled: bool = self.rng.chance(random, chance, 100);
+
+    -> rolled;
+    
+}
+
 data main {
     generator: Generator;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        self.generator.run();
-        0
-    }
+machine main(&mut self) -> i32 {
+    self.generator.run();
+    0
 }

@@ -69,11 +69,9 @@ mod tests {
     #[test]
     fn parses_dungeon_machine_surface() {
         let source = r#"
-        machine Game::new -> Game {
-            pub entry() {
-                let game: Game;
-                -> game;
-            }
+        machine Game::new() -> Game {
+            let game: Game;
+            -> game;
         }
         "#;
 
@@ -87,11 +85,9 @@ mod tests {
     #[test]
     fn parses_dungeon_state_flow() {
         let source = r#"
-        machine main -> i32 {
-            pub entry(&mut self) {
-                transition {
-                    _ -> running()
-                }
+        machine main(&mut self) -> i32 {
+            transition {
+                _ -> running()
             }
 
             state running(&mut self) {
@@ -110,9 +106,7 @@ mod tests {
     #[test]
     fn parses_main_entry_state_name_as_entry() {
         let source = r#"
-        machine main {
-            pub entry(&mut self) {}
-        }
+        machine main(&mut self) {}
         "#;
 
         let tokens = Lexer::new(source)
@@ -136,9 +130,7 @@ mod tests {
     #[test]
     fn parses_self_parameter_with_dedicated_self_type() {
         let source = r#"
-        machine main {
-            pub entry(&mut self) {}
-        }
+        machine main(&mut self) {}
         "#;
 
         let tokens = Lexer::new(source)
@@ -178,10 +170,8 @@ mod tests {
     #[test]
     fn parses_self_expression_as_dedicated_node() {
         let source = r#"
-        machine main {
-            pub entry(&mut self) {
-                self;
-            }
+        machine main(&mut self) {
+            self;
         }
         "#;
 
@@ -227,10 +217,8 @@ mod tests {
             level: i32;
         }
 
-        machine main {
-            pub entry(&mut self, player: &mut Player) {
-                player.xp = max(0, player.xp - self.xp_required(player.level));
-            }
+        machine main(&mut self, player: &mut Player) {
+            player.xp = max(0, player.xp - self.xp_required(player.level));
 
             state xp_required(&mut self, level: i32) -> i32 {
                 10

@@ -5,12 +5,10 @@ data DungeonGenerator {
     maze: MazeBuilder;
 }
 
-machine DungeonGenerator::generate {
-    pub entry(
-        &mut self,
-        seed: u64[wrapping],
-        out_level: &mut Level
-    ) {
-        self.maze.build(seed, out_level);
-    }
+machine DungeonGenerator::generate(
+    &mut self,
+    seed: u64[wrapping],
+    out_level: &mut Level
+) {
+    self.maze.build(seed, out_level);
 }

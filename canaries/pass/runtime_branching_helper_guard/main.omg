@@ -1,17 +1,18 @@
-machine main {
-    pub entry(&mut self, flag: bool) {
-        transition self.pick(flag) == true {
-            true -> done()
-            false -> done()
-        }
+machine main(&mut self, flag: bool) {
+    transition self.pick(flag) == true {
+        true -> done()
+        false -> done()
     }
+    
 
-    entry pick(&mut self, flag: bool) -> bool {
-        transition flag {
-            true -> true
-            false -> false
-        }
-    }
 
     state done(&mut self) {}
+}
+
+machine main::pick(&mut self, flag: bool) -> bool {
+    transition flag {
+        true -> true
+        false -> false
+    }
+    
 }

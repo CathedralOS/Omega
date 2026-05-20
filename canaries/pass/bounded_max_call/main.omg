@@ -1,8 +1,7 @@
-machine main -> i32[exact, non_negative] {
-    pub entry(
-        &mut self
-    ) {
-    }
+machine main(
+    &mut self
+    ) -> i32[exact, non_negative] {
+    
 
     state answer(
         &mut self,

@@ -14,23 +14,20 @@ data Game {
     output: ConsoleLine;
 }
 
-machine Game::initialize {
-    pub entry(
-        &mut self,
-        seed: u64[wrapping]
-    ) {
-        self.dungeon.initialize(seed);
-    }
+machine Game::initialize(
+    &mut self,
+    seed: u64[wrapping]
+) {
+    self.dungeon.initialize(seed);
 }
 
-machine Game::run_game_loop {
-    pub entry(&mut self) {
-        self.view.render_title(&mut self.console);
+machine Game::run_game_loop(&mut self) {
+    self.view.render_title(&mut self.console);
 
-        transition {
-            _ -> enter_room()
-        }
+    transition {
+        _ -> enter_room()
     }
+    
 
     state enter_room(&mut self) {
         self.dungeon.enter_room();

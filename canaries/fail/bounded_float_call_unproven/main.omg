@@ -1,9 +1,10 @@
-machine main {
-    owns speed: f32[finite, range<0.0f, 100000.0f>] = 0.0f;
+data main {
+    speed: f32[finite, range<0.0f, 100000.0f>] = 0.0f;
+}
 
-    pub entry() {
-        safe_speed(speed);
-    }
+machine main(&mut self) {
+    safe_speed(self.speed);
+
 
     state safe_speed(value: f32[finite, range<0.0f, 100.0f>]) {
     }

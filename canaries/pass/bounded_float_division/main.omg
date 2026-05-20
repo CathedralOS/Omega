@@ -1,8 +1,7 @@
-machine main -> Real[finite, range<0.0, 1.0>] {
-    pub entry(
-        &mut self
-    ) {
-    }
+machine main(
+    &mut self
+    ) -> Real[finite, range<0.0, 1.0>] {
+    
 
     state answer(
         &mut self,

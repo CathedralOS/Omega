@@ -7,9 +7,7 @@ data main {
     console: Console;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.console.write_line("entry");
-        self.console.exit_process(0);
-    }
+machine main(&mut self) {
+    self.console.write_line("entry");
+    self.console.exit_process(0);
 }

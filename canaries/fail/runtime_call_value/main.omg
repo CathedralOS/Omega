@@ -1,14 +1,14 @@
-machine main {
-    pub entry(
-        &mut self,
-        label: &mut String
-    ) {
-        label = self.name();
-    }
+machine main(
+    &mut self,
+    label: &mut String
+) {
+    label = self.name();
+    
+}
 
-    entry name(
-        &mut self
+machine main::name(
+    &mut self
     ) -> String {
-        -> "hello";
-    }
+    -> "hello";
+    
 }

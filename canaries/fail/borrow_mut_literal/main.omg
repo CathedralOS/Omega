@@ -1,11 +1,10 @@
 data main {}
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        transition {
-            _ -> write(&mut 1)
-        }
+machine main(&mut self) -> i32 {
+    transition {
+        _ -> write(&mut 1)
     }
+    
 
     state write(&mut self, out_value: &mut i32) {
         out_value = 2;

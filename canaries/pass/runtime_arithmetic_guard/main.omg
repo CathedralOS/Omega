@@ -3,14 +3,13 @@ data main {
     xp: u32;
 }
 
-machine main {
-    pub entry(&mut self) {
-        self.level = 2;
-        self.xp = 21;
+machine main(&mut self) {
+    self.level = 2;
+    self.xp = 21;
 
-        -> level_up() when self.xp >= 10 + self.level * 5;
-        -> done();
-    }
+    -> level_up() when self.xp >= 10 + self.level * 5;
+    -> done();
+    
 
     state level_up(&mut self) {}
 

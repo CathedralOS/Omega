@@ -83,7 +83,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if is_identifier_token(token) {
+        if is_identifier_token_for_parser(token) {
             Ok((self.identifier_from_token(token), rest))
         } else {
             Err(diagnostics::expected(self, token, "identifier"))
@@ -141,7 +141,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(super) fn at_name_like(&self) -> bool {
-        self.tokens.first().is_some_and(is_identifier_token)
+        self.tokens.first().is_some_and(is_identifier_token_for_parser)
     }
 
     fn identifier_from_token(&self, token: &Token<'_>) -> Identifier {
@@ -288,7 +288,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 }
 
-fn is_identifier_token(token: &Token<'_>) -> bool {
+pub(super) fn is_identifier_token_for_parser(token: &Token<'_>) -> bool {
     match token.kind {
         TokenKind::Identifier => true,
         TokenKind::Keyword(keyword) => !keyword.is_strict_identifier_keyword(),

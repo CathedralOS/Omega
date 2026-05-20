@@ -2,12 +2,11 @@ data main {
     value: i32;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        transition {
-            _ -> copy(&mut self.value, self.value)
-        }
+machine main(&mut self) -> i32 {
+    transition {
+        _ -> copy(&mut self.value, self.value)
     }
+    
 
     state copy(&mut self, out_value: &mut i32, input_value: i32) {
         out_value = input_value;

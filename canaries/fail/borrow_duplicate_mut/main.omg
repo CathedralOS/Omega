@@ -2,12 +2,11 @@ data main {
     value: i32;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        transition {
-            _ -> swap(&mut self.value, &mut self.value)
-        }
+machine main(&mut self) -> i32 {
+    transition {
+        _ -> swap(&mut self.value, &mut self.value)
     }
+    
 
     state swap(&mut self, left: &mut i32, right: &mut i32) {
         left = right;

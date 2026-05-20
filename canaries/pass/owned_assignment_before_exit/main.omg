@@ -3,14 +3,13 @@ platform Console {
     entry exit_process(return_code: i32);
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+    return_code: i32 = 1;
+}
 
-    owns return_code: i32 = 1;
-
-    pub entry() {
-        console.write_line("assign");
-        return_code = 0;
-        console.exit_process(return_code);
-    }
+machine main(&mut self) {
+    self.console.write_line("assign");
+    self.return_code = 0;
+    self.console.exit_process(self.return_code);
 }

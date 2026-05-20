@@ -1,8 +1,9 @@
 invariant finite_speed = [speed_range];
 invariant speed_range = [finite_speed, range<0.0f, 100.0f>];
-machine main {
-    owns speed: f32[speed_range] = 0.0f;
 
-    pub entry() {
-    }
+data main {
+    speed: f32[speed_range] = 0.0f;
+}
+
+machine main(&mut self) {
 }

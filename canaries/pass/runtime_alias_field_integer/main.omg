@@ -2,11 +2,9 @@ data Reward {
     gold: i32;
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        reward: &mut Reward
-    ) {
-        reward.gold = 1;
-    }
+machine main(
+    &mut self,
+    reward: &mut Reward
+) {
+    reward.gold = 1;
 }

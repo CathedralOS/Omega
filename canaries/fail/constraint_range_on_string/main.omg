@@ -2,9 +2,9 @@ data Label {
     text: String;
 }
 
-machine main {
-    owns label: String[range<1, 10>];
+data main {
+    label: String[range<1, 10>];
+}
 
-    pub entry() {
-    }
+machine main(&mut self) {
 }

@@ -13,18 +13,17 @@ data Enemy {
 
 data RandomState {}
 
-machine main {
-    pub entry(
-        &mut self,
-        enemy: Enemy,
-        random: &mut RandomState,
-        reward: &mut Reward
-    ) {
-        transition self.chance(random, 1, 4) {
-            true -> enemy_item(enemy, random, reward)
-            false -> enemy_gold(enemy, random, reward)
-        }
+machine main(
+    &mut self,
+    enemy: Enemy,
+    random: &mut RandomState,
+    reward: &mut Reward
+) {
+    transition self.chance(random, 1, 4) {
+        true -> enemy_item(enemy, random, reward)
+        false -> enemy_gold(enemy, random, reward)
     }
+    
 
     state enemy_item(
         &mut self,
@@ -48,20 +47,25 @@ machine main {
         reward.item = ItemKind::RustedDagger;
     }
 
-    entry range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
-        1
-    }
 
-    entry chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
-        true
-    }
+}
 
-    entry roll_item(
-        &mut self,
-        depth: u32,
-        random: &mut RandomState
+machine main::range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
+    1
+    
+}
+
+machine main::chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
+    true
+    
+}
+
+machine main::roll_item(
+    &mut self,
+    depth: u32,
+    random: &mut RandomState
     ) -> ItemKind {
-        -> ItemKind::HealingCharm when depth > 1;
-        -> ItemKind::RustedDagger;
-    }
+    -> ItemKind::HealingCharm when depth > 1;
+    -> ItemKind::RustedDagger;
+    
 }

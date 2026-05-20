@@ -13,23 +13,22 @@ data CombatSystem {
     rng: Random;
 }
 
-machine CombatSystem::fight {
-    pub entry(
-        &mut self,
-        player: &mut Player,
-        event: &mut RoomEvent,
-        random: &mut RandomState,
-        round: &mut CombatRound
-    ) {
-        round.player_damage = max(0, player.attack - event.enemy.defense + self.rng.range(random, 3));
-        event.enemy.health = max(0, event.enemy.health - round.player_damage);
-        round.enemy_defeated = event.enemy.health == 0;
+machine CombatSystem::fight(
+    &mut self,
+    player: &mut Player,
+    event: &mut RoomEvent,
+    random: &mut RandomState,
+    round: &mut CombatRound
+) {
+    round.player_damage = max(0, player.attack - event.enemy.defense + self.rng.range(random, 3));
+    event.enemy.health = max(0, event.enemy.health - round.player_damage);
+    round.enemy_defeated = event.enemy.health == 0;
 
-        transition round.enemy_defeated {
-            true -> defeated_enemy(player, event, random, round)
-            false -> enemy_retaliates(player, event, random, round)
-        }
+    transition round.enemy_defeated {
+        true -> defeated_enemy(player, event, random, round)
+        false -> enemy_retaliates(player, event, random, round)
     }
+    
 
     state defeated_enemy(
         &mut self,

@@ -7,17 +7,17 @@ data Reward {
     item: ItemKind
 }
 
-machine main {
-    pub entry(
-        &mut self,
-        reward: &mut Reward
-    ) {
-        reward.item = self.pick();
-    }
+machine main(
+    &mut self,
+    reward: &mut Reward
+) {
+    reward.item = self.pick();
+    
+}
 
-    entry pick(
-        &mut self
+machine main::pick(
+    &mut self
     ) -> ItemKind {
-        -> ItemKind::DeepKey;
-    }
+    -> ItemKind::DeepKey;
+    
 }

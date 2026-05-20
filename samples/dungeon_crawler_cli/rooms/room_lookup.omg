@@ -4,20 +4,19 @@ use rooms::rooms;
 data RoomLookup {
 }
 
-machine RoomLookup::find_room {
-    pub entry(
-        &mut self,
-        level: Level,
-        cell: CellId,
-        out_room: &mut Room
-    ) {
-        let rooms: &[Room] = level.rooms.as_slice();
+machine RoomLookup::find_room(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_room: &mut Room
+) {
+    let rooms: &[Room] = level.rooms.as_slice();
 
-        transition level.room_count > 0 {
-            true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
-            false -> {}
-        }
+    transition level.room_count > 0 {
+        true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
+        false -> {}
     }
+    
 
     state find_room_at(
         &mut self,
@@ -44,33 +43,32 @@ machine RoomLookup::find_room {
     }
 }
 
-machine RoomLookup::find_room_mut -> &mut Room {
-    pub entry(
-        &mut self,
-        level: &mut Level,
-        cell: CellId
-    ) {
-        let rooms: &mut [Room] = level.rooms.as_mut_slice();
+machine RoomLookup::find_room_mut(
+    &mut self,
+    level: &mut Level,
+    cell: CellId
+    ) -> &mut Room {
+    let rooms: &mut [Room] = level.rooms.as_mut_slice();
 
-        transition level.room_count > 0 {
-            true -> self.find_room_mut_at(rooms, level.room_count, cell, 0)
-            false -> &mut rooms[0]
-        }
+    transition level.room_count > 0 {
+        true -> find_room_mut_at(rooms, level.room_count, cell, 0)
+        false -> &mut rooms[0]
     }
+    
 
-    entry find_room_mut_at(
+    state find_room_mut_at(
         &mut self,
         rooms: &mut [Room],
         room_count: usize[positive],
         cell: CellId,
         index: usize
-    ) -> &mut Room {
+    ) {
         let found: bool = rooms[index].cell == cell;
         let next_index: usize = index + 1;
         let has_next: bool = next_index < room_count;
 
         -> &mut rooms[index] when found;
-        -> self.find_room_mut_at(rooms, room_count, cell, next_index) when has_next;
+        -> find_room_mut_at(rooms, room_count, cell, next_index) when has_next;
         -> &mut rooms[0];
     }
 }

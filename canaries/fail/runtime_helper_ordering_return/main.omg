@@ -6,37 +6,30 @@ data RandomState {
 data Random {
 }
 
-machine Random::next_u32 -> u32[wrapping] {
-    pub entry(&mut self, state: &mut RandomState) {
-        state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
-        state.calls = state.calls + 1;
-        -> ((state.seed >> 32) as u32);
-    }
+machine Random::next_u32(&mut self, state: &mut RandomState) -> u32[wrapping] {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+    state.calls = state.calls + 1;
+    -> ((state.seed >> 32) as u32);
 }
 
-machine Random::range -> u32[exact, range<0, exclusive_max>] {
-    pub entry(&mut self, state: &mut RandomState, exclusive_max: u32[exact, positive]) {
-        let raw: u32[wrapping] = self.next_u32(state);
-        -> raw % exclusive_max;
-    }
+machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32[exact, positive]) -> u32[exact, range<0, exclusive_max>] {
+    let raw: u32[wrapping] = self.next_u32(state);
+    -> raw % exclusive_max;
 }
 
-machine Random::chance -> bool {
-    pub entry(
-        &mut self,
-        state: &mut RandomState,
-        top: u32[exact, positive],
-        bottom: u32[exact, positive]
-    ) {
-        -> self.range(state, bottom) < top;
-    }
+machine Random::chance(
+    &mut self,
+    state: &mut RandomState,
+    top: u32[exact, positive],
+    bottom: u32[exact, positive]
+    ) -> bool {
+    -> self.range(state, bottom) < top;
 }
 
-machine main {
-    pub entry(&mut self, random: &mut RandomState) {
-        -> success() when self.chance(random, 1, 4) == true;
-        -> failure();
-    }
+machine main(&mut self, random: &mut RandomState) {
+    -> success() when self.chance(random, 1, 4) == true;
+    -> failure();
+    
 
     state success(&mut self) {}
 

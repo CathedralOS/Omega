@@ -3,61 +3,51 @@ use rng::random_state;
 data Random {
 }
 
-machine Random::seed {
-    pub entry(
-        &mut self,
-        value: u64[wrapping],
-        state: &mut RandomState
-    ) {
-        state.seed = value;
-        state.calls = 0;
-    }
+machine Random::seed(
+    &mut self,
+    value: u64[wrapping],
+    state: &mut RandomState
+) {
+    state.seed = value;
+    state.calls = 0;
 }
 
-machine Random::next_u32 -> u32[wrapping] {
-    pub entry(
-        &mut self,
-        state: &mut RandomState
-    ) {
-        state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
-        state.calls = state.calls + 1;
+machine Random::next_u32(
+    &mut self,
+    state: &mut RandomState
+    ) -> u32[wrapping] {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+    state.calls = state.calls + 1;
 
-        -> ((state.seed >> 32) as u32);
-    }
+    -> ((state.seed >> 32) as u32);
 }
 
-machine Random::range -> u32[exact, range<0, exclusive_max>] {
-    pub entry(
-        &mut self,
-        state: &mut RandomState,
-        exclusive_max: u32[exact, positive]
-    ) {
-        let raw: u32[wrapping] = self.next_u32(state);
+machine Random::range(
+    &mut self,
+    state: &mut RandomState,
+    exclusive_max: u32[exact, positive]
+    ) -> u32[exact, range<0, exclusive_max>] {
+    let raw: u32[wrapping] = self.next_u32(state);
 
-        -> raw % exclusive_max;
-    }
+    -> raw % exclusive_max;
 }
 
-machine Random::chance -> bool {
-    pub entry(
-        &mut self,
-        state: &mut RandomState,
-        numerator: u32[exact],
-        denominator: u32[exact, positive]
-    ) {
-        let roll: u32[exact, range<0, denominator>] = self.range(state, denominator);
+machine Random::chance(
+    &mut self,
+    state: &mut RandomState,
+    numerator: u32[exact],
+    denominator: u32[exact, positive]
+    ) -> bool {
+    let roll: u32[exact, range<0, denominator>] = self.range(state, denominator);
 
-        -> roll < numerator;
-    }
+    -> roll < numerator;
 }
 
-machine Random::unit_real -> Real[finite, range<0.0, 1.0>] {
-    pub entry(
-        &mut self,
-        state: &mut RandomState
-    ) {
-        let raw: u32[wrapping] = self.next_u32(state);
+machine Random::unit_real(
+    &mut self,
+    state: &mut RandomState
+    ) -> Real[finite, range<0.0, 1.0>] {
+    let raw: u32[wrapping] = self.next_u32(state);
 
-        -> Real::from(raw) / Real::from(u32::MAX);
-    }
+    -> Real::from(raw) / Real::from(u32::MAX);
 }

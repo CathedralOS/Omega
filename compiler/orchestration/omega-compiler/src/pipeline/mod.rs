@@ -6,6 +6,7 @@ pub mod frontend;
 mod output;
 mod project;
 pub mod source;
+mod stage;
 mod stages;
 mod timing;
 

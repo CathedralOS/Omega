@@ -22,21 +22,23 @@ data Navigation {
 data Parser {
 }
 
-machine Parser::resolve_navigation -> Navigation {
-    pub entry(&mut self, line: &ConsoleLine) {
-        let choice: Command = self.resolve_command(line);
-        -> self.navigation(choice, 0);
-    }
+machine Parser::resolve_navigation(&mut self, line: &ConsoleLine) -> Navigation {
+    let choice: Command = self.resolve_command(line);
+    -> self.navigation(choice, 0);
+    
 
-    entry resolve_command(&mut self, line: &ConsoleLine) -> Command {
-        -> Command::Look when line.text == "look";
-        -> Command::Quit when line.text == "quit";
-        -> Command::Invalid;
-    }
+}
 
-    entry navigation(&mut self, choice: Command, destination: i32) -> Navigation {
-        Navigation { choice: choice, destination: destination }
-    }
+machine Parser::resolve_command(&mut self, line: &ConsoleLine) -> Command {
+    -> Command::Look when line.text == "look";
+    -> Command::Quit when line.text == "quit";
+    -> Command::Invalid;
+    
+}
+
+machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {
+    Navigation { choice: choice, destination: destination }
+    
 }
 
 data Game {
@@ -47,11 +49,10 @@ data Game {
     health: i32;
 }
 
-machine Game::run {
-    pub entry(&mut self) {
-        self.health = 10;
-        transition { _ -> prompt() }
-    }
+machine Game::run(&mut self) {
+    self.health = 10;
+    transition { _ -> prompt() }
+    
 
     state prompt(&mut self) {
         transition self.health == 0 {
@@ -94,10 +95,9 @@ data main {
     game: Game;
 }
 
-machine main -> i32 {
-    pub entry(&mut self) {
-        transition { _ -> running() }
-    }
+machine main(&mut self) -> i32 {
+    transition { _ -> running() }
+    
 
     state running(&mut self) {
         self.game.run();

@@ -1,10 +1,18 @@
 use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parser::state::{parse_optional_return_type, parse_state};
+use crate::parser::state::{
+    parse_optional_return_type, parse_optional_state_parameters, parse_state,
+};
+use crate::parser::statement::parse_statement_handle;
+use crate::parser::transition::{
+    parse_transition_block_handles, parse_transition_statement_handle,
+};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::Machine;
+use omega_syntax_trees::item::{Machine, State, StateHandle, StateParameterHandle};
+use omega_syntax_trees::statement::StatementHandle;
+use omega_syntax_trees::types::TypeReferenceHandle;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_machine<'tokens, 'source>(
@@ -16,12 +24,33 @@ pub(super) fn parse_machine<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
+    let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (name, entry_name) = split_machine_path(syntax_trees, path);
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut state_start = Handle::invalid();
     let mut state_count = 0u32;
+    let implicit_entry_name = entry_name
+        .clone()
+        .unwrap_or_else(|| Identifier::generated("entry"));
+
+    let parse_implicit_entry = machine_parameters.count() > 0
+        || machine_return_type.is_valid()
+        || starts_implicit_entry_body(input);
+
+    if parse_implicit_entry {
+        let (state, rest) = parse_implicit_entry_state(
+            syntax_trees,
+            input,
+            implicit_entry_name,
+            machine_parameters,
+            machine_return_type,
+        )?;
+        let handle = append_machine_state(syntax_trees, &mut state_start, &mut state_count, state);
+        debug_assert!(handle.is_valid());
+        input = rest;
+    }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (mut state, rest) = if input.at_keyword(KeywordKind::Pub) {
@@ -58,14 +87,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             state.return_type = machine_return_type;
         }
 
-        let handle = syntax_trees.items.insert_state(&state);
-        let handle = syntax_trees.items.append_state_handle(handle);
-        if state_count == 0 {
-            state_start = handle;
-        }
-        state_count = state_count
-            .checked_add(1)
-            .expect("machine state span count overflow");
+        append_machine_state(syntax_trees, &mut state_start, &mut state_count, state);
         input = rest;
     }
 
@@ -76,6 +98,129 @@ pub(super) fn parse_machine<'tokens, 'source>(
         HandleSpan::from_parts(state_start, state_count)
     };
     Ok((Machine { name, states }, input))
+}
+
+fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
+    !input.at_punctuation(PunctuationKind::RightBrace)
+        && !input.at_keyword(KeywordKind::Pub)
+        && !input.at_keyword(KeywordKind::Entry)
+        && !starts_state_member(input)
+        && !input.at_keyword(KeywordKind::Invariant)
+}
+
+fn starts_machine_member(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::RightBrace)
+        || input.at_keyword(KeywordKind::Pub)
+        || input.at_keyword(KeywordKind::Entry)
+        || starts_state_member(input)
+        || input.at_keyword(KeywordKind::Invariant)
+}
+
+fn starts_state_member(input: Input<'_, '_>) -> bool {
+    if !input.at_keyword(KeywordKind::State) {
+        return false;
+    }
+
+    Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default())
+        .tokens
+        .first()
+        .is_some_and(crate::parser::input::is_identifier_token_for_parser)
+}
+
+fn parse_implicit_entry_state<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    name: Identifier,
+    parameters: HandleSpan<StateParameterHandle>,
+    return_type: TypeReferenceHandle,
+) -> ParseResult<'tokens, 'source, State> {
+    let (statements, input) = parse_implicit_entry_statements(syntax_trees, input)?;
+    Ok((
+        State {
+            name,
+            parameters,
+            return_type,
+            statements,
+        },
+        input,
+    ))
+}
+
+fn parse_implicit_entry_statements<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
+    let mut statement_start = Handle::invalid();
+    let mut statement_count = 0u32;
+
+    while !starts_machine_member(input) {
+        if input.at_punctuation(PunctuationKind::Arrow) {
+            let next = input.take_punctuation(PunctuationKind::Arrow, "->")?;
+            let (statement, rest) = parse_transition_statement_handle(syntax_trees, next)?;
+            append_statement_handle(syntax_trees, &mut statement_start, &mut statement_count, statement);
+            input = rest;
+        } else if input.at_keyword(KeywordKind::Transition) || input.at_keyword(KeywordKind::Match)
+        {
+            let next = if input.at_keyword(KeywordKind::Transition) {
+                input.take_keyword(KeywordKind::Transition, "transition")?
+            } else {
+                input.take_keyword(KeywordKind::Match, "match")?
+            };
+            let (new_statements, rest) = parse_transition_block_handles(syntax_trees, next)?;
+            if !new_statements.is_empty() {
+                if statement_count == 0 {
+                    statement_start = new_statements.start();
+                }
+                statement_count = statement_count
+                    .checked_add(new_statements.count())
+                    .expect("state statement span count overflow");
+            }
+            input = rest;
+        } else {
+            let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
+            append_statement_handle(syntax_trees, &mut statement_start, &mut statement_count, statement);
+            input = rest;
+        }
+    }
+
+    let statements = if statement_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(statement_start, statement_count)
+    };
+    Ok((statements, input))
+}
+
+fn append_statement_handle(
+    syntax_trees: &mut SyntaxTrees,
+    statement_start: &mut Handle<StatementHandle>,
+    statement_count: &mut u32,
+    statement: StatementHandle,
+) {
+    let handle = syntax_trees.items.append_statement_handle(statement);
+    if *statement_count == 0 {
+        *statement_start = handle;
+    }
+    *statement_count = statement_count
+        .checked_add(1)
+        .expect("state statement span count overflow");
+}
+
+fn append_machine_state(
+    syntax_trees: &mut SyntaxTrees,
+    state_start: &mut Handle<StateHandle>,
+    state_count: &mut u32,
+    state: State,
+) -> Handle<StateHandle> {
+    let handle = syntax_trees.items.insert_state(&state);
+    let handle = syntax_trees.items.append_state_handle(handle);
+    if *state_count == 0 {
+        *state_start = handle;
+    }
+    *state_count = state_count
+        .checked_add(1)
+        .expect("machine state span count overflow");
+    handle
 }
 
 fn split_machine_path(

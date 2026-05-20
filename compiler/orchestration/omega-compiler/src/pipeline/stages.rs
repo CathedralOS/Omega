@@ -1,12 +1,26 @@
-use crate::pipeline::source::SourceStorage;
+use crate::pipeline::frontend::{
+    discover_imports, extend_source_storage, lex_sources, load_sources, parse_sources,
+};
+use crate::pipeline::project::{project_roots, validate_selected_target};
+use crate::pipeline::source::{ImportQueue, SourceStorage};
+use crate::pipeline::stage::{
+    BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, CHECKED_TREES_TO_STATE_GRAPH,
+    CONTROL_FLOW_TO_TARGET_OPERATIONS, SOURCE_FILES_TO_TOKENS, STATE_GRAPH_TO_CONTROL_FLOW,
+    SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
+    TARGET_OPERATIONS_TO_MACHINE_PROGRAM, TOKENS_TO_SYNTAX_TREES, TYPED_TREES_TO_CHECKED_TREES,
+};
+use crate::pipeline::timing::CompileTimings;
 use omega_checked_trees::Program as CheckedProgram;
+use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_object::SectionKind;
+use omega_state_graph::StateGraph;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::TypedTrees;
+use std::path::Path;
 use std::sync::Arc;
 
 pub(super) struct AssembledSyntax {
@@ -15,7 +29,11 @@ pub(super) struct AssembledSyntax {
 }
 
 pub(super) struct CheckedProgramSurface {
-    pub(super) program: CheckedProgram,
+    pub(super) program: Arc<CheckedProgram>,
+}
+
+pub(super) struct BackendPlanningSurface {
+    pub(super) plan: omega_backend_plan::BackendPlan,
 }
 
 pub(super) struct EmittedProgram {
@@ -27,64 +45,147 @@ pub(super) struct EmittedProgram {
     pub(super) data_bytes: Vec<u8>,
 }
 
-pub(super) fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+pub(super) fn source_files_to_syntax_trees(
+    root_path: &Path,
+    target_name: Option<&str>,
+    timings: &mut CompileTimings,
+) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
+    let mut imports = ImportQueue::default();
+    for root in project_roots(root_path) {
+        imports.seed(root);
+    }
+
+    let mut source_storage = SourceStorage::default();
+
+    while imports.has_pending() {
+        let frontier = imports.take_frontier();
+        let first_source_id = source_storage.next_source_id();
+        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+            let sources = load_sources(frontier, first_source_id)?;
+            lex_sources(sources)
+        })?;
+        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
+            parse_sources(lexed, &mut source_storage.syntax_trees)
+        })?;
+        let discovered_imports = discover_imports(
+            &parsed,
+            &source_storage.syntax_trees,
+            root_path,
+            target_name,
+        )?;
+
+        imports.enqueue(discovered_imports)?;
+        extend_source_storage(&mut source_storage, parsed)?;
+    }
+
+    validate_selected_target(&source_storage, target_name)?;
+    let source_file_count = source_storage.file_count();
+    let syntax = assemble_syntax(source_storage)?;
+
+    Ok((source_file_count, syntax))
+}
+
+fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     Ok(AssembledSyntax {
         syntax_trees: sources.syntax_trees,
         sources: Arc::new(sources.sources),
     })
 }
 
-pub(super) fn resolve_program(
+pub(super) fn syntax_trees_to_symbol_resolved_trees(
     syntax: AssembledSyntax,
+    timings: &mut CompileTimings,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
-        &syntax.syntax_trees,
-        syntax.sources,
-    )
-    .map_err(|diagnostic| vec![diagnostic])
-}
-
-pub(super) fn typecheck_program(
-    resolved: SymbolResolvedTrees,
-) -> Result<TypedTrees, Vec<Diagnostic>> {
-    omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
+    timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+            &syntax.syntax_trees,
+            syntax.sources,
+        )
         .map_err(|diagnostic| vec![diagnostic])
+    })
 }
 
-pub(super) fn check_program(typed: TypedTrees) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
-    let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
-    Ok(CheckedProgramSurface { program })
+pub(super) fn symbol_resolved_trees_to_typed_trees(
+    resolved: SymbolResolvedTrees,
+    timings: &mut CompileTimings,
+) -> Result<TypedTrees, Vec<Diagnostic>> {
+    timings.record(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
+        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
+            .map_err(|diagnostic| vec![diagnostic])
+    })
 }
 
-pub(super) fn plan_backend(
+pub(super) fn typed_trees_to_checked_trees(
+    typed: TypedTrees,
+    timings: &mut CompileTimings,
+) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
+    timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
+        let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
+        Ok(CheckedProgramSurface {
+            program: Arc::new(program),
+        })
+    })
+}
+
+pub(super) fn checked_trees_to_state_graph(
+    checked: &CheckedProgramSurface,
+    workers: omega_core::parallel::WorkerPoolHandle,
+    timings: &mut CompileTimings,
+) -> Result<StateGraph, Vec<Diagnostic>> {
+    timings.record(CHECKED_TREES_TO_STATE_GRAPH, || {
+        omega_checked_trees_to_state_graph::build_state_graph_with_workers(
+            Arc::clone(&checked.program),
+            workers,
+        )
+        .map_err(|diagnostic| vec![diagnostic])
+    })
+}
+
+pub(super) fn state_graph_to_control_flow(
+    state_graph: StateGraph,
+    timings: &mut CompileTimings,
+) -> Result<ControlFlowPlan, Vec<Diagnostic>> {
+    timings.record(STATE_GRAPH_TO_CONTROL_FLOW, || {
+        omega_state_graph_to_control_flow::build_control_flow_plan_owned(state_graph)
+            .map_err(|diagnostic| vec![diagnostic])
+    })
+}
+
+pub(super) fn control_flow_to_backend_plan(
     checked: CheckedProgramSurface,
     target_name: Option<&str>,
+    control_flow: ControlFlowPlan,
     workers: omega_core::parallel::WorkerPoolHandle,
-) -> Result<omega_backend_plan::BackendPlan, Vec<Diagnostic>> {
+    timings: &mut CompileTimings,
+) -> Result<BackendPlanningSurface, Vec<Diagnostic>> {
     let target =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
-    let checked_program = Arc::new(checked.program);
-    let state_graph = omega_checked_trees_to_state_graph::build_state_graph_with_workers(
-        Arc::clone(&checked_program),
-        workers.clone(),
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    let control_flow =
-        omega_state_graph_to_control_flow::build_control_flow_plan_owned(state_graph)
-            .map_err(|diagnostic| vec![diagnostic])?;
 
-    omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
-        checked_program,
+    let plan = omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
+        checked.program,
         target,
         Arc::new(control_flow),
         workers,
     )
-    .map_err(|diagnostic| vec![diagnostic])
+    .map_err(|diagnostic| vec![diagnostic])?;
+
+    record_backend_phase_as_stage(
+        timings,
+        &plan,
+        "instructions",
+        CONTROL_FLOW_TO_TARGET_OPERATIONS,
+    )?;
+    record_backend_phase_as_stage(
+        timings,
+        &plan,
+        "machine program",
+        TARGET_OPERATIONS_TO_MACHINE_PROGRAM,
+    )?;
+
+    Ok(BackendPlanningSurface { plan })
 }
 
-pub(super) fn plan_emission(
-    plan: &omega_backend_plan::BackendPlan,
-) -> omega_artifacts::EmissionPlan {
+fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::EmissionPlan {
     build_emission_plan(&EmissionPlanningInput {
         target: plan.target,
         entry_key: plan.entry_key,
@@ -125,17 +226,24 @@ pub(super) fn ensure_emission_ready(
         .collect())
 }
 
-pub(super) fn emit_backend(
-    plan: &omega_backend_plan::BackendPlan,
-) -> Result<EmittedProgram, Vec<Diagnostic>> {
-    let text_bytes = plan.encoded_machine.bytes.storage_slice().to_vec();
-    Ok(EmittedProgram {
-        target: plan.target,
-        planned_text_bytes: object_text_size(&plan.object),
-        object: plan.object.clone(),
-        relocations: plan.relocations.clone(),
-        text_bytes,
-        data_bytes: plan.data.bytes.storage_slice().to_vec(),
+pub(super) fn backend_plan_to_native_image_payload(
+    backend: &BackendPlanningSurface,
+    timings: &mut CompileTimings,
+) -> Result<(omega_artifacts::EmissionPlan, EmittedProgram), Vec<Diagnostic>> {
+    timings.record(BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, || {
+        let emission_plan = plan_emission(&backend.plan);
+        ensure_emission_ready(&emission_plan)?;
+        let plan = &backend.plan;
+        let text_bytes = plan.encoded_machine.bytes.storage_slice().to_vec();
+        let emitted = EmittedProgram {
+            target: plan.target,
+            planned_text_bytes: object_text_size(&plan.object),
+            object: plan.object.clone(),
+            relocations: plan.relocations.clone(),
+            text_bytes,
+            data_bytes: plan.data.bytes.storage_slice().to_vec(),
+        };
+        Ok((emission_plan, emitted))
     })
 }
 
@@ -146,4 +254,29 @@ fn object_text_size(object: &omega_object::ObjectPlan) -> usize {
         .find(|(_, section)| section.kind == SectionKind::Text)
         .map(|(_, section)| section.size)
         .unwrap_or(0)
+}
+
+fn record_backend_phase_as_stage(
+    timings: &mut CompileTimings,
+    plan: &omega_backend_plan::BackendPlan,
+    backend_phase: &str,
+    stage: crate::pipeline::stage::StageMeta,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some((_, phase_timing)) = plan
+        .phase_timings
+        .iter()
+        .find(|(_, phase_timing)| phase_timing.phase == backend_phase)
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "backend phase `{backend_phase}` was not recorded for {}",
+            stage.label()
+        ))]);
+    };
+
+    timings.add_completed(
+        stage,
+        phase_timing.microseconds,
+        phase_timing.allocations.clone(),
+    );
+    Ok(())
 }
