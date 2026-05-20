@@ -79,8 +79,34 @@ machine Dungeon::initialize {
     ) {
         self.rng.seed(seed, &mut self.random);
         self.player_system.create("Wanderer", &mut self.player);
-        self.generator.generate(seed, &mut self.level);
-        self.current_cell = self.level.start_cell;
+        self.level.start_cell = CellId::R00;
+        self.level.room_count = 2;
+        self.level.deepest_depth = 1;
+
+        let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
+        rooms[0].cell = CellId::R00;
+        rooms[0].depth = 0;
+        rooms[0].branch = 0;
+        rooms[0].label = "Gate";
+        rooms[0].description = "The old gate room breathes cold air from below.";
+        rooms[0].exit_count = 1;
+        rooms[0].discovered = true;
+
+        let gate_exits: &mut [Exit] = rooms[0].exits.as_mut_slice();
+        gate_exits[0] = Exit { command: "north", direction: Direction::North, destination: CellId::R01 };
+
+        rooms[1].cell = CellId::R01;
+        rooms[1].depth = 1;
+        rooms[1].branch = 0;
+        rooms[1].label = "Branch Room";
+        rooms[1].description = "A shallow limestone room with fresh claw marks.";
+        rooms[1].exit_count = 1;
+        rooms[1].discovered = false;
+
+        let branch_exits: &mut [Exit] = rooms[1].exits.as_mut_slice();
+        branch_exits[0] = Exit { command: "south", direction: Direction::South, destination: CellId::R00 };
+
+        self.current_cell = CellId::R00;
         self.mode = GameMode::Exploring;
     }
 }

@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    TableBinaryExpression,
 };
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::TransitionGuard;
@@ -214,13 +215,14 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
         runtime_value_operands,
     )
     .or_else(|| {
-        let normalized_guard = normalized_boolean_wrapped_guard_in_table(expressions, guard)?;
+        let (normalized_expressions, normalized_guard) =
+            normalized_boolean_wrapped_guard_in_table(expressions, guard)?;
         select_runtime_dispatch_expression_guard_in_table_once(
             input,
             dispatch_index,
             source_key,
             statement_index,
-            expressions,
+            &normalized_expressions,
             normalized_guard,
             runtime_value_operands,
         )
@@ -324,7 +326,7 @@ fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<Transitio
 fn normalized_boolean_wrapped_guard_in_table(
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
-) -> Option<ExpressionHandle> {
+) -> Option<(ExpressionTable, ExpressionHandle)> {
     let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
         return None;
     };
@@ -344,7 +346,31 @@ fn normalized_boolean_wrapped_guard_in_table(
         _ => return None,
     };
 
-    expected_true.then_some(inner)
+    let mut normalized = expressions.clone();
+    if expected_true {
+        return Some((normalized, inner));
+    }
+
+    let ExpressionNode::Binary(inner_binary) = normalized.expression(inner) else {
+        return None;
+    };
+    let inner_binary = *inner_binary;
+    let inverted = match inner_binary.operator {
+        BinaryOperator::Equal => BinaryOperator::NotEqual,
+        BinaryOperator::NotEqual => BinaryOperator::Equal,
+        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+        _ => return None,
+    };
+
+    let normalized_guard = normalized.insert(ExpressionNode::Binary(TableBinaryExpression {
+        left: inner_binary.left,
+        operator: inverted,
+        right: inner_binary.right,
+    }));
+    Some((normalized, normalized_guard))
 }
 
 fn runtime_boolean_condition_guard(
@@ -887,9 +913,7 @@ fn runtime_value_guard(
         &binary.right,
         runtime_value_operands,
     )?;
-    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, left).max(
-        runtime_value_operand_byte_size(runtime_value_operands, right),
-    );
+    let byte_size = runtime_value_compare_byte_size(runtime_value_operands, left, right);
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
@@ -932,9 +956,7 @@ fn runtime_value_guard_in_table(
         binary.right,
         runtime_value_operands,
     )?;
-    let byte_size = runtime_value_operand_byte_size(runtime_value_operands, left).max(
-        runtime_value_operand_byte_size(runtime_value_operands, right),
-    );
+    let byte_size = runtime_value_compare_byte_size(runtime_value_operands, left, right);
     if !matches!(byte_size, 1 | 4 | 8) {
         return None;
     }
@@ -1184,6 +1206,28 @@ fn runtime_value_operand_byte_size(
     }
 }
 
+fn runtime_value_compare_byte_size(
+    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    match (
+        runtime_value_operands.get(left),
+        runtime_value_operands.get(right),
+    ) {
+        (RuntimeValueOperand::Immediate(_), RuntimeValueOperand::Immediate(_)) => 8,
+        (RuntimeValueOperand::Immediate(_), _) => {
+            runtime_value_operand_byte_size(runtime_value_operands, right)
+        }
+        (_, RuntimeValueOperand::Immediate(_)) => {
+            runtime_value_operand_byte_size(runtime_value_operands, left)
+        }
+        _ => runtime_value_operand_byte_size(runtime_value_operands, left).max(
+            runtime_value_operand_byte_size(runtime_value_operands, right),
+        ),
+    }
+}
+
 fn runtime_compare_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
@@ -1230,15 +1274,21 @@ fn runtime_text_input_buffer_data_for_text_place_in_state(
     source_key: omega_control_flow::StateKey,
     expression: &Expression,
 ) -> RuntimeTextInputBufferData {
-    let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-        (buffer.source_key == source_key
-            && expression_place_eq_table_tree(
-                &input.runtime_text.expressions,
-                buffer.text_place,
-                expression,
-            ))
-        .then_some(buffer)
-    });
+    let buffer = input
+        .runtime_text
+        .buffers
+        .iter()
+        .find_map(|(_, buffer)| {
+            (buffer.source_key == source_key
+                && runtime_text_buffer_matches_tree_expression(input, buffer, expression))
+            .then_some(buffer)
+        })
+        .or_else(|| {
+            input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
+                runtime_text_buffer_matches_tree_expression(input, buffer, expression)
+                    .then_some(buffer)
+            })
+        });
     let Some(buffer) = buffer else {
         return invalid_runtime_text_input_buffer_data();
     };
@@ -1263,16 +1313,26 @@ fn runtime_text_input_buffer_data_for_text_place_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> RuntimeTextInputBufferData {
-    let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-        (buffer.source_key == source_key
-            && expression_place_eq_across_tables(
-                &input.runtime_text.expressions,
-                buffer.text_place,
-                expressions,
-                expression,
-            ))
-        .then_some(buffer)
-    });
+    let buffer = input
+        .runtime_text
+        .buffers
+        .iter()
+        .find_map(|(_, buffer)| {
+            (buffer.source_key == source_key
+                && runtime_text_buffer_matches_table_expression(
+                    input,
+                    buffer,
+                    expressions,
+                    expression,
+                ))
+            .then_some(buffer)
+        })
+        .or_else(|| {
+            input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
+                runtime_text_buffer_matches_table_expression(input, buffer, expressions, expression)
+                    .then_some(buffer)
+            })
+        });
     let Some(buffer) = buffer else {
         return invalid_runtime_text_input_buffer_data();
     };
@@ -1294,6 +1354,37 @@ fn invalid_runtime_text_input_buffer_data() -> RuntimeTextInputBufferData {
     RuntimeTextInputBufferData {
         buffer: TargetDataObjectHandle::invalid(),
     }
+}
+
+fn runtime_text_buffer_matches_tree_expression(
+    input: &InstructionSelectionInput<'_>,
+    buffer: &omega_runtime_text::RuntimeTextBuffer,
+    expression: &Expression,
+) -> bool {
+    expression_place_eq_table_tree(
+        &input.runtime_text.expressions,
+        buffer.text_place,
+        expression,
+    ) || expression_place_eq_table_tree(&input.runtime_text.expressions, buffer.target, expression)
+}
+
+fn runtime_text_buffer_matches_table_expression(
+    input: &InstructionSelectionInput<'_>,
+    buffer: &omega_runtime_text::RuntimeTextBuffer,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    expression_place_eq_across_tables(
+        &input.runtime_text.expressions,
+        buffer.text_place,
+        expressions,
+        expression,
+    ) || expression_place_eq_across_tables(
+        &input.runtime_text.expressions,
+        buffer.target,
+        expressions,
+        expression,
+    )
 }
 
 fn source_machine_name(

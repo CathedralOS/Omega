@@ -12,7 +12,7 @@ use super::lookups::state_key_is_valid;
 pub(crate) fn mark_required_state_calls(
     context: &StateCallPlanningContext,
     calls: &mut [CollectedStateCall],
-) {
+) -> Vec<StateKey> {
     let required_state_capacity = context
         .runtime_flow
         .states
@@ -57,6 +57,8 @@ pub(crate) fn mark_required_state_calls(
     for call in calls {
         call.required = required_states.contains(call.source_key);
     }
+
+    required_states.into_vec()
 }
 
 fn for_each_transition_target_from(
@@ -176,6 +178,10 @@ impl RequiredStates {
         self.next_unprocessed += 1;
         Some(state_key)
     }
+
+    fn into_vec(self) -> Vec<StateKey> {
+        self.states.into_vec()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -218,6 +224,21 @@ impl RequiredStateList {
         }
 
         self.len += 1;
+    }
+
+    fn into_vec(self) -> Vec<StateKey> {
+        let mut states = Vec::with_capacity(self.len);
+        for state in self
+            .inline
+            .into_iter()
+            .take(self.len.min(INLINE_REQUIRED_STATE_COUNT))
+        {
+            if let Some(state) = state {
+                states.push(state);
+            }
+        }
+        states.extend(self.overflow);
+        states
     }
 }
 

@@ -8,7 +8,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::source::SourceId;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::Item;
+use omega_syntax_trees::item::{Item, ItemHandle};
 use omega_tokens::{Token, TokenStream, TokenText};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -43,7 +43,7 @@ pub struct ParsedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
-    pub syntax_trees: SyntaxTrees,
+    pub root_items: Vec<ItemHandle>,
 }
 
 impl Default for ParsedSource {
@@ -52,7 +52,7 @@ impl Default for ParsedSource {
             source_id: SourceId::default(),
             path: PathBuf::default(),
             source: Arc::from(""),
-            syntax_trees: SyntaxTrees::default(),
+            root_items: Vec::new(),
         }
     }
 }
@@ -67,23 +67,24 @@ pub fn load_sources(
     frontier: Vec<PathBuf>,
     first_source_id: usize,
 ) -> Result<LoadedSources, Vec<Diagnostic>> {
-    let mut sources = Arena::new();
-    let loaded = frontier
-        .into_iter()
-        .enumerate()
-        .map(|(index, path)| {
-            let source = std::fs::read_to_string(&path).map_err(|error| {
-                Diagnostic::error(format!("failed to read {}: {error}", path.display()))
-            })?;
+    let source_count = frontier.len();
+    let mut sources = Arena::with_capacity(source_count);
+    let mut loaded = Vec::with_capacity(source_count);
 
-            Ok(LoadedSource {
-                source_id: SourceId(first_source_id + index),
-                path,
-                source: Arc::from(source),
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()
-        .map_err(|diagnostic| vec![diagnostic])?;
+    for (index, path) in frontier.into_iter().enumerate() {
+        let source = std::fs::read_to_string(&path).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "failed to read {}: {error}",
+                path.display()
+            ))]
+        })?;
+
+        loaded.push(LoadedSource {
+            source_id: SourceId(first_source_id + index),
+            path,
+            source: Arc::from(source),
+        });
+    }
 
     let batch = sources.insert_many(loaded);
 
@@ -91,33 +92,31 @@ pub fn load_sources(
 }
 
 pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
-    let mut lexed_sources = Arena::new();
-    let batch = lexed_sources.insert_many(
-        sources
-            .sources
-            .span_or_empty(sources.batch)
-            .iter()
-            .map(|loaded_source| {
-                let tokens = lexer::Lexer::new(loaded_source.source.as_ref())
-                    .tokenize()
-                    .map_err(|error| {
-                        Diagnostic::error(format!(
-                            "{}: {}",
-                            loaded_source.path.display(),
-                            error.message
-                        ))
-                    })?;
+    let loaded_sources = sources.sources.span_or_empty(sources.batch);
+    let source_count = loaded_sources.len();
+    let mut lexed_sources = Arena::with_capacity(source_count);
+    let mut lexed = Vec::with_capacity(source_count);
 
-                Ok(LexedSource {
-                    source_id: loaded_source.source_id,
-                    path: loaded_source.path.clone(),
-                    source: loaded_source.source.clone(),
-                    tokens: own_token_stream(&tokens),
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()
-            .map_err(|diagnostic| vec![diagnostic])?,
-    );
+    for loaded_source in loaded_sources {
+        let tokens = lexer::Lexer::new(loaded_source.source.as_ref())
+            .tokenize()
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "{}: {}",
+                    loaded_source.path.display(),
+                    error.message
+                ))]
+            })?;
+
+        lexed.push(LexedSource {
+            source_id: loaded_source.source_id,
+            path: loaded_source.path.clone(),
+            source: loaded_source.source.clone(),
+            tokens: own_token_stream(&tokens, &loaded_source.source),
+        });
+    }
+
+    let batch = lexed_sources.insert_many(lexed);
 
     Ok(LexedSources {
         sources: lexed_sources,
@@ -125,36 +124,38 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
     })
 }
 
-pub fn parse_sources(lexed: LexedSources) -> Result<ParsedSources, Vec<Diagnostic>> {
-    let mut parsed_sources = Arena::new();
-    let batch = parsed_sources.insert_many(
-        lexed
-            .sources
-            .span_or_empty(lexed.batch)
-            .iter()
-            .map(|lexed_source| {
-                let syntax_trees = parser::parse_syntax_trees_with_id(
-                    lexed_source.source_id,
-                    &lexed_source.tokens,
-                )
-                .map_err(|error| {
-                    Diagnostic::error(format!(
-                        "{}: {}",
-                        lexed_source.path.display(),
-                        error.message
-                    ))
-                })?;
+pub fn parse_sources(
+    lexed: LexedSources,
+    syntax_trees: &mut SyntaxTrees,
+) -> Result<ParsedSources, Vec<Diagnostic>> {
+    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
+    let source_count = lexed_sources.len();
+    let mut parsed_sources = Arena::with_capacity(source_count);
+    let mut parsed = Vec::with_capacity(source_count);
 
-                Ok(ParsedSource {
-                    source_id: lexed_source.source_id,
-                    path: lexed_source.path.clone(),
-                    source: lexed_source.source.clone(),
-                    syntax_trees,
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()
-            .map_err(|diagnostic| vec![diagnostic])?,
-    );
+    for lexed_source in lexed_sources {
+        let root_items = parser::parse_syntax_trees_into_with_id(
+            syntax_trees,
+            lexed_source.source_id,
+            &lexed_source.tokens,
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "{}: {}",
+                lexed_source.path.display(),
+                error.message
+            ))]
+        })?;
+
+        parsed.push(ParsedSource {
+            source_id: lexed_source.source_id,
+            path: lexed_source.path.clone(),
+            source: lexed_source.source.clone(),
+            root_items,
+        });
+    }
+
+    let batch = parsed_sources.insert_many(parsed);
 
     Ok(ParsedSources {
         sources: parsed_sources,
@@ -164,6 +165,7 @@ pub fn parse_sources(lexed: LexedSources) -> Result<ParsedSources, Vec<Diagnosti
 
 pub fn discover_imports(
     parsed: &ParsedSources,
+    syntax_trees: &SyntaxTrees,
     root_path: &Path,
     selected_target_name: Option<&str>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
@@ -171,18 +173,17 @@ pub fn discover_imports(
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
-    let mut imports = Vec::new();
+    let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
+    let mut imports = Vec::with_capacity(parsed_sources.len());
 
-    for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        for item in parsed_source.syntax_trees.root_items() {
+    for parsed_source in parsed_sources {
+        for root_item in &parsed_source.root_items {
+            let item = syntax_trees.root_item(*root_item);
             match item {
                 Item::Use(use_item) => {
                     imports.push(normalize_path(&resolve_source_path(
                         &root_dir,
-                        parsed_source
-                            .syntax_trees
-                            .items
-                            .identifier_path_members(use_item.path),
+                        syntax_trees.items.identifier_path_members(use_item.path),
                     ))?);
                 }
                 Item::Target(target) => {
@@ -194,23 +195,15 @@ pub fn discover_imports(
                     }
 
                     if let Some(host) = &target.host {
-                        let provider = parsed_source
-                            .syntax_trees
-                            .items
-                            .identifier_path_members(host.provider);
+                        let provider = syntax_trees.items.identifier_path_members(host.provider);
                         if is_bundled_omega_path(provider) {
                             imports
                                 .push(normalize_path(&resolve_source_path(&root_dir, provider))?);
                         }
                     }
 
-                    for trust_policy in parsed_source
-                        .syntax_trees
-                        .items
-                        .trust_policies(target.trust_policies)
-                    {
-                        let policy_path = parsed_source
-                            .syntax_trees
+                    for trust_policy in syntax_trees.items.trust_policies(target.trust_policies) {
+                        let policy_path = syntax_trees
                             .items
                             .identifier_path_members(trust_policy.path);
                         if is_bundled_omega_path(policy_path) {
@@ -236,16 +229,23 @@ pub fn extend_source_storage(
     source_storage.extend(parsed)
 }
 
-fn own_token_stream(tokens: &TokenStream<'_>) -> TokenStream<'static> {
-    let owned_tokens = tokens
-        .as_slice()
-        .iter()
-        .map(|token| Token {
+fn own_token_stream(tokens: &TokenStream<'_>, source: &Arc<str>) -> TokenStream<'static> {
+    let tokens = tokens.as_slice();
+    let mut owned_tokens = Vec::with_capacity(tokens.len());
+
+    for token in tokens {
+        let lexeme = match &token.lexeme {
+            TokenText::Source(_) => TokenText::shared(source.clone(), token.span),
+            TokenText::Shared { source, span } => TokenText::shared(source.clone(), *span),
+            TokenText::Owned(value) => TokenText::owned(value.clone()),
+        };
+
+        owned_tokens.push(Token {
             kind: token.kind,
-            lexeme: TokenText::owned(token.lexeme.as_str().to_owned()),
+            lexeme,
             span: token.span,
-        })
-        .collect();
+        });
+    }
 
     TokenStream::new(owned_tokens)
 }

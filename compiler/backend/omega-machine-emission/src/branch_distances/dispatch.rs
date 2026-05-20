@@ -1,7 +1,10 @@
 use omega_core::diagnostics::Diagnostic;
 
+use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
+use omega_core::arena::Handle;
 use omega_machine_program::MachineInstructionKind;
+use omega_target_operations::SelectedInstructionKind;
 
 pub(crate) fn byte_distance_to_case_end(
     machine_instructions: &[LaidOutMachineInstruction],
@@ -90,5 +93,39 @@ pub(crate) fn byte_distance_to_dispatch_loop_start(
 
     let branch_program_counter = current.offset;
     let target = loop_enter.offset + loop_enter.byte_width;
+    Ok(target as isize - branch_program_counter as isize)
+}
+
+pub(crate) fn byte_distance_to_dispatch_loop_leave(
+    emission_context: MachineEmissionContext<'_>,
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(loop_leave) = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| {
+            let selected_handle = Handle::from_arena_index(instruction.selected_instruction_index);
+            matches!(
+                emission_context
+                    .instructions
+                    .instructions
+                    .get(selected_handle)
+                    .kind,
+                SelectedInstructionKind::LeaveDispatchLoop
+            )
+        })
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode dispatch termination at byte {}: missing dispatch loop leave",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset + 4;
+    let target = loop_leave.offset + loop_leave.byte_width;
     Ok(target as isize - branch_program_counter as isize)
 }

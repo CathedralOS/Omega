@@ -29,7 +29,8 @@ impl<'source> Lexer<'source> {
     }
 
     pub fn tokenize(mut self) -> Result<TokenStream<'source>, LexError> {
-        let mut tokens = Vec::new();
+        let estimated_token_count = self.source.len().saturating_div(4).max(16);
+        let mut tokens = Vec::with_capacity(estimated_token_count);
 
         while let Some(token) = self.lex_next_token()? {
             tokens.push(self.build_token(token)?);

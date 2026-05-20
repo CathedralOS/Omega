@@ -5,6 +5,7 @@ use crate::arena::{Handle, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Arena<T> {
+    dummy: T,
     items: Vec<T>,
     generations: Vec<u32>,
     occupied: Vec<bool>,
@@ -20,28 +21,21 @@ pub struct ArenaSpanInserter<'arena, T> {
 impl<T: Default> Arena<T> {
     pub fn new() -> Self {
         Self {
-            items: vec![T::default()],
-            generations: vec![0],
-            occupied: vec![true],
+            dummy: T::default(),
+            items: Vec::new(),
+            generations: Vec::new(),
+            occupied: Vec::new(),
             free_indices: Vec::new(),
             active_count: 0,
         }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let capacity_with_dummy = capacity.checked_add(1).expect("arena capacity overflow");
-        let mut items = Vec::with_capacity(capacity_with_dummy);
-        let mut generations = Vec::with_capacity(capacity_with_dummy);
-        let mut occupied = Vec::with_capacity(capacity_with_dummy);
-
-        items.push(T::default());
-        generations.push(0);
-        occupied.push(true);
-
         Self {
-            items,
-            generations,
-            occupied,
+            dummy: T::default(),
+            items: Vec::with_capacity(capacity),
+            generations: Vec::with_capacity(capacity),
+            occupied: Vec::with_capacity(capacity),
             free_indices: Vec::new(),
             active_count: 0,
         }
@@ -55,7 +49,7 @@ impl<T: Default> Arena<T> {
 
     pub fn insert(&mut self, item: T) -> Handle<T> {
         if let Some(arena_index) = self.free_indices.pop() {
-            let index = usize::try_from(arena_index).expect("arena index overflow");
+            let index = storage_index_from_arena_index(arena_index);
 
             self.items[index] = item;
             self.occupied[index] = true;
@@ -67,7 +61,7 @@ impl<T: Default> Arena<T> {
             return Handle::from_parts(arena_index, self.generations[index]);
         }
 
-        let arena_index = self.items.len().try_into().expect("arena index overflow");
+        let arena_index = next_arena_index(self.items.len());
 
         self.items.push(item);
         self.generations.push(1);
@@ -81,7 +75,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn append(&mut self, item: T) -> Handle<T> {
-        let arena_index = self.items.len().try_into().expect("arena index overflow");
+        let arena_index = next_arena_index(self.items.len());
 
         self.items.push(item);
         self.generations.push(1);
@@ -95,7 +89,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn append_to_span(&mut self, span: &mut HandleSpan<T>, item: T) -> Handle<T> {
-        let next_index: u32 = self.items.len().try_into().expect("arena index overflow");
+        let next_index = next_arena_index(self.items.len());
         if !span.is_empty() {
             let expected_index = span
                 .start()
@@ -123,8 +117,8 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn pop_last_appended(&mut self, handle: Handle<T>) -> Option<T> {
-        let index = usize::try_from(handle.arena_index()).ok()?;
-        if index == 0 || index.checked_add(1)? != self.items.len() {
+        let index = self.index_from_valid_handle(handle);
+        if index == invalid_index() || index.checked_add(1)? != self.items.len() {
             return None;
         }
         if self.generations.get(index).copied()? != handle.generation()
@@ -143,7 +137,7 @@ impl<T: Default> Arena<T> {
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
         // consuming arbitrary free-list slots.
-        let start_index = self.items.len().try_into().expect("arena index overflow");
+        let start_index = next_arena_index(self.items.len());
         let mut count = 0u32;
 
         for item in items {
@@ -171,7 +165,7 @@ impl<T: Default> Arena<T> {
     ) -> HandleSpan<T> {
         // Spans promise contiguous storage. This variant lets recursive
         // producers emit directly into the arena without staging a Vec.
-        let start_index = self.items.len().try_into().expect("arena index overflow");
+        let start_index = next_arena_index(self.items.len());
         let mut inserter = ArenaSpanInserter {
             arena: self,
             count: 0,
@@ -194,7 +188,7 @@ impl<T: Default> Arena<T> {
         // producers emit directly into the arena while preserving rollback.
         let start_len = self.items.len();
         let start_active_count = self.active_count;
-        let start_index = start_len.try_into().expect("arena index overflow");
+        let start_index = next_arena_index(start_len);
         let mut inserter = ArenaSpanInserter {
             arena: self,
             count: 0,
@@ -226,7 +220,7 @@ impl<T: Default> Arena<T> {
         // consuming arbitrary free-list slots. On failure, discard the partial
         // append so callers do not leave unreachable arena payloads behind.
         let start_len = self.items.len();
-        let start_index = start_len.try_into().expect("arena index overflow");
+        let start_index = next_arena_index(start_len);
         let mut count = 0u32;
 
         for item in items {
@@ -278,7 +272,7 @@ impl<T: Default> Arena<T> {
             return HandleSpan::empty();
         }
 
-        let start_index = self.items.len().try_into().expect("arena index overflow");
+        let start_index = next_arena_index(self.items.len());
 
         if let Some(first_range) = first_range {
             for index in first_range {
@@ -319,29 +313,28 @@ impl<T: Default> Arena<T> {
         if index < self.items.len() {
             &mut self.items[index]
         } else {
-            &mut self.items[0]
+            &mut self.dummy
         }
     }
 
     pub fn free(&mut self, handle: Handle<T>) -> bool {
         let index = self.index_from_valid_handle(handle);
 
-        if index == 0 {
+        if index == invalid_index() {
             return false;
         }
 
         self.items[index] = T::default();
         self.occupied[index] = false;
         self.generations[index] = next_generation(self.generations[index]);
-        self.free_indices
-            .push(u32::try_from(index).expect("arena index overflow"));
+        self.free_indices.push(next_arena_index(index));
         self.active_count -= 1;
 
         true
     }
 
     pub fn is_valid(&self, handle: Handle<T>) -> bool {
-        self.index_from_valid_handle(handle) != 0
+        self.index_from_valid_handle(handle) != invalid_index()
     }
 
     pub fn span(&self, span: HandleSpan<T>) -> Option<&[T]> {
@@ -378,7 +371,7 @@ impl<T: Default> Arena<T> {
 
     fn valid_span_range(&self, span: HandleSpan<T>) -> Option<Range<usize>> {
         let start = self.index_from_valid_handle(span.start());
-        if start == 0 {
+        if start == invalid_index() {
             return None;
         }
 
@@ -410,37 +403,32 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn clear(&mut self) {
-        for index in 1..self.items.len() {
+        for index in 0..self.items.len() {
             self.items[index] = T::default();
             self.generations[index] = next_generation(self.generations[index]);
             self.occupied[index] = false;
         }
 
         self.free_indices.clear();
-        self.free_indices.extend(
-            (1..self.items.len()).map(|index| u32::try_from(index).expect("arena index overflow")),
-        );
+        self.free_indices
+            .extend((0..self.items.len()).map(next_arena_index));
         self.active_count = 0;
     }
 
     pub fn reset_retain_capacity(&mut self) {
-        self.items.truncate(1);
-        self.generations.truncate(1);
-        self.occupied.truncate(1);
+        self.items.clear();
+        self.generations.clear();
+        self.occupied.clear();
         self.free_indices.clear();
         self.active_count = 0;
     }
 
     pub fn map<U: Default>(self, mut map_item: impl FnMut(T) -> U) -> Arena<U> {
         let mut items = Vec::with_capacity(self.items.len());
-        let mut source_items = self.items.into_iter();
-
-        if source_items.next().is_some() {
-            items.push(U::default());
-        }
-        items.extend(source_items.map(&mut map_item));
+        items.extend(self.items.into_iter().map(&mut map_item));
 
         Arena {
+            dummy: U::default(),
             items,
             generations: self.generations,
             occupied: self.occupied,
@@ -450,17 +438,17 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn storage_slice(&self) -> &[T] {
-        &self.items[1..]
+        &self.items
     }
 
     pub fn dummy(&self) -> &T {
-        &self.items[0]
+        &self.dummy
     }
 
     pub fn iter(&self) -> ArenaIter<'_, T> {
         ArenaIter {
             arena: self,
-            index: 1,
+            index: 0,
             marker: PhantomData,
         }
     }
@@ -470,11 +458,11 @@ impl<T: Default> Arena<T> {
             .into_iter()
             .zip(self.occupied)
             .enumerate()
-            .filter_map(|(index, (item, occupied))| (index != 0 && occupied).then_some(item))
+            .filter_map(|(_, (item, occupied))| occupied.then_some(item))
     }
 
     pub fn into_span_items(self, span: HandleSpan<T>) -> impl Iterator<Item = T> {
-        let range = self.valid_span_range(span).unwrap_or(1..1);
+        let range = self.valid_span_range(span).unwrap_or(0..0);
 
         self.items
             .into_iter()
@@ -483,12 +471,12 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
-        for index in 1..self.items.len() {
+        for index in 0..self.items.len() {
             if !self.occupied[index] {
                 continue;
             }
 
-            let arena_index = u32::try_from(index).expect("arena index overflow");
+            let arena_index = next_arena_index(index);
             let handle = Handle::from_parts(arena_index, self.generations[index]);
 
             visit(handle, &mut self.items[index]);
@@ -497,10 +485,10 @@ impl<T: Default> Arena<T> {
 
     fn index_from_valid_handle(&self, handle: Handle<T>) -> usize {
         if !handle.is_valid() || handle.generation() == 0 {
-            return 0;
+            return invalid_index();
         }
 
-        let index = usize::try_from(handle.arena_index()).unwrap_or(0);
+        let index = storage_index_from_arena_index(handle.arena_index());
 
         if self
             .generations
@@ -510,19 +498,14 @@ impl<T: Default> Arena<T> {
         {
             index
         } else {
-            0
+            invalid_index()
         }
     }
 }
 
 impl<T: Default> ArenaSpanInserter<'_, T> {
     pub fn insert(&mut self, item: T) -> Handle<T> {
-        let arena_index = self
-            .arena
-            .items
-            .len()
-            .try_into()
-            .expect("arena index overflow");
+        let arena_index = next_arena_index(self.arena.items.len());
 
         self.arena.items.push(item);
         self.arena.generations.push(1);
@@ -565,7 +548,7 @@ impl<'arena, T: Default> Iterator for ArenaIter<'arena, T> {
                 continue;
             }
 
-            let arena_index = u32::try_from(index).expect("arena index overflow");
+            let arena_index = next_arena_index(index);
             let handle = Handle::from_parts(arena_index, self.arena.generations[index]);
 
             return Some((handle, &self.arena.items[index]));
@@ -573,6 +556,24 @@ impl<'arena, T: Default> Iterator for ArenaIter<'arena, T> {
 
         None
     }
+}
+
+fn invalid_index() -> usize {
+    usize::MAX
+}
+
+fn next_arena_index(storage_len: usize) -> u32 {
+    storage_len
+        .checked_add(1)
+        .and_then(|index| index.try_into().ok())
+        .expect("arena index overflow")
+}
+
+fn storage_index_from_arena_index(arena_index: u32) -> usize {
+    arena_index
+        .checked_sub(1)
+        .and_then(|index| usize::try_from(index).ok())
+        .unwrap_or_else(invalid_index)
 }
 
 fn next_generation(generation: u32) -> u32 {

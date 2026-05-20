@@ -2,8 +2,8 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::StateGuardOperator;
 
 use super::primitives::{
-    encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w17_immediate,
-    encode_compare_w19_immediate, encode_compare_x17_immediate, encode_conditional_branch_equal,
+    encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w_immediate,
+    encode_compare_w17_immediate, encode_compare_x17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_not_equal, encode_load_w17_from_x16, encode_load_x_from_x,
@@ -11,13 +11,15 @@ use super::primitives::{
 };
 use super::widths::dispatch_guard_compare_static_width;
 
+const DISPATCH_STATE_REGISTER: u8 = 26;
+
 pub fn encode_dispatch_loop_enter_bytes(entry_dispatch_index: u32) -> Result<[u8; 4], Diagnostic> {
     let immediate = u16::try_from(entry_dispatch_index).map_err(|_| {
         Diagnostic::error(format!(
             "AArch64 MVP encoder cannot encode dispatch index `{entry_dispatch_index}` yet"
         ))
     })?;
-    Ok(encode_movz_w(19, immediate))
+    Ok(encode_movz_w(DISPATCH_STATE_REGISTER, immediate))
 }
 
 pub fn encode_dispatch_case_enter_bytes(
@@ -25,7 +27,7 @@ pub fn encode_dispatch_case_enter_bytes(
     skip_byte_distance: isize,
 ) -> Result<[u8; 8], Diagnostic> {
     Ok(two_instructions(
-        encode_compare_w19_immediate(dispatch_index)?,
+        encode_compare_w_immediate(DISPATCH_STATE_REGISTER, dispatch_index)?,
         encode_conditional_branch_not_equal(skip_byte_distance)?,
     ))
 }
@@ -40,7 +42,7 @@ pub fn encode_dispatch_state_write_bytes(
         ))
     })?;
     Ok(two_instructions(
-        encode_movz_w(19, immediate),
+        encode_movz_w(DISPATCH_STATE_REGISTER, immediate),
         encode_unconditional_branch(case_leave_byte_distance)?,
     ))
 }
@@ -109,17 +111,19 @@ pub fn encode_dispatch_guard_compare_static_bytes(
         &mut bytes,
         &mut cursor,
         match operator {
-            StateGuardOperator::Equal => encode_conditional_branch_equal(skip_byte_distance)?,
-            StateGuardOperator::NotEqual => {
-                encode_conditional_branch_not_equal(skip_byte_distance)?
+            StateGuardOperator::Equal => encode_conditional_branch_not_equal(skip_byte_distance)?,
+            StateGuardOperator::NotEqual => encode_conditional_branch_equal(skip_byte_distance)?,
+            StateGuardOperator::Greater => {
+                encode_conditional_branch_less_or_equal(skip_byte_distance)?
             }
-            StateGuardOperator::Greater => encode_conditional_branch_greater(skip_byte_distance)?,
             StateGuardOperator::GreaterOrEqual => {
+                encode_conditional_branch_less(skip_byte_distance)?
+            }
+            StateGuardOperator::Less => {
                 encode_conditional_branch_greater_or_equal(skip_byte_distance)?
             }
-            StateGuardOperator::Less => encode_conditional_branch_less(skip_byte_distance)?,
             StateGuardOperator::LessOrEqual => {
-                encode_conditional_branch_less_or_equal(skip_byte_distance)?
+                encode_conditional_branch_greater(skip_byte_distance)?
             }
             _ => {
                 return Err(Diagnostic::error(format!(

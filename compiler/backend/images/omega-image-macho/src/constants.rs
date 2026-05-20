@@ -16,5 +16,5 @@ pub(super) const MACHO_HEADER_FLAGS_NOUNDEFS: u32 = 0x1;
 pub(super) const MACHO_HEADER_FLAGS_DYLDLINK: u32 = 0x4;
 pub(super) const MACHO_HEADER_FLAGS_TWOLEVEL: u32 = 0x80;
 pub(super) const MACHO_HEADER_FLAGS_PIE: u32 = 0x20_0000;
-pub(super) const CODE_SIGNATURE_PAGE_SIZE: usize = 4096;
-pub(super) const CODE_SIGNATURE_PAGE_SIZE_POWER: u8 = 12;
+pub(super) const CODE_SIGNATURE_PAGE_SIZE: usize = MACHO_ARM64_PAGE_SIZE;
+pub(super) const CODE_SIGNATURE_PAGE_SIZE_POWER: u8 = 14;

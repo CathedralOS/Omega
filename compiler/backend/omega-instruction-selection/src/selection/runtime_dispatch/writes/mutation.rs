@@ -1015,14 +1015,12 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    if matches!(&resolved_value.expression, Expression::Call(_))
-        && let Some(source_place) = resolve_runtime_call_result_source_place(
-            input,
-            dispatch_index,
-            value_source_key,
-            statement_index,
-        )
-    {
+    if let Some(source_place) = resolve_runtime_call_result_source_place(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+    ) {
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
             input,
             dispatch_index,

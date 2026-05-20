@@ -2,13 +2,14 @@ mod cycles;
 mod lookups;
 mod targets;
 
-use omega_control_flow::{ControlFlowPlan, StateKey, TransitionExpressionRefs};
+use omega_control_flow::{ControlFlowPlan, StateKey, TransitionExpressionRefs, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
 
-use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState};
+use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge};
 
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,
+    state_calls: &'plan [RuntimeStateCallEdge],
     runtime_flow: RuntimeFlowPlan,
     active_states: StateKeyBuffer,
     reached_states: StateKeyBuffer,
@@ -85,12 +86,19 @@ impl StateKeyBuffer {
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
-    pub(super) fn new(control_flow: &'plan ControlFlowPlan) -> Self {
+    pub(super) fn new(
+        control_flow: &'plan ControlFlowPlan,
+        state_calls: &'plan [RuntimeStateCallEdge],
+    ) -> Self {
         let state_capacity = control_flow.states.len();
-        let edge_capacity = control_flow.transitions.len();
+        let edge_capacity = control_flow
+            .transitions
+            .len()
+            .saturating_add(state_calls.len());
 
         Self {
             control_flow,
+            state_calls,
             runtime_flow: RuntimeFlowPlan::with_capacity(
                 state_capacity,
                 edge_capacity,
@@ -124,6 +132,12 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             .insert(RuntimeState { key: state_key });
         self.reached_states.push(state_key);
         self.active_states.push(state_key);
+
+        if self.visit_state_call_edges(state_key, transition_span)? {
+            self.active_states.pop();
+
+            return Ok(());
+        }
 
         let transition_count = self
             .control_flow
@@ -173,6 +187,65 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         Ok(())
     }
 
+    fn visit_state_call_edges(
+        &mut self,
+        state_key: StateKey,
+        transition_span: omega_core::arena::HandleSpan<TransitionFlow>,
+    ) -> Result<bool, Diagnostic> {
+        let call_edges: Vec<RuntimeStateCallEdge> = self
+            .state_calls
+            .iter()
+            .copied()
+            .filter(|edge| edge.source_key == state_key)
+            .collect();
+        if call_edges.is_empty() {
+            return Ok(false);
+        }
+
+        for call_edge in call_edges {
+            let continuation =
+                self.continuation_after_statement_call(state_key, transition_span, call_edge)?;
+
+            self.visit_transition(
+                state_key,
+                call_edge.statement_index,
+                crate::RuntimeTransitionTarget::State {
+                    key: call_edge.target_key,
+                },
+                continuation,
+                TransitionExpressionRefs::default(),
+            )?;
+        }
+
+        Ok(true)
+    }
+
+    fn continuation_after_statement_call(
+        &self,
+        state_key: StateKey,
+        transition_span: omega_core::arena::HandleSpan<TransitionFlow>,
+        call_edge: RuntimeStateCallEdge,
+    ) -> Result<crate::RuntimeTransitionTarget, Diagnostic> {
+        let transitions = self
+            .control_flow
+            .transitions
+            .span(transition_span)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{} has an invalid transition span",
+                    self.state_key_display(state_key)
+                ))
+            })?;
+        let continuation_transition = transitions
+            .iter()
+            .find(|transition| transition.statement_index > call_edge.statement_index)
+            .or_else(|| transitions.first());
+
+        Ok(continuation_transition
+            .map(|transition| self.runtime_target(state_key.machine, &transition.target))
+            .unwrap_or(crate::RuntimeTransitionTarget::Terminal))
+    }
+
     fn visit_transition(
         &mut self,
         from: StateKey,
@@ -206,7 +279,15 @@ pub fn build_runtime_flow_plan(
     control_flow: &ControlFlowPlan,
     entry_key: omega_control_flow::StateKey,
 ) -> Result<RuntimeFlowPlan, Diagnostic> {
-    let mut builder = RuntimeFlowBuilder::new(control_flow);
+    build_runtime_flow_plan_with_state_calls(control_flow, entry_key, &[])
+}
+
+pub fn build_runtime_flow_plan_with_state_calls(
+    control_flow: &ControlFlowPlan,
+    entry_key: omega_control_flow::StateKey,
+    state_calls: &[RuntimeStateCallEdge],
+) -> Result<RuntimeFlowPlan, Diagnostic> {
+    let mut builder = RuntimeFlowBuilder::new(control_flow, state_calls);
     builder.visit_state(entry_key)?;
     Ok(builder.finish())
 }

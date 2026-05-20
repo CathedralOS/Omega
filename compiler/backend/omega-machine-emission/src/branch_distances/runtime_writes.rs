@@ -115,7 +115,7 @@ fn next_guarded_runtime_write_target_offset(
         .iter()
         .enumerate()
         .skip(machine_instruction_index + 1)
-        .find_map(|(index, instruction)| is_runtime_write(instruction).then_some(index))?;
+        .find_map(|(index, instruction)| is_guarded_effect(instruction).then_some(index))?;
 
     let first_site = selected_instruction_site(input, &machine_instructions[first_write_index]);
 
@@ -145,7 +145,7 @@ fn next_runtime_write_group_end<'instructions>(
         .enumerate()
         .skip(first_write_index + 1)
     {
-        if !is_runtime_write(instruction) {
+        if !is_guarded_effect(instruction) {
             break;
         }
         if selected_instruction_site(input, instruction) != first_site {
@@ -176,7 +176,7 @@ fn selected_instruction_site<'plan>(
     })
 }
 
-fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
+fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
     matches!(
         instruction.kind,
         MachineInstructionKind::RuntimeMachineIntegerWrite
@@ -201,6 +201,10 @@ fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeTextLiteralAppend
             | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee
             | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed
+            | MachineInstructionKind::RuntimeTextLineRead
+            | MachineInstructionKind::HostCallSequence
+            | MachineInstructionKind::ReturnRegisterIntegerWrite
             | MachineInstructionKind::DispatchStateWrite
+            | MachineInstructionKind::DispatchTerminate
     )
 }

@@ -29,10 +29,14 @@ use omega_runtime_storage::{
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
-    StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
+    StateCallLowering, StateCallPlan, StateCallPlanningContext, StateCallRole,
+    build_alias_flow_plan, build_state_call_plan_with_workers,
 };
 use omega_state_dispatch::{StateDispatchContext, build_state_dispatch_plan_with_workers};
-use omega_state_graph::build_runtime_flow_plan;
+use omega_state_graph::{
+    RuntimeFlowPlan, RuntimeStateCallEdge, build_runtime_flow_plan,
+    build_runtime_flow_plan_with_state_calls,
+};
 use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
@@ -72,13 +76,64 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         });
     let layouts = layouts?;
     let host_calls = host_calls?;
+    let host_calls = Arc::new(host_calls);
     let entry_key = control_flow
         .state_key_by_symbols(entry_point.machine_symbol, entry_point.state_symbol)
         .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
-    let runtime_flow = record_backend_phase(&mut phase_timings, "runtime flow", || {
+    let seed_runtime_flow = record_backend_phase(&mut phase_timings, "runtime flow/seed", || {
         build_runtime_flow_plan(&control_flow, entry_key)
     })?;
-    let runtime_flow = Arc::new(runtime_flow);
+    let seed_runtime_flow = Arc::new(seed_runtime_flow);
+    let state_calls = Arc::new(record_backend_phase(
+        &mut phase_timings,
+        "state calls/seed",
+        || {
+            build_state_call_plan_with_workers(
+                Arc::new(StateCallPlanningContext {
+                    control_flow: Arc::clone(&control_flow),
+                    host_calls: Arc::clone(&host_calls),
+                    runtime_flow: Arc::clone(&seed_runtime_flow),
+                }),
+                workers.clone(),
+            )
+        },
+    ));
+    let runtime_state_call_edges = dispatch_state_call_edges(state_calls.as_ref());
+    let runtime_flow = if runtime_state_call_edges.is_empty() {
+        seed_runtime_flow
+    } else {
+        Arc::new(record_backend_phase(
+            &mut phase_timings,
+            "runtime flow/state calls",
+            || {
+                build_runtime_flow_plan_with_state_calls(
+                    &control_flow,
+                    entry_key,
+                    &runtime_state_call_edges,
+                )
+            },
+        )?)
+    };
+    let state_calls = if runtime_state_call_edges.is_empty()
+        || state_calls_cover_runtime_flow(state_calls.as_ref(), runtime_flow.as_ref())
+    {
+        state_calls
+    } else {
+        Arc::new(record_backend_phase(
+            &mut phase_timings,
+            "state calls",
+            || {
+                build_state_call_plan_with_workers(
+                    Arc::new(StateCallPlanningContext {
+                        control_flow: Arc::clone(&control_flow),
+                        host_calls: Arc::clone(&host_calls),
+                        runtime_flow: Arc::clone(&runtime_flow),
+                    }),
+                    workers.clone(),
+                )
+            },
+        ))
+    };
     let state_dispatch = record_backend_phase(&mut phase_timings, "state dispatch", || {
         build_state_dispatch_plan_with_workers(
             Arc::new(StateDispatchContext::from_runtime_flow(Arc::clone(
@@ -90,7 +145,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let mut backend_plan = build_backend_plan_skeleton(BackendPlanSkeletonInput {
         target,
         host_abi: Arc::clone(&host_abi),
-        host_calls,
+        host_calls: Arc::try_unwrap(host_calls).unwrap_or_else(|host_calls| (*host_calls).clone()),
         control_flow: Arc::clone(&control_flow),
         runtime_flow: Arc::clone(&runtime_flow),
         state_dispatch,
@@ -100,20 +155,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         phase_timings,
     });
     let mut phase_timings = std::mem::take(&mut backend_plan.phase_timings);
-    backend_plan.state_calls = Arc::new(record_backend_phase(
-        &mut phase_timings,
-        "state calls",
-        || {
-            build_state_call_plan_with_workers(
-                Arc::new(StateCallPlanningContext {
-                    control_flow: Arc::clone(&control_flow),
-                    host_calls: Arc::clone(&backend_plan.host_calls),
-                    runtime_flow: Arc::clone(&backend_plan.runtime_flow),
-                }),
-                workers.clone(),
-            )
-        },
-    ));
+    backend_plan.state_calls = state_calls;
     backend_plan.alias_flow = record_backend_phase(&mut phase_timings, "alias flow", || {
         build_alias_flow_plan(backend_plan.state_calls.as_ref())
     });
@@ -299,4 +341,32 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.phase_timings = phase_timings;
 
     Ok(backend_plan)
+}
+
+fn dispatch_state_call_edges(state_calls: &StateCallPlan) -> Vec<RuntimeStateCallEdge> {
+    state_calls
+        .calls
+        .iter()
+        .filter_map(|(_, state_call)| {
+            (state_call.required
+                && state_call.role == StateCallRole::Statement
+                && state_call.lowering == StateCallLowering::InlineBranching
+                && state_call.argument_count == 0)
+                .then_some(RuntimeStateCallEdge {
+                    source_key: state_call.source_key,
+                    statement_index: state_call.statement_index,
+                    target_key: state_call.target_key,
+                })
+        })
+        .collect()
+}
+
+fn state_calls_cover_runtime_flow(
+    state_calls: &StateCallPlan,
+    runtime_flow: &RuntimeFlowPlan,
+) -> bool {
+    runtime_flow
+        .states
+        .iter()
+        .all(|(_, state)| state_calls.required_source_or_statement_target(state.key))
 }

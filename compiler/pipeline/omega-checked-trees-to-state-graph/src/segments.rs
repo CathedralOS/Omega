@@ -29,6 +29,10 @@ pub(super) enum SegmentTransition {
         statement_index: usize,
         table: TableTransition,
     },
+    ReturnExpression {
+        statement_index: usize,
+        expression: ExpressionHandle,
+    },
     BranchCall {
         statement_index: usize,
         has_continuation_segment: bool,
@@ -71,6 +75,20 @@ pub(super) fn split_state_segments(
                 SegmentTransition::Tree {
                     statement_index,
                     table: *table,
+                },
+            );
+            continue;
+        }
+
+        if let StatementNode::Expression(expression) = table_statement
+            && state.return_type.is_valid()
+            && statement_index + 1 == table_statements.len()
+        {
+            segment_transitions.append_to_span(
+                &mut transitions,
+                SegmentTransition::ReturnExpression {
+                    statement_index,
+                    expression: *expression,
                 },
             );
             continue;
@@ -199,6 +217,7 @@ pub(super) fn segment_has_unconditional_transition(
             SegmentTransition::Tree { table, .. } => {
                 matches!(table.guard, TransitionGuardNode::Always)
             }
+            SegmentTransition::ReturnExpression { .. } => true,
             SegmentTransition::BranchCall { .. } => true,
         })
 }

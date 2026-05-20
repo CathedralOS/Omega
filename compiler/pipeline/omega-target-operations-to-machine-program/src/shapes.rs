@@ -366,6 +366,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             dispatch::dispatch_state_write_kind(*dispatch_index)
         }
+        SelectedInstructionKind::WriteReturnRegisterInteger { .. } => {
+            MachineInstructionKind::ReturnRegisterIntegerWrite
+        }
         SelectedInstructionKind::TerminateDispatch => dispatch::dispatch_terminate_kind(),
         SelectedInstructionKind::LeaveDispatchCase => dispatch::dispatch_case_leave_kind(),
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),

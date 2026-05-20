@@ -5,7 +5,7 @@ use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::Identifier;
 use omega_tokens::{
     FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase, PunctuationKind, Token,
-    TokenKind,
+    TokenKind, TokenText,
 };
 
 pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
@@ -84,10 +84,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if is_identifier_token(token) {
-            Ok((
-                Identifier::new(token.lexeme.as_str(), self.source_span(token)),
-                rest,
-            ))
+            Ok((self.identifier_from_token(token), rest))
         } else {
             Err(diagnostics::expected(self, token, "identifier"))
         }
@@ -118,10 +115,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         if let Some(kind) = token.float_literal_kind() {
             validate_float_literal(kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            Ok((
-                SourceText::new(token.lexeme.as_str(), self.source_span(token)),
-                rest,
-            ))
+            Ok((self.source_text_from_token(token), rest))
         } else {
             Err(diagnostics::expected(self, token, "float literal"))
         }
@@ -148,6 +142,26 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn at_name_like(&self) -> bool {
         self.tokens.first().is_some_and(is_identifier_token)
+    }
+
+    fn identifier_from_token(&self, token: &Token<'_>) -> Identifier {
+        let source_span = self.source_span(token);
+        match &token.lexeme {
+            TokenText::Shared { source, .. } => {
+                Identifier::source_backed(source.clone(), source_span)
+            }
+            _ => Identifier::new(token.lexeme.as_str(), source_span),
+        }
+    }
+
+    fn source_text_from_token(&self, token: &Token<'_>) -> SourceText {
+        let source_span = self.source_span(token);
+        match &token.lexeme {
+            TokenText::Shared { source, .. } => {
+                SourceText::source_backed(source.clone(), source_span)
+            }
+            _ => SourceText::new(token.lexeme.as_str(), source_span),
+        }
     }
 
     pub(super) fn split_at_top_level_punctuation(

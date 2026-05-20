@@ -105,13 +105,13 @@ pub(crate) fn collect_machine_state_calls(
             continue;
         };
 
-        for (statement_index, transition) in transitions.iter().enumerate() {
+        for transition in transitions {
             let mut call_ordinal = 0usize;
             collect_expression_state_calls_for_transition(
                 context,
                 machine,
                 state.key,
-                statement_index,
+                transition.statement_index,
                 &mut call_ordinal,
                 transition.expressions,
                 &mut calls,

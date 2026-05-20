@@ -7,8 +7,8 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::types::TypeReferenceHandle;
 
 pub use runtime_flow::{
-    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
-    build_runtime_flow_plan,
+    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
+    RuntimeTransitionTarget, build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

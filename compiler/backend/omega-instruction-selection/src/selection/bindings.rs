@@ -583,6 +583,92 @@ pub(super) fn resolve_leaf_binding_expression_handle(
     bindings: &[RuntimeLeafBranchBinding],
 ) -> ExpressionHandle {
     match table.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(values) => {
+            let copied_values = table.reserve_expression_handles(values.count());
+            for offset in 0..values.count() {
+                let value = table.expression_handle_at_offset(values, offset);
+                let resolved =
+                    resolve_leaf_binding_expression_handle(source_table, table, value, bindings);
+                table.set_expression_handle_at_offset(copied_values, offset, resolved);
+            }
+            table.insert(ExpressionNode::ArrayLiteral(copied_values))
+        }
+        ExpressionNode::Binary(binary) => {
+            let left =
+                resolve_leaf_binding_expression_handle(source_table, table, binary.left, bindings);
+            let right =
+                resolve_leaf_binding_expression_handle(source_table, table, binary.right, bindings);
+            table.insert(ExpressionNode::Binary(
+                omega_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                },
+            ))
+        }
+        ExpressionNode::Cast(cast) => {
+            let value =
+                resolve_leaf_binding_expression_handle(source_table, table, cast.value, bindings);
+            table.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                },
+            ))
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = call.receiver.is_valid().then(|| {
+                resolve_leaf_binding_expression_handle(source_table, table, call.receiver, bindings)
+            });
+            let copied_arguments = table.reserve_expression_handles(call.arguments.count());
+            for offset in 0..call.arguments.count() {
+                let argument = table.expression_handle_at_offset(call.arguments, offset);
+                let resolved =
+                    resolve_leaf_binding_expression_handle(source_table, table, argument, bindings);
+                table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
+            }
+            table.insert(ExpressionNode::Call(
+                omega_checked_trees::expression::TableCallExpression {
+                    receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    arguments: copied_arguments,
+                },
+            ))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = resolve_leaf_binding_expression_handle(
+                source_table,
+                table,
+                indexed.collection,
+                bindings,
+            );
+            let index = resolve_leaf_binding_expression_handle(
+                source_table,
+                table,
+                indexed.index,
+                bindings,
+            );
+            table.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }))
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_leaf_binding_expression_handle(
+                source_table,
+                table,
+                member.receiver,
+                bindings,
+            );
+            table.insert(ExpressionNode::Member(
+                omega_checked_trees::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member.clone(),
+                },
+            ))
+        }
         ExpressionNode::Mutable(target) => {
             let resolved_target =
                 resolve_leaf_binding_expression_handle(source_table, table, target, bindings);
@@ -598,13 +684,13 @@ pub(super) fn resolve_leaf_binding_expression_handle(
         ExpressionNode::Name(path) if path.members.count() > 0 => bindings
             .iter()
             .find(|binding| {
-                leaf_binding_matches_table_path(binding, &path)
+                leaf_binding_matches_table_path(binding, source_table, table, &path)
                     && binding.kind == RuntimeLeafBranchBindingKind::LeafParameter
             })
             .or_else(|| {
-                bindings
-                    .iter()
-                    .find(|binding| leaf_binding_matches_table_path(binding, &path))
+                bindings.iter().find(|binding| {
+                    leaf_binding_matches_table_path(binding, source_table, table, &path)
+                })
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
@@ -617,6 +703,34 @@ pub(super) fn resolve_leaf_binding_expression_handle(
                 table.insert_copy_with_member_suffix(resolved, path.members, path.member_symbols, 1)
             })
             .unwrap_or(expression),
+        ExpressionNode::StructLiteral(struct_literal) => {
+            let copied_fields = table.reserve_struct_fields(struct_literal.fields.count());
+            for offset in 0..struct_literal.fields.count() {
+                let field = table
+                    .struct_field_at_offset(struct_literal.fields, offset)
+                    .clone();
+                let value = resolve_leaf_binding_expression_handle(
+                    source_table,
+                    table,
+                    field.value,
+                    bindings,
+                );
+                table.set_struct_field_at_offset(
+                    copied_fields,
+                    offset,
+                    omega_checked_trees::expression::TableStructLiteralField {
+                        name: field.name,
+                        value,
+                    },
+                );
+            }
+            table.insert(ExpressionNode::StructLiteral(
+                omega_checked_trees::expression::TableStructLiteral {
+                    type_name: struct_literal.type_name.clone(),
+                    fields: copied_fields,
+                },
+            ))
+        }
         _ => expression,
     }
 }
@@ -758,13 +872,13 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
         ExpressionNode::Name(path) if path.members.count() > 0 => bindings
             .iter()
             .find(|binding| {
-                straight_line_binding_matches_table_path(binding, &path)
+                straight_line_binding_matches_table_path(binding, source_table, table, &path)
                     && binding.kind == RuntimeStraightLineBranchBindingKind::TargetParameter
             })
             .or_else(|| {
-                bindings
-                    .iter()
-                    .find(|binding| straight_line_binding_matches_table_path(binding, &path))
+                bindings.iter().find(|binding| {
+                    straight_line_binding_matches_table_path(binding, source_table, table, &path)
+                })
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
@@ -871,16 +985,70 @@ fn alias_matches_table_path(
 
 fn leaf_binding_matches_table_path(
     binding: &RuntimeLeafBranchBinding,
+    source_table: &ExpressionTable,
+    table: &ExpressionTable,
     path: &TableNamePath,
 ) -> bool {
-    symbol_matches_table_path(binding.parameter_symbol, path)
+    let matches_parameter = symbol_matches_table_path(binding.parameter_symbol, path)
+        || table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|name| *name == binding.parameter_name);
+    matches_parameter
+        && binding_expression_rewrites_leaf_parameter(source_table, binding.expression, binding)
 }
 
 fn straight_line_binding_matches_table_path(
     binding: &RuntimeStraightLineBranchBinding,
+    source_table: &ExpressionTable,
+    table: &ExpressionTable,
     path: &TableNamePath,
 ) -> bool {
-    symbol_matches_table_path(binding.parameter_symbol, path)
+    let matches_parameter = symbol_matches_table_path(binding.parameter_symbol, path)
+        || table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|name| *name == binding.parameter_name);
+    matches_parameter
+        && binding_expression_rewrites_straight_line_parameter(
+            source_table,
+            binding.expression,
+            binding,
+        )
+}
+
+fn binding_expression_rewrites_leaf_parameter(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    binding: &RuntimeLeafBranchBinding,
+) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => {
+            binding_expression_rewrites_leaf_parameter(table, *target, binding)
+        }
+        ExpressionNode::Name(path) => table
+            .name_path_members(path.members)
+            .first()
+            .is_none_or(|name| *name != binding.parameter_name),
+        _ => true,
+    }
+}
+
+fn binding_expression_rewrites_straight_line_parameter(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    binding: &RuntimeStraightLineBranchBinding,
+) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => {
+            binding_expression_rewrites_straight_line_parameter(table, *target, binding)
+        }
+        ExpressionNode::Name(path) => table
+            .name_path_members(path.members)
+            .first()
+            .is_none_or(|name| *name != binding.parameter_name),
+        _ => true,
+    }
 }
 
 fn symbol_matches_path(symbol: SymbolHandle, path: &NamePath) -> bool {

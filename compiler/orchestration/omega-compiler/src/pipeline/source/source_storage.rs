@@ -3,11 +3,13 @@ use crate::pipeline::source::SourceFile;
 use crate::source::SourceMap;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
+use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Default)]
 pub struct SourceStorage {
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
+    pub syntax_trees: SyntaxTrees,
 }
 
 impl SourceStorage {
@@ -22,7 +24,7 @@ impl SourceStorage {
             self.files.append(SourceFile {
                 source_id: parsed_source.source_id,
                 path: parsed_source.path.clone(),
-                syntax_trees: parsed_source.syntax_trees.clone(),
+                root_items: parsed_source.root_items.clone(),
             });
         }
 

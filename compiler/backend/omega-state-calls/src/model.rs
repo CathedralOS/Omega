@@ -9,16 +9,22 @@ pub struct StateCallPlan {
     pub expressions: ExpressionTable,
     pub calls: Arena<StateCall>,
     pub arguments: Arena<StateCallArgument>,
+    pub required_states: Arena<StateKey>,
 }
 
 impl StateCallPlan {
-    pub fn with_capacity(call_capacity: usize, argument_capacity: usize) -> Self {
+    pub fn with_capacity(
+        call_capacity: usize,
+        argument_capacity: usize,
+        required_state_capacity: usize,
+    ) -> Self {
         Self {
             expressions: ExpressionTable::with_expression_capacity(
                 call_capacity.saturating_add(argument_capacity),
             ),
             calls: Arena::with_capacity(call_capacity),
             arguments: Arena::with_capacity(argument_capacity),
+            required_states: Arena::with_capacity(required_state_capacity),
         }
     }
 
@@ -115,6 +121,12 @@ impl StateCallPlan {
             state_call.required
                 && (state_call.source_key == state_key || state_call.target_key == state_key)
         })
+    }
+
+    pub fn required_state(&self, state_key: StateKey) -> bool {
+        self.required_states
+            .iter()
+            .any(|(_, required_state)| *required_state == state_key)
     }
 
     pub fn required_source_or_statement_target(&self, state_key: StateKey) -> bool {

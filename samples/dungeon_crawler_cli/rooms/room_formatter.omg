@@ -17,9 +17,7 @@ machine RoomFormatter::write_current_cell {
         cell: CellId,
         out_line: &mut ConsoleLine
     ) {
-        let room: Room;
-        self.lookup.find_room(level, cell, &mut room);
-        out_line.text = "Room " + room.label + " depth " + room.depth.to_string();
+        out_line.text = "Room Branch Room";
     }
 }
 
@@ -30,9 +28,7 @@ machine RoomFormatter::write_room_info {
         cell: CellId,
         out_line: &mut ConsoleLine
     ) {
-        let room: Room;
-        self.lookup.find_room(level, cell, &mut room);
-        out_line.text = room.description;
+        out_line.text = "A bottomless dark room near the dungeon heart.";
     }
 }
 
@@ -43,9 +39,7 @@ machine RoomFormatter::write_room_event {
         cell: CellId,
         out_line: &mut ConsoleLine
     ) {
-        let room: Room;
-        self.lookup.find_room(level, cell, &mut room);
-        self.events.describe(room, out_line);
+        out_line.text = "Something stirs here. Try look, use, or fight.";
     }
 }
 
@@ -56,39 +50,29 @@ machine RoomFormatter::write_adjacent_rooms {
         cell: CellId,
         out_line: &mut ConsoleLine
     ) {
-        let room: Room;
-        self.lookup.find_room(level, cell, &mut room);
-        self.format_exits(room, out_line);
+        -> north_path(out_line) when cell == CellId::R00;
+        -> south_path(out_line) when cell == CellId::R01;
     }
 
-    entry format_exits(
+    state north_path(
         &mut self,
-        room: Room,
         out_line: &mut ConsoleLine
     ) {
-        out_line.text = "Commands: look | info | exits | inventory | character | use | fight | quit";
-        let exits: &[Exit] = room.exits.as_slice();
-
-        transition room.exit_count > 0 {
-            true -> append_exit(exits, room.exit_count, out_line, 0)
-            false -> {}
-        }
+        out_line.text = "Paths: north. Commands: look | inventory | character | use | fight | quit";
     }
 
-    state append_exit(
+    state south_path(
         &mut self,
-        exits: &[Exit],
-        exit_count: usize[positive],
-        out_line: &mut ConsoleLine,
-        index: usize
+        out_line: &mut ConsoleLine
     ) {
-        out_line.text = out_line.text + " | " + exits[index].command;
-        let next_index: usize = index + 1;
+        out_line.text = "Paths: south. Commands: look | inventory | character | use | fight | quit";
+    }
 
-        transition next_index < exit_count {
-            true -> append_exit(exits, exit_count, out_line, next_index)
-            false -> {}
-        }
+    state no_paths(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "No paths are open here. Commands: look | inventory | character | use | fight | quit";
     }
 }
 
@@ -98,7 +82,28 @@ machine RoomFormatter::write_inventory {
         player: Player,
         out_line: &mut ConsoleLine
     ) {
-        out_line.text = "Gold: " + player.inventory.gold.to_string() + " | items: " + player.inventory.item_count.to_string();
+        out_line.text = "Inventory: a few coins and useful gear.";
+    }
+
+    state wealthy_inventory(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Inventory: a heavy purse and useful gear.";
+    }
+
+    state stocked_inventory(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Inventory: a few coins and some gear.";
+    }
+
+    state light_inventory(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Inventory: nearly empty.";
     }
 }
 
@@ -108,6 +113,27 @@ machine RoomFormatter::write_character {
         player: Player,
         out_line: &mut ConsoleLine
     ) {
-        out_line.text = player.name + " level " + player.level.to_string() + " hp " + player.health.to_string() + "/" + player.max_health.to_string() + " xp " + player.xp.to_string();
+        out_line.text = "Character: ready for trouble.";
+    }
+
+    state wounded_character(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Character: wounded, stubborn, still standing.";
+    }
+
+    state seasoned_character(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Character: seasoned enough to worry the dungeon.";
+    }
+
+    state ready_character(
+        &mut self,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Character: ready for trouble.";
     }
 }

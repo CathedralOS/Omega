@@ -1,12 +1,21 @@
+use std::sync::Arc;
+
+use crate::Span;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenText<'source> {
     Source(&'source str),
+    Shared { source: Arc<str>, span: Span },
     Owned(String),
 }
 
 impl<'source> TokenText<'source> {
     pub fn source(value: &'source str) -> Self {
         Self::Source(value)
+    }
+
+    pub fn shared(source: Arc<str>, span: Span) -> Self {
+        Self::Shared { source, span }
     }
 
     pub fn owned(value: String) -> Self {
@@ -16,6 +25,7 @@ impl<'source> TokenText<'source> {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Source(value) => value,
+            Self::Shared { source, span } => &source[span.start..span.end],
             Self::Owned(value) => value.as_str(),
         }
     }

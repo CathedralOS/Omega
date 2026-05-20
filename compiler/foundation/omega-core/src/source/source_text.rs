@@ -14,6 +14,10 @@ enum SourceTextStorage {
     #[default]
     Missing,
     Shared(Arc<str>),
+    SourceBacked {
+        source: Arc<str>,
+        source_span: SourceSpan,
+    },
 }
 
 impl SourceText {
@@ -31,10 +35,24 @@ impl SourceText {
         }
     }
 
+    pub fn source_backed(source: Arc<str>, source_span: SourceSpan) -> Self {
+        Self {
+            text: SourceTextStorage::SourceBacked {
+                source,
+                source_span,
+            },
+            source_span,
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         match &self.text {
             SourceTextStorage::Missing => "",
             SourceTextStorage::Shared(text) => text.as_ref(),
+            SourceTextStorage::SourceBacked {
+                source,
+                source_span,
+            } => &source[source_span.span.start..source_span.span.end],
         }
     }
 
@@ -42,6 +60,7 @@ impl SourceText {
         match &self.text {
             SourceTextStorage::Missing => Arc::from(""),
             SourceTextStorage::Shared(text) => Arc::clone(text),
+            SourceTextStorage::SourceBacked { .. } => Arc::from(self.as_str()),
         }
     }
 

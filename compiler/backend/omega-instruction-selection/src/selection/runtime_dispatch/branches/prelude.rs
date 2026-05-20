@@ -6,21 +6,33 @@ use crate::selection::bindings::{
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
-use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::statement::StatementNode;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperationKind,
+    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
 use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
 
 use super::super::super::lookups::{host_call_for_statement, state_call_for_statement};
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
+use super::super::writes::{
+    RuntimeStaticValues, runtime_frame_slot_target_expression,
+    select_runtime_frame_slot_value_write_in_table,
+};
 use super::mutation::{
     select_runtime_resolved_mutation_write,
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
+use super::straight_line::{
+    StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
+    select_runtime_straight_line_nested_branch_expansions_for_operation,
+};
+use omega_target_operations::SelectedInstruction;
 
 #[derive(Default)]
 pub(in crate::selection::runtime_dispatch) struct BranchPreludeSelectionScratch {
@@ -33,7 +45,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
-    expansion_cursor: &mut usize,
+    _expansion_cursor: &mut usize,
     scratch: &mut BranchPreludeSelectionScratch,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
@@ -44,11 +56,10 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
         .prelude_expansions
         .storage_slice();
 
-    while let Some(expansion) = expansions.get(*expansion_cursor) {
+    for expansion in expansions {
         if !prelude_expansion_matches_operation(expansion, dispatch_index, operation) {
-            break;
+            continue;
         }
-
         select_runtime_branch_prelude(
             input,
             expansion,
@@ -57,7 +68,6 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for
             runtime_value_operands,
             selected_instructions,
         );
-        *expansion_cursor += 1;
     }
 }
 
@@ -199,6 +209,8 @@ fn select_runtime_branch_prelude(
             RuntimeBranchPreludeOperationKind::StateCall {
                 target_key,
                 lowering,
+                role,
+                call_ordinal,
                 ..
             } => {
                 if matches!(
@@ -217,12 +229,178 @@ fn select_runtime_branch_prelude(
                         runtime_value_operands,
                         selected_instructions,
                     );
+                } else if matches!(
+                    lowering,
+                    omega_state_calls::StateCallLowering::InlineBranching
+                ) {
+                    let operation = RuntimeStraightLineBranchOperation {
+                        source_key: operation.source_key,
+                        statement_index: operation.statement_index,
+                        kind: RuntimeStraightLineBranchOperationKind::StateCall {
+                            role: *role,
+                            call_ordinal: *call_ordinal,
+                            target_key: *target_key,
+                            argument_count: 0,
+                            lowering: *lowering,
+                        },
+                    };
+                    let mut straight_line_scratch = StraightLineBranchSelectionScratch::default();
+                    select_runtime_straight_line_nested_branch_expansions_for_operation(
+                        input,
+                        expansion.dispatch_index,
+                        &operation,
+                        &mut straight_line_scratch,
+                        operands,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
+                    select_assignment_value_call_result_local_copy(
+                        input,
+                        expansion.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        *role,
+                        *call_ordinal,
+                        selected_instructions,
+                    );
                 }
             }
-            RuntimeBranchPreludeOperationKind::LocalData
-            | RuntimeBranchPreludeOperationKind::Other => {}
+            RuntimeBranchPreludeOperationKind::LocalData => {
+                select_runtime_branch_prelude_local_initializer_write(
+                    input,
+                    expansion,
+                    operation.source_key,
+                    operation.statement_index,
+                    bindings,
+                    scratch,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+            }
+            RuntimeBranchPreludeOperationKind::Other => {}
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_branch_prelude_local_initializer_write(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeBranchPreludeExpansion,
+    source_key: StateKey,
+    statement_index: usize,
+    bindings: &[RuntimeBranchPreludeBinding],
+    scratch: &mut BranchPreludeSelectionScratch,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == expansion.dispatch_index
+                && slot.source_key == source_key
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+    let Some(initializer) =
+        local_initializer_handle(input, &mut scratch.expressions, source_key, statement_index)
+    else {
+        return;
+    };
+
+    let expressions = &mut scratch.expressions;
+    let resolved_initializer = resolve_branch_prelude_binding_expression_handle(
+        &input.runtime_branching_calls.expressions,
+        expressions,
+        initializer,
+        bindings,
+    );
+    let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer,
+        &static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
+    let target = runtime_frame_slot_target_expression(expressions, slot);
+    scratch.resolved_segment_expressions.clear();
+    if runtime_text_builder_write_in_table_emit(
+        input,
+        expansion.dispatch_index,
+        source_key,
+        expansion.source_key,
+        statement_index,
+        expressions,
+        target,
+        &mut scratch.resolved_segment_expressions,
+        &|expressions, expression| {
+            resolve_branch_prelude_binding_expression_handle(
+                &input.runtime_branching_calls.expressions,
+                expressions,
+                expression,
+                bindings,
+            )
+        },
+        &mut |kind| {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: statement_index,
+            });
+        },
+    ) {}
+}
+
+fn local_initializer_handle(
+    input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<ExpressionHandle> {
+    table.clear();
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statement = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+    local_data
+        .initial_value
+        .is_valid()
+        .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
 }
 
 #[allow(clippy::too_many_arguments)]

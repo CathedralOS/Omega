@@ -138,7 +138,7 @@ pub fn emit_macho_aarch64_executable(
     bytes.resize(bind_offset, 0);
     bytes.extend(bind_info);
     bytes.resize(code_signature_offset, 0);
-    let code_signature = macho_ad_hoc_code_signature(&bytes);
+    let code_signature = macho_ad_hoc_code_signature(&bytes, text_file_size);
     debug_assert_eq!(code_signature.len(), code_signature_size);
     bytes.extend(code_signature);
 

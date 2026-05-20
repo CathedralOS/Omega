@@ -58,6 +58,7 @@ pub(super) fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Terminate => {
+            select_runtime_dispatch_return_value(input, edge, source_key, selected_instructions);
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
                 source_key,
@@ -66,6 +67,44 @@ pub(super) fn select_runtime_dispatch_edge(
         }
         RuntimeDispatchLoopAction::Unknown => {}
     }
+}
+
+fn select_runtime_dispatch_return_value(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(value) = static_terminal_target_value(input, source_key, edge.order) else {
+        return;
+    };
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+            byte_size: 4,
+            value,
+        },
+        source_key,
+        source_statement: edge.statement_index,
+    });
+}
+
+fn static_terminal_target_value(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    edge_order: usize,
+) -> Option<i64> {
+    let state = input.control_flow.state_by_key(source_key)?;
+    let transition = input
+        .control_flow
+        .transitions
+        .span(state.transitions)?
+        .get(edge_order)?;
+    let value = transition.expressions.target_value;
+    if !value.is_valid() {
+        return None;
+    }
+
+    static_runtime_argument_value(input.control_flow.expressions.expression(value))
 }
 
 fn select_dispatch_guard_instructions(

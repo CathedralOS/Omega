@@ -20,6 +20,7 @@ use super::super::super::lookups::{
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
     state_transition_argument_call, state_transition_argument_call_by_ordinal,
 };
+use super::super::super::storage_places::resolve_runtime_storage_place_in_table;
 use super::super::guards::select_runtime_straight_line_branch_guards;
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::super::writes::{
@@ -51,7 +52,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
-    expansion_cursor: &mut usize,
+    _expansion_cursor: &mut usize,
     scratch: &mut StraightLineBranchSelectionScratch,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
@@ -62,20 +63,17 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
         .straight_line_expansions
         .storage_slice();
 
-    while let Some(expansion) = expansions.get(*expansion_cursor) {
-        if !straight_line_expansion_matches_operation(expansion, dispatch_index, operation) {
-            break;
+    for expansion in expansions {
+        if straight_line_expansion_matches_operation(expansion, dispatch_index, operation) {
+            select_runtime_straight_line_branch_expansion(
+                input,
+                expansion,
+                scratch,
+                operands,
+                runtime_value_operands,
+                selected_instructions,
+            );
         }
-
-        select_runtime_straight_line_branch_expansion(
-            input,
-            expansion,
-            scratch,
-            operands,
-            runtime_value_operands,
-            selected_instructions,
-        );
-        *expansion_cursor += 1;
     }
 }
 
@@ -117,6 +115,18 @@ fn select_runtime_straight_line_branch_expansion(
         runtime_value_operands,
         selected_instructions,
     );
+    select_runtime_straight_line_branch_terminal_value_write(
+        input,
+        expansion,
+        scratch,
+        runtime_value_operands,
+        selected_instructions,
+    );
+    select_runtime_straight_line_assignment_value_target_copy(
+        input,
+        expansion,
+        selected_instructions,
+    );
     if emitted_guard && selected_instructions.len() == write_start {
         while selected_instructions.len() > guard_start {
             selected_instructions.pop();
@@ -136,6 +146,155 @@ fn select_runtime_straight_line_branch_expansion(
             source_statement: expansion.statement_index,
         });
     }
+}
+
+fn select_runtime_straight_line_branch_terminal_value_write(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    scratch: &mut StraightLineBranchSelectionScratch,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    if !expansion.target_value.is_valid() {
+        return;
+    }
+    if !matches!(
+        expansion.role,
+        StateCallRole::AssignmentValue
+            | StateCallRole::TransitionArgument
+            | StateCallRole::TransitionGuard
+    ) {
+        return;
+    }
+    let Some(slot) = input.runtime_storage.call_result_slot_by_ordinal(
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expansion.role,
+        expansion.call_ordinal,
+    ) else {
+        return;
+    };
+    let bindings = input
+        .runtime_branching_calls
+        .straight_line_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+    scratch.expressions.clear();
+    let expressions = &mut scratch.expressions;
+    let value = expressions.copy_from(
+        &input.runtime_branching_calls.expressions,
+        expansion.target_value,
+    );
+    let resolved_value = resolve_straight_line_binding_expression_handle(
+        &input.runtime_branching_calls.expressions,
+        expressions,
+        value,
+        bindings,
+    );
+    let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expressions,
+        slot,
+        resolved_value,
+        &static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: expansion.source_key,
+            source_statement: expansion.statement_index,
+        });
+        return;
+    }
+
+    let target = runtime_frame_slot_target_expression(expressions, slot);
+    if select_runtime_resolved_mutation_write_in_table_with_scratch(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.source_key,
+        expansion.source_key,
+        expansion.statement_index,
+        expressions,
+        target,
+        resolved_value,
+        &mut scratch.mutable_expressions,
+        &mut scratch.resolved_segment_expressions,
+        runtime_value_operands,
+        selected_instructions,
+    ) {
+        return;
+    }
+
+    let target = expressions.to_tree(target);
+    let resolved_value = expressions.to_tree(resolved_value);
+    let (source_machine, source_state) = state_names(input, expansion.source_key);
+    select_runtime_resolved_mutation_write(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &source_machine,
+        &source_machine,
+        &source_state,
+        expansion.statement_index,
+        &target,
+        &resolved_value,
+        runtime_value_operands,
+        selected_instructions,
+    );
+}
+
+fn select_runtime_straight_line_assignment_value_target_copy(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    if expansion.role != StateCallRole::AssignmentValue || !expansion.target_value.is_valid() {
+        return;
+    }
+    let Some(source_slot) = input.runtime_storage.call_result_slot_by_ordinal(
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expansion.role,
+        expansion.call_ordinal,
+    ) else {
+        return;
+    };
+    let Some(mutation) =
+        state_mutation_for_statement(input, expansion.source_key, expansion.statement_index)
+    else {
+        return;
+    };
+    let Some(target_place) = resolve_runtime_storage_place_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.state_storage.expressions,
+        mutation.target,
+    ) else {
+        return;
+    };
+    if source_slot.byte_size != target_place.byte_count || source_slot.byte_size == 0 {
+        return;
+    }
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: RuntimeStorageRegion::RuntimeFrame,
+            source_offset: source_slot.byte_offset,
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            byte_count: source_slot.byte_size,
+        },
+        source_key: expansion.source_key,
+        source_statement: expansion.statement_index,
+    });
 }
 
 fn select_runtime_straight_line_branch_writes(
@@ -488,7 +647,7 @@ fn local_initializer_handle(
         .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
 }
 
-fn select_runtime_straight_line_nested_branch_expansions_for_operation(
+pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_nested_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeStraightLineBranchOperation,
@@ -502,16 +661,6 @@ fn select_runtime_straight_line_nested_branch_expansions_for_operation(
         statement_index: operation.statement_index,
         kind: omega_runtime_bodies::RuntimeDispatchBodyOperationKind::Other,
     };
-    let mut leaf_scratch = super::LeafBranchSelectionScratch::default();
-    super::select_runtime_leaf_branch_expansions_matching_operation(
-        input,
-        dispatch_index,
-        &body_operation,
-        &mut leaf_scratch,
-        runtime_value_operands,
-        selected_instructions,
-    );
-
     let expansions = input
         .runtime_branching_calls
         .straight_line_expansions
@@ -528,9 +677,19 @@ fn select_runtime_straight_line_nested_branch_expansions_for_operation(
             );
         }
     }
+
+    let mut leaf_scratch = super::LeafBranchSelectionScratch::default();
+    super::select_runtime_leaf_branch_expansions_matching_operation(
+        input,
+        dispatch_index,
+        &body_operation,
+        &mut leaf_scratch,
+        runtime_value_operands,
+        selected_instructions,
+    );
 }
 
-fn select_assignment_value_call_result_local_copy(
+pub(in crate::selection::runtime_dispatch) fn select_assignment_value_call_result_local_copy(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
