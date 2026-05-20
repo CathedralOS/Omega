@@ -19,5 +19,6 @@ Direct chapter links:
 - [Chapter 13: Versioned Data And Machine Replacement](language_guide/chapter_13_versioned_data.md)
 - [Chapter 14: Wire Protocols](language_guide/chapter_14_wire_protocols.md)
 - [Chapter 15: Inline Assembly](language_guide/chapter_15_inline_assembly.md)
-- [Chapter 16: Tooling And UX](language_guide/chapter_16_tooling_and_ux.md)
+- [Chapter 16: Concurrency](language_guide/chapter_16_concurrency.md)
+- [Chapter 17: Tooling And UX](language_guide/chapter_17_tooling_and_ux.md)
 - [Appendix: Open Questions](language_guide/appendix_open_questions.md)

@@ -161,6 +161,24 @@ assignments, arithmetic, borrows, transitions, calls, and field access. For
 imported libraries and syscall surfaces, the contract must be declared or
 imported from an audited package.
 
+## Blocking Boundaries
+
+Imported entries that can block must say what can unblock them, or they must be
+reported as trusted opaque waits.
+
+Examples:
+
+- A pipe read may block until a matching write, close, timeout, or external
+  event.
+- A process wait may block until the target process exits.
+- A socket receive may block on external network input.
+- A driver call may block on hardware interrupt, timeout, cancellation, or a
+  trusted opaque device contract.
+
+The proof/invariant checker can reason about modeled waits. It can audit
+trusted opaque waits. A proved-concurrency build may reject opaque blocking
+boundaries.
+
 ## Host vs Standard Library
 
 The standard library is the portable API most application code should use. It
