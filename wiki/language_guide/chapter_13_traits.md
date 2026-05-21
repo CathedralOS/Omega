@@ -2,8 +2,7 @@
 
 Omega traits should describe required machine surfaces.
 
-They are not a second method system, not hidden inheritance, and not a wrapper
-around behavior. Omega already has the core pieces:
+The core pieces are:
 
 - `data` names state.
 - `machine` names behavior over state.
@@ -35,9 +34,8 @@ machine Counter::increment(&mut self) satisfies Incrementable {
 }
 ```
 
-There is no separate `impl` block in the baseline model. The implementation is
-the machine. The trait only gives the compiler and programmer a name for the
-required surface.
+The implementation is the machine. The trait gives the compiler and programmer
+a name for the required surface.
 
 `satisfies Incrementable` is an explicit binding: this machine intentionally
 fulfills the matching requirement from `Incrementable`.
