@@ -1,6 +1,7 @@
 # Chapter 8: Invariant Propagation
 
-Omega should be able to weaken an invariant temporarily, then prove that each transition either restores the invariant or transfers a narrower proof obligation to the next state.
+Omega should be able to weaken an invariant temporarily, then prove the normal
+invariant is restored before control leaves the local relax scope.
 
 ```omega
 data Player {
@@ -13,22 +14,15 @@ machine Player::take_damage(
 ) {
     relax self.health {
         self.health -= amount;
-
-        let dead: bool = self.health <= 0;
-        let bloodied_range: bool = self.health > 25 && amount <= 50;
-
-        transition (dead, bloodied_range) {
-            (true, _) -> revive()
-            (false, true) -> bloodied(amount)
-            (false, false) -> still_alive()
-        }
+        Player::restore_health_range(&mut relaxed self.health);
     }
 
-    state bloodied(amount: i32[range<1, 50>]) {
+    transition self.health <= 25 {
+        true -> bloodied()
+        false -> still_alive()
     }
 
-    state revive(&mut self) {
-        self.health = 100;
+    state bloodied(&mut self) {
     }
 
     state still_alive(&mut self) {
@@ -38,14 +32,13 @@ machine Player::take_damage(
 
 The useful idea is not that `relax` means "anything goes." It means the compiler has a proof debt. If `self.health` normally has `range<1, 100>`, then `self.health -= amount` may temporarily widen the known type to something like `i32[range<-98, 99>]`.
 
-Each outgoing transition must account for that debt:
+The relax scope must account for that debt before any transition can run:
 
-- `(true, _) -> revive()` is valid if `revive` re-establishes `self.health: i32[range<1, 100>]`.
-- `(false, true) -> bloodied(amount)` is valid only if the matched facts plus the current proof context imply the target argument bounds.
-- `(false, false) -> still_alive()` is valid only if the matched facts prove `self.health` is back inside `range<1, 100>` or `still_alive` accepts the weakened invariant.
+- `self.health -= amount` weakens the known range.
+- `restore_health_range` explicitly accepts the relaxed health value and
+  restores the declared range.
+- Only after the block ends may control transition to `bloodied` or
+  `still_alive`.
 
-Tuple transition dispatch makes the partition explicit. In this sketch,
-`still_alive` sees `dead == false` and `bloodied_range == false` because those
-facts are part of the selected arm.
-
-This gives Omega a way to model controlled damage, recovery, saturation, clamping, retry state, and other real programs without pretending every intermediate instruction preserves every invariant.
+This gives Omega a way to model controlled in-place repair without allowing
+weakened invariants to leak across the machine graph.
