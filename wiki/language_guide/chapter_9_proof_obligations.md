@@ -1,6 +1,11 @@
 # Chapter 9: Proof Obligations
 
-Typed states and bounded values imply compiler-generated obligations.
+Typed states, bounded values, borrows, transitions, effects, drops, and host
+boundaries imply compiler-generated obligations.
+
+This is the everyday proof chapter. Most programmers should see facts move
+through invariants, domains, preconditions, and postconditions. They should not
+need to write mathematical proof libraries to get normal code accepted.
 
 ## Vocabulary
 
@@ -26,7 +31,9 @@ invariants are facts that must survive boundaries
 trust explains why unproved guarantees are accepted
 ```
 
-For ordinary Omega code, users should not have to write every contract explicitly. The compiler knows the contracts for assignment, arithmetic, field access, transitions, borrows, and similar language operations.
+For ordinary Omega code, users should not have to write every contract
+explicitly. The compiler knows the contracts for assignment, arithmetic, field
+access, transitions, borrows, cleanup, and similar language operations.
 
 For boundary code, contracts must be explicit. Host APIs, inline assembly, target intrinsics, and trusted packages sit at the edge of Omega's semantic world. The compiler cannot honestly infer their behavior unless the toolchain or author supplies a contract.
 
@@ -46,6 +53,32 @@ Likely obligations:
 - Every spawned graph captures only moved, copied, or concurrency-safe values.
 - Every blocking operation exposes a waitable contract or crosses an explicit
   trust boundary.
+
+## Everyday Shape
+
+Most proof work should look like ordinary contracts:
+
+```omega
+machine Game::enter_combat(&mut self)
+requires
+    self.player in Player::Alive
+ensures
+    self.mode in GameMode::Combat
+{
+}
+```
+
+The caller must provide the requirement. The machine body must establish the
+guarantee. The checker carries those facts forward.
+
+That is the common case:
+
+```text
+preconditions + body facts -> postconditions
+```
+
+Advanced proof work and math libraries exist for cases where the compiler cannot
+derive those facts automatically. They are covered in the next chapter.
 
 ## Example
 
