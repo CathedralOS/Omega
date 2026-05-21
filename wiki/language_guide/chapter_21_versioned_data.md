@@ -1,4 +1,4 @@
-# Chapter 15: Versioned Data And Machine Replacement
+# Chapter 21: Versioned Data And Machine Replacement
 
 Omega should treat runtime data evolution as a first-class systems problem.
 

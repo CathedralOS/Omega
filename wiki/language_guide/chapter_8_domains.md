@@ -1,4 +1,4 @@
-# Chapter 7: Domains
+# Chapter 8: Domains
 
 Domains are named proof predicates over existing values.
 

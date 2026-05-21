@@ -1,4 +1,4 @@
-# Chapter 6: Value Constraints And Invariants
+# Chapter 7: Types, Constraints, And Invariants
 
 Value constraints are proof facts attached to ordinary values.
 
@@ -21,6 +21,41 @@ Working interpretation:
 - If the compiler cannot prove a constraint, the normal result is a diagnostic.
 - Debug or proof builds may emit validation, but validation is instrumentation,
   not the core semantics.
+
+## Invariant Propagation
+
+Invariants flow through assignments, calls, and transitions as proof facts.
+
+```omega
+data Player {
+    health: i32[range<1, 100>];
+}
+
+machine Player::take_damage(
+    &mut self,
+    amount: i32[range<1, 100>]
+) {
+    relax self.health {
+        self.health -= amount;
+        Player::restore_health_range(&mut relaxed self.health);
+    }
+
+    transition self.health <= 25 {
+        true -> bloodied()
+        false -> still_alive()
+    }
+
+    state bloodied(&mut self) {
+    }
+
+    state still_alive(&mut self) {
+    }
+}
+```
+
+The useful idea is not that `relax` means "anything goes." It means the
+compiler has a proof debt. The normal invariant must be restored before control
+can leave the relax scope.
 
 ## Generic Constraints
 

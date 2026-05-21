@@ -1,4 +1,4 @@
-# Chapter 19: Drops And Cleanup
+# Chapter 16: Drops And Cleanup
 
 Owned values need a deterministic cleanup story.
 
