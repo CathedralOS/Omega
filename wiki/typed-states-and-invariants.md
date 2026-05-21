@@ -20,5 +20,5 @@ Direct chapter links:
 - [Chapter 14: Wire Protocols](language_guide/chapter_14_wire_protocols.md)
 - [Chapter 15: Inline Assembly](language_guide/chapter_15_inline_assembly.md)
 - [Chapter 16: Concurrency](language_guide/chapter_16_concurrency.md)
-- [Chapter 17: Tooling And UX](language_guide/chapter_17_tooling_and_ux.md)
+- [Chapter 17: Drops And Cleanup](language_guide/chapter_17_drops_and_cleanup.md)
 - [Appendix: Open Questions](language_guide/appendix_open_questions.md)
