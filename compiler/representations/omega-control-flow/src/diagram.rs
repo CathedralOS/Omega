@@ -9,19 +9,9 @@ use omega_typed_trees::expression::ExpressionHandle;
 impl PhaseDiagram for ControlFlowPlan {
     fn phase_html(&self) -> String {
         let mut diagram = PhaseDiagramBuilder::new("control_flow");
-        let root = diagram.node("root", "ControlFlowPlan", "root", 0);
         let mut state_nodes = Vec::new();
 
         for (machine_index, machine) in self.machines.iter() {
-            let machine_id = diagram.node(
-                format!("machine_{}", machine_index.arena_index()),
-                machine_label(self, machine),
-                "machine",
-                1,
-            );
-            diagram.containment_edge(&root, &machine_id);
-
-            let mut previous_state_id: Option<String> = None;
             let mut seen_state_keys = Vec::new();
             for state in self.states.span_or_empty(machine.states) {
                 if seen_state_keys.iter().any(|key| *key == state.key) {
@@ -38,13 +28,8 @@ impl PhaseDiagram for ControlFlowPlan {
                     ),
                     state_label(self, machine, state),
                     "state_block",
-                    2,
+                    machine_index.arena_index() as usize,
                 );
-                diagram.containment_edge(&machine_id, &state_id);
-                if let Some(previous_id) = previous_state_id.as_deref() {
-                    diagram.sequence_edge(previous_id, &state_id);
-                }
-                previous_state_id = Some(state_id.clone());
                 state_nodes.push((state.key, state_id));
             }
         }
@@ -76,16 +61,6 @@ impl PhaseDiagram for ControlFlowPlan {
 
         diagram.finish()
     }
-}
-
-fn machine_label(plan: &ControlFlowPlan, machine: &MachineFlow) -> String {
-    format!(
-        "machine {}\nstates: {}\ncontains: {}\nowns: {}",
-        machine.name.as_str(),
-        machine.states.len(),
-        machine.contains.len(),
-        plan.machine_owned_data(machine).len()
-    )
 }
 
 fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow) -> String {
