@@ -1,14 +1,18 @@
 # Chapter 10: Compile-Time Proofs
 
-Omega's proof language should exist to help the compiler discharge obligations.
+Compile-time proofs are not a second programming language.
 
-Borrow checking, invariant checking, effect checking, concurrency proof
-obligations, and resource cleanup all produce obligations. Most should be
-solved automatically. When automation is not enough, users should be able to
-write compile-time proofs in the language.
+They are a way to give evidence to the same proof system that checks borrows,
+invariants, effects, concurrency, resources, and host boundaries.
 
-The proof language is not a second runtime language. It is compile-time evidence
-for facts.
+The surface should stay close to the rest of Omega:
+
+- Facts appear in contracts: `requires`, `ensures`, `where`, domains, and
+  invariants.
+- Machines produce guarantees.
+- Proof-only machines produce guarantees at compile time and emit no runtime
+  code.
+- Axioms are trusted roots, not normal proofs.
 
 ## Facts, Proofs, And Axioms
 
@@ -24,20 +28,23 @@ These concepts are distinct:
 `2 == 2` should be a proven fact, not an axiom.
 
 ```omega
-proof two_eq_two() -> 2 == 2 {
-    trivial
+proof MathProofs::two_eq_two()
+ensures
+    2 == 2
+{
 }
 ```
 
-Axioms should be rare, loud, and restricted to trusted packages or compiler
-foundations. Inconsistent axioms can make the proof system prove nonsense.
+The empty body is acceptable only when the compiler can discharge the goal from
+built-in rules. Axioms should be rare, loud, and restricted to trusted packages
+or compiler foundations.
 
 ## Proof Machines
 
-A proof machine is compile-time-only evidence.
+A proof machine is a compile-time-only machine.
 
 ```omega
-proof distinct_indices(
+proof IndexProofs::distinct_indices(
     i: usize,
     j: usize
 )
@@ -46,62 +53,82 @@ requires
 ensures
     i != j
 {
-    auto
 }
 ```
 
-The proof checker verifies the body. If verified, the `ensures` facts become
-available wherever the proof is used.
+The proof checker verifies that the `ensures` facts follow from the inputs,
+requirements, and proof body. If verified, callers may use those facts.
 
-Proof machines can establish ordinary math facts:
+Proof machines can establish ordinary math:
 
 ```omega
-proof pythagorean_3_4_5() -> 3 * 3 + 4 * 4 == 5 * 5 {
-    auto
+proof MathProofs::pythagorean_3_4_5()
+ensures
+    3 * 3 + 4 * 4 == 5 * 5
+{
 }
 ```
 
 They can also establish facts needed by ordinary program checking.
 
-## Predicates
+## Naming Properties
 
-Predicates name proof-level properties.
+Omega already has a way to name semantic properties: domains.
+
+For runtime-shaped values, prefer domains and invariants over inventing a
+separate predicate syntax.
 
 ```omega
-predicate sorted(items: &[i32]) {
-    forall i, j in items.indices:
-        i <= j -> items[i] <= items[j]
+data SliceFacts {
 }
 
-predicate permutation(before: &[i32], after: &[i32]) {
-    forall value:
-        count(before, value) == count(after, value)
+data SlicePairI32 {
+    before: &[i32];
+    after: &[i32];
+}
+
+domain SortedI32 for &[i32] {
+    // The exact quantifier surface is not designed yet.
+    // This domain names the fact that elements are ordered by index.
+}
+
+domain SameElements for SlicePairI32 {
+    // Names the fact that both slices contain the same values with same counts.
 }
 ```
 
-Predicates do not store runtime data. They describe facts the proof checker can
-use.
+The bodies above intentionally do not invent a `forall` syntax. Quantified facts
+are necessary eventually, but the language should design them as part of the
+proof/fact system, not smuggle them into docs as pseudo-code.
+
+For now, the important point is:
+
+```text
+named property + contract use + proof obligation
+```
+
+not a particular quantifier spelling.
 
 ## Machine Contracts
 
-Normal machines can require and guarantee predicates.
+Normal machines can require and guarantee named facts.
 
 ```omega
 machine Sort::sort(items: &mut [i32])
 ensures
-    sorted(items),
-    permutation(old(items), items)
+    items in SliceFacts::SortedI32
 {
 }
 ```
 
-This creates obligations:
+This creates an obligation:
 
-- prove `sorted(items)` at machine completion,
-- prove `permutation(old(items), items)` at machine completion.
+```text
+prove items in SliceFacts::SortedI32 at machine completion
+```
 
-The implementation may discharge those obligations directly, or it may call
-helper machines whose contracts compose.
+The implementation may discharge the obligation directly, or it may call helper
+machines whose contracts compose.
 
 ```omega
 machine Sort::insert_sorted(
@@ -109,9 +136,9 @@ machine Sort::insert_sorted(
     value: i32
 )
 requires
-    sorted(items)
+    items in SliceFacts::SortedI32
 ensures
-    sorted(items)
+    items in SliceFacts::SortedI32
 {
 }
 ```
@@ -119,29 +146,45 @@ ensures
 Large proofs should be decomposed through helper machines and helper proofs,
 not written as one giant proof blob.
 
-## Proof Steps
+## Proof Bodies
 
-The proof vocabulary should stay small.
+Proof bodies should use the same basic control model as machines: straight-line
+work, explicit facts, and transitions when a proof needs cases.
 
-Candidate steps:
+Sketch:
 
-- `trivial`: solve by reflexivity or an obvious built-in rule.
-- `auto`: ask the proof engine to solve the current goal.
-- `use`: invoke an existing proof.
-- `rewrite`: replace equals with equals.
-- `cases`: split on a value, domain, or pattern.
-- `induction`: prove recursive or structural cases.
-- `show`: name the current goal.
-- `assume`: introduce a local assumption for implication/case proofs.
+```omega
+proof CompareProofs::ordered_pair(
+    a: i32,
+    b: i32
+)
+ensures
+    a <= b || b < a
+{
+    transition a <= b {
+        true -> left_case()
+        false -> right_case()
+    }
 
-The exact syntax can evolve. The goal is not to clone Lean's terminology. The
-goal is to give users a way to supply evidence when the compiler needs help.
+    state left_case() {
+    }
+
+    state right_case() {
+    }
+}
+```
+
+This is not runtime control flow. It is compile-time evidence structured like a
+machine graph.
+
+The proof checker may also solve many empty proof bodies automatically when the
+goal follows from arithmetic, branch facts, type facts, or existing contracts.
 
 ## Intersection With Checking
 
 Proof machines feed the same obligation system used by the compiler.
 
-Example borrow obligation:
+Borrow obligation:
 
 ```omega
 let a = &mut items[i];
@@ -154,10 +197,10 @@ The borrow checker needs:
 i != j
 ```
 
-If surrounding facts prove `i < j`, a proof such as `distinct_indices(i, j)` can
-discharge the obligation.
+If surrounding facts prove `i < j`, a proof such as
+`IndexProofs::distinct_indices(i, j)` can discharge the obligation.
 
-Example bounds obligation:
+Bounds obligation:
 
 ```omega
 machine Buffer::first<T, const N: usize>(
@@ -173,7 +216,7 @@ where
 
 The bounds checker needs `0 < N`. The `where N > 0` fact discharges it.
 
-Example concurrency obligation:
+Concurrency obligation:
 
 ```text
 lock_order(lock_a) < lock_order(lock_b)
@@ -182,32 +225,51 @@ lock_order(lock_a) < lock_order(lock_b)
 That fact might come from a type-level resource hierarchy, a machine contract,
 or a proof about the particular resources being used.
 
+## Quantifiers
+
+Sorting, permutation, graph reachability, and liveness eventually need
+quantified facts.
+
+The design is still open. Options include:
+
+- domain bodies with quantified fact expressions,
+- proof-only machines over finite ranges,
+- library-defined finite set/range facts,
+- solver-backed contracts over slices and graphs.
+
+What we should not do is pretend Omega already has loops or functions just to
+write proof examples. Quantified proof syntax must fit the machine/state model
+or be clearly marked as proof-only fact syntax.
+
 ## Automation And Trust
 
 The proof engine should solve common cases automatically:
 
 - arithmetic normalization,
 - range implications,
-- simple equality rewrites,
-- obvious branch facts,
-- simple disjoint field facts,
+- equality facts,
+- branch facts,
+- disjoint field facts,
 - straightforward generic const facts.
 
-When automation fails, the user can provide proof code. When proof code cannot
-honestly establish a fact, the only remaining option is a trusted axiom or
-trusted boundary, which must be visible in build artifacts.
+When automation fails, users can provide proof machines. When a fact cannot be
+honestly established, the remaining option is a trusted axiom or trusted
+boundary, which must be visible in build artifacts.
 
 ## General Math
 
-The same proof language can prove math unrelated to a runtime program.
+Compile-time proofs can establish math unrelated to a runtime program.
 
 ```omega
-proof add_commutes(a: Int, b: Int) -> a + b == b + a {
-    use integer_add_commutativity(a, b);
+proof MathProofs::add_commutes(a: Int, b: Int)
+ensures
+    a + b == b + a
+{
+    MathFoundations::integer_add_commutativity(a, b);
 }
 ```
 
-This is allowed because compile-time proofs are general facts. The practical
-reason to include them is that program proofs eventually need ordinary math:
-indices, lengths, ordering, resource counts, graph reachability, sortedness,
-permutation, and liveness all depend on mathematical facts.
+This is allowed because compile-time proofs establish facts. Program proofs
+eventually need ordinary math: indices, lengths, ordering, resource counts,
+graph reachability, sortedness, permutation, and liveness all depend on
+mathematical facts.
