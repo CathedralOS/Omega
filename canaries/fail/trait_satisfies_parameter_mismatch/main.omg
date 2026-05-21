@@ -1,0 +1,20 @@
+trait Drawable {
+    machine draw(&self, canvas: &mut Canvas);
+}
+
+data Canvas {
+}
+
+data Sprite {
+}
+
+data Main {
+    sprite: Sprite;
+    canvas: Canvas;
+}
+
+machine Sprite::draw(&self, canvas: Canvas) satisfies Drawable {
+}
+
+machine Main::main(&mut self) {
+}

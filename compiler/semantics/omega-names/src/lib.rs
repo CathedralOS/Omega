@@ -1425,6 +1425,7 @@ mod tests {
 
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(entry_state, 2),
         }));
 
@@ -1525,6 +1526,7 @@ mod tests {
         let entry_state = syntax_trees.items.append_state_handle(entry_state);
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(entry_state, 1),
         }));
 

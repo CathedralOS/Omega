@@ -1192,6 +1192,7 @@ mod tests {
             name: ProgramName::generated("Game"),
             contains: Default::default(),
             owned_data: Default::default(),
+            satisfies: Default::default(),
             states: Default::default(),
         };
         let mut entry_state = State {

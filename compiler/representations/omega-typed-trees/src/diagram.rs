@@ -82,9 +82,10 @@ impl PhaseDiagram for TypedTrees {
             let machine_id = diagram.node(
                 format!("machine_{machine_index}"),
                 format!(
-                    "machine {}\nsymbol: {}\nstates: {}",
+                    "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
                     machine.name.as_str(),
                     symbol_label(machine.symbol),
+                    machine.satisfies.len(),
                     machine.states.len()
                 ),
                 "machine",
@@ -142,6 +143,12 @@ fn append_machine_relationships(
 ) {
     if let Some(data_id) = data_id_for_name(data_nodes, machine.name.as_str()) {
         diagram.edge(data_id, machine_id, "implements_data");
+    }
+
+    for conformance in program.machine_trait_conformances(machine) {
+        if let Some(trait_id) = trait_id_for_symbol(trait_nodes, conformance.symbol) {
+            diagram.edge(machine_id, trait_id, "satisfies_trait");
+        }
     }
 
     for (object_index, object) in program

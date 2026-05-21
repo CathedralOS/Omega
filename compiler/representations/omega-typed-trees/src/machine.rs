@@ -11,6 +11,7 @@ pub struct Machine {
     pub name: ProgramName,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
+    pub satisfies: HandleSpan<TraitConformance>,
     pub states: HandleSpan<State>,
 }
 
@@ -21,6 +22,7 @@ impl Default for Machine {
             name: ProgramName::default(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }
@@ -51,6 +53,21 @@ pub struct OwnedData {
     pub name: ProgramName,
     pub type_reference: TypeReferenceHandle,
     pub initial_value: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitConformance {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+}
+
+impl Default for TraitConformance {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+        }
+    }
 }
 
 impl Default for OwnedData {

@@ -1,0 +1,12 @@
+data Sprite {
+}
+
+data Main {
+    sprite: Sprite;
+}
+
+machine Sprite::draw(&self) satisfies Drawable {
+}
+
+machine Main::main(&mut self) {
+}

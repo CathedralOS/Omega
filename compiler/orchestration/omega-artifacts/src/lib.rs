@@ -957,6 +957,7 @@ mod tests {
             name: ProgramName::generated("main"),
             contains: Default::default(),
             owned_data: Default::default(),
+            satisfies: Default::default(),
             states: Default::default(),
         };
         program.typed.push_machine_state(

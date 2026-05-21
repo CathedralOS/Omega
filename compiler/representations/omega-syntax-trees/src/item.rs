@@ -264,6 +264,7 @@ pub struct DataVariant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
+    pub satisfies: HandleSpan<Identifier>,
     pub states: HandleSpan<StateHandle>,
 }
 
@@ -575,6 +576,7 @@ impl ItemTable {
     pub fn insert_machine(&mut self, machine: &Machine) -> MachineHandle {
         self.state_storage.machines.append(MachineNode {
             name: machine.name.clone(),
+            satisfies: machine.satisfies,
             states: machine.states,
         })
     }
@@ -661,6 +663,7 @@ pub struct StateNode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineNode {
     pub name: Identifier,
+    pub satisfies: HandleSpan<Identifier>,
     pub states: HandleSpan<StateHandle>,
 }
 

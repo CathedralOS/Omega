@@ -181,8 +181,9 @@ fn item_label(item: &Item) -> String {
         }
         Item::Machine(value) => {
             format!(
-                "machine {}\nstates: {}",
+                "machine {}\nsatisfies: {}\nstates: {}",
                 value.name.as_str(),
+                value.satisfies.len(),
                 value.states.len()
             )
         }

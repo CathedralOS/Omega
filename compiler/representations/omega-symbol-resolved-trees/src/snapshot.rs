@@ -821,6 +821,7 @@ mod tests {
             storage: MachineStorage {
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
+                satisfies: HandleSpan::empty(),
                 states,
             },
         });
