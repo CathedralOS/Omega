@@ -1,0 +1,19 @@
+trait ManagedCounter {
+    requires Resettable;
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32;
+}
+
+data Main {
+    counter: Counter;
+}
+
+machine Counter::increment(&mut self) satisfies ManagedCounter {
+    self.value = self.value + 1;
+}
+
+machine Main::main(&mut self) {
+}

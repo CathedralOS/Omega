@@ -61,6 +61,7 @@ impl TypedTreesSnapshot {
                 platform_count: program.platforms.len(),
                 platform_state_signature_count: program.platform_state_signatures.len(),
                 trait_count: program.traits.len(),
+                trait_requirement_count: program.trait_requirements.len(),
                 trait_machine_signature_count: program.trait_machine_signatures.len(),
                 expression_count: program.expression_table.expression_count(),
                 expression_struct_field_count: program.expression_table.struct_field_count(),
@@ -104,6 +105,7 @@ pub struct TypedTableSnapshot {
     pub platform_count: usize,
     pub platform_state_signature_count: usize,
     pub trait_count: usize,
+    pub trait_requirement_count: usize,
     pub trait_machine_signature_count: usize,
     pub expression_count: usize,
     pub expression_struct_field_count: usize,
@@ -169,6 +171,7 @@ pub struct PlatformSnapshot {
 pub struct TraitSnapshot {
     pub name: String,
     pub is_boundary: bool,
+    pub requires: Vec<String>,
     pub machines: Vec<StateSignatureSnapshot>,
 }
 
@@ -444,6 +447,11 @@ fn trait_definition_snapshot(
     TraitSnapshot {
         name: trait_definition.name.to_string(),
         is_boundary: trait_definition.is_boundary,
+        requires: program
+            .trait_requirements(trait_definition)
+            .iter()
+            .map(|requirement| requirement.name.to_string())
+            .collect(),
         machines: program
             .trait_machine_signatures(trait_definition)
             .iter()

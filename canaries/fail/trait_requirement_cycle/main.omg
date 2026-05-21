@@ -1,0 +1,28 @@
+trait A {
+    requires B;
+    machine a(&mut self);
+}
+
+trait B {
+    requires A;
+    machine b(&mut self);
+}
+
+data Thing {
+    value: i32;
+}
+
+data Main {
+    thing: Thing;
+}
+
+machine Thing::a(&mut self) satisfies A {
+    self.value = 1;
+}
+
+machine Thing::b(&mut self) {
+    self.value = 2;
+}
+
+machine Main::main(&mut self) {
+}

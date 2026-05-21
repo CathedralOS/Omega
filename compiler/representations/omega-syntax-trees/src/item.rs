@@ -286,6 +286,7 @@ pub struct Platform {
 pub struct TraitDefinition {
     pub is_boundary: bool,
     pub name: Identifier,
+    pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
 }
 
@@ -592,6 +593,7 @@ impl ItemTable {
         self.state_storage.traits.append(TraitNode {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
+            requires: trait_definition.requires,
             machines: trait_definition.machines,
         })
     }
@@ -677,5 +679,6 @@ pub struct PlatformNode {
 pub struct TraitNode {
     pub is_boundary: bool,
     pub name: Identifier,
+    pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
 }

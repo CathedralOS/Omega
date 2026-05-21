@@ -25,6 +25,7 @@ pub struct TypedTrees {
     pub platform_state_signatures: Arena<signature::StateSignature>,
     pub root_traits: HandleSpan<trait_definition::TraitDefinition>,
     pub traits: Arena<trait_definition::TraitDefinition>,
+    pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
@@ -102,6 +103,23 @@ impl TypedTrees {
 
     pub fn traits(&self) -> &[trait_definition::TraitDefinition] {
         self.traits.span_or_empty(self.root_traits)
+    }
+
+    pub fn push_trait_requirement(
+        &mut self,
+        trait_definition: &mut trait_definition::TraitDefinition,
+        requirement: trait_definition::TraitRequirement,
+    ) {
+        self.trait_requirements
+            .append_to_span(&mut trait_definition.requires, requirement);
+    }
+
+    pub fn trait_requirements(
+        &self,
+        trait_definition: &trait_definition::TraitDefinition,
+    ) -> &[trait_definition::TraitRequirement] {
+        self.trait_requirements
+            .span_or_empty(trait_definition.requires)
     }
 
     pub fn push_trait_machine_signature(

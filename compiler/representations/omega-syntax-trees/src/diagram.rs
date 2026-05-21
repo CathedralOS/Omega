@@ -201,9 +201,10 @@ fn item_label(item: &Item) -> String {
                 "trait"
             };
             format!(
-                "{} {}\nmachines: {}",
+                "{} {}\nrequires: {}\nmachines: {}",
                 prefix,
                 value.name.as_str(),
+                value.requires.len(),
                 value.machines.len()
             )
         }

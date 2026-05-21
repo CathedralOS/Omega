@@ -14,7 +14,23 @@ pub struct TraitDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitStorage {
+    pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitRequirement {
+    pub symbol: SymbolHandle,
+    pub name: DiagnosticName,
+}
+
+impl Default for TraitRequirement {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::default(),
+        }
+    }
 }
 
 impl Deref for TraitDefinition {

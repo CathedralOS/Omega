@@ -130,6 +130,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_transition_argument_call_value",
     "std_option_storage_write",
     "std_option_surface",
+    "trait_composition_satisfies",
     "trait_declaration_bundle",
     "trait_satisfies_machine_signature",
 ];
@@ -143,6 +144,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
     "runtime_helper_ordering_return",
+    "trait_composition_missing_requirement",
+    "trait_requirement_cycle",
+    "trait_requires_unknown",
     "trait_satisfies_missing_machine",
     "trait_satisfies_parameter_mismatch",
     "trait_satisfies_unknown",

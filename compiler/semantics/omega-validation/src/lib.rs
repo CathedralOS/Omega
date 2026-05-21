@@ -3,7 +3,6 @@ mod symbols;
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
@@ -15,6 +14,7 @@ use omega_typed_trees::statement::{
 use omega_typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use omega_typed_trees::TypedTrees;
 use std::fmt;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -23,6 +23,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
     validate_invariant_definitions(program, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
+    validate_trait_requirements(program, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 
@@ -975,29 +976,151 @@ fn validate_machine_trait_conformances(
             continue;
         };
 
-        for requirement in program.trait_machine_signatures(trait_definition) {
-            let Some(state) = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.name == requirement.name)
-            else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` satisfies trait `{}` but is missing machine `{}`",
-                    machine.name, trait_definition.name, requirement.name
-                )));
-                continue;
-            };
+        let mut visited_traits = Vec::new();
+        validate_machine_satisfies_trait(
+            program,
+            machine,
+            trait_definition,
+            diagnostics,
+            &mut visited_traits,
+        );
+    }
+}
 
-            validate_machine_state_satisfies_trait_signature(
-                program,
-                machine,
-                state,
-                trait_definition.name.as_str(),
-                requirement,
-                diagnostics,
-            );
+fn validate_trait_requirements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for trait_definition in program.traits() {
+        for requirement in program.trait_requirements(trait_definition) {
+            if trait_definition_by_symbol(program, requirement.symbol).is_none() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait `{}` requires unknown trait `{}`",
+                    trait_definition.name, requirement.name
+                )));
+            }
         }
     }
+
+    let mut reported_cycle_symbols = Vec::new();
+    for trait_definition in program.traits() {
+        let mut path = Vec::new();
+        validate_trait_requirement_cycles(
+            program,
+            trait_definition,
+            &mut path,
+            &mut reported_cycle_symbols,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_trait_requirement_cycles(
+    program: &TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    path: &mut Vec<SymbolHandle>,
+    reported_cycle_symbols: &mut Vec<SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if reported_cycle_symbols
+        .iter()
+        .any(|symbol| *symbol == trait_definition.symbol)
+    {
+        return;
+    }
+
+    if let Some(cycle_start) = path
+        .iter()
+        .position(|symbol| *symbol == trait_definition.symbol)
+    {
+        let cycle_symbols = path[cycle_start..]
+            .iter()
+            .copied()
+            .chain(std::iter::once(trait_definition.symbol))
+            .collect::<Vec<_>>();
+        let mut cycle = path[cycle_start..]
+            .iter()
+            .filter_map(|symbol| trait_definition_by_symbol(program, *symbol))
+            .map(|trait_definition| trait_definition.name.to_string())
+            .collect::<Vec<_>>();
+        cycle.push(trait_definition.name.to_string());
+
+        diagnostics.push(Diagnostic::error(format!(
+            "trait requirement cycle detected: {}",
+            cycle.join(" -> ")
+        )));
+        reported_cycle_symbols.extend(cycle_symbols);
+        return;
+    }
+
+    path.push(trait_definition.symbol);
+    for requirement in program.trait_requirements(trait_definition) {
+        let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
+            continue;
+        };
+
+        validate_trait_requirement_cycles(
+            program,
+            required_trait,
+            path,
+            reported_cycle_symbols,
+            diagnostics,
+        );
+    }
+    path.pop();
+}
+
+fn validate_machine_satisfies_trait(
+    program: &TypedTrees,
+    machine: &Machine,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+    visited_traits: &mut Vec<SymbolHandle>,
+) {
+    if visited_traits
+        .iter()
+        .any(|symbol| *symbol == trait_definition.symbol)
+    {
+        return;
+    }
+
+    visited_traits.push(trait_definition.symbol);
+
+    for requirement in program.trait_machine_signatures(trait_definition) {
+        let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.name == requirement.name)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies trait `{}` but is missing machine `{}`",
+                machine.name, trait_definition.name, requirement.name
+            )));
+            continue;
+        };
+
+        validate_machine_state_satisfies_trait_signature(
+            program,
+            machine,
+            state,
+            trait_definition.name.as_str(),
+            requirement,
+            diagnostics,
+        );
+    }
+
+    for requirement in program.trait_requirements(trait_definition) {
+        let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
+            continue;
+        };
+
+        validate_machine_satisfies_trait(
+            program,
+            machine,
+            required_trait,
+            diagnostics,
+            visited_traits,
+        );
+    }
+
+    visited_traits.pop();
 }
 
 fn trait_definition_by_symbol(
