@@ -45,6 +45,7 @@ pub enum ResolvedDefinitionKind {
     Machine,
     Platform,
     Target,
+    Trait,
     Trust,
     #[default]
     Unknown,
@@ -284,6 +285,29 @@ fn build_resolve_report_with_optional_sources(
                         &format!(
                             "platform `{}` state `{}`",
                             platform.name,
+                            syntax_trees.items.state_signature(*signature_handle).name
+                        ),
+                    );
+                }
+            }
+            Item::Trait(trait_definition) => {
+                insert_definition(
+                    &mut report,
+                    trait_definition.name.as_str(),
+                    ResolvedDefinitionKind::Trait,
+                );
+
+                for signature_handle in syntax_trees
+                    .items
+                    .state_signatures(trait_definition.machines)
+                {
+                    collect_state_signature_references(
+                        &mut report,
+                        syntax_trees,
+                        *signature_handle,
+                        &format!(
+                            "trait `{}` machine `{}`",
+                            trait_definition.name,
                             syntax_trees.items.state_signature(*signature_handle).name
                         ),
                     );
@@ -987,6 +1011,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Platform(platform) => {
                 self.insert_platform_children(parent, platform.states);
             }
+            Item::Trait(trait_definition) => {
+                self.insert_platform_children(parent, trait_definition.machines);
+            }
             Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
         }
     }
@@ -1259,6 +1286,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Platform(platform) => {
                 self.insert_platform_children(parent, platform.states);
             }
+            Item::Trait(trait_definition) => {
+                self.insert_platform_children(parent, trait_definition.machines);
+            }
             Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
         }
     }
@@ -1282,6 +1312,10 @@ fn item_symbol_seed(item: &Item) -> Option<SymbolSeed<'_>> {
             .map(|name| source_symbol_seed(SymbolKind::Import, name)),
         Item::Machine(machine) => Some(source_symbol_seed(SymbolKind::Machine, &machine.name)),
         Item::Platform(platform) => Some(source_symbol_seed(SymbolKind::Platform, &platform.name)),
+        Item::Trait(trait_definition) => Some(source_symbol_seed(
+            SymbolKind::Trait,
+            &trait_definition.name,
+        )),
         Item::Target(target) => Some(source_symbol_seed(SymbolKind::Object, &target.name)),
         Item::TrustDefinition(trust_definition) => Some(source_symbol_seed(
             SymbolKind::Object,
@@ -1299,6 +1333,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Library(library) => library.name.as_ref().map(|name| name.as_str()),
         Item::Machine(machine) => Some(machine.name.as_str()),
         Item::Platform(platform) => Some(platform.name.as_str()),
+        Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
         Item::TrustDefinition(trust_definition) => Some(trust_definition.name.as_str()),
         Item::Use(_) => None,

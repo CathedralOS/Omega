@@ -1,11 +1,7 @@
-platform Console {
-    entry write_line(text: String);
-    entry read_line(out_line: &mut ConsoleLine);
-    entry exit_process(return_code: i32);
-}
-
-data ConsoleLine {
-    text: String;
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
 }
 
 enum Command {
@@ -17,15 +13,15 @@ enum Command {
 data Parser {
 }
 
-machine Parser::resolve(&mut self, line: &ConsoleLine) -> Command {
-    -> Command::Look when line.text == "look";
-    -> Command::Quit when line.text == "quit";
+machine Parser::resolve(&mut self, line: &String) -> Command {
+    -> Command::Look when line == "look";
+    -> Command::Quit when line == "quit";
     -> Command::Invalid;
 }
 
 data Main {
     console: Console;
-    line: ConsoleLine;
+    line: String;
     parser: Parser;
     command: Command;
 }

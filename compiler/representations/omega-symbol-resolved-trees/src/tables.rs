@@ -44,6 +44,7 @@ impl SymbolResolvedTreeTables {
             machine_state_handles,
             machine_states,
             platform_state_signatures,
+            trait_machine_signatures,
             state_parameters,
             statement_path_members,
             state_statements,
@@ -63,6 +64,16 @@ impl SymbolResolvedTreeTables {
         for platform in &roots.platforms {
             tables.insert_platform(
                 platform_state_signatures.span_or_empty(platform.states),
+                state_parameters,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
+
+        for trait_definition in &roots.traits {
+            tables.insert_platform(
+                trait_machine_signatures.span_or_empty(trait_definition.machines),
                 state_parameters,
                 child_type_references,
                 type_constraints,

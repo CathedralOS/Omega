@@ -16,9 +16,9 @@ data Room {
     exits: [Exit; 2];
 }
 
-platform Console {
-    entry write_line(text: String);
-    entry exit_process(return_code: i32);
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
 }
 
 data Main {

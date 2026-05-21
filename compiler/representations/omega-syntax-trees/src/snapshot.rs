@@ -74,6 +74,11 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         states: Vec<StateSignatureSnapshot>,
     },
+    Trait {
+        name: IdentifierSnapshot,
+        is_boundary: bool,
+        machines: Vec<StateSignatureSnapshot>,
+    },
     Target {
         name: IdentifierSnapshot,
         host: Option<TargetHostSnapshot>,
@@ -442,6 +447,21 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             states: syntax_trees
                 .items
                 .state_signatures(value.states)
+                .iter()
+                .map(|handle| {
+                    snapshot_state_signature_node(
+                        syntax_trees,
+                        syntax_trees.items.state_signature(*handle),
+                    )
+                })
+                .collect(),
+        },
+        Item::Trait(value) => ItemSnapshot::Trait {
+            name: snapshot_identifier(&value.name),
+            is_boundary: value.is_boundary,
+            machines: syntax_trees
+                .items
+                .state_signatures(value.machines)
                 .iter()
                 .map(|handle| {
                     snapshot_state_signature_node(

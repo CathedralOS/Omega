@@ -3,6 +3,7 @@ use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine_into;
 use crate::platform::lower_platform;
 use crate::program::Lowerer;
+use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -33,6 +34,10 @@ pub(crate) fn lower_item(
         syntax::item::Item::Platform(platform) => {
             let platform = lower_platform(lowerer, syntax_trees, platform)?;
             lowerer.symbol_resolved_trees.platforms.push(platform);
+        }
+        syntax::item::Item::Trait(trait_definition) => {
+            let trait_definition = lower_trait_definition(lowerer, syntax_trees, trait_definition)?;
+            lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
         syntax::item::Item::Capability(_)
         | syntax::item::Item::Library(_)

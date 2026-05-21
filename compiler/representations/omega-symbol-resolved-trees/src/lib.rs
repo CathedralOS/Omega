@@ -12,6 +12,7 @@ pub mod state;
 pub mod statement;
 pub mod symbol_resolved_trees;
 pub mod tables;
+pub mod trait_definition;
 pub mod types;
 
 pub use omega_core::arena::OrderedRootArena;

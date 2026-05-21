@@ -1,17 +1,13 @@
-data ConsoleLine {
-    text: String;
-}
-
-platform Console {
-    entry write(text: String);
-    entry write_line(text: String);
-    entry read_line(out_line: &mut ConsoleLine);
-    entry exit_process(return_code: i32);
+boundary trait Console {
+    machine write(text: String);
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
-    line: ConsoleLine;
+    line: String;
 }
 
 machine Main::main(&mut self) {

@@ -5,6 +5,7 @@ use omega_typed_trees::data::DataMember;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::platform::Platform;
 use omega_typed_trees::state::State;
+use omega_typed_trees::trait_definition::TraitDefinition;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug)]
@@ -12,6 +13,7 @@ pub struct ProgramSymbols<'program> {
     data_definitions: Vec<DataDefinitionSymbol<'program>>,
     machines: Vec<MachineSymbol<'program>>,
     platforms: Vec<PlatformSymbol<'program>>,
+    traits: Vec<TraitSymbol<'program>>,
     types: Vec<TypeSymbol<'program>>,
 }
 
@@ -36,6 +38,13 @@ struct PlatformSymbol<'program> {
 }
 
 #[derive(Debug)]
+struct TraitSymbol<'program> {
+    name: &'program str,
+    trait_definition: &'program TraitDefinition,
+    symbol: SymbolHandle,
+}
+
+#[derive(Debug)]
 struct TypeSymbol<'program> {
     name: &'program str,
     symbol: SymbolHandle,
@@ -46,13 +55,15 @@ impl<'program> ProgramSymbols<'program> {
         let data_definition_count = program.data_definitions().len();
         let machine_count = program.machines().len();
         let platform_count = program.platforms().len();
+        let trait_count = program.traits().len();
         let mut symbols = Self {
             data_definitions: Vec::with_capacity(data_definition_count),
             machines: Vec::with_capacity(machine_count),
             platforms: Vec::with_capacity(platform_count),
+            traits: Vec::with_capacity(trait_count),
             types: builtin_type_symbols(program),
         };
-        symbols.types.reserve(data_definition_count);
+        symbols.types.reserve(data_definition_count + trait_count);
 
         for data_definition in program.data_definitions() {
             if symbols
@@ -122,6 +133,45 @@ impl<'program> ProgramSymbols<'program> {
             });
         }
 
+        for trait_definition in program.traits() {
+            if symbols
+                .trait_definition(trait_definition.name.as_str())
+                .is_some()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "duplicate trait `{}`",
+                    trait_definition.name
+                )));
+            }
+
+            if symbols
+                .data_definition_symbol(trait_definition.name.as_str())
+                .is_valid()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}` is declared as both data and a trait",
+                    trait_definition.name
+                )));
+            }
+
+            if symbols.machine(trait_definition.name.as_str()).is_some() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}` is declared as both a machine and a trait",
+                    trait_definition.name
+                )));
+            }
+
+            symbols.traits.push(TraitSymbol {
+                name: trait_definition.name.as_str(),
+                trait_definition,
+                symbol: top_level_symbol(program, trait_definition.name.as_str()),
+            });
+            symbols.types.push(TypeSymbol {
+                name: trait_definition.name.as_str(),
+                symbol: top_level_symbol(program, trait_definition.name.as_str()),
+            });
+        }
+
         symbols
     }
 
@@ -129,6 +179,7 @@ impl<'program> ProgramSymbols<'program> {
         self.type_symbol(name).is_valid()
             || self.machine_symbol(name).is_valid()
             || self.platform_symbol(name).is_valid()
+            || self.trait_symbol(name).is_valid()
     }
 
     fn type_symbol(&self, name: &str) -> SymbolHandle {
@@ -177,8 +228,25 @@ impl<'program> ProgramSymbols<'program> {
             .unwrap_or_else(SymbolHandle::invalid)
     }
 
+    pub fn trait_definition(&self, name: &str) -> Option<&'program TraitDefinition> {
+        self.traits
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.trait_definition)
+    }
+
+    fn trait_symbol(&self, name: &str) -> SymbolHandle {
+        self.traits
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+
     pub fn is_callable_receiver_type(&self, name: &str) -> bool {
-        self.machine_symbol(name).is_valid() || self.platform_symbol(name).is_valid()
+        self.machine_symbol(name).is_valid()
+            || self.platform_symbol(name).is_valid()
+            || self.trait_symbol(name).is_valid()
     }
 }
 

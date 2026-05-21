@@ -302,6 +302,23 @@ fn validate_callable_state_signatures(
             StateSignatureOwner::Platform(platform.name.as_str()),
         );
     }
+
+    for trait_definition in program.traits() {
+        validate_state_signature_types(
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .map(|machine| StateSignatureView {
+                    name: machine.name.as_str(),
+                    parameters: program.state_signature_parameters(machine),
+                    return_type: machine.return_type,
+                }),
+            program,
+            symbols,
+            diagnostics,
+            StateSignatureOwner::Trait(trait_definition.name.as_str()),
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -315,6 +332,7 @@ struct StateSignatureView<'program> {
 enum StateSignatureOwner<'program> {
     Machine(&'program str),
     Platform(&'program str),
+    Trait(&'program str),
 }
 
 impl fmt::Display for StateSignatureOwner<'_> {
@@ -322,6 +340,7 @@ impl fmt::Display for StateSignatureOwner<'_> {
         match self {
             Self::Machine(machine) => write!(formatter, "machine `{machine}`"),
             Self::Platform(platform) => write!(formatter, "platform `{platform}`"),
+            Self::Trait(trait_definition) => write!(formatter, "trait `{trait_definition}`"),
         }
     }
 }

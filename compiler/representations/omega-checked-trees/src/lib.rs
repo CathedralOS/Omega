@@ -1,5 +1,6 @@
 pub use omega_typed_trees::{
-    data, expression, identity, invariant, machine, name, platform, signature, state, types,
+    data, expression, identity, invariant, machine, name, platform, signature, state,
+    trait_definition, types,
 };
 
 use omega_core::arena::Arena;

@@ -1,5 +1,5 @@
-platform Console {
-    entry write_line(text: String);
+boundary trait Console {
+    machine write_line(text: String);
 }
 
 data RandomState {

@@ -17,6 +17,7 @@ pub struct SymbolResolvedRoots {
     pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
     pub machines: OrderedRootArena<crate::machine::Machine>,
     pub platforms: OrderedRootArena<crate::platform::Platform>,
+    pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -35,6 +36,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub machine_state_handles: Arena<Handle<state::State>>,
     pub machine_states: Arena<state::State>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
+    pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub statement_path_members: Arena<crate::name::DiagnosticName>,
     pub state_statements: Arena<statement::Statement>,
@@ -75,6 +77,16 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .platform_state_signatures
+            .span_or_empty(span)
+    }
+
+    pub fn trait_machine_signatures(
+        &self,
+        span: HandleSpan<signature::StateSignature>,
+    ) -> &[signature::StateSignature] {
+        self.tables
+            .declarations
+            .trait_machine_signatures
             .span_or_empty(span)
     }
 

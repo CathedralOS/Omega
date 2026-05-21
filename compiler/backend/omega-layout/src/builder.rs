@@ -8,6 +8,7 @@ use omega_checked_trees::Program;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
+use omega_checked_trees::trait_definition::TraitDefinition;
 use omega_checked_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -40,6 +41,7 @@ struct LayoutBuilder<'program> {
     machine_layouts: Arena<MachineLayout>,
     machine_visiting: LayoutVisitStack,
     platform_definitions: &'program [Platform],
+    trait_definitions: &'program [TraitDefinition],
     program: &'program Program,
     target: NativeTarget,
     variants: Arena<VariantLayout>,
@@ -139,6 +141,7 @@ impl<'program> LayoutBuilder<'program> {
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
             machine_visiting: LayoutVisitStack::with_capacity(machine_definitions.len()),
             platform_definitions: program.platforms(),
+            trait_definitions: program.traits(),
             program,
             target,
             variants: Arena::with_capacity(variant_capacity),
@@ -468,6 +471,15 @@ impl<'program> LayoutBuilder<'program> {
             return Ok(TypeLayout {
                 size: self.target.pointer_size,
                 alignment: self.target.pointer_alignment,
+            });
+        }
+
+        if self.trait_definitions.iter().any(|trait_definition| {
+            trait_definition.symbol == symbol && trait_definition.is_boundary
+        }) {
+            return Ok(TypeLayout {
+                size: 0,
+                alignment: 1,
             });
         }
 

@@ -8,6 +8,7 @@ use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use serde::Serialize;
 
@@ -41,6 +42,11 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|platform| platform_snapshot(program, platform))
                     .collect(),
+                traits: program
+                    .traits()
+                    .iter()
+                    .map(|trait_definition| trait_definition_snapshot(program, trait_definition))
+                    .collect(),
             },
             tables: TypedTableSnapshot {
                 data_definition_count: program.data_definitions.len(),
@@ -54,6 +60,8 @@ impl TypedTreesSnapshot {
                 state_parameter_count: program.state_parameters.len(),
                 platform_count: program.platforms.len(),
                 platform_state_signature_count: program.platform_state_signatures.len(),
+                trait_count: program.traits.len(),
+                trait_machine_signature_count: program.trait_machine_signatures.len(),
                 expression_count: program.expression_table.expression_count(),
                 expression_struct_field_count: program.expression_table.struct_field_count(),
                 statement_count: program.statement_table.statement_count(),
@@ -79,6 +87,7 @@ pub struct TypedRootsSnapshot {
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
+    pub traits: Vec<TraitSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -94,6 +103,8 @@ pub struct TypedTableSnapshot {
     pub state_parameter_count: usize,
     pub platform_count: usize,
     pub platform_state_signature_count: usize,
+    pub trait_count: usize,
+    pub trait_machine_signature_count: usize,
     pub expression_count: usize,
     pub expression_struct_field_count: usize,
     pub statement_count: usize,
@@ -152,6 +163,13 @@ pub struct OwnedDataSnapshot {
 pub struct PlatformSnapshot {
     pub name: String,
     pub states: Vec<StateSignatureSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TraitSnapshot {
+    pub name: String,
+    pub is_boundary: bool,
+    pub machines: Vec<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -413,6 +431,21 @@ fn platform_snapshot(program: &TypedTrees, platform: &Platform) -> PlatformSnaps
         name: platform.name.to_string(),
         states: program
             .platform_state_signatures(platform)
+            .iter()
+            .map(|signature| state_signature_snapshot(program, signature))
+            .collect(),
+    }
+}
+
+fn trait_definition_snapshot(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+) -> TraitSnapshot {
+    TraitSnapshot {
+        name: trait_definition.name.to_string(),
+        is_boundary: trait_definition.is_boundary,
+        machines: program
+            .trait_machine_signatures(trait_definition)
             .iter()
             .map(|signature| state_signature_snapshot(program, signature))
             .collect(),

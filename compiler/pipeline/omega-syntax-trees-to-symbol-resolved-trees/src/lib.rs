@@ -9,6 +9,7 @@ mod program;
 mod state;
 mod statement;
 mod symbols;
+mod trait_definition;
 mod type_reference;
 
 pub use program::{lower_syntax_trees, lower_syntax_trees_with_sources};

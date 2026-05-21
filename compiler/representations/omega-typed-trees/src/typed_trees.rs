@@ -1,4 +1,6 @@
-use crate::{data, expression, invariant, machine, platform, signature, snapshot, types};
+use crate::{
+    data, expression, invariant, machine, platform, signature, snapshot, trait_definition, types,
+};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
 use omega_core::symbols::SymbolTable;
@@ -20,6 +22,9 @@ pub struct TypedTrees {
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
+    pub root_traits: HandleSpan<trait_definition::TraitDefinition>,
+    pub traits: Arena<trait_definition::TraitDefinition>,
+    pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
@@ -87,6 +92,32 @@ impl TypedTrees {
 
     pub fn platforms(&self) -> &[platform::Platform] {
         self.platforms.span_or_empty(self.root_platforms)
+    }
+
+    pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
+        self.traits
+            .append_to_span(&mut self.root_traits, trait_definition);
+    }
+
+    pub fn traits(&self) -> &[trait_definition::TraitDefinition] {
+        self.traits.span_or_empty(self.root_traits)
+    }
+
+    pub fn push_trait_machine_signature(
+        &mut self,
+        trait_definition: &mut trait_definition::TraitDefinition,
+        signature: signature::StateSignature,
+    ) {
+        self.trait_machine_signatures
+            .append_to_span(&mut trait_definition.machines, signature);
+    }
+
+    pub fn trait_machine_signatures(
+        &self,
+        trait_definition: &trait_definition::TraitDefinition,
+    ) -> &[signature::StateSignature] {
+        self.trait_machine_signatures
+            .span_or_empty(trait_definition.machines)
     }
 
     pub fn push_platform_state_signature(
