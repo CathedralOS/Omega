@@ -1,6 +1,6 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
-use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
+use omega_backend_report::{backend_report_text, BackendReportInput, BackendReportPhaseTiming};
 use omega_core::diagnostics::{Diagnostic, PhaseDiagram};
 
 pub(super) fn write_syntax_snapshot(
@@ -41,6 +41,20 @@ pub(super) fn write_typed_snapshot(
         "04_typed_trees.json",
         &typed.snapshot_json_pretty().map_err(json_diagnostic)?,
     )
+}
+
+pub(super) fn write_state_graph_snapshot(
+    options: &CompileOptions,
+    state_graph: &omega_state_graph::StateGraph,
+) -> Result<(), Vec<Diagnostic>> {
+    write_phase_diagram(options, "06_state_graph.html", &state_graph.phase_html())
+}
+
+pub(super) fn write_control_flow_snapshot(
+    options: &CompileOptions,
+    control_flow: &omega_control_flow::ControlFlowPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    write_phase_diagram(options, "07_control_flow.html", &control_flow.phase_html())
 }
 
 pub(super) fn write_backend_report(

@@ -288,7 +288,9 @@ main { min-width: 0; min-height: 0; position: relative; }
 .edge.implements_data { stroke: #b089f0; opacity: 0.82; stroke-dasharray: 10 5; }
 .edge.satisfies_trait { stroke: #4dd4c6; opacity: 0.82; stroke-dasharray: 8 3; }
 .edge.requires_trait { stroke: #ffcf5c; opacity: 0.82; stroke-dasharray: 3 3; }
+.edge.call { stroke: #ff9f7f; opacity: 0.82; stroke-dasharray: 8 2 2 2; }
 .edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
+.edge.transition_continuation { stroke: #8ab4ff; opacity: 0.78; stroke-width: 1.6; stroke-dasharray: 5 4; }
 .node rect {
   fill: #151c26;
   stroke: #405168;
@@ -301,6 +303,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.machine rect { fill: #272132; stroke: #b089f0; }
 .node.object rect { fill: #2e291b; stroke: #ffd166; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
+.node.state_block rect { fill: #142637; stroke: #6fbce6; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
 .node text { fill: var(--text); font-size: 12px; pointer-events: none; }
 .node .subtitle { fill: var(--muted); font-size: 11px; }

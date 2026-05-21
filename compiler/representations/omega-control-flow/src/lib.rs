@@ -1,3 +1,5 @@
+mod diagram;
+
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
