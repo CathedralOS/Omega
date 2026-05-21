@@ -1,0 +1,1 @@
+trait `NeedsMissingType` state `consume` parameter `value` references unknown data type `MissingType`
