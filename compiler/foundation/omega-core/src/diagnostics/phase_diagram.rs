@@ -377,8 +377,8 @@ let transform = { x: 0, y: 0, scale: 1 };
 
 function layoutGraph() {
   positions.clear();
-  const roots = nodeById.has("root") ? ["root"] : GRAPH.nodes.filter(node => node.rank === 0).map(node => node.id);
-  if (roots.length === 0) return fallbackLayout();
+  if (!nodeById.has("root")) return fallbackLayout();
+  const roots = ["root"];
 
   positions.set(roots[0], { x: LEFT, y: TOP, width: NODE_W, height: NODE_H });
   const rootChildren = containmentChildren.get(roots[0]) || [];
@@ -477,14 +477,49 @@ function layoutStandalone(id) {
 }
 
 function fallbackLayout() {
-  GRAPH.nodes.forEach((node, index) => {
+  const outgoing = new Map(GRAPH.nodes.map(node => [node.id, []]));
+  const incomingCount = new Map(GRAPH.nodes.map(node => [node.id, 0]));
+  for (const edge of GRAPH.edges) {
+    if (!outgoing.has(edge.from) || !incomingCount.has(edge.to)) continue;
+    outgoing.get(edge.from).push(edge.to);
+    incomingCount.set(edge.to, incomingCount.get(edge.to) + 1);
+  }
+
+  const ranks = new Map();
+  const roots = GRAPH.nodes
+    .filter(node => (incomingCount.get(node.id) || 0) === 0)
+    .map(node => node.id);
+  const pendingRoots = roots.length > 0 ? roots : GRAPH.nodes.slice(0, 1).map(node => node.id);
+
+  for (const root of pendingRoots) assignFallbackRanks(root, 0, ranks, outgoing);
+  for (const node of GRAPH.nodes) {
+    if (!ranks.has(node.id)) assignFallbackRanks(node.id, node.rank, ranks, outgoing);
+  }
+
+  const rowsByRank = new Map();
+  GRAPH.nodes.forEach(node => {
+    const rank = ranks.get(node.id) || 0;
+    const row = rowsByRank.get(rank) || 0;
+    rowsByRank.set(rank, row + 1);
     positions.set(node.id, {
-      x: LEFT + node.rank * (NODE_W + RANK_GAP),
-      y: TOP + index * (NODE_H + ROW_GAP),
+      x: LEFT + rank * (NODE_W + RANK_GAP),
+      y: TOP + row * (NODE_H + ROW_GAP),
       width: NODE_W,
       height: NODE_H
     });
   });
+}
+
+function assignFallbackRanks(root, rootRank, ranks, outgoing) {
+  const queue = [{ id: root, rank: rootRank }];
+  while (queue.length > 0) {
+    const next = queue.shift();
+    if (ranks.has(next.id)) continue;
+    ranks.set(next.id, next.rank);
+    for (const target of outgoing.get(next.id) || []) {
+      queue.push({ id: target, rank: next.rank + 1 });
+    }
+  }
 }
 
 layoutGraph();
@@ -534,8 +569,8 @@ function render() {
 
 function renderOutline() {
   outline.replaceChildren();
-  const rootId = nodeById.has("root") ? "root" : GRAPH.nodes[0]?.id;
-  if (!rootId) return;
+  if (!nodeById.has("root")) return renderFlatOutline();
+  const rootId = "root";
   const topLevel = containmentChildren.get(rootId) || [];
   const groups = [
     ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
@@ -547,6 +582,27 @@ function renderOutline() {
     if (ids.length === 0) continue;
     const section = document.createElement("details");
     section.open = title !== "Data";
+    const summary = document.createElement("summary");
+    summary.textContent = `${title} (${ids.length})`;
+    section.appendChild(summary);
+    for (const id of ids) section.appendChild(outlineNode(id, 0));
+    outline.appendChild(section);
+  }
+}
+
+function renderFlatOutline() {
+  const groups = new Map();
+  for (const node of GRAPH.nodes) {
+    const group = outlineLabel(node).includes("::")
+      ? outlineLabel(node).split("::")[0]
+      : node.kind;
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(node.id);
+  }
+
+  for (const [title, ids] of groups) {
+    const section = document.createElement("details");
+    section.open = true;
     const summary = document.createElement("summary");
     summary.textContent = `${title} (${ids.length})`;
     section.appendChild(summary);
