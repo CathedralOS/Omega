@@ -94,6 +94,45 @@ data Player {
 
 That desugars to `domain Dead for Player { self.health <= 0; ... }`.
 
+## Domains And Invariants
+
+Domains classify values that are valid for their type.
+
+```omega
+data Player {
+    health: i32[non_negative];
+}
+
+domain Alive for Player {
+    self.health > 0;
+}
+
+domain Dead for Player {
+    self.health == 0;
+}
+```
+
+The field constraint defines ordinary `Player` validity. The domains name
+semantic subsets inside that valid space.
+
+A domain may not specify facts that violate the data or field invariants of the
+type it classifies.
+
+```omega
+data Player {
+    health: i32[positive];
+}
+
+// Invalid: `health == 0` contradicts `health: i32[positive]`.
+domain Dead for Player {
+    self.health == 0;
+}
+```
+
+Relax scopes may temporarily suspend an invariant inside a machine body, but
+that does not make an invalid value a member of a domain. Domain membership is a
+fact about values that satisfy the type's ordinary validity rules.
+
 ## Domain Patterns
 
 Some operations naturally produce one of several semantic states.
@@ -161,7 +200,8 @@ domain Finished for Game
 }
 ```
 
-The `when` clause is the classifier. The domain body is the full invariant.
+The `when` clause is the classifier. The domain body is the full set of proof
+facts for that domain.
 For a domain pattern such as `Game::Playing`, the compiler may lower the match
 through the classifier, such as `game.phase`, instead of rechecking every body
 fact.
@@ -247,6 +287,8 @@ Working interpretation:
 
 - `domain` is a contextual keyword in declaration position.
 - Domains are type-scoped named proof predicates.
+- Domains classify values that satisfy the type's data and field invariants.
+- A domain body may not contradict the invariants of the type it classifies.
 - `when` is a cheap, pure classifier, not the whole invariant.
 - `requires x in Type::Domain` is a caller obligation.
 - `ensures x in Type::Domain` is a callee guarantee.
