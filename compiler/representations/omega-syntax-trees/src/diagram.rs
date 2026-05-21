@@ -1,8 +1,8 @@
-use crate::SyntaxTrees;
 use crate::item::{Item, StateNode, StateSignatureNode};
 use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
+use crate::SyntaxTrees;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 
@@ -90,18 +90,30 @@ fn append_state(
 ) {
     let state_id = diagram.node(
         format!("state_{item_index}_{state_index}"),
-        format!(
-            "state {}\nparams: {}\nstatements: {}",
-            state.name.as_str(),
-            state.parameters.len(),
-            state.statements.len()
-        ),
+        state_label(syntax, state),
         "state",
         2,
     );
     diagram.containment_edge(parent_id, &state_id);
 
-    let mut previous_id: Option<String> = None;
+    for statement_handle in syntax.items.statements(state.statements).iter().copied() {
+        if let StatementNode::Transition(transition) = syntax.statements.statement(statement_handle)
+        {
+            if let Some(target_id) = transition_target_id(syntax, state_nodes, transition) {
+                diagram.edge(&state_id, target_id, "transition_target");
+            }
+        }
+    }
+}
+
+fn state_label(syntax: &SyntaxTrees, state: &StateNode) -> String {
+    let mut label = format!(
+        "state {}\nparams: {}\nstatements: {}",
+        state.name.as_str(),
+        state.parameters.len(),
+        state.statements.len()
+    );
+
     for (statement_index, statement_handle) in syntax
         .items
         .statements(state.statements)
@@ -109,28 +121,21 @@ fn append_state(
         .copied()
         .enumerate()
     {
-        let statement_id = diagram.node(
-            format!("stmt_{item_index}_{state_index}_{statement_index}"),
-            format!(
-                "{}: {}",
-                statement_index,
-                statement_label(syntax, syntax.statements.statement(statement_handle))
-            ),
-            "statement",
-            3,
-        );
-        diagram.containment_edge(&state_id, &statement_id);
-        if let Some(previous_id) = previous_id.as_ref() {
-            diagram.sequence_edge(previous_id, &statement_id);
-        }
-        if let StatementNode::Transition(transition) = syntax.statements.statement(statement_handle)
-        {
-            if let Some(target_id) = transition_target_id(syntax, state_nodes, transition) {
-                diagram.edge(&statement_id, target_id, "transition_target");
-            }
-        }
-        previous_id = Some(statement_id);
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&statement_index.to_string());
+        label.push_str(": ");
+        label.push_str(&inline_label(statement_label(
+            syntax,
+            syntax.statements.statement(statement_handle),
+        )));
     }
+
+    label
+}
+
+fn inline_label(label: String) -> String {
+    label.replace('\n', " | ")
 }
 
 fn append_state_signature(
@@ -216,7 +221,11 @@ fn item_label(item: &Item) -> String {
 
 fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
     match statement {
-        StatementNode::Assignment(_) => "assignment".to_owned(),
+        StatementNode::Assignment(assignment) => format!(
+            "{} = {}",
+            syntax.expressions.display_name(assignment.target),
+            syntax.expressions.display_name(assignment.value)
+        ),
         StatementNode::Call(call) => call_label(syntax, call),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(value) => format!("local {}", value.name.as_str()),
