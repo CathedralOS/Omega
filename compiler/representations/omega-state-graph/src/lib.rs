@@ -1,3 +1,4 @@
+mod diagram;
 mod runtime_flow;
 
 use omega_core::arena::{Arena, HandleSpan};
@@ -7,8 +8,8 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::types::TypeReferenceHandle;
 
 pub use runtime_flow::{
-    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
-    RuntimeTransitionTarget, build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls,
+    build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls, RuntimeCycle, RuntimeEdge,
+    RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge, RuntimeTransitionTarget,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
