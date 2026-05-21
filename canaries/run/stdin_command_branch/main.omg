@@ -23,14 +23,14 @@ machine Parser::resolve(&mut self, line: &ConsoleLine) -> Command {
     -> Command::Invalid;
 }
 
-data main {
+data Main {
     console: Console;
     line: ConsoleLine;
     parser: Parser;
     command: Command;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.console.read_line(&mut self.line);
     self.command = self.parser.resolve(&self.line);
 

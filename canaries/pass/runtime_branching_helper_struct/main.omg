@@ -3,12 +3,15 @@ enum RewardItem {
     Gold
 }
 
-machine main(&mut self, flag: bool, out: &mut RewardItem) {
+data Main {
+}
+
+machine Main::main(&mut self, flag: bool, out: &mut RewardItem) {
     out = self.pick(flag);
     
 }
 
-machine main::pick(&mut self, flag: bool) -> RewardItem {
+machine Main::pick(&mut self, flag: bool) -> RewardItem {
     transition flag {
         true -> RewardItem::Gold
         false -> RewardItem::None

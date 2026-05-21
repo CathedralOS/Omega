@@ -21,13 +21,13 @@ platform Console {
     entry exit_process(return_code: i32);
 }
 
-data main {
+data Main {
     console: Console;
     room: Room;
     selected_exit: Exit;
 }
 
-machine main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     self.room.cell = CellId::A1;
     self.room.label = "A1";
     self.room.description = "A1: a stone entry.";

@@ -17,7 +17,7 @@ platform Console {
     entry write_line(text: String);
 }
 
-data main {
+data Main {
     console: Console;
     selected: Cell;
     line: CellLine;
@@ -25,7 +25,7 @@ data main {
     second: Cell = Cell { id: CellId::A2, label: "A2" };
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     scan(self.first, CellId::A2, mut self.selected);
     scan(self.second, CellId::A2, mut self.selected);
     self.line.text = self.selected.label;

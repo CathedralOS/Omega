@@ -1,8 +1,8 @@
-data main {
+data Main {
     value: i32 = 1;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     write(self.value);
 
 
@@ -11,7 +11,7 @@ machine main(&mut self) {
         out_value = 2;
     }
 }
-machine main::write(input_value: i32) {
+machine Main::write(input_value: i32) {
     copy(mut input_value);
     
 }

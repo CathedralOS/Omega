@@ -1,6 +1,6 @@
-data main {
+data Main {
     count: i32[finite] = 0;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
 }

@@ -779,7 +779,7 @@ mod tests {
         let source = r#"
             data Reward { gold: i32; }
             data Random {}
-            data main { rng: Random; }
+            data Main { rng: Random; }
 
             machine Random::one -> i32 {
                 pub entry(&mut self) {
@@ -787,10 +787,8 @@ mod tests {
                 }
             }
 
-            machine main {
-                pub entry(&mut self, reward: &mut Reward) {
-                    reward.gold = 1 + self.rng.one();
-                }
+            machine Main::main(&mut self, reward: &mut Reward) {
+                reward.gold = 1 + self.rng.one();
             }
         "#;
 
@@ -849,7 +847,7 @@ mod tests {
     fn collects_local_initializer_assignment_value_call() {
         let source = r#"
             data Random {}
-            data main { rng: Random; }
+            data Main { rng: Random; }
 
             machine Random::one -> i32 {
                 pub entry(&mut self) {
@@ -857,10 +855,8 @@ mod tests {
                 }
             }
 
-            machine main {
-                pub entry(&mut self) {
-                    let value: i32 = self.rng.one();
-                }
+            machine Main::main(&mut self) {
+                let value: i32 = self.rng.one();
             }
         "#;
 

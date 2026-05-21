@@ -79,7 +79,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let host_calls = Arc::new(host_calls);
     let entry_key = control_flow
         .state_key_by_symbols(entry_point.machine_symbol, entry_point.state_symbol)
-        .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
+        .ok_or_else(|| Diagnostic::error("unknown runtime entry state"))?;
     let seed_runtime_flow = record_backend_phase(&mut phase_timings, "runtime flow/seed", || {
         build_runtime_flow_plan(&control_flow, entry_key)
     })?;

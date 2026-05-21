@@ -2,7 +2,10 @@ data Flag {
     value: bool;
 }
 
-machine main(&mut self, flag: Flag) {
+data Main {
+}
+
+machine Main::main(&mut self, flag: Flag) {
     transition self.pick(flag) {
         true -> yes()
         false -> no()
@@ -14,7 +17,7 @@ machine main(&mut self, flag: Flag) {
     state no(&mut self) {}
 }
 
-machine main::pick(&mut self, flag: Flag) -> bool {
+machine Main::pick(&mut self, flag: Flag) -> bool {
     -> flag.value;
     
 }

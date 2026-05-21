@@ -2,9 +2,9 @@ data Label {
     text: String;
 }
 
-data main {
+data Main {
     label: String[range<1, 10>];
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
 }

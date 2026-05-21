@@ -1,4 +1,7 @@
 use omega::language::std::option;
 
-machine main(&mut self) {
+data Main {
+}
+
+machine Main::main(&mut self) {
 }

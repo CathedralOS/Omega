@@ -1,5 +1,7 @@
-machine main() -> i32[range<1, 50>] {
-    
+data Main {
+}
+
+machine Main::main(&mut self) -> i32[range<1, 50>] {
 
     state answer() {
         100

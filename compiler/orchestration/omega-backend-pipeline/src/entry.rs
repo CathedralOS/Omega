@@ -2,8 +2,10 @@ use omega_checked_trees::Program;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 
-pub(super) const ENTRY_MACHINE_NAME: &str = "main";
-pub(super) const ENTRY_STATE_NAME: &str = "entry";
+pub(super) const ENTRY_MACHINE_NAME: &str = "Main";
+pub(super) const ENTRY_STATE_NAME: &str = "main";
+const LEGACY_ENTRY_MACHINE_NAME: &str = "main";
+const LEGACY_ENTRY_STATE_NAME: &str = "entry";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct BackendEntryPoint {
@@ -14,14 +16,32 @@ pub(super) struct BackendEntryPoint {
 pub(super) fn resolve_backend_entry_point(
     program: &Program,
 ) -> Result<BackendEntryPoint, Diagnostic> {
-    let machine_symbol =
-        find_root_child_by_name_and_kind(program, ENTRY_MACHINE_NAME, SymbolKind::Machine)
-            .ok_or_else(|| Diagnostic::error("unknown runtime machine `main`"))?;
-    let state_symbol =
-        find_child_by_name_and_kind(program, machine_symbol, ENTRY_STATE_NAME, SymbolKind::State)
-            .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
+    if let Some(entry_point) = find_entry_point(program, ENTRY_MACHINE_NAME, ENTRY_STATE_NAME) {
+        return Ok(entry_point);
+    }
 
-    Ok(BackendEntryPoint {
+    if let Some(entry_point) =
+        find_entry_point(program, LEGACY_ENTRY_MACHINE_NAME, LEGACY_ENTRY_STATE_NAME)
+    {
+        return Ok(entry_point);
+    }
+
+    Err(Diagnostic::error(
+        "unknown runtime entry point `Main::main`",
+    ))
+}
+
+fn find_entry_point(
+    program: &Program,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<BackendEntryPoint> {
+    let machine_symbol =
+        find_root_child_by_name_and_kind(program, machine_name, SymbolKind::Machine)?;
+    let state_symbol =
+        find_child_by_name_and_kind(program, machine_symbol, state_name, SymbolKind::State)?;
+
+    Some(BackendEntryPoint {
         machine_symbol,
         state_symbol,
     })

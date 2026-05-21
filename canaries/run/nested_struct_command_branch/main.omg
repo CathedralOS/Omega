@@ -49,14 +49,14 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
     
 }
 
-data main {
+data Main {
     console: Console;
     line: ConsoleLine;
     parser: Parser;
     navigation: Navigation;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.console.read_line(&mut self.line);
     self.navigation = self.parser.resolve_navigation(&self.line);
 

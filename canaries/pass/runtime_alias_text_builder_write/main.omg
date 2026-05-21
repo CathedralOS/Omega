@@ -2,6 +2,9 @@ data Room {
     description: String;
 }
 
-machine main(&mut self, room: &mut Room, suffix: String) {
+data Main {
+}
+
+machine Main::main(&mut self, room: &mut Room, suffix: String) {
     room.description = "prefix " + suffix;
 }

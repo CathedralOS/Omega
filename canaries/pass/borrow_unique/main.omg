@@ -1,9 +1,9 @@
-data main {
+data Main {
     left: i32 = 1;
     right: i32 = 2;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     copy(mut self.left, self.right);
 
 

@@ -2,7 +2,10 @@ data Health {
     value: i32;
 }
 
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     health: &mut Health
 ) {

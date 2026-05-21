@@ -91,11 +91,11 @@ machine Game::run(&mut self) {
     }
 }
 
-data main {
+data Main {
     game: Game;
 }
 
-machine main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     transition { _ -> running() }
     
 

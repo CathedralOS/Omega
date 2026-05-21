@@ -13,12 +13,12 @@ platform Console {
     entry exit_process(return_code: i32);
 }
 
-data main {
+data Main {
     console: Console;
     command: Command;
 }
 
-machine main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     self.command.kind = CommandKind::Look;
 
     transition self.command.kind {

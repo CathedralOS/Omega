@@ -1,8 +1,8 @@
 invariant speed_range = [definitely_real];
 
-data main {
+data Main {
     speed: f32[speed_range] = 0.0f;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
 }

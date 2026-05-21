@@ -164,9 +164,37 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
     }
 }
 
+pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_stored_place_append_to_runtime_pointee_width(field_byte_offset)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_literal_append_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_append_width(literal),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_text_literal_append_to_runtime_pointee_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_literal_append_to_runtime_pointee_width(
+                field_byte_offset,
+                literal,
+            )
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -196,6 +224,18 @@ pub fn runtime_text_buffer_materialize_width(architecture: Architecture) -> usiz
     }
 }
 
+pub fn runtime_text_buffer_materialize_to_runtime_pointee_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_buffer_materialize_to_runtime_pointee_width(field_byte_offset)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
     architecture: Architecture,
     element_byte_size: usize,
@@ -219,9 +259,15 @@ pub fn runtime_machine_integer_write_width(architecture: Architecture, byte_size
     }
 }
 
-pub fn runtime_pointee_integer_write_width(architecture: Architecture, byte_size: usize) -> usize {
+pub fn runtime_pointee_integer_write_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_integer_write_width(byte_size),
+        Architecture::Aarch64 => {
+            aarch64::runtime_pointee_integer_write_width(field_byte_offset, byte_size)
+        }
         Architecture::X86_64 => 0,
     }
 }
@@ -249,6 +295,7 @@ pub fn runtime_storage_binary_write_width(
 pub fn runtime_pointee_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &Arena<RuntimeValueOperand>,
+    field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
@@ -257,11 +304,22 @@ pub fn runtime_pointee_binary_write_width(
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_pointee_binary_write_width(
             runtime_value_operands,
+            field_byte_offset,
             byte_size,
             left,
             operator,
             right,
         ),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_pointee_operand_start_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_pointee_operand_start_width(field_byte_offset),
         Architecture::X86_64 => 0,
     }
 }
@@ -341,9 +399,15 @@ pub fn runtime_machine_string_write_width(architecture: Architecture, byte_lengt
     }
 }
 
-pub fn runtime_pointee_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
+pub fn runtime_pointee_string_write_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_pointee_string_write_width(byte_length),
+        Architecture::Aarch64 => {
+            aarch64::runtime_pointee_string_write_width(field_byte_offset, byte_length)
+        }
         Architecture::X86_64 => 0,
     }
 }

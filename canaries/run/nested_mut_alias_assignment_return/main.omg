@@ -89,11 +89,11 @@ machine Generator::should_carve(
     
 }
 
-data main {
+data Main {
     generator: Generator;
 }
 
-machine main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     self.generator.run();
     0
 }

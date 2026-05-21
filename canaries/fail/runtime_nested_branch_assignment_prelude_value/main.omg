@@ -1,23 +1,26 @@
-machine main(&mut self, flag: bool, out: &mut u32) {
+data Main {
+}
+
+machine Main::main(&mut self, flag: bool, out: &mut u32) {
     out = self.pick(flag);
     
 
 
 }
 
-machine main::pick(&mut self, flag: bool) -> u32 {
+machine Main::pick(&mut self, flag: bool) -> u32 {
     let choice: bool = self.identity(flag);
     -> self.branch(choice) when choice;
     -> 0;
     
 }
 
-machine main::identity(&mut self, flag: bool) -> bool {
+machine Main::identity(&mut self, flag: bool) -> bool {
     -> flag;
     
 }
 
-machine main::branch(&mut self, flag: bool) -> u32 {
+machine Main::branch(&mut self, flag: bool) -> u32 {
     -> 1 when flag;
     -> 2;
     

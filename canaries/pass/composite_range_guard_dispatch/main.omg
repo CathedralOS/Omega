@@ -3,12 +3,12 @@ platform Console {
     entry exit_process(return_code: i32);
 }
 
-data main {
+data Main {
     console: Console;
     roll: i32[range<0, 100>];
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.roll = 24;
     -> reward() when self.roll >= 20 && self.roll < 30;
     -> quiet();

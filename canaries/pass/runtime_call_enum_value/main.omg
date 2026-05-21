@@ -3,7 +3,10 @@ enum ItemKind {
     DeepKey
 }
 
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     out: &mut ItemKind
 ) {
@@ -11,7 +14,7 @@ machine main(
     
 }
 
-machine main::pick(
+machine Main::pick(
     &mut self
     ) -> ItemKind {
     -> ItemKind::DeepKey;

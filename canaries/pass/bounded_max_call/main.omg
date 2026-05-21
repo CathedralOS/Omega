@@ -1,4 +1,7 @@
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self
     ) -> i32[exact, non_negative] {
     

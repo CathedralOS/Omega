@@ -11,7 +11,10 @@ data Counter {
     value: u32
 }
 
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     counter: &mut Counter,
     reward: &mut Reward
@@ -20,7 +23,7 @@ machine main(
     
 }
 
-machine main::pick(
+machine Main::pick(
     &mut self,
     counter: &mut Counter
     ) -> ItemKind {

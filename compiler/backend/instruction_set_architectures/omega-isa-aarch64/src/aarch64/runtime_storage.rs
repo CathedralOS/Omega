@@ -228,7 +228,10 @@ pub fn encode_runtime_pointee_integer_write(
         ))
     })?;
 
-    let mut bytes = Vec::with_capacity(runtime_pointee_integer_write_width(byte_size));
+    let mut bytes = Vec::with_capacity(runtime_pointee_integer_write_width(
+        field_byte_offset,
+        byte_size,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
@@ -288,6 +291,7 @@ pub fn encode_runtime_pointee_binary_write(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_pointee_binary_write_width(
         runtime_value_operands,
+        field_byte_offset,
         byte_size,
         left,
         operator,
@@ -326,7 +330,10 @@ pub fn encode_runtime_pointee_string_write(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_pointee_string_write_width(byte_length));
+    let mut bytes = Vec::with_capacity(runtime_pointee_string_write_width(
+        field_byte_offset,
+        byte_length,
+    ));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
     bytes.extend(encode_adrp_placeholder(16));
