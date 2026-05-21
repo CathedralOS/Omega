@@ -54,7 +54,7 @@ boundary trait Console {
     effects
         stdout_io;
 
-    machine read_line(out: &mut ConsoleLine)
+    machine read_line(out: &mut String)
     effects
         stdin_io;
 

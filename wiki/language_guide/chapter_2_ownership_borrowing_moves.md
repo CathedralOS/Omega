@@ -39,7 +39,7 @@ Shared borrows allow read-only access.
 machine RoomFormatter::render(
     &self,
     room: &Room,
-    out: &mut ConsoleLine
+    out: &mut String
 ) {
 }
 ```

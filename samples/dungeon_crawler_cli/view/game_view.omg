@@ -1,6 +1,5 @@
 use dungeon::dungeon;
 use platform::console;
-use platform::console_types;
 use rooms::room_formatter;
 
 data GameView {
@@ -20,58 +19,58 @@ machine GameView::render_room(
     &mut self,
     dungeon: Dungeon,
     console: &mut Console,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     self.formatter.write_current_cell(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
     self.formatter.write_room_info(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
     self.formatter.write_room_event(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
     self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
 }
 
 machine GameView::render_look(
     &mut self,
     dungeon: Dungeon,
     console: &mut Console,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     self.formatter.write_room_info(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
     self.formatter.write_room_event(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
 }
 
 machine GameView::render_exits(
     &mut self,
     dungeon: Dungeon,
     console: &mut Console,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
-    console.write_line(line.text);
+    console.write_line(line);
 }
 
 machine GameView::render_inventory(
     &mut self,
     dungeon: Dungeon,
     console: &mut Console,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     self.formatter.write_inventory(dungeon.player, line);
-    console.write_line(line.text);
+    console.write_line(line);
 }
 
 machine GameView::render_character(
     &mut self,
     dungeon: Dungeon,
     console: &mut Console,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     self.formatter.write_character(dungeon.player, line);
-    console.write_line(line.text);
+    console.write_line(line);
 }
 
 machine GameView::render_prompt(
@@ -83,10 +82,10 @@ machine GameView::render_prompt(
 
 machine GameView::render_line(
     &mut self,
-    line: ConsoleLine,
+    line: String,
     console: &mut Console
 ) {
-    console.write_line(line.text);
+    console.write_line(line);
 }
 
 machine GameView::render_invalid_command(

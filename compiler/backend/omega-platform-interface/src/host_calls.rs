@@ -211,14 +211,13 @@ mod tests {
     #[test]
     fn collects_host_call_from_inherited_data_field_receiver() {
         let source = r#"
-            data ConsoleLine { text: String; }
             data Game {
-                console: ConsolePlatform;
-                input: ConsoleLine;
+                console: Console;
+                input: String;
             }
 
-            platform ConsolePlatform {
-                entry read_line(out_line: &mut ConsoleLine);
+            boundary trait Console {
+                machine read_line(out_line: &mut String);
             }
 
             machine Game {

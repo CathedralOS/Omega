@@ -1,7 +1,6 @@
 use commands::command_parser;
 use dungeon::dungeon;
 use platform::console;
-use platform::console_types;
 use rooms::map;
 use view::game_view;
 
@@ -10,8 +9,8 @@ data Game {
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
-    input: ConsoleLine;
-    output: ConsoleLine;
+    input: String;
+    output: String;
 }
 
 machine Game::initialize(
@@ -49,9 +48,9 @@ machine Game::run_game_loop(&mut self) {
         self.view.render_prompt(&mut self.console);
         self.console.read_line(&mut self.input);
 
-        -> finished() when self.input.text == "";
+        -> finished() when self.input == "";
 
-        transition self.input.text {
+        transition self.input {
             "quit" -> finished()
             "look" -> look()
             "info" -> look()
@@ -102,7 +101,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state use_event(&mut self) {
-        self.output.text = "You search the room, but there is nothing useful to claim.";
+        self.output = "You search the room, but there is nothing useful to claim.";
         self.view.render_line(self.output, &mut self.console);
 
         transition {
@@ -111,7 +110,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state fight(&mut self) {
-        self.output.text = "You strike into the dark. The dungeon answers with steel.";
+        self.output = "You strike into the dark. The dungeon answers with steel.";
         self.view.render_line(self.output, &mut self.console);
 
         transition {

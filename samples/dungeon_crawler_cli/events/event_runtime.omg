@@ -3,7 +3,6 @@ use combat::combat_round;
 use enemies::enemies;
 use events::events;
 use inventory::inventory;
-use platform::console_types;
 use player::player;
 use player::player_state;
 use rewards::rewards;
@@ -20,7 +19,7 @@ data EventRuntime {
 machine EventRuntime::describe(
     &mut self,
     room: Room,
-    out_line: &mut ConsoleLine
+    out_line: &mut String
 ) {
     -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
     -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
@@ -31,38 +30,38 @@ machine EventRuntime::describe(
 
     state describe_fountain(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "A fountain of life glows here. Type use to drink.";
+        out_line = "A fountain of life glows here. Type use to drink.";
     }
 
     state describe_treasure(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "A treasure cache rests against the wall. Type use to claim it.";
+        out_line = "A treasure cache rests against the wall. Type use to claim it.";
     }
 
     state describe_gold(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "Loose gold glitters in the dust. Type use to collect it.";
+        out_line = "Loose gold glitters in the dust. Type use to collect it.";
     }
 
     state describe_enemy(
         &mut self,
         enemy: Enemy,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = enemy.name + " blocks the way. Type fight.";
+        out_line = enemy.name + " blocks the way. Type fight.";
     }
 
     state quiet_room(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "The room is quiet.";
+        out_line = "The room is quiet.";
     }
 }
 
@@ -70,7 +69,7 @@ machine EventRuntime::use_event(
     &mut self,
     player: &mut Player,
     room: &mut Room,
-    out_line: &mut ConsoleLine
+    out_line: &mut String
 ) {
     -> use_fountain(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
     -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
@@ -82,29 +81,29 @@ machine EventRuntime::use_event(
         &mut self,
         player: &mut Player,
         event: &mut RoomEvent,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
         self.player_system.heal(player, 12);
         event.consumed = true;
-        out_line.text = "The fountain heals your wounds.";
+        out_line = "The fountain heals your wounds.";
     }
 
     state use_reward(
         &mut self,
         player: &mut Player,
         event: &mut RoomEvent,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
         self.player_system.grant_reward(player, event.reward);
         event.consumed = true;
-        out_line.text = "You take the treasure.";
+        out_line = "You take the treasure.";
     }
 
     state no_usable_event(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "There is nothing here to use.";
+        out_line = "There is nothing here to use.";
     }
 }
 
@@ -114,7 +113,7 @@ machine EventRuntime::fight_event(
     room: &mut Room,
     random: &mut RandomState,
     round: &mut CombatRound,
-    out_line: &mut ConsoleLine
+    out_line: &mut String
 ) {
     -> fight_enemy_event(player, room, random, round, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
     -> no_enemy(out_line);
@@ -126,10 +125,10 @@ machine EventRuntime::fight_event(
         room: &mut Room,
         random: &mut RandomState,
         round: &mut CombatRound,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
         self.combat.fight(player, &mut room.event, random, round);
-        out_line.text = "You trade blows with the monster.";
+        out_line = "You trade blows with the monster.";
 
         -> player_died(out_line) when round.player_defeated;
         -> enemy_died(room.event.reward, out_line) when round.enemy_defeated;
@@ -138,22 +137,22 @@ machine EventRuntime::fight_event(
 
     state no_enemy(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "There is no enemy here.";
+        out_line = "There is no enemy here.";
     }
 
     state player_died(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "You fall in the dark.";
+        out_line = "You fall in the dark.";
     }
 
     state enemy_died(
         &mut self,
         reward: Reward,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
         -> rich_reward(out_line) when reward.gold >= 20;
         -> small_reward(out_line) when reward.gold > 0;
@@ -162,29 +161,29 @@ machine EventRuntime::fight_event(
 
     state rich_reward(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "The enemy collapses. You scoop up a serious pile of gold.";
+        out_line = "The enemy collapses. You scoop up a serious pile of gold.";
     }
 
     state small_reward(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "The enemy collapses. You find a little gold.";
+        out_line = "The enemy collapses. You find a little gold.";
     }
 
     state empty_reward(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "The enemy collapses. Nothing useful remains.";
+        out_line = "The enemy collapses. Nothing useful remains.";
     }
 
     state exchange_blows(
         &mut self,
         round: CombatRound,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
         -> heavy_exchange(out_line) when round.player_damage > 10;
         -> clean_hit(out_line) when round.enemy_damage == 0;
@@ -194,29 +193,29 @@ machine EventRuntime::fight_event(
 
     state heavy_exchange(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "You deal more than 10 damage, but the enemy keeps moving.";
+        out_line = "You deal more than 10 damage, but the enemy keeps moving.";
     }
 
     state clean_hit(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "You hit cleanly and avoid the counterattack.";
+        out_line = "You hit cleanly and avoid the counterattack.";
     }
 
     state painful_exchange(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "You trade blows and take 5 or more damage.";
+        out_line = "You trade blows and take 5 or more damage.";
     }
 
     state glancing_exchange(
         &mut self,
-        out_line: &mut ConsoleLine
+        out_line: &mut String
     ) {
-        out_line.text = "Steel scrapes in the dark as you exchange blows.";
+        out_line = "Steel scrapes in the dark as you exchange blows.";
     }
 }

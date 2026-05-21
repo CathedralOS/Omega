@@ -1,7 +1,6 @@
 use events::event_runtime;
 use generation::dungeon_generator;
 use combat::combat_round;
-use platform::console_types;
 use player::player;
 use player::player_state;
 use rng::random;
@@ -40,7 +39,7 @@ machine Dungeon::enter_room(&mut self) {
 
 machine Dungeon::use_event(
     &mut self,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     let room: Room;
     self.lookup.find_room(self.level, self.current_cell, &mut room);
@@ -49,7 +48,7 @@ machine Dungeon::use_event(
 
 machine Dungeon::fight(
     &mut self,
-    line: &mut ConsoleLine
+    line: &mut String
 ) {
     let room: Room;
     self.lookup.find_room(self.level, self.current_cell, &mut room);

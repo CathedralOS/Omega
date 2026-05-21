@@ -1,9 +1,5 @@
-use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
-};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 
 use super::places::expression_place_eq_in_table;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};
@@ -127,11 +123,7 @@ pub(crate) fn text_place_for_buffer_target(
     target: ExpressionHandle,
 ) -> ExpressionHandle {
     if expressions.expression_is_stored_place(target) {
-        return expressions.insert(ExpressionNode::Member(TableMemberExpression {
-            receiver: target,
-            member_symbol: SymbolHandle::invalid(),
-            member: ProgramName::generated_static("text"),
-        }));
+        return target;
     }
 
     match *expressions.expression(target) {

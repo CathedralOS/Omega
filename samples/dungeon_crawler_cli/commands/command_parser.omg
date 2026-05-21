@@ -1,4 +1,3 @@
-use platform::console_types;
 use rooms::room_lookup;
 use rooms::map;
 use rooms::rooms;
@@ -11,7 +10,7 @@ machine CommandParser::resolve_navigation(
     &mut self,
     level: Level,
     cell: CellId,
-    line: &ConsoleLine
+    line: &String
     ) -> Navigation {
     let choice: NavigationChoice = self.resolve_command(line);
 
@@ -21,19 +20,19 @@ machine CommandParser::resolve_navigation(
 
 machine CommandParser::resolve_command(
     &mut self,
-    line: &ConsoleLine
+    line: &String
     ) -> NavigationChoice {
-    -> NavigationChoice::Quit when line.text == "quit";
-    -> NavigationChoice::Look when line.text == "look";
-    -> NavigationChoice::Look when line.text == "info";
-    -> NavigationChoice::Exits when line.text == "exits";
-    -> NavigationChoice::Exits when line.text == "help";
-    -> NavigationChoice::Inventory when line.text == "inventory";
-    -> NavigationChoice::Inventory when line.text == "inv";
-    -> NavigationChoice::Character when line.text == "character";
-    -> NavigationChoice::Character when line.text == "stats";
-    -> NavigationChoice::UseFountain when line.text == "use";
-    -> NavigationChoice::Fight when line.text == "fight";
+    -> NavigationChoice::Quit when line == "quit";
+    -> NavigationChoice::Look when line == "look";
+    -> NavigationChoice::Look when line == "info";
+    -> NavigationChoice::Exits when line == "exits";
+    -> NavigationChoice::Exits when line == "help";
+    -> NavigationChoice::Inventory when line == "inventory";
+    -> NavigationChoice::Inventory when line == "inv";
+    -> NavigationChoice::Character when line == "character";
+    -> NavigationChoice::Character when line == "stats";
+    -> NavigationChoice::UseFountain when line == "use";
+    -> NavigationChoice::Fight when line == "fight";
     -> NavigationChoice::Invalid;
 }
 
@@ -41,16 +40,16 @@ machine CommandParser::resolve_exit(
     &mut self,
     level: Level,
     cell: CellId,
-    line: &ConsoleLine
+    line: &String
     ) -> Navigation {
     -> self.navigation(NavigationChoice::Move, CellId::R01)
-        when cell == CellId::R00 && line.text == "north";
+        when cell == CellId::R00 && line == "north";
     -> self.navigation(NavigationChoice::Move, CellId::R00)
-        when cell == CellId::R01 && line.text == "south";
+        when cell == CellId::R01 && line == "south";
     -> self.invalid_navigation()
-        when cell == CellId::R00 && line.text != "north";
+        when cell == CellId::R00 && line != "north";
     -> self.invalid_navigation()
-        when cell == CellId::R01 && line.text != "south";
+        when cell == CellId::R01 && line != "south";
     -> self.invalid_navigation()
         when cell != CellId::R00 && cell != CellId::R01;
 }
