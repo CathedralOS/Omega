@@ -1,4 +1,4 @@
-# Chapter 15: Wire Protocols
+# Chapter 16: Wire Protocols
 
 Omega should treat protocol schemas as first-class source-visible contracts.
 

@@ -1,4 +1,4 @@
-# Chapter 10: Relax Scopes
+# Chapter 11: Relax Scopes
 
 Most invariant-preserving updates should use temporary values.
 
