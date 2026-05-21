@@ -166,3 +166,5 @@ Working rules:
   prove the referenced storage outlives the target path.
 - Machine-owned storage may be referenced across transitions because it is not
   owned by the current stack segment.
+- Owned locals that are not moved into the target are cleaned up on the edge
+  before the jump.

@@ -222,3 +222,5 @@ Working rules:
 - Passing a reference to a stack local across a transition is illegal unless the
   compiler can prove the referenced storage outlives the transition target.
 - Passing a non-copy local through a transition should be explicit with `move`.
+- Values that are live before a transition edge and not moved into the target
+  must be cleaned up on that edge.
