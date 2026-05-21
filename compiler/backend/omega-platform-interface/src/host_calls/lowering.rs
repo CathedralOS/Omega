@@ -70,24 +70,26 @@ pub(crate) fn platform_call_receiver_type<'program>(
                 .is_valid()
                 .then(|| {
                     program
-                        .platforms()
+                        .traits()
                         .iter()
-                        .find(|platform| {
+                        .filter(|trait_definition| trait_definition.is_boundary)
+                        .find(|trait_definition| {
                             program
-                                .platform_state_signatures(platform)
+                                .trait_machine_signatures(trait_definition)
                                 .iter()
-                                .any(|state| state.symbol == call.target_symbol)
+                                .any(|machine| machine.symbol == call.target_symbol)
                         })
-                        .map(|platform| platform.symbol)
+                        .map(|trait_definition| trait_definition.symbol)
                 })
                 .flatten()
         })?;
 
     program
-        .platforms()
+        .traits()
         .iter()
-        .find(|platform| platform.symbol == receiver_type_symbol)
-        .map(|platform| platform.name.as_str())
+        .filter(|trait_definition| trait_definition.is_boundary)
+        .find(|trait_definition| trait_definition.symbol == receiver_type_symbol)
+        .map(|trait_definition| trait_definition.name.as_str())
 }
 
 fn receiver_leaf_name<'program>(

@@ -31,6 +31,7 @@ pub enum TypeDeclarationKind {
     Platform,
     State,
     Target,
+    Trait,
     #[default]
     Unknown,
 }
@@ -156,6 +157,33 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             return_type: signature.return_type,
                         },
                         &format!("platform `{}` state `{}`", platform.name, signature.name),
+                    );
+                }
+            }
+            Item::Trait(trait_definition) => {
+                insert_declaration(
+                    &mut report,
+                    &trait_definition.name,
+                    TypeDeclarationKind::Trait,
+                );
+
+                for machine in syntax_trees
+                    .items
+                    .state_signatures(trait_definition.machines)
+                {
+                    let signature = syntax_trees.items.state_signature(*machine);
+                    collect_state_signature(
+                        &mut report,
+                        syntax_trees,
+                        &omega_syntax_trees::item::StateSignature {
+                            name: signature.name.clone(),
+                            parameters: signature.parameters,
+                            return_type: signature.return_type,
+                        },
+                        &format!(
+                            "trait `{}` machine `{}`",
+                            trait_definition.name, signature.name
+                        ),
                     );
                 }
             }

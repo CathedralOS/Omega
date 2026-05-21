@@ -2,6 +2,7 @@ use crate::data::lower_data_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::platform::lower_platform;
+use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees::TypedTrees;
@@ -34,6 +35,11 @@ pub fn lower_symbol_resolved_trees(
     for platform in &symbol_resolved_trees.platforms {
         let platform = lower_platform(&mut lowerer, platform)?;
         lowerer.typed_trees.push_platform(platform);
+    }
+
+    for trait_definition in &symbol_resolved_trees.traits {
+        let trait_definition = lower_trait_definition(&mut lowerer, trait_definition)?;
+        lowerer.typed_trees.push_trait_definition(trait_definition);
     }
 
     lowerer.finish()

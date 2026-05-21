@@ -7,6 +7,7 @@ pub type StateSignatureHandle = Handle<StateSignatureNode>;
 pub type StateHandle = Handle<StateNode>;
 pub type MachineHandle = Handle<MachineNode>;
 pub type PlatformHandle = Handle<PlatformNode>;
+pub type TraitHandle = Handle<TraitNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
@@ -18,6 +19,7 @@ pub enum Item {
     Use(UseItem),
     Machine(Machine),
     Platform(Platform),
+    Trait(TraitDefinition),
     Target(TargetDefinition),
 }
 
@@ -280,6 +282,13 @@ pub struct Platform {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitDefinition {
+    pub is_boundary: bool,
+    pub name: Identifier,
+    pub machines: HandleSpan<StateSignatureHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -304,6 +313,7 @@ struct StateStorage {
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
+    traits: Arena<TraitNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -350,6 +360,10 @@ impl ItemTable {
 
     pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
         self.state_storage.platforms.get(handle)
+    }
+
+    pub fn trait_definition(&self, handle: TraitHandle) -> &TraitNode {
+        self.state_storage.traits.get(handle)
     }
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
@@ -571,6 +585,14 @@ impl ItemTable {
             states: platform.states,
         })
     }
+
+    pub fn insert_trait_definition(&mut self, trait_definition: &TraitDefinition) -> TraitHandle {
+        self.state_storage.traits.append(TraitNode {
+            is_boundary: trait_definition.is_boundary,
+            name: trait_definition.name.clone(),
+            machines: trait_definition.machines,
+        })
+    }
 }
 
 impl Default for ItemTable {
@@ -591,6 +613,7 @@ impl StateStorage {
             statement_handles: Arena::new(),
             machines: Arena::new(),
             platforms: Arena::new(),
+            traits: Arena::new(),
         }
     }
 }
@@ -645,4 +668,11 @@ pub struct MachineNode {
 pub struct PlatformNode {
     pub name: Identifier,
     pub states: HandleSpan<StateSignatureHandle>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TraitNode {
+    pub is_boundary: bool,
+    pub name: Identifier,
+    pub machines: HandleSpan<StateSignatureHandle>,
 }

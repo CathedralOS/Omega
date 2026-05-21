@@ -117,6 +117,7 @@ fn item_kind(item: &Item) -> &'static str {
     match item {
         Item::Data(_) => "data",
         Item::Machine(_) | Item::Platform(_) => "machine",
+        Item::Trait(_) => "trait",
         _ => "state",
     }
 }
@@ -150,6 +151,19 @@ fn item_label(item: &Item) -> String {
                 "platform {}\nstates: {}",
                 value.name.as_str(),
                 value.states.len()
+            )
+        }
+        Item::Trait(value) => {
+            let prefix = if value.is_boundary {
+                "boundary trait"
+            } else {
+                "trait"
+            };
+            format!(
+                "{} {}\nmachines: {}",
+                prefix,
+                value.name.as_str(),
+                value.machines.len()
             )
         }
         Item::Target(value) => format!("target {}", value.name.as_str()),

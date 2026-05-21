@@ -7,6 +7,7 @@ use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeConstraint, TypeReference};
 use serde::Serialize;
 
@@ -41,6 +42,13 @@ impl SymbolResolvedTreesSnapshot {
                     .platforms
                     .iter()
                     .map(|platform| platform_snapshot(symbol_resolved_trees, platform))
+                    .collect(),
+                traits: symbol_resolved_trees
+                    .traits
+                    .iter()
+                    .map(|trait_definition| {
+                        trait_definition_snapshot(symbol_resolved_trees, trait_definition)
+                    })
                     .collect(),
             },
             tables: ResolvedTableSnapshot {
@@ -79,6 +87,7 @@ pub struct SymbolResolvedRootsSnapshot {
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
+    pub traits: Vec<TraitSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -139,6 +148,13 @@ pub struct OwnedDataSnapshot {
 pub struct PlatformSnapshot {
     pub name: String,
     pub states: Vec<StateSignatureSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TraitSnapshot {
+    pub name: String,
+    pub is_boundary: bool,
+    pub machines: Vec<StateSignatureSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -401,6 +417,21 @@ fn platform_snapshot(program: &SymbolResolvedTrees, platform: &Platform) -> Plat
         name: platform.name.to_string(),
         states: program
             .platform_state_signatures(platform.states)
+            .iter()
+            .map(|signature| state_signature_snapshot(program, signature))
+            .collect(),
+    }
+}
+
+fn trait_definition_snapshot(
+    program: &SymbolResolvedTrees,
+    trait_definition: &TraitDefinition,
+) -> TraitSnapshot {
+    TraitSnapshot {
+        name: trait_definition.name.to_string(),
+        is_boundary: trait_definition.is_boundary,
+        machines: program
+            .trait_machine_signatures(trait_definition.machines)
             .iter()
             .map(|signature| state_signature_snapshot(program, signature))
             .collect(),

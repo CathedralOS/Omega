@@ -1,11 +1,7 @@
-platform Console {
-    entry write_line(text: String);
-    entry read_line(out_line: &mut ConsoleLine);
-    entry exit_process(return_code: i32);
-}
-
-data ConsoleLine {
-    text: String;
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
 }
 
 enum Command {
@@ -22,7 +18,7 @@ data Navigation {
 data Parser {
 }
 
-machine Parser::resolve_navigation(&mut self, line: &ConsoleLine) -> Navigation {
+machine Parser::resolve_navigation(&mut self, line: &String) -> Navigation {
     let choice: Command = self.resolve_command(line);
 
     -> self.resolve_exit() when choice == Command::Invalid;
@@ -32,9 +28,9 @@ machine Parser::resolve_navigation(&mut self, line: &ConsoleLine) -> Navigation 
 
 }
 
-machine Parser::resolve_command(&mut self, line: &ConsoleLine) -> Command {
-    -> Command::Look when line.text == "look";
-    -> Command::Quit when line.text == "quit";
+machine Parser::resolve_command(&mut self, line: &String) -> Command {
+    -> Command::Look when line == "look";
+    -> Command::Quit when line == "quit";
     -> Command::Invalid;
     
 }
@@ -51,7 +47,7 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
 
 data Main {
     console: Console;
-    line: ConsoleLine;
+    line: String;
     parser: Parser;
     navigation: Navigation;
     health: i32 = 10;

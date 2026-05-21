@@ -132,6 +132,16 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_state_signature_node(syntax_trees, signature, counts);
             }
         }
+        Item::Trait(trait_definition) => {
+            count_identifier(&trait_definition.name, counts);
+            for signature in syntax_trees
+                .items
+                .state_signatures(trait_definition.machines)
+            {
+                let signature = syntax_trees.items.state_signature(*signature);
+                count_state_signature_node(syntax_trees, signature, counts);
+            }
+        }
         Item::Target(target) => {
             count_identifier(&target.name, counts);
             if let Some(host) = &target.host {

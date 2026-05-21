@@ -72,6 +72,9 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Platform(platform) => collect_platform(&mut report, syntax_trees, platform),
+            Item::Trait(trait_definition) => {
+                collect_trait_definition(&mut report, syntax_trees, trait_definition)
+            }
             Item::Target(_) | Item::TrustDefinition(_) => {}
         }
     }
@@ -131,6 +134,28 @@ fn collect_platform(
             syntax_trees,
             state,
             &format!("platform `{}` state `{}`", platform.name, state.name),
+        );
+    }
+}
+
+fn collect_trait_definition(
+    report: &mut ProofSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    trait_definition: &omega_syntax_trees::item::TraitDefinition,
+) {
+    for machine in syntax_trees
+        .items
+        .state_signatures(trait_definition.machines)
+    {
+        let machine = syntax_trees.items.state_signature(*machine);
+        collect_state_signature_node(
+            report,
+            syntax_trees,
+            machine,
+            &format!(
+                "trait `{}` machine `{}`",
+                trait_definition.name, machine.name
+            ),
         );
     }
 }

@@ -92,6 +92,28 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         }
     }
 
+    for trait_definition in &program.traits {
+        count_declaration_name(&trait_definition.name, &mut counts);
+        for signature in program.trait_machine_signatures(trait_definition.machines) {
+            count_declaration_name(&signature.name, &mut counts);
+            count_optional_type_reference(
+                signature.return_type.as_ref(),
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
+            for parameter in program.state_parameters(signature.parameters) {
+                count_declaration_name(&parameter.name, &mut counts);
+                count_type_reference(
+                    &parameter.type_reference,
+                    child_type_references,
+                    expression_table,
+                    &mut counts,
+                );
+            }
+        }
+    }
+
     for machine in &program.machines {
         count_declaration_name(&machine.name, &mut counts);
         for contained in program.machine_contained_objects(machine.contains) {

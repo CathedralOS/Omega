@@ -13,6 +13,7 @@ mod platform;
 mod state;
 mod statement;
 mod target;
+mod trait_definition;
 mod transition;
 mod trust;
 mod type_reference;
@@ -134,6 +135,41 @@ mod tests {
             .expect("entry state");
         let state = parsed.items.state(state_handle);
         assert_eq!(state.name.as_str(), "main");
+    }
+
+    #[test]
+    fn parses_plain_and_boundary_traits() {
+        let source = r#"
+        trait Drawable {
+            machine draw(&self, canvas: &mut Canvas);
+        }
+
+        boundary trait Console {
+            machine write_line(text: String)
+            effects
+                stdout_io;
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let traits: Vec<_> = parsed
+            .root_items()
+            .filter_map(|item| match item {
+                omega_syntax_trees::item::Item::Trait(trait_definition) => Some(trait_definition),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(traits.len(), 2);
+        assert_eq!(traits[0].name.as_str(), "Drawable");
+        assert!(!traits[0].is_boundary);
+        assert_eq!(traits[0].machines.len(), 1);
+        assert_eq!(traits[1].name.as_str(), "Console");
+        assert!(traits[1].is_boundary);
+        assert_eq!(traits[1].machines.len(), 1);
     }
 
     #[test]

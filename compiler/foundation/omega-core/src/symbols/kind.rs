@@ -12,6 +12,7 @@ pub enum SymbolKind {
     Variant,
     Machine,
     State,
+    Trait,
     Parameter,
     TypeParameter,
     Local,

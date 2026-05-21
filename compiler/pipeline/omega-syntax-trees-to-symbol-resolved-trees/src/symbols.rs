@@ -45,8 +45,13 @@ fn build_symbol_table(
                         symbol_seed(SymbolKind::Machine, &machine.name, has_sources)
                     }),
                 )
-                .chain(program.platforms.iter().map(|platform| {
-                    symbol_seed(SymbolKind::Platform, &platform.name, has_sources)
+                .chain(
+                    program.platforms.iter().map(|platform| {
+                        symbol_seed(SymbolKind::Platform, &platform.name, has_sources)
+                    }),
+                )
+                .chain(program.traits.iter().map(|trait_definition| {
+                    symbol_seed(SymbolKind::Trait, &trait_definition.name, has_sources)
                 })),
         );
     let mut root_children = SymbolTableBuilder::child_handles(root_children);
@@ -91,6 +96,17 @@ fn build_symbol_table(
                 program,
                 platform_symbol,
                 platform,
+                has_sources,
+            );
+        }
+    }
+    for trait_definition in &program.traits {
+        if let Some(trait_symbol) = root_children.next() {
+            insert_trait_symbol_children(
+                &mut builder,
+                program,
+                trait_symbol,
+                trait_definition,
                 has_sources,
             );
         }
@@ -236,6 +252,36 @@ fn insert_platform_symbol_children(
             state_symbol,
             program
                 .state_parameters(state.parameters)
+                .iter()
+                .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+        );
+    }
+}
+
+fn insert_trait_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
+    trait_symbol: SymbolHandle,
+    trait_definition: &omega_symbol_resolved_trees::trait_definition::TraitDefinition,
+    has_sources: bool,
+) {
+    let trait_children = builder.insert_children(
+        trait_symbol,
+        program
+            .trait_machine_signatures(trait_definition.machines)
+            .iter()
+            .map(|machine| symbol_seed(SymbolKind::State, &machine.name, has_sources)),
+    );
+
+    for (machine_symbol, machine) in SymbolTableBuilder::child_handles(trait_children).zip(
+        program
+            .trait_machine_signatures(trait_definition.machines)
+            .iter(),
+    ) {
+        builder.insert_children(
+            machine_symbol,
+            program
+                .state_parameters(machine.parameters)
                 .iter()
                 .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
         );
@@ -470,6 +516,43 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                     symbols,
                     child_type_references,
                     platform_symbol,
+                    return_type,
+                );
+            }
+        }
+    });
+
+    let declarations = &mut program.tables.declarations;
+    let trait_machine_signatures = &mut declarations.trait_machine_signatures;
+    let state_parameters = &mut declarations.state_parameters;
+    let child_type_references = &mut declarations.child_type_references;
+    program.roots.traits.for_each_mut(|trait_definition| {
+        trait_definition.symbol =
+            next_child_of_kind(&mut root_children, symbols, SymbolKind::Trait);
+        let trait_symbol = trait_definition.symbol;
+        let mut trait_children = symbols.child_handles(trait_symbol).into_iter().flatten();
+
+        for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines) {
+            machine.symbol = next_child_of_kind(&mut trait_children, symbols, SymbolKind::State);
+            let machine_symbol = machine.symbol;
+            let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
+
+            for parameter in state_parameters.span_mut_or_empty(machine.parameters) {
+                parameter.symbol =
+                    next_child_of_kind(&mut machine_children, symbols, SymbolKind::Parameter);
+                assign_type_reference_symbol_with_self_type(
+                    symbols,
+                    child_type_references,
+                    trait_symbol,
+                    &mut parameter.type_reference,
+                );
+            }
+
+            if let Some(return_type) = &mut machine.return_type {
+                assign_type_reference_symbol_with_self_type(
+                    symbols,
+                    child_type_references,
+                    trait_symbol,
                     return_type,
                 );
             }
@@ -1669,7 +1752,10 @@ fn resolve_call_target_symbol(
                     target.as_str(),
                 );
             }
-            if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Platform) {
+            if matches!(
+                receiver_kind,
+                SymbolKind::Machine | SymbolKind::Platform | SymbolKind::Trait
+            ) {
                 return child_symbol_by_kinds(
                     symbols,
                     receiver_symbol,
@@ -1802,6 +1888,7 @@ fn resolve_base_symbol(
             SymbolKind::Data,
             SymbolKind::Machine,
             SymbolKind::Platform,
+            SymbolKind::Trait,
             SymbolKind::Invariant,
         ],
         member.as_str(),
@@ -2031,6 +2118,7 @@ fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {
             SymbolKind::Data,
             SymbolKind::Machine,
             SymbolKind::Platform,
+            SymbolKind::Trait,
             SymbolKind::Invariant,
         ],
         name,

@@ -9,8 +9,8 @@ use crate::item::{
     CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant, Item,
     ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine, Platform, State,
     StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TrustDefinition,
-    TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
+    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
+    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -88,6 +88,7 @@ impl SyntaxTrees {
         match &item {
             Item::Machine(machine) => self.insert_machine(machine),
             Item::Platform(platform) => self.insert_platform(platform),
+            Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
             | Item::Data(_)
             | Item::Invariant(_)
@@ -106,6 +107,10 @@ impl SyntaxTrees {
 
     fn insert_platform(&mut self, platform: &Platform) {
         self.items.insert_platform(platform);
+    }
+
+    fn insert_trait_definition(&mut self, trait_definition: &TraitDefinition) {
+        self.items.insert_trait_definition(trait_definition);
     }
 
     fn push_copied_root_item(&mut self, other: &SyntaxTrees, handle: ItemHandle) -> ItemHandle {
@@ -133,6 +138,9 @@ impl SyntaxTrees {
             }),
             Item::Machine(machine) => Item::Machine(self.copy_machine(other, machine)),
             Item::Platform(platform) => Item::Platform(self.copy_platform(other, platform)),
+            Item::Trait(trait_definition) => {
+                Item::Trait(self.copy_trait_definition(other, trait_definition))
+            }
             Item::Target(target) => Item::Target(self.copy_target_definition(other, target)),
         }
     }
@@ -184,6 +192,18 @@ impl SyntaxTrees {
         Platform {
             name: platform.name.clone(),
             states: self.copy_state_signature_handle_span(other, platform.states),
+        }
+    }
+
+    fn copy_trait_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        trait_definition: &TraitDefinition,
+    ) -> TraitDefinition {
+        TraitDefinition {
+            is_boundary: trait_definition.is_boundary,
+            name: trait_definition.name.clone(),
+            machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
         }
     }
 
