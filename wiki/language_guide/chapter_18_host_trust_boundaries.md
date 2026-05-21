@@ -1,6 +1,6 @@
 # Chapter 18: Host Libraries And Trust Boundaries
 
-Omega should not pretend the trusted root does not exist.
+Omega should model the trusted root explicitly.
 
 The outside world is not one thing. Linux may expose raw syscall numbers,
 Darwin normally routes process IO through `libSystem`, Windows imports APIs

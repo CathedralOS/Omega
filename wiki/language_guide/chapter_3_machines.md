@@ -84,8 +84,7 @@ machine Main::main(&mut self) -> i32 {
 The process entry is the `main` machine on the `Main` root data object. Startup
 allocates the root object, then enters `Main::main(&mut root)`.
 
-This keeps process-owned state under one explicit owner instead of relying on
-ambient mutable globals or a magic lowercase `data main`.
+This keeps process-owned state under one explicit owner.
 
 ## Parameters And Returns
 

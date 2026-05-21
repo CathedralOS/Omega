@@ -3,8 +3,7 @@
 A state is an internal control label inside a machine. A transition is a jump to
 another state in the same machine.
 
-The top of a machine body is the entry path. There is no separate `entry`
-keyword.
+The top of a machine body is the entry path.
 
 ```omega
 machine Game::run(&mut self) {

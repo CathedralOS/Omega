@@ -81,9 +81,8 @@ machine App::run(message: String) {
 }
 ```
 
-There is no separate `detach` keyword in this model. If the spawn result is not
-bound, the proof checker treats it as intentionally unjoined and proves the
-spawned graph does not depend on the parent stack.
+If the spawn result is not bound, the proof checker treats it as intentionally
+unjoined and proves the spawned graph does not depend on the parent stack.
 
 ## Waitable Contracts
 

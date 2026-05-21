@@ -3,8 +3,7 @@
 Omega starts with explicit data shapes and explicit values.
 
 `data` declarations describe stored state. Fields inside `data` are owned by
-that value by default; there is no separate `owns` keyword for ordinary stored
-fields.
+that value.
 
 ```omega
 data Player {
