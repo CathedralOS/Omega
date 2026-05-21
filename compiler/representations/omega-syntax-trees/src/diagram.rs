@@ -1,5 +1,5 @@
 use crate::SyntaxTrees;
-use crate::item::{Item, StateNode};
+use crate::item::{Item, StateNode, StateSignatureNode};
 use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
@@ -20,38 +20,58 @@ impl PhaseDiagram for SyntaxTrees {
             );
             diagram.containment_edge(&root, &item_id);
 
-            if let Item::Machine(machine) = self.root_item(item_handle) {
-                let state_handles = self
-                    .items
-                    .state_handles(machine.states)
-                    .iter()
-                    .copied()
-                    .collect::<Vec<_>>();
-                let state_nodes = state_handles
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .map(|(state_index, state_handle)| {
-                        let state = self.items.state(state_handle);
-                        (
-                            state.name.as_str().to_owned(),
-                            format!("state_{item_index}_{state_index}"),
-                        )
-                    })
-                    .collect::<Vec<_>>();
+            match self.root_item(item_handle) {
+                Item::Machine(machine) => {
+                    let state_handles = self
+                        .items
+                        .state_handles(machine.states)
+                        .iter()
+                        .copied()
+                        .collect::<Vec<_>>();
+                    let state_nodes = state_handles
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .map(|(state_index, state_handle)| {
+                            let state = self.items.state(state_handle);
+                            (
+                                state.name.as_str().to_owned(),
+                                format!("state_{item_index}_{state_index}"),
+                            )
+                        })
+                        .collect::<Vec<_>>();
 
-                for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
-                    let state = self.items.state(state_handle);
-                    append_state(
-                        &mut diagram,
-                        self,
-                        &item_id,
-                        &state_nodes,
-                        item_index,
-                        state_index,
-                        state,
-                    );
+                    for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
+                        let state = self.items.state(state_handle);
+                        append_state(
+                            &mut diagram,
+                            self,
+                            &item_id,
+                            &state_nodes,
+                            item_index,
+                            state_index,
+                            state,
+                        );
+                    }
                 }
+                Item::Trait(trait_definition) => {
+                    for (signature_index, signature_handle) in self
+                        .items
+                        .state_signatures(trait_definition.machines)
+                        .iter()
+                        .copied()
+                        .enumerate()
+                    {
+                        append_state_signature(
+                            &mut diagram,
+                            &item_id,
+                            item_index,
+                            signature_index,
+                            self.items.state_signature(signature_handle),
+                        );
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -111,6 +131,26 @@ fn append_state(
         }
         previous_id = Some(statement_id);
     }
+}
+
+fn append_state_signature(
+    diagram: &mut PhaseDiagramBuilder,
+    parent_id: &str,
+    item_index: usize,
+    signature_index: usize,
+    signature: &StateSignatureNode,
+) {
+    let signature_id = diagram.node(
+        format!("signature_{item_index}_{signature_index}"),
+        format!(
+            "machine {}\nparams: {}",
+            signature.name.as_str(),
+            signature.parameters.len()
+        ),
+        "state",
+        2,
+    );
+    diagram.containment_edge(parent_id, &signature_id);
 }
 
 fn item_kind(item: &Item) -> &'static str {

@@ -295,6 +295,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 }
 .node.root rect { fill: #263247; stroke: #8ab4ff; }
 .node.data rect { fill: #1b2a22; stroke: #75b57c; }
+.node.trait rect { fill: #162b33; stroke: #4dd4c6; }
 .node.machine rect { fill: #272132; stroke: #b089f0; }
 .node.object rect { fill: #2e291b; stroke: #ffd166; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
@@ -533,8 +534,9 @@ function renderOutline() {
   const topLevel = containmentChildren.get(rootId) || [];
   const groups = [
     ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
+    ["Traits", topLevel.filter(id => nodeById.get(id)?.kind === "trait")],
     ["Machines", topLevel.filter(id => nodeById.get(id)?.kind === "machine")],
-    ["Other", topLevel.filter(id => !["data", "machine"].includes(nodeById.get(id)?.kind))]
+    ["Other", topLevel.filter(id => !["data", "trait", "machine"].includes(nodeById.get(id)?.kind))]
   ];
   for (const [title, ids] of groups) {
     if (ids.length === 0) continue;
