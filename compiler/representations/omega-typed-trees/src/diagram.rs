@@ -2,8 +2,8 @@ use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
 use crate::trait_definition::TraitDefinition;
-use crate::{TypedTrees, state::State};
 use crate::{data::DataMember, machine::Machine};
+use crate::{state::State, TypedTrees};
 use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 use omega_core::symbols::SymbolHandle;
 
@@ -261,51 +261,61 @@ fn append_state(
 ) {
     let state_id = diagram.node(
         format!("state_{machine_index}_{state_index}"),
-        format!(
-            "state {}\nsymbol: {}\nparams: {}\nstatements: {}",
-            state.name.as_str(),
-            symbol_label(state.symbol),
-            state.parameters.len(),
-            state.statement_nodes.len()
-        ),
+        state_label(program, state),
         "state",
         2,
     );
     diagram.containment_edge(parent_id, &state_id);
 
-    let mut previous_id: Option<String> = None;
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+    {
+        if let StatementNode::Transition(transition) = statement {
+            if let Some(target_id) = transition_target_id(program, state_nodes, transition) {
+                diagram.edge(&state_id, target_id, "transition_target");
+            }
+        }
+    }
+}
+
+fn state_label(program: &TypedTrees, state: &State) -> String {
+    let mut label = format!(
+        "state {}\nsymbol: {}\nparams: {}\nstatements: {}",
+        state.name.as_str(),
+        symbol_label(state.symbol),
+        state.parameters.len(),
+        state.statement_nodes.len()
+    );
+
     for (statement_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
     {
-        let statement_id = diagram.node(
-            format!("stmt_{machine_index}_{state_index}_{statement_index}"),
-            format!(
-                "{}: {}",
-                statement_index,
-                statement_label(program, statement)
-            ),
-            "statement",
-            3,
-        );
-        diagram.containment_edge(&state_id, &statement_id);
-        if let Some(previous_id) = previous_id.as_ref() {
-            diagram.sequence_edge(previous_id, &statement_id);
-        }
-        if let StatementNode::Transition(transition) = statement {
-            if let Some(target_id) = transition_target_id(program, state_nodes, transition) {
-                diagram.edge(&statement_id, target_id, "transition_target");
-            }
-        }
-        previous_id = Some(statement_id);
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&statement_index.to_string());
+        label.push_str(": ");
+        label.push_str(&inline_label(statement_label(program, statement)));
     }
+
+    label
+}
+
+fn inline_label(label: String) -> String {
+    label.replace('\n', " | ")
 }
 
 fn statement_label(program: &TypedTrees, statement: &StatementNode) -> String {
     match statement {
-        StatementNode::Assignment(_) => "assignment".to_owned(),
+        StatementNode::Assignment(assignment) => format!(
+            "{} = {}",
+            program.expression_table.display_name(assignment.target),
+            program.expression_table.display_name(assignment.value)
+        ),
         StatementNode::Call(call) => call_label(call),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(local) => format!(
