@@ -1,0 +1,18 @@
+trait Drawable {
+    machine draw(&self, canvas: &mut Canvas);
+    machine bounds(&self, out_width: &mut i32, out_height: &mut i32);
+}
+
+data Canvas {
+    width: i32;
+    height: i32;
+}
+
+data Main {
+    canvas: Canvas;
+}
+
+machine Main::main(&mut self) {
+    self.canvas.width = 80;
+    self.canvas.height = 25;
+}

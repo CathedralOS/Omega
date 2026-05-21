@@ -1,0 +1,18 @@
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+
+    machine exit_process(return_code: i32)
+    effects
+        process_exit;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("boundary effects survive syntax");
+    self.console.exit_process(0);
+}

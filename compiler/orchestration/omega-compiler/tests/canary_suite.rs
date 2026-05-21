@@ -86,6 +86,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "bounded_literal_named_constraints",
     "bounded_max_call",
     "bounded_member_guard_transition",
+    "boundary_trait_effects_host_call",
     "composite_field_guard_dispatch",
     "composite_range_guard_dispatch",
     "entry_surface_receiver_paths",
@@ -129,6 +130,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_transition_argument_call_value",
     "std_option_storage_write",
     "std_option_surface",
+    "trait_declaration_bundle",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -140,4 +142,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
     "runtime_helper_ordering_return",
+    "trait_unknown_signature_type",
 ];

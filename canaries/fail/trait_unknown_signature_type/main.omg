@@ -1,0 +1,9 @@
+trait NeedsMissingType {
+    machine consume(value: MissingType);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
