@@ -1,6 +1,7 @@
 use crate::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
+use crate::trait_definition::TraitDefinition;
 use crate::{TypedTrees, state::State};
 use crate::{data::DataMember, machine::Machine};
 use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
@@ -11,6 +12,7 @@ impl PhaseDiagram for TypedTrees {
         let mut diagram = PhaseDiagramBuilder::new("typed_trees");
         let root = diagram.node("root", "TypedTrees", "root", 0);
         let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
+        let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
         for (data_index, data) in self.data_definitions().iter().enumerate() {
             let data_id = diagram.node(
@@ -28,6 +30,38 @@ impl PhaseDiagram for TypedTrees {
             data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
         }
 
+        for (trait_index, trait_definition) in self.traits().iter().enumerate() {
+            let trait_id = diagram.node(
+                format!("trait_{trait_index}"),
+                format!(
+                    "{} {}\nsymbol: {}\nmachines: {}",
+                    if trait_definition.is_boundary {
+                        "boundary trait"
+                    } else {
+                        "trait"
+                    },
+                    trait_definition.name.as_str(),
+                    symbol_label(trait_definition.symbol),
+                    trait_definition.machines.len()
+                ),
+                "trait",
+                1,
+            );
+            diagram.containment_edge(&root, &trait_id);
+            trait_nodes.push((
+                trait_definition.symbol,
+                trait_id.clone(),
+                trait_definition.name.as_str().to_owned(),
+            ));
+            append_trait_machine_signatures(
+                &mut diagram,
+                self,
+                &trait_id,
+                trait_index,
+                trait_definition,
+            );
+        }
+
         for (data_index, data) in self.data_definitions().iter().enumerate() {
             let Some((_, data_id, _)) = data_nodes.get(data_index) else {
                 continue;
@@ -35,7 +69,9 @@ impl PhaseDiagram for TypedTrees {
             for member in self.data_members(data) {
                 if let DataMember::Field(field) = member {
                     let target_symbol = self.type_reference_symbol(field.type_reference);
-                    if let Some(target_id) = data_id_for_symbol(&data_nodes, target_symbol) {
+                    if let Some(target_id) =
+                        type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol)
+                    {
                         diagram.edge(data_id, target_id, "field_type");
                     }
                 }
@@ -59,6 +95,7 @@ impl PhaseDiagram for TypedTrees {
                 &mut diagram,
                 self,
                 &data_nodes,
+                &trait_nodes,
                 &machine_id,
                 machine_index,
                 machine,
@@ -98,6 +135,7 @@ fn append_machine_relationships(
     diagram: &mut PhaseDiagramBuilder,
     program: &TypedTrees,
     data_nodes: &[(SymbolHandle, String, String)],
+    trait_nodes: &[(SymbolHandle, String, String)],
     machine_id: &str,
     machine_index: usize,
     machine: &Machine,
@@ -124,8 +162,8 @@ fn append_machine_relationships(
             2,
         );
         diagram.containment_edge(machine_id, &object_id);
-        if let Some(data_id) = data_id_for_symbol(data_nodes, object.type_symbol) {
-            diagram.edge(&object_id, data_id, "contained_object");
+        if let Some(type_id) = type_id_for_symbol(data_nodes, trait_nodes, object.type_symbol) {
+            diagram.edge(&object_id, type_id, "contained_object");
         }
     }
 
@@ -143,9 +181,36 @@ fn append_machine_relationships(
         );
         diagram.containment_edge(machine_id, &object_id);
         let target_symbol = program.type_reference_symbol(owned.type_reference);
-        if let Some(data_id) = data_id_for_symbol(data_nodes, target_symbol) {
-            diagram.edge(&object_id, data_id, "owned_data");
+        if let Some(type_id) = type_id_for_symbol(data_nodes, trait_nodes, target_symbol) {
+            diagram.edge(&object_id, type_id, "owned_data");
         }
+    }
+}
+
+fn append_trait_machine_signatures(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &TypedTrees,
+    trait_id: &str,
+    trait_index: usize,
+    trait_definition: &TraitDefinition,
+) {
+    for (machine_index, machine) in program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .enumerate()
+    {
+        let machine_id = diagram.node(
+            format!("trait_{trait_index}_machine_{machine_index}"),
+            format!(
+                "machine {}\nsymbol: {}\nparams: {}",
+                machine.name.as_str(),
+                symbol_label(machine.symbol),
+                machine.parameters.len()
+            ),
+            "state",
+            2,
+        );
+        diagram.containment_edge(trait_id, &machine_id);
     }
 }
 
@@ -309,6 +374,28 @@ fn data_id_for_symbol(
         .iter()
         .find(|(data_symbol, _, _)| *data_symbol == symbol)
         .map(|(_, data_id, _)| data_id.as_str())
+}
+
+fn type_id_for_symbol<'a>(
+    data_nodes: &'a [(SymbolHandle, String, String)],
+    trait_nodes: &'a [(SymbolHandle, String, String)],
+    symbol: SymbolHandle,
+) -> Option<&'a str> {
+    data_id_for_symbol(data_nodes, symbol).or_else(|| trait_id_for_symbol(trait_nodes, symbol))
+}
+
+fn trait_id_for_symbol(
+    trait_nodes: &[(SymbolHandle, String, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    trait_nodes
+        .iter()
+        .find(|(trait_symbol, _, _)| *trait_symbol == symbol)
+        .map(|(_, trait_id, _)| trait_id.as_str())
 }
 
 fn data_id_for_name<'a>(
