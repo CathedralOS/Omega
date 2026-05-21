@@ -2,6 +2,28 @@
 
 Omega starts with explicit data shapes and explicit values.
 
+## Hello World
+
+The smallest console program has one root data object and one entry machine.
+
+```omega
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("Hello, Omega.");
+    self.console.exit_process(0);
+}
+```
+
+`Main` owns the process state. `Main::main` is the process entry machine.
+The string literal is passed to the console capability stored on `Main`.
+
+## Data
+
 `data` declarations describe stored state. Fields inside `data` are owned by
 that value.
 
