@@ -51,6 +51,42 @@ machine clamp_i32(
 Use a free-standing machine for math helpers, proof helpers, and operations
 that are not naturally owned by one data type.
 
+## Program Entry
+
+Executable programs should use an explicit root data type.
+
+```omega
+data Main {
+    game: Game;
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.game.initialize(7);
+
+    transition {
+        _ -> running()
+    }
+
+    state running(&mut self) {
+        self.game.run_game_loop();
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}
+```
+
+The process entry is the `main` machine on the `Main` root data object. Startup
+allocates the root object, then enters `Main::main(&mut root)`.
+
+This keeps process-owned state under one explicit owner instead of relying on
+ambient mutable globals or a magic lowercase `data main`.
+
 ## Parameters And Returns
 
 Machine parameters are entry data. A machine return type is the value shape its

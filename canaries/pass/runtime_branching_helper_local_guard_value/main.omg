@@ -29,11 +29,11 @@ data Reward {
     item: ItemKind;
 }
 
-data main {
+data Main {
     rng: Random;
 }
 
-machine main(
+machine Main::main(
     &mut self,
     depth: u32[exact, non_negative],
     random: &mut RandomState,
@@ -43,7 +43,7 @@ machine main(
     
 }
 
-machine main::pick(
+machine Main::pick(
     &mut self,
     depth: u32[exact, non_negative],
     random: &mut RandomState

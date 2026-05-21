@@ -1,4 +1,8 @@
-machine main(
+data Main {
+}
+
+machine Main::main(
+    &mut self,
     level: u32[exact, positive],
     xp: u32[exact, non_negative]
 ) {
@@ -6,9 +10,9 @@ machine main(
         true -> spend(level, xp)
         false -> {}
     }
-    
 
     state spend(
+        &mut self,
         level: u32[exact, positive],
         xp: u32[exact, non_negative]
     ) -> u32[exact, non_negative] {
@@ -16,9 +20,9 @@ machine main(
     }
 }
 
-machine main::cost(
+machine Main::cost(
+    &mut self,
     level: u32[exact, positive]
-    ) -> u32[exact, positive] {
+) -> u32[exact, positive] {
     -> 10 + level * 5;
-    
 }

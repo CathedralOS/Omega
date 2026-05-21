@@ -128,10 +128,12 @@ mod tests {
     }
 
     #[test]
-    fn lowers_main_entry_state_name_as_entry() {
+    fn lowers_attached_main_state_name_as_main() {
         let source = r#"
-        machine main {
-            pub entry() {}
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
         }
         "#;
 
@@ -142,20 +144,22 @@ mod tests {
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
         assert_eq!(program.machines.len(), 1);
-        assert_eq!(program.machines[0].name.as_str(), "main");
+        assert_eq!(program.machines[0].name.as_str(), "Main");
         let state = program
             .machine_state_handles(program.machines[0].states)
             .first()
             .map(|state| program.machine_state(*state))
             .expect("entry state");
-        assert_eq!(state.name.as_str(), "entry");
+        assert_eq!(state.name.as_str(), "main");
     }
 
     #[test]
     fn resolves_self_parameter_type_to_machine_symbol() {
         let source = r#"
-        machine main {
-            pub entry(&mut self) {}
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
         }
         "#;
 
@@ -187,14 +191,12 @@ mod tests {
     #[test]
     fn resolves_builtin_type_member_call_symbols() {
         let source = r#"
-        data main {
+        data Main {
             value: Real;
         }
 
-        machine main {
-            pub entry(&mut self) {
-                self.value = Real::from(1);
-            }
+        machine Main::main(&mut self) {
+            self.value = Real::from(1);
         }
         "#;
 

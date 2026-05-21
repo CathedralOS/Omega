@@ -109,7 +109,10 @@ not method dispatch.
 A machine or state can complete by producing the machine's declared result.
 
 ```omega
-machine main(&mut self) -> i32 {
+data Main {
+}
+
+machine Main::main(&mut self) -> i32 {
     transition {
         _ -> shutdown()
     }

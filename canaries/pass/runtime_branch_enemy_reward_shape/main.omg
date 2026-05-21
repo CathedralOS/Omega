@@ -13,7 +13,10 @@ data Enemy {
 
 data RandomState {}
 
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     enemy: Enemy,
     random: &mut RandomState,
@@ -50,17 +53,17 @@ machine main(
 
 }
 
-machine main::range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
+machine Main::range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
     1
     
 }
 
-machine main::chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
+machine Main::chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
     true
     
 }
 
-machine main::roll_item(
+machine Main::roll_item(
     &mut self,
     depth: u32,
     random: &mut RandomState

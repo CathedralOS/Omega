@@ -26,7 +26,10 @@ machine Random::chance(
     -> self.range(state, bottom) < top;
 }
 
-machine main(&mut self, random: &mut RandomState) {
+data Main {
+}
+
+machine Main::main(&mut self, random: &mut RandomState) {
     -> success() when self.chance(random, 1, 4) == true;
     -> failure();
     

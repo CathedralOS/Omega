@@ -13,5 +13,8 @@ trust omega_test_host_write {
     owner test
 }
 
-machine main() {
+data Main {
+}
+
+machine Main::main(&mut self) {
 }

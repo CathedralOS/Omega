@@ -85,7 +85,10 @@ mod tests {
     #[test]
     fn parses_dungeon_state_flow() {
         let source = r#"
-        machine main(&mut self) -> i32 {
+        data Main {
+        }
+
+        machine Main::main(&mut self) -> i32 {
             transition {
                 _ -> running()
             }
@@ -100,23 +103,29 @@ mod tests {
             .tokenize()
             .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-        assert_eq!(parsed.root_item_count(), 1);
+        assert_eq!(parsed.root_item_count(), 2);
     }
 
     #[test]
-    fn parses_main_entry_state_name_as_entry() {
+    fn parses_attached_main_state_name_as_main() {
         let source = r#"
-        machine main(&mut self) {}
+        data Main {
+        }
+
+        machine Main::main(&mut self) {}
         "#;
 
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let machine = match parsed.root_items().next().expect("root item") {
-            omega_syntax_trees::item::Item::Machine(machine) => machine,
-            _ => panic!("expected machine root item"),
-        };
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
         let state_handle = parsed
             .items
             .state_handles(machine.states)
@@ -124,23 +133,29 @@ mod tests {
             .copied()
             .expect("entry state");
         let state = parsed.items.state(state_handle);
-        assert_eq!(state.name.as_str(), "entry");
+        assert_eq!(state.name.as_str(), "main");
     }
 
     #[test]
     fn parses_self_parameter_with_dedicated_self_type() {
         let source = r#"
-        machine main(&mut self) {}
+        data Main {
+        }
+
+        machine Main::main(&mut self) {}
         "#;
 
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let machine = match parsed.root_items().next().expect("root item") {
-            omega_syntax_trees::item::Item::Machine(machine) => machine,
-            _ => panic!("expected machine root item"),
-        };
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
         let state = parsed.items.state(
             parsed
                 .items
@@ -170,7 +185,10 @@ mod tests {
     #[test]
     fn parses_self_expression_as_dedicated_node() {
         let source = r#"
-        machine main(&mut self) {
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
             self;
         }
         "#;
@@ -179,10 +197,13 @@ mod tests {
             .tokenize()
             .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let machine = match parsed.root_items().next().expect("root item") {
-            omega_syntax_trees::item::Item::Machine(machine) => machine,
-            _ => panic!("expected machine root item"),
-        };
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
         let state = parsed.items.state(
             parsed
                 .items
@@ -217,7 +238,11 @@ mod tests {
             level: i32;
         }
 
-        machine main(&mut self, player: &mut Player) {
+        data Main {
+            xp_table: Player;
+        }
+
+        machine Main::main(&mut self, player: &mut Player) {
             player.xp = max(0, player.xp - self.xp_required(player.level));
 
             state xp_required(&mut self, level: i32) -> i32 {

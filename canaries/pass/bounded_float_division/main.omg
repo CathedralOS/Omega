@@ -1,4 +1,7 @@
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self
     ) -> Real[finite, range<0.0, 1.0>] {
     

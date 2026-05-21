@@ -1,6 +1,10 @@
-machine main(
+data Main {
+}
+
+machine Main::main(
+    &mut self,
     room_count: u32[exact, range<1, 16>],
     index: usize
-    ) -> u32[exact, range<1, 16>] {
+) -> u32[exact, range<1, 16>] {
     max(room_count, index + 1)
 }

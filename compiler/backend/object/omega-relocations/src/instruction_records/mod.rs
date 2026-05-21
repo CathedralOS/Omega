@@ -124,10 +124,19 @@ pub(super) fn collect_instruction_relocations(
                 *right,
             );
         }
-        SelectedInstructionKind::WriteRuntimePointeeBinary { left, right, .. } => {
+        SelectedInstructionKind::WriteRuntimePointeeBinary {
+            field_byte_offset,
+            left,
+            right,
+            ..
+        } => {
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
-            let left_offset = context.selected_text_offset + 12;
+            let left_offset = context.selected_text_offset
+                + omega_instruction_selection::runtime_pointee_operand_start_width(
+                    input.target.architecture,
+                    *field_byte_offset,
+                );
             collect_runtime_value_operand_relocations(&mut context, left_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 input.target.architecture,

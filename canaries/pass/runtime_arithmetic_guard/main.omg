@@ -1,9 +1,9 @@
-data main {
+data Main {
     level: u32;
     xp: u32;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.level = 2;
     self.xp = 21;
 

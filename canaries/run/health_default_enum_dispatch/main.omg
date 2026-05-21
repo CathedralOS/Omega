@@ -8,13 +8,13 @@ enum Command {
     Invalid,
 }
 
-data main {
+data Main {
     console: Console;
     choice: Command;
     health: i32;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.health = 10;
 
     transition self.health == 0 {

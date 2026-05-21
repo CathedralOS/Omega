@@ -829,7 +829,17 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine
         states: program.machine_states(machine).len(),
     });
 
-    if machine.name.as_str() == "main"
+    if machine.name.as_str() == "Main"
+        && program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.name.as_str() == "main")
+    {
+        report.entry_points.insert(BackendEntryPoint {
+            machine: "Main".to_owned(),
+            state: "main".to_owned(),
+        });
+    } else if machine.name.as_str() == "main"
         && program
             .machine_states(machine)
             .iter()

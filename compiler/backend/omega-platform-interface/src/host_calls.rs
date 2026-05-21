@@ -227,12 +227,10 @@ mod tests {
                 }
             }
 
-            data main { game: Game; }
+            data Main { game: Game; }
 
-            machine main {
-                pub entry(&mut self) {
-                    self.game.entry();
-                }
+            machine Main::main(&mut self) {
+                self.game.entry();
             }
         "#;
 

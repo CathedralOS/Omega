@@ -11,12 +11,12 @@ machine Banner::entry(&mut self) {
     self.console.write_line("nested");
 }
 
-data main {
+data Main {
     banner: Banner;
     console: Console;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.banner.entry();
     self.console.write_line("continued");
     self.console.exit_process(0);

@@ -766,33 +766,36 @@ fn validate_type_constraints_node(
 }
 
 fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let main_symbol = program.symbols.find_child_by_name_and_kind(
-        program.symbols.root(),
-        "main",
-        SymbolKind::Machine,
-    );
-    let Some(main_machine) = main_symbol.and_then(|main_symbol| {
+    if has_entry_point(program, "Main", "main") || has_entry_point(program, "main", "entry") {
+        return;
+    }
+
+    diagnostics.push(Diagnostic::error("missing runtime entry point `Main::main`"));
+}
+
+fn has_entry_point(program: &TypedTrees, machine_name: &str, state_name: &str) -> bool {
+    let machine_symbol =
+        program
+            .symbols
+            .find_child_by_name_and_kind(program.symbols.root(), machine_name, SymbolKind::Machine);
+    let Some(machine) = machine_symbol.and_then(|machine_symbol| {
         program
             .machines()
             .iter()
-            .find(|machine| machine.symbol == main_symbol)
+            .find(|machine| machine.symbol == machine_symbol)
     }) else {
-        diagnostics.push(Diagnostic::error("missing machine main"));
-        return;
+        return false;
     };
 
-    let entry_symbol = program.symbols.find_child_by_name_and_kind(
-        main_machine.symbol,
-        "entry",
-        SymbolKind::State,
-    );
-    if !program
-        .machine_states(main_machine)
+    let state_symbol =
+        program
+            .symbols
+            .find_child_by_name_and_kind(machine.symbol, state_name, SymbolKind::State);
+
+    program
+        .machine_states(machine)
         .iter()
-        .any(|state| Some(state.symbol) == entry_symbol)
-    {
-        diagnostics.push(Diagnostic::error("machine main is missing state entry"));
-    }
+        .any(|state| Some(state.symbol) == state_symbol)
 }
 
 #[cfg(test)]
@@ -806,8 +809,10 @@ mod tests {
     #[test]
     fn validates_main_entry_surface_from_source_pipeline() {
         let source = r#"
-        machine main {
-            pub entry() {}
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
         }
         "#;
 
@@ -819,11 +824,11 @@ mod tests {
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
         assert_eq!(typed.machines().len(), 1);
-        assert_eq!(typed.machines()[0].name.as_str(), "main");
+        assert_eq!(typed.machines()[0].name.as_str(), "Main");
         assert_eq!(typed.machine_states(&typed.machines()[0]).len(), 1);
         assert_eq!(
             typed.machine_states(&typed.machines()[0])[0].name.as_str(),
-            "entry"
+            "main"
         );
         validate_program(&typed).expect("validation should succeed");
     }
@@ -831,10 +836,11 @@ mod tests {
     #[test]
     fn validates_local_state_call_arguments_from_source_pipeline() {
         let source = r#"
-        machine main {
-            pub entry(&mut self) {
-                take_non_negative(0);
-            }
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+            take_non_negative(0);
 
             state take_non_negative(
                 &mut self,
@@ -854,7 +860,7 @@ mod tests {
         let entry = typed
             .machine_states(&typed.machines()[0])
             .iter()
-            .find(|state| state.name.as_str() == "entry")
+            .find(|state| state.name.as_str() == "main")
             .expect("entry state");
         let call_argument_count = typed
             .statement_table

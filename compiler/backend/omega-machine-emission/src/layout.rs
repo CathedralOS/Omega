@@ -130,9 +130,13 @@ fn machine_instruction_width(
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. } => {
             runtime_text_buffer_materialize_width(input.target.architecture)
         }
-        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. } => {
-            runtime_text_buffer_materialize_width(input.target.architecture)
-        }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
+            field_byte_offset,
+            ..
+        } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_pointee_width(
+            input.target.architecture,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
             element_byte_size,
             field_byte_offset,
@@ -145,9 +149,13 @@ fn machine_instruction_width(
         SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. } => {
             runtime_text_stored_place_append_width(input.target.architecture)
         }
-        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. } => {
-            runtime_text_stored_place_append_width(input.target.architecture)
-        }
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+            field_byte_offset,
+            ..
+        } => omega_instruction_selection::runtime_text_stored_place_append_to_runtime_pointee_width(
+            input.target.architecture,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
             element_byte_size,
             field_byte_offset,
@@ -160,9 +168,15 @@ fn machine_instruction_width(
         SelectedInstructionKind::AppendRuntimeTextLiteral { literal, .. } => {
             runtime_text_literal_append_width(input.target.architecture, literal)
         }
-        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { literal, .. } => {
-            runtime_text_literal_append_width(input.target.architecture, literal)
-        }
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+            field_byte_offset,
+            literal,
+            ..
+        } => omega_instruction_selection::runtime_text_literal_append_to_runtime_pointee_width(
+            input.target.architecture,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
             element_byte_size,
             field_byte_offset,
@@ -180,9 +194,15 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeStorageInteger { byte_size, .. } => {
             runtime_machine_integer_write_width(input.target.architecture, *byte_size)
         }
-        SelectedInstructionKind::WriteRuntimePointeeInteger { byte_size, .. } => {
-            runtime_pointee_integer_write_width(input.target.architecture, *byte_size)
-        }
+        SelectedInstructionKind::WriteRuntimePointeeInteger {
+            field_byte_offset,
+            byte_size,
+            ..
+        } => runtime_pointee_integer_write_width(
+            input.target.architecture,
+            *field_byte_offset,
+            *byte_size,
+        ),
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             byte_size,
             left,
@@ -198,6 +218,7 @@ fn machine_instruction_width(
             *right,
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
+            field_byte_offset,
             byte_size,
             left,
             operator,
@@ -206,6 +227,7 @@ fn machine_instruction_width(
         } => runtime_pointee_binary_write_width(
             input.target.architecture,
             &input.instructions.runtime_value_operands,
+            *field_byte_offset,
             *byte_size,
             *left,
             *operator,
@@ -243,9 +265,15 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)
         }
-        SelectedInstructionKind::WriteRuntimePointeeString { byte_length, .. } => {
-            runtime_pointee_string_write_width(input.target.architecture, *byte_length)
-        }
+        SelectedInstructionKind::WriteRuntimePointeeString {
+            field_byte_offset,
+            byte_length,
+            ..
+        } => runtime_pointee_string_write_width(
+            input.target.architecture,
+            *field_byte_offset,
+            *byte_length,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             element_byte_size,
             field_byte_offset,

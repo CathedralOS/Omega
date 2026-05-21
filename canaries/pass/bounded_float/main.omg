@@ -1,10 +1,10 @@
 invariant speed_range = [finite, range<0.0f, 100000.0f>];
 
-data main {
+data Main {
     speed: f32[speed_range] = 0.0f;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     clamp_speed(self.speed);
 
 

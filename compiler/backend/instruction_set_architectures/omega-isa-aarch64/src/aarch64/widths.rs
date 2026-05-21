@@ -113,11 +113,26 @@ pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 72
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 76
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
+    field_byte_offset: usize,
+) -> usize {
+    84 + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_text_literal_append_width(literal: &str) -> usize {
-    40 + literal.len() * 8
+    36 + add_constant_width(literal.len()) + literal.len() * 8
+}
+
+pub fn runtime_text_literal_append_to_runtime_pointee_width(
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    40 + add_constant_width(field_byte_offset)
+        + add_constant_width(literal.len())
+        + literal.len() * 8
 }
 
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
@@ -125,7 +140,10 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     field_byte_offset: usize,
     literal: &str,
 ) -> usize {
-    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 32 + literal.len() * 8
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + 28
+        + add_constant_width(literal.len())
+        + literal.len() * 8
 }
 
 pub fn runtime_text_buffer_materialize_width() -> usize {
@@ -136,7 +154,13 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 48
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 52
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_pointee_width(
+    field_byte_offset: usize,
+) -> usize {
+    64 + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {
@@ -147,12 +171,14 @@ pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {
     }
 }
 
-pub fn runtime_pointee_integer_write_width(byte_size: usize) -> usize {
-    match byte_size {
+pub fn runtime_pointee_integer_write_width(field_byte_offset: usize, byte_size: usize) -> usize {
+    let width = match byte_size {
         1 | 4 => 20,
         8 => 32,
         _ => 0,
-    }
+    };
+
+    width + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_storage_binary_write_width(
@@ -170,15 +196,21 @@ pub fn runtime_storage_binary_write_width(
 
 pub fn runtime_pointee_binary_write_width(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
+    field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    12 + runtime_value_operand_width(runtime_value_operands, left)
+    12 + add_constant_width(field_byte_offset)
+        + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(operator)
         + runtime_result_write_width(byte_size)
+}
+
+pub fn runtime_pointee_operand_start_width(field_byte_offset: usize) -> usize {
+    12 + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_frame_indexed_integer_write_width(
@@ -210,8 +242,8 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
 
-pub fn runtime_pointee_string_write_width(byte_length: usize) -> usize {
-    28 + unsigned_immediate_width(byte_length as u64)
+pub fn runtime_pointee_string_write_width(field_byte_offset: usize, byte_length: usize) -> usize {
+    28 + add_constant_width(field_byte_offset) + unsigned_immediate_width(byte_length as u64)
 }
 
 pub fn runtime_frame_indexed_string_write_width(

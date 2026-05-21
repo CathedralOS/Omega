@@ -4,7 +4,7 @@ This sample explores Omega as a console program rather than a windowed game.
 
 What it is trying to prove:
 
-- `machine main(&mut self)` can drive a terminal application
+- `data Main` plus `machine Main::main(&mut self)` can drive a terminal application
 - console input/output is isolated behind a platform machine
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic

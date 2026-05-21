@@ -2,7 +2,10 @@ data Room {
     exit_count: u32[exact, range<0, 4>];
 }
 
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     room: Room
 ) {

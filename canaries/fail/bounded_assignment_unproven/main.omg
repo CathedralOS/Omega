@@ -1,7 +1,7 @@
-data main {
+data Main {
     health: i32[range<1, 100>] = 100;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.health = 500;
 }

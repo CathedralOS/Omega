@@ -11,13 +11,13 @@ platform Console {
     entry exit_process(return_code: i32);
 }
 
-data main {
+data Main {
     console: Console;
     room: Room;
     line: Line;
 }
 
-machine main(&mut self) -> i32 {
+machine Main::main(&mut self) -> i32 {
     self.room.label = "A1";
     self.line.text = "Room " + self.room.label;
 

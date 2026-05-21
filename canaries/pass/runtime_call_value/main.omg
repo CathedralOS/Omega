@@ -1,4 +1,7 @@
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     label: &mut String
 ) {
@@ -6,7 +9,7 @@ machine main(
     
 }
 
-machine main::name(
+machine Main::name(
     &mut self
     ) -> String {
     -> "hello";

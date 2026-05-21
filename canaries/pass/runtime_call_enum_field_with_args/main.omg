@@ -7,7 +7,10 @@ data Reward {
     item: ItemKind
 }
 
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     depth: u32,
     reward: &mut Reward
@@ -16,7 +19,7 @@ machine main(
     
 }
 
-machine main::pick(
+machine Main::pick(
     &mut self,
     depth: u32
     ) -> ItemKind {

@@ -1,4 +1,7 @@
-machine main(
+data Main {
+}
+
+machine Main::main(
     &mut self,
     branch_id: u32[exact, non_negative]
 ) {

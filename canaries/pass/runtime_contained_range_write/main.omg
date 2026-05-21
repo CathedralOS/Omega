@@ -10,7 +10,7 @@ data Reward {
     gold: i32;
 }
 
-data main {
+data Main {
     rng: Random;
 }
 
@@ -32,7 +32,7 @@ machine Random::range(
     -> raw % exclusive_max;
 }
 
-machine main(
+machine Main::main(
     &mut self,
     random: &mut RandomState,
     reward: &mut Reward

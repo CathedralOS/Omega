@@ -61,18 +61,20 @@ This is highly experimental and will need very careful constraints around safety
 
 ## Draft mental model
 
-An Omega program is expected to revolve around machines that contain owned data and explicit states.
+An Omega program is expected to revolve around data-owned machines and explicit states.
 
 Very early sketch:
 
 ```omega
-machine main {
-    contains log: Logger;
+data Main {
+    log: Logger;
+}
 
-    state entry {
-        log.flush();
+machine Main::main(&mut self) {
+    self.log.flush();
 
-        -> self;
+    transition {
+        _ -> main()
     }
 }
 ```
@@ -80,10 +82,10 @@ machine main {
 This example suggests a few important ideas:
 
 - `machine` is a top-level construct
-- `contains` declares owned machine data
-- `state` declares executable machine states
-- `state entry` is the implicit entry point for a machine named `main`
-- trailing `-> target` lines declare control-flow edges out of a state
+- `data` declares owned storage
+- `machine Type::name` declares executable behavior for that data
+- `Main::main` is the process entry point
+- `transition` declares control-flow edges inside a machine graph
 
 ## Early semantic direction
 

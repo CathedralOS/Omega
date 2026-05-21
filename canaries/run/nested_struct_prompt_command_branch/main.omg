@@ -49,7 +49,7 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
     
 }
 
-data main {
+data Main {
     console: Console;
     line: ConsoleLine;
     parser: Parser;
@@ -57,7 +57,7 @@ data main {
     health: i32 = 10;
 }
 
-machine main(&mut self) {
+machine Main::main(&mut self) {
     self.health = 10;
 
     transition self.health == 0 {

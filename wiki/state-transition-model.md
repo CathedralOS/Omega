@@ -6,7 +6,7 @@ The short version:
 
 - states execute code
 - transitions are graph edges at the end of state bodies
-- `state entry` is the implicit entry point for `machine main`
+- `Main::main` is the process entry point
 - calls execute another state or platform boundary without changing the current control-flow edge
 - events and guards decide which edge is taken
 - ordered state-local transitions replace inline branching
@@ -66,14 +66,18 @@ The trailing transition list becomes the branch table.
 
 Owns data, child machines, states, and transitions.
 
-For a machine named `main`, `state entry` is the entry point. The OS process result should be modeled as owned data, such as `owns return_code: i32`, and updated through explicit mutation rather than returned from the state.
+For an executable program, `machine Main::main(&mut self)` is the entry point. The OS process result should be modeled as data owned by `Main`, such as `return_code: i32`, and updated through explicit mutation or returned by the terminal machine path.
 
-There is no `return` keyword in `state entry`. When a program exits, the root machine reaches a terminal state and performs an explicit platform handoff:
+There is no `return` keyword. When a program exits, the root machine reaches a terminal state and performs an explicit platform handoff or yields the machine return value:
 
 ```omega
+data Main {
+    return_code: i32;
+}
+
 state shutdown {
-    return_code = 0;
-    platform.exit_process(return_code);
+    self.return_code = 0;
+    platform.exit_process(self.return_code);
 }
 ```
 
@@ -194,46 +198,53 @@ The important part is that the state can become dormant, and the transition edge
 An HTTP request is a good example of why state/transition separation helps.
 
 ```omega
-machine FetchUser {
-    contains http: HttpPlatform;
+data FetchUser {
+    http: HttpPlatform;
+    request: HttpRequest;
+    retry_count: u32;
+    retry_delay_ms: u32;
+}
 
-    owns request: HttpRequest;
-    owns retry_count: u32 = 0;
-    owns retry_delay_ms: u32 = 100;
+machine FetchUser::run(&mut self) {
+    self.http.start_request(&mut self.request, "/user");
 
-    state entry {
-        http.start_request(mut request, "/user");
-
-        -> waiting;
+    transition {
+        _ -> waiting()
     }
 
-    state waiting {
-        http.poll_request(mut request);
+    state waiting(&mut self) {
+        self.http.poll_request(&mut self.request);
 
-        -> success when request.status == HttpStatus::Ok;
-        -> retry when request.failed && retry_count < 3;
-        -> failed when request.failed && retry_count >= 3;
-        -> waiting;
+        transition {
+            self.request.status == HttpStatus::Ok -> success()
+            self.request.failed && self.retry_count < 3 -> retry()
+            self.request.failed && self.retry_count >= 3 -> failed()
+            _ -> waiting()
+        }
     }
 
-    state retry {
-        retry_count = retry_count + 1;
-        retry_delay_ms = retry_delay_ms * 2;
+    state retry(&mut self) {
+        self.retry_count = self.retry_count + 1;
+        self.retry_delay_ms = self.retry_delay_ms * 2;
 
-        -> backing_off;
+        transition {
+            _ -> backing_off()
+        }
     }
 
-    state backing_off {
-        http.sleep(retry_delay_ms);
+    state backing_off(&mut self) {
+        self.http.sleep(self.retry_delay_ms);
 
-        -> entry;
+        transition {
+            _ -> run()
+        }
     }
 
-    state success {
+    state success(&mut self) {
         // Terminal success state.
     }
 
-    state failed {
+    state failed(&mut self) {
         // Terminal failure state.
     }
 }
