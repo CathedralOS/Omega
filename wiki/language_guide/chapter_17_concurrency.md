@@ -1,4 +1,4 @@
-# Chapter 16: Concurrency
+# Chapter 17: Concurrency
 
 Concurrency starts with one primitive idea:
 

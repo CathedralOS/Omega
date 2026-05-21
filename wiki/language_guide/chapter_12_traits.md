@@ -1,4 +1,4 @@
-# Chapter 11: Traits And Runtime Dispatch
+# Chapter 12: Traits And Runtime Dispatch
 
 Omega traits should describe required machine surfaces.
 
