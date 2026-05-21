@@ -184,6 +184,7 @@ impl SyntaxTrees {
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
         Machine {
             name: machine.name.clone(),
+            satisfies: self.copy_item_identifier_span(other, machine.satisfies),
             states: self.copy_state_handle_span(other, machine.states),
         }
     }
@@ -916,6 +917,7 @@ mod tests {
 
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("Main"),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
         }));
 
@@ -942,6 +944,7 @@ mod tests {
         let state = file.items.append_state_handle(state);
         file.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
@@ -989,6 +992,7 @@ mod tests {
         let state = file.items.append_state_handle(state);
         file.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
@@ -1084,6 +1088,7 @@ mod tests {
         let state = file.items.append_state_handle(state);
         file.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 

@@ -15,6 +15,7 @@ pub(crate) fn lower_machine(
         name: crate::name::lower_name(&machine.name),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
+        satisfies: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
     };
 
@@ -54,6 +55,19 @@ pub(crate) fn lower_machine(
         lowerer
             .typed_trees
             .push_machine_owned_data(&mut typed_machine, owned_data);
+    }
+
+    for conformance in lowerer
+        .source_trees
+        .machine_trait_conformances(machine.satisfies)
+    {
+        lowerer.typed_trees.push_machine_trait_conformance(
+            &mut typed_machine,
+            typed::machine::TraitConformance {
+                symbol: conformance.symbol,
+                name: crate::name::lower_name(&conformance.name),
+            },
+        );
     }
 
     for state in lowerer.source_trees.machine_state_handles(machine.states) {

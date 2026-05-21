@@ -33,6 +33,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub machine_contained_objects: Arena<crate::machine::ContainedObject>,
     pub machine_owned_data: Arena<crate::machine::OwnedData>,
+    pub machine_trait_conformances: Arena<crate::machine::TraitConformance>,
     pub machine_state_handles: Arena<Handle<state::State>>,
     pub machine_states: Arena<state::State>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -131,6 +132,16 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .machine_owned_data
+            .span_or_empty(span)
+    }
+
+    pub fn machine_trait_conformances(
+        &self,
+        span: HandleSpan<crate::machine::TraitConformance>,
+    ) -> &[crate::machine::TraitConformance] {
+        self.tables
+            .declarations
+            .machine_trait_conformances
             .span_or_empty(span)
     }
 

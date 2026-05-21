@@ -1,0 +1,1 @@
+machine `Sprite` satisfies unknown trait `Drawable`

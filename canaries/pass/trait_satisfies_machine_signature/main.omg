@@ -1,0 +1,24 @@
+trait Drawable {
+    machine draw(&self, canvas: &mut Canvas);
+}
+
+data Canvas {
+    width: i32;
+}
+
+data Sprite {
+    id: i32;
+}
+
+data Main {
+    sprite: Sprite;
+    canvas: Canvas;
+}
+
+machine Sprite::draw(&self, canvas: &mut Canvas) satisfies Drawable {
+    canvas.width = 80;
+}
+
+machine Main::main(&mut self) {
+    self.sprite.draw(&mut self.canvas);
+}

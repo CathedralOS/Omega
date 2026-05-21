@@ -1417,6 +1417,7 @@ mod tests {
             name: "RoomEvents".into(),
             contains: Default::default(),
             owned_data: Default::default(),
+            satisfies: Default::default(),
             states: Default::default(),
         };
         let mut program = Program::default();
@@ -1632,6 +1633,7 @@ mod tests {
             name: "main".into(),
             contains: Default::default(),
             owned_data: Default::default(),
+            satisfies: Default::default(),
             states: Default::default(),
         };
         let program = Program::default();

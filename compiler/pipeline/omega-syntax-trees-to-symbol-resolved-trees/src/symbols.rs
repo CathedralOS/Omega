@@ -385,6 +385,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     let data_members = &declarations.data_members;
     let machine_contained_objects = &mut declarations.machine_contained_objects;
     let machine_owned_data = &mut declarations.machine_owned_data;
+    let machine_trait_conformances = &mut declarations.machine_trait_conformances;
     let machine_state_handles = &declarations.machine_state_handles;
     let machine_states = &mut declarations.machine_states;
     let state_parameters = &mut declarations.state_parameters;
@@ -440,6 +441,11 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                     owned_data.initial_value,
                 );
             }
+        }
+
+        for conformance in machine_trait_conformances.span_mut_or_empty(machine.satisfies) {
+            conformance.symbol =
+                top_level_symbol(symbols, SymbolKind::Trait, conformance.name.as_str());
         }
 
         for state in machine_state_handles
@@ -653,6 +659,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         let omega_symbol_resolved_trees::machine::MachineStorage {
             contains,
             owned_data,
+            satisfies: _,
             states,
         } = &mut machine.storage;
         let machine_scope = MachineScope {

@@ -1,0 +1,16 @@
+trait Drawable {
+    machine draw(&self);
+}
+
+data Sprite {
+}
+
+data Main {
+    sprite: Sprite;
+}
+
+machine Sprite::paint(&self) satisfies Drawable {
+}
+
+machine Main::main(&mut self) {
+}

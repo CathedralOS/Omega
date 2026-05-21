@@ -26,6 +26,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
     })?;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
+    let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
+    input = next;
     let (name, entry_name) = split_machine_path(syntax_trees, path);
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -97,7 +99,53 @@ pub(super) fn parse_machine<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(state_start, state_count)
     };
-    Ok((Machine { name, states }, input))
+    Ok((
+        Machine {
+            name,
+            satisfies,
+            states,
+        },
+        input,
+    ))
+}
+
+fn parse_satisfies_traits<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
+    if !input.at_contextual("satisfies") {
+        return Ok((HandleSpan::empty(), input));
+    }
+
+    input = input.take_contextual("satisfies")?;
+    let mut trait_start = Handle::invalid();
+    let mut trait_count = 0u32;
+
+    loop {
+        let (trait_name, rest) = input.take_identifier()?;
+        let handle = syntax_trees.items.append_identifier_path_member(trait_name);
+        if trait_count == 0 {
+            trait_start = handle;
+        }
+        trait_count = trait_count
+            .checked_add(1)
+            .expect("machine satisfies span count overflow");
+        input = rest;
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+
+        break;
+    }
+
+    let satisfies = if trait_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(trait_start, trait_count)
+    };
+    Ok((satisfies, input))
 }
 
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
@@ -157,7 +205,12 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
         if input.at_punctuation(PunctuationKind::Arrow) {
             let next = input.take_punctuation(PunctuationKind::Arrow, "->")?;
             let (statement, rest) = parse_transition_statement_handle(syntax_trees, next)?;
-            append_statement_handle(syntax_trees, &mut statement_start, &mut statement_count, statement);
+            append_statement_handle(
+                syntax_trees,
+                &mut statement_start,
+                &mut statement_count,
+                statement,
+            );
             input = rest;
         } else if input.at_keyword(KeywordKind::Transition) || input.at_keyword(KeywordKind::Match)
         {
@@ -178,7 +231,12 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
             input = rest;
         } else {
             let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
-            append_statement_handle(syntax_trees, &mut statement_start, &mut statement_count, statement);
+            append_statement_handle(
+                syntax_trees,
+                &mut statement_start,
+                &mut statement_count,
+                statement,
+            );
             input = rest;
         }
     }

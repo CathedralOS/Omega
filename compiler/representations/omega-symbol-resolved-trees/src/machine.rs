@@ -17,6 +17,7 @@ pub struct Machine {
 pub struct MachineStorage {
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
+    pub satisfies: HandleSpan<TraitConformance>,
     pub states: HandleSpan<Handle<State>>,
 }
 
@@ -48,6 +49,21 @@ pub struct OwnedData {
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
     pub initial_value: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitConformance {
+    pub symbol: SymbolHandle,
+    pub name: DiagnosticName,
+}
+
+impl Default for TraitConformance {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::default(),
+        }
+    }
 }
 
 impl Default for OwnedData {

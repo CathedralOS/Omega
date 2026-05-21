@@ -2,11 +2,13 @@ mod symbols;
 
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolKind;
+use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::signature::StateParameter;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::signature::{StateParameter, StateSignature};
+use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
 };
@@ -29,6 +31,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
         validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
+        validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
         for state in program.machine_states(machine) {
             validate_local_data_names(
@@ -789,14 +792,17 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
         return;
     }
 
-    diagnostics.push(Diagnostic::error("missing runtime entry point `Main::main`"));
+    diagnostics.push(Diagnostic::error(
+        "missing runtime entry point `Main::main`",
+    ));
 }
 
 fn has_entry_point(program: &TypedTrees, machine_name: &str, state_name: &str) -> bool {
-    let machine_symbol =
-        program
-            .symbols
-            .find_child_by_name_and_kind(program.symbols.root(), machine_name, SymbolKind::Machine);
+    let machine_symbol = program.symbols.find_child_by_name_and_kind(
+        program.symbols.root(),
+        machine_name,
+        SymbolKind::Machine,
+    );
     let Some(machine) = machine_symbol.and_then(|machine_symbol| {
         program
             .machines()
@@ -923,7 +929,7 @@ fn validate_contained_types(
 
 fn validate_owned_data(
     program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: &Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -952,6 +958,186 @@ fn validate_owned_data(
                 },
             );
         }
+    }
+}
+
+fn validate_machine_trait_conformances(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for conformance in program.machine_trait_conformances(machine) {
+        let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies unknown trait `{}`",
+                machine.name, conformance.name
+            )));
+            continue;
+        };
+
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            let Some(state) = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.name == requirement.name)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` satisfies trait `{}` but is missing machine `{}`",
+                    machine.name, trait_definition.name, requirement.name
+                )));
+                continue;
+            };
+
+            validate_machine_state_satisfies_trait_signature(
+                program,
+                machine,
+                state,
+                trait_definition.name.as_str(),
+                requirement,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn trait_definition_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::trait_definition::TraitDefinition> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    program
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == symbol)
+}
+
+fn validate_machine_state_satisfies_trait_signature(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    trait_name: &str,
+    requirement: &StateSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let actual_parameters = program.state_parameters(state);
+    let required_parameters = program.state_signature_parameters(requirement);
+    if actual_parameters.len() != required_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: expected {} parameter(s), got {}",
+            machine.name,
+            state.name,
+            trait_name,
+            requirement.name,
+            required_parameters.len(),
+            actual_parameters.len()
+        )));
+        return;
+    }
+
+    for (index, (actual, required)) in actual_parameters
+        .iter()
+        .zip(required_parameters.iter())
+        .enumerate()
+    {
+        validate_trait_parameter_match(
+            program,
+            machine,
+            state,
+            trait_name,
+            requirement,
+            index,
+            actual,
+            required,
+            diagnostics,
+        );
+    }
+
+    if !type_references_match(program, state.return_type, requirement.return_type) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: expected return `{}`, got `{}`",
+            machine.name,
+            state.name,
+            trait_name,
+            requirement.name,
+            type_reference_label(program, requirement.return_type),
+            type_reference_label(program, state.return_type)
+        )));
+    }
+}
+
+fn validate_trait_parameter_match(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    trait_name: &str,
+    requirement: &StateSignature,
+    index: usize,
+    actual: &StateParameter,
+    required: &StateParameter,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if actual.is_self != required.is_self || actual.is_mutable != required.is_mutable {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: expected `{}`, got `{}`",
+            machine.name,
+            state.name,
+            trait_name,
+            requirement.name,
+            index,
+            parameter_shape_label(program, required),
+            parameter_shape_label(program, actual)
+        )));
+        return;
+    }
+
+    if !type_references_match(program, actual.type_reference, required.type_reference) {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter `{}`: expected `{}`, got `{}`",
+            machine.name,
+            state.name,
+            trait_name,
+            requirement.name,
+            required.name,
+            type_reference_label(program, required.type_reference),
+            type_reference_label(program, actual.type_reference)
+        )));
+    }
+}
+
+fn parameter_shape_label(program: &TypedTrees, parameter: &StateParameter) -> String {
+    let qualifier = if parameter.is_mutable { "mut " } else { "" };
+    if parameter.is_self {
+        format!("&{qualifier}self")
+    } else {
+        format!(
+            "{}: {}",
+            parameter.name,
+            type_reference_label(program, parameter.type_reference)
+        )
+    }
+}
+
+fn type_references_match(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+) -> bool {
+    if !actual.is_valid() || !required.is_valid() {
+        return actual.is_valid() == required.is_valid();
+    }
+
+    program.display_type_reference_with_constraints(actual)
+        == program.display_type_reference_with_constraints(required)
+}
+
+fn type_reference_label(program: &TypedTrees, type_reference: TypeReferenceHandle) -> String {
+    if type_reference.is_valid() {
+        program.display_type_reference_with_constraints(type_reference)
+    } else {
+        "()".to_owned()
     }
 }
 
