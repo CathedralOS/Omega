@@ -5,7 +5,7 @@ This page tracks design pressure that is not fully nailed down yet.
 ## Current Answers
 
 - `const` parameters are compile-time values, proof constants, or both. Omega should use every fact it can soundly know.
-- `&mut self` is the working spelling for machine member functions and states that need machine state. The goal is not to be different for the sake of being different.
+- `&mut self` is the working spelling for attached machines and states that need machine state. The goal is not to be different for the sake of being different.
 - `machine` is the callable boundary. Calling a machine creates the callable activation; transitioning to an internal `state` does not.
 - States are graph labels inside the current machine. They may take arguments and participate in return-value compatibility, but they are reached by `transition`, not by normal call syntax.
 - Terminal value completion is useful: a final value completes the active machine with a value, while `transition { _ -> state_name(args) }` jumps to an internal state.

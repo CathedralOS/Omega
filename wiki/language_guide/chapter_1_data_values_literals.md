@@ -1,4 +1,4 @@
-# Chapter 1: Data And Values
+# Chapter 1: Data, Values, And Literals
 
 Omega starts with explicit data shapes and explicit values.
 

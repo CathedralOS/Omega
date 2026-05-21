@@ -1,4 +1,4 @@
-# Chapter 14: Host Libraries And Trust Boundaries
+# Chapter 18: Host Libraries And Trust Boundaries
 
 Omega should not pretend the trusted root does not exist.
 
