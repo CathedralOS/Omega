@@ -204,6 +204,7 @@ impl SyntaxTrees {
         TraitDefinition {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
+            requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
         }
     }

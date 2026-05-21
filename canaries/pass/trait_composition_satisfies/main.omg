@@ -1,0 +1,44 @@
+trait Resettable {
+    machine reset(&mut self);
+}
+
+trait Drawable {
+    machine draw(&self, canvas: &mut Canvas);
+}
+
+trait ManagedDrawable {
+    requires Resettable;
+    requires Drawable;
+    machine update(&mut self);
+}
+
+data Canvas {
+    width: i32;
+}
+
+data Sprite {
+    value: i32;
+}
+
+data Main {
+    sprite: Sprite;
+    canvas: Canvas;
+}
+
+machine Sprite::reset(&mut self) {
+    self.value = 0;
+}
+
+machine Sprite::draw(&self, canvas: &mut Canvas) {
+    canvas.width = 80;
+}
+
+machine Sprite::update(&mut self) satisfies ManagedDrawable {
+    self.value = 1;
+}
+
+machine Main::main(&mut self) {
+    self.sprite.reset();
+    self.sprite.draw(&mut self.canvas);
+    self.sprite.update();
+}

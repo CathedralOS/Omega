@@ -287,6 +287,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .edge.contained_object { stroke: #ff9f7f; opacity: 0.72; }
 .edge.implements_data { stroke: #b089f0; opacity: 0.82; stroke-dasharray: 10 5; }
 .edge.satisfies_trait { stroke: #4dd4c6; opacity: 0.82; stroke-dasharray: 8 3; }
+.edge.requires_trait { stroke: #ffcf5c; opacity: 0.82; stroke-dasharray: 3 3; }
 .edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
 .node rect {
   fill: #151c26;

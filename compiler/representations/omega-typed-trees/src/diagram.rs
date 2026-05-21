@@ -34,7 +34,7 @@ impl PhaseDiagram for TypedTrees {
             let trait_id = diagram.node(
                 format!("trait_{trait_index}"),
                 format!(
-                    "{} {}\nsymbol: {}\nmachines: {}",
+                    "{} {}\nsymbol: {}\nrequires: {}\nmachines: {}",
                     if trait_definition.is_boundary {
                         "boundary trait"
                     } else {
@@ -42,6 +42,7 @@ impl PhaseDiagram for TypedTrees {
                     },
                     trait_definition.name.as_str(),
                     symbol_label(trait_definition.symbol),
+                    trait_definition.requires.len(),
                     trait_definition.machines.len()
                 ),
                 "trait",
@@ -58,6 +59,20 @@ impl PhaseDiagram for TypedTrees {
                 self,
                 &trait_id,
                 trait_index,
+                trait_definition,
+            );
+        }
+
+        for (trait_index, trait_definition) in self.traits().iter().enumerate() {
+            let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
+                continue;
+            };
+
+            append_trait_relationships(
+                &mut diagram,
+                self,
+                &trait_nodes,
+                trait_id,
                 trait_definition,
             );
         }
@@ -129,6 +144,20 @@ impl PhaseDiagram for TypedTrees {
         }
 
         diagram.finish()
+    }
+}
+
+fn append_trait_relationships(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &TypedTrees,
+    trait_nodes: &[(SymbolHandle, String, String)],
+    trait_id: &str,
+    trait_definition: &TraitDefinition,
+) {
+    for requirement in program.trait_requirements(trait_definition) {
+        if let Some(required_trait_id) = trait_id_for_symbol(trait_nodes, requirement.symbol) {
+            diagram.edge(trait_id, required_trait_id, "requires_trait");
+        }
     }
 }
 

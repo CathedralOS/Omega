@@ -529,6 +529,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     });
 
     let declarations = &mut program.tables.declarations;
+    let trait_requirements = &mut declarations.trait_requirements;
     let trait_machine_signatures = &mut declarations.trait_machine_signatures;
     let state_parameters = &mut declarations.state_parameters;
     let child_type_references = &mut declarations.child_type_references;
@@ -537,6 +538,11 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             next_child_of_kind(&mut root_children, symbols, SymbolKind::Trait);
         let trait_symbol = trait_definition.symbol;
         let mut trait_children = symbols.child_handles(trait_symbol).into_iter().flatten();
+
+        for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
+            requirement.symbol =
+                top_level_symbol(symbols, SymbolKind::Trait, requirement.name.as_str());
+        }
 
         for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines) {
             machine.symbol = next_child_of_kind(&mut trait_children, symbols, SymbolKind::State);

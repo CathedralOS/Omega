@@ -8,6 +8,7 @@ pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
     pub name: ProgramName,
+    pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
 }
 
@@ -17,7 +18,23 @@ impl Default for TraitDefinition {
             symbol: SymbolHandle::invalid(),
             is_boundary: false,
             name: ProgramName::default(),
+            requires: HandleSpan::empty(),
             machines: HandleSpan::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitRequirement {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+}
+
+impl Default for TraitRequirement {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
         }
     }
 }
