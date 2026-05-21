@@ -4,12 +4,12 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::invariant::parse_invariant_definition;
 use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
-use crate::parser::platform::parse_platform;
+use crate::parser::platform::{parse_boundary_trait, parse_platform};
 use crate::parser::target::parse_target_definition;
 use crate::parser::trust::parse_trust_definition;
 use crate::parser::use_item::parse_use_item;
-use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::Item;
+use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::KeywordKind;
 
 pub(super) fn parse_item<'tokens, 'source>(
@@ -76,6 +76,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Platform(item), rest));
     }
 
+    if input.at_contextual("boundary") {
+        let input = input.take_contextual("boundary")?;
+        let (item, rest) = parse_boundary_trait(syntax_trees, input)?;
+        return Ok((Item::Platform(item), rest));
+    }
+
     Err(input.expected_one_of_here(&[
         "`use`",
         "`data`",
@@ -87,5 +93,6 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`invariant`",
         "`library`",
         "`platform`",
+        "`boundary trait`",
     ]))
 }

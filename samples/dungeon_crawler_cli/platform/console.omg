@@ -1,8 +1,19 @@
 use platform::console_types;
 
-platform ConsolePlatform {
-    entry write(text: String);
-    entry write_line(text: String);
-    entry read_line(out_line: &mut ConsoleLine);
-    entry exit_process(return_code: i32);
+boundary trait Console {
+    machine write(text: String)
+    effects
+        stdout_io;
+
+    machine write_line(text: String)
+    effects
+        stdout_io;
+
+    machine read_line(out: &mut ConsoleLine)
+    effects
+        stdin_io;
+
+    machine exit_process(code: i32)
+    effects
+        process_exit;
 }

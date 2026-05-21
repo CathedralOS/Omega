@@ -9,70 +9,102 @@ targets may jump through firmware tables. The shared concept is not "Unix
 syscall." The shared concept is an imported boundary whose implementation is
 not Omega code.
 
-## Platform Entries
+## Boundary Traits
 
-A platform declaration names imported entries whose implementation is outside
-Omega code.
+A boundary trait names callable behavior whose implementation crosses out of
+proved Omega code. It is still a trait: callers see machine signatures,
+requirements, guarantees, and effects. What makes it a boundary is that the
+implementation is accepted through a host package, target binding, firmware
+surface, dynamic loader, or other trusted edge.
 
 ```omega
-platform Kernel32 {
-    entry ReadFile(
+boundary trait WindowsFile {
+    machine read(
         handle: HANDLE<[read]>,
         buffer: &mut [u8, [writable, initialized]],
         bytes_to_read: usize,
         bytes_read: &mut usize
     ) -> bool
-        trust omega_windows_kernel32_read_file
+    effects
+        filesystem_io;
 }
 ```
 
 Working interpretation:
 
-- `platform` means the implementation lives outside Omega code.
-- `Kernel32` is the Omega namespace for references and reports.
-- `entry` names an imported callable boundary.
-- `trust` names the contract root that allows Omega to use the imported entry's
-  guarantees.
-- Target metadata such as library artifact, symbol, and calling convention can
-  be attached to entries or supplied by target host packages.
+- `boundary trait` means the machines describe behavior outside proved Omega
+  code.
+- Each `machine` is a callable boundary surface.
+- `requires` clauses are obligations the caller must prove before crossing the
+  boundary.
+- `ensures` clauses are guarantees accepted from the boundary implementation.
+- `effects` clauses are auditable capabilities such as filesystem, process,
+  stdin, stdout, network, thread, clock, or device access.
+- Build policy decides which boundary providers are allowed for a target.
 
-The dungeon crawler uses the same shape for console capabilities:
+Console capability should use the same shape:
 
 ```omega
-platform ConsolePlatform {
-    entry write(text: String);
-    entry write_line(text: String);
-    entry read_line(out_line: &mut ConsoleLine);
-    entry exit_process(return_code: i32);
+boundary trait Console {
+    machine write(text: String)
+    effects
+        stdout_io;
+
+    machine write_line(text: String)
+    effects
+        stdout_io;
+
+    machine read_line(out: &mut ConsoleLine)
+    effects
+        stdin_io;
+
+    machine exit_process(code: i32)
+    effects
+        process_exit;
 }
 ```
 
-Entry-level metadata can describe the native ABI where the platform needs it:
+Domain requirements stay normal proof language. A filesystem boundary should
+not invent special "initialized" words when a domain is what it means:
 
 ```omega
-platform User32 {
-    entry MessageBoxW(...) -> i32
-        library "User32.dll"
-        calling_convention winapi
-        symbol "MessageBoxW"
-        trust omega_windows_user32_message_box
+domain NonEmpty for String {
+    length > 0
+}
+
+boundary trait Filesystem {
+    machine open(path: String)
+    requires
+        path in String::NonEmpty
+    effects
+        filesystem_io;
 }
 ```
 
-The compiler should understand platforms, entries, libraries, symbols, calling
-conventions, trust roots, and target image imports generically. It should not
-special-case every Windows, Darwin, Linux, or SDK API.
+Target metadata such as library artifact, symbol, syscall number, calling
+convention, and trust root belongs in toolchain host packages or explicitly
+whitelisted boundary providers. Ordinary application libraries should not be
+able to self-declare new host boundaries silently. Pulling in a boundary with
+`filesystem_io`, `stdout_io`, or `process_exit` is visible to the build, and a
+restricted build can reject it.
 
-## Syscall Tables
+The compiler should understand boundary traits, provider packages, libraries,
+symbols, calling conventions, trust roots, and target image imports
+generically. It should not special-case every Windows, Darwin, Linux, or SDK
+API.
+
+## Host Providers
 
 Some targets do not need a named user-mode library for the lowest boundary.
-Linux can expose a target syscall surface directly.
+Linux can expose a target syscall surface directly. That mapping is provider
+metadata for a boundary trait, not a different user-facing callable concept.
 
 ```omega
-syscalls linux_aarch64 {
-    entry write(fd: i32, buffer: &[u8, [initialized]], count: usize) -> SyscallResult<usize>
-        number 64
-        trust omega_linux_write
+host linux_aarch64 provides Console {
+    write_line -> syscall 64;
+    write -> syscall 64;
+    read_line -> syscall 63;
+    exit_process -> syscall 94;
 }
 ```
 
@@ -82,9 +114,9 @@ This is the same proof shape as a library import:
 - The imported boundary is trusted to satisfy its declared guarantees.
 - The build artifact records which trust roots were used.
 
-The spelling of `syscalls` is still less settled than `library`; the important
-design point is that raw syscall tables are target surfaces, not normal Omega
-states.
+The exact provider syntax is provisional. The important design point is that
+raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
+are provider details for boundary traits, not normal Omega machines.
 
 ## Invariant Parameters
 

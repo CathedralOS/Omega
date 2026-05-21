@@ -6,7 +6,7 @@ use rooms::map;
 use view::game_view;
 
 data Game {
-    console: ConsolePlatform;
+    console: Console;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
