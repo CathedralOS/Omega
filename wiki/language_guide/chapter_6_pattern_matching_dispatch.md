@@ -74,9 +74,9 @@ A guarded jump is still a transition.
 state read_command(&mut self) {
     self.console.read_line(&mut self.input);
 
-    -> finished() when self.input.text == "";
+    -> finished() when self.input == "";
 
-    transition self.input.text {
+    transition self.input {
         "quit" -> finished()
         "look" -> look()
         _ -> invalid_command()

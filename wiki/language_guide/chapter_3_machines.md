@@ -94,9 +94,9 @@ graph eventually produces.
 ```omega
 machine Parser::resolve(
     &mut self,
-    line: &ConsoleLine
+    line: &String
 ) -> Command {
-    transition line.text {
+    transition line {
         "quit" -> Command::Quit
         "look" -> Command::Look
         _ -> Command::Invalid
