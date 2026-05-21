@@ -38,7 +38,7 @@ Likely obligations:
 - Every typed transition satisfies return value compatibility.
 - Every transition dispatch arm establishes the assumptions needed by its target.
 - Every `relax` scope re-establishes all relaxed invariants before exit.
-- Every transition leaving a `relax` scope either re-establishes the invariant or carries an explicit proof obligation into a compatible target.
+- No transition occurs while a relax scope is active.
 - Every generic invariant is instantiated with compile-time or proof-visible facts.
 - Every float invariant is checked as a semantic fact, not treated as an optimization permission.
 - Every owned value that dies on a transition edge is cleaned up before the

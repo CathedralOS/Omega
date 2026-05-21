@@ -35,7 +35,8 @@ This page tracks design pressure that is not fully nailed down yet.
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond
   explicit `when` clauses and executable domain bodies?
-- Can relax obligations cross arbitrary transitions, or only transitions to states that opt in?
+- Should relax ever permit graph-edge proof debt, or should it remain strictly
+  lexical and non-transitioning?
 - How explicit should weakened machine invariants be in target state signatures?
 - Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?
 - What syntax should Omega use for float optimization permissions, separate from float invariants?
