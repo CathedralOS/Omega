@@ -2,49 +2,25 @@
 
 Compile-time proofs are not a second programming language.
 
-They are a way to give evidence to the same proof system that checks borrows,
-invariants, effects, concurrency, resources, and host boundaries.
+They are ordinary machines whose contracts are checked as evidence. If a
+machine is used only to establish facts, it emits no runtime code.
 
-The surface should stay close to the rest of Omega:
+The basic shape is:
 
-- Facts appear in contracts: `requires`, `ensures`, `where`, domains, and
-  invariants.
-- Machines produce guarantees.
-- Proof-only machines produce guarantees at compile time and emit no runtime
-  code.
-- Axioms are trusted roots, not normal proofs.
-
-## Facts, Proofs, And Axioms
-
-These concepts are distinct:
-
-- A fact is something known in a context.
-- A proof establishes a fact.
-- An axiom is an unproven truth accepted as a trusted root.
-- An invariant is a fact attached to a value or boundary.
-- A requirement is a fact needed before an operation.
-- A guarantee is a fact produced after an operation.
-
-`2 == 2` should be a proven fact, not an axiom.
-
-```omega
-proof MathProofs::two_eq_two()
-ensures
-    2 == 2
-{
-}
+```text
+requires + body facts -> ensures
 ```
 
-The empty body is acceptable only when the compiler can discharge the goal from
-built-in rules. Axioms should be rare, loud, and restricted to trusted packages
-or compiler foundations.
+If the checker can prove that implication, the machine is a proof artifact. If
+it cannot, the contract is only an unchecked promise and must be rejected or
+treated as an explicit trusted boundary.
 
-## Proof Machines
+## Machines As Proofs
 
-A proof machine is a compile-time-only machine.
+This machine proves a simple ordering fact:
 
 ```omega
-proof IndexProofs::distinct_indices(
+machine distinct_indices(
     i: usize,
     j: usize
 )
@@ -56,220 +32,142 @@ ensures
 }
 ```
 
-The proof checker verifies that the `ensures` facts follow from the inputs,
-requirements, and proof body. If verified, callers may use those facts.
+The empty body is valid only if the checker can prove the guarantee from the
+requirement and built-in arithmetic/order rules.
 
-Proof machines can establish ordinary math:
+This machine proves a closed arithmetic fact:
 
 ```omega
-proof MathProofs::pythagorean_3_4_5()
+machine pythagorean_3_4_5()
 ensures
-    3 * 3 + 4 * 4 == 5 * 5
+    3nat * 3nat + 4nat * 4nat == 5nat * 5nat
 {
 }
 ```
 
-They can also establish facts needed by ordinary program checking.
+The checker reduces both sides to the same `Nat` value, then closes the equality
+by reflexivity. The body does not need to simulate computation.
 
-## Naming Properties
+## Typed Facts
 
-Omega already has a way to name semantic properties: domains.
-
-For runtime-shaped values, prefer domains and invariants over inventing a
-separate predicate syntax.
+Proof facts must be typed.
 
 ```omega
-data SliceFacts {
-}
-
-data SlicePairI32 {
-    before: &[i32];
-    after: &[i32];
-}
-
-domain SortedI32 for &[i32] {
-    // The exact quantifier surface is not designed yet.
-    // This domain names the fact that elements are ordered by index.
-}
-
-domain SameElements for SlicePairI32 {
-    // Names the fact that both slices contain the same values with same counts.
-}
+3nat * 3nat
 ```
 
-The bodies above intentionally do not invent a `forall` syntax. Quantified facts
-are necessary eventually, but the language should design them as part of the
-proof/fact system, not smuggle them into docs as pseudo-code.
+is math over `Nat`.
 
-For now, the important point is:
+```omega
+3i32 * 3i32
+```
+
+is machine arithmetic and carries machine obligations such as width and
+overflow behavior.
+
+The same operator spelling can exist in both worlds. The operand types decide
+which proof rules apply.
+
+## Proof Views
+
+Runtime data often needs a mathematical view before it can be reasoned about.
+
+For slices, useful proof views include:
 
 ```text
-named property + contract use + proof obligation
+Seq(items)    ordered finite sequence view
+Bag(items)    finite multiset/counting view
+Range(len)    finite index space
 ```
 
-not a particular quantifier spelling.
+These are proof-only views. They do not allocate at runtime. They let contracts
+talk about math without pretending that proof binders are runtime loops.
 
-## Machine Contracts
-
-Normal machines can require and guarantee named facts.
+Sorting is naturally expressed as:
 
 ```omega
-machine Sort::sort(items: &mut [i32])
-ensures
-    items in SliceFacts::SortedI32
-{
-}
-```
-
-This creates an obligation:
-
-```text
-prove items in SliceFacts::SortedI32 at machine completion
-```
-
-The implementation may discharge the obligation directly, or it may call helper
-machines whose contracts compose.
-
-```omega
-machine Sort::insert_sorted(
-    items: &mut [i32],
-    value: i32
+machine Sort::bubble_sort_preserving(
+    before: &[Nat],
+    items: &mut [Nat]
 )
 requires
-    items in SliceFacts::SortedI32
+    Bag(items) == Bag(before)
 ensures
-    items in SliceFacts::SortedI32
+    Seq(items) in Sorted
+    Bag(items) == Bag(before)
 {
 }
 ```
 
-Large proofs should be decomposed through helper machines and helper proofs,
-not written as one giant proof blob.
+The `before` value is explicit. There is no implicit `old` keyword here. A
+caller that wants to prove preservation can make or carry a snapshot itself.
 
-## Proof Bodies
+## Helper Machines
 
-Proof bodies should use the same basic control model as machines: straight-line
-work, explicit facts, and transitions when a proof needs cases.
-
-Sketch:
+Large proofs should be decomposed through helper machines with small contracts.
 
 ```omega
-proof CompareProofs::ordered_pair(
-    a: i32,
-    b: i32
+machine Sort::compare_swap(
+    before: &[Nat],
+    items: &mut [Nat],
+    index: usize
 )
+requires
+    index + 1 < items.len
+    Bag(items) == Bag(before)
 ensures
-    a <= b || b < a
+    items[index] <= items[index + 1]
+    Bag(items) == Bag(before)
 {
-    transition a <= b {
-        true -> left_case()
-        false -> right_case()
-    }
-
-    state left_case() {
-    }
-
-    state right_case() {
-    }
 }
 ```
 
-This is not runtime control flow. It is compile-time evidence structured like a
-machine graph.
+The preservation fact is explicit. If a caller needs a before-state, it passes
+one in. Nothing in this chapter relies on an implicit snapshot keyword.
 
-The proof checker may also solve many empty proof bodies automatically when the
-goal follows from arithmetic, branch facts, type facts, or existing contracts.
-
-## Intersection With Checking
-
-Proof machines feed the same obligation system used by the compiler.
-
-Borrow obligation:
-
-```omega
-let a = &mut items[i];
-let b = &mut items[j];
-```
-
-The borrow checker needs:
+A sorting proof is built from smaller facts:
 
 ```text
-i != j
+compare/swap orders one adjacent pair
+compare/swap preserves Bag(items)
+one pass moves the largest remaining item to the end
+repeated passes establish Seq(items) in Sorted
+Bag(items) stays equal to the explicit before value
 ```
 
-If surrounding facts prove `i < j`, a proof such as
-`IndexProofs::distinct_indices(i, j)` can discharge the obligation.
+## Quantified Facts
 
-Bounds obligation:
-
-```omega
-machine Buffer::first<T, const N: usize>(
-    buffer: &FixedBuffer<T, N>,
-    out: &mut T
-)
-where
-    N > 0
-{
-    out = buffer.items[0];
-}
-```
-
-The bounds checker needs `0 < N`. The `where N > 0` fact discharges it.
-
-Concurrency obligation:
+Full sorting correctness requires global facts:
 
 ```text
-lock_order(lock_a) < lock_order(lock_b)
+every earlier index has a value <= every later index
+every value has the same count before and after sorting
 ```
 
-That fact might come from a type-level resource hierarchy, a machine contract,
-or a proof about the particular resources being used.
+The language still needs a proof-level way to express those facts. That does
+not mean adding runtime loops. It means adding fact syntax, proof views, or
+foundation-library definitions that the checker understands.
 
-## Quantifiers
+Possible directions:
 
-Sorting, permutation, graph reachability, and liveness eventually need
-quantified facts.
-
-The design is still open. Options include:
-
-- domain bodies with quantified fact expressions,
-- proof-only machines over finite ranges,
-- library-defined finite set/range facts,
-- solver-backed contracts over slices and graphs.
-
-What we should not do is pretend Omega already has loops or functions just to
-write proof examples. Quantified proof syntax must fit the machine/state model
-or be clearly marked as proof-only fact syntax.
+- `Seq<T>` and `Bag<T>` are compiler-known finite math objects.
+- Domains like `Sorted` are defined over proof views.
+- Advanced libraries can define reusable facts about `Seq`, `Bag`, `Range`, and
+  state graphs.
+- General quantifiers, if added, are proof-level binders in contracts/domains,
+  not executable machine control flow.
 
 ## Automation And Trust
 
-The proof engine should solve common cases automatically:
+The checker should automatically solve common cases:
 
 - arithmetic normalization,
+- equality reflexivity,
 - range implications,
-- equality facts,
 - branch facts,
 - disjoint field facts,
-- straightforward generic const facts.
+- simple generic const facts.
 
-When automation fails, users can provide proof machines. When a fact cannot be
-honestly established, the remaining option is a trusted axiom or trusted
-boundary, which must be visible in build artifacts.
-
-## General Math
-
-Compile-time proofs can establish math unrelated to a runtime program.
-
-```omega
-proof MathProofs::add_commutes(a: Int, b: Int)
-ensures
-    a + b == b + a
-{
-    MathFoundations::integer_add_commutativity(a, b);
-}
-```
-
-This is allowed because compile-time proofs establish facts. Program proofs
-eventually need ordinary math: indices, lengths, ordering, resource counts,
-graph reachability, sortedness, permutation, and liveness all depend on
-mathematical facts.
+When automation fails, library authors can provide helper machines. When a fact
+cannot be proven from machine code, contracts, or trusted foundations, it must
+cross an explicit trust boundary.
