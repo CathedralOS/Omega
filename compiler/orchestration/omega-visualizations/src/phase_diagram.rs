@@ -32,6 +32,7 @@ const PIPELINE_PAGES: &[(&str, &str, &str)] = &[
     ("02", "Syntax", "syntax"),
     ("03", "Symbols", "symbols"),
     ("04", "Typed", "typed"),
+    ("05", "Checked", "checked"),
     ("06", "State Graph", "state-graph"),
     ("07", "Control Flow", "control-flow"),
     ("09", "Backend", "backend"),

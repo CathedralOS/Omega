@@ -21,6 +21,7 @@ pub fn lower_typed_trees(
         borrow: build_borrow_facts(&program),
         proof: build_proof_facts(&program, &proof_plan),
         invariants: build_invariant_facts(&program),
+        effects: omega_effects::infer_effects(&program),
     };
 
     Ok(Program {
@@ -1226,6 +1227,7 @@ mod tests {
             contains: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),
+            effects: Default::default(),
             states: Default::default(),
         };
         let mut entry_state = State {

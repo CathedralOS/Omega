@@ -20,6 +20,7 @@ pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<D
         ("02", "Syntax", "syntax", "02_syntax_trees.html"),
         ("03", "Symbols", "symbols", "03_symbol_resolved_trees.html"),
         ("04", "Typed", "typed", "04_typed_trees.html"),
+        ("05", "Checked", "checked", "05_checked_trees.html"),
         ("06", "State Graph", "state-graph", "06_state_graph.html"),
         ("07", "Control Flow", "control-flow", "07_control_flow.html"),
         ("09", "Backend", "backend", "09_backend_report.html"),
@@ -131,6 +132,17 @@ pub(super) fn write_typed_snapshot(
         options,
         "04_typed_trees.json",
         &typed.snapshot_json_pretty().map_err(json_diagnostic)?,
+    )
+}
+
+pub(super) fn write_checked_snapshot(
+    options: &CompileOptions,
+    checked: &omega_checked_trees::Program,
+) -> Result<(), Vec<Diagnostic>> {
+    write_phase_diagram(
+        options,
+        "05_checked_trees.html",
+        &omega_visualizations::checked_trees_html(checked),
     )
 }
 

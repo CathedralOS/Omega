@@ -198,6 +198,7 @@ name = "omega-checked-trees"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+ "omega-effects",
  "omega-typed-trees",
 ]
 
@@ -809,6 +810,7 @@ version = "0.1.0"
 dependencies = [
  "omega-checked-trees",
  "omega-core",
+ "omega-effects",
  "omega-proof",
  "omega-typed-trees",
  "omega-validation",
@@ -839,6 +841,7 @@ dependencies = [
 name = "omega-visualizations"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
