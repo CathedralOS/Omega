@@ -107,7 +107,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
     html.push_str("</aside>\n");
     html.push_str("<main><svg id=\"canvas\" role=\"img\" aria-label=\"Phase graph\"><g id=\"viewport\"><g id=\"edges\"></g><g id=\"nodes\"></g></g></svg></main>\n");
-    html.push_str("<aside id=\"file-panel\">\n<h2>Files</h2>\n<nav id=\"file-outline\" aria-label=\"Source files\"></nav>\n</aside>\n");
+    html.push_str("<aside id=\"file-panel\">\n<h2>Files</h2>\n<input id=\"file-search\" type=\"search\" placeholder=\"Filter files...\" autocomplete=\"off\">\n<nav id=\"file-outline\" aria-label=\"Source files\"></nav>\n</aside>\n");
     html.push_str("<script>\nconst GRAPH = ");
     push_graph_json(&mut html, title, nodes, edges);
     html.push_str(";\n");
@@ -148,20 +148,7 @@ pub fn pipeline_shell_html(pages: &[PipelineEmbeddedPage<'_>]) -> String {
     html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     html.push_str("<title>Pipeline Visualizations</title>\n<style>\n");
     html.push_str(SHELL_STYLE);
-    html.push_str("</style>\n</head>\n<body>\n<aside>\n<h1>Pipeline Visualizations</h1>\n");
-    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\">");
-    for page in pages {
-        html.push_str("<a href=\"#");
-        html.push_str(&escape_html(page.id));
-        html.push_str("\" data-page=\"");
-        html.push_str(&escape_html(page.id));
-        html.push_str("\"><span>");
-        html.push_str(&escape_html(page.number));
-        html.push_str("</span> ");
-        html.push_str(&escape_html(page.label));
-        html.push_str("</a>");
-    }
-    html.push_str("</nav>\n<p id=\"status\"></p>\n</aside>\n<main><iframe id=\"stage\" title=\"Pipeline stage\"></iframe></main>\n<script>\nconst PAGES = [");
+    html.push_str("</style>\n</head>\n<body>\n<main><iframe id=\"stage\" title=\"Pipeline stage\"></iframe></main>\n<script>\nconst PAGES = [");
     for (index, page) in pages.iter().enumerate() {
         if index > 0 {
             html.push(',');
@@ -367,7 +354,7 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   padding: 8px;
 }
 #file-outline {
-  max-height: calc(100vh - 96px);
+  max-height: calc(100vh - 150px);
 }
 #outline button,
 #file-outline button {
@@ -389,13 +376,19 @@ label { display: block; color: var(--muted); margin: 10px 0; }
 #outline button.scoped,
 #file-outline button.scoped { background: #263247; color: #ffffff; }
 #outline details { margin-left: 10px; }
-#outline summary {
+#outline summary,
+#file-outline summary {
   color: var(--muted);
   cursor: pointer;
   margin: 3px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+#file-outline details { margin-left: 12px; }
+#file-outline summary {
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 .phase-nav {
   display: flex;
@@ -551,50 +544,12 @@ h1 { font-size: clamp(36px, 7vw, 86px); line-height: 0.92; margin: 0; }
 const SHELL_STYLE: &str = r#"
 :root {
   --bg: #101318;
-  --panel: #171d25;
-  --panel-border: #2a3442;
-  --text: #eef3fb;
-  --muted: #9caaba;
-  --accent: #4dd4c6;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; overflow: hidden; }
 body {
-  display: grid;
-  grid-template-columns: minmax(280px, 22vw) 1fr;
   background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
-  color: var(--text);
-  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-aside {
-  border-right: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  min-height: 100vh;
-  padding: 18px;
-  z-index: 2;
-}
-h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
-.phase-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.phase-nav a {
-  border: 1px solid #303d50;
-  border-radius: 999px;
-  color: #d8e2ef;
-  font-size: 11px;
-  line-height: 1;
-  padding: 7px 9px;
-  text-decoration: none;
-}
-.phase-nav a:hover,
-.phase-nav a.active {
-  background: #263247;
-  border-color: var(--accent);
-}
-.phase-nav span { color: var(--muted); }
-#status { color: var(--muted); margin-top: 16px; }
 main { min-width: 0; min-height: 0; }
 iframe {
   border: 0;
@@ -606,7 +561,6 @@ iframe {
 
 const SHELL_SCRIPT: &str = r##"
 const frame = document.getElementById("stage");
-const status = document.getElementById("status");
 const pagesById = new Map(PAGES.map(page => [page.id, page]));
 
 function selectedId() {
@@ -619,10 +573,6 @@ function renderSelectedPage() {
   const page = pagesById.get(id);
   if (!page) return;
   frame.srcdoc = page.html;
-  status.textContent = `${page.number} ${page.label}`;
-  document.querySelectorAll(".phase-nav a").forEach(link => {
-    link.classList.toggle("active", link.dataset.page === id);
-  });
 }
 
 window.addEventListener("hashchange", renderSelectedPage);
@@ -702,6 +652,7 @@ const details = document.getElementById("details");
 const counts = document.getElementById("counts");
 const outline = document.getElementById("outline");
 const filePanel = document.getElementById("file-panel");
+const fileSearch = document.getElementById("file-search");
 const fileOutline = document.getElementById("file-outline");
 const showSequence = document.getElementById("show-sequence");
 const showData = document.getElementById("show-data");
@@ -946,6 +897,7 @@ function renderOutline() {
   if (!nodeById.has("root")) return renderFlatOutline();
   const rootId = "root";
   const topLevel = containmentChildren.get(rootId) || [];
+  let sectionCount = 0;
   const groups = [
     ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
     ["Traits", topLevel.filter(id => nodeById.get(id)?.kind === "trait")],
@@ -961,7 +913,9 @@ function renderOutline() {
     section.appendChild(summary);
     for (const id of ids) section.appendChild(outlineNode(id, 0));
     outline.appendChild(section);
+    sectionCount += 1;
   }
+  outline.classList.toggle("hidden", sectionCount === 0);
 }
 
 function renderFileOutline() {
@@ -971,9 +925,23 @@ function renderFileOutline() {
     .map(node => node.id);
   document.body.classList.toggle("has-files", fileIds.length > 0);
   filePanel.classList.toggle("hidden", fileIds.length === 0);
-  for (const id of fileIds) {
-    fileOutline.appendChild(fileScopeButton(id, nodeById.get(id)));
+  if (fileIds.length === 0) return;
+
+  const query = fileSearch.value.trim().toLowerCase();
+  const visibleFileIds = fileIds.filter(id => {
+    const node = nodeById.get(id);
+    const label = fileLabel(node).toLowerCase();
+    return !query || label.includes(query);
+  });
+  if (visibleFileIds.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "No matching files.";
+    fileOutline.appendChild(empty);
+    return;
   }
+
+  const tree = buildFileTree(visibleFileIds);
+  appendFileTree(fileOutline, tree, 0, Boolean(query));
 }
 
 function renderFlatOutline() {
@@ -994,6 +962,47 @@ function renderFlatOutline() {
     section.appendChild(summary);
     for (const id of ids) section.appendChild(outlineNode(id, 0));
     outline.appendChild(section);
+  }
+  outline.classList.toggle("hidden", groups.size === 0);
+}
+
+function buildFileTree(fileIds) {
+  const root = { name: "", dirs: new Map(), files: [] };
+  for (const id of fileIds) {
+    const node = nodeById.get(id);
+    const path = fileLabel(node);
+    const parts = path.split(/[\\/]+/).filter(Boolean);
+    const fileName = parts.pop() || path;
+    let branch = root;
+    for (const part of parts) {
+      if (!branch.dirs.has(part)) {
+        branch.dirs.set(part, { name: part, dirs: new Map(), files: [] });
+      }
+      branch = branch.dirs.get(part);
+    }
+    branch.files.push({ id, name: fileName, path });
+  }
+  return root;
+}
+
+function appendFileTree(parent, tree, depth, forceOpen) {
+  const dirs = Array.from(tree.dirs.values()).sort((a, b) => a.name.localeCompare(b.name));
+  for (const dir of dirs) {
+    const detailsElement = document.createElement("details");
+    detailsElement.open = forceOpen || depth < 1;
+    const summary = document.createElement("summary");
+    summary.textContent = dir.name;
+    detailsElement.appendChild(summary);
+    appendFileTree(detailsElement, dir, depth + 1, forceOpen);
+    parent.appendChild(detailsElement);
+  }
+
+  const files = tree.files.sort((a, b) => a.name.localeCompare(b.name));
+  for (const file of files) {
+    const button = fileScopeButton(file.id, nodeById.get(file.id));
+    button.textContent = file.name;
+    button.title = file.path;
+    parent.appendChild(button);
   }
 }
 
@@ -1367,6 +1376,10 @@ svg.addEventListener("click", () => {
   applyRelationshipHighlight();
 });
 search.addEventListener("input", applyFilters);
+fileSearch.addEventListener("input", () => {
+  renderFileOutline();
+  applyFilters();
+});
 showSequence.addEventListener("change", applyFilters);
 showData.addEventListener("change", applyFilters);
 document.getElementById("fit").addEventListener("click", fitGraph);
