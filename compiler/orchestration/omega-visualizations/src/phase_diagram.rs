@@ -409,6 +409,8 @@ label { display: block; color: var(--muted); margin: 10px 0; }
 .phase-nav span { color: var(--muted); }
 #details {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   border: 1px solid #283343;
   border-radius: 12px;
   background: #0d1117;
@@ -1156,9 +1158,7 @@ function fitLine(line, max) {
 
 function selectNode(id, center) {
   selectedId = id;
-  document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
-  const element = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
-  if (element) element.classList.add("selected");
+  markSelectedNode(id);
   const node = nodeById.get(id);
   const targetId = transitionTargetFor(id);
   const targetText = targetId ? `\n\ntransition target: ${outlineLabel(nodeById.get(targetId))}` : "";
@@ -1167,12 +1167,19 @@ function selectNode(id, center) {
   if (center) centerOn(id);
 }
 
+function markSelectedNode(id) {
+  document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
+  const element = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+  if (element) element.classList.add("selected");
+}
+
 function setScope(id, fit) {
   scopedId = id === "root" ? null : id;
   selectedId = id;
   details.textContent = scopeDetails(id);
   updateFollowTarget();
   applyFilters();
+  markSelectedNode(id);
   if (fit) fitGraph();
 }
 
@@ -1196,7 +1203,7 @@ function defaultFileScopeId() {
 function scopeDetails(id) {
   const node = nodeById.get(id);
   const scopedNodes = scopedNodeSet(id);
-  return `Scope: ${outlineLabel(node)}\n${scopedNodes.size} nodes visible including one-hop relationships\n\n${node.id}\nkind: ${node.kind}\nrank: ${node.rank}\n\n${node.label}`;
+  return `Scope:\n  ${outlineLabel(node)}\n\n${scopedNodes.size} nodes visible including one-hop relationships\n\n${node.id}\nkind: ${node.kind}\nrank: ${node.rank}\n\n${node.label}`;
 }
 
 function scopedNodeSet(id) {
