@@ -132,9 +132,15 @@ fn machine_label(
         .iter()
         .filter(|state| root_key_for_state(graph, states, root_keys, state.key) == root_state.key)
         .count();
+    let attached_data = machine
+        .attached_data
+        .as_ref()
+        .map(|name| name.as_str())
+        .unwrap_or("<none>");
     format!(
-        "machine {}\nstates: {}\ncontains: {}\nowned data: {}",
+        "machine {}\nattached data: {}\nstates: {}\ncontains: {}\nowned data: {}",
         machine.name.as_str(),
+        attached_data,
         state_count,
         graph.machine_contains(machine).len(),
         graph.machine_owned_data(machine).len()

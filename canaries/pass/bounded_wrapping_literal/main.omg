@@ -1,0 +1,23 @@
+data RandomState {
+    seed: u64[wrapping];
+}
+
+data Random {
+}
+
+machine Random::seed(
+    &mut self,
+    value: u64[wrapping],
+    state: &mut RandomState
+) {
+    state.seed = value;
+}
+
+data Main {
+    random: Random;
+    state: RandomState;
+}
+
+machine Main::main(&mut self) {
+    self.random.seed(7, &mut self.state);
+}

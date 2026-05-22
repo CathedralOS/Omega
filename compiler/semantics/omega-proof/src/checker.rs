@@ -1049,6 +1049,7 @@ fn argument_handle_satisfies_named_constraint(
             ("finite", ExpressionNode::Integer(_)) => true,
             ("non_negative", ExpressionNode::Integer(value)) => *value >= 0,
             ("positive", ExpressionNode::Integer(value)) => *value > 0,
+            ("wrapping", ExpressionNode::Integer(_)) => true,
             _ => false,
         }
 }
@@ -1140,6 +1141,7 @@ fn initializer_satisfies_named_constraint(
         ("exact", ExpressionNode::Integer(_)) => true,
         ("non_negative", ExpressionNode::Integer(value)) => *value >= 0,
         ("positive", ExpressionNode::Integer(value)) => *value > 0,
+        ("wrapping", ExpressionNode::Integer(_)) => true,
         _ => false,
     }
 }

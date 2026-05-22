@@ -388,6 +388,10 @@ fn field_machine_layout<'plan>(
         .find(|(_, machine_layout)| {
             machine_layout.symbol == field.type_symbol
                 || machine_layout.name.as_str() == field.type_name.as_ref()
+                || machine_layout
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|attached_data| attached_data.as_str() == field.type_name.as_ref())
         })
         .map(|(_, machine_layout)| machine_layout)
 }
