@@ -6,8 +6,8 @@ use omega_typed_trees::statement::{
     TransitionTargetNode,
 };
 use omega_typed_trees::trait_definition::TraitDefinition;
+use omega_typed_trees::{TypedTrees, state::State};
 use omega_typed_trees::{data::DataMember, machine::Machine};
-use omega_typed_trees::{state::State, TypedTrees};
 
 pub fn typed_trees_html(typed: &TypedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("typed_trees");

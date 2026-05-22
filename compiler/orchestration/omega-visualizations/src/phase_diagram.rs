@@ -416,6 +416,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .edge.satisfies_trait { stroke: #4dd4c6; opacity: 0.82; stroke-dasharray: 8 3; }
 .edge.requires_trait { stroke: #ffcf5c; opacity: 0.82; stroke-dasharray: 3 3; }
 .edge.call { stroke: #ff9f7f; opacity: 0.82; stroke-dasharray: 8 2 2 2; }
+.edge.imports { stroke: #9caaba; opacity: 0.7; stroke-dasharray: 2 6; }
 .edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
 .edge.transition_continuation { stroke: #8ab4ff; opacity: 0.78; stroke-width: 1.6; stroke-dasharray: 5 4; }
 .node rect {
@@ -685,10 +686,18 @@ const NS = "http://www.w3.org/2000/svg";
 
 const nodeById = new Map(GRAPH.nodes.map(node => [node.id, node]));
 const containmentChildren = new Map();
+const importChildren = new Map();
+const importedFileIds = new Set();
 for (const edge of GRAPH.edges) {
-  if (edge.kind !== "contains") continue;
-  if (!containmentChildren.has(edge.from)) containmentChildren.set(edge.from, []);
-  containmentChildren.get(edge.from).push(edge.to);
+  if (edge.kind === "contains") {
+    if (!containmentChildren.has(edge.from)) containmentChildren.set(edge.from, []);
+    containmentChildren.get(edge.from).push(edge.to);
+  }
+  if (edge.kind === "imports") {
+    if (!importChildren.has(edge.from)) importChildren.set(edge.from, []);
+    importChildren.get(edge.from).push(edge.to);
+    importedFileIds.add(edge.to);
+  }
 }
 
 const NODE_W = 250;
@@ -918,8 +927,12 @@ function renderOutline() {
   if (!nodeById.has("root")) return renderFlatOutline();
   const rootId = "root";
   const topLevel = containmentChildren.get(rootId) || [];
+  const fileIds = GRAPH.nodes
+    .filter(node => node.kind === "file")
+    .map(node => node.id);
+  const rootFileIds = fileIds.filter(id => !importedFileIds.has(id));
   const groups = [
-    ["Files", topLevel.filter(id => nodeById.get(id)?.kind === "file")],
+    ["Files", fileIds],
     ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
     ["Traits", topLevel.filter(id => nodeById.get(id)?.kind === "trait")],
     ["Machines", topLevel.filter(id => nodeById.get(id)?.kind === "machine")],
@@ -932,7 +945,12 @@ function renderOutline() {
     const summary = document.createElement("summary");
     summary.textContent = `${title} (${ids.length})`;
     section.appendChild(summary);
-    for (const id of ids) section.appendChild(outlineNode(id, 0));
+    if (title === "Files" && importChildren.size > 0) {
+      const roots = rootFileIds.length > 0 ? rootFileIds : ids;
+      for (const id of roots) section.appendChild(outlineFileNode(id, 0, new Set()));
+    } else {
+      for (const id of ids) section.appendChild(outlineNode(id, 0));
+    }
     outline.appendChild(section);
   }
 }
@@ -994,6 +1012,51 @@ function outlineNode(id, depth) {
   detailsElement.appendChild(scopeButton);
   for (const childId of children) detailsElement.appendChild(outlineNode(childId, depth + 1));
   return detailsElement;
+}
+
+function outlineFileNode(id, depth, seen) {
+  const node = nodeById.get(id);
+  const children = (importChildren.get(id) || []).filter(childId => nodeById.has(childId));
+  if (children.length === 0 || depth >= 8 || seen.has(id)) {
+    return outlineScopeButton(id, node);
+  }
+
+  const nextSeen = new Set(seen);
+  nextSeen.add(id);
+  const detailsElement = document.createElement("details");
+  detailsElement.open = depth < 1;
+  const summary = document.createElement("summary");
+  summary.textContent = outlineLabel(node);
+  summary.title = node.label;
+  summary.addEventListener("click", event => {
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      selectNode(id, true);
+    }
+  });
+  detailsElement.appendChild(summary);
+  const scopeButton = outlineScopeButton(id, node);
+  scopeButton.textContent = `Scope ${outlineLabel(node)}`;
+  detailsElement.appendChild(scopeButton);
+  for (const childId of children) {
+    detailsElement.appendChild(outlineFileNode(childId, depth + 1, nextSeen));
+  }
+  return detailsElement;
+}
+
+function outlineScopeButton(id, node) {
+  const button = document.createElement("button");
+  button.textContent = outlineLabel(node);
+  button.title = node.label;
+  button.dataset.scopeId = id;
+  button.addEventListener("click", event => {
+    if (event.metaKey || event.ctrlKey) {
+      selectNode(id, true);
+    } else {
+      setScope(id, true);
+    }
+  });
+  return button;
 }
 
 function outlineLabel(node) {
@@ -1111,6 +1174,15 @@ function clearGraphScope(fit) {
   if (fit) fitGraph();
 }
 
+function defaultFileScopeId() {
+  const fileNodes = GRAPH.nodes.filter(node => node.kind === "file");
+  if (fileNodes.length === 0) return null;
+  const mainFile = fileNodes.find(node => outlineLabel(node).endsWith("/main.omg") || outlineLabel(node).endsWith(" main.omg"));
+  if (mainFile) return mainFile.id;
+  const rootFile = fileNodes.find(node => !importedFileIds.has(node.id));
+  return (rootFile || fileNodes[0]).id;
+}
+
 function scopeDetails(id) {
   const node = nodeById.get(id);
   const scopedNodes = scopedNodeSet(id);
@@ -1129,7 +1201,7 @@ function scopedNodeSet(id) {
   }
   const contained = new Set(result);
   for (const edge of GRAPH.edges) {
-    if (edge.kind === "contains" || edge.kind === "sequence") continue;
+    if (edge.kind === "contains" || edge.kind === "imports" || edge.kind === "sequence") continue;
     if (contained.has(edge.from)) result.add(edge.to);
     if (contained.has(edge.to)) result.add(edge.from);
   }
@@ -1303,5 +1375,9 @@ followTarget.addEventListener("click", () => {
 window.addEventListener("resize", fitGraph);
 
 render();
+const initialScopeId = defaultFileScopeId();
+if (initialScopeId) {
+  setScope(initialScopeId, false);
+}
 fitGraph();
 "#;

@@ -1,5 +1,6 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::symbols::SymbolHandle;
+use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_symbol_resolved_trees::data::DataMember;
 use omega_symbol_resolved_trees::machine::Machine;
 use omega_symbol_resolved_trees::state::State;
@@ -8,7 +9,6 @@ use omega_symbol_resolved_trees::statement::{
 };
 use omega_symbol_resolved_trees::trait_definition::TraitDefinition;
 use omega_symbol_resolved_trees::types::TypeReference;
-use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
 pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");

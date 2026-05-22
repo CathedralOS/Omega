@@ -1,12 +1,12 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::arena::HandleSpan;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{Item, ItemHandle, StateNode, StateSignatureNode};
 use omega_syntax_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
-use omega_syntax_trees::SyntaxTrees;
 
 pub struct SyntaxSourceFile {
     pub path: String,
@@ -57,16 +57,16 @@ pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceF
             .collect::<Vec<_>>();
         for (file_index, file) in files.iter().enumerate() {
             let file_id = &file_nodes[file_index];
-            let parent_index = file.parent_path.as_ref().and_then(|parent_path| {
+            diagram.containment_edge(&root, file_id);
+
+            if let Some(parent_index) = file.parent_path.as_ref().and_then(|parent_path| {
                 files
                     .iter()
                     .position(|candidate| &candidate.path == parent_path)
                     .filter(|parent_index| *parent_index < file_index)
-            });
-            let parent_id = parent_index
-                .map(|index| file_nodes[index].as_str())
-                .unwrap_or(root.as_str());
-            diagram.containment_edge(parent_id, file_id);
+            }) {
+                diagram.edge(file_nodes[parent_index].as_str(), file_id, "imports");
+            }
 
             for (item_index, item_handle) in file.root_items.iter().copied().enumerate() {
                 append_root_item(
