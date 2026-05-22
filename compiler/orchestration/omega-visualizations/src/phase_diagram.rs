@@ -1173,7 +1173,7 @@ function drawNode(node) {
   });
   group.addEventListener("click", event => {
     event.stopPropagation();
-    selectNode(node.id, true);
+    selectNode(node.id, false);
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
