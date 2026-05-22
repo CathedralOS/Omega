@@ -68,7 +68,7 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
         let domain_id = diagram.node(
             format!("domain_{domain_index}"),
             format!(
-                "domain {} for {}\nsymbol: {}\nbody tokens: {}",
+                "domain {}\ntarget: {}\nsymbol: {}\nbody tokens: {}",
                 domain.name.as_str(),
                 typed.display_type_reference_with_constraints(domain.target_type),
                 symbol_label(domain.symbol),

@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn lowers_domain_definitions() {
         let source = r#"
-        domain NonEmpty for String {
+        domain String::NonEmpty {
             length > 0
         }
         "#;
@@ -137,7 +137,7 @@ mod tests {
         assert_eq!(typed_trees.domain_definitions().len(), 1);
         let domain = &typed_trees.domain_definitions()[0];
         assert!(domain.symbol.is_valid());
-        assert_eq!(domain.name.as_str(), "NonEmpty");
+        assert_eq!(domain.name.as_str(), "String::NonEmpty");
         assert_eq!(domain.body_token_count, 3);
         assert!(domain.target_type.is_valid());
     }
