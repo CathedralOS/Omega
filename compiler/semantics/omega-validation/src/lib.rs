@@ -7,6 +7,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::{StateParameter, StateSignature};
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
@@ -283,6 +284,7 @@ fn validate_callable_state_signatures(
                     name: state.name.as_str(),
                     parameters: program.state_parameters(state),
                     return_type: state.return_type,
+                    effects: &[],
                 }),
             program,
             symbols,
@@ -299,6 +301,7 @@ fn validate_callable_state_signatures(
                 name: state.name.as_str(),
                 parameters: program.state_signature_parameters(state),
                 return_type: state.return_type,
+                effects: program.state_signature_effects(state),
             }),
             program,
             symbols,
@@ -316,6 +319,7 @@ fn validate_callable_state_signatures(
                     name: machine.name.as_str(),
                     parameters: program.state_signature_parameters(machine),
                     return_type: machine.return_type,
+                    effects: program.state_signature_effects(machine),
                 }),
             program,
             symbols,
@@ -330,6 +334,7 @@ struct StateSignatureView<'program> {
     name: &'program str,
     parameters: &'program [StateParameter],
     return_type: TypeReferenceHandle,
+    effects: &'program [ProgramName],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -542,6 +547,7 @@ fn validate_state_signature_types<'program>(
 ) {
     for signature in signatures {
         validate_state_parameter_names(signature, owner, diagnostics);
+        validate_state_signature_effects(signature, owner, diagnostics);
 
         for parameter in signature.parameters {
             if parameter.is_self {
@@ -574,6 +580,21 @@ fn validate_state_signature_types<'program>(
                     generic_depth: 0,
                 },
             );
+        }
+    }
+}
+
+fn validate_state_signature_effects(
+    signature: StateSignatureView<'_>,
+    owner: StateSignatureOwner<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for effect in signature.effects {
+        if !omega_effects::is_standard_effect_name(effect.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} state `{}` declares unknown effect `{}`",
+                signature.name, effect
+            )));
         }
     }
 }
@@ -850,7 +871,7 @@ mod tests {
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
         assert_eq!(typed.machines().len(), 1);
-        assert_eq!(typed.machines()[0].name.as_str(), "Main");
+        assert_eq!(typed.machines()[0].name.as_str(), "Main::main");
         assert_eq!(typed.machine_states(&typed.machines()[0]).len(), 1);
         assert_eq!(
             typed.machine_states(&typed.machines()[0])[0].name.as_str(),
@@ -909,6 +930,38 @@ mod tests {
             .expect("expected call statement");
         assert_eq!(call_argument_count, 1);
         validate_program(&typed).expect("validation should succeed");
+    }
+
+    #[test]
+    fn rejects_unknown_trait_machine_effects() {
+        let source = r#"
+        boundary trait Console {
+            machine write_line(text: String)
+            effects
+                stdoutish;
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics = validate_program(&typed).expect_err("validation should reject effect");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("unknown effect `stdoutish`")),
+            "expected unknown effect diagnostic, got {diagnostics:#?}"
+        );
     }
 }
 
