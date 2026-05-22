@@ -717,6 +717,8 @@ let hoveredId = null;
 let scopedId = null;
 let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
+let lastNodeClick = { id: null, time: 0 };
+let lastActivation = { id: null, time: 0 };
 
 function layoutGraph(allowedIds = null) {
   positions.clear();
@@ -1173,21 +1175,11 @@ function drawNode(node) {
   });
   group.addEventListener("click", event => {
     event.stopPropagation();
-    selectNode(node.id, false);
+    handleNodeClick(node.id);
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
-    const scopeTarget = scopeTargetFor(node.id);
-    if (scopedId && scopeTarget && scopeTarget !== scopedId) {
-      setScope(scopeTarget, true);
-      return;
-    }
-    if (isExternalInCurrentScope(node.id)) {
-      setScope(scopeTarget, true);
-      return;
-    }
-    const targetId = followTargetFor(node.id);
-    selectNode(targetId || node.id, true);
+    activateNode(node.id);
   });
   group.addEventListener("pointerenter", () => {
     hoveredId = node.id;
@@ -1202,6 +1194,36 @@ function drawNode(node) {
 
 function fitLine(line, max) {
   return line.length > max ? line.slice(0, max - 1) + "..." : line;
+}
+
+function handleNodeClick(id) {
+  const now = performance.now();
+  if (lastNodeClick.id === id && now - lastNodeClick.time < 450) {
+    lastNodeClick = { id: null, time: 0 };
+    activateNode(id);
+    return;
+  }
+
+  lastNodeClick = { id, time: now };
+  selectNode(id, false);
+}
+
+function activateNode(id) {
+  const now = performance.now();
+  if (lastActivation.id === id && now - lastActivation.time < 300) return;
+  lastActivation = { id, time: now };
+
+  const scopeTarget = scopeTargetFor(id);
+  if (scopedId && scopeTarget && scopeTarget !== scopedId) {
+    setScope(scopeTarget, true);
+    return;
+  }
+  if (isExternalInCurrentScope(id)) {
+    setScope(scopeTarget, true);
+    return;
+  }
+  const targetId = followTargetFor(id);
+  selectNode(targetId || id, true);
 }
 
 function selectNode(id, center) {
