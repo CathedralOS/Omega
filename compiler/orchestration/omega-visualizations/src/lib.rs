@@ -11,5 +11,5 @@ pub use phase_diagram::{
 };
 pub use state_graph::state_graph_html;
 pub use symbol_resolved_trees::symbol_resolved_trees_html;
-pub use syntax_trees::syntax_trees_html;
+pub use syntax_trees::{syntax_trees_html, syntax_trees_with_files_html, SyntaxSourceFile};
 pub use typed_trees::typed_trees_html;
