@@ -26,6 +26,7 @@ use std::sync::Arc;
 pub(super) struct AssembledSyntax {
     pub(super) syntax_trees: SyntaxTrees,
     pub(super) files: Vec<crate::pipeline::source::SourceFile>,
+    pub(super) import_edges: Vec<crate::pipeline::source::SourceImportEdge>,
     pub(super) sources: Arc<omega_core::source::SourceMap>,
 }
 
@@ -75,7 +76,18 @@ pub(super) fn source_files_to_syntax_trees(
             target_name,
         )?;
 
-        imports.enqueue(discovered_imports)?;
+        imports.enqueue(
+            discovered_imports
+                .iter()
+                .map(|import| import.imported_path.clone())
+                .collect(),
+        )?;
+        source_storage.extend_import_edges(discovered_imports.into_iter().map(|import| {
+            crate::pipeline::source::SourceImportEdge {
+                importer_path: import.importer_path,
+                imported_path: import.imported_path,
+            }
+        }));
         extend_source_storage(&mut source_storage, parsed)?;
     }
 
@@ -88,9 +100,11 @@ pub(super) fn source_files_to_syntax_trees(
 
 fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let files = sources.files.storage_slice().to_vec();
+    let import_edges = sources.import_edges;
     Ok(AssembledSyntax {
         syntax_trees: sources.syntax_trees,
         files,
+        import_edges,
         sources: Arc::new(sources.sources),
     })
 }

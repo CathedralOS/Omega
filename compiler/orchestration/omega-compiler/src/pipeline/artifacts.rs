@@ -3,6 +3,8 @@ use crate::pipeline::stages::AssembledSyntax;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{backend_report_text, BackendReportInput, BackendReportPhaseTiming};
 use omega_core::diagnostics::Diagnostic;
+use std::collections::HashMap;
+use std::path::Path;
 
 pub(super) fn write_pipeline_index(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
@@ -63,12 +65,17 @@ pub(super) fn write_syntax_snapshot(
     options: &CompileOptions,
     syntax: &AssembledSyntax,
 ) -> Result<(), Vec<Diagnostic>> {
+    let import_parents = first_import_parents(syntax);
     let files = syntax
         .files
         .iter()
-        .map(|file| omega_visualizations::SyntaxSourceFile {
-            path: file.path.display().to_string(),
-            root_items: file.root_items.clone(),
+        .map(|file| {
+            let path = canonical_path_string(&file.path);
+            omega_visualizations::SyntaxSourceFile {
+                parent_path: import_parents.get(&path).cloned(),
+                path,
+                root_items: file.root_items.clone(),
+            }
         })
         .collect::<Vec<_>>();
     write_phase_diagram(
@@ -84,6 +91,31 @@ pub(super) fn write_syntax_snapshot(
             .snapshot_json_pretty()
             .map_err(json_diagnostic)?,
     )
+}
+
+fn first_import_parents(syntax: &AssembledSyntax) -> HashMap<String, String> {
+    let mut parents = HashMap::new();
+    for edge in &syntax.import_edges {
+        parents
+            .entry(canonical_path_string(&edge.imported_path))
+            .or_insert_with(|| canonical_path_string(&edge.importer_path));
+    }
+    parents
+}
+
+fn canonical_path_string(path: &Path) -> String {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    std::env::current_dir()
+        .ok()
+        .and_then(|current_dir| {
+            canonical
+                .strip_prefix(current_dir)
+                .ok()
+                .map(Path::to_path_buf)
+        })
+        .unwrap_or(canonical)
+        .display()
+        .to_string()
 }
 
 pub(super) fn write_resolved_snapshot(
