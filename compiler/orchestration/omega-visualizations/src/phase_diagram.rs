@@ -19,6 +19,23 @@ pub struct PhaseDiagramBuilder {
     edges: Vec<PhaseDiagramEdge>,
 }
 
+const PIPELINE_PAGES: &[(&str, &str, &str)] = &[
+    ("00", "Timings", "00_timings.txt"),
+    ("01", "Sources", "01_sources.txt"),
+    ("02", "Syntax", "02_syntax_trees.html"),
+    ("03", "Symbols", "03_symbol_resolved_trees.html"),
+    ("04", "Typed", "04_typed_trees.html"),
+    ("05", "Checked", "05_typed_program.txt"),
+    ("06", "State Graph", "06_state_graph.html"),
+    ("07", "Control Flow", "07_control_flow.html"),
+    ("08", "Proof", "08_proof.txt"),
+    ("09", "Backend", "09_backend_report.txt"),
+    ("10", "Trust", "10_trust.txt"),
+    ("11", "Emission", "11_emission.txt"),
+    ("12", "Output", "12_emitted_output.txt"),
+    ("13", "Finalization", "13_finalization.txt"),
+];
+
 impl PhaseDiagramBuilder {
     pub fn new(title: impl Into<String>) -> Self {
         Self {
@@ -75,6 +92,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str("<h1>");
     html.push_str(&escape_html(title));
     html.push_str("</h1>\n");
+    push_pipeline_nav(&mut html);
     html.push_str("<input id=\"search\" type=\"search\" placeholder=\"Search labels, symbols, states...\" autocomplete=\"off\">\n");
     html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button><button id=\"clear-scope\">Clear Scope</button><button id=\"follow-target\" disabled>Follow Target</button></div>\n");
     html.push_str(
@@ -94,6 +112,45 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str(SCRIPT);
     html.push_str("\n</script>\n</body>\n</html>\n");
     html
+}
+
+pub fn pipeline_index_html() -> String {
+    let mut html = String::new();
+    html.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
+    html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    html.push_str("<title>Pipeline Visualizations</title>\n<style>\n");
+    html.push_str(INDEX_STYLE);
+    html.push_str("</style>\n</head>\n<body>\n");
+    html.push_str("<header><p>Omega build report</p><h1>Pipeline Visualizations</h1>");
+    html.push_str("<p class=\"lede\">One landing page for the generated compiler artifacts. Open a phase directly, then use the embedded phase nav to move sideways.</p></header>\n");
+    html.push_str("<main class=\"grid\">\n");
+    for (number, label, href) in PIPELINE_PAGES {
+        html.push_str("<a class=\"card\" href=\"");
+        html.push_str(&escape_html(href));
+        html.push_str("\"><span>");
+        html.push_str(&escape_html(number));
+        html.push_str("</span><strong>");
+        html.push_str(&escape_html(label));
+        html.push_str("</strong><small>");
+        html.push_str(&escape_html(href));
+        html.push_str("</small></a>\n");
+    }
+    html.push_str("</main>\n</body>\n</html>\n");
+    html
+}
+
+fn push_pipeline_nav(html: &mut String) {
+    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a href=\"00_pipeline.html\">Index</a>");
+    for (number, label, href) in PIPELINE_PAGES {
+        html.push_str("<a href=\"");
+        html.push_str(&escape_html(href));
+        html.push_str("\"><span>");
+        html.push_str(&escape_html(number));
+        html.push_str("</span> ");
+        html.push_str(&escape_html(label));
+        html.push_str("</a>");
+    }
+    html.push_str("</nav>\n");
 }
 
 fn push_graph_json(
@@ -253,6 +310,23 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 14px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover { background: #263247; border-color: #8ab4ff; }
+.phase-nav span { color: var(--muted); }
 #details {
   white-space: pre-wrap;
   border: 1px solid #283343;
@@ -323,6 +397,70 @@ main { min-width: 0; min-height: 0; position: relative; }
 .hidden { display: none; }
 "#;
 
+const INDEX_STYLE: &str = r#"
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+  --accent: #4dd4c6;
+}
+* { box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(77, 212, 198, 0.18), transparent 34rem),
+    radial-gradient(circle at 90% 20%, rgba(138, 180, 255, 0.14), transparent 30rem),
+    var(--bg);
+  color: var(--text);
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+header {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 64px 28px 24px;
+}
+header p:first-child {
+  color: var(--accent);
+  letter-spacing: 0.16em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+h1 { font-size: clamp(36px, 7vw, 86px); line-height: 0.92; margin: 0; }
+.lede { color: var(--muted); max-width: 740px; margin-top: 18px; }
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 28px 72px;
+}
+.card {
+  min-height: 160px;
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(23, 29, 37, 0.94), rgba(13, 17, 23, 0.84));
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+  text-decoration: none;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.card:hover {
+  border-color: var(--accent);
+  background: linear-gradient(145deg, rgba(30, 44, 54, 0.98), rgba(13, 17, 23, 0.9));
+  transform: translateY(-3px);
+}
+.card span { color: var(--accent); font-size: 13px; }
+.card strong { display: block; font-size: 22px; margin-top: auto; }
+.card small { color: var(--muted); margin-top: 10px; }
+"#;
+
 const SCRIPT: &str = r#"
 const svg = document.getElementById("canvas");
 const viewport = document.getElementById("viewport");
@@ -348,6 +486,9 @@ for (const edge of GRAPH.edges) {
 
 const NODE_W = 250;
 const NODE_H = 76;
+const NODE_MAX_W = 560;
+const NODE_MAX_LINES = 14;
+const LINE_H = 16;
 const RANK_GAP = 70;
 const ROW_GAP = 18;
 const LEFT = 80;
@@ -356,7 +497,7 @@ const SECTION_GAP_X = 110;
 const SECTION_GAP_Y = 70;
 const OWNER_COLUMNS = 2;
 const DATA_COLUMNS = 4;
-const STATEMENT_COLUMNS = 3;
+const nodeBoxes = new Map(GRAPH.nodes.map(node => [node.id, measureNode(node)]));
 const positions = new Map();
 let graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
 let selectedId = null;
@@ -370,7 +511,7 @@ function layoutGraph() {
   if (!nodeById.has("root")) return fallbackLayout();
   const roots = ["root"];
 
-  positions.set(roots[0], { x: LEFT, y: TOP, width: NODE_W, height: NODE_H });
+  placeNode(roots[0], LEFT, TOP);
   const rootChildren = containmentChildren.get(roots[0]) || [];
   const dataChildren = rootChildren.filter(id => nodeById.get(id)?.kind === "data");
   const ownerChildren = rootChildren.filter(id => nodeById.get(id)?.kind !== "data");
@@ -387,21 +528,24 @@ function layoutGraph() {
 }
 
 function layoutDataGrid(ids, x, y, columns) {
+  const columnWidth = maxNodeWidth(ids) + ROW_GAP;
+  const rowHeights = [];
+  ids.forEach((id, index) => {
+    const row = Math.floor(index / columns);
+    rowHeights[row] = Math.max(rowHeights[row] || 0, nodeBox(id).height);
+  });
   ids.forEach((id, index) => {
     const column = index % columns;
     const row = Math.floor(index / columns);
-    positions.set(id, {
-      x: x + column * (NODE_W + ROW_GAP),
-      y: y + row * (NODE_H + ROW_GAP),
-      width: NODE_W,
-      height: NODE_H
-    });
+    placeNode(id, x + column * columnWidth, y + rowOffset(rowHeights, row));
   });
-  return Math.ceil(ids.length / columns) * (NODE_H + ROW_GAP);
+  return rowHeights.reduce((sum, height) => sum + height + ROW_GAP, 0);
 }
 
 function layoutOwnerGrid(ownerIds, x, y) {
-  const sectionWidth = NODE_W * (2 + STATEMENT_COLUMNS) + RANK_GAP * 2 + ROW_GAP * (STATEMENT_COLUMNS - 1);
+  const widestOwner = maxNodeWidth(ownerIds);
+  const widestChild = maxNodeWidth(ownerIds.flatMap(id => containmentChildren.get(id) || []));
+  const sectionWidth = widestOwner + widestChild + RANK_GAP;
   const columns = Math.min(OWNER_COLUMNS, Math.max(1, ownerIds.length));
   const columnHeights = new Array(columns).fill(y);
   ownerIds.forEach(ownerId => {
@@ -414,56 +558,31 @@ function layoutOwnerGrid(ownerIds, x, y) {
 }
 
 function layoutOwnerSection(ownerId, x, y) {
-  positions.set(ownerId, { x, y, width: NODE_W, height: NODE_H });
+  const ownerBox = placeNode(ownerId, x, y);
   const childIds = containmentChildren.get(ownerId) || [];
   const objectIds = childIds.filter(id => nodeById.get(id)?.kind === "object");
   const stateIds = childIds.filter(id => nodeById.get(id)?.kind === "state");
+  const objectX = x + ownerBox.width + RANK_GAP;
   objectIds.forEach((objectId, index) => {
-    positions.set(objectId, {
-      x: x + NODE_W + RANK_GAP,
-      y: y + index * (NODE_H + ROW_GAP),
-      width: NODE_W,
-      height: NODE_H
-    });
+    const previousIds = objectIds.slice(0, index);
+    const offset = previousIds.reduce((sum, id) => sum + nodeBox(id).height + ROW_GAP, 0);
+    placeNode(objectId, objectX, y + offset);
   });
-  const objectHeight = objectIds.length === 0 ? 0 : objectIds.length * (NODE_H + ROW_GAP) + ROW_GAP;
-  if (stateIds.length === 0) return NODE_H;
+  const objectHeight = objectIds.reduce((sum, id) => sum + nodeBox(id).height + ROW_GAP, 0);
+  if (stateIds.length === 0) return Math.max(ownerBox.height, objectHeight);
 
   let cursorY = y + objectHeight;
   for (const stateId of stateIds) {
-    const statementIds = containmentChildren.get(stateId) || [];
-    const statementRows = Math.max(1, Math.ceil(statementIds.length / STATEMENT_COLUMNS));
-    const rowHeight = Math.max(NODE_H, statementRows * (NODE_H + ROW_GAP) - ROW_GAP);
-    positions.set(stateId, {
-      x: x + NODE_W + RANK_GAP,
-      y: cursorY,
-      width: NODE_W,
-      height: NODE_H
-    });
-    statementIds.forEach((statementId, index) => {
-      const column = index % STATEMENT_COLUMNS;
-      const row = Math.floor(index / STATEMENT_COLUMNS);
-      positions.set(statementId, {
-        x: x + (NODE_W + RANK_GAP) * 2 + column * (NODE_W + ROW_GAP),
-        y: cursorY + row * (NODE_H + ROW_GAP),
-        width: NODE_W,
-        height: NODE_H
-      });
-    });
-    cursorY += rowHeight + ROW_GAP;
+    const stateBox = placeNode(stateId, objectX, cursorY);
+    cursorY += stateBox.height + ROW_GAP;
   }
 
-  return Math.max(NODE_H, cursorY - y - ROW_GAP);
+  return Math.max(ownerBox.height, cursorY - y - ROW_GAP);
 }
 
 function layoutStandalone(id) {
-  const index = positions.size;
-  positions.set(id, {
-    x: LEFT,
-    y: TOP + index * (NODE_H + ROW_GAP),
-    width: NODE_W,
-    height: NODE_H
-  });
+  const y = TOP + Array.from(positions.values()).reduce((sum, box) => sum + box.height + ROW_GAP, 0);
+  placeNode(id, LEFT, y);
 }
 
 function fallbackLayout() {
@@ -487,17 +606,59 @@ function fallbackLayout() {
   }
 
   const rowsByRank = new Map();
+  const rowHeightsByRank = new Map();
   GRAPH.nodes.forEach(node => {
     const rank = ranks.get(node.id) || 0;
     const row = rowsByRank.get(rank) || 0;
     rowsByRank.set(rank, row + 1);
-    positions.set(node.id, {
-      x: LEFT + rank * (NODE_W + RANK_GAP),
-      y: TOP + row * (NODE_H + ROW_GAP),
-      width: NODE_W,
-      height: NODE_H
-    });
+    const rankHeights = rowHeightsByRank.get(rank) || [];
+    rankHeights[row] = Math.max(rankHeights[row] || 0, nodeBox(node.id).height);
+    rowHeightsByRank.set(rank, rankHeights);
   });
+
+  GRAPH.nodes.forEach(node => {
+    const rank = ranks.get(node.id) || 0;
+    const rankHeights = rowHeightsByRank.get(rank) || [];
+    const placedInRank = Array.from(positions.keys())
+      .filter(id => (ranks.get(id) || 0) === rank)
+      .length;
+    placeNode(
+      node.id,
+      LEFT + rank * (NODE_MAX_W + RANK_GAP),
+      TOP + rowOffset(rankHeights, placedInRank)
+    );
+  });
+}
+
+function measureNode(node) {
+  const lines = node.label.split("\n");
+  const shownLines = Math.min(lines.length, NODE_MAX_LINES);
+  const maxChars = lines.slice(0, NODE_MAX_LINES).reduce((max, line) => Math.max(max, line.length), 0);
+  return {
+    width: Math.min(NODE_MAX_W, Math.max(NODE_W, 28 + maxChars * 7.2)),
+    height: Math.max(NODE_H, 30 + shownLines * LINE_H + (lines.length > NODE_MAX_LINES ? LINE_H : 0))
+  };
+}
+
+function nodeBox(id) {
+  return nodeBoxes.get(id) || { width: NODE_W, height: NODE_H };
+}
+
+function placeNode(id, x, y) {
+  const box = nodeBox(id);
+  const positioned = { x, y, width: box.width, height: box.height };
+  positions.set(id, positioned);
+  return positioned;
+}
+
+function maxNodeWidth(ids) {
+  return ids.reduce((max, id) => Math.max(max, nodeBox(id).width), NODE_W);
+}
+
+function rowOffset(rowHeights, row) {
+  let offset = 0;
+  for (let index = 0; index < row; index += 1) offset += (rowHeights[index] || NODE_H) + ROW_GAP;
+  return offset;
 }
 
 function assignFallbackRanks(root, rootRank, ranks, outgoing) {
@@ -687,14 +848,17 @@ function drawNode(node) {
   title.textContent = node.label;
   group.appendChild(title);
 
-  const lines = node.label.split("\n").slice(0, 4);
+  const allLines = node.label.split("\n");
+  const lines = allLines.slice(0, NODE_MAX_LINES);
+  if (allLines.length > NODE_MAX_LINES) lines.push(`... ${allLines.length - NODE_MAX_LINES} more lines`);
+  const maxChars = Math.max(8, Math.floor((box.width - 28) / 7.2));
   lines.forEach((line, index) => {
     const text = el("text", {
       x: 14,
       y: 22 + index * 16,
       "class": index === 0 ? "" : "subtitle"
     });
-    text.textContent = fitLine(line, index === 0 ? 30 : 34);
+    text.textContent = fitLine(line, maxChars);
     group.appendChild(text);
   });
   group.addEventListener("click", event => {
