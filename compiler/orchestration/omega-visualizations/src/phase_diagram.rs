@@ -1173,7 +1173,7 @@ function drawNode(node) {
   });
   group.addEventListener("click", event => {
     event.stopPropagation();
-    selectNode(node.id, true);
+    selectNode(node.id, false);
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
@@ -1286,12 +1286,21 @@ function scopeTargetFor(id) {
   const explicitTarget = nodeById.get(id)?.scopeTarget;
   if (explicitTarget && nodeById.has(explicitTarget)) return explicitTarget;
   let current = id;
-  let parent = containmentParent.get(current);
-  while (parent && containmentParent.has(parent)) {
+  while (current && !isScopeNode(current)) {
+    const parent = containmentParent.get(current);
+    if (!parent || isGraphRoot(parent)) break;
     current = parent;
-    parent = containmentParent.get(current);
   }
-  return parent || current;
+  return current;
+}
+
+function isGraphRoot(id) {
+  return id === "root" || nodeById.get(id)?.kind === "root";
+}
+
+function isScopeNode(id) {
+  const kind = nodeById.get(id)?.kind;
+  return ["file", "data", "trait", "machine", "state_block", "object"].includes(kind);
 }
 
 function updateGeometry() {
