@@ -77,6 +77,7 @@ pub fn control_flow_html(plan: &ControlFlowPlan) -> String {
                             scope_target_id,
                         );
                         diagram.edge(source_id, &call_id, "call");
+                        diagram.containment_edge(source_id, &call_id);
                     }
                 }
             }
@@ -95,9 +96,15 @@ fn machine_index_from_key(key: StateKey) -> usize {
 }
 
 fn machine_label(plan: &ControlFlowPlan, machine: &MachineFlow) -> String {
+    let machine_name = plan
+        .states
+        .span_or_empty(machine.states)
+        .first()
+        .map(|state| format!("{}::{}", machine.name.as_str(), state.name.as_str()))
+        .unwrap_or_else(|| machine.name.as_str().to_owned());
     format!(
         "machine {}\nstates: {}\ncontains: {}\nowned data: {}",
-        machine.name.as_str(),
+        machine_name,
         plan.states.span_or_empty(machine.states).len(),
         plan.machine_contains(machine).len(),
         plan.machine_owned_data(machine).len()

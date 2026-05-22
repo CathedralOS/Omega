@@ -248,9 +248,14 @@ fn append_trait_machine_signatures(
 }
 
 fn machine_label(program: &TypedTrees, machine: &Machine, entry_state: Option<&State>) -> String {
+    let machine_name = if let Some(entry_state) = entry_state {
+        format!("{}::{}", machine.name.as_str(), entry_state.name.as_str())
+    } else {
+        machine.name.as_str().to_owned()
+    };
     let mut label = format!(
         "machine {}\nsymbol: {}\nsatisfies: {}\ntargetable states: {}",
-        machine.name.as_str(),
+        machine_name,
         symbol_label(machine.symbol),
         machine.satisfies.len(),
         machine.states.len().saturating_sub(1)
@@ -260,8 +265,6 @@ fn machine_label(program: &TypedTrees, machine: &Machine, entry_state: Option<&S
         return label;
     };
 
-    label.push_str("\nentry: ");
-    label.push_str(entry_state.name.as_str());
     for (statement_index, statement) in program
         .statement_table
         .statements(entry_state.statement_nodes)

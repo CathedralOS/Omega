@@ -283,14 +283,23 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
         }
         Item::Machine(value) => {
             let state_handles = syntax.items.state_handles(value.states);
+            let entry_state = state_handles
+                .first()
+                .copied()
+                .map(|entry_handle| syntax.items.state(entry_handle));
+            let machine_name = if let Some(entry_state) = entry_state {
+                format!("{}::{}", value.name.as_str(), entry_state.name.as_str())
+            } else {
+                value.name.as_str().to_owned()
+            };
             let mut label = format!(
                 "machine {}\nsatisfies: {}\ntargetable states: {}",
-                value.name.as_str(),
+                machine_name,
                 value.satisfies.len(),
                 state_handles.len().saturating_sub(1)
             );
-            if let Some(entry_handle) = state_handles.first() {
-                append_entry_label(&mut label, syntax, syntax.items.state(*entry_handle));
+            if let Some(entry_state) = entry_state {
+                append_entry_statements(&mut label, syntax, entry_state);
             }
             label
         }
@@ -330,9 +339,7 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
     }
 }
 
-fn append_entry_label(label: &mut String, syntax: &SyntaxTrees, entry_state: &StateNode) {
-    label.push_str("\nentry: ");
-    label.push_str(entry_state.name.as_str());
+fn append_entry_statements(label: &mut String, syntax: &SyntaxTrees, entry_state: &StateNode) {
     for (statement_index, statement_handle) in syntax
         .items
         .statements(entry_state.statements)
