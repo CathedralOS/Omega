@@ -1,1 +1,1 @@
-machine `Sprite` state `draw` does not satisfy trait `Drawable` machine `draw` parameter 1: expected `canvas: &mut Canvas`, got `canvas: Canvas`
+machine `Sprite::draw` state `draw` does not satisfy trait `Drawable` machine `draw` parameter 1: expected `canvas: &mut Canvas`, got `canvas: Canvas`

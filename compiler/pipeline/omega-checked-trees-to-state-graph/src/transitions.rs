@@ -213,9 +213,20 @@ fn plan_transition_target(
                 .then(|| find_initial_segment_by_symbol(segments, symbol))
                 .flatten()
                 .or_else(|| find_initial_segment_by_name(segments, &name));
-            let target = target.ok_or_else(|| {
-                Diagnostic::error(format!("unknown state transition target `{name}`"))
-            })?;
+            let Some(target) = target else {
+                if members.len() == 2 {
+                    return Ok(PlannedTransitionTarget::Nested {
+                        receiver_symbol: path.head_symbol,
+                        state_symbol: path.symbol,
+                        receiver: members[0].clone(),
+                        state: members[1].clone(),
+                    });
+                }
+
+                return Err(Diagnostic::error(format!(
+                    "unknown state transition target `{name}`"
+                )));
+            };
 
             Ok(PlannedTransitionTarget::State {
                 index: target.0,
@@ -262,8 +273,20 @@ fn plan_call_target(
             .then(|| find_initial_segment_by_symbol(segments, symbol))
             .flatten()
             .or_else(|| find_initial_segment_by_name(segments, &name));
-        let target = target
-            .ok_or_else(|| Diagnostic::error(format!("unknown state call target `{name}`")))?;
+        let Some(target) = target else {
+            if receiver.len() == 1 && receiver[0].as_str() == "self" {
+                return Ok(PlannedTransitionTarget::Nested {
+                    receiver_symbol: call.receiver_symbol,
+                    state_symbol: call.target_symbol,
+                    receiver: receiver[0].clone(),
+                    state: call.target.clone(),
+                });
+            }
+
+            return Err(Diagnostic::error(format!(
+                "unknown state call target `{name}`"
+            )));
+        };
 
         return Ok(PlannedTransitionTarget::State {
             index: target.0,

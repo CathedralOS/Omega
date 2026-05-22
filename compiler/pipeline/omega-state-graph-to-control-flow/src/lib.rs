@@ -101,6 +101,7 @@ fn remap_machine(
     MachineFlow {
         symbol: machine.symbol,
         name: machine.name.clone(),
+        attached_data: machine.attached_data.clone(),
         contains: contained_machines.insert_many(
             state_graph
                 .machine_contains(machine)
@@ -121,6 +122,7 @@ fn remap_machine_owned(machine: MachineGraph) -> MachineFlow {
     MachineFlow {
         symbol: machine.symbol,
         name: machine.name,
+        attached_data: machine.attached_data,
         contains: remap_contained_span(machine.contains),
         owned_data: remap_owned_data_span(machine.owned_data),
         states: remap_state_span(machine.states),

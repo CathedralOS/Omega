@@ -2,7 +2,7 @@ use omega_checked_trees::Program;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 
-pub(super) const ENTRY_MACHINE_NAME: &str = "Main";
+pub(super) const ENTRY_MACHINE_NAME: &str = "Main::main";
 pub(super) const ENTRY_STATE_NAME: &str = "main";
 const LEGACY_ENTRY_MACHINE_NAME: &str = "main";
 const LEGACY_ENTRY_STATE_NAME: &str = "entry";

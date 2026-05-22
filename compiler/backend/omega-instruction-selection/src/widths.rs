@@ -189,12 +189,10 @@ pub fn runtime_text_literal_append_to_runtime_pointee_width(
     literal: &str,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_text_literal_append_to_runtime_pointee_width(
-                field_byte_offset,
-                literal,
-            )
-        }
+        Architecture::Aarch64 => aarch64::runtime_text_literal_append_to_runtime_pointee_width(
+            field_byte_offset,
+            literal,
+        ),
         Architecture::X86_64 => 0,
     }
 }

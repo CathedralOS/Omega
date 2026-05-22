@@ -1190,6 +1190,7 @@ mod tests {
         let mut machine = Machine {
             symbol: machine_symbol,
             name: ProgramName::generated("Game"),
+            attached_data: None,
             contains: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),

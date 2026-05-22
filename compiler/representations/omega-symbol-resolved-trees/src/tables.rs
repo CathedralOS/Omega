@@ -334,6 +334,7 @@ mod tests {
         program.machines.push(Machine {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
+            attached_data: None,
             storage: MachineStorage {
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),

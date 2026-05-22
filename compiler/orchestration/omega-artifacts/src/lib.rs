@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use omega_checked_trees::{machine::Machine, platform::Platform, Program};
+use omega_checked_trees::{Program, machine::Machine, platform::Platform};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -970,14 +970,14 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine
         states: program.machine_states(machine).len(),
     });
 
-    if machine.name.as_str() == "Main"
+    if machine.name.as_str() == "Main::main"
         && program
             .machine_states(machine)
             .iter()
             .any(|state| state.name.as_str() == "main")
     {
         report.entry_points.insert(BackendEntryPoint {
-            machine: "Main".to_owned(),
+            machine: "Main::main".to_owned(),
             state: "main".to_owned(),
         });
     } else if machine.name.as_str() == "main"
@@ -1064,12 +1064,12 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
+    use omega_checked_trees::Program;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::platform::Platform;
     use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
-    use omega_checked_trees::Program;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
@@ -1096,6 +1096,7 @@ mod tests {
         let mut machine = Machine {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),
+            attached_data: None,
             contains: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),

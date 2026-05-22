@@ -141,7 +141,9 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(super) fn at_name_like(&self) -> bool {
-        self.tokens.first().is_some_and(is_identifier_token_for_parser)
+        self.tokens
+            .first()
+            .is_some_and(is_identifier_token_for_parser)
     }
 
     fn identifier_from_token(&self, token: &Token<'_>) -> Identifier {

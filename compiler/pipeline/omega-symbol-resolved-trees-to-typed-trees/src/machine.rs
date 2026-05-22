@@ -13,6 +13,7 @@ pub(crate) fn lower_machine(
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
+        attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),

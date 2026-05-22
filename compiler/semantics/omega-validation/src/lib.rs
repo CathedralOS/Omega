@@ -3,6 +3,7 @@ mod symbols;
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
+use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
@@ -14,7 +15,6 @@ use omega_typed_trees::statement::{
 use omega_typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use omega_typed_trees::TypedTrees;
 use std::fmt;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -789,7 +789,7 @@ fn validate_type_constraints_node(
 }
 
 fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    if has_entry_point(program, "Main", "main") || has_entry_point(program, "main", "entry") {
+    if has_entry_point(program, "Main::main", "main") || has_entry_point(program, "main", "entry") {
         return;
     }
 
@@ -1295,7 +1295,29 @@ fn validate_call_node(
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
     {
-        let Some(state) = machine_symbols.state(&call.target) else {
+        if let Some(state) = machine_symbols.state(&call.target) {
+            validate_call_arguments_handles(
+                program,
+                arguments,
+                state.name.as_str(),
+                program.state_parameters(state),
+                writable_roots,
+                diagnostics,
+            );
+            return;
+        }
+
+        let Some((_, state)) = current_machine
+            .attached_data
+            .as_ref()
+            .and_then(|attached_data| {
+                symbols.attached_machine_state(
+                    program,
+                    attached_data.as_str(),
+                    call.target.as_str(),
+                )
+            })
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
                 current_machine.name, call.target
@@ -1368,6 +1390,20 @@ fn validate_call_node(
             "machine `{}` has no state `{}`",
             machine.name, call.target
         )));
+        return;
+    }
+
+    if let Some((_, state)) = receiver_type.and_then(|type_name| {
+        symbols.attached_machine_state(program, type_name, call.target.as_str())
+    }) {
+        validate_call_arguments_handles(
+            program,
+            arguments,
+            &state.name,
+            program.state_parameters(state),
+            writable_roots,
+            diagnostics,
+        );
         return;
     }
 

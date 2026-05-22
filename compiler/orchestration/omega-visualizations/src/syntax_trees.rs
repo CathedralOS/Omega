@@ -287,14 +287,9 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .first()
                 .copied()
                 .map(|entry_handle| syntax.items.state(entry_handle));
-            let machine_name = if let Some(entry_state) = entry_state {
-                format!("{}::{}", value.name.as_str(), entry_state.name.as_str())
-            } else {
-                value.name.as_str().to_owned()
-            };
             let mut label = format!(
                 "machine {}\nsatisfies: {}\ntargetable states: {}",
-                machine_name,
+                value.name.as_str(),
                 value.satisfies.len(),
                 state_handles.len().saturating_sub(1)
             );

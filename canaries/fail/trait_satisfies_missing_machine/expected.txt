@@ -1,1 +1,1 @@
-machine `Sprite` satisfies trait `Drawable` but is missing machine `draw`
+machine `Sprite::paint` satisfies trait `Drawable` but is missing machine `draw`

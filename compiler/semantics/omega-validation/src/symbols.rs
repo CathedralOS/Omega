@@ -205,6 +205,28 @@ impl<'program> ProgramSymbols<'program> {
             .map(|symbol| symbol.machine)
     }
 
+    pub fn attached_machine_state(
+        &self,
+        program: &'program TypedTrees,
+        data_name: &str,
+        state_name: &str,
+    ) -> Option<(&'program Machine, &'program State)> {
+        self.machines.iter().find_map(|symbol| {
+            (symbol
+                .machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|attached_data| attached_data.as_str() == data_name))
+            .then(|| {
+                program
+                    .machine_states(symbol.machine)
+                    .iter()
+                    .find(|state| state.name.as_str() == state_name)
+                    .map(|state| (symbol.machine, state))
+            })?
+        })
+    }
+
     fn machine_symbol(&self, name: &str) -> SymbolHandle {
         self.machines
             .iter()
@@ -298,7 +320,7 @@ impl<'program> MachineSymbols<'program> {
         if let Some(data_definition) = program
             .data_definitions()
             .iter()
-            .find(|definition| definition.name == machine.name)
+            .find(|definition| Some(&definition.name) == machine.attached_data.as_ref())
         {
             for member in program.data_members(data_definition) {
                 let DataMember::Field(field) = member else {

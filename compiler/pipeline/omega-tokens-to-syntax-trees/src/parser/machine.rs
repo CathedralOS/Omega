@@ -28,7 +28,11 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
     input = next;
-    let (name, entry_name) = split_machine_path(syntax_trees, path);
+    let MachinePath {
+        name,
+        attached_data,
+        entry_name,
+    } = split_machine_path(syntax_trees, path);
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut state_start = Handle::invalid();
@@ -102,6 +106,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     Ok((
         Machine {
             name,
+            attached_data,
             satisfies,
             states,
         },
@@ -281,25 +286,30 @@ fn append_machine_state(
     handle
 }
 
-fn split_machine_path(
-    syntax_trees: &SyntaxTrees,
-    path: HandleSpan<Identifier>,
-) -> (Identifier, Option<Identifier>) {
+struct MachinePath {
+    name: Identifier,
+    attached_data: Option<Identifier>,
+    entry_name: Option<Identifier>,
+}
+
+fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) -> MachinePath {
     let members = syntax_trees.expressions.identifier_path_members(path);
 
     if members.len() <= 1 {
-        return (
-            members
+        return MachinePath {
+            name: members
                 .first()
                 .cloned()
                 .expect("machine path should contain a name"),
-            None,
-        );
+            attached_data: None,
+            entry_name: None,
+        };
     }
 
     let mut name = String::new();
+    let mut attached_data = String::new();
 
-    for (index, member) in members[..members.len() - 1].iter().enumerate() {
+    for (index, member) in members.iter().enumerate() {
         if index > 0 {
             name.push_str("::");
         }
@@ -307,7 +317,19 @@ fn split_machine_path(
         name.push_str(member.as_str());
     }
 
-    (Identifier::generated(name), members.last().cloned())
+    for (index, member) in members[..members.len() - 1].iter().enumerate() {
+        if index > 0 {
+            attached_data.push_str("::");
+        }
+
+        attached_data.push_str(member.as_str());
+    }
+
+    MachinePath {
+        name: Identifier::generated(name),
+        attached_data: Some(Identifier::generated(attached_data)),
+        entry_name: members.last().cloned(),
+    }
 }
 
 fn skip_machine_invariant<'tokens, 'source>(

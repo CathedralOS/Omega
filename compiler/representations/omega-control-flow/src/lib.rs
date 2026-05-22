@@ -186,6 +186,7 @@ impl StateKey {
 pub struct MachineFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub attached_data: Option<ProgramName>,
     pub contains: HandleSpan<ContainedFlow>,
     pub owned_data: HandleSpan<MachineOwnedDataFlow>,
     pub states: HandleSpan<StateFlow>,
@@ -196,6 +197,7 @@ impl Default for MachineFlow {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
+            attached_data: None,
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             states: HandleSpan::empty(),

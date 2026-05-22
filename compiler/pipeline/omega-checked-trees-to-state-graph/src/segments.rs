@@ -494,7 +494,9 @@ fn branch_call_target_with_visited<'program>(
                                 program
                                     .machines()
                                     .iter()
-                                    .find(|candidate| candidate.name == field_type_name)
+                                    .find(|candidate| {
+                                        candidate.attached_data.as_ref() == Some(&field_type_name)
+                                    })
                                     .map(|candidate| candidate.symbol)
                             })
                     })

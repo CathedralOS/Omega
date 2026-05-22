@@ -533,6 +533,7 @@ fn merge_machine_graph(target: &mut StateGraph, source: StateGraph, machine_grap
     target.machines.insert(MachineGraph {
         symbol: machine_graph.symbol,
         name: machine_graph.name,
+        attached_data: machine_graph.attached_data,
         contains,
         owned_data,
         states,
@@ -720,6 +721,7 @@ fn build_machine_graph(
     Ok(MachineGraph {
         symbol: machine_symbol,
         name: machine.name.clone(),
+        attached_data: machine.attached_data.clone(),
         contains: machine_contains(state_graph, program, machine),
         owned_data: machine_owned_data(state_graph, program, machine),
         states,
@@ -780,7 +782,7 @@ fn machine_contains(
     let Some(data_definition) = program
         .data_definitions()
         .iter()
-        .find(|data_definition| data_definition.name == machine.name)
+        .find(|data_definition| Some(&data_definition.name) == machine.attached_data.as_ref())
     else {
         return contains;
     };
@@ -794,7 +796,7 @@ fn machine_contains(
         let Some(target_machine) = program
             .machines()
             .iter()
-            .find(|candidate| candidate.name == field_type_name)
+            .find(|candidate| candidate.attached_data.as_ref() == Some(&field_type_name))
         else {
             continue;
         };
@@ -819,7 +821,7 @@ fn machine_contains(
                 symbol: contained_symbol,
                 name: field.name.clone(),
                 type_symbol: target_machine.symbol,
-                type_name: target_machine.name.clone(),
+                type_name: field_type_name,
             },
         );
     }
