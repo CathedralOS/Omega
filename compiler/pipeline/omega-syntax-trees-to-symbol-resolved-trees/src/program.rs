@@ -163,6 +163,31 @@ mod tests {
     }
 
     #[test]
+    fn lowers_machine_contract_clauses() {
+        let source = r#"
+        machine distinct_indices(i: usize, j: usize)
+        requires
+            i < j
+        ensures
+            i != j
+        {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+        let machine = program.machines.first().expect("machine");
+        let contracts = program.machine_contracts(machine);
+
+        assert_eq!(contracts.len(), 2);
+        assert_eq!(contracts[0].token_count, 3);
+        assert_eq!(contracts[1].token_count, 3);
+    }
+
+    #[test]
     fn lowers_attached_main_state_name_as_main() {
         let source = r#"
         data Main {

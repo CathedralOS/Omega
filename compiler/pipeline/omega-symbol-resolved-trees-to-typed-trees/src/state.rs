@@ -61,6 +61,7 @@ pub(crate) fn lower_state_signature(
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
         effects: Default::default(),
+        contracts: Default::default(),
     };
 
     for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
@@ -74,6 +75,29 @@ pub(crate) fn lower_state_signature(
         lowerer
             .typed_trees
             .push_state_signature_effect(&mut typed_signature, crate::name::lower_name(effect));
+    }
+
+    for contract in lowerer
+        .source_trees
+        .signature_contracts(signature.contracts)
+    {
+        lowerer.typed_trees.push_state_signature_contract(
+            &mut typed_signature,
+            typed::signature::SignatureContract {
+                kind: match contract.kind {
+                    resolved::signature::SignatureContractKind::Requires => {
+                        typed::signature::SignatureContractKind::Requires
+                    }
+                    resolved::signature::SignatureContractKind::Ensures => {
+                        typed::signature::SignatureContractKind::Ensures
+                    }
+                    resolved::signature::SignatureContractKind::Trusted => {
+                        typed::signature::SignatureContractKind::Trusted
+                    }
+                },
+                token_count: contract.token_count,
+            },
+        );
     }
 
     Ok(typed_signature)

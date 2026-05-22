@@ -41,6 +41,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub trait_requirements: Arena<crate::trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub signature_effects: Arena<crate::name::DiagnosticName>,
+    pub signature_contracts: Arena<signature::SignatureContract>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub statement_path_members: Arena<crate::name::DiagnosticName>,
     pub state_statements: Arena<statement::Statement>,
@@ -124,11 +125,28 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    pub fn signature_contracts(
+        &self,
+        span: HandleSpan<signature::SignatureContract>,
+    ) -> &[signature::SignatureContract] {
+        self.tables
+            .declarations
+            .signature_contracts
+            .span_or_empty(span)
+    }
+
     pub fn machine_effects(
         &self,
         machine: &crate::machine::Machine,
     ) -> &[crate::name::DiagnosticName] {
         self.signature_effects(machine.effects)
+    }
+
+    pub fn machine_contracts(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> &[signature::SignatureContract] {
+        self.signature_contracts(machine.contracts)
     }
 
     pub fn machine_state_handles(

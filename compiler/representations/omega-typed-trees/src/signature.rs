@@ -10,6 +10,7 @@ pub struct StateSignature {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
     pub effects: HandleSpan<ProgramName>,
+    pub contracts: HandleSpan<SignatureContract>,
 }
 
 impl Default for StateSignature {
@@ -20,6 +21,7 @@ impl Default for StateSignature {
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
         }
     }
 }
@@ -45,4 +47,18 @@ impl Default for StateParameter {
             is_self: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SignatureContract {
+    pub kind: SignatureContractKind,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SignatureContractKind {
+    #[default]
+    Requires,
+    Ensures,
+    Trusted,
 }

@@ -349,6 +349,7 @@ mod tests {
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
                 effects: HandleSpan::empty(),
+                contracts: HandleSpan::empty(),
                 states,
             },
         });
