@@ -1239,6 +1239,11 @@ function activateNode(id) {
     return;
   }
 
+  if (scopeTarget && scopeTarget !== scopedId && isScopeNode(id)) {
+    setScope(scopeTarget, true);
+    return;
+  }
+
   const targetId = followTargetFor(id);
   if (targetId) {
     selectNode(targetId, true);
@@ -1293,13 +1298,13 @@ function clearGraphScope(fit) {
 function renderDetailsActions(id) {
   detailsActions.replaceChildren();
   const actions = [];
-  const targetId = followTargetFor(id);
-  if (targetId) actions.push({ label: "Follow", action: () => selectNode(targetId, true) });
-
   const scopeTarget = scopeTargetFor(id);
   if (scopeTarget && scopeTarget !== scopedId) {
     actions.push({ label: "Open Scope", action: () => setScope(scopeTarget, true) });
   }
+
+  const targetId = followTargetFor(id);
+  if (targetId) actions.push({ label: "Follow", action: () => selectNode(targetId, true) });
 
   if (scopedId) actions.push({ label: "Clear Scope", action: () => clearGraphScope(true) });
 
