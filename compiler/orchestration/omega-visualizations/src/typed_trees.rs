@@ -1,5 +1,6 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::symbols::SymbolHandle;
+use omega_effects::{EffectPlan, EffectSet};
 use omega_typed_trees::statement::TableNamePath;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
@@ -11,6 +12,7 @@ use omega_typed_trees::{data::DataMember, machine::Machine};
 
 pub fn typed_trees_html(typed: &TypedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("typed_trees");
+    let effect_plan = omega_effects::infer_effects(typed);
     let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
     let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
@@ -108,7 +110,14 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
             };
             let machine_id = diagram.node(
                 format!("machine_{machine_index}_{}", root_symbol.arena_index()),
-                machine_label(typed, machine, Some(root_state), &states, &root_symbols),
+                machine_label(
+                    typed,
+                    &effect_plan,
+                    machine,
+                    Some(root_state),
+                    &states,
+                    &root_symbols,
+                ),
                 "machine",
                 1,
             );
@@ -180,6 +189,7 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
             append_state(
                 &mut diagram,
                 typed,
+                &effect_plan,
                 machine_id,
                 &state_nodes,
                 machine_index,
@@ -201,6 +211,7 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
         append_call_references(
             &mut diagram,
             typed,
+            &effect_plan,
             &global_state_scope_nodes,
             &global_machine_scope_nodes,
             machine_index,
@@ -456,6 +467,7 @@ fn trait_machine_signature_label(program: &TypedTrees, machine: &StateSignature)
 
 fn machine_label(
     program: &TypedTrees,
+    effect_plan: &EffectPlan,
     machine: &Machine,
     entry_state: Option<&State>,
     states: &[&State],
@@ -485,16 +497,11 @@ fn machine_label(
             })
             .unwrap_or(0)
     );
-    let effects = program.machine_effects(machine);
-    if !effects.is_empty() {
-        label.push_str("\neffects: ");
-        label.push_str(
-            &effects
-                .iter()
-                .map(|effect| effect.as_str())
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
+    if let Some(effects) = machine_effects_for(effect_plan, machine.symbol) {
+        label.push_str("\ndirect effects: ");
+        label.push_str(&format_effect_set(effects.direct));
+        label.push_str("\nreached effects: ");
+        label.push_str(&format_effect_set(effects.transitive));
     }
 
     let Some(entry_state) = entry_state else {
@@ -540,6 +547,7 @@ fn append_entry_transitions(
 fn append_call_references(
     diagram: &mut PhaseDiagramBuilder,
     program: &TypedTrees,
+    effect_plan: &EffectPlan,
     state_scope_nodes: &[(SymbolHandle, String)],
     machine_scope_nodes: &[(String, String, String)],
     machine_index: usize,
@@ -570,6 +578,14 @@ fn append_call_references(
             continue;
         }
 
+        let reached_effects = call_effects_for(
+            effect_plan,
+            state_symbol,
+            statement_index,
+            call.target_symbol,
+        )
+        .map(|effects| effects.transitive)
+        .unwrap_or_else(EffectSet::empty);
         let call_id = diagram.scoped_node(
             format!(
                 "machine_ref_{machine_index}_{}_{}",
@@ -577,9 +593,10 @@ fn append_call_references(
                 statement_index
             ),
             format!(
-                "{}\n{}\n\ndouble-click to scope target",
+                "{}\n{}\nreaches effects: {}\n\ndouble-click to scope target",
                 call_target.label,
-                inline_label(statement_label(program, statement))
+                inline_label(statement_label(program, statement)),
+                format_effect_set(reached_effects)
             ),
             "machine_ref",
             2,
@@ -695,6 +712,7 @@ fn machine_scope_id_for_name_and_state<'nodes>(
 fn append_state(
     diagram: &mut PhaseDiagramBuilder,
     program: &TypedTrees,
+    effect_plan: &EffectPlan,
     parent_id: &str,
     state_nodes: &[(SymbolHandle, String, String)],
     machine_index: usize,
@@ -702,7 +720,7 @@ fn append_state(
 ) {
     let state_id = diagram.node(
         format!("state_{machine_index}_{}", state.symbol.arena_index()),
-        state_label(program, state),
+        state_label(program, effect_plan, state),
         "state",
         2,
     );
@@ -721,7 +739,7 @@ fn append_state(
     }
 }
 
-fn state_label(program: &TypedTrees, state: &State) -> String {
+fn state_label(program: &TypedTrees, effect_plan: &EffectPlan, state: &State) -> String {
     let mut label = format!(
         "state {}\nsymbol: {}\nparams: {}\nstatements: {}",
         state.name.as_str(),
@@ -729,6 +747,12 @@ fn state_label(program: &TypedTrees, state: &State) -> String {
         state.parameters.len(),
         state.statement_nodes.len()
     );
+    if let Some(effects) = state_effects_for(effect_plan, state.symbol) {
+        label.push_str("\ndirect effects: ");
+        label.push_str(&format_effect_set(effects.direct));
+        label.push_str("\nreached effects: ");
+        label.push_str(&format_effect_set(effects.transitive));
+    }
 
     for (statement_index, statement) in program
         .statement_table
@@ -833,6 +857,56 @@ fn transition_target_name(program: &TypedTrees, path: TableNamePath) -> Option<&
         .name_path_members(path.members)
         .last()
         .map(|member| member.as_str())
+}
+
+fn machine_effects_for(
+    effect_plan: &EffectPlan,
+    symbol: SymbolHandle,
+) -> Option<&omega_effects::MachineEffects> {
+    effect_plan
+        .machines()
+        .iter()
+        .find(|effects| effects.symbol == symbol)
+}
+
+fn state_effects_for(
+    effect_plan: &EffectPlan,
+    symbol: SymbolHandle,
+) -> Option<&omega_effects::StateEffects> {
+    effect_plan
+        .machines()
+        .iter()
+        .flat_map(|machine| effect_plan.states.span_or_empty(machine.states).iter())
+        .find(|effects| effects.symbol == symbol)
+}
+
+fn call_effects_for(
+    effect_plan: &EffectPlan,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    target_symbol: SymbolHandle,
+) -> Option<&omega_effects::CallEffects> {
+    let state_effects = state_effects_for(effect_plan, state_symbol)?;
+    effect_plan
+        .calls
+        .span_or_empty(state_effects.calls)
+        .iter()
+        .find(|effects| {
+            effects.statement_index == statement_index
+                && effects.target_state_symbol == target_symbol
+        })
+}
+
+fn format_effect_set(effects: EffectSet) -> String {
+    if effects.is_empty() {
+        return "<none> [0x0000000000000000]".to_owned();
+    }
+
+    format!(
+        "{} [0x{:016x}]",
+        effects.names().collect::<Vec<_>>().join(", "),
+        effects.bits()
+    )
 }
 
 fn symbol_label(symbol: SymbolHandle) -> String {

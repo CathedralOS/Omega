@@ -841,6 +841,7 @@ version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
+ "omega-effects",
  "omega-state-graph",
  "omega-symbol-resolved-trees",
  "omega-syntax-trees",
