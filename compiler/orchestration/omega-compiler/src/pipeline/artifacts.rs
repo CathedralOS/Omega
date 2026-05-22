@@ -21,6 +21,12 @@ pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<D
         ("03", "Symbols", "symbols", "03_symbol_resolved_trees.html"),
         ("04", "Typed", "typed", "04_typed_trees.html"),
         ("05", "Checked", "checked", "05_checked_trees.html"),
+        (
+            "cap",
+            "Capabilities",
+            "capabilities",
+            "05_capability_manifest.html",
+        ),
         ("06", "State Graph", "state-graph", "06_state_graph.html"),
         ("07", "Control Flow", "control-flow", "07_control_flow.html"),
         ("09", "Backend", "backend", "09_backend_report.html"),
@@ -143,6 +149,16 @@ pub(super) fn write_checked_snapshot(
         options,
         "05_checked_trees.html",
         &omega_visualizations::checked_trees_html(checked),
+    )?;
+    write_phase_diagram(
+        options,
+        "05_capability_manifest.html",
+        &omega_visualizations::capability_manifest_html(checked),
+    )?;
+    write_phase_json(
+        options,
+        "05_capability_manifest.json",
+        &omega_visualizations::capability_manifest_json(checked),
     )
 }
 

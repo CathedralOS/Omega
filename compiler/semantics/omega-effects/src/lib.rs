@@ -97,6 +97,12 @@ impl EffectSet {
         self.bits != before
     }
 
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+
     pub const fn contains_all(self, other: Self) -> bool {
         (self.bits & other.bits) == other.bits
     }

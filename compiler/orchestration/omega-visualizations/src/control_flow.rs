@@ -138,25 +138,29 @@ fn machine_label(
         .map(|name| name.as_str())
         .unwrap_or("<none>");
     format!(
-        "machine {}\nattached data: {}\nstates: {}\ncontains: {}\nowned data: {}",
+        "machine {}\nattached data: {}\nstates: {}\ncontains: {}\nowned data: {}\ndirect effects: {}\nreached effects: {}",
         machine.name.as_str(),
         attached_data,
         state_count,
         plan.machine_contains(machine).len(),
-        plan.machine_owned_data(machine).len()
+        plan.machine_owned_data(machine).len(),
+        format_effect_bits(machine.direct_effects),
+        format_effect_bits(machine.reached_effects)
     )
 }
 
 fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow) -> String {
     let mut label = format!(
-        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}",
+        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ndirect effects: {}\nreached effects: {}",
         machine.name.as_str(),
         state.name.as_str(),
         state.key.segment_index,
         state.parameters.len(),
         state.borrow.mutable_parameter_count,
         state.operations.len(),
-        state.transitions.len()
+        state.transitions.len(),
+        format_effect_bits(state.direct_effects),
+        format_effect_bits(state.reached_effects)
     );
 
     for operation in plan.operations.span_or_empty(state.operations) {
@@ -172,6 +176,19 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
     }
 
     label
+}
+
+fn format_effect_bits(bits: omega_effects::EffectBits) -> String {
+    let effects = omega_effects::EffectSet::from_bits(bits);
+    if effects.is_empty() {
+        return "<none> [0x0000000000000000]".to_owned();
+    }
+
+    format!(
+        "{} [0x{:016x}]",
+        effects.names().collect::<Vec<_>>().join(", "),
+        effects.bits()
+    )
 }
 
 fn operation_label(plan: &ControlFlowPlan, operation: &Operation) -> String {

@@ -102,6 +102,8 @@ fn remap_machine(
         symbol: machine.symbol,
         name: machine.name.clone(),
         attached_data: machine.attached_data.clone(),
+        direct_effects: machine.direct_effects,
+        reached_effects: machine.reached_effects,
         contains: contained_machines.insert_many(
             state_graph
                 .machine_contains(machine)
@@ -123,6 +125,8 @@ fn remap_machine_owned(machine: MachineGraph) -> MachineFlow {
         symbol: machine.symbol,
         name: machine.name,
         attached_data: machine.attached_data,
+        direct_effects: machine.direct_effects,
+        reached_effects: machine.reached_effects,
         contains: remap_contained_span(machine.contains),
         owned_data: remap_owned_data_span(machine.owned_data),
         states: remap_state_span(machine.states),
@@ -323,6 +327,8 @@ fn remap_state(
         key: remap_state_key(state.key),
         name: state.name.clone(),
         index: state.index,
+        direct_effects: state.direct_effects,
+        reached_effects: state.reached_effects,
         parameters: state_parameters.insert_many(
             state_graph
                 .state_parameters(state)
@@ -340,6 +346,8 @@ fn remap_state_owned(state: StateNode) -> StateFlow {
         key: remap_state_key(state.key),
         name: state.name,
         index: state.index,
+        direct_effects: state.direct_effects,
+        reached_effects: state.reached_effects,
         parameters: remap_parameter_span(state.parameters),
         borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),

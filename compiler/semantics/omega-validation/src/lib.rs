@@ -73,6 +73,44 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
+pub fn validate_effect_plan(
+    program: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+
+    for machine_effects in effect_plan.machines() {
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_effects.symbol)
+        else {
+            continue;
+        };
+
+        let declared_effects = declared_machine_effect_set(program, machine);
+        if declared_effects.is_empty() {
+            continue;
+        }
+
+        if !declared_effects.contains_all(machine_effects.transitive) {
+            let missing = machine_effects.transitive.difference(declared_effects);
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` declares effects `{}` but reaches undeclared effects `{}`",
+                machine.name,
+                format_effect_set(declared_effects),
+                format_effect_set(missing)
+            )));
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for invariant in program.invariant_definitions() {
         let Some(constraints) = program
@@ -615,6 +653,25 @@ fn validate_machine_effects(
     }
 }
 
+fn declared_machine_effect_set(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> omega_effects::EffectSet {
+    let mut effects = omega_effects::EffectSet::empty();
+    for effect in program.machine_effects(machine) {
+        effects.insert_name(effect.as_str());
+    }
+    effects
+}
+
+fn format_effect_set(effects: omega_effects::EffectSet) -> String {
+    if effects.is_empty() {
+        return "<none>".to_owned();
+    }
+
+    effects.names().collect::<Vec<_>>().join(", ")
+}
+
 fn validate_platform_state_names(
     platform: &omega_typed_trees::platform::Platform,
     platform_states: &[omega_typed_trees::signature::StateSignature],
@@ -863,7 +920,7 @@ fn has_entry_point(program: &TypedTrees, machine_name: &str, state_name: &str) -
 
 #[cfg(test)]
 mod tests {
-    use super::validate_program;
+    use super::{validate_effect_plan, validate_program};
     use omega_source_files_to_tokens::Lexer;
     use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -1087,6 +1144,57 @@ mod tests {
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
         validate_program(&typed).expect("validation should succeed");
+    }
+
+    #[test]
+    fn rejects_declared_machine_effects_below_reached_effects() {
+        let source = r#"
+        boundary trait Console {
+            machine read_line(out: &mut String)
+            effects
+                stdin_io;
+        }
+
+        data ConsoleImpl {
+        }
+
+        machine ConsoleImpl::read_line(out: &mut String) satisfies Console
+        effects
+            stdin_io
+        {
+        }
+
+        data Main {
+            console: ConsoleImpl;
+        }
+
+        machine Main::main(&mut self)
+        effects
+            stdout_io
+        {
+            let line: String;
+            self.console.read_line(&mut line);
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        validate_program(&typed).expect("direct effect validation should pass");
+        let effect_plan = omega_effects::infer_effects(&typed);
+        let diagnostics =
+            validate_effect_plan(&typed, &effect_plan).expect_err("effect ceiling should fail");
+
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("reaches undeclared effects `stdin_io`")),
+            "expected transitive effect ceiling diagnostic, got {diagnostics:#?}"
+        );
     }
 }
 

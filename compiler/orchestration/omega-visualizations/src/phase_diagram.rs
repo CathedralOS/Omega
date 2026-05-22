@@ -33,6 +33,7 @@ const PIPELINE_PAGES: &[(&str, &str, &str)] = &[
     ("03", "Symbols", "symbols"),
     ("04", "Typed", "typed"),
     ("05", "Checked", "checked"),
+    ("cap", "Capabilities", "capabilities"),
     ("06", "State Graph", "state-graph"),
     ("07", "Control Flow", "control-flow"),
     ("09", "Backend", "backend"),
@@ -124,6 +125,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str(
         "<label><input id=\"show-data\" type=\"checkbox\" checked> Data definitions</label>\n",
     );
+    html.push_str("<div id=\"effect-filter\" class=\"hidden\"><h2>Effects</h2><div id=\"effect-buttons\"></div></div>\n");
     html.push_str("<p id=\"counts\"></p>\n");
     html.push_str("<div id=\"details-actions\" class=\"hidden\"></div>\n");
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
@@ -132,6 +134,9 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str("<aside id=\"scope-panel\">\n<h2 id=\"scope-title\">Scopes</h2>\n<input id=\"scope-search\" type=\"search\" placeholder=\"Filter scopes...\" autocomplete=\"off\">\n<nav id=\"scope-outline\" aria-label=\"Primary scopes\"></nav>\n</aside>\n");
     html.push_str("<script>\nconst GRAPH = ");
     push_graph_json(&mut html, title, nodes, edges);
+    html.push_str(";\n");
+    html.push_str("const EFFECT_NAMES = ");
+    push_effect_names_json(&mut html);
     html.push_str(";\n");
     html.push_str(SCRIPT);
     html.push_str("\n</script>\n</body>\n</html>\n");
@@ -264,6 +269,17 @@ fn push_graph_json(
         output.push('}');
     }
     output.push_str("]}");
+}
+
+fn push_effect_names_json(output: &mut String) {
+    output.push('[');
+    for (index, name) in omega_effects::STANDARD_EFFECT_NAMES.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        push_json_string(output, name);
+    }
+    output.push(']');
 }
 
 fn push_json_string(output: &mut String, value: &str) {
@@ -444,6 +460,29 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   margin: 10px 0;
 }
 #details-actions.hidden { display: none; }
+#effect-filter {
+  border: 1px solid #283343;
+  border-radius: 12px;
+  background: #0d1117;
+  margin: 12px 0;
+  padding: 10px;
+}
+#effect-filter.hidden { display: none; }
+#effect-filter h2 { margin-bottom: 8px; }
+#effect-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#effect-buttons button {
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+#effect-buttons button.active {
+  border-color: var(--match);
+  color: #ffffff;
+}
 main { min-width: 0; min-height: 0; position: relative; }
 #canvas {
   width: 100%;
@@ -686,6 +725,8 @@ const search = document.getElementById("search");
 const details = document.getElementById("details");
 const detailsActions = document.getElementById("details-actions");
 const counts = document.getElementById("counts");
+const effectFilter = document.getElementById("effect-filter");
+const effectButtons = document.getElementById("effect-buttons");
 const scopePanel = document.getElementById("scope-panel");
 const scopeTitle = document.getElementById("scope-title");
 const scopeSearch = document.getElementById("scope-search");
@@ -729,6 +770,7 @@ let scopedId = null;
 let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
 let lastActivation = { id: null, time: 0 };
+let activeEffect = null;
 
 function layoutGraph(allowedIds = null) {
   positions.clear();
@@ -972,9 +1014,41 @@ function render() {
   nodeLayer.replaceChildren();
   for (const edge of GRAPH.edges) drawEdge(edge);
   for (const node of GRAPH.nodes) drawNode(node);
+  renderEffectFilters();
   renderScopeOutline();
   calculateBounds();
   applyFilters();
+}
+
+function renderEffectFilters() {
+  effectButtons.replaceChildren();
+  const presentEffects = EFFECT_NAMES.filter(effect =>
+    GRAPH.nodes.some(node => node.label.includes(effect))
+  );
+  effectFilter.classList.toggle("hidden", presentEffects.length === 0);
+  if (presentEffects.length === 0) return;
+
+  const allButton = document.createElement("button");
+  allButton.textContent = "all";
+  allButton.classList.toggle("active", !activeEffect);
+  allButton.addEventListener("click", () => {
+    activeEffect = null;
+    renderEffectFilters();
+    applyFilters();
+  });
+  effectButtons.appendChild(allButton);
+
+  for (const effect of presentEffects) {
+    const button = document.createElement("button");
+    button.textContent = effect;
+    button.classList.toggle("active", activeEffect === effect);
+    button.addEventListener("click", () => {
+      activeEffect = activeEffect === effect ? null : effect;
+      renderEffectFilters();
+      applyFilters();
+    });
+    effectButtons.appendChild(button);
+  }
 }
 
 function renderScopeOutline() {
@@ -1411,7 +1485,8 @@ function applyFilters() {
   for (const node of GRAPH.nodes) {
     const inScope = scopedNodes.has(node.id);
     const visible = inScope
-      && (showDataNodes || node.kind !== "data");
+      && (showDataNodes || node.kind !== "data")
+      && (!activeEffect || node.label.includes(activeEffect));
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
     const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
     if (!element) continue;
@@ -1440,7 +1515,8 @@ function applyFilters() {
   calculateBounds();
   const visibleEdges = Array.from(document.querySelectorAll(".edge")).filter(edge => !edge.classList.contains("hidden")).length;
   const scopeLabel = scopedId ? ` scoped to ${outlineLabel(nodeById.get(scopedId))}` : "";
-  counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}`;
+  const effectLabel = activeEffect ? ` effect ${activeEffect}` : "";
+  counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}${effectLabel}`;
   applyRelationshipHighlight();
 }
 

@@ -6,6 +6,36 @@ pub fn checked_trees_html(program: &Program) -> String {
     crate::phase_diagram::text_report_html("checked_trees", &checked_effects_report(program))
 }
 
+pub fn capability_manifest_html(program: &Program) -> String {
+    crate::phase_diagram::text_report_html(
+        "capability_manifest",
+        &capability_manifest_text(program),
+    )
+}
+
+pub fn capability_manifest_json(program: &Program) -> String {
+    let manifest = entry_capability_manifest(program);
+    let effect_names = manifest.effects.names().collect::<Vec<_>>();
+
+    let mut json = String::new();
+    json.push_str("{\n");
+    json.push_str("  \"entry_machine\": ");
+    push_json_string(&mut json, &manifest.entry_machine);
+    json.push_str(",\n  \"entry_state\": ");
+    push_json_string(&mut json, &manifest.entry_state);
+    json.push_str(",\n  \"effect_bits\": \"0x");
+    json.push_str(&format!("{:016x}", manifest.effects.bits()));
+    json.push_str("\",\n  \"effects\": [");
+    for (index, effect) in effect_names.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        push_json_string(&mut json, effect);
+    }
+    json.push_str("]\n}\n");
+    json
+}
+
 fn checked_effects_report(program: &Program) -> String {
     let mut report = String::new();
     report.push_str("Checked Facts\n");
@@ -79,6 +109,84 @@ fn checked_effects_report(program: &Program) -> String {
     report
 }
 
+fn capability_manifest_text(program: &Program) -> String {
+    let manifest = entry_capability_manifest(program);
+    let mut report = String::new();
+
+    report.push_str("Executable Capability Manifest\n");
+    report.push_str("==============================\n\n");
+    report.push_str("entry machine: ");
+    report.push_str(&manifest.entry_machine);
+    report.push('\n');
+    report.push_str("entry state:   ");
+    report.push_str(&manifest.entry_state);
+    report.push('\n');
+    report.push_str("effects:       ");
+    report.push_str(&format_effect_set(manifest.effects));
+    report.push('\n');
+
+    report
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EntryCapabilityManifest {
+    entry_machine: String,
+    entry_state: String,
+    effects: EffectSet,
+}
+
+fn entry_capability_manifest(program: &Program) -> EntryCapabilityManifest {
+    let Some((machine_symbol, machine_name, state_name)) = entry_machine(program) else {
+        return EntryCapabilityManifest {
+            entry_machine: "<missing>".to_owned(),
+            entry_state: "<missing>".to_owned(),
+            effects: EffectSet::empty(),
+        };
+    };
+
+    let effects = program
+        .facts
+        .effects
+        .machines()
+        .iter()
+        .find(|effects| effects.symbol == machine_symbol)
+        .map(|effects| effects.transitive)
+        .unwrap_or_else(EffectSet::empty);
+
+    EntryCapabilityManifest {
+        entry_machine: machine_name,
+        entry_state: state_name,
+        effects,
+    }
+}
+
+fn entry_machine(program: &Program) -> Option<(SymbolHandle, String, String)> {
+    entry_machine_with_state(program, "Main::main", "main")
+        .or_else(|| entry_machine_with_state(program, "main", "entry"))
+}
+
+fn entry_machine_with_state(
+    program: &Program,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<(SymbolHandle, String, String)> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)?;
+    program
+        .machine_states(machine)
+        .iter()
+        .any(|state| state.name.as_str() == state_name)
+        .then(|| {
+            (
+                machine.symbol,
+                machine.name.as_str().to_owned(),
+                state_name.to_owned(),
+            )
+        })
+}
+
 fn machine_name(program: &Program, symbol: SymbolHandle) -> String {
     program
         .machines()
@@ -116,4 +224,20 @@ fn symbol_label(symbol: SymbolHandle) -> String {
     } else {
         "invalid".to_owned()
     }
+}
+
+fn push_json_string(output: &mut String, value: &str) {
+    output.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            ch if ch.is_control() => output.push_str(&format!("\\u{:04x}", ch as u32)),
+            ch => output.push(ch),
+        }
+    }
+    output.push('"');
 }

@@ -17,11 +17,13 @@ pub fn lower_typed_trees(
 
     let proof_plan = omega_proof::obligations::build_proof_plan(&program);
     omega_proof::checker::check_proof_plan(&proof_plan)?;
+    let effects = omega_effects::infer_effects(&program);
+    omega_validation::validate_effect_plan(&program, &effects)?;
     let facts = CheckFacts {
         borrow: build_borrow_facts(&program),
         proof: build_proof_facts(&program, &proof_plan),
         invariants: build_invariant_facts(&program),
-        effects: omega_effects::infer_effects(&program),
+        effects,
     };
 
     Ok(Program {
