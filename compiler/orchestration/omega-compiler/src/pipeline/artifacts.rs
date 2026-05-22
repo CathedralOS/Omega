@@ -127,9 +127,13 @@ pub(super) fn write_backend_report(
     );
 
     let build_dir = options.build_dir();
-    let output_path = build_dir.join("09_backend_report.txt");
+    let output_path = build_dir.join("09_backend_report.html");
     std::fs::create_dir_all(build_dir).map_err(io_diagnostic)?;
-    std::fs::write(output_path, report).map_err(io_diagnostic)
+    std::fs::write(
+        output_path,
+        omega_visualizations::text_report_html("backend_report", &report),
+    )
+    .map_err(io_diagnostic)
 }
 
 pub(super) fn write_emission_plan(
@@ -162,6 +166,22 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "02_syntax_trees.mmd",
             "03_symbol_resolved_trees.mmd",
             "04_typed_trees.mmd",
+            "00_timings.txt",
+            "01_sources.txt",
+            "02_ast.txt",
+            "03_resolve.txt",
+            "04_types.txt",
+            "05_typed_program.txt",
+            "06_validation.txt",
+            "07_graph.txt",
+            "08_proof.txt",
+            "09_backend_plan.txt",
+            "09_backend_report.txt",
+            "09_native_plan.txt",
+            "10_trust.txt",
+            "11_emission.txt",
+            "12_emitted_output.txt",
+            "13_finalization.txt",
         ])
         .map_err(|diagnostic| vec![diagnostic])
 }
