@@ -17,6 +17,18 @@ requirements, guarantees, and effects. What makes it a boundary is that the
 implementation is accepted through a host package, target binding, firmware
 surface, dynamic loader, or other trusted edge.
 
+`boundary` is not a synonym for "has effects." These are separate axes:
+
+- `effects` names what externally visible capability behavior can happen.
+- `export` names what symbols belong to an artifact/API surface.
+- `boundary` names where ordinary Omega proof stops and trusted provider
+  guarantees begin.
+
+Ordinary Omega code can have effects if it calls lower boundary surfaces. It is
+still proved Omega code. Boundary code is different: the compiler accepts its
+declared guarantees from a configured trust root because the implementation is
+not available as normal Omega source.
+
 ```omega
 boundary trait WindowsFile {
     machine read(
@@ -41,6 +53,9 @@ Working interpretation:
 - `effects` clauses are auditable capabilities such as filesystem, process,
   stdin, stdout, network, thread, clock, or device access.
 - Build policy decides which boundary providers are allowed for a target.
+- Safe application packages cannot silently create new host boundaries. A
+  boundary provider must come from the toolchain, target configuration, or an
+  explicitly whitelisted trust root.
 
 ## Standard Effects
 
@@ -106,17 +121,21 @@ boundary trait Console {
         stdout_io;
 }
 
-machine DarwinConsole::write_line(text: String) satisfies Console
+machine Console::write_line(text: String)
 effects
     stdout_io
 {
-    // accepted: the implementation stays inside the trait ceiling
+    HostConsole::write_line(text);
 }
 
-machine TestConsole::write_line(text: String) satisfies Console {
-    // also accepted: the test provider records output in memory
-}
+// A host provider, not normal application code, binds HostConsole to Darwin
+// libSystem, Linux syscalls, Windows APIs, firmware, or a test harness.
 ```
+
+In that shape, `Console::write_line` is ordinary Omega standard-library code.
+It is statically linkable and proof-checked like any other machine. The
+boundary is the lower `HostConsole` provider edge where the implementation is a
+syscall, imported symbol, firmware call, loader hook, or trusted test surface.
 
 Effects propagate through the call graph. The compiler should compute direct
 effects for each callable and then compute transitive effects for every machine
@@ -228,10 +247,9 @@ boundary trait Filesystem {
 
 Target metadata such as library artifact, symbol, syscall number, calling
 convention, and trust root belongs in toolchain host packages or explicitly
-whitelisted boundary providers. Ordinary application libraries should not be
-able to self-declare new host boundaries silently. Pulling in a boundary with
-`filesystem_io`, `stdout_io`, or `process_exit` is visible to the build, and a
-restricted build can reject it.
+whitelisted boundary providers. Pulling in a boundary with `filesystem_io`,
+`stdout_io`, or `process_exit` is visible to the build, and a restricted build
+can reject it.
 
 The compiler should understand boundary traits, provider packages, libraries,
 symbols, calling conventions, trust roots, and target image imports
@@ -360,10 +378,26 @@ boundaries.
 
 The standard library is the portable API most application code should use. It
 can provide `Console.read_line`, formatting, strings, slices, data structures,
-and higher-level process or filesystem helpers.
+and higher-level process or filesystem helpers. These machines are ordinary
+Omega code unless they are explicitly modeling the bottom host edge.
 
 Host packages are the audited bottom edge. They contain imported libraries,
 syscall surfaces, startup bindings, and trust roots.
+
+Typical layering:
+
+```text
+application code
+  -> standard-library Omega machines
+    -> boundary host trait/provider
+      -> syscall / imported symbol / firmware jump / loader hook
+```
+
+Static vs dynamic linkage is not the same question as boundary vs normal code.
+A statically linked standard-library wrapper is still normal Omega code if the
+compiler can check its body. A dynamically imported, syscall-backed, firmware,
+or externally supplied implementation is a boundary because its guarantees are
+trusted rather than proved from Omega source.
 
 Most users should not author raw Windows, Darwin, Linux, firmware, or console
 SDK contracts for ordinary applications. They should import toolchain-provided
