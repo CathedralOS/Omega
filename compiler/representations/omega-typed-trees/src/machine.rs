@@ -1,5 +1,6 @@
 use crate::expression::ExpressionHandle;
 use crate::name::ProgramName;
+use crate::signature::SignatureContract;
 use crate::state::State;
 use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
@@ -14,6 +15,7 @@ pub struct Machine {
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub effects: HandleSpan<ProgramName>,
+    pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
 }
 
@@ -27,6 +29,7 @@ impl Default for Machine {
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }

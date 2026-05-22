@@ -699,6 +699,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             owned_data,
             satisfies: _,
             effects: _,
+            contracts: _,
             states,
         } = &mut machine.storage;
         let machine_scope = MachineScope {

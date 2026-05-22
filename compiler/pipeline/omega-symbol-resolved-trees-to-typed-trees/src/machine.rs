@@ -18,6 +18,7 @@ pub(crate) fn lower_machine(
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
         effects: omega_core::arena::HandleSpan::empty(),
+        contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
     };
 
@@ -79,6 +80,16 @@ pub(crate) fn lower_machine(
             .push_machine_effect(&mut typed_machine, effect);
     }
 
+    for contract in lowerer.source_trees.machine_contracts(machine) {
+        lowerer.typed_trees.push_machine_contract(
+            &mut typed_machine,
+            typed::signature::SignatureContract {
+                kind: lower_contract_kind(contract.kind),
+                token_count: contract.token_count,
+            },
+        );
+    }
+
     for state in lowerer.source_trees.machine_state_handles(machine.states) {
         let state = lowerer.source_trees.machine_state(*state);
         let state = lower_state(lowerer, state)?;
@@ -88,4 +99,20 @@ pub(crate) fn lower_machine(
     }
 
     Ok(typed_machine)
+}
+
+fn lower_contract_kind(
+    kind: resolved::signature::SignatureContractKind,
+) -> typed::signature::SignatureContractKind {
+    match kind {
+        resolved::signature::SignatureContractKind::Requires => {
+            typed::signature::SignatureContractKind::Requires
+        }
+        resolved::signature::SignatureContractKind::Ensures => {
+            typed::signature::SignatureContractKind::Ensures
+        }
+        resolved::signature::SignatureContractKind::Trusted => {
+            typed::signature::SignatureContractKind::Trusted
+        }
+    }
 }

@@ -16,6 +16,7 @@ pub struct StateSignatureStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
     pub effects: HandleSpan<DiagnosticName>,
+    pub contracts: HandleSpan<SignatureContract>,
 }
 
 impl Deref for StateSignature {
@@ -53,4 +54,18 @@ impl Default for StateParameter {
             is_self: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SignatureContract {
+    pub kind: SignatureContractKind,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SignatureContractKind {
+    #[default]
+    Requires,
+    Ensures,
+    Trusted,
 }

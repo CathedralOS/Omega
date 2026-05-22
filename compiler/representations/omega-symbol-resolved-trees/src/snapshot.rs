@@ -142,6 +142,7 @@ pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
     pub effects: Vec<String>,
+    pub contracts: Vec<SignatureContractSnapshot>,
     pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
@@ -189,6 +190,13 @@ pub struct StateSignatureSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
     pub effects: Vec<String>,
+    pub contracts: Vec<SignatureContractSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SignatureContractSnapshot {
+    pub kind: &'static str,
+    pub token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -414,6 +422,11 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .iter()
             .map(ToString::to_string)
             .collect(),
+        contracts: program
+            .machine_contracts(machine)
+            .iter()
+            .map(signature_contract_snapshot)
+            .collect(),
         contains: program
             .machine_contained_objects(machine.contains)
             .iter()
@@ -519,6 +532,24 @@ fn state_signature_snapshot(
             .iter()
             .map(ToString::to_string)
             .collect(),
+        contracts: program
+            .signature_contracts(signature.contracts)
+            .iter()
+            .map(signature_contract_snapshot)
+            .collect(),
+    }
+}
+
+fn signature_contract_snapshot(
+    contract: &crate::signature::SignatureContract,
+) -> SignatureContractSnapshot {
+    SignatureContractSnapshot {
+        kind: match contract.kind {
+            crate::signature::SignatureContractKind::Requires => "requires",
+            crate::signature::SignatureContractKind::Ensures => "ensures",
+            crate::signature::SignatureContractKind::Trusted => "trusted",
+        },
+        token_count: contract.token_count,
     }
 }
 
@@ -869,6 +900,7 @@ mod tests {
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
                 effects: HandleSpan::empty(),
+                contracts: HandleSpan::empty(),
                 states,
             },
         });

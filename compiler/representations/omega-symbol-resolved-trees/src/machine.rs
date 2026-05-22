@@ -1,5 +1,6 @@
 use crate::expression::ExpressionHandle;
 use crate::name::DiagnosticName;
+use crate::signature::SignatureContract;
 use crate::state::State;
 use crate::types::TypeReference;
 use omega_core::arena::{Handle, HandleSpan};
@@ -20,6 +21,7 @@ pub struct MachineStorage {
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub effects: HandleSpan<DiagnosticName>,
+    pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,
 }
 

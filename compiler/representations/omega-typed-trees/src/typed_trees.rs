@@ -31,6 +31,7 @@ pub struct TypedTrees {
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub signature_effects: Arena<crate::name::ProgramName>,
+    pub signature_contracts: Arena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
@@ -242,6 +243,19 @@ impl TypedTrees {
         self.signature_effects.span_or_empty(machine.effects)
     }
 
+    pub fn push_machine_contract(
+        &mut self,
+        machine: &mut machine::Machine,
+        contract: signature::SignatureContract,
+    ) {
+        self.signature_contracts
+            .append_to_span(&mut machine.contracts, contract);
+    }
+
+    pub fn machine_contracts(&self, machine: &machine::Machine) -> &[signature::SignatureContract] {
+        self.signature_contracts.span_or_empty(machine.contracts)
+    }
+
     pub fn push_machine_state(
         &mut self,
         machine: &mut machine::Machine,
@@ -302,6 +316,22 @@ impl TypedTrees {
         signature: &signature::StateSignature,
     ) -> &[crate::name::ProgramName] {
         self.signature_effects.span_or_empty(signature.effects)
+    }
+
+    pub fn push_state_signature_contract(
+        &mut self,
+        signature: &mut signature::StateSignature,
+        contract: signature::SignatureContract,
+    ) {
+        self.signature_contracts
+            .append_to_span(&mut signature.contracts, contract);
+    }
+
+    pub fn state_signature_contracts(
+        &self,
+        signature: &signature::StateSignature,
+    ) -> &[signature::SignatureContract] {
+        self.signature_contracts.span_or_empty(signature.contracts)
     }
 
     pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {

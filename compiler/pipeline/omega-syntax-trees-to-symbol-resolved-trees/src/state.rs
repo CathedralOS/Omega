@@ -5,7 +5,7 @@ use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::signature::{
-    StateParameter, StateSignature, StateSignatureStorage,
+    SignatureContract, SignatureContractKind, StateParameter, StateSignature, StateSignatureStorage,
 };
 use omega_symbol_resolved_trees::state::{State, StateStorage};
 use omega_symbol_resolved_trees::statement::Statement;
@@ -65,6 +65,7 @@ pub(crate) fn lower_state_signature_node(
         signature.parameters,
         signature.return_type,
         signature.effects,
+        signature.contracts,
     )
 }
 
@@ -75,6 +76,7 @@ fn lower_state_signature_parts(
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
     effects: HandleSpan<syntax::identifier::Identifier>,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
 ) -> Result<StateSignature, Diagnostic> {
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
@@ -82,6 +84,7 @@ fn lower_state_signature_parts(
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
     let effects = lower_signature_effects(lowerer, syntax_trees, effects);
+    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts);
 
     Ok(StateSignature {
         symbol: SymbolHandle::invalid(),
@@ -90,6 +93,7 @@ fn lower_state_signature_parts(
             parameters,
             return_type,
             effects,
+            contracts,
         },
     })
 }
@@ -108,6 +112,41 @@ pub(crate) fn lower_signature_effects(
             .declarations
             .signature_effects
             .append_to_span(&mut span, crate::name::lower_name(effect));
+    }
+
+    span
+}
+
+pub(crate) fn lower_signature_contracts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
+) -> HandleSpan<SignatureContract> {
+    let mut span = HandleSpan::empty();
+
+    for contract in syntax_trees.items.capability_contracts(contracts) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_contracts
+            .append_to_span(
+                &mut span,
+                SignatureContract {
+                    kind: match &contract.kind {
+                        syntax::item::CapabilityContractKind::Requires => {
+                            SignatureContractKind::Requires
+                        }
+                        syntax::item::CapabilityContractKind::Ensures => {
+                            SignatureContractKind::Ensures
+                        }
+                        syntax::item::CapabilityContractKind::Trusted(_) => {
+                            SignatureContractKind::Trusted
+                        }
+                    },
+                    token_count: contract.token_count,
+                },
+            );
     }
 
     span
