@@ -444,7 +444,7 @@ main { min-width: 0; min-height: 0; position: relative; }
   user-select: none;
 }
 #canvas.dragging { cursor: grabbing; }
-.edge { stroke: var(--edge); stroke-width: 1.2; fill: none; opacity: 0.45; }
+.edge { stroke: var(--edge); stroke-width: 1.2; fill: none; opacity: 0.45; pointer-events: none; }
 .edge.sequence { stroke: var(--sequence); opacity: 0.55; stroke-dasharray: 6 5; }
 .edge.field_type { stroke: #75b57c; opacity: 0.75; stroke-dasharray: 2 4; }
 .edge.owned_data { stroke: #ffd166; opacity: 0.8; }
@@ -461,6 +461,7 @@ main { min-width: 0; min-height: 0; position: relative; }
   stroke-width: 1;
   rx: 10;
 }
+.node { cursor: pointer; pointer-events: all; }
 .node.root rect { fill: #263247; stroke: #8ab4ff; }
 .node.data rect { fill: #1b2a22; stroke: #75b57c; }
 .node.trait rect { fill: #162b33; stroke: #4dd4c6; }
@@ -1171,6 +1172,9 @@ function drawNode(node) {
     text.textContent = fitLine(line, maxChars);
     group.appendChild(text);
   });
+  group.addEventListener("pointerdown", event => {
+    event.stopPropagation();
+  });
   group.addEventListener("click", event => {
     event.stopPropagation();
     selectNode(node.id, false);
@@ -1440,7 +1444,7 @@ function centerOn(id) {
 
 let drag = null;
 svg.addEventListener("pointerdown", event => {
-  if (event.target.closest(".node")) return;
+  if (isNodeEventTarget(event.target)) return;
   drag = { x: event.clientX, y: event.clientY, tx: transform.x, ty: transform.y };
   svg.setPointerCapture(event.pointerId);
   svg.classList.add("dragging");
@@ -1474,6 +1478,10 @@ svg.addEventListener("click", () => {
   document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
   applyRelationshipHighlight();
 });
+
+function isNodeEventTarget(target) {
+  return Boolean(target?.closest?.(".node"));
+}
 search.addEventListener("input", applyFilters);
 scopeSearch.addEventListener("input", () => {
   renderScopeOutline();
