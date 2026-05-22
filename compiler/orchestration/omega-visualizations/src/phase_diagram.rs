@@ -444,6 +444,10 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
 .node.state_block rect { fill: #142637; stroke: #6fbce6; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
+.node.external rect {
+  stroke: #ffcf5c;
+  stroke-dasharray: 7 4;
+}
 .node text { fill: var(--text); font-size: 12px; pointer-events: none; }
 .node .subtitle { fill: var(--muted); font-size: 11px; }
 .node.dim { opacity: 0.16; }
@@ -656,10 +660,12 @@ const NS = "http://www.w3.org/2000/svg";
 
 const nodeById = new Map(GRAPH.nodes.map(node => [node.id, node]));
 const containmentChildren = new Map();
+const containmentParent = new Map();
 for (const edge of GRAPH.edges) {
   if (edge.kind === "contains") {
     if (!containmentChildren.has(edge.from)) containmentChildren.set(edge.from, []);
     containmentChildren.get(edge.from).push(edge.to);
+    containmentParent.set(edge.to, edge.from);
   }
 }
 
@@ -1145,6 +1151,10 @@ function drawNode(node) {
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
+    if (isExternalInCurrentScope(node.id)) {
+      setScope(scopeTargetFor(node.id), true);
+      return;
+    }
     const targetId = followTargetFor(node.id);
     selectNode(targetId || node.id, true);
   });
@@ -1212,7 +1222,7 @@ function scopeDetails(id) {
   return `Scope:\n  ${outlineLabel(node)}\n\n${scopedNodes.size} nodes visible including one-hop relationships\n\n${node.id}\nkind: ${node.kind}\nrank: ${node.rank}\n\n${node.label}`;
 }
 
-function scopedNodeSet(id) {
+function containedNodeSet(id) {
   if (!id || id === "root") return new Set(GRAPH.nodes.map(node => node.id));
   const result = new Set();
   const stack = [id];
@@ -1222,6 +1232,12 @@ function scopedNodeSet(id) {
     result.add(next);
     for (const childId of containmentChildren.get(next) || []) stack.push(childId);
   }
+  return result;
+}
+
+function scopedNodeSet(id) {
+  const result = containedNodeSet(id);
+  if (!id || id === "root") return result;
   const contained = new Set(result);
   for (const edge of GRAPH.edges) {
     if (edge.kind === "contains" || edge.kind === "sequence") continue;
@@ -1229,6 +1245,20 @@ function scopedNodeSet(id) {
     if (contained.has(edge.to)) result.add(edge.from);
   }
   return result;
+}
+
+function isExternalInCurrentScope(id) {
+  return scopedId && visibleNodeIds.has(id) && !containedNodeSet(scopedId).has(id);
+}
+
+function scopeTargetFor(id) {
+  let current = id;
+  let parent = containmentParent.get(current);
+  while (parent && containmentParent.has(parent)) {
+    current = parent;
+    parent = containmentParent.get(current);
+  }
+  return parent || current;
 }
 
 function updateGeometry() {
@@ -1249,6 +1279,7 @@ function applyFilters() {
   const query = search.value.trim().toLowerCase();
   const showDataNodes = showData.checked;
   const scopedNodes = scopedNodeSet(scopedId);
+  const containedNodes = containedNodeSet(scopedId);
   const matched = new Set();
   visibleNodeIds = new Set();
   for (const node of GRAPH.nodes) {
@@ -1261,6 +1292,7 @@ function applyFilters() {
     element.classList.toggle("dim", query && !isMatch);
     element.classList.toggle("match", query && isMatch);
     element.classList.toggle("selected", node.id === selectedId);
+    element.classList.toggle("external", Boolean(scopedId) && visible && !containedNodes.has(node.id));
     if (visible) visibleNodeIds.add(node.id);
     if (isMatch && visible) matched.add(node.id);
   }
