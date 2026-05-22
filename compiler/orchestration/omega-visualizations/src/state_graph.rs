@@ -30,6 +30,7 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "machine",
                 machine_index.arena_index() as usize,
             );
+            diagram.node_effects(&machine_id, effect_names_from_bits(machine.reached_effects));
             machine_nodes.push((
                 machine.symbol,
                 machine.name.as_str().to_owned(),
@@ -57,6 +58,7 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "state_block",
                 machine_index.arena_index() as usize,
             );
+            diagram.node_effects(&state_id, effect_names_from_bits(state.reached_effects));
             diagram.containment_edge(machine_id, &state_id);
             state_nodes.push((state.key, state_id));
             state_scope_nodes.push((state.key, machine_id.to_owned()));
@@ -189,6 +191,13 @@ fn format_effect_bits(bits: omega_effects::EffectBits) -> String {
         effects.names().collect::<Vec<_>>().join(", "),
         effects.bits()
     )
+}
+
+fn effect_names_from_bits(bits: omega_effects::EffectBits) -> Vec<String> {
+    omega_effects::EffectSet::from_bits(bits)
+        .names()
+        .map(str::to_owned)
+        .collect()
 }
 
 fn operation_label(graph: &StateGraph, operation: &Operation) -> String {

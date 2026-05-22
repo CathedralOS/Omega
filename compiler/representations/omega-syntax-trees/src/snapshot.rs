@@ -59,6 +59,10 @@ pub enum ItemSnapshot {
         calling_convention: IdentifierSnapshot,
         functions: Vec<LibraryFunctionSnapshot>,
     },
+    Export {
+        path: Vec<IdentifierSnapshot>,
+        alias: Option<IdentifierSnapshot>,
+    },
     TrustDefinition {
         name: IdentifierSnapshot,
         token_count: usize,
@@ -429,6 +433,10 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|function| snapshot_library_function(syntax_trees, function))
                 .collect(),
+        },
+        Item::Export(value) => ItemSnapshot::Export {
+            path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
+            alias: value.alias.as_ref().map(snapshot_identifier),
         },
         Item::TrustDefinition(value) => ItemSnapshot::TrustDefinition {
             name: snapshot_identifier(&value.name),

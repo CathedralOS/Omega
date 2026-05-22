@@ -5,6 +5,7 @@ struct PhaseDiagramNode {
     kind: String,
     rank: usize,
     scope_target: Option<String>,
+    effects: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -63,6 +64,7 @@ impl PhaseDiagramBuilder {
             kind: kind.into(),
             rank,
             scope_target: None,
+            effects: Vec::new(),
         });
         id
     }
@@ -82,8 +84,17 @@ impl PhaseDiagramBuilder {
             kind: kind.into(),
             rank,
             scope_target: Some(scope_target.into()),
+            effects: Vec::new(),
         });
         id
+    }
+
+    pub fn node_effects(&mut self, id: &str, effects: impl IntoIterator<Item = impl Into<String>>) {
+        let Some(node) = self.nodes.iter_mut().find(|node| node.id == id) else {
+            return;
+        };
+
+        node.effects = effects.into_iter().map(Into::into).collect();
     }
 
     pub fn containment_edge(&mut self, from: &str, to: &str) {
@@ -249,6 +260,16 @@ fn push_graph_json(
         push_json_string(output, &node.kind);
         output.push_str(",\"rank\":");
         output.push_str(&node.rank.to_string());
+        if !node.effects.is_empty() {
+            output.push_str(",\"effects\":[");
+            for (effect_index, effect) in node.effects.iter().enumerate() {
+                if effect_index > 0 {
+                    output.push(',');
+                }
+                push_json_string(output, effect);
+            }
+            output.push(']');
+        }
         if let Some(scope_target) = &node.scope_target {
             output.push_str(",\"scopeTarget\":");
             push_json_string(output, scope_target);
@@ -1023,7 +1044,7 @@ function render() {
 function renderEffectFilters() {
   effectButtons.replaceChildren();
   const presentEffects = EFFECT_NAMES.filter(effect =>
-    GRAPH.nodes.some(node => node.label.includes(effect))
+    GRAPH.nodes.some(node => (node.effects || []).includes(effect))
   );
   effectFilter.classList.toggle("hidden", presentEffects.length === 0);
   if (presentEffects.length === 0) return;
@@ -1486,7 +1507,7 @@ function applyFilters() {
     const inScope = scopedNodes.has(node.id);
     const visible = inScope
       && (showDataNodes || node.kind !== "data")
-      && (!activeEffect || node.label.includes(activeEffect));
+      && (!activeEffect || (node.effects || []).includes(activeEffect));
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
     const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
     if (!element) continue;

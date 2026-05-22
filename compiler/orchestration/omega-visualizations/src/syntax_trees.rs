@@ -272,6 +272,7 @@ fn append_state_signature(
 fn item_kind(item: &Item) -> &'static str {
     match item {
         Item::Data(_) => "data",
+        Item::Export(_) => "export",
         Item::Machine(_) | Item::Platform(_) => "machine",
         Item::Trait(_) => "trait",
         _ => "state",
@@ -352,6 +353,24 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
         }
         Item::Target(value) => format!("target {}", value.name.as_str()),
         Item::TrustDefinition(value) => format!("trust {}", value.name.as_str()),
+        Item::Export(value) => {
+            let path = syntax
+                .items
+                .identifier_path_members(value.path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if let Some(alias) = &value.alias {
+                format!(
+                    "export {path} as {}\nsegments: {}",
+                    alias.as_str(),
+                    value.path.len()
+                )
+            } else {
+                format!("export {path}\nsegments: {}", value.path.len())
+            }
+        }
         Item::Use(value) => {
             let path = syntax
                 .items

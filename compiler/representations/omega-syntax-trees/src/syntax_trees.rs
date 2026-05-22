@@ -91,6 +91,7 @@ impl SyntaxTrees {
             Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
             | Item::Data(_)
+            | Item::Export(_)
             | Item::Invariant(_)
             | Item::Library(_)
             | Item::Target(_)
@@ -129,6 +130,10 @@ impl SyntaxTrees {
                 constraints: self.copy_constraint_span(other, invariant.constraints),
             }),
             Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
+            Item::Export(export_item) => Item::Export(crate::item::ExportItem {
+                path: self.copy_item_identifier_span(other, export_item.path),
+                alias: export_item.alias.clone(),
+            }),
             Item::TrustDefinition(trust) => Item::TrustDefinition(TrustDefinition {
                 name: trust.name.clone(),
                 token_count: trust.token_count,

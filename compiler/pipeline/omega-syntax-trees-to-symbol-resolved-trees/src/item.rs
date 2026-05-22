@@ -40,6 +40,7 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
         syntax::item::Item::Capability(_)
+        | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
         | syntax::item::Item::Target(_)
         | syntax::item::Item::TrustDefinition(_)

@@ -121,6 +121,9 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
                 "machine",
                 1,
             );
+            if let Some(effects) = machine_effects_for(&effect_plan, machine.symbol) {
+                diagram.node_effects(&machine_id, effect_names_from_set(effects.transitive));
+            }
             append_machine_relationships(
                 &mut diagram,
                 typed,
@@ -602,6 +605,7 @@ fn append_call_references(
             2,
             call_target.scope_id,
         );
+        diagram.node_effects(&call_id, effect_names_from_set(reached_effects));
         diagram.edge(source_id, &call_id, "call");
         diagram.containment_edge(source_id, &call_id);
     }
@@ -724,6 +728,9 @@ fn append_state(
         "state",
         2,
     );
+    if let Some(effects) = state_effects_for(effect_plan, state.symbol) {
+        diagram.node_effects(&state_id, effect_names_from_set(effects.transitive));
+    }
     diagram.containment_edge(parent_id, &state_id);
 
     for statement in program
@@ -907,6 +914,10 @@ fn format_effect_set(effects: EffectSet) -> String {
         effects.names().collect::<Vec<_>>().join(", "),
         effects.bits()
     )
+}
+
+fn effect_names_from_set(effects: EffectSet) -> Vec<String> {
+    effects.names().map(str::to_owned).collect()
 }
 
 fn symbol_label(symbol: SymbolHandle) -> String {

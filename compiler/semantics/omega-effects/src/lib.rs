@@ -139,6 +139,119 @@ impl EffectPlan {
     pub fn machines(&self) -> &[MachineEffects] {
         self.machines.span_or_empty(self.root_machines)
     }
+
+    pub fn find_effect_path(
+        &self,
+        root_machine_symbol: SymbolHandle,
+        effect: EffectSet,
+    ) -> Option<EffectPath> {
+        if effect.is_empty() {
+            return None;
+        }
+
+        let mut visited = Vec::new();
+        let source = self.find_effect_source(root_machine_symbol, effect, &mut visited)?;
+        Some(EffectPath { effect, source })
+    }
+
+    fn find_effect_source(
+        &self,
+        machine_symbol: SymbolHandle,
+        effect: EffectSet,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> Option<EffectPathSource> {
+        if visited.contains(&machine_symbol) {
+            return None;
+        }
+        visited.push(machine_symbol);
+
+        let machine = self.machine_effects(machine_symbol)?;
+        if machine.direct.intersects(effect) {
+            return Some(EffectPathSource::MachineDirect { machine_symbol });
+        }
+
+        for state in self.states.span_or_empty(machine.states) {
+            if state.direct.intersects(effect) {
+                return Some(EffectPathSource::StateDirect {
+                    machine_symbol,
+                    state_symbol: state.symbol,
+                });
+            }
+
+            for call in self.calls.span_or_empty(state.calls) {
+                if call.direct.intersects(effect) {
+                    return Some(EffectPathSource::CallDirect {
+                        caller_machine_symbol: machine_symbol,
+                        caller_state_symbol: state.symbol,
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
+                        target_machine_symbol: call.target_machine_symbol,
+                        target_state_symbol: call.target_state_symbol,
+                    });
+                }
+
+                if !call.transitive.intersects(effect) {
+                    continue;
+                }
+
+                let target_source =
+                    self.find_effect_source(call.target_machine_symbol, effect, visited);
+                if let Some(target_source) = target_source {
+                    return Some(EffectPathSource::ThroughCall {
+                        caller_machine_symbol: machine_symbol,
+                        caller_state_symbol: state.symbol,
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
+                        target_machine_symbol: call.target_machine_symbol,
+                        target_state_symbol: call.target_state_symbol,
+                        target_source: Box::new(target_source),
+                    });
+                }
+            }
+        }
+
+        None
+    }
+
+    fn machine_effects(&self, symbol: SymbolHandle) -> Option<&MachineEffects> {
+        self.machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EffectPath {
+    pub effect: EffectSet,
+    pub source: EffectPathSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectPathSource {
+    MachineDirect {
+        machine_symbol: SymbolHandle,
+    },
+    StateDirect {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
+    CallDirect {
+        caller_machine_symbol: SymbolHandle,
+        caller_state_symbol: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+        target_machine_symbol: SymbolHandle,
+        target_state_symbol: SymbolHandle,
+    },
+    ThroughCall {
+        caller_machine_symbol: SymbolHandle,
+        caller_state_symbol: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+        target_machine_symbol: SymbolHandle,
+        target_state_symbol: SymbolHandle,
+        target_source: Box<EffectPathSource>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
