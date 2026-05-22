@@ -6,16 +6,10 @@ use crate::{lexer, parser};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::source::SourceId;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{Item, ItemHandle};
-use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{Token, TokenStream, TokenText};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiscoveredImport {
-    pub importer_path: PathBuf,
-    pub imported_path: PathBuf,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LoadedSource {
@@ -174,7 +168,7 @@ pub fn discover_imports(
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
     selected_target_name: Option<&str>,
-) -> Result<Vec<DiscoveredImport>, Vec<Diagnostic>> {
+) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let root_dir = root_path
         .parent()
         .map(Path::to_path_buf)
@@ -187,13 +181,10 @@ pub fn discover_imports(
             let item = syntax_trees.root_item(*root_item);
             match item {
                 Item::Use(use_item) => {
-                    imports.push(DiscoveredImport {
-                        importer_path: parsed_source.path.clone(),
-                        imported_path: normalize_path(&resolve_source_path(
-                            &root_dir,
-                            syntax_trees.items.identifier_path_members(use_item.path),
-                        ))?,
-                    });
+                    imports.push(normalize_path(&resolve_source_path(
+                        &root_dir,
+                        syntax_trees.items.identifier_path_members(use_item.path),
+                    ))?);
                 }
                 Item::Target(target) => {
                     let target_is_selected = selected_target_name
@@ -206,12 +197,8 @@ pub fn discover_imports(
                     if let Some(host) = &target.host {
                         let provider = syntax_trees.items.identifier_path_members(host.provider);
                         if is_bundled_omega_path(provider) {
-                            imports.push(DiscoveredImport {
-                                importer_path: parsed_source.path.clone(),
-                                imported_path: normalize_path(&resolve_source_path(
-                                    &root_dir, provider,
-                                ))?,
-                            });
+                            imports
+                                .push(normalize_path(&resolve_source_path(&root_dir, provider))?);
                         }
                     }
 
@@ -220,13 +207,10 @@ pub fn discover_imports(
                             .items
                             .identifier_path_members(trust_policy.path);
                         if is_bundled_omega_path(policy_path) {
-                            imports.push(DiscoveredImport {
-                                importer_path: parsed_source.path.clone(),
-                                imported_path: normalize_path(&resolve_source_path(
-                                    &root_dir,
-                                    policy_path,
-                                ))?,
-                            });
+                            imports.push(normalize_path(&resolve_source_path(
+                                &root_dir,
+                                policy_path,
+                            ))?);
                         }
                     }
                 }
