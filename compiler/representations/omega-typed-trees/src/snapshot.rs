@@ -189,6 +189,7 @@ pub struct StateSignatureSnapshot {
     pub name: String,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
+    pub effects: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -492,6 +493,11 @@ fn state_signature_snapshot(
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
         return_type: type_reference_snapshot_option(program, signature.return_type),
+        effects: program
+            .state_signature_effects(signature)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
     }
 }
 

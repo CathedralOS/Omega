@@ -155,6 +155,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             name: signature.name.clone(),
                             parameters: signature.parameters,
                             return_type: signature.return_type,
+                            effects: signature.effects,
                         },
                         &format!("platform `{}` state `{}`", platform.name, signature.name),
                     );
@@ -179,6 +180,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             name: signature.name.clone(),
                             parameters: signature.parameters,
                             return_type: signature.return_type,
+                            effects: signature.effects,
                         },
                         &format!(
                             "trait `{}` machine `{}`",

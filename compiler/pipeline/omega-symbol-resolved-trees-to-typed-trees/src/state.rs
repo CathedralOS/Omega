@@ -60,6 +60,7 @@ pub(crate) fn lower_state_signature(
             .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
+        effects: Default::default(),
     };
 
     for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
@@ -67,6 +68,12 @@ pub(crate) fn lower_state_signature(
         lowerer
             .typed_trees
             .push_state_signature_parameter(&mut typed_signature, parameter);
+    }
+
+    for effect in lowerer.source_trees.signature_effects(signature.effects) {
+        lowerer
+            .typed_trees
+            .push_state_signature_effect(&mut typed_signature, crate::name::lower_name(effect));
     }
 
     Ok(typed_signature)

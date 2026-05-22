@@ -136,6 +136,7 @@ fn append_root_item(
             {
                 append_state_signature(
                     diagram,
+                    syntax,
                     &item_id,
                     owner_index,
                     item_index,
@@ -236,19 +237,32 @@ fn inline_label(label: String) -> String {
 
 fn append_state_signature(
     diagram: &mut PhaseDiagramBuilder,
+    syntax: &SyntaxTrees,
     parent_id: &str,
     owner_index: usize,
     item_index: usize,
     signature_index: usize,
     signature: &StateSignatureNode,
 ) {
+    let mut label = format!(
+        "machine {}\nparams: {}",
+        signature.name.as_str(),
+        signature.parameters.len()
+    );
+    let effects = syntax.items.identifier_path_members(signature.effects);
+    if !effects.is_empty() {
+        label.push_str("\neffects: ");
+        label.push_str(
+            &effects
+                .iter()
+                .map(|effect| effect.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
     let signature_id = diagram.node(
         format!("signature_{owner_index}_{item_index}_{signature_index}"),
-        format!(
-            "machine {}\nparams: {}",
-            signature.name.as_str(),
-            signature.parameters.len()
-        ),
+        label,
         "state",
         3,
     );

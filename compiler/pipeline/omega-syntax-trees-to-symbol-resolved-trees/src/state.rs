@@ -64,6 +64,7 @@ pub(crate) fn lower_state_signature_node(
         &signature.name,
         signature.parameters,
         signature.return_type,
+        signature.effects,
     )
 }
 
@@ -73,12 +74,14 @@ fn lower_state_signature_parts(
     name: &syntax::identifier::Identifier,
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
+    effects: HandleSpan<syntax::identifier::Identifier>,
 ) -> Result<StateSignature, Diagnostic> {
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
+    let effects = lower_signature_effects(lowerer, syntax_trees, effects);
 
     Ok(StateSignature {
         symbol: SymbolHandle::invalid(),
@@ -86,8 +89,28 @@ fn lower_state_signature_parts(
         storage: StateSignatureStorage {
             parameters,
             return_type,
+            effects,
         },
     })
+}
+
+fn lower_signature_effects(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    effects: HandleSpan<syntax::identifier::Identifier>,
+) -> HandleSpan<omega_symbol_resolved_trees::name::DiagnosticName> {
+    let mut span = HandleSpan::empty();
+
+    for effect in syntax_trees.items.identifier_path_members(effects) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_effects
+            .append_to_span(&mut span, crate::name::lower_name(effect));
+    }
+
+    span
 }
 
 fn lower_state_statements(

@@ -354,6 +354,10 @@ trait BoundedCounter {
 This matters because a reusable surface is not only "these calls exist." It is
 also "these calls preserve the obligations callers rely on."
 
+Effect names use the standard vocabulary from Chapter 18. Traits should name
+language-level effects such as `pure`, `alloc`, `stdout_io`, or
+`filesystem_io`, not target-specific syscall/library details.
+
 For hot swapping and driver-like code, trait effects may be part of replacement
 safety:
 

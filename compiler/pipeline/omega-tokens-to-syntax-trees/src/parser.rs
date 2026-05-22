@@ -170,6 +170,11 @@ mod tests {
         assert_eq!(traits[1].name.as_str(), "Console");
         assert!(traits[1].is_boundary);
         assert_eq!(traits[1].machines.len(), 1);
+        let signature_handle = parsed.items.state_signatures(traits[1].machines)[0];
+        let signature = parsed.items.state_signature(signature_handle);
+        let effects = parsed.items.identifier_path_members(signature.effects);
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].as_str(), "stdout_io");
     }
 
     #[test]

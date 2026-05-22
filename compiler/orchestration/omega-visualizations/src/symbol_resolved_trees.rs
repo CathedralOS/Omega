@@ -3,6 +3,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_symbol_resolved_trees::data::DataMember;
 use omega_symbol_resolved_trees::machine::Machine;
+use omega_symbol_resolved_trees::signature::StateSignature;
 use omega_symbol_resolved_trees::state::State;
 use omega_symbol_resolved_trees::statement::{
     Statement, Transition, TransitionGuard, TransitionTarget,
@@ -445,17 +446,36 @@ fn append_trait_machine_signatures(
     {
         let machine_id = diagram.node(
             format!("trait_{trait_index}_machine_{machine_index}"),
-            format!(
-                "machine {}\nsymbol: {}\nparams: {}",
-                machine.name.as_str(),
-                symbol_label(machine.symbol),
-                machine.parameters.len()
-            ),
+            trait_machine_signature_label(program, machine),
             "state",
             2,
         );
         diagram.containment_edge(trait_id, &machine_id);
     }
+}
+
+fn trait_machine_signature_label(
+    program: &SymbolResolvedTrees,
+    machine: &StateSignature,
+) -> String {
+    let mut label = format!(
+        "machine {}\nsymbol: {}\nparams: {}",
+        machine.name.as_str(),
+        symbol_label(machine.symbol),
+        machine.parameters.len()
+    );
+    let effects = program.signature_effects(machine.effects);
+    if !effects.is_empty() {
+        label.push_str("\neffects: ");
+        label.push_str(
+            &effects
+                .iter()
+                .map(|effect| effect.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
+    label
 }
 
 fn machine_label(

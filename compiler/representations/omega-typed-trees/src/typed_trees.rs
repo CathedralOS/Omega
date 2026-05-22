@@ -27,6 +27,7 @@ pub struct TypedTrees {
     pub traits: Arena<trait_definition::TraitDefinition>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
+    pub signature_effects: Arena<crate::name::ProgramName>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
@@ -260,6 +261,22 @@ impl TypedTrees {
         signature: &signature::StateSignature,
     ) -> &[signature::StateParameter] {
         self.state_parameters.span_or_empty(signature.parameters)
+    }
+
+    pub fn push_state_signature_effect(
+        &mut self,
+        signature: &mut signature::StateSignature,
+        effect: crate::name::ProgramName,
+    ) {
+        self.signature_effects
+            .append_to_span(&mut signature.effects, effect);
+    }
+
+    pub fn state_signature_effects(
+        &self,
+        signature: &signature::StateSignature,
+    ) -> &[crate::name::ProgramName] {
+        self.signature_effects.span_or_empty(signature.effects)
     }
 
     pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {

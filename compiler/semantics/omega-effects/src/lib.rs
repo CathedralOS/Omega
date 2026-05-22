@@ -1,6 +1,35 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
+pub const STANDARD_EFFECT_NAMES: &[&str] = &[
+    "pure",
+    "alloc",
+    "dealloc",
+    "stdin_io",
+    "stdout_io",
+    "stderr_io",
+    "filesystem_io",
+    "network_io",
+    "process_spawn",
+    "process_exit",
+    "process_signal",
+    "env_read",
+    "env_write",
+    "clock_read",
+    "random_read",
+    "thread_spawn",
+    "thread_block",
+    "sync_wait",
+    "sync_wake",
+    "device_io",
+    "memory_map",
+    "dynamic_link",
+];
+
+pub fn is_standard_effect_name(name: &str) -> bool {
+    STANDARD_EFFECT_NAMES.contains(&name)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Effect {
     Pure,

@@ -15,6 +15,7 @@ pub struct StateSignature {
 pub struct StateSignatureStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
+    pub effects: HandleSpan<DiagnosticName>,
 }
 
 impl Deref for StateSignature {
