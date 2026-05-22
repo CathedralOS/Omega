@@ -174,6 +174,7 @@ impl Default for DataLayout {
 pub struct MachineLayout {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub attached_data: Option<ProgramName>,
     pub fields: HandleSpan<FieldLayout>,
     pub layout: TypeLayout,
 }
@@ -183,6 +184,7 @@ impl Default for MachineLayout {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
+            attached_data: None,
             fields: HandleSpan::empty(),
             layout: TypeLayout::default(),
         }

@@ -1263,7 +1263,7 @@ fn resolve_expression_table_member_symbol(
     if !receiver_symbol.is_valid() {
         return SymbolHandle::invalid();
     }
-    let member_symbol = child_symbol_by_kinds(
+    let member_symbol = child_or_attached_data_child_symbol_by_kinds(
         symbols,
         receiver_symbol,
         &[
@@ -1307,7 +1307,7 @@ fn resolve_expression_table_receiver_path_symbols(
             if !receiver_symbol.is_valid() {
                 return invalid_symbol_pair();
             }
-            let member_symbol = child_symbol_by_kinds(
+            let member_symbol = child_or_attached_data_child_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
                 &[
@@ -1569,7 +1569,7 @@ fn resolve_state_scoped_table_members(
                 indexed_last_member.expect("indexed last member should be present"),
             )
         } else {
-            child_symbol_by_kinds(
+            child_or_attached_data_child_symbol_by_kinds(
                 symbols,
                 current,
                 &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
@@ -1600,7 +1600,7 @@ fn resolve_state_scoped_table_members(
                 indexed_last_member.expect("indexed last member should be present"),
             )
         } else {
-            child_symbol_by_kinds(
+            child_or_attached_data_child_symbol_by_kinds(
                 symbols,
                 current,
                 &[
@@ -1888,7 +1888,7 @@ fn resolve_state_scoped_members(
         head = current;
         index += 1;
     } else {
-        current = child_symbol_by_kinds(
+        current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
             &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
@@ -1902,7 +1902,7 @@ fn resolve_state_scoped_members(
     }
 
     for member in &members[index..] {
-        current = child_symbol_by_kinds(
+        current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
             &[
@@ -1944,7 +1944,7 @@ fn resolve_base_symbol(
         }
     }
 
-    let machine_child = child_symbol_by_kinds(
+    let machine_child = child_or_attached_data_child_symbol_by_kinds(
         symbols,
         machine_symbol,
         &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
@@ -2223,6 +2223,29 @@ fn child_symbol_by_kinds(
     name: &str,
 ) -> SymbolHandle {
     child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| symbol_name == name)
+}
+
+fn child_or_attached_data_child_symbol_by_kinds(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    kinds: &[SymbolKind],
+    name: &str,
+) -> SymbolHandle {
+    let child = child_symbol_by_kinds(symbols, parent, kinds, name);
+    if child.is_valid() || symbols.get(parent).kind != SymbolKind::Machine {
+        return child;
+    }
+
+    let Some(attached_data_name) = symbols.name(parent).split_once("::").map(|(data, _)| data)
+    else {
+        return SymbolHandle::invalid();
+    };
+    let attached_data = top_level_symbol(symbols, SymbolKind::Data, attached_data_name);
+    if !attached_data.is_valid() {
+        return SymbolHandle::invalid();
+    }
+
+    child_symbol_by_kinds(symbols, attached_data, kinds, name)
 }
 
 fn child_indexed_symbol_by_kinds(

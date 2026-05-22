@@ -110,38 +110,108 @@ fn runtime_transition_target(
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
+            receiver,
+            state,
             ..
-        } => context
-            .control_flow
-            .machine_contains(machine)
-            .iter()
-            .find(|contained| receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
-            .and_then(|contained| {
-                context
-                    .control_flow
-                    .machine_by_symbol(contained.type_symbol)
-                    .map(|machine| (contained, machine))
-            })
-            .and_then(|(_, target_machine)| {
-                context
-                    .control_flow
-                    .states
-                    .span(target_machine.states)
-                    .and_then(|states| {
-                        states.iter().find(|candidate| {
-                            state_symbol.is_valid() && candidate.key.state == *state_symbol
-                        })
-                    })
-                    .map(|target_state| RuntimeTransitionTarget::State {
-                        key: target_state.key,
-                    })
-            })
-            .unwrap_or(RuntimeTransitionTarget::Unknown),
+        } => {
+            if *receiver_symbol == machine.symbol || receiver.as_str() == "self" {
+                return resolve_local_or_attached_state(context, machine, *state_symbol, state)
+                    .map(|key| RuntimeTransitionTarget::State { key })
+                    .unwrap_or(RuntimeTransitionTarget::Unknown);
+            }
+
+            resolve_contained_attached_state(
+                context,
+                machine,
+                *receiver_symbol,
+                receiver,
+                *state_symbol,
+                state,
+            )
+            .map(|key| RuntimeTransitionTarget::State { key })
+            .unwrap_or(RuntimeTransitionTarget::Unknown)
+        }
         PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State { key: current_state }
         }
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
+}
+
+fn resolve_local_or_attached_state(
+    context: &StateCallPlanningContext,
+    machine: &MachineFlow,
+    state_symbol: omega_core::symbols::SymbolHandle,
+    state_name: &omega_checked_trees::name::ProgramName,
+) -> Option<StateKey> {
+    resolve_state_in_machine(context, machine.symbol, state_symbol, state_name).or_else(|| {
+        let attached_data = machine.attached_data.as_ref()?;
+        resolve_attached_data_state(context, attached_data, state_symbol, state_name)
+    })
+}
+
+fn resolve_contained_attached_state(
+    context: &StateCallPlanningContext,
+    machine: &MachineFlow,
+    receiver_symbol: omega_core::symbols::SymbolHandle,
+    receiver_name: &omega_checked_trees::name::ProgramName,
+    state_symbol: omega_core::symbols::SymbolHandle,
+    state_name: &omega_checked_trees::name::ProgramName,
+) -> Option<StateKey> {
+    let contained = context
+        .control_flow
+        .machine_contains(machine)
+        .iter()
+        .find(|contained| {
+            (receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
+                || contained.name == *receiver_name
+        })?;
+
+    resolve_attached_data_state(context, &contained.type_name, state_symbol, state_name).or_else(
+        || resolve_state_in_machine(context, contained.type_symbol, state_symbol, state_name),
+    )
+}
+
+fn resolve_attached_data_state(
+    context: &StateCallPlanningContext,
+    attached_data: &omega_checked_trees::name::ProgramName,
+    state_symbol: omega_core::symbols::SymbolHandle,
+    state_name: &omega_checked_trees::name::ProgramName,
+) -> Option<StateKey> {
+    context
+        .control_flow
+        .machines
+        .iter()
+        .filter_map(|(_, candidate)| {
+            (candidate.attached_data.as_ref() == Some(attached_data)).then_some(candidate)
+        })
+        .find_map(|candidate| {
+            resolve_state_in_machine(context, candidate.symbol, state_symbol, state_name)
+        })
+}
+
+fn resolve_state_in_machine(
+    context: &StateCallPlanningContext,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: omega_core::symbols::SymbolHandle,
+    state_name: &omega_checked_trees::name::ProgramName,
+) -> Option<StateKey> {
+    if state_symbol.is_valid()
+        && let Some(key) = context
+            .control_flow
+            .state_key_by_symbols(machine_symbol, state_symbol)
+    {
+        return Some(key);
+    }
+
+    let machine = context.control_flow.machine_by_symbol(machine_symbol)?;
+    context
+        .control_flow
+        .states
+        .span(machine.states)?
+        .iter()
+        .find(|state| state.name == *state_name)
+        .map(|state| state.key)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

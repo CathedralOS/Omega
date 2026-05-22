@@ -1084,10 +1084,7 @@ fn validate_machine_satisfies_trait(
     visited_traits.push(trait_definition.symbol);
 
     for requirement in program.trait_machine_signatures(trait_definition) {
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name == requirement.name)
+        let Some((state_machine, state)) = trait_requirement_state(program, machine, requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies trait `{}` but is missing machine `{}`",
@@ -1098,7 +1095,7 @@ fn validate_machine_satisfies_trait(
 
         validate_machine_state_satisfies_trait_signature(
             program,
-            machine,
+            state_machine,
             state,
             trait_definition.name.as_str(),
             requirement,
@@ -1121,6 +1118,39 @@ fn validate_machine_satisfies_trait(
     }
 
     visited_traits.pop();
+}
+
+fn trait_requirement_state<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    requirement: &StateSignature,
+) -> Option<(&'program Machine, &'program State)> {
+    trait_conformance_candidate_machines(program, machine)
+        .into_iter()
+        .find_map(|candidate| {
+            program
+                .machine_states(candidate)
+                .iter()
+                .find(|state| state.name == requirement.name)
+                .map(|state| (candidate, state))
+        })
+}
+
+fn trait_conformance_candidate_machines<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+) -> Vec<&'program Machine> {
+    let Some(attached_data) = machine.attached_data.as_ref() else {
+        return vec![machine];
+    };
+
+    let mut candidates = Vec::new();
+    candidates.push(machine);
+    candidates.extend(program.machines().iter().filter(|candidate| {
+        !std::ptr::eq(*candidate, machine)
+            && candidate.attached_data.as_ref() == Some(attached_data)
+    }));
+    candidates
 }
 
 fn trait_definition_by_symbol(

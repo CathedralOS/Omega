@@ -311,25 +311,46 @@ fn machine_storage_offset(
         return Some(0);
     }
 
+    let source_attached_data = source_attached_data_name(layouts, source_machine);
     let entry_layout = layouts
         .machine_layouts
         .iter()
         .find(|(_, machine_layout)| machine_layout.symbol == entry_machine)
         .map(|(_, machine_layout)| machine_layout)?;
 
-    nested_machine_storage_offset(layouts, entry_layout, source_machine, 0)
+    nested_machine_storage_offset(
+        layouts,
+        entry_layout,
+        source_machine,
+        source_attached_data,
+        0,
+    )
+}
+
+fn source_attached_data_name(layouts: &LayoutPlan, source_machine: SymbolHandle) -> Option<&str> {
+    layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
+        .and_then(|(_, machine_layout)| machine_layout.attached_data.as_ref())
+        .map(|attached_data| attached_data.as_str())
 }
 
 fn nested_machine_storage_offset(
     layouts: &LayoutPlan,
     machine_layout: &omega_layout::MachineLayout,
     target_machine: SymbolHandle,
+    target_attached_data: Option<&str>,
     base_offset: usize,
 ) -> Option<usize> {
     let fields = layouts.fields.span(machine_layout.fields)?;
 
     for field in fields {
         let field_offset = base_offset + field.offset;
+
+        if target_attached_data.is_some_and(|name| field.type_name.as_ref() == name) {
+            return Some(field_offset);
+        }
 
         let nested_machine_layout = field_machine_layout(layouts, field);
 
@@ -347,6 +368,7 @@ fn nested_machine_storage_offset(
             layouts,
             nested_machine_layout,
             target_machine,
+            target_attached_data,
             field_offset,
         ) {
             return Some(offset);
