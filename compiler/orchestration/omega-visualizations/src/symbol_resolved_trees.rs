@@ -93,28 +93,6 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
     }
 
     for (machine_index, machine) in program.roots.machines.iter().enumerate() {
-        let machine_id = diagram.node(
-            format!("machine_{machine_index}"),
-            format!(
-                "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
-                machine.name.as_str(),
-                symbol_label(machine.symbol),
-                machine.satisfies.len(),
-                machine.states.len()
-            ),
-            "machine",
-            1,
-        );
-        append_machine_relationships(
-            &mut diagram,
-            program,
-            &data_nodes,
-            &trait_nodes,
-            &machine_id,
-            machine_index,
-            machine,
-        );
-
         let state_handles = program
             .machine_state_handles(machine.states)
             .iter()
@@ -133,6 +111,25 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
                 )
             })
             .collect::<Vec<_>>();
+        let entry_state = state_handles
+            .first()
+            .copied()
+            .map(|state_handle| program.machine_state(state_handle));
+        let machine_id = diagram.node(
+            format!("machine_{machine_index}"),
+            machine_label(program, machine, entry_state),
+            "machine",
+            1,
+        );
+        append_machine_relationships(
+            &mut diagram,
+            program,
+            &data_nodes,
+            &trait_nodes,
+            &machine_id,
+            machine_index,
+            machine,
+        );
 
         for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
             append_state(
@@ -257,6 +254,40 @@ fn append_trait_machine_signatures(
         );
         diagram.containment_edge(trait_id, &machine_id);
     }
+}
+
+fn machine_label(
+    program: &SymbolResolvedTrees,
+    machine: &Machine,
+    entry_state: Option<&State>,
+) -> String {
+    let mut label = format!(
+        "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
+        machine.name.as_str(),
+        symbol_label(machine.symbol),
+        machine.satisfies.len(),
+        machine.states.len()
+    );
+
+    let Some(entry_state) = entry_state else {
+        return label;
+    };
+
+    label.push_str("\nentry: ");
+    label.push_str(entry_state.name.as_str());
+    for (statement_index, statement) in program
+        .state_statements(entry_state.statements)
+        .iter()
+        .enumerate()
+    {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&statement_index.to_string());
+        label.push_str(": ");
+        label.push_str(&inline_label(statement_label(program, statement)));
+    }
+
+    label
 }
 
 fn append_state(
