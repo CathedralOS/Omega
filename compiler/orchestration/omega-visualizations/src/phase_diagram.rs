@@ -119,7 +119,7 @@ pub fn pipeline_index_html() -> String {
     html.push_str("<p class=\"lede\">One landing page for the generated compiler artifacts. Open a phase directly, then use the embedded phase nav to move sideways.</p></header>\n");
     html.push_str("<main class=\"grid\">\n");
     for (number, label, href) in PIPELINE_PAGES {
-        html.push_str("<a class=\"card\" href=\"");
+        html.push_str("<a class=\"card\" target=\"_top\" href=\"");
         html.push_str(&escape_html(href));
         html.push_str("\"><span>");
         html.push_str(&escape_html(number));
@@ -152,9 +152,9 @@ pub fn text_report_html(title: &str, contents: &str) -> String {
 }
 
 fn push_pipeline_nav(html: &mut String) {
-    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a href=\"00_pipeline.html\">Index</a>");
+    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a target=\"_top\" href=\"00_pipeline.html\">Index</a>");
     for (number, label, href) in PIPELINE_PAGES {
-        html.push_str("<a href=\"");
+        html.push_str("<a target=\"_top\" href=\"");
         html.push_str(&escape_html(href));
         html.push_str("\"><span>");
         html.push_str(&escape_html(number));

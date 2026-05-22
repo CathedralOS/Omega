@@ -31,9 +31,18 @@ impl ArtifactWriter {
 
     pub fn write_text(&self, file_name: &str, contents: &str) -> Result<(), Diagnostic> {
         let path = self.root.join(file_name);
-        fs::write(&path, contents).map_err(|error| {
+        let temp_path = temp_path_for(&path);
+        let _ = fs::remove_file(&temp_path);
+        fs::write(&temp_path, contents).map_err(|error| {
             Diagnostic::error(format!(
-                "failed to write artifact {}: {error}",
+                "failed to write temporary artifact {}: {error}",
+                temp_path.display()
+            ))
+        })?;
+        fs::rename(&temp_path, &path).map_err(|error| {
+            let _ = fs::remove_file(&temp_path);
+            Diagnostic::error(format!(
+                "failed to install artifact {}: {error}",
                 path.display()
             ))
         })
@@ -571,9 +580,9 @@ fn html_report(title: &str, contents: &str) -> String {
 }
 
 fn push_report_nav(html: &mut String) {
-    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a href=\"00_pipeline.html\">Index</a>");
+    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a target=\"_top\" href=\"00_pipeline.html\">Index</a>");
     for (number, label, href) in REPORT_LINKS {
-        html.push_str("<a href=\"");
+        html.push_str("<a target=\"_top\" href=\"");
         html.push_str(&escape_html(href));
         html.push_str("\"><span>");
         html.push_str(&escape_html(number));
@@ -662,6 +671,16 @@ pre {
   white-space: pre;
 }
 "#;
+
+fn temp_path_for(path: &Path) -> PathBuf {
+    path.with_file_name(format!(
+        ".{}.{}.tmp",
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("omega-artifact"),
+        std::process::id()
+    ))
+}
 
 fn write_source_file_artifact(output: &mut String, file: &SourceFileArtifact) {
     let item_range = if file.item_count == 0 {
