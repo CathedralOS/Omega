@@ -11,6 +11,12 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
     let mut state_nodes = Vec::new();
 
     for (machine_index, machine) in graph.machines.iter() {
+        let machine_id = diagram.node(
+            format!("machine_{}", machine_index.arena_index()),
+            machine_label(graph, machine),
+            "machine",
+            machine_index.arena_index() as usize,
+        );
         let mut seen_state_keys = Vec::new();
         for state in graph.states.span_or_empty(machine.states) {
             if seen_state_keys.iter().any(|key| *key == state.key) {
@@ -29,6 +35,7 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "state_block",
                 machine_index.arena_index() as usize,
             );
+            diagram.containment_edge(&machine_id, &state_id);
             state_nodes.push((state.key, state_id));
         }
     }
@@ -52,6 +59,16 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
     }
 
     diagram.finish()
+}
+
+fn machine_label(graph: &StateGraph, machine: &MachineGraph) -> String {
+    format!(
+        "machine {}\nstates: {}\ncontains: {}\nowned data: {}",
+        machine.name.as_str(),
+        graph.states.span_or_empty(machine.states).len(),
+        graph.machine_contains(machine).len(),
+        graph.machine_owned_data(machine).len()
+    )
 }
 
 fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) -> String {
