@@ -138,8 +138,13 @@ mod tests {
     #[test]
     fn lowers_domain_definitions() {
         let source = r#"
-        domain String::NonEmpty {
-            length > 0
+        domain Player::Valid {
+            self.health >= 0
+        }
+
+        domain Player::Alive {
+            self in Player::Valid;
+            self.health > 0
         }
         "#;
 
@@ -149,15 +154,26 @@ mod tests {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
-        assert_eq!(program.domain_definitions.len(), 1);
-        let domain = &program.domain_definitions[0];
+        assert_eq!(program.domain_definitions.len(), 2);
+        let domain = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == "Player::Alive")
+            .expect("alive domain should lower");
         assert!(domain.symbol.is_valid());
-        assert_eq!(domain.name.as_str(), "String::NonEmpty");
-        assert_eq!(domain.body_token_count, 3);
+        assert_eq!(domain.name.as_str(), "Player::Alive");
+        let facts = program.domain_facts(domain.facts);
+        assert_eq!(facts.len(), 2);
+        let omega_symbol_resolved_trees::domain::DomainFact::Membership(membership) = &facts[0]
+        else {
+            panic!("first domain fact should be membership")
+        };
+        assert!(membership.domain_symbol.is_valid());
+        assert!(domain.body_token_count >= 3);
         assert!(
             program
                 .symbols
-                .find_child_by_name(program.symbols.root(), "String::NonEmpty")
+                .find_child_by_name(program.symbols.root(), "Player::Alive")
                 .is_some()
         );
     }

@@ -1,7 +1,7 @@
 use crate::SyntaxTrees;
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContractKind, CapabilityMember, Item, TargetHostSettingValue, TrustLevel,
+    CapabilityContractKind, CapabilityMember, DomainFact, Item, TargetHostSettingValue, TrustLevel,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -75,6 +75,22 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Domain(domain) => {
             count_identifier(&domain.name, counts);
             count_type_reference_handle(syntax_trees, domain.target_type, counts);
+            for fact in syntax_trees.items.domain_facts(domain.facts) {
+                match fact {
+                    DomainFact::Expression(expression) => {
+                        count_expression_handle(syntax_trees, *expression, counts);
+                    }
+                    DomainFact::Membership(membership) => {
+                        count_expression_handle(syntax_trees, membership.value, counts);
+                        count_identifier_members(
+                            syntax_trees
+                                .items
+                                .identifier_path_members(membership.domain),
+                            counts,
+                        );
+                    }
+                }
+            }
         }
         Item::Invariant(invariant) => {
             count_identifier(&invariant.name, counts);

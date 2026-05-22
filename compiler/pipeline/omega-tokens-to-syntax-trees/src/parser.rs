@@ -290,8 +290,9 @@ mod tests {
     #[test]
     fn parses_domain_definition_surface() {
         let source = r#"
-        domain String::NonEmpty {
-            length > 0
+        domain Player::Alive {
+            self in Player::Valid;
+            self.health > 0
         }
         "#;
 
@@ -308,9 +309,20 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(domains.len(), 1);
-        assert_eq!(domains[0].name.as_str(), "String::NonEmpty");
+        assert_eq!(domains[0].name.as_str(), "Player::Alive");
         assert!(domains[0].target_type.is_valid());
-        assert_eq!(domains[0].body_token_count, 3);
+        assert_eq!(parsed.items.domain_facts(domains[0].facts).len(), 2);
+        assert!(domains[0].body_token_count > 3);
+
+        let facts = parsed.items.domain_facts(domains[0].facts);
+        assert!(matches!(
+            facts[0],
+            omega_syntax_trees::item::DomainFact::Membership(_)
+        ));
+        assert!(matches!(
+            facts[1],
+            omega_syntax_trees::item::DomainFact::Expression(_)
+        ));
     }
 
     #[test]

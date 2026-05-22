@@ -120,8 +120,13 @@ mod tests {
     #[test]
     fn lowers_domain_definitions() {
         let source = r#"
-        domain String::NonEmpty {
-            length > 0
+        domain Player::Valid {
+            self.health >= 0
+        }
+
+        domain Player::Alive {
+            self in Player::Valid;
+            self.health > 0
         }
         "#;
 
@@ -134,11 +139,21 @@ mod tests {
         let typed_trees =
             lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
 
-        assert_eq!(typed_trees.domain_definitions().len(), 1);
-        let domain = &typed_trees.domain_definitions()[0];
+        assert_eq!(typed_trees.domain_definitions().len(), 2);
+        let domain = typed_trees
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.name.as_str() == "Player::Alive")
+            .expect("alive domain should lower");
         assert!(domain.symbol.is_valid());
-        assert_eq!(domain.name.as_str(), "String::NonEmpty");
-        assert_eq!(domain.body_token_count, 3);
+        assert_eq!(domain.name.as_str(), "Player::Alive");
+        let facts = typed_trees.domain_facts(domain);
+        assert_eq!(facts.len(), 2);
+        let omega_typed_trees::domain::DomainFact::Membership(membership) = &facts[0] else {
+            panic!("first domain fact should be membership")
+        };
+        assert!(membership.domain_symbol.is_valid());
+        assert!(domain.body_token_count >= 3);
         assert!(domain.target_type.is_valid());
     }
 
