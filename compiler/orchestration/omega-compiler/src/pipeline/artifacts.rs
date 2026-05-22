@@ -11,6 +11,50 @@ pub(super) fn write_pipeline_index(options: &CompileOptions) -> Result<(), Vec<D
     )
 }
 
+pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {
+    let build_dir = options.build_dir();
+    let page_specs = [
+        ("00", "Timings", "timings", "00_timings.html"),
+        ("02", "Syntax", "syntax", "02_syntax_trees.html"),
+        ("03", "Symbols", "symbols", "03_symbol_resolved_trees.html"),
+        ("04", "Typed", "typed", "04_typed_trees.html"),
+        ("06", "State Graph", "state-graph", "06_state_graph.html"),
+        ("07", "Control Flow", "control-flow", "07_control_flow.html"),
+        ("09", "Backend", "backend", "09_backend_report.html"),
+        ("11", "Emission", "emission", "11_emission.html"),
+    ];
+    let mut page_html = Vec::new();
+    for (_, _, _, file_name) in page_specs {
+        let path = build_dir.join(file_name);
+        let contents = std::fs::read_to_string(&path).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "failed to read pipeline page {}: {error}",
+                path.display()
+            ))]
+        })?;
+        page_html.push(contents);
+    }
+
+    let pages = page_specs
+        .iter()
+        .zip(page_html.iter())
+        .map(
+            |((number, label, id, _), html)| omega_visualizations::PipelineEmbeddedPage {
+                number,
+                label,
+                id,
+                html,
+            },
+        )
+        .collect::<Vec<_>>();
+
+    write_phase_diagram(
+        options,
+        "00_pipeline.html",
+        &omega_visualizations::pipeline_shell_html(&pages),
+    )
+}
+
 pub(super) fn write_syntax_snapshot(
     options: &CompileOptions,
     syntax: &omega_syntax_trees::SyntaxTrees,
