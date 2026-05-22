@@ -675,7 +675,6 @@ const TREE_LEVEL_GAP = 96;
 const TREE_SIBLING_GAP = 34;
 const LEFT = 80;
 const TOP = 60;
-const SECTION_GAP_X = 110;
 const SECTION_GAP_Y = 70;
 const OWNER_COLUMNS = 2;
 const DATA_COLUMNS = 4;
@@ -701,11 +700,16 @@ function layoutGraph(allowedIds = null) {
   const hasTreeShape = roots.some(id => containmentChildrenFor(id, allowed).length > 0);
   if (!hasTreeShape) return fallbackLayout(allowed);
 
-  let cursorX = LEFT;
+  if (roots.length === 1) {
+    const rootId = roots[0];
+    layoutSubtree(rootId, LEFT, TOP, new Set(), allowed);
+    return;
+  }
+
+  let cursorY = TOP;
   for (const rootId of roots) {
-    const width = layoutSubtreeWidth(rootId, new Set(), allowed);
-    layoutSubtree(rootId, cursorX, TOP, new Set(), allowed);
-    cursorX += width + SECTION_GAP_X;
+    layoutSubtree(rootId, LEFT, cursorY, new Set(), allowed);
+    cursorY += layoutSubtreeHeight(rootId, new Set(), allowed) + SECTION_GAP_Y;
   }
 }
 
@@ -742,6 +746,24 @@ function layoutSubtreeWidth(id, seen, allowed) {
     + TREE_SIBLING_GAP * (children.length - 1);
   seen.delete(id);
   return Math.max(box.width, childrenWidth);
+}
+
+function layoutSubtreeHeight(id, seen, allowed) {
+  if (seen.has(id)) {
+    return nodeBox(id).height;
+  }
+  seen.add(id);
+
+  const box = nodeBox(id);
+  const children = containmentChildrenFor(id, allowed);
+  if (children.length === 0) {
+    seen.delete(id);
+    return box.height;
+  }
+
+  const childHeight = Math.max(...children.map(childId => layoutSubtreeHeight(childId, seen, allowed)));
+  seen.delete(id);
+  return box.height + TREE_LEVEL_GAP + childHeight;
 }
 
 function layoutSubtree(id, x, y, seen, allowed) {
