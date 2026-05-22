@@ -19,9 +19,3 @@ impl Default for SourceFile {
         }
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceImportEdge {
-    pub importer_path: PathBuf,
-    pub imported_path: PathBuf,
-}

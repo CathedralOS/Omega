@@ -1,9 +1,8 @@
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::stages::AssembledSyntax;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
-use omega_backend_report::{backend_report_text, BackendReportInput, BackendReportPhaseTiming};
+use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
 use omega_core::diagnostics::Diagnostic;
-use std::collections::HashMap;
 use std::path::Path;
 
 pub(super) fn write_pipeline_index(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {
@@ -65,17 +64,12 @@ pub(super) fn write_syntax_snapshot(
     options: &CompileOptions,
     syntax: &AssembledSyntax,
 ) -> Result<(), Vec<Diagnostic>> {
-    let import_parents = first_import_parents(syntax);
     let files = syntax
         .files
         .iter()
-        .map(|file| {
-            let path = canonical_path_string(&file.path);
-            omega_visualizations::SyntaxSourceFile {
-                parent_path: import_parents.get(&path).cloned(),
-                path,
-                root_items: file.root_items.clone(),
-            }
+        .map(|file| omega_visualizations::SyntaxSourceFile {
+            path: display_path(&file.path),
+            root_items: file.root_items.clone(),
         })
         .collect::<Vec<_>>();
     write_phase_diagram(
@@ -93,17 +87,7 @@ pub(super) fn write_syntax_snapshot(
     )
 }
 
-fn first_import_parents(syntax: &AssembledSyntax) -> HashMap<String, String> {
-    let mut parents = HashMap::new();
-    for edge in &syntax.import_edges {
-        parents
-            .entry(canonical_path_string(&edge.imported_path))
-            .or_insert_with(|| canonical_path_string(&edge.importer_path));
-    }
-    parents
-}
-
-fn canonical_path_string(path: &Path) -> String {
+fn display_path(path: &Path) -> String {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     std::env::current_dir()
         .ok()

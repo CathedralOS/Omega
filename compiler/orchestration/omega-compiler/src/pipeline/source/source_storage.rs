@@ -1,5 +1,5 @@
 use crate::pipeline::frontend::ParsedSources;
-use crate::pipeline::source::{SourceFile, SourceImportEdge};
+use crate::pipeline::source::SourceFile;
 use crate::source::SourceMap;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -10,7 +10,6 @@ pub struct SourceStorage {
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
-    pub import_edges: Vec<SourceImportEdge>,
 }
 
 impl SourceStorage {
@@ -30,10 +29,6 @@ impl SourceStorage {
         }
 
         Ok(())
-    }
-
-    pub fn extend_import_edges(&mut self, edges: impl IntoIterator<Item = SourceImportEdge>) {
-        self.import_edges.extend(edges);
     }
 
     pub fn next_source_id(&self) -> usize {

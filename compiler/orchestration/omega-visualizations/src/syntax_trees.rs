@@ -10,7 +10,6 @@ use omega_syntax_trees::statement::{
 
 pub struct SyntaxSourceFile {
     pub path: String,
-    pub parent_path: Option<String>,
     pub root_items: Vec<ItemHandle>,
 }
 
@@ -58,15 +57,6 @@ pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceF
         for (file_index, file) in files.iter().enumerate() {
             let file_id = &file_nodes[file_index];
             diagram.containment_edge(&root, file_id);
-
-            if let Some(parent_index) = file.parent_path.as_ref().and_then(|parent_path| {
-                files
-                    .iter()
-                    .position(|candidate| &candidate.path == parent_path)
-                    .filter(|parent_index| *parent_index < file_index)
-            }) {
-                diagram.edge(file_nodes[parent_index].as_str(), file_id, "imports");
-            }
 
             for (item_index, item_handle) in file.root_items.iter().copied().enumerate() {
                 append_root_item(
