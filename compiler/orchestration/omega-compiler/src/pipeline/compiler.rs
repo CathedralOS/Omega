@@ -41,7 +41,7 @@ impl Compiler {
         )?;
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
-        write_syntax_snapshot(&self.options, &syntax.syntax_trees)?;
+        write_syntax_snapshot(&self.options, &syntax)?;
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         write_resolved_snapshot(&self.options, &resolved)?;
@@ -76,8 +76,9 @@ impl Compiler {
         if self.options.write_output {
             write_output(&self.options, emitted)?;
             write_timings(&self.options, timings.as_slice())?;
-            write_pipeline_shell(&self.options)?;
         }
+
+        write_pipeline_shell(&self.options)?;
 
         Ok(CompileReport {
             root_path: self.options.root_path,

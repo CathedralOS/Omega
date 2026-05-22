@@ -1,4 +1,5 @@
 use crate::pipeline::compile_options::CompileOptions;
+use crate::pipeline::stages::AssembledSyntax;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{backend_report_text, BackendReportInput, BackendReportPhaseTiming};
 use omega_core::diagnostics::Diagnostic;
@@ -24,18 +25,21 @@ pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<D
         ("11", "Emission", "emission", "11_emission.html"),
     ];
     let mut page_html = Vec::new();
-    for (_, _, _, file_name) in page_specs {
+    let mut present_page_specs = Vec::new();
+    for page_spec in page_specs {
+        let (_, _, _, file_name) = page_spec;
         let path = build_dir.join(file_name);
-        let contents = std::fs::read_to_string(&path).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "failed to read pipeline page {}: {error}",
-                path.display()
-            ))]
-        })?;
+        let Ok(contents) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        present_page_specs.push(page_spec);
         page_html.push(contents);
     }
+    if present_page_specs.is_empty() {
+        return write_pipeline_index(options);
+    }
 
-    let pages = page_specs
+    let pages = present_page_specs
         .iter()
         .zip(page_html.iter())
         .map(
@@ -57,17 +61,28 @@ pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<D
 
 pub(super) fn write_syntax_snapshot(
     options: &CompileOptions,
-    syntax: &omega_syntax_trees::SyntaxTrees,
+    syntax: &AssembledSyntax,
 ) -> Result<(), Vec<Diagnostic>> {
+    let files = syntax
+        .files
+        .iter()
+        .map(|file| omega_visualizations::SyntaxSourceFile {
+            path: file.path.display().to_string(),
+            root_items: file.root_items.clone(),
+        })
+        .collect::<Vec<_>>();
     write_phase_diagram(
         options,
         "02_syntax_trees.html",
-        &omega_visualizations::syntax_trees_html(syntax),
+        &omega_visualizations::syntax_trees_with_files_html(&syntax.syntax_trees, &files),
     )?;
     write_phase_json(
         options,
         "02_syntax_trees.json",
-        &syntax.snapshot_json_pretty().map_err(json_diagnostic)?,
+        &syntax
+            .syntax_trees
+            .snapshot_json_pretty()
+            .map_err(json_diagnostic)?,
     )
 }
 
@@ -208,8 +223,11 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "03_symbol_resolved_trees.mmd",
             "04_typed_trees.mmd",
             "00_timings.txt",
+            "00_timings.html",
             "01_sources.txt",
+            "01_sources.html",
             "02_ast.txt",
+            "02_ast.html",
             "03_resolve.txt",
             "04_types.txt",
             "05_typed_program.txt",
@@ -218,11 +236,16 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "08_proof.txt",
             "09_backend_plan.txt",
             "09_backend_report.txt",
+            "09_backend_report.html",
             "09_native_plan.txt",
             "10_trust.txt",
+            "10_trust.html",
             "11_emission.txt",
+            "11_emission.html",
             "12_emitted_output.txt",
+            "12_emitted_output.html",
             "13_finalization.txt",
+            "13_finalization.html",
         ])
         .map_err(|diagnostic| vec![diagnostic])
 }

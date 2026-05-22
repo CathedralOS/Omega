@@ -1,82 +1,144 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{Item, StateNode, StateSignatureNode};
+use omega_syntax_trees::item::{Item, ItemHandle, StateNode, StateSignatureNode};
 use omega_syntax_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
 use omega_syntax_trees::SyntaxTrees;
 
+pub struct SyntaxSourceFile {
+    pub path: String,
+    pub root_items: Vec<ItemHandle>,
+}
+
 pub fn syntax_trees_html(syntax: &SyntaxTrees) -> String {
+    syntax_trees_with_files_html(syntax, &[])
+}
+
+pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceFile]) -> String {
     let mut diagram = PhaseDiagramBuilder::new("syntax_trees");
-    let root = diagram.node("root", "SyntaxTrees", "root", 0);
+    let root_label = if files.is_empty() {
+        format!("SyntaxTrees\nitems: {}", syntax.root_item_count())
+    } else {
+        format!(
+            "SyntaxTrees\nfiles: {}\nitems: {}",
+            files.len(),
+            syntax.root_item_count()
+        )
+    };
+    let root = diagram.node("root", root_label, "root", 0);
 
-    for (item_index, item_handle) in syntax.root_item_handles().iter().copied().enumerate() {
-        let item_id = diagram.node(
-            format!("item_{item_index}"),
-            item_label(syntax.root_item(item_handle)),
-            item_kind(syntax.root_item(item_handle)),
-            1,
-        );
-        diagram.containment_edge(&root, &item_id);
+    if files.is_empty() {
+        for (item_index, item_handle) in syntax.root_item_handles().iter().copied().enumerate() {
+            append_root_item(
+                &mut diagram,
+                syntax,
+                &root,
+                item_index,
+                item_index,
+                item_handle,
+            );
+        }
+    } else {
+        for (file_index, file) in files.iter().enumerate() {
+            let file_id = diagram.node(
+                format!("file_{file_index}"),
+                format!("file {}\nitems: {}", file.path, file.root_items.len()),
+                "file",
+                1,
+            );
+            diagram.containment_edge(&root, &file_id);
 
-        match syntax.root_item(item_handle) {
-            Item::Machine(machine) => {
-                let state_handles = syntax
-                    .items
-                    .state_handles(machine.states)
-                    .iter()
-                    .copied()
-                    .collect::<Vec<_>>();
-                let state_nodes = state_handles
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .map(|(state_index, state_handle)| {
-                        let state = syntax.items.state(state_handle);
-                        (
-                            state.name.as_str().to_owned(),
-                            format!("state_{item_index}_{state_index}"),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-
-                for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
-                    let state = syntax.items.state(state_handle);
-                    append_state(
-                        &mut diagram,
-                        syntax,
-                        &item_id,
-                        &state_nodes,
-                        item_index,
-                        state_index,
-                        state,
-                    );
-                }
+            for (item_index, item_handle) in file.root_items.iter().copied().enumerate() {
+                append_root_item(
+                    &mut diagram,
+                    syntax,
+                    &file_id,
+                    file_index,
+                    item_index,
+                    item_handle,
+                );
             }
-            Item::Trait(trait_definition) => {
-                for (signature_index, signature_handle) in syntax
-                    .items
-                    .state_signatures(trait_definition.machines)
-                    .iter()
-                    .copied()
-                    .enumerate()
-                {
-                    append_state_signature(
-                        &mut diagram,
-                        &item_id,
-                        item_index,
-                        signature_index,
-                        syntax.items.state_signature(signature_handle),
-                    );
-                }
-            }
-            _ => {}
         }
     }
 
     diagram.finish()
+}
+
+fn append_root_item(
+    diagram: &mut PhaseDiagramBuilder,
+    syntax: &SyntaxTrees,
+    parent_id: &str,
+    owner_index: usize,
+    item_index: usize,
+    item_handle: ItemHandle,
+) {
+    let item = syntax.root_item(item_handle);
+    let item_id = diagram.node(
+        format!("item_{owner_index}_{item_index}"),
+        item_label(syntax, item),
+        item_kind(item),
+        2,
+    );
+    diagram.containment_edge(parent_id, &item_id);
+
+    match item {
+        Item::Machine(machine) => {
+            let state_handles = syntax
+                .items
+                .state_handles(machine.states)
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            let state_nodes = state_handles
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(state_index, state_handle)| {
+                    let state = syntax.items.state(state_handle);
+                    (
+                        state.name.as_str().to_owned(),
+                        format!("state_{owner_index}_{item_index}_{state_index}"),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
+                let state = syntax.items.state(state_handle);
+                append_state(
+                    diagram,
+                    syntax,
+                    &item_id,
+                    &state_nodes,
+                    owner_index,
+                    item_index,
+                    state_index,
+                    state,
+                );
+            }
+        }
+        Item::Trait(trait_definition) => {
+            for (signature_index, signature_handle) in syntax
+                .items
+                .state_signatures(trait_definition.machines)
+                .iter()
+                .copied()
+                .enumerate()
+            {
+                append_state_signature(
+                    diagram,
+                    &item_id,
+                    owner_index,
+                    item_index,
+                    signature_index,
+                    syntax.items.state_signature(signature_handle),
+                );
+            }
+        }
+        _ => {}
+    }
 }
 
 fn append_state(
@@ -84,15 +146,16 @@ fn append_state(
     syntax: &SyntaxTrees,
     parent_id: &str,
     state_nodes: &[(String, String)],
+    owner_index: usize,
     item_index: usize,
     state_index: usize,
     state: &StateNode,
 ) {
     let state_id = diagram.node(
-        format!("state_{item_index}_{state_index}"),
+        format!("state_{owner_index}_{item_index}_{state_index}"),
         state_label(syntax, state),
         "state",
-        2,
+        3,
     );
     diagram.containment_edge(parent_id, &state_id);
 
@@ -141,19 +204,20 @@ fn inline_label(label: String) -> String {
 fn append_state_signature(
     diagram: &mut PhaseDiagramBuilder,
     parent_id: &str,
+    owner_index: usize,
     item_index: usize,
     signature_index: usize,
     signature: &StateSignatureNode,
 ) {
     let signature_id = diagram.node(
-        format!("signature_{item_index}_{signature_index}"),
+        format!("signature_{owner_index}_{item_index}_{signature_index}"),
         format!(
             "machine {}\nparams: {}",
             signature.name.as_str(),
             signature.parameters.len()
         ),
         "state",
-        2,
+        3,
     );
     diagram.containment_edge(parent_id, &signature_id);
 }
@@ -167,7 +231,7 @@ fn item_kind(item: &Item) -> &'static str {
     }
 }
 
-fn item_label(item: &Item) -> String {
+fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
     match item {
         Item::Capability(value) => format!("capability {}", value.name.as_str()),
         Item::Data(value) => format!(
@@ -215,7 +279,16 @@ fn item_label(item: &Item) -> String {
         }
         Item::Target(value) => format!("target {}", value.name.as_str()),
         Item::TrustDefinition(value) => format!("trust {}", value.name.as_str()),
-        Item::Use(value) => format!("use\nsegments: {}", value.path.len()),
+        Item::Use(value) => {
+            let path = syntax
+                .items
+                .identifier_path_members(value.path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!("use {path}\nsegments: {}", value.path.len())
+        }
     }
 }
 

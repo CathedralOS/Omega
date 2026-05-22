@@ -716,80 +716,43 @@ let transform = { x: 0, y: 0, scale: 1 };
 function layoutGraph() {
   positions.clear();
   if (!nodeById.has("root")) return fallbackLayout();
-  const roots = ["root"];
-
-  placeNode(roots[0], LEFT, TOP);
-  const rootChildren = containmentChildren.get(roots[0]) || [];
-  const dataChildren = rootChildren.filter(id => nodeById.get(id)?.kind === "data");
-  const ownerChildren = rootChildren.filter(id => nodeById.get(id)?.kind !== "data");
-
-  let cursorY = TOP + NODE_H + SECTION_GAP_Y;
-  if (dataChildren.length > 0) {
-    cursorY += layoutDataGrid(dataChildren, LEFT, cursorY, DATA_COLUMNS) + SECTION_GAP_Y;
-  }
-  layoutOwnerGrid(ownerChildren, LEFT, cursorY);
-
-  for (const rootId of roots.slice(1)) {
-    if (!positions.has(rootId)) layoutStandalone(rootId);
-  }
-}
-
-function layoutDataGrid(ids, x, y, columns) {
-  const columnWidth = maxNodeWidth(ids) + ROW_GAP;
-  const rowHeights = [];
-  ids.forEach((id, index) => {
-    const row = Math.floor(index / columns);
-    rowHeights[row] = Math.max(rowHeights[row] || 0, nodeBox(id).height);
-  });
-  ids.forEach((id, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    placeNode(id, x + column * columnWidth, y + rowOffset(rowHeights, row));
-  });
-  return rowHeights.reduce((sum, height) => sum + height + ROW_GAP, 0);
-}
-
-function layoutOwnerGrid(ownerIds, x, y) {
-  const widestOwner = maxNodeWidth(ownerIds);
-  const widestChild = maxNodeWidth(ownerIds.flatMap(id => containmentChildren.get(id) || []));
-  const sectionWidth = widestOwner + widestChild + RANK_GAP;
-  const columns = Math.min(OWNER_COLUMNS, Math.max(1, ownerIds.length));
-  const columnHeights = new Array(columns).fill(y);
-  ownerIds.forEach(ownerId => {
-    const column = columnHeights.indexOf(Math.min(...columnHeights));
-    const sectionX = x + column * (sectionWidth + SECTION_GAP_X);
-    const sectionY = columnHeights[column];
-    const sectionHeight = layoutOwnerSection(ownerId, sectionX, sectionY);
-    columnHeights[column] += sectionHeight + SECTION_GAP_Y;
-  });
-}
-
-function layoutOwnerSection(ownerId, x, y) {
-  const ownerBox = placeNode(ownerId, x, y);
-  const childIds = containmentChildren.get(ownerId) || [];
-  const objectIds = childIds.filter(id => nodeById.get(id)?.kind === "object");
-  const stateIds = childIds.filter(id => nodeById.get(id)?.kind === "state");
-  const objectX = x + ownerBox.width + RANK_GAP;
-  objectIds.forEach((objectId, index) => {
-    const previousIds = objectIds.slice(0, index);
-    const offset = previousIds.reduce((sum, id) => sum + nodeBox(id).height + ROW_GAP, 0);
-    placeNode(objectId, objectX, y + offset);
-  });
-  const objectHeight = objectIds.reduce((sum, id) => sum + nodeBox(id).height + ROW_GAP, 0);
-  if (stateIds.length === 0) return Math.max(ownerBox.height, objectHeight);
-
-  let cursorY = y + objectHeight;
-  for (const stateId of stateIds) {
-    const stateBox = placeNode(stateId, objectX, cursorY);
-    cursorY += stateBox.height + ROW_GAP;
-  }
-
-  return Math.max(ownerBox.height, cursorY - y - ROW_GAP);
+  layoutSubtree("root", LEFT, TOP, new Set());
 }
 
 function layoutStandalone(id) {
   const y = TOP + Array.from(positions.values()).reduce((sum, box) => sum + box.height + ROW_GAP, 0);
   placeNode(id, LEFT, y);
+}
+
+function layoutSubtree(id, x, y, seen) {
+  if (seen.has(id)) {
+    placeNode(id, x, y);
+    return nodeBox(id).height;
+  }
+  seen.add(id);
+
+  const box = nodeBox(id);
+  const children = (containmentChildren.get(id) || [])
+    .filter(childId => nodeById.has(childId));
+
+  if (children.length === 0) {
+    placeNode(id, x, y);
+    seen.delete(id);
+    return box.height;
+  }
+
+  const childX = x + box.width + RANK_GAP;
+  let cursorY = y;
+  for (const childId of children) {
+    const childHeight = layoutSubtree(childId, childX, cursorY, seen);
+    cursorY += childHeight + ROW_GAP;
+  }
+
+  const childrenHeight = cursorY - y - ROW_GAP;
+  const subtreeHeight = Math.max(box.height, childrenHeight);
+  placeNode(id, x, y + Math.max(0, (subtreeHeight - box.height) / 2));
+  seen.delete(id);
+  return subtreeHeight;
 }
 
 function fallbackLayout() {
@@ -931,10 +894,11 @@ function renderOutline() {
   const rootId = "root";
   const topLevel = containmentChildren.get(rootId) || [];
   const groups = [
+    ["Files", topLevel.filter(id => nodeById.get(id)?.kind === "file")],
     ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
     ["Traits", topLevel.filter(id => nodeById.get(id)?.kind === "trait")],
     ["Machines", topLevel.filter(id => nodeById.get(id)?.kind === "machine")],
-    ["Other", topLevel.filter(id => !["data", "trait", "machine"].includes(nodeById.get(id)?.kind))]
+    ["Other", topLevel.filter(id => !["file", "data", "trait", "machine"].includes(nodeById.get(id)?.kind))]
   ];
   for (const [title, ids] of groups) {
     if (ids.length === 0) continue;
@@ -971,9 +935,8 @@ function renderFlatOutline() {
 
 function outlineNode(id, depth) {
   const node = nodeById.get(id);
-  const children = (containmentChildren.get(id) || [])
-    .filter(childId => ["object", "state"].includes(nodeById.get(childId)?.kind));
-  if (children.length === 0 || depth >= 2) {
+  const children = (containmentChildren.get(id) || []).filter(childId => nodeById.has(childId));
+  if (children.length === 0 || depth >= 4) {
     const button = document.createElement("button");
     button.textContent = outlineLabel(node);
     button.title = node.label;

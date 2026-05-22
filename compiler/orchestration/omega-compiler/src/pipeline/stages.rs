@@ -13,7 +13,7 @@ use crate::pipeline::timing::CompileTimings;
 use omega_checked_trees::Program as CheckedProgram;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
-use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
+use omega_emission_planning::{build_emission_plan, EmissionPlanningInput};
 use omega_object::SectionKind;
 use omega_state_graph::StateGraph;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 pub(super) struct AssembledSyntax {
     pub(super) syntax_trees: SyntaxTrees,
+    pub(super) files: Vec<crate::pipeline::source::SourceFile>,
     pub(super) sources: Arc<omega_core::source::SourceMap>,
 }
 
@@ -86,8 +87,10 @@ pub(super) fn source_files_to_syntax_trees(
 }
 
 fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+    let files = sources.files.storage_slice().to_vec();
     Ok(AssembledSyntax {
         syntax_trees: sources.syntax_trees,
+        files,
         sources: Arc::new(sources.sources),
     })
 }
