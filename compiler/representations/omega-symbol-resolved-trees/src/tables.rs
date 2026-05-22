@@ -339,6 +339,7 @@ mod tests {
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
+                effects: HandleSpan::empty(),
                 states,
             },
         });

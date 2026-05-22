@@ -69,6 +69,7 @@ pub enum ItemSnapshot {
     Machine {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
+        effects: Vec<IdentifierSnapshot>,
         states: Vec<StateSnapshot>,
     },
     Platform {
@@ -439,6 +440,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Machine(value) => ItemSnapshot::Machine {
             name: snapshot_identifier(&value.name),
             attached_data: value.attached_data.as_ref().map(snapshot_identifier),
+            effects: snapshot_identifier_slice(
+                syntax_trees.items.identifier_path_members(value.effects),
+            ),
             states: syntax_trees
                 .items
                 .state_handles(value.states)

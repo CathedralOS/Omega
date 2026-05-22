@@ -313,6 +313,17 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 value.satisfies.len(),
                 state_handles.len().saturating_sub(1)
             );
+            let effects = syntax.items.identifier_path_members(value.effects);
+            if !effects.is_empty() {
+                label.push_str("\neffects: ");
+                label.push_str(
+                    &effects
+                        .iter()
+                        .map(|effect| effect.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+            }
             if let Some(entry_state) = entry_state {
                 append_entry_statements(&mut label, syntax, entry_state);
             }

@@ -94,6 +94,30 @@ context like any other effect.
 The compiler-side source of truth for this vocabulary is the standard effect
 name list in `omega-effects`; docs and implementation should move together.
 
+Declared effects are ceilings. A trait can say "any implementation of this
+machine may require at most these effects." A concrete machine may declare the
+same set or a smaller set, because some providers are less effectful on a given
+target. It may not declare a new effect outside the trait requirement.
+
+```omega
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+}
+
+machine DarwinConsole::write_line(text: String) satisfies Console
+effects
+    stdout_io
+{
+    // accepted: the implementation stays inside the trait ceiling
+}
+
+machine TestConsole::write_line(text: String) satisfies Console {
+    // also accepted: the test provider records output in memory
+}
+```
+
 The list should stay intentionally small. More specific host details belong in
 boundary provider metadata, not in effect names. For example, `stdout_io` is
 enough for the language-level capability report; whether the implementation

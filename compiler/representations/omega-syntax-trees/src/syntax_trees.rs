@@ -186,6 +186,7 @@ impl SyntaxTrees {
             name: machine.name.clone(),
             attached_data: machine.attached_data.clone(),
             satisfies: self.copy_item_identifier_span(other, machine.satisfies),
+            effects: self.copy_item_identifier_span(other, machine.effects),
             states: self.copy_state_handle_span(other, machine.states),
         }
     }
@@ -923,6 +924,7 @@ mod tests {
             name: Identifier::generated("Main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
         }));
 
@@ -951,6 +953,7 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
@@ -1000,6 +1003,7 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
@@ -1097,6 +1101,7 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 

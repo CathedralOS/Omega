@@ -123,6 +123,13 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    pub fn machine_effects(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> &[crate::name::DiagnosticName] {
+        self.signature_effects(machine.effects)
+    }
+
     pub fn machine_state_handles(
         &self,
         span: HandleSpan<Handle<state::State>>,

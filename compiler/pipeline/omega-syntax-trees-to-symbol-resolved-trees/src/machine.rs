@@ -1,5 +1,5 @@
 use crate::program::Lowerer;
-use crate::state::lower_state_node;
+use crate::state::{lower_signature_effects, lower_state_node};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -14,6 +14,7 @@ pub(crate) fn lower_machine_into(
 ) -> Result<(), Diagnostic> {
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
+    let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
     let machine_name = crate::name::lower_name(&machine.name);
     let attached_data = machine.attached_data.as_ref().map(crate::name::lower_name);
 
@@ -25,6 +26,7 @@ pub(crate) fn lower_machine_into(
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies,
+            effects,
             states,
         },
     });

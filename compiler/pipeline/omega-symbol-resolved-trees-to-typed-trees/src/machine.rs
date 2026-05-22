@@ -17,6 +17,7 @@ pub(crate) fn lower_machine(
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
+        effects: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
     };
 
@@ -69,6 +70,13 @@ pub(crate) fn lower_machine(
                 name: crate::name::lower_name(&conformance.name),
             },
         );
+    }
+
+    for effect in lowerer.source_trees.machine_effects(machine) {
+        let effect = crate::name::lower_name(effect);
+        lowerer
+            .typed_trees
+            .push_machine_effect(&mut typed_machine, effect);
     }
 
     for state in lowerer.source_trees.machine_state_handles(machine.states) {

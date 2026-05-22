@@ -485,6 +485,17 @@ fn machine_label(
             })
             .unwrap_or(0)
     );
+    let effects = program.machine_effects(machine);
+    if !effects.is_empty() {
+        label.push_str("\neffects: ");
+        label.push_str(
+            &effects
+                .iter()
+                .map(|effect| effect.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
 
     let Some(entry_state) = entry_state else {
         return label;

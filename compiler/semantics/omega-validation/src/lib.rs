@@ -33,6 +33,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
         validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
+        validate_machine_effects(program, machine, &mut diagnostics);
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
         for state in program.machine_states(machine) {
@@ -599,6 +600,21 @@ fn validate_state_signature_effects(
     }
 }
 
+fn validate_machine_effects(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for effect in program.machine_effects(machine) {
+        if !omega_effects::is_standard_effect_name(effect.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` declares unknown effect `{}`",
+                machine.name, effect
+            )));
+        }
+    }
+}
+
 fn validate_platform_state_names(
     platform: &omega_typed_trees::platform::Platform,
     platform_states: &[omega_typed_trees::signature::StateSignature],
@@ -963,6 +979,115 @@ mod tests {
             "expected unknown effect diagnostic, got {diagnostics:#?}"
         );
     }
+
+    #[test]
+    fn rejects_machine_effects_outside_trait_ceiling() {
+        let source = r#"
+        boundary trait Console {
+            machine write_line(text: String)
+            effects
+                stdout_io;
+        }
+
+        data ConsoleImpl {
+        }
+
+        machine ConsoleImpl::write_line(text: String) satisfies Console
+        effects
+            stdout_io, filesystem_io
+        {
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics =
+            validate_program(&typed).expect_err("validation should reject extra effect");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("effect `filesystem_io` is not allowed by the trait requirement")),
+            "expected effect ceiling diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn accepts_machine_effects_within_trait_ceiling() {
+        let source = r#"
+        boundary trait Console {
+            machine write_line(text: String)
+            effects
+                stdout_io;
+        }
+
+        data ConsoleImpl {
+        }
+
+        machine ConsoleImpl::write_line(text: String) satisfies Console
+        effects
+            stdout_io
+        {
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        validate_program(&typed).expect("validation should succeed");
+    }
+
+    #[test]
+    fn accepts_machine_effects_below_trait_ceiling() {
+        let source = r#"
+        boundary trait Console {
+            machine write_line(text: String)
+            effects
+                stdout_io;
+        }
+
+        data TestConsole {
+        }
+
+        machine TestConsole::write_line(text: String) satisfies Console {
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        validate_program(&typed).expect("validation should succeed");
+    }
 }
 
 fn validate_contained_types(
@@ -1271,6 +1396,42 @@ fn validate_machine_state_satisfies_trait_signature(
             type_reference_label(program, requirement.return_type),
             type_reference_label(program, state.return_type)
         )));
+    }
+
+    validate_trait_effect_ceiling(
+        program,
+        machine,
+        state,
+        trait_name,
+        requirement,
+        diagnostics,
+    );
+}
+
+fn validate_trait_effect_ceiling(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    trait_name: &str,
+    requirement: &StateSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let allowed_effects = program.state_signature_effects(requirement);
+
+    for effect in program.machine_effects(machine) {
+        if !allowed_effects
+            .iter()
+            .any(|allowed| allowed.as_str() == effect.as_str())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: effect `{}` is not allowed by the trait requirement",
+                machine.name,
+                state.name,
+                trait_name,
+                requirement.name,
+                effect
+            )));
+        }
     }
 }
 
