@@ -92,28 +92,6 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
     }
 
     for (machine_index, machine) in typed.machines().iter().enumerate() {
-        let machine_id = diagram.node(
-            format!("machine_{machine_index}"),
-            format!(
-                "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
-                machine.name.as_str(),
-                symbol_label(machine.symbol),
-                machine.satisfies.len(),
-                machine.states.len()
-            ),
-            "machine",
-            1,
-        );
-        append_machine_relationships(
-            &mut diagram,
-            typed,
-            &data_nodes,
-            &trait_nodes,
-            &machine_id,
-            machine_index,
-            machine,
-        );
-
         let states = typed.machine_states(machine);
         let state_nodes = states
             .iter()
@@ -126,6 +104,21 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
                 )
             })
             .collect::<Vec<_>>();
+        let machine_id = diagram.node(
+            format!("machine_{machine_index}"),
+            machine_label(typed, machine, states.first()),
+            "machine",
+            1,
+        );
+        append_machine_relationships(
+            &mut diagram,
+            typed,
+            &data_nodes,
+            &trait_nodes,
+            &machine_id,
+            machine_index,
+            machine,
+        );
 
         for (state_index, state) in states.iter().enumerate() {
             append_state(
@@ -244,6 +237,37 @@ fn append_trait_machine_signatures(
         );
         diagram.containment_edge(trait_id, &machine_id);
     }
+}
+
+fn machine_label(program: &TypedTrees, machine: &Machine, entry_state: Option<&State>) -> String {
+    let mut label = format!(
+        "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
+        machine.name.as_str(),
+        symbol_label(machine.symbol),
+        machine.satisfies.len(),
+        machine.states.len()
+    );
+
+    let Some(entry_state) = entry_state else {
+        return label;
+    };
+
+    label.push_str("\nentry: ");
+    label.push_str(entry_state.name.as_str());
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(entry_state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&statement_index.to_string());
+        label.push_str(": ");
+        label.push_str(&inline_label(statement_label(program, statement)));
+    }
+
+    label
 }
 
 fn append_state(

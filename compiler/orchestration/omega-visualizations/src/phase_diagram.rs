@@ -95,7 +95,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str("</h1>\n");
     push_pipeline_nav(&mut html);
     html.push_str("<input id=\"search\" type=\"search\" placeholder=\"Search labels, symbols, states...\" autocomplete=\"off\">\n");
-    html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button><button id=\"clear-scope\">Clear Scope</button><button id=\"follow-target\" disabled>Follow Target</button></div>\n");
+    html.push_str("<div class=\"buttons\"><button id=\"fit\">Fit</button><button id=\"reset\">Reset</button><button id=\"clear-scope\">Clear Scope</button></div>\n");
     html.push_str(
         "<label><input id=\"show-sequence\" type=\"checkbox\" checked> Statement flow</label>\n",
     );
@@ -652,7 +652,6 @@ const scopeOutline = document.getElementById("scope-outline");
 const showSequence = document.getElementById("show-sequence");
 const showData = document.getElementById("show-data");
 const clearScope = document.getElementById("clear-scope");
-const followTarget = document.getElementById("follow-target");
 const NS = "http://www.w3.org/2000/svg";
 
 const nodeById = new Map(GRAPH.nodes.map(node => [node.id, node]));
@@ -1146,7 +1145,7 @@ function drawNode(node) {
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
-    const targetId = transitionTargetFor(node.id);
+    const targetId = followTargetFor(node.id);
     selectNode(targetId || node.id, true);
   });
   group.addEventListener("pointerenter", () => {
@@ -1168,10 +1167,9 @@ function selectNode(id, center) {
   selectedId = id;
   markSelectedNode(id);
   const node = nodeById.get(id);
-  const targetId = transitionTargetFor(id);
-  const targetText = targetId ? `\n\ntransition target: ${outlineLabel(nodeById.get(targetId))}` : "";
+  const targetId = followTargetFor(id);
+  const targetText = targetId ? `\n\nfollow target: ${outlineLabel(nodeById.get(targetId))}` : "";
   details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}${targetText}\n\n${node.label}`;
-  updateFollowTarget();
   if (center) centerOn(id);
 }
 
@@ -1185,7 +1183,6 @@ function setScope(id, fit) {
   scopedId = id === "root" ? null : id;
   selectedId = id;
   details.textContent = scopeDetails(id);
-  updateFollowTarget();
   applyFilters();
   markSelectedNode(id);
   if (fit) fitGraph();
@@ -1195,7 +1192,6 @@ function clearGraphScope(fit) {
   scopedId = null;
   selectedId = null;
   details.textContent = "Full graph scope. Click a scope item to focus a slice.";
-  updateFollowTarget();
   applyFilters();
   if (fit) fitGraph();
 }
@@ -1289,12 +1285,15 @@ function applyFilters() {
   applyRelationshipHighlight();
 }
 
-function transitionTargetFor(id) {
-  return GRAPH.edges.find(edge => edge.kind === "transition_target" && edge.from === id)?.to || null;
-}
-
-function updateFollowTarget() {
-  followTarget.disabled = !transitionTargetFor(selectedId);
+function followTargetFor(id) {
+  const transitionTarget = GRAPH.edges.find(edge => edge.kind === "transition_target" && edge.from === id)?.to;
+  if (transitionTarget) return transitionTarget;
+  const node = nodeById.get(id);
+  if (node?.kind === "machine") {
+    return (containmentChildren.get(id) || [])
+      .find(childId => nodeById.get(childId)?.kind === "state") || null;
+  }
+  return null;
 }
 
 function activeFocusId() {
@@ -1402,7 +1401,6 @@ svg.addEventListener("wheel", event => {
 svg.addEventListener("click", () => {
   selectedId = null;
   document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
-  updateFollowTarget();
   applyRelationshipHighlight();
 });
 search.addEventListener("input", applyFilters);
@@ -1415,10 +1413,6 @@ showData.addEventListener("change", applyFilters);
 document.getElementById("fit").addEventListener("click", fitGraph);
 document.getElementById("reset").addEventListener("click", () => setTransform({ x: 0, y: 0, scale: 1 }));
 clearScope.addEventListener("click", () => clearGraphScope(true));
-followTarget.addEventListener("click", () => {
-  const targetId = transitionTargetFor(selectedId);
-  if (targetId) selectNode(targetId, true);
-});
 window.addEventListener("resize", fitGraph);
 
 render();
