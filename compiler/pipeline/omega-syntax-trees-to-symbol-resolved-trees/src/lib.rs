@@ -1,4 +1,5 @@
 mod data;
+mod domain;
 mod expression;
 mod invariant;
 mod item;

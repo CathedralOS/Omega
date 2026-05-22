@@ -8,6 +8,7 @@ pub enum SymbolKind {
     BuiltinFunction,
     Invariant,
     Data,
+    Domain,
     Field,
     Variant,
     Machine,

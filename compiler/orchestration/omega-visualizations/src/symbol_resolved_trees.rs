@@ -63,6 +63,27 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
         );
     }
 
+    for (domain_index, domain) in program.roots.domain_definitions.iter().enumerate() {
+        let target_symbol = type_reference_symbol(program, &domain.target_type);
+        let domain_id = diagram.node(
+            format!("domain_{domain_index}"),
+            format!(
+                "domain {} for {}\nsymbol: {}\nbody tokens: {}",
+                domain.name.as_str(),
+                domain
+                    .target_type
+                    .display_name_with_constraints(&program.tables.types.constraints),
+                symbol_label(domain.symbol),
+                domain.body_token_count
+            ),
+            "domain",
+            1,
+        );
+        if let Some(target_id) = type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol) {
+            diagram.edge(&domain_id, target_id, "domain_target");
+        }
+    }
+
     for (trait_index, trait_definition) in program.roots.traits.iter().enumerate() {
         let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
             continue;

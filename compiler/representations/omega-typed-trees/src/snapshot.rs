@@ -1,5 +1,6 @@
 use crate::TypedTrees;
 use crate::data::{DataDefinition, DataMember};
+use crate::domain::DomainDefinition;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
@@ -27,6 +28,11 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|data| data_definition_snapshot(program, data))
                     .collect(),
+                domain_definitions: program
+                    .domain_definitions()
+                    .iter()
+                    .map(|domain| domain_definition_snapshot(program, domain))
+                    .collect(),
                 invariant_definitions: program
                     .invariant_definitions()
                     .iter()
@@ -52,6 +58,7 @@ impl TypedTreesSnapshot {
                 data_definition_count: program.data_definitions.len(),
                 data_type_parameter_count: program.data_type_parameters.len(),
                 data_member_count: program.data_members.len(),
+                domain_definition_count: program.domain_definitions.len(),
                 invariant_definition_count: program.invariant_definitions.len(),
                 machine_count: program.machines.len(),
                 machine_contained_object_count: program.machine_contained_objects.len(),
@@ -85,6 +92,7 @@ impl TypedTreesSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypedRootsSnapshot {
     pub data_definitions: Vec<DataDefinitionSnapshot>,
+    pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
@@ -96,6 +104,7 @@ pub struct TypedTableSnapshot {
     pub data_definition_count: usize,
     pub data_type_parameter_count: usize,
     pub data_member_count: usize,
+    pub domain_definition_count: usize,
     pub invariant_definition_count: usize,
     pub machine_count: usize,
     pub machine_contained_object_count: usize,
@@ -132,6 +141,13 @@ pub enum DataMemberSnapshot {
     Variant {
         name: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DomainDefinitionSnapshot {
+    pub name: String,
+    pub target_type: TypeReferenceSnapshot,
+    pub body_token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -382,6 +398,17 @@ fn data_member_snapshot(program: &TypedTrees, member: &DataMember) -> DataMember
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: variant.name.to_string(),
         },
+    }
+}
+
+fn domain_definition_snapshot(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+) -> DomainDefinitionSnapshot {
+    DomainDefinitionSnapshot {
+        name: domain.name.to_string(),
+        target_type: type_reference_snapshot(program, domain.target_type),
+        body_token_count: domain.body_token_count,
     }
 }
 

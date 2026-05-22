@@ -532,6 +532,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node { cursor: pointer; pointer-events: all; }
 .node.root rect { fill: #263247; stroke: #8ab4ff; }
 .node.data rect { fill: #1b2a22; stroke: #75b57c; }
+.node.domain rect { fill: #272517; stroke: #d8b65c; }
 .node.trait rect { fill: #162b33; stroke: #4dd4c6; }
 .node.machine rect { fill: #272132; stroke: #b089f0; }
 .node.object rect { fill: #2e291b; stroke: #ffd166; }

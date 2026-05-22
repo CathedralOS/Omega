@@ -25,6 +25,7 @@ pub struct TypeDeclaration {
 pub enum TypeDeclarationKind {
     Capability,
     Data,
+    Domain,
     Invariant,
     Library,
     Machine,
@@ -110,6 +111,16 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     }
                 }
             }
+            Item::Domain(domain) => {
+                insert_declaration(&mut report, &domain.name, TypeDeclarationKind::Domain);
+                collect_type_reference(
+                    &mut report,
+                    syntax_trees,
+                    domain.target_type,
+                    TypeReferenceUseKind::Storage,
+                    &format!("domain `{}` target type", domain.name),
+                );
+            }
             Item::Invariant(invariant) => {
                 insert_declaration(&mut report, &invariant.name, TypeDeclarationKind::Invariant);
                 collect_constraints(
@@ -141,7 +152,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     );
                 }
             }
-            Item::Use(_) => {}
+            Item::Export(_) | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Platform(platform) => {
                 insert_declaration(&mut report, &platform.name, TypeDeclarationKind::Platform);
@@ -381,8 +392,37 @@ mod tests {
     use omega_core::arena::HandleSpan;
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{Item, Machine, State, StateParameterNode};
+    use omega_syntax_trees::item::{DomainDefinition, Item, Machine, State, StateParameterNode};
     use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+    #[test]
+    fn collects_domain_declarations_and_target_types() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let target_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("String")));
+
+        syntax_trees.push_root_item(Item::Domain(DomainDefinition {
+            name: Identifier::generated("NonEmpty"),
+            target_type,
+            body_token_count: 3,
+        }));
+
+        let report = build_type_surface_report(&syntax_trees);
+
+        assert!(
+            report.declarations.iter().any(|(_, declaration)| {
+                declaration.name == "NonEmpty" && declaration.kind == TypeDeclarationKind::Domain
+            }),
+            "domain declaration should be recorded"
+        );
+        assert!(
+            report.references.iter().any(|(_, reference)| {
+                reference.name == "String" && reference.kind == TypeReferenceUseKind::Storage
+            }),
+            "domain target type should be recorded"
+        );
+    }
 
     #[test]
     fn collects_state_signatures_and_constraints() {

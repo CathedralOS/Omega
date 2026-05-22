@@ -49,6 +49,11 @@ pub enum ItemSnapshot {
         type_parameters: Vec<TypeParameterSnapshot>,
         members: Vec<DataMemberSnapshot>,
     },
+    Domain {
+        name: IdentifierSnapshot,
+        target_type: TypeReferenceSnapshot,
+        body_token_count: usize,
+    },
     Invariant {
         name: IdentifierSnapshot,
         constraints: Vec<TypeConstraintSnapshot>,
@@ -413,6 +418,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|member| snapshot_data_member(syntax_trees, member))
                 .collect(),
+        },
+        Item::Domain(value) => ItemSnapshot::Domain {
+            name: snapshot_identifier(&value.name),
+            target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
+            body_token_count: value.body_token_count,
         },
         Item::Invariant(value) => ItemSnapshot::Invariant {
             name: snapshot_identifier(&value.name),

@@ -11,6 +11,7 @@ pub mod obligations;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProofSurfaceReport {
     pub invariants: Arena<InvariantSurface>,
+    pub domains: Arena<DomainSurface>,
     pub bounded_sites: Arena<BoundedTypeSite>,
 }
 
@@ -18,6 +19,13 @@ pub struct ProofSurfaceReport {
 pub struct InvariantSurface {
     pub name: String,
     pub constraints: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DomainSurface {
+    pub name: String,
+    pub target_type: String,
+    pub body_token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -44,6 +52,19 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         );
                     }
                 }
+            }
+            Item::Domain(domain) => {
+                report.domains.insert(DomainSurface {
+                    name: domain.name.to_string(),
+                    target_type: type_reference_name(syntax_trees, domain.target_type),
+                    body_token_count: domain.body_token_count,
+                });
+                collect_bounded_type_site(
+                    &mut report,
+                    syntax_trees,
+                    domain.target_type,
+                    &format!("domain `{}` target type", domain.name),
+                );
             }
             Item::Invariant(invariant) => {
                 report.invariants.insert(InvariantSurface {
@@ -383,10 +404,34 @@ mod tests {
     use omega_core::arena::HandleSpan;
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{InvariantDefinition, Item, Machine, State, StateParameterNode};
-    use omega_syntax_trees::types::TypeConstraintNode;
+    use omega_syntax_trees::item::{
+        DomainDefinition, InvariantDefinition, Item, Machine, State, StateParameterNode,
+    };
+    use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     use super::build_proof_surface_report;
+
+    #[test]
+    fn collects_domain_surface() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let target_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("String")));
+
+        syntax_trees.push_root_item(Item::Domain(DomainDefinition {
+            name: Identifier::generated("NonEmpty"),
+            target_type,
+            body_token_count: 3,
+        }));
+
+        let report = build_proof_surface_report(&syntax_trees);
+
+        assert_eq!(report.domains.len(), 1);
+        let (_, domain) = report.domains.iter().next().expect("domain surface");
+        assert_eq!(domain.name, "NonEmpty");
+        assert_eq!(domain.target_type, "String");
+        assert_eq!(domain.body_token_count, 3);
+    }
 
     #[test]
     fn collects_invariants_and_bounded_type_sites() {

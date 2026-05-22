@@ -6,11 +6,11 @@ use crate::expression::{
 use crate::identifier::Identifier;
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
-    CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant, Item,
-    ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine, Platform, State,
-    StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
-    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
+    CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
+    DomainDefinition, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
+    Platform, State, StateHandle, StateParameterHandle, StateParameterNode, StateSignature,
+    StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue,
+    TraitDefinition, TrustDefinition, TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -91,6 +91,7 @@ impl SyntaxTrees {
             Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
             | Item::Data(_)
+            | Item::Domain(_)
             | Item::Export(_)
             | Item::Invariant(_)
             | Item::Library(_)
@@ -125,6 +126,11 @@ impl SyntaxTrees {
                 Item::Capability(self.copy_capability_definition(other, capability))
             }
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
+            Item::Domain(domain) => Item::Domain(DomainDefinition {
+                name: domain.name.clone(),
+                target_type: self.copy_type_reference_handle(other, domain.target_type),
+                body_token_count: domain.body_token_count,
+            }),
             Item::Invariant(invariant) => Item::Invariant(crate::item::InvariantDefinition {
                 name: invariant.name.clone(),
                 constraints: self.copy_constraint_span(other, invariant.constraints),

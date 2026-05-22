@@ -72,6 +72,10 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
+        Item::Domain(domain) => {
+            count_identifier(&domain.name, counts);
+            count_type_reference_handle(syntax_trees, domain.target_type, counts);
+        }
         Item::Invariant(invariant) => {
             count_identifier(&invariant.name, counts);
             for constraint in syntax_trees

@@ -50,6 +50,15 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_declaration_name(&invariant.name, &mut counts);
     }
 
+    for domain in typed_trees.domain_definitions() {
+        count_declaration_name(&domain.name, &mut counts);
+        count_type_reference_handle(
+            &typed_trees.type_reference_table,
+            domain.target_type,
+            &mut counts,
+        );
+    }
+
     for data_definition in typed_trees.data_definitions() {
         count_declaration_name(&data_definition.name, &mut counts);
         for member in typed_trees.data_members(data_definition) {
