@@ -1288,11 +1288,6 @@ function applyFilters() {
 function followTargetFor(id) {
   const transitionTarget = GRAPH.edges.find(edge => edge.kind === "transition_target" && edge.from === id)?.to;
   if (transitionTarget) return transitionTarget;
-  const node = nodeById.get(id);
-  if (node?.kind === "machine") {
-    return (containmentChildren.get(id) || [])
-      .find(childId => nodeById.get(childId)?.kind === "state") || null;
-  }
   return null;
 }
 

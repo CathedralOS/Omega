@@ -93,9 +93,10 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
 
     for (machine_index, machine) in typed.machines().iter().enumerate() {
         let states = typed.machine_states(machine);
-        let state_nodes = states
+        let targetable_states = states.iter().enumerate().skip(1).collect::<Vec<_>>();
+        let state_nodes = targetable_states
             .iter()
-            .enumerate()
+            .copied()
             .map(|(state_index, state)| {
                 (
                     state.symbol,
@@ -119,8 +120,15 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
             machine_index,
             machine,
         );
+        append_entry_transitions(
+            &mut diagram,
+            typed,
+            &machine_id,
+            &state_nodes,
+            states.first(),
+        );
 
-        for (state_index, state) in states.iter().enumerate() {
+        for (state_index, state) in targetable_states {
             append_state(
                 &mut diagram,
                 typed,
@@ -241,11 +249,11 @@ fn append_trait_machine_signatures(
 
 fn machine_label(program: &TypedTrees, machine: &Machine, entry_state: Option<&State>) -> String {
     let mut label = format!(
-        "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
+        "machine {}\nsymbol: {}\nsatisfies: {}\ntargetable states: {}",
         machine.name.as_str(),
         symbol_label(machine.symbol),
         machine.satisfies.len(),
-        machine.states.len()
+        machine.states.len().saturating_sub(1)
     );
 
     let Some(entry_state) = entry_state else {
@@ -268,6 +276,30 @@ fn machine_label(program: &TypedTrees, machine: &Machine, entry_state: Option<&S
     }
 
     label
+}
+
+fn append_entry_transitions(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &TypedTrees,
+    machine_id: &str,
+    state_nodes: &[(SymbolHandle, String, String)],
+    entry_state: Option<&State>,
+) {
+    let Some(entry_state) = entry_state else {
+        return;
+    };
+
+    for statement in program
+        .statement_table
+        .statements(entry_state.statement_nodes)
+        .iter()
+    {
+        if let StatementNode::Transition(transition) = statement {
+            if let Some(target_id) = transition_target_id(program, state_nodes, transition) {
+                diagram.edge(machine_id, target_id, "transition_target");
+            }
+        }
+    }
 }
 
 fn append_state(

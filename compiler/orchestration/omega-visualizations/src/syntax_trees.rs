@@ -89,10 +89,19 @@ fn append_root_item(
                 .iter()
                 .copied()
                 .collect::<Vec<_>>();
-            let state_nodes = state_handles
+            let entry_state = state_handles
+                .first()
+                .copied()
+                .map(|state_handle| syntax.items.state(state_handle));
+            let targetable_states = state_handles
                 .iter()
                 .copied()
                 .enumerate()
+                .skip(1)
+                .collect::<Vec<_>>();
+            let state_nodes = targetable_states
+                .iter()
+                .copied()
                 .map(|(state_index, state_handle)| {
                     let state = syntax.items.state(state_handle);
                     (
@@ -101,8 +110,9 @@ fn append_root_item(
                     )
                 })
                 .collect::<Vec<_>>();
+            append_entry_transitions(diagram, syntax, &item_id, &state_nodes, entry_state);
 
-            for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
+            for (state_index, state_handle) in targetable_states {
                 let state = syntax.items.state(state_handle);
                 append_state(
                     diagram,
@@ -135,6 +145,32 @@ fn append_root_item(
             }
         }
         _ => {}
+    }
+}
+
+fn append_entry_transitions(
+    diagram: &mut PhaseDiagramBuilder,
+    syntax: &SyntaxTrees,
+    machine_id: &str,
+    state_nodes: &[(String, String)],
+    entry_state: Option<&StateNode>,
+) {
+    let Some(entry_state) = entry_state else {
+        return;
+    };
+
+    for statement_handle in syntax
+        .items
+        .statements(entry_state.statements)
+        .iter()
+        .copied()
+    {
+        if let StatementNode::Transition(transition) = syntax.statements.statement(statement_handle)
+        {
+            if let Some(target_id) = transition_target_id(syntax, state_nodes, transition) {
+                diagram.edge(machine_id, target_id, "transition_target");
+            }
+        }
     }
 }
 
@@ -246,16 +282,21 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             format!("library {name}\nfunctions: {}", value.functions.len())
         }
         Item::Machine(value) => {
-            format!(
-                "machine {}\nsatisfies: {}\nstates: {}",
+            let state_handles = syntax.items.state_handles(value.states);
+            let mut label = format!(
+                "machine {}\nsatisfies: {}\ntargetable states: {}",
                 value.name.as_str(),
                 value.satisfies.len(),
-                value.states.len()
-            )
+                state_handles.len().saturating_sub(1)
+            );
+            if let Some(entry_handle) = state_handles.first() {
+                append_entry_label(&mut label, syntax, syntax.items.state(*entry_handle));
+            }
+            label
         }
         Item::Platform(value) => {
             format!(
-                "platform {}\nstates: {}",
+                "platform {}\nsignatures: {}",
                 value.name.as_str(),
                 value.states.len()
             )
@@ -286,6 +327,27 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .join("::");
             format!("use {path}\nsegments: {}", value.path.len())
         }
+    }
+}
+
+fn append_entry_label(label: &mut String, syntax: &SyntaxTrees, entry_state: &StateNode) {
+    label.push_str("\nentry: ");
+    label.push_str(entry_state.name.as_str());
+    for (statement_index, statement_handle) in syntax
+        .items
+        .statements(entry_state.statements)
+        .iter()
+        .copied()
+        .enumerate()
+    {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&statement_index.to_string());
+        label.push_str(": ");
+        label.push_str(&inline_label(statement_label(
+            syntax,
+            syntax.statements.statement(statement_handle),
+        )));
     }
 }
 
