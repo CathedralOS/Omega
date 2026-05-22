@@ -4,6 +4,7 @@ struct PhaseDiagramNode {
     label: String,
     kind: String,
     rank: usize,
+    scope_target: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +60,26 @@ impl PhaseDiagramBuilder {
             label: label.into(),
             kind: kind.into(),
             rank,
+            scope_target: None,
+        });
+        id
+    }
+
+    pub fn scoped_node(
+        &mut self,
+        id: impl AsRef<str>,
+        label: impl Into<String>,
+        kind: impl Into<String>,
+        rank: usize,
+        scope_target: impl Into<String>,
+    ) -> String {
+        let id = sanitize_id(id.as_ref());
+        self.nodes.push(PhaseDiagramNode {
+            id: id.clone(),
+            label: label.into(),
+            kind: kind.into(),
+            rank,
+            scope_target: Some(scope_target.into()),
         });
         id
     }
@@ -221,6 +242,10 @@ fn push_graph_json(
         push_json_string(output, &node.kind);
         output.push_str(",\"rank\":");
         output.push_str(&node.rank.to_string());
+        if let Some(scope_target) = &node.scope_target {
+            output.push_str(",\"scopeTarget\":");
+            push_json_string(output, scope_target);
+        }
         output.push('}');
     }
     output.push_str("],\"edges\":[");
@@ -441,6 +466,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.trait rect { fill: #162b33; stroke: #4dd4c6; }
 .node.machine rect { fill: #272132; stroke: #b089f0; }
 .node.object rect { fill: #2e291b; stroke: #ffd166; }
+.node.external_call rect { fill: #302816; stroke: #ffcf5c; stroke-dasharray: 7 4; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
 .node.state_block rect { fill: #142637; stroke: #6fbce6; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
@@ -1151,8 +1177,13 @@ function drawNode(node) {
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
+    const scopeTarget = scopeTargetFor(node.id);
+    if (scopedId && scopeTarget && scopeTarget !== scopedId) {
+      setScope(scopeTarget, true);
+      return;
+    }
     if (isExternalInCurrentScope(node.id)) {
-      setScope(scopeTargetFor(node.id), true);
+      setScope(scopeTarget, true);
       return;
     }
     const targetId = followTargetFor(node.id);
@@ -1252,6 +1283,8 @@ function isExternalInCurrentScope(id) {
 }
 
 function scopeTargetFor(id) {
+  const explicitTarget = nodeById.get(id)?.scopeTarget;
+  if (explicitTarget && nodeById.has(explicitTarget)) return explicitTarget;
   let current = id;
   let parent = containmentParent.get(current);
   while (parent && containmentParent.has(parent)) {
@@ -1284,7 +1317,9 @@ function applyFilters() {
   visibleNodeIds = new Set();
   for (const node of GRAPH.nodes) {
     const inScope = scopedNodes.has(node.id);
-    const visible = inScope && (showDataNodes || node.kind !== "data");
+    const visible = inScope
+      && (showDataNodes || node.kind !== "data")
+      && (Boolean(scopedId) || node.kind !== "external_call");
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
     const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
     if (!element) continue;
