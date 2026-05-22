@@ -1,4 +1,5 @@
 use crate::data::lower_data_definition;
+use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::platform::lower_platform;
@@ -25,6 +26,13 @@ pub fn lower_symbol_resolved_trees(
     for data_definition in &symbol_resolved_trees.data_definitions {
         let data_definition = lower_data_definition(&mut lowerer, data_definition)?;
         lowerer.typed_trees.push_data_definition(data_definition);
+    }
+
+    for domain_definition in &symbol_resolved_trees.domain_definitions {
+        let domain_definition = lower_domain_definition(&mut lowerer, domain_definition)?;
+        lowerer
+            .typed_trees
+            .push_domain_definition(domain_definition);
     }
 
     for machine in &symbol_resolved_trees.machines {
@@ -110,16 +118,39 @@ mod tests {
     }
 
     #[test]
+    fn lowers_domain_definitions() {
+        let source = r#"
+        domain NonEmpty for String {
+            length > 0
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved_program =
+            lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+        let typed_trees =
+            lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+
+        assert_eq!(typed_trees.domain_definitions().len(), 1);
+        let domain = &typed_trees.domain_definitions()[0];
+        assert!(domain.symbol.is_valid());
+        assert_eq!(domain.name.as_str(), "NonEmpty");
+        assert_eq!(domain.body_token_count, 3);
+        assert!(domain.target_type.is_valid());
+    }
+
+    #[test]
     fn lowers_statement_argument_spans_from_statement_table() {
         let source = r#"
         data Parser {}
 
-        machine Parser::start -> i32 {
-            pub entry(&mut self, level: i32, cell: i32, line: i32) {
-                -> self.resolve_exit(level, cell, line);
-            }
+        machine Parser::start(&mut self, level: i32, cell: i32, line: i32) -> i32 {
+            -> self.resolve_exit(level, cell, line);
 
-            entry resolve_exit(&mut self, level: i32, cell: i32, line: i32) -> i32 {
+            state resolve_exit(&mut self, level: i32, cell: i32, line: i32) -> i32 {
                 0
             }
         }

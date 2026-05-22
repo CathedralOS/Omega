@@ -2,6 +2,7 @@ mod capability;
 mod context;
 mod data;
 mod diagnostics;
+mod domain;
 mod export_item;
 mod expression;
 mod file;
@@ -211,6 +212,32 @@ mod tests {
         assert_eq!(second_path[0].as_str(), "Grep");
         assert_eq!(second_path[1].as_str(), "search");
         assert!(exports[1].alias.is_none());
+    }
+
+    #[test]
+    fn parses_domain_definition_surface() {
+        let source = r#"
+        domain NonEmpty for String {
+            length > 0
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let domains = parsed
+            .root_items()
+            .filter_map(|item| match item {
+                omega_syntax_trees::item::Item::Domain(domain) => Some(domain),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(domains.len(), 1);
+        assert_eq!(domains[0].name.as_str(), "NonEmpty");
+        assert!(domains[0].target_type.is_valid());
+        assert_eq!(domains[0].body_token_count, 3);
     }
 
     #[test]

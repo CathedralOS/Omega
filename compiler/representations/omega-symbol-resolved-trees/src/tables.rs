@@ -61,6 +61,15 @@ impl SymbolResolvedTreeTables {
             );
         }
 
+        for domain_definition in &roots.domain_definitions {
+            tables.insert_type_reference(
+                &domain_definition.target_type,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
+
         for platform in &roots.platforms {
             tables.insert_platform(
                 platform_state_signatures.span_or_empty(platform.states),

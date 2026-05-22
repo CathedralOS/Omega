@@ -1,5 +1,6 @@
 use crate::{
-    data, expression, invariant, machine, platform, signature, snapshot, trait_definition, types,
+    data, domain, expression, invariant, machine, platform, signature, snapshot, trait_definition,
+    types,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -11,6 +12,8 @@ pub struct TypedTrees {
     pub data_definitions: Arena<data::DataDefinition>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
+    pub root_domains: HandleSpan<domain::DomainDefinition>,
+    pub domain_definitions: Arena<domain::DomainDefinition>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub root_machines: HandleSpan<machine::Machine>,
@@ -73,6 +76,15 @@ impl TypedTrees {
 
     pub fn data_members(&self, data_definition: &data::DataDefinition) -> &[data::DataMember] {
         self.data_members.span_or_empty(data_definition.members)
+    }
+
+    pub fn push_domain_definition(&mut self, domain_definition: domain::DomainDefinition) {
+        self.domain_definitions
+            .append_to_span(&mut self.root_domains, domain_definition);
+    }
+
+    pub fn domain_definitions(&self) -> &[domain::DomainDefinition] {
+        self.domain_definitions.span_or_empty(self.root_domains)
     }
 
     pub fn push_invariant_definition(

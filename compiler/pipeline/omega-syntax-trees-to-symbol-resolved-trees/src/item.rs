@@ -1,4 +1,5 @@
 use crate::data::lower_data_definition;
+use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine_into;
 use crate::platform::lower_platform;
@@ -27,6 +28,14 @@ pub(crate) fn lower_item(
                 .symbol_resolved_trees
                 .invariant_definitions
                 .push(invariant_definition);
+        }
+        syntax::item::Item::Domain(domain_definition) => {
+            let domain_definition =
+                lower_domain_definition(lowerer, syntax_trees, domain_definition)?;
+            lowerer
+                .symbol_resolved_trees
+                .domain_definitions
+                .push(domain_definition);
         }
         syntax::item::Item::Machine(machine) => {
             lower_machine_into(lowerer, syntax_trees, machine)?;

@@ -36,6 +36,12 @@ fn build_symbol_table(
                 }))
                 .chain(
                     program
+                        .domain_definitions
+                        .iter()
+                        .map(|domain| symbol_seed(SymbolKind::Domain, &domain.name, has_sources)),
+                )
+                .chain(
+                    program
                         .data_definitions
                         .iter()
                         .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
@@ -65,6 +71,9 @@ fn build_symbol_table(
         let _ = root_children.next();
     }
     for _ in &program.invariant_definitions {
+        let _ = root_children.next();
+    }
+    for _ in &program.domain_definitions {
         let _ = root_children.next();
     }
     for data_definition in &program.data_definitions {
@@ -345,6 +354,10 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
 
     program.invariant_definitions.for_each_mut(|invariant| {
         invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
+    });
+
+    program.domain_definitions.for_each_mut(|domain| {
+        domain.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Domain);
     });
 
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
@@ -640,6 +653,15 @@ fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
                 }
             }
         });
+
+    program.roots.domain_definitions.for_each_mut(|domain| {
+        assign_type_reference_symbol_with_locals(
+            symbols,
+            child_type_references,
+            &[],
+            &mut domain.target_type,
+        );
+    });
 }
 
 fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {

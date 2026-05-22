@@ -13,6 +13,7 @@ pub type TraitHandle = Handle<TraitNode>;
 pub enum Item {
     Capability(CapabilityDefinition),
     Data(DataDefinition),
+    Domain(DomainDefinition),
     Invariant(InvariantDefinition),
     Library(LibraryDefinition),
     Export(ExportItem),
@@ -276,6 +277,23 @@ pub struct DataField {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
     pub name: Identifier,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DomainDefinition {
+    pub name: Identifier,
+    pub target_type: crate::types::TypeReferenceHandle,
+    pub body_token_count: usize,
+}
+
+impl Default for DomainDefinition {
+    fn default() -> Self {
+        Self {
+            name: Identifier::generated(""),
+            target_type: crate::types::TypeReferenceHandle::invalid(),
+            body_token_count: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

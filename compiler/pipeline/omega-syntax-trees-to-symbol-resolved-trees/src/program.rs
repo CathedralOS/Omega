@@ -136,6 +136,33 @@ mod tests {
     }
 
     #[test]
+    fn lowers_domain_definitions() {
+        let source = r#"
+        domain NonEmpty for String {
+            length > 0
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+        assert_eq!(program.domain_definitions.len(), 1);
+        let domain = &program.domain_definitions[0];
+        assert!(domain.symbol.is_valid());
+        assert_eq!(domain.name.as_str(), "NonEmpty");
+        assert_eq!(domain.body_token_count, 3);
+        assert!(
+            program
+                .symbols
+                .find_child_by_name(program.symbols.root(), "NonEmpty")
+                .is_some()
+        );
+    }
+
+    #[test]
     fn lowers_attached_main_state_name_as_main() {
         let source = r#"
         data Main {

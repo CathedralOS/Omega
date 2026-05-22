@@ -1,4 +1,5 @@
 pub mod data;
+pub mod domain;
 pub mod expression;
 pub mod identity;
 pub mod invariant;

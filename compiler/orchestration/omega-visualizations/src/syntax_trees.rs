@@ -7,6 +7,7 @@ use omega_syntax_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
+use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub struct SyntaxSourceFile {
     pub path: String,
@@ -272,6 +273,7 @@ fn append_state_signature(
 fn item_kind(item: &Item) -> &'static str {
     match item {
         Item::Data(_) => "data",
+        Item::Domain(_) => "domain",
         Item::Export(_) => "export",
         Item::Machine(_) | Item::Platform(_) => "machine",
         Item::Trait(_) => "trait",
@@ -287,6 +289,15 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             value.name.as_str(),
             value.members.len()
         ),
+        Item::Domain(value) => {
+            let target = type_reference_label(syntax, value.target_type);
+            format!(
+                "domain {} for {}\nbody tokens: {}",
+                value.name.as_str(),
+                target,
+                value.body_token_count
+            )
+        }
         Item::Invariant(value) => format!("invariant {}", value.name.as_str()),
         Item::Library(value) => {
             let name = value
@@ -381,6 +392,55 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .join("::");
             format!("use {path}\nsegments: {}", value.path.len())
         }
+    }
+}
+
+fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
+    if !handle.is_valid() {
+        return "<missing>".to_owned();
+    }
+
+    match syntax.type_references.type_reference(handle) {
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+        } => {
+            if *is_mutable {
+                format!("&mut {}", type_reference_label(syntax, *referee))
+            } else {
+                format!("&{}", type_reference_label(syntax, *referee))
+            }
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_label(syntax, *base_type)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => format!(
+            "[{}; {}]",
+            type_reference_label(syntax, *element_type),
+            length
+        ),
+        TypeReferenceNode::Slice { element_type } => {
+            format!("[{}]", type_reference_label(syntax, *element_type))
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
+            let arguments = syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .map(|argument| type_reference_label(syntax, *argument))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{base_name}<{arguments}>")
+        }
+        TypeReferenceNode::Named(name) => name.to_string(),
+        TypeReferenceNode::SelfType => "Self".to_owned(),
+        TypeReferenceNode::Unit => "()".to_owned(),
     }
 }
 

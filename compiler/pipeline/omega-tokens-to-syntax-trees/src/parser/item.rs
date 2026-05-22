@@ -1,5 +1,6 @@
 use crate::parser::capability::parse_capability_definition;
 use crate::parser::data::{parse_data_definition, parse_enum_definition};
+use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::invariant::parse_invariant_definition;
@@ -34,6 +35,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         let input = input.take_keyword(KeywordKind::Data, "data")?;
         let (item, rest) = parse_data_definition(syntax_trees, input)?;
         return Ok((Item::Data(item), rest));
+    }
+
+    if input.at_contextual("domain") {
+        let input = input.take_contextual("domain")?;
+        let (item, rest) = parse_domain_definition(syntax_trees, input)?;
+        return Ok((Item::Domain(item), rest));
     }
 
     if input.at_keyword(KeywordKind::Enum) {
@@ -99,6 +106,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`use`",
         "`export`",
         "`data`",
+        "`domain`",
         "`enum`",
         "`machine`",
         "`target`",

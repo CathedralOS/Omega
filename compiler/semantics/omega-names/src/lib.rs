@@ -40,6 +40,7 @@ pub struct ResolvedDefinition {
 pub enum ResolvedDefinitionKind {
     Capability,
     Data,
+    Domain,
     Invariant,
     Library,
     Machine,
@@ -219,6 +220,19 @@ fn build_resolve_report_with_optional_sources(
                     }
                 }
             }
+            Item::Domain(domain) => {
+                insert_definition(
+                    &mut report,
+                    domain.name.as_str(),
+                    ResolvedDefinitionKind::Domain,
+                );
+                collect_type_reference(
+                    &mut report,
+                    syntax_trees,
+                    domain.target_type,
+                    &format!("domain `{}` target type", domain.name),
+                );
+            }
             Item::Invariant(invariant) => {
                 insert_definition(
                     &mut report,
@@ -327,6 +341,7 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Trust,
                 );
             }
+            Item::Export(_) => {}
         }
     }
 
@@ -1014,7 +1029,12 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
+            Item::Domain(_)
+            | Item::Export(_)
+            | Item::Invariant(_)
+            | Item::Target(_)
+            | Item::TrustDefinition(_)
+            | Item::Use(_) => {}
         }
     }
 
@@ -1289,7 +1309,12 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
+            Item::Domain(_)
+            | Item::Export(_)
+            | Item::Invariant(_)
+            | Item::Target(_)
+            | Item::TrustDefinition(_)
+            | Item::Use(_) => {}
         }
     }
 }
@@ -1303,6 +1328,7 @@ fn item_symbol_seed(item: &Item) -> Option<SymbolSeed<'_>> {
         Item::Data(data_definition) => {
             Some(source_symbol_seed(SymbolKind::Data, &data_definition.name))
         }
+        Item::Domain(domain) => Some(source_symbol_seed(SymbolKind::Domain, &domain.name)),
         Item::Invariant(invariant) => {
             Some(source_symbol_seed(SymbolKind::Invariant, &invariant.name))
         }
@@ -1321,7 +1347,7 @@ fn item_symbol_seed(item: &Item) -> Option<SymbolSeed<'_>> {
             SymbolKind::Object,
             &trust_definition.name,
         )),
-        Item::Use(_) => None,
+        Item::Export(_) | Item::Use(_) => None,
     }
 }
 
@@ -1329,6 +1355,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
     match item {
         Item::Capability(capability) => Some(capability.name.as_str()),
         Item::Data(data_definition) => Some(data_definition.name.as_str()),
+        Item::Domain(domain) => Some(domain.name.as_str()),
         Item::Invariant(invariant) => Some(invariant.name.as_str()),
         Item::Library(library) => library.name.as_ref().map(|name| name.as_str()),
         Item::Machine(machine) => Some(machine.name.as_str()),
@@ -1336,7 +1363,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
         Item::TrustDefinition(trust_definition) => Some(trust_definition.name.as_str()),
-        Item::Use(_) => None,
+        Item::Export(_) | Item::Use(_) => None,
     }
 }
 
@@ -1350,12 +1377,43 @@ mod tests {
     use omega_syntax_trees::expression::{ExpressionNode, TableCallExpression};
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
-        DataDefinition, DataField, DataMember, Item, Machine, State, StateParameterNode, UseItem,
+        DataDefinition, DataField, DataMember, DomainDefinition, Item, Machine, State,
+        StateParameterNode, UseItem,
     };
     use omega_syntax_trees::statement::{
         StatementNode, TableAssignment, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
     use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    #[test]
+    fn collects_domain_definitions_and_target_type_references() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let target_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("String")));
+
+        syntax_trees.push_root_item(Item::Domain(DomainDefinition {
+            name: Identifier::generated("NonEmpty"),
+            target_type,
+            body_token_count: 3,
+        }));
+
+        let report = build_resolve_report_without_sources(&syntax_trees);
+
+        let (_, definition) = report
+            .definitions
+            .iter()
+            .find(|(_, definition)| report.symbols.name(definition.symbol) == "NonEmpty")
+            .expect("domain definition should be collected");
+        assert_eq!(definition.kind, ResolvedDefinitionKind::Domain);
+        assert!(
+            report.references.iter().any(|(_, reference)| {
+                report.reference_name(reference) == "String"
+                    && reference.kind == ResolvedReferenceKind::Type
+            }),
+            "domain target type should be collected as a type reference"
+        );
+    }
 
     #[test]
     fn collects_definitions_imports_and_references() {

@@ -1,5 +1,6 @@
 use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
+use crate::domain::DomainDefinition;
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
@@ -25,6 +26,11 @@ impl SymbolResolvedTreesSnapshot {
                     .data_definitions
                     .iter()
                     .map(|data| data_definition_snapshot(symbol_resolved_trees, data))
+                    .collect(),
+                domain_definitions: symbol_resolved_trees
+                    .domain_definitions
+                    .iter()
+                    .map(|domain| domain_definition_snapshot(symbol_resolved_trees, domain))
                     .collect(),
                 invariant_definitions: symbol_resolved_trees
                     .invariant_definitions
@@ -84,6 +90,7 @@ impl SymbolResolvedTreesSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SymbolResolvedRootsSnapshot {
     pub data_definitions: Vec<DataDefinitionSnapshot>,
+    pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
@@ -115,6 +122,13 @@ pub enum DataMemberSnapshot {
     Variant {
         name: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DomainDefinitionSnapshot {
+    pub name: String,
+    pub target_type: TypeReferenceSnapshot,
+    pub body_token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -360,6 +374,17 @@ fn data_member_snapshot(program: &SymbolResolvedTrees, member: &DataMember) -> D
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: variant.name.to_string(),
         },
+    }
+}
+
+fn domain_definition_snapshot(
+    program: &SymbolResolvedTrees,
+    domain: &DomainDefinition,
+) -> DomainDefinitionSnapshot {
+    DomainDefinitionSnapshot {
+        name: domain.name.to_string(),
+        target_type: type_reference_snapshot(program, &domain.target_type),
+        body_token_count: domain.body_token_count,
     }
 }
 

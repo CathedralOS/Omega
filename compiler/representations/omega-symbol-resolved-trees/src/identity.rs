@@ -52,6 +52,16 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_declaration_name(&invariant.name, &mut counts);
     }
 
+    for domain in &program.domain_definitions {
+        count_declaration_name(&domain.name, &mut counts);
+        count_type_reference(
+            &domain.target_type,
+            child_type_references,
+            expression_table,
+            &mut counts,
+        );
+    }
+
     for data_definition in &program.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
         for member in program.data_members(data_definition.members) {

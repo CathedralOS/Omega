@@ -63,6 +63,25 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
         );
     }
 
+    for (domain_index, domain) in typed.domain_definitions().iter().enumerate() {
+        let target_symbol = typed.type_reference_symbol(domain.target_type);
+        let domain_id = diagram.node(
+            format!("domain_{domain_index}"),
+            format!(
+                "domain {} for {}\nsymbol: {}\nbody tokens: {}",
+                domain.name.as_str(),
+                typed.display_type_reference_with_constraints(domain.target_type),
+                symbol_label(domain.symbol),
+                domain.body_token_count
+            ),
+            "domain",
+            1,
+        );
+        if let Some(target_id) = type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol) {
+            diagram.edge(&domain_id, target_id, "domain_target");
+        }
+    }
+
     for (trait_index, trait_definition) in typed.traits().iter().enumerate() {
         let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
             continue;
