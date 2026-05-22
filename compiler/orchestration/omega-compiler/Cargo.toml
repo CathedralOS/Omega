@@ -47,3 +47,4 @@ omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+omega-visualizations = { path = "../omega-visualizations" }

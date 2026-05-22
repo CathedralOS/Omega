@@ -1,9 +1,3 @@
-/// Common contract for compiler phase outputs that can produce a diagnostic
-/// HTML graph.
-pub trait PhaseDiagram {
-    fn phase_html(&self) -> String;
-}
-
 #[derive(Clone, Debug)]
 struct PhaseDiagramNode {
     id: String,
@@ -53,10 +47,6 @@ impl PhaseDiagramBuilder {
 
     pub fn containment_edge(&mut self, from: &str, to: &str) {
         self.edge(from, to, "contains");
-    }
-
-    pub fn sequence_edge(&mut self, from: &str, to: &str) {
-        self.edge(from, to, "sequence");
     }
 
     pub fn edge(&mut self, from: &str, to: &str, kind: impl Into<String>) {

@@ -1,69 +1,60 @@
-use crate::{
-    MachineGraph, Operation, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
-    StateGraph, StateKey, StateNode, TransitionEdge,
+use crate::phase_diagram::PhaseDiagramBuilder;
+use omega_control_flow::{
+    ControlFlowPlan, MachineFlow, Operation, OperationExpressionRefs, OperationKind,
+    PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
 };
-use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
 
-impl PhaseDiagram for StateGraph {
-    fn phase_html(&self) -> String {
-        let mut diagram = PhaseDiagramBuilder::new("state_graph");
-        let mut state_nodes = Vec::new();
+pub fn control_flow_html(plan: &ControlFlowPlan) -> String {
+    let mut diagram = PhaseDiagramBuilder::new("control_flow");
+    let mut state_nodes = Vec::new();
 
-        for (machine_index, machine) in self.machines.iter() {
-            let mut seen_state_keys = Vec::new();
-            for state in self.states.span_or_empty(machine.states) {
-                if seen_state_keys.iter().any(|key| *key == state.key) {
-                    continue;
-                }
-                seen_state_keys.push(state.key);
-
-                let state_id = diagram.node(
-                    format!(
-                        "state_{}_{}_{}",
-                        machine_index.arena_index(),
-                        state.key.state.arena_index(),
-                        state.key.segment_index
-                    ),
-                    state_label(self, machine, state),
-                    "state_block",
-                    machine_index.arena_index() as usize,
-                );
-                state_nodes.push((state.key, state_id));
+    for (machine_index, machine) in plan.machines.iter() {
+        let mut seen_state_keys = Vec::new();
+        for state in plan.states.span_or_empty(machine.states) {
+            if seen_state_keys.iter().any(|key| *key == state.key) {
+                continue;
             }
+            seen_state_keys.push(state.key);
+
+            let state_id = diagram.node(
+                format!(
+                    "state_{}_{}_{}",
+                    machine_index.arena_index(),
+                    state.key.state.arena_index(),
+                    state.key.segment_index
+                ),
+                state_label(plan, machine, state),
+                "state_block",
+                machine_index.arena_index() as usize,
+            );
+            state_nodes.push((state.key, state_id));
         }
-
-        for (_, machine) in self.machines.iter() {
-            for state in self.states.span_or_empty(machine.states) {
-                let Some(source_id) = state_id_for_key(&state_nodes, state.key) else {
-                    continue;
-                };
-
-                for operation in self.operations.span_or_empty(state.operations) {
-                    if let Some(target_id) = operation_call_target_id(self, &state_nodes, operation)
-                    {
-                        diagram.edge(source_id, target_id, "call");
-                    }
-                }
-
-                for transition in self.transitions.span_or_empty(state.transitions) {
-                    append_transition_edges(
-                        &mut diagram,
-                        self,
-                        &state_nodes,
-                        source_id,
-                        transition,
-                    );
-                }
-            }
-        }
-
-        diagram.finish()
     }
+
+    for (_, machine) in plan.machines.iter() {
+        for state in plan.states.span_or_empty(machine.states) {
+            let Some(source_id) = state_id_for_key(&state_nodes, state.key) else {
+                continue;
+            };
+
+            for operation in plan.operations.span_or_empty(state.operations) {
+                if let Some(target_id) = operation_call_target_id(plan, &state_nodes, operation) {
+                    diagram.edge(source_id, target_id, "call");
+                }
+            }
+
+            for transition in plan.transitions.span_or_empty(state.transitions) {
+                append_transition_edges(&mut diagram, plan, &state_nodes, source_id, transition);
+            }
+        }
+    }
+
+    diagram.finish()
 }
 
-fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) -> String {
+fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow) -> String {
     let mut label = format!(
         "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}",
         machine.name.as_str(),
@@ -75,22 +66,22 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         state.transitions.len()
     );
 
-    for operation in graph.operations.span_or_empty(state.operations) {
+    for operation in plan.operations.span_or_empty(state.operations) {
         label.push('\n');
         label.push_str("  ");
-        label.push_str(&operation_label(graph, operation));
+        label.push_str(&operation_label(plan, operation));
     }
 
-    for transition in graph.transitions.span_or_empty(state.transitions) {
+    for transition in plan.transitions.span_or_empty(state.transitions) {
         label.push('\n');
         label.push_str("  ");
-        label.push_str(&transition_label(graph, transition));
+        label.push_str(&transition_label(plan, transition));
     }
 
     label
 }
 
-fn operation_label(graph: &StateGraph, operation: &Operation) -> String {
+fn operation_label(plan: &ControlFlowPlan, operation: &Operation) -> String {
     match &operation.kind {
         OperationKind::Assignment => {
             let OperationExpressionRefs::Assignment { target, value } = operation.expressions
@@ -100,8 +91,8 @@ fn operation_label(graph: &StateGraph, operation: &Operation) -> String {
             format!(
                 "#{} {} = {}",
                 operation.statement_index,
-                expression_label(graph, target),
-                expression_label(graph, value)
+                expression_label(plan, target),
+                expression_label(plan, value)
             )
         }
         OperationKind::Call {
@@ -111,11 +102,11 @@ fn operation_label(graph: &StateGraph, operation: &Operation) -> String {
             ..
         } => {
             let arguments = match operation.expressions {
-                OperationExpressionRefs::Call { arguments } => graph
+                OperationExpressionRefs::Call { arguments } => plan
                     .expressions
                     .expression_handles(arguments)
                     .iter()
-                    .map(|argument| expression_label(graph, *argument))
+                    .map(|argument| expression_label(plan, *argument))
                     .collect::<Vec<_>>()
                     .join(", "),
                 _ => String::new(),
@@ -144,7 +135,7 @@ fn operation_label(graph: &StateGraph, operation: &Operation) -> String {
             OperationExpressionRefs::Expression(expression) => format!(
                 "#{} expr {}",
                 operation.statement_index,
-                expression_label(graph, expression)
+                expression_label(plan, expression)
             ),
             _ => format!("#{} expr", operation.statement_index),
         },
@@ -155,8 +146,8 @@ fn operation_label(graph: &StateGraph, operation: &Operation) -> String {
     }
 }
 
-fn transition_label(graph: &StateGraph, transition: &TransitionEdge) -> String {
-    let guard = expression_label_option(graph, transition.expressions.guard)
+fn transition_label(plan: &ControlFlowPlan, transition: &TransitionFlow) -> String {
+    let guard = expression_label_option(plan, transition.expressions.guard)
         .map(|guard| format!(" if {guard}"))
         .unwrap_or_default();
     format!(
@@ -181,22 +172,22 @@ fn transition_target_label(target: &PlannedTransitionTarget) -> String {
 
 fn append_transition_edges(
     diagram: &mut PhaseDiagramBuilder,
-    graph: &StateGraph,
+    plan: &ControlFlowPlan,
     state_nodes: &[(StateKey, String)],
     source_id: &str,
-    transition: &TransitionEdge,
+    transition: &TransitionFlow,
 ) {
-    if let Some(target_id) = transition_target_id(graph, state_nodes, &transition.target) {
+    if let Some(target_id) = transition_target_id(plan, state_nodes, &transition.target) {
         diagram.edge(source_id, target_id, "transition_target");
     }
 
-    if let Some(target_id) = transition_target_id(graph, state_nodes, &transition.continuation) {
+    if let Some(target_id) = transition_target_id(plan, state_nodes, &transition.continuation) {
         diagram.edge(source_id, target_id, "transition_continuation");
     }
 }
 
 fn operation_call_target_id<'nodes>(
-    graph: &StateGraph,
+    plan: &ControlFlowPlan,
     state_nodes: &'nodes [(StateKey, String)],
     operation: &Operation,
 ) -> Option<&'nodes str> {
@@ -211,23 +202,23 @@ fn operation_call_target_id<'nodes>(
     };
 
     if has_receiver {
-        return graph
+        return plan
             .state_key_by_symbols(receiver_symbol, target_symbol)
             .and_then(|key| state_id_for_key(state_nodes, key));
     }
 
-    state_id_for_state_symbol(graph, state_nodes, target_symbol)
+    state_id_for_state_symbol(plan, state_nodes, target_symbol)
 }
 
 fn transition_target_id<'nodes>(
-    graph: &StateGraph,
+    plan: &ControlFlowPlan,
     state_nodes: &'nodes [(StateKey, String)],
     target: &PlannedTransitionTarget,
 ) -> Option<&'nodes str> {
     match target {
         PlannedTransitionTarget::State { key, .. } => state_id_for_key(state_nodes, *key),
         PlannedTransitionTarget::Nested { state_symbol, .. } => {
-            state_id_for_state_symbol(graph, state_nodes, *state_symbol)
+            state_id_for_state_symbol(plan, state_nodes, *state_symbol)
         }
         PlannedTransitionTarget::None
         | PlannedTransitionTarget::SelfTarget
@@ -243,13 +234,13 @@ fn state_id_for_key(state_nodes: &[(StateKey, String)], key: StateKey) -> Option
 }
 
 fn state_id_for_state_symbol<'nodes>(
-    graph: &StateGraph,
+    plan: &ControlFlowPlan,
     state_nodes: &'nodes [(StateKey, String)],
     state_symbol: SymbolHandle,
 ) -> Option<&'nodes str> {
     let mut matches = state_nodes
         .iter()
-        .filter(|(key, _)| key.state == state_symbol && graph.state_by_key(*key).is_some())
+        .filter(|(key, _)| key.state == state_symbol && plan.state_by_key(*key).is_some())
         .map(|(_, id)| id.as_str());
     let first = matches.next()?;
     if matches.next().is_some() {
@@ -258,14 +249,14 @@ fn state_id_for_state_symbol<'nodes>(
     Some(first)
 }
 
-fn expression_label_option(graph: &StateGraph, expression: ExpressionHandle) -> Option<String> {
+fn expression_label_option(plan: &ControlFlowPlan, expression: ExpressionHandle) -> Option<String> {
     if expression.is_valid() {
-        Some(graph.expressions.display_name(expression))
+        Some(plan.expressions.display_name(expression))
     } else {
         None
     }
 }
 
-fn expression_label(graph: &StateGraph, expression: ExpressionHandle) -> String {
-    expression_label_option(graph, expression).unwrap_or_else(|| "_".to_owned())
+fn expression_label(plan: &ControlFlowPlan, expression: ExpressionHandle) -> String {
+    expression_label_option(plan, expression).unwrap_or_else(|| "_".to_owned())
 }

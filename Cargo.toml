@@ -58,6 +58,7 @@ members = [
     "compiler/orchestration/omega-artifacts",
     "compiler/orchestration/omega-backend-pipeline",
     "compiler/orchestration/omega-compiler",
+    "compiler/orchestration/omega-visualizations",
 ]
 resolver = "3"
 
