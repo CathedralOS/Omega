@@ -1486,6 +1486,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(entry_state, 2),
         }));
 
@@ -1589,6 +1590,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(entry_state, 1),
         }));
 

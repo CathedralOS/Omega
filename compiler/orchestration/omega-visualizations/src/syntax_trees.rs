@@ -261,6 +261,10 @@ fn append_state_signature(
                 .join(", "),
         );
     }
+    if signature.contracts.len() > 0 {
+        label.push_str("\ncontracts: ");
+        label.push_str(&signature.contracts.len().to_string());
+    }
     let signature_id = diagram.node(
         format!("signature_{owner_index}_{item_index}_{signature_index}"),
         label,
@@ -319,10 +323,11 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .map(|name| name.as_str())
                 .unwrap_or("<none>");
             let mut label = format!(
-                "machine {}\nattached data: {}\nsatisfies: {}\ntargetable states: {}",
+                "machine {}\nattached data: {}\nsatisfies: {}\ncontracts: {}\ntargetable states: {}",
                 value.name.as_str(),
                 attached_data,
                 value.satisfies.len(),
+                value.contracts.len(),
                 state_handles.len().saturating_sub(1)
             );
             let effects = syntax.items.identifier_path_members(value.effects);

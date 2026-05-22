@@ -2,7 +2,9 @@
 
 use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{DataMember, Item, Machine, Platform, StateSignature};
+use omega_syntax_trees::item::{
+    CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, Platform, StateSignature,
+};
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub mod checker;
@@ -12,6 +14,7 @@ pub mod obligations;
 pub struct ProofSurfaceReport {
     pub invariants: Arena<InvariantSurface>,
     pub domains: Arena<DomainSurface>,
+    pub contracts: Arena<ContractSurface>,
     pub bounded_sites: Arena<BoundedTypeSite>,
 }
 
@@ -26,6 +29,21 @@ pub struct DomainSurface {
     pub name: String,
     pub target_type: String,
     pub body_token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ContractSurface {
+    pub owner: String,
+    pub kind: ContractKindSurface,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ContractKindSurface {
+    #[default]
+    Requires,
+    Ensures,
+    Trusted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -104,6 +122,13 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
 }
 
 fn collect_machine(report: &mut ProofSurfaceReport, syntax_trees: &SyntaxTrees, machine: &Machine) {
+    collect_contracts(
+        report,
+        syntax_trees,
+        machine.contracts,
+        &format!("machine `{}`", machine.name),
+    );
+
     for state in syntax_trees.items.state_handles(machine.states) {
         let state = syntax_trees.items.state(*state);
         collect_state_node(report, syntax_trees, machine, state);
@@ -187,6 +212,7 @@ fn collect_state_signature(
     state: &StateSignature,
     owner: &str,
 ) {
+    collect_contracts(report, syntax_trees, state.contracts, owner);
     collect_signature_parts(
         report,
         syntax_trees,
@@ -202,6 +228,7 @@ fn collect_state_signature_node(
     state: &omega_syntax_trees::item::StateSignatureNode,
     owner: &str,
 ) {
+    collect_contracts(report, syntax_trees, state.contracts, owner);
     collect_signature_parts(
         report,
         syntax_trees,
@@ -235,6 +262,25 @@ fn collect_signature_parts(
             return_type,
             &format!("{owner} return type"),
         );
+    }
+}
+
+fn collect_contracts(
+    report: &mut ProofSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    contracts: omega_core::arena::HandleSpan<CapabilityContract>,
+    owner: &str,
+) {
+    for contract in syntax_trees.items.capability_contracts(contracts) {
+        report.contracts.insert(ContractSurface {
+            owner: owner.to_owned(),
+            kind: match contract.kind {
+                CapabilityContractKind::Requires => ContractKindSurface::Requires,
+                CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
+                CapabilityContractKind::Trusted(_) => ContractKindSurface::Trusted,
+            },
+            token_count: contract.token_count,
+        });
     }
 }
 
@@ -405,7 +451,8 @@ mod tests {
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
-        DomainDefinition, InvariantDefinition, Item, Machine, State, StateParameterNode,
+        CapabilityContract, CapabilityContractKind, DomainDefinition, InvariantDefinition, Item,
+        Machine, State, StateParameterNode,
     };
     use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -477,6 +524,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
         }));
 
@@ -492,5 +540,54 @@ mod tests {
             .expect("bounded site should be collected");
         assert_eq!(bounded_site.base_type, "f32");
         assert_eq!(bounded_site.constraints, "[speed_range]");
+    }
+
+    #[test]
+    fn collects_machine_contract_surface() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let requires = syntax_trees
+            .items
+            .append_capability_contract(CapabilityContract {
+                kind: CapabilityContractKind::Requires,
+                token_count: 3,
+            });
+        let ensures = syntax_trees
+            .items
+            .append_capability_contract(CapabilityContract {
+                kind: CapabilityContractKind::Ensures,
+                token_count: 3,
+            });
+
+        syntax_trees.push_root_item(Item::Machine(Machine {
+            name: Identifier::generated("distinct_indices"),
+            attached_data: None,
+            satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
+            contracts: HandleSpan::from_parts(
+                requires,
+                ensures
+                    .arena_index()
+                    .checked_sub(requires.arena_index())
+                    .expect("contracts should be contiguous")
+                    + 1,
+            ),
+            states: HandleSpan::empty(),
+        }));
+
+        let report = build_proof_surface_report(&syntax_trees);
+
+        assert_eq!(report.contracts.len(), 2);
+        let contracts = report
+            .contracts
+            .iter()
+            .map(|(_, contract)| contract.kind)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            contracts,
+            vec![
+                super::ContractKindSurface::Requires,
+                super::ContractKindSurface::Ensures
+            ]
+        );
     }
 }

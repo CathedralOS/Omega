@@ -198,6 +198,7 @@ impl SyntaxTrees {
             attached_data: machine.attached_data.clone(),
             satisfies: self.copy_item_identifier_span(other, machine.satisfies),
             effects: self.copy_item_identifier_span(other, machine.effects),
+            contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
         }
     }
@@ -464,6 +465,7 @@ impl SyntaxTrees {
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             effects: self.copy_item_identifier_span(other, signature.effects),
+            contracts: self.copy_capability_contract_span(other, signature.contracts),
         }
     }
 
@@ -477,6 +479,7 @@ impl SyntaxTrees {
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             effects: self.copy_item_identifier_span(other, signature.effects),
+            contracts: self.copy_capability_contract_span(other, signature.contracts),
         }
     }
 
@@ -936,6 +939,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
         }));
 
@@ -965,6 +969,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
@@ -1015,6 +1020,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
@@ -1113,6 +1119,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 

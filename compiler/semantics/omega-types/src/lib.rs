@@ -167,6 +167,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             parameters: signature.parameters,
                             return_type: signature.return_type,
                             effects: signature.effects,
+                            contracts: signature.contracts,
                         },
                         &format!("platform `{}` state `{}`", platform.name, signature.name),
                     );
@@ -192,6 +193,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             parameters: signature.parameters,
                             return_type: signature.return_type,
                             effects: signature.effects,
+                            contracts: signature.contracts,
                         },
                         &format!(
                             "trait `{}` machine `{}`",
@@ -477,6 +479,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 

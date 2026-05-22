@@ -10,7 +10,9 @@ use crate::parser::transition::{
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{Machine, State, StateHandle, StateParameterHandle};
+use omega_syntax_trees::item::{
+    CapabilityContract, CapabilityContractKind, Machine, State, StateHandle, StateParameterHandle,
+};
 use omega_syntax_trees::statement::StatementHandle;
 use omega_syntax_trees::types::TypeReferenceHandle;
 use omega_tokens::{KeywordKind, PunctuationKind};
@@ -27,7 +29,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let (effects, next) = parse_machine_effects(syntax_trees, next)?;
+    let ((effects, contracts), next) = parse_machine_clauses(syntax_trees, next)?;
     input = next;
     let MachinePath {
         name,
@@ -110,18 +112,21 @@ pub(super) fn parse_machine<'tokens, 'source>(
             attached_data,
             satisfies,
             effects,
+            contracts,
             states,
         },
         input,
     ))
 }
 
-fn parse_machine_effects<'tokens, 'source>(
+fn parse_machine_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<Identifier>, HandleSpan<CapabilityContract>)> {
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
+    let mut contract_start = Handle::invalid();
+    let mut contract_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::LeftBrace) {
         if input.at_contextual("effects") {
@@ -149,6 +154,28 @@ fn parse_machine_effects<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let kind = if input.at_contextual("requires") {
+                input = input.take_contextual("requires")?;
+                CapabilityContractKind::Requires
+            } else {
+                input = input.take_contextual("ensures")?;
+                CapabilityContractKind::Ensures
+            };
+            let (token_count, rest) = skip_machine_contract_tokens(input)?;
+            let handle = syntax_trees
+                .items
+                .append_capability_contract(CapabilityContract { kind, token_count });
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("machine contract span count overflow");
+            input = rest;
+            continue;
+        }
+
         let (_, rest) = input.expect_token()?;
         input = rest;
     }
@@ -158,7 +185,31 @@ fn parse_machine_effects<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(effect_start, effect_count)
     };
-    Ok((effects, input))
+    let contracts = if contract_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(contract_start, contract_count)
+    };
+    Ok(((effects, contracts), input))
+}
+
+fn skip_machine_contract_tokens<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> Result<(usize, Input<'tokens, 'source>), crate::parse_error::ParseError> {
+    let mut count = 0usize;
+    while !(input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("effects")
+        || input.at_contextual("where")
+        || input.at_contextual("satisfies")
+        || input.tokens.is_empty())
+    {
+        let (_, rest) = input.expect_token()?;
+        input = rest;
+        count += 1;
+    }
+    Ok((count, input))
 }
 
 fn parse_satisfies_traits<'tokens, 'source>(

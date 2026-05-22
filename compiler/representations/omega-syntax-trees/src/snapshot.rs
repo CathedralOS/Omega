@@ -3,8 +3,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContractKind, CapabilityMember, DataMember, Item, LibraryFunction,
-    StateParameterNode, StateSignature, TrustLevel,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
+    LibraryFunction, StateParameterNode, StateSignature, TrustLevel,
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
@@ -79,6 +79,7 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
         effects: Vec<IdentifierSnapshot>,
+        contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
     },
     Platform {
@@ -202,6 +203,7 @@ pub struct StateSignatureSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub effects: Vec<IdentifierSnapshot>,
+    pub contracts: Vec<CapabilityContractSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -461,6 +463,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             effects: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.effects),
             ),
+            contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
             states: syntax_trees
                 .items
                 .state_handles(value.states)
@@ -558,26 +561,33 @@ fn snapshot_capability_member(
         },
         CapabilityMember::State(state) => CapabilityMemberSnapshot::State {
             signature: snapshot_state_signature(syntax_trees, &state.signature),
-            contracts: syntax_trees
-                .items
-                .capability_contracts(state.contracts)
-                .iter()
-                .map(|contract| CapabilityContractSnapshot {
-                    kind: match &contract.kind {
-                        CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
-                        CapabilityContractKind::Requires => {
-                            CapabilityContractKindSnapshot::Requires
-                        }
-                        CapabilityContractKind::Trusted(level) => {
-                            CapabilityContractKindSnapshot::Trusted {
-                                trust_level: snapshot_trust_level(level),
-                            }
-                        }
-                    },
-                    token_count: contract.token_count,
-                })
-                .collect(),
+            contracts: snapshot_capability_contracts(syntax_trees, state.contracts),
         },
+    }
+}
+
+fn snapshot_capability_contracts(
+    syntax_trees: &SyntaxTrees,
+    contracts: omega_core::arena::HandleSpan<CapabilityContract>,
+) -> Vec<CapabilityContractSnapshot> {
+    syntax_trees
+        .items
+        .capability_contracts(contracts)
+        .iter()
+        .map(snapshot_capability_contract)
+        .collect()
+}
+
+fn snapshot_capability_contract(contract: &CapabilityContract) -> CapabilityContractSnapshot {
+    CapabilityContractSnapshot {
+        kind: match &contract.kind {
+            CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
+            CapabilityContractKind::Requires => CapabilityContractKindSnapshot::Requires,
+            CapabilityContractKind::Trusted(level) => CapabilityContractKindSnapshot::Trusted {
+                trust_level: snapshot_trust_level(level),
+            },
+        },
+        token_count: contract.token_count,
     }
 }
 
@@ -669,6 +679,7 @@ fn snapshot_state_signature(
                 .items
                 .identifier_path_members(signature.effects),
         ),
+        contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
     }
 }
 
@@ -692,6 +703,7 @@ fn snapshot_state_signature_node(
                 .items
                 .identifier_path_members(signature.effects),
         ),
+        contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
     }
 }
 

@@ -167,6 +167,7 @@ mod tests {
                 .statements
                 .insert_transition_target(TransitionTargetNode::Named {
                     path: HandleSpan::from_parts(target_path, 1),
+                    path_starts_at_self: false,
                     arguments: HandleSpan::empty(),
                 });
         let transition =
@@ -191,6 +192,7 @@ mod tests {
             attached_data: None,
             satisfies: HandleSpan::empty(),
             effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 
