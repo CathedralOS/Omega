@@ -158,9 +158,14 @@ fn runtime_transition_target(
             ..
         } => {
             if *receiver_symbol == current_state.machine || receiver.as_str() == "self" {
-                return context
+                if let Some(key) = context
                     .control_flow
                     .state_key_by_symbols(current_state.machine, *state_symbol)
+                {
+                    return RuntimeTransitionTarget::State { key };
+                }
+
+                return resolve_attached_machine_state_key(context, machine, *state_symbol)
                     .map(|key| RuntimeTransitionTarget::State { key })
                     .unwrap_or(RuntimeTransitionTarget::Unknown);
             }
@@ -173,24 +178,9 @@ fn runtime_transition_target(
                     receiver_symbol.is_valid() && contained.symbol == *receiver_symbol
                 })
                 .and_then(|contained| {
-                    context
-                        .control_flow
-                        .machine_by_symbol(contained.type_symbol)
+                    resolve_attached_data_state_key(context, &contained.type_name, *state_symbol)
                 })
-                .and_then(|target_machine| {
-                    context
-                        .control_flow
-                        .states
-                        .span(target_machine.states)
-                        .and_then(|states| {
-                            states.iter().find(|candidate| {
-                                state_symbol.is_valid() && candidate.key.state == *state_symbol
-                            })
-                        })
-                })
-                .map(|target_state| RuntimeTransitionTarget::State {
-                    key: target_state.key,
-                })
+                .map(|key| RuntimeTransitionTarget::State { key })
                 .unwrap_or(RuntimeTransitionTarget::Unknown)
         }
         PlannedTransitionTarget::SelfTarget => {
@@ -198,4 +188,40 @@ fn runtime_transition_target(
         }
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
+}
+
+fn resolve_attached_machine_state_key(
+    context: &RuntimeBranchingContext,
+    source_machine: &MachineFlow,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<StateKey> {
+    let attached_data = source_machine.attached_data.as_ref()?;
+    resolve_attached_data_state_key(context, attached_data, target_symbol)
+}
+
+fn resolve_attached_data_state_key(
+    context: &RuntimeBranchingContext,
+    attached_data: &omega_checked_trees::name::ProgramName,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<StateKey> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+
+    context
+        .control_flow
+        .machines
+        .iter()
+        .filter_map(|(_, candidate)| {
+            (candidate.attached_data.as_ref() == Some(attached_data)).then_some(candidate)
+        })
+        .find_map(|candidate| {
+            context
+                .control_flow
+                .states
+                .span(candidate.states)?
+                .iter()
+                .find(|state| state.key.state == target_symbol && state.key.segment_index == 0)
+                .map(|state| state.key)
+        })
 }

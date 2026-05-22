@@ -91,57 +91,242 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
         }
     }
 
-    for (machine_index, machine) in typed.machines().iter().enumerate() {
-        let states = typed.machine_states(machine);
-        let targetable_states = states.iter().enumerate().skip(1).collect::<Vec<_>>();
-        let state_nodes = targetable_states
-            .iter()
-            .copied()
-            .map(|(state_index, state)| {
-                (
-                    state.symbol,
-                    state.name.as_str().to_owned(),
-                    format!("state_{machine_index}_{state_index}"),
-                )
-            })
-            .collect::<Vec<_>>();
-        let machine_id = diagram.node(
-            format!("machine_{machine_index}"),
-            machine_label(typed, machine, states.first()),
-            "machine",
-            1,
-        );
-        append_machine_relationships(
-            &mut diagram,
-            typed,
-            &data_nodes,
-            &trait_nodes,
-            &machine_id,
-            machine_index,
-            machine,
-        );
-        append_entry_transitions(
-            &mut diagram,
-            typed,
-            &machine_id,
-            &state_nodes,
-            states.first(),
-        );
+    let mut global_state_scope_nodes = Vec::new();
+    let mut global_machine_scope_nodes = Vec::new();
+    let mut call_sources = Vec::new();
 
-        for (state_index, state) in targetable_states {
+    for (machine_index, machine) in typed.machines().iter().enumerate() {
+        let states = typed.machine_states(machine).iter().collect::<Vec<_>>();
+        let root_symbols = visual_root_symbols(typed, &states);
+        let mut machine_nodes = Vec::new();
+        let mut state_nodes = Vec::new();
+        let mut state_scope_nodes = Vec::new();
+
+        for root_symbol in &root_symbols {
+            let Some(root_state) = state_by_symbol(&states, *root_symbol) else {
+                continue;
+            };
+            let machine_id = diagram.node(
+                format!("machine_{machine_index}_{}", root_symbol.arena_index()),
+                machine_label(typed, machine, Some(root_state), &states, &root_symbols),
+                "machine",
+                1,
+            );
+            append_machine_relationships(
+                &mut diagram,
+                typed,
+                &data_nodes,
+                &trait_nodes,
+                &machine_id,
+                machine_index,
+                root_symbol.arena_index(),
+                machine,
+            );
+            machine_nodes.push((
+                machine.symbol,
+                machine.name.as_str().to_owned(),
+                root_state.name.as_str().to_owned(),
+                *root_symbol,
+                machine_id.clone(),
+            ));
+            global_machine_scope_nodes.push((
+                machine.name.as_str().to_owned(),
+                root_state.name.as_str().to_owned(),
+                machine_id,
+            ));
+        }
+
+        for state in states.iter().copied() {
+            let root_symbol = root_symbol_for_state(typed, &states, &root_symbols, state.symbol);
+            if let Some(machine_id) =
+                machine_id_for_root(&machine_nodes, machine.symbol, root_symbol)
+            {
+                state_scope_nodes.push((state.symbol, machine_id.to_owned()));
+                global_state_scope_nodes.push((state.symbol, machine_id.to_owned()));
+            }
+        }
+
+        for state in states.iter().copied() {
+            let root_symbol = root_symbol_for_state(typed, &states, &root_symbols, state.symbol);
+            let Some(machine_id) = machine_id_for_root(&machine_nodes, machine.symbol, root_symbol)
+            else {
+                continue;
+            };
+
+            if root_symbols.contains(&state.symbol) {
+                call_sources.push((
+                    machine_index,
+                    machine.name.as_str().to_owned(),
+                    state.symbol,
+                    machine_id.to_owned(),
+                    state,
+                ));
+                continue;
+            }
+
+            let state_id = format!("state_{machine_index}_{}", state.symbol.arena_index());
+            state_nodes.push((
+                state.symbol,
+                state.name.as_str().to_owned(),
+                state_id.clone(),
+            ));
+            call_sources.push((
+                machine_index,
+                machine.name.as_str().to_owned(),
+                state.symbol,
+                state_id.clone(),
+                state,
+            ));
             append_state(
                 &mut diagram,
                 typed,
-                &machine_id,
+                machine_id,
                 &state_nodes,
                 machine_index,
-                state_index,
                 state,
             );
         }
+
+        for state in states.iter().copied() {
+            if root_symbols.contains(&state.symbol) {
+                let Some(machine_id) = scope_id_for_state(&state_scope_nodes, state.symbol) else {
+                    continue;
+                };
+                append_entry_transitions(&mut diagram, typed, machine_id, &state_nodes, state);
+            }
+        }
+    }
+
+    for (machine_index, source_machine_name, state_symbol, source_id, state) in call_sources {
+        append_call_references(
+            &mut diagram,
+            typed,
+            &global_state_scope_nodes,
+            &global_machine_scope_nodes,
+            machine_index,
+            &source_machine_name,
+            state_symbol,
+            &source_id,
+            state,
+        );
     }
 
     diagram.finish()
+}
+
+fn visual_root_symbols(program: &TypedTrees, states: &[&State]) -> Vec<SymbolHandle> {
+    let mut incoming = Vec::new();
+
+    for state in states {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::Transition(transition) = statement {
+                for target in [transition.target, transition.continuation] {
+                    if let Some(target_symbol) =
+                        transition_target_symbol_in_states(program, states, target)
+                        && target_symbol != state.symbol
+                        && !incoming.contains(&target_symbol)
+                    {
+                        incoming.push(target_symbol);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut roots = states
+        .iter()
+        .filter(|state| !incoming.contains(&state.symbol))
+        .map(|state| state.symbol)
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        if let Some(first) = states.first() {
+            roots.push(first.symbol);
+        }
+    }
+    roots
+}
+
+fn transition_target_symbol_in_states(
+    program: &TypedTrees,
+    states: &[&State],
+    target: TransitionTargetHandle,
+) -> Option<SymbolHandle> {
+    if !target.is_valid() {
+        return None;
+    }
+
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, .. } => states
+            .iter()
+            .find(|state| state.symbol == path.symbol)
+            .map(|state| state.symbol),
+        TransitionTargetNode::Value(_)
+        | TransitionTargetNode::SelfTarget
+        | TransitionTargetNode::Terminal => None,
+    }
+}
+
+fn root_symbol_for_state(
+    program: &TypedTrees,
+    states: &[&State],
+    root_symbols: &[SymbolHandle],
+    state_symbol: SymbolHandle,
+) -> SymbolHandle {
+    if root_symbols.contains(&state_symbol) {
+        return state_symbol;
+    }
+
+    for root_symbol in root_symbols {
+        if reaches_state(program, states, *root_symbol, state_symbol) {
+            return *root_symbol;
+        }
+    }
+
+    root_symbols.first().copied().unwrap_or(state_symbol)
+}
+
+fn reaches_state(
+    program: &TypedTrees,
+    states: &[&State],
+    root_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+) -> bool {
+    let mut stack = vec![root_symbol];
+    let mut visited = Vec::new();
+
+    while let Some(symbol) = stack.pop() {
+        if symbol == target_symbol {
+            return true;
+        }
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+
+        let Some(state) = state_by_symbol(states, symbol) else {
+            continue;
+        };
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::Transition(transition) = statement {
+                for target in [transition.target, transition.continuation] {
+                    if let Some(next_symbol) =
+                        transition_target_symbol_in_states(program, states, target)
+                    {
+                        stack.push(next_symbol);
+                    }
+                }
+            }
+        }
+    }
+
+    false
+}
+
+fn state_by_symbol<'states>(
+    states: &'states [&State],
+    symbol: SymbolHandle,
+) -> Option<&'states State> {
+    states.iter().copied().find(|state| state.symbol == symbol)
 }
 
 fn append_trait_relationships(
@@ -165,6 +350,7 @@ fn append_machine_relationships(
     trait_nodes: &[(SymbolHandle, String, String)],
     machine_id: &str,
     machine_index: usize,
+    root_index: u32,
     machine: &Machine,
 ) {
     if let Some(data_id) = data_id_for_name(data_nodes, machine.name.as_str()) {
@@ -183,7 +369,7 @@ fn append_machine_relationships(
         .enumerate()
     {
         let object_id = diagram.node(
-            format!("object_{machine_index}_{object_index}"),
+            format!("object_{machine_index}_{root_index}_{object_index}"),
             format!(
                 "contains {}\ntype: {}\nsymbol: {}\ntype symbol: {}",
                 object.name.as_str(),
@@ -202,7 +388,7 @@ fn append_machine_relationships(
 
     for (owned_index, owned) in program.machine_owned_data(machine).iter().enumerate() {
         let object_id = diagram.node(
-            format!("owned_{machine_index}_{owned_index}"),
+            format!("owned_{machine_index}_{root_index}_{owned_index}"),
             format!(
                 "owns {}\ntype: {}\nsymbol: {}",
                 owned.name.as_str(),
@@ -247,18 +433,30 @@ fn append_trait_machine_signatures(
     }
 }
 
-fn machine_label(program: &TypedTrees, machine: &Machine, entry_state: Option<&State>) -> String {
-    let machine_name = if let Some(entry_state) = entry_state {
-        format!("{}::{}", machine.name.as_str(), entry_state.name.as_str())
-    } else {
-        machine.name.as_str().to_owned()
-    };
+fn machine_label(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry_state: Option<&State>,
+    states: &[&State],
+    root_symbols: &[SymbolHandle],
+) -> String {
     let mut label = format!(
         "machine {}\nsymbol: {}\nsatisfies: {}\ntargetable states: {}",
-        machine_name,
+        machine.name.as_str(),
         symbol_label(machine.symbol),
         machine.satisfies.len(),
-        machine.states.len().saturating_sub(1)
+        entry_state
+            .map(|entry_state| {
+                states
+                    .iter()
+                    .filter(|state| {
+                        state.symbol != entry_state.symbol
+                            && root_symbol_for_state(program, states, root_symbols, state.symbol)
+                                == entry_state.symbol
+                    })
+                    .count()
+            })
+            .unwrap_or(0)
     );
 
     let Some(entry_state) = entry_state else {
@@ -286,12 +484,8 @@ fn append_entry_transitions(
     program: &TypedTrees,
     machine_id: &str,
     state_nodes: &[(SymbolHandle, String, String)],
-    entry_state: Option<&State>,
+    entry_state: &State,
 ) {
-    let Some(entry_state) = entry_state else {
-        return;
-    };
-
     for statement in program
         .statement_table
         .statements(entry_state.statement_nodes)
@@ -305,17 +499,141 @@ fn append_entry_transitions(
     }
 }
 
+fn append_call_references(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &TypedTrees,
+    state_scope_nodes: &[(SymbolHandle, String)],
+    machine_scope_nodes: &[(String, String, String)],
+    machine_index: usize,
+    source_machine_name: &str,
+    state_symbol: SymbolHandle,
+    source_id: &str,
+    state: &State,
+) {
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let StatementNode::Call(call) = statement else {
+            continue;
+        };
+        let Some(scope_target_id) = call_scope_target_id(
+            program,
+            state_scope_nodes,
+            machine_scope_nodes,
+            source_machine_name,
+            call,
+        ) else {
+            continue;
+        };
+        if scope_target_id == source_id {
+            continue;
+        }
+
+        let call_id = diagram.scoped_node(
+            format!(
+                "machine_ref_{machine_index}_{}_{}",
+                state_symbol.arena_index(),
+                statement_index
+            ),
+            format!(
+                "machine reference\n{}\n\ndouble-click to scope target",
+                inline_label(statement_label(program, statement))
+            ),
+            "machine_ref",
+            2,
+            scope_target_id,
+        );
+        diagram.edge(source_id, &call_id, "call");
+        diagram.containment_edge(source_id, &call_id);
+    }
+}
+
+fn call_scope_target_id<'nodes>(
+    program: &TypedTrees,
+    state_scope_nodes: &'nodes [(SymbolHandle, String)],
+    machine_scope_nodes: &'nodes [(String, String, String)],
+    source_machine_name: &str,
+    call: &TableCall,
+) -> Option<&'nodes str> {
+    if let Some(scope_id) = scope_id_for_state(state_scope_nodes, call.target_symbol) {
+        return Some(scope_id);
+    }
+
+    let receiver_name = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .last()
+        .map(|name| name.as_str())?;
+    let receiver_type_name = receiver_type_name(program, source_machine_name, receiver_name)?;
+    machine_scope_id_for_name_and_state(
+        machine_scope_nodes,
+        receiver_type_name,
+        call.target.as_str(),
+    )
+}
+
+fn receiver_type_name<'program>(
+    program: &'program TypedTrees,
+    source_machine_name: &'program str,
+    receiver_name: &str,
+) -> Option<&'program str> {
+    if receiver_name == "self" {
+        return Some(source_machine_name);
+    }
+
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == source_machine_name)?;
+    for member in program.data_members(data) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+        if field.name.as_str() != receiver_name {
+            continue;
+        }
+        let type_symbol = program.type_reference_symbol(field.type_reference);
+        return program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == type_symbol)
+            .map(|data| data.name.as_str());
+    }
+
+    None
+}
+
+fn machine_scope_id_for_name_and_state<'nodes>(
+    machine_scope_nodes: &'nodes [(String, String, String)],
+    machine_name: &str,
+    state_name: &str,
+) -> Option<&'nodes str> {
+    let mut matches = machine_scope_nodes
+        .iter()
+        .filter(|(candidate_machine, candidate_state, _)| {
+            candidate_machine == machine_name && candidate_state == state_name
+        })
+        .map(|(_, _, id)| id.as_str());
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(first)
+}
+
 fn append_state(
     diagram: &mut PhaseDiagramBuilder,
     program: &TypedTrees,
     parent_id: &str,
     state_nodes: &[(SymbolHandle, String, String)],
     machine_index: usize,
-    state_index: usize,
     state: &State,
 ) {
     let state_id = diagram.node(
-        format!("state_{machine_index}_{state_index}"),
+        format!("state_{machine_index}_{}", state.symbol.arena_index()),
         state_label(program, state),
         "state",
         2,
@@ -501,6 +819,29 @@ fn data_id_for_name<'a>(
         .iter()
         .find(|(_, _, data_name)| data_name == name)
         .map(|(_, data_id, _)| data_id.as_str())
+}
+
+fn machine_id_for_root(
+    machine_nodes: &[(SymbolHandle, String, String, SymbolHandle, String)],
+    symbol: SymbolHandle,
+    root_symbol: SymbolHandle,
+) -> Option<&str> {
+    machine_nodes
+        .iter()
+        .find(|(machine_symbol, _, _, candidate_root_symbol, _)| {
+            *machine_symbol == symbol && *candidate_root_symbol == root_symbol
+        })
+        .map(|(_, _, _, _, id)| id.as_str())
+}
+
+fn scope_id_for_state(
+    state_scope_nodes: &[(SymbolHandle, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
+    state_scope_nodes
+        .iter()
+        .find(|(candidate, _)| *candidate == symbol)
+        .map(|(_, id)| id.as_str())
 }
 
 fn state_id_for_symbol(

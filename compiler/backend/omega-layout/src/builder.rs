@@ -277,7 +277,7 @@ impl<'program> LayoutBuilder<'program> {
         let data_field_capacity = self
             .data_definitions
             .iter()
-            .find(|definition| definition.name == machine.name)
+            .find(|definition| Some(&definition.name) == machine.attached_data.as_ref())
             .map(|definition| {
                 self.program
                     .data_members(definition)
@@ -297,7 +297,7 @@ impl<'program> LayoutBuilder<'program> {
         if let Some(data_definition) = self
             .data_definitions
             .iter()
-            .find(|definition| definition.name == machine.name)
+            .find(|definition| Some(&definition.name) == machine.attached_data.as_ref())
         {
             for member in self.program.data_members(data_definition) {
                 let DataMember::Field(field) = member else {

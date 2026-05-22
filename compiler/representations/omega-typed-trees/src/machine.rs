@@ -9,6 +9,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub attached_data: Option<ProgramName>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
@@ -20,6 +21,7 @@ impl Default for Machine {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
+            attached_data: None,
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),

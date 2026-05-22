@@ -7,8 +7,8 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::types::TypeReferenceHandle;
 
 pub use runtime_flow::{
-    build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls, RuntimeCycle, RuntimeEdge,
-    RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge, RuntimeTransitionTarget,
+    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
+    RuntimeTransitionTarget, build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -150,6 +150,7 @@ impl StateKey {
 pub struct MachineGraph {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub attached_data: Option<ProgramName>,
     pub contains: HandleSpan<ContainedGraph>,
     pub owned_data: HandleSpan<MachineOwnedDataGraph>,
     pub states: HandleSpan<StateNode>,
@@ -160,6 +161,7 @@ impl Default for MachineGraph {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
+            attached_data: None,
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             states: HandleSpan::empty(),

@@ -264,6 +264,7 @@ pub struct DataVariant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
+    pub attached_data: Option<Identifier>,
     pub satisfies: HandleSpan<Identifier>,
     pub states: HandleSpan<StateHandle>,
 }

@@ -34,7 +34,9 @@ pub(crate) fn platform_call_receiver_type<'program>(
             program
                 .data_definitions()
                 .iter()
-                .find(|data_definition| data_definition.name == machine.name)
+                .find(|data_definition| {
+                    Some(&data_definition.name) == machine.attached_data.as_ref()
+                })
                 .and_then(|data_definition| {
                     program
                         .data_members(data_definition)

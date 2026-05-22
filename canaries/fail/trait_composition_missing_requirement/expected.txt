@@ -1,1 +1,1 @@
-machine `Counter` satisfies trait `Resettable` but is missing machine `reset`
+machine `Counter::increment` satisfies trait `Resettable` but is missing machine `reset`

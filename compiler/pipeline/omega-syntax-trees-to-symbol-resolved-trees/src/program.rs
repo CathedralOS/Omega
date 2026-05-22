@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn merges_machine_fragments_by_machine_name() {
+    fn keeps_attached_machines_as_distinct_callables() {
         let source = r#"
         machine Game::new {
             pub entry() {}
@@ -117,13 +117,21 @@ mod tests {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
-        assert_eq!(program.machines.len(), 1);
-        assert_eq!(program.machines[0].name.as_str(), "Game");
+        assert_eq!(program.machines.len(), 2);
+        assert_eq!(program.machines[0].name.as_str(), "Game::new");
+        assert_eq!(
+            program.machines[0]
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str()),
+            Some("Game")
+        );
+        assert_eq!(program.machines[1].name.as_str(), "Game::running");
         assert_eq!(
             program
                 .machine_state_handles(program.machines[0].states)
                 .len(),
-            2
+            1
         );
     }
 
@@ -144,7 +152,14 @@ mod tests {
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
         assert_eq!(program.machines.len(), 1);
-        assert_eq!(program.machines[0].name.as_str(), "Main");
+        assert_eq!(program.machines[0].name.as_str(), "Main::main");
+        assert_eq!(
+            program.machines[0]
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str()),
+            Some("Main")
+        );
         let state = program
             .machine_state_handles(program.machines[0].states)
             .first()

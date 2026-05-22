@@ -475,6 +475,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.machine rect { fill: #272132; stroke: #b089f0; }
 .node.object rect { fill: #2e291b; stroke: #ffd166; }
 .node.external_call rect { fill: #302816; stroke: #ffcf5c; stroke-dasharray: 7 4; }
+.node.machine_ref rect { fill: #302816; stroke: #ffcf5c; stroke-dasharray: 7 4; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
 .node.state_block rect { fill: #142637; stroke: #6fbce6; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
@@ -1227,15 +1228,20 @@ function activateNode(id) {
   const now = performance.now();
   if (lastActivation.id === id && now - lastActivation.time < 300) return;
   lastActivation = { id, time: now };
-  const targetId = followTargetFor(id);
-  if (targetId) {
-    selectNode(targetId, true);
+  const scopeTarget = scopeTargetFor(id);
+  const kind = nodeById.get(id)?.kind;
+  if (kind === "external_call" && scopeTarget) {
+    if (scopedId) {
+      setScope(scopeTarget, true);
+    } else {
+      selectNode(scopeTarget, true);
+    }
     return;
   }
 
-  const scopeTarget = scopeTargetFor(id);
-  if (nodeById.get(id)?.kind === "external_call" && scopeTarget) {
-    selectNode(scopeTarget, true);
+  const targetId = followTargetFor(id);
+  if (targetId) {
+    selectNode(targetId, true);
     return;
   }
 
@@ -1399,8 +1405,7 @@ function applyFilters() {
   for (const node of GRAPH.nodes) {
     const inScope = scopedNodes.has(node.id);
     const visible = inScope
-      && (showDataNodes || node.kind !== "data")
-      && (Boolean(scopedId) || node.kind !== "external_call");
+      && (showDataNodes || node.kind !== "data");
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
     const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
     if (!element) continue;

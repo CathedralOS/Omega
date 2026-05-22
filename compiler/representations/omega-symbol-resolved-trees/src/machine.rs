@@ -10,6 +10,7 @@ use std::ops::{Deref, DerefMut};
 pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    pub attached_data: Option<DiagnosticName>,
     pub storage: MachineStorage,
 }
 

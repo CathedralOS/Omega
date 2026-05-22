@@ -296,7 +296,7 @@ fn inherited_data_field_symbols<'program>(
     program
         .data_definitions
         .iter()
-        .find(|data_definition| data_definition.name == machine.name)
+        .find(|data_definition| Some(&data_definition.name) == machine.attached_data.as_ref())
         .into_iter()
         .flat_map(|data_definition| program.data_members(data_definition.members).iter())
         .filter_map(move |member| match member {
@@ -396,8 +396,11 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         ..
     } = &mut program.roots;
     machines.for_each_mut(|machine| {
-        let inherited_field_count =
-            inherited_field_count(data_definitions.iter(), data_members, &machine.name);
+        let inherited_field_count = inherited_field_count(
+            data_definitions.iter(),
+            data_members,
+            machine.attached_data.as_ref(),
+        );
         machine.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Machine);
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
@@ -430,6 +433,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                     symbols,
                     &MachineScope {
                         symbol: machine_symbol,
+                        attached_data: machine.attached_data.as_ref(),
                         owned_data: &[],
                         inherited_data_members: None,
                         contains: &[],
@@ -591,11 +595,15 @@ fn next_child_of_kind(
 fn inherited_field_count<'data>(
     data_definitions: impl IntoIterator<Item = &'data omega_symbol_resolved_trees::data::DataDefinition>,
     data_members: &Arena<omega_symbol_resolved_trees::data::DataMember>,
-    machine_name: &omega_symbol_resolved_trees::name::DiagnosticName,
+    attached_data: Option<&omega_symbol_resolved_trees::name::DiagnosticName>,
 ) -> usize {
+    let Some(attached_data) = attached_data else {
+        return 0;
+    };
+
     data_definitions
         .into_iter()
-        .find(|data_definition| data_definition.name == *machine_name)
+        .find(|data_definition| data_definition.name == *attached_data)
         .map(|data_definition| {
             data_members
                 .span_or_empty(data_definition.members)
@@ -657,9 +665,11 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
     let child_type_references = &mut tables.declarations.child_type_references;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
-        let data_definition = data_definitions
-            .iter()
-            .find(|data_definition| data_definition.name == machine.name);
+        let data_definition = machine.attached_data.as_ref().and_then(|attached_data| {
+            data_definitions
+                .iter()
+                .find(|data_definition| data_definition.name == *attached_data)
+        });
         let inherited_data_members = data_definition
             .map(|data_definition| data_members.span_or_empty(data_definition.members));
         let omega_symbol_resolved_trees::machine::MachineStorage {
@@ -670,6 +680,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         } = &mut machine.storage;
         let machine_scope = MachineScope {
             symbol: machine_symbol,
+            attached_data: machine.attached_data.as_ref(),
             contains: machine_contained_objects.span_or_empty(*contains),
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),
@@ -696,6 +707,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
 
 struct MachineScope<'program> {
     symbol: SymbolHandle,
+    attached_data: Option<&'program omega_symbol_resolved_trees::name::DiagnosticName>,
     contains: &'program [omega_symbol_resolved_trees::machine::ContainedObject],
     inherited_data_members: Option<&'program [omega_symbol_resolved_trees::data::DataMember]>,
     owned_data: &'program [omega_symbol_resolved_trees::machine::OwnedData],
@@ -704,6 +716,7 @@ struct MachineScope<'program> {
 impl MachineScope<'_> {
     fn field_type_reference(
         &self,
+        symbols: &SymbolTable,
         field_symbol: SymbolHandle,
     ) -> Option<&omega_symbol_resolved_trees::types::TypeReference> {
         if let Some(data_members) = self.inherited_data_members {
@@ -711,7 +724,10 @@ impl MachineScope<'_> {
                 let omega_symbol_resolved_trees::data::DataMember::Field(field) = member else {
                     continue;
                 };
-                if field.symbol == field_symbol {
+                if field.symbol == field_symbol
+                    || (field_symbol.is_valid()
+                        && field.name.as_str() == symbols.name(field_symbol))
+                {
                     return Some(&field.type_reference);
                 }
             }
@@ -1702,6 +1718,21 @@ fn assign_transition_target_symbols(
         if target_symbol.is_valid() {
             named.head_symbol = target_symbol;
             named.symbol = target_symbol;
+            return;
+        }
+
+        if named.path_starts_at_self
+            && let Some(attached_data) = machine.attached_data
+        {
+            let target_symbol = call_target_for_attached_data(
+                symbols,
+                attached_data.as_str(),
+                target_name.as_str(),
+            );
+            if target_symbol.is_valid() {
+                named.head_symbol = machine.symbol;
+                named.symbol = target_symbol;
+            }
         }
     }
 }
@@ -1732,7 +1763,9 @@ fn resolve_call_target_symbol(
                 );
             }
 
-            if let Some(field_type_reference) = machine.field_type_reference(receiver_symbol) {
+            if let Some(field_type_reference) =
+                machine.field_type_reference(symbols, receiver_symbol)
+            {
                 let symbol = call_target_for_type_reference(
                     symbols,
                     child_type_references,
@@ -1769,6 +1802,19 @@ fn resolve_call_target_symbol(
                 receiver_kind,
                 SymbolKind::Machine | SymbolKind::Platform | SymbolKind::Trait
             ) {
+                if receiver_symbol == machine.symbol
+                    && let Some(attached_data) = machine.attached_data
+                {
+                    let target_symbol = call_target_for_attached_data(
+                        symbols,
+                        attached_data.as_str(),
+                        target.as_str(),
+                    );
+                    if target_symbol.is_valid() {
+                        return target_symbol;
+                    }
+                }
+
                 return child_symbol_by_kinds(
                     symbols,
                     receiver_symbol,
@@ -1790,6 +1836,20 @@ fn resolve_call_target_symbol(
     }
 
     top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
+}
+
+fn call_target_for_attached_data(
+    symbols: &SymbolTable,
+    attached_data: &str,
+    target_name: &str,
+) -> SymbolHandle {
+    let machine_name = format!("{attached_data}::{target_name}");
+    let machine_symbol = top_level_symbol(symbols, SymbolKind::Machine, &machine_name);
+    if !machine_symbol.is_valid() {
+        return SymbolHandle::invalid();
+    }
+
+    child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target_name)
 }
 
 fn resolve_state_scoped_members(
@@ -1953,12 +2013,18 @@ fn call_target_for_type_reference(
     type_reference: &omega_symbol_resolved_trees::types::TypeReference,
     target_name: &str,
 ) -> SymbolHandle {
-    child_symbol_by_kinds(
-        symbols,
-        type_reference_symbol(child_type_references, type_reference),
-        &[SymbolKind::State],
-        target_name,
-    )
+    let type_symbol = type_reference_symbol(child_type_references, type_reference);
+    let direct_child =
+        child_symbol_by_kinds(symbols, type_symbol, &[SymbolKind::State], target_name);
+    if direct_child.is_valid() {
+        return direct_child;
+    }
+
+    if type_symbol.is_valid() && matches!(symbols.get(type_symbol).kind, SymbolKind::Data) {
+        return call_target_for_attached_data(symbols, symbols.name(type_symbol), target_name);
+    }
+
+    SymbolHandle::invalid()
 }
 
 fn assign_type_reference_symbol_with_self_type(

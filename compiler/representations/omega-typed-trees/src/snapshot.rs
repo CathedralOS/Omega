@@ -143,6 +143,7 @@ pub struct InvariantDefinitionSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MachineSnapshot {
     pub name: String,
+    pub attached_data: Option<String>,
     pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
@@ -400,6 +401,7 @@ fn invariant_definition_snapshot(
 fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
+        attached_data: machine.attached_data.as_ref().map(ToString::to_string),
         contains: program
             .machine_contained_objects(machine)
             .iter()

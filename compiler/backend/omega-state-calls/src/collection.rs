@@ -606,16 +606,25 @@ fn resolve_state_call_target(
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
     if !has_receiver || receiver_symbol == machine.symbol {
-        return resolve_state_key_in_machine(
-            control_flow,
-            machine.symbol,
-            target_symbol,
-            target_state,
-        )
-        .map(|key| ResolvedStateCall {
-            key,
-            resolution: StateCallResolution::Local,
-        });
+        if let Some(key) =
+            resolve_state_key_in_machine(control_flow, machine.symbol, target_symbol, target_state)
+        {
+            return Some(ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::Local,
+            });
+        }
+
+        if has_receiver && receiver_symbol == machine.symbol {
+            return resolve_attached_machine_state_key(control_flow, machine, target_symbol).map(
+                |key| ResolvedStateCall {
+                    key,
+                    resolution: StateCallResolution::NamedMachine,
+                },
+            );
+        }
+
+        return None;
     }
 
     if let Some(contained) = control_flow
@@ -623,6 +632,15 @@ fn resolve_state_call_target(
         .iter()
         .find(|contained| receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
     {
+        if let Some(key) =
+            resolve_attached_data_state_key(control_flow, &contained.type_name, target_symbol)
+        {
+            return Some(ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::ContainedMachine,
+            });
+        }
+
         return resolve_state_key_in_machine(
             control_flow,
             contained.type_symbol,
@@ -687,6 +705,40 @@ fn resolve_state_call_target(
     }
     let _ = target_state;
     None
+}
+
+fn resolve_attached_machine_state_key(
+    control_flow: &ControlFlowPlan,
+    source_machine: &MachineFlow,
+    target_symbol: SymbolHandle,
+) -> Option<StateKey> {
+    let attached_data = source_machine.attached_data.as_ref()?;
+    resolve_attached_data_state_key(control_flow, attached_data, target_symbol)
+}
+
+fn resolve_attached_data_state_key(
+    control_flow: &ControlFlowPlan,
+    attached_data: &ProgramName,
+    target_symbol: SymbolHandle,
+) -> Option<StateKey> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+
+    control_flow
+        .machines
+        .iter()
+        .filter_map(|(_, candidate)| {
+            (candidate.attached_data.as_ref() == Some(attached_data)).then_some(candidate)
+        })
+        .find_map(|candidate| {
+            control_flow
+                .states
+                .span(candidate.states)?
+                .iter()
+                .find(|state| state.key.state == target_symbol && state.key.segment_index == 0)
+                .map(|state| state.key)
+        })
 }
 
 fn resolve_state_key_in_machine(

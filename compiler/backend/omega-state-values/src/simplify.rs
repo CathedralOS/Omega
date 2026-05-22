@@ -450,7 +450,8 @@ fn simplify_call_expression(
         })
         .collect();
 
-    if let Some(target_machine) = resolve_call_target_machine(program, machine, receiver.as_ref())
+    if let Some(target_machine) =
+        resolve_call_target_machine(program, machine, receiver.as_ref(), call.target_symbol)
         && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
         let parameters = program.state_parameters(state);
@@ -530,7 +531,8 @@ fn simplify_helper_call_comparison(
     let receiver = call.receiver.as_ref().map(|receiver| {
         simplify_expression_with_bindings(program, machine, receiver, bindings, false)
     });
-    let target_machine = resolve_call_target_machine(program, machine, receiver.as_ref())?;
+    let target_machine =
+        resolve_call_target_machine(program, machine, receiver.as_ref(), call.target_symbol)?;
     let state = resolve_call_target_state(program, target_machine, call)?;
     let parameters = program.state_parameters(state);
     let mut argument_bindings = Arena::with_capacity(parameters.len());
@@ -548,12 +550,18 @@ fn resolve_call_target_machine<'program>(
     program: &'program Program,
     current_machine: &'program Machine,
     receiver: Option<&Expression>,
+    target_symbol: SymbolHandle,
 ) -> Option<&'program Machine> {
     let Some(receiver) = receiver else {
-        return Some(current_machine);
+        return machine_owning_state_symbol(program, target_symbol).or(Some(current_machine));
     };
     let receiver = strip_mutable_expression_ref(receiver);
     if expression_is_self_reference(current_machine, receiver) {
+        if let Some(target_machine) = machine_owning_state_symbol(program, target_symbol)
+            && machine_can_receive_self_call(current_machine, target_machine)
+        {
+            return Some(target_machine);
+        }
         return Some(current_machine);
     }
 
@@ -580,6 +588,27 @@ fn resolve_call_target_machine<'program>(
         .machines()
         .iter()
         .find(|machine| machine.symbol == contained.type_symbol)
+}
+
+fn machine_owning_state_symbol<'program>(
+    program: &'program Program,
+    state_symbol: SymbolHandle,
+) -> Option<&'program Machine> {
+    if !state_symbol.is_valid() {
+        return None;
+    }
+
+    program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == state_symbol)
+    })
+}
+
+fn machine_can_receive_self_call(current: &Machine, target: &Machine) -> bool {
+    current.symbol == target.symbol
+        || (current.attached_data.is_some() && current.attached_data == target.attached_data)
 }
 
 fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
@@ -711,7 +740,8 @@ fn expression_match_condition_with_stack(
     };
 
     let receiver = call.receiver.as_deref();
-    let target_machine = resolve_call_target_machine(program, machine, receiver)?;
+    let target_machine =
+        resolve_call_target_machine(program, machine, receiver, call.target_symbol)?;
     let state = resolve_call_target_state(program, target_machine, call)?;
     let parameters = program.state_parameters(state);
     let mut argument_bindings = Arena::with_capacity(parameters.len());
@@ -1415,6 +1445,7 @@ mod tests {
         let mut machine = Machine {
             symbol: machine_symbol,
             name: "RoomEvents".into(),
+            attached_data: None,
             contains: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),
@@ -1631,6 +1662,7 @@ mod tests {
         let machine = Machine {
             symbol: SymbolHandle::invalid(),
             name: "main".into(),
+            attached_data: None,
             contains: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),

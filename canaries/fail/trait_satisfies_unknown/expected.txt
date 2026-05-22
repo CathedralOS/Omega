@@ -1,1 +1,1 @@
-machine `Sprite` satisfies unknown trait `Drawable`
+machine `Sprite::draw` satisfies unknown trait `Drawable`

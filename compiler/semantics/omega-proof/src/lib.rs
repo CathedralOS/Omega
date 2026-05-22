@@ -429,6 +429,7 @@ mod tests {
         }));
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
+            attached_data: None,
             satisfies: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
         }));

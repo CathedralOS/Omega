@@ -10,25 +10,41 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
     let mut diagram = PhaseDiagramBuilder::new("state_graph");
     let mut machine_nodes = Vec::new();
     let mut state_nodes = Vec::new();
+    let mut state_scope_nodes = Vec::new();
 
     for (machine_index, machine) in graph.machines.iter() {
-        let machine_id = diagram.node(
-            format!("machine_{}", machine_index.arena_index()),
-            machine_label(graph, machine),
-            "machine",
-            machine_index.arena_index() as usize,
-        );
-        machine_nodes.push((
-            machine.symbol,
-            machine.name.as_str().to_owned(),
-            machine_id.clone(),
-        ));
-        let mut seen_state_keys = Vec::new();
-        for state in graph.states.span_or_empty(machine.states) {
-            if seen_state_keys.iter().any(|key| *key == state.key) {
+        let states = unique_machine_states(graph, machine);
+        let root_keys = visual_root_keys(graph, &states);
+
+        for root_key in &root_keys {
+            let Some(root_state) = state_by_key_in_slice(&states, *root_key) else {
                 continue;
-            }
-            seen_state_keys.push(state.key);
+            };
+            let machine_id = diagram.node(
+                format!(
+                    "machine_{}_{}",
+                    machine_index.arena_index(),
+                    root_key.state.arena_index()
+                ),
+                machine_label(graph, machine, root_state, &states, &root_keys),
+                "machine",
+                machine_index.arena_index() as usize,
+            );
+            machine_nodes.push((
+                machine.symbol,
+                machine.name.as_str().to_owned(),
+                root_state.name.as_str().to_owned(),
+                *root_key,
+                machine_id,
+            ));
+        }
+
+        for state in states.iter().copied() {
+            let root_key = root_key_for_state(graph, &states, &root_keys, state.key);
+            let Some(machine_id) = machine_id_for_root(&machine_nodes, machine.symbol, root_key)
+            else {
+                continue;
+            };
 
             let state_id = diagram.node(
                 format!(
@@ -41,43 +57,53 @@ pub fn state_graph_html(graph: &StateGraph) -> String {
                 "state_block",
                 machine_index.arena_index() as usize,
             );
-            diagram.containment_edge(&machine_id, &state_id);
+            diagram.containment_edge(machine_id, &state_id);
             state_nodes.push((state.key, state_id));
+            state_scope_nodes.push((state.key, machine_id.to_owned()));
         }
     }
 
     for (_, machine) in graph.machines.iter() {
-        let source_machine_id = machine_id_for_symbol(&machine_nodes, machine.symbol);
         for state in graph.states.span_or_empty(machine.states) {
             let Some(source_id) = state_id_for_key(&state_nodes, state.key) else {
                 continue;
             };
+            let source_scope_id = scope_id_for_state(&state_scope_nodes, state.key);
 
             for operation in graph.operations.span_or_empty(state.operations) {
-                if let Some(target_id) = operation_call_target_id(graph, &state_nodes, operation) {
-                    diagram.edge(source_id, target_id, "call");
-                } else if let Some(scope_target_id) =
-                    operation_external_call_scope_id(graph, &machine_nodes, machine, operation)
-                {
-                    if Some(scope_target_id) != source_machine_id {
-                        let call_id = diagram.scoped_node(
-                            format!(
-                                "external_call_{}_{}_{}_{}",
-                                state.key.machine.arena_index(),
-                                state.key.state.arena_index(),
-                                state.key.segment_index,
-                                operation.statement_index
-                            ),
-                            format!(
-                                "external call\n{}\n\ndouble-click to scope target",
-                                operation_label(graph, operation)
-                            ),
-                            "external_call",
-                            machine_index_from_key(state.key),
+                if let Some(target_key) = operation_call_target_key(graph, operation) {
+                    let Some(target_id) = state_id_for_key(&state_nodes, target_key) else {
+                        continue;
+                    };
+                    let target_scope_id = scope_id_for_state(&state_scope_nodes, target_key);
+                    if source_scope_id == target_scope_id {
+                        diagram.edge(source_id, target_id, "call");
+                    } else if let Some(scope_target_id) = target_scope_id {
+                        append_external_call_node(
+                            &mut diagram,
+                            graph,
+                            state.key,
+                            source_id,
+                            operation,
                             scope_target_id,
                         );
-                        diagram.edge(source_id, &call_id, "call");
-                        diagram.containment_edge(source_id, &call_id);
+                    }
+                } else if let Some(scope_target_id) = operation_external_call_scope_id(
+                    graph,
+                    &machine_nodes,
+                    &state_scope_nodes,
+                    machine,
+                    operation,
+                ) {
+                    if Some(scope_target_id) != source_scope_id {
+                        append_external_call_node(
+                            &mut diagram,
+                            graph,
+                            state.key,
+                            source_id,
+                            operation,
+                            scope_target_id,
+                        );
                     }
                 }
             }
@@ -95,17 +121,21 @@ fn machine_index_from_key(key: StateKey) -> usize {
     key.machine.arena_index() as usize
 }
 
-fn machine_label(graph: &StateGraph, machine: &MachineGraph) -> String {
-    let machine_name = graph
-        .states
-        .span_or_empty(machine.states)
-        .first()
-        .map(|state| format!("{}::{}", machine.name.as_str(), state.name.as_str()))
-        .unwrap_or_else(|| machine.name.as_str().to_owned());
+fn machine_label(
+    graph: &StateGraph,
+    machine: &MachineGraph,
+    root_state: &StateNode,
+    states: &[&StateNode],
+    root_keys: &[StateKey],
+) -> String {
+    let state_count = states
+        .iter()
+        .filter(|state| root_key_for_state(graph, states, root_keys, state.key) == root_state.key)
+        .count();
     format!(
         "machine {}\nstates: {}\ncontains: {}\nowned data: {}",
-        machine_name,
-        graph.states.span_or_empty(machine.states).len(),
+        machine.name.as_str(),
+        state_count,
         graph.machine_contains(machine).len(),
         graph.machine_owned_data(machine).len()
     )
@@ -243,11 +273,157 @@ fn append_transition_edges(
     }
 }
 
-fn operation_call_target_id<'nodes>(
+fn unique_machine_states<'graph>(
+    graph: &'graph StateGraph,
+    machine: &MachineGraph,
+) -> Vec<&'graph StateNode> {
+    let mut states = Vec::new();
+    for state in graph.states.span_or_empty(machine.states) {
+        if states
+            .iter()
+            .any(|existing: &&StateNode| existing.key == state.key)
+        {
+            continue;
+        }
+        states.push(state);
+    }
+    states
+}
+
+fn visual_root_keys(graph: &StateGraph, states: &[&StateNode]) -> Vec<StateKey> {
+    let mut incoming = Vec::new();
+
+    for state in states {
+        for transition in graph.transitions.span_or_empty(state.transitions) {
+            for target in [&transition.target, &transition.continuation] {
+                if let Some(target_key) = transition_target_key_in_states(states, target) {
+                    if target_key != state.key && !incoming.contains(&target_key) {
+                        incoming.push(target_key);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut roots = states
+        .iter()
+        .filter(|state| !incoming.contains(&state.key))
+        .map(|state| state.key)
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        if let Some(first) = states.first() {
+            roots.push(first.key);
+        }
+    }
+    roots
+}
+
+fn root_key_for_state(
     graph: &StateGraph,
-    state_nodes: &'nodes [(StateKey, String)],
+    states: &[&StateNode],
+    root_keys: &[StateKey],
+    state_key: StateKey,
+) -> StateKey {
+    if root_keys.contains(&state_key) {
+        return state_key;
+    }
+
+    for root_key in root_keys {
+        if reaches_state(graph, states, *root_key, state_key) {
+            return *root_key;
+        }
+    }
+
+    root_keys.first().copied().unwrap_or(state_key)
+}
+
+fn reaches_state(
+    graph: &StateGraph,
+    states: &[&StateNode],
+    root_key: StateKey,
+    target_key: StateKey,
+) -> bool {
+    let mut stack = vec![root_key];
+    let mut visited = Vec::new();
+
+    while let Some(key) = stack.pop() {
+        if key == target_key {
+            return true;
+        }
+        if visited.contains(&key) {
+            continue;
+        }
+        visited.push(key);
+
+        let Some(state) = state_by_key_in_slice(states, key) else {
+            continue;
+        };
+        for transition in graph.transitions.span_or_empty(state.transitions) {
+            for target in [&transition.target, &transition.continuation] {
+                if let Some(next_key) = transition_target_key_in_states(states, target) {
+                    stack.push(next_key);
+                }
+            }
+        }
+    }
+
+    false
+}
+
+fn transition_target_key_in_states(
+    states: &[&StateNode],
+    target: &PlannedTransitionTarget,
+) -> Option<StateKey> {
+    match target {
+        PlannedTransitionTarget::State { key, .. } => {
+            states.iter().any(|state| state.key == *key).then_some(*key)
+        }
+        PlannedTransitionTarget::Nested { state_symbol, .. } => states
+            .iter()
+            .find(|state| state.key.state == *state_symbol)
+            .map(|state| state.key),
+        PlannedTransitionTarget::None
+        | PlannedTransitionTarget::SelfTarget
+        | PlannedTransitionTarget::Terminal => None,
+    }
+}
+
+fn state_by_key_in_slice<'states>(
+    states: &'states [&StateNode],
+    key: StateKey,
+) -> Option<&'states StateNode> {
+    states.iter().copied().find(|state| state.key == key)
+}
+
+fn append_external_call_node(
+    diagram: &mut PhaseDiagramBuilder,
+    graph: &StateGraph,
+    source_key: StateKey,
+    source_id: &str,
     operation: &Operation,
-) -> Option<&'nodes str> {
+    scope_target_id: &str,
+) {
+    let call_id = diagram.scoped_node(
+        format!(
+            "external_call_{}_{}_{}_{}",
+            source_key.machine.arena_index(),
+            source_key.state.arena_index(),
+            source_key.segment_index,
+            operation.statement_index
+        ),
+        format!(
+            "external call\n{}\n\ndouble-click to scope target",
+            operation_label(graph, operation)
+        ),
+        "external_call",
+        machine_index_from_key(source_key),
+        scope_target_id,
+    );
+    diagram.edge(source_id, &call_id, "call");
+    diagram.containment_edge(source_id, &call_id);
+}
+
+fn operation_call_target_key(graph: &StateGraph, operation: &Operation) -> Option<StateKey> {
     let OperationKind::Call {
         receiver_symbol,
         target_symbol,
@@ -259,17 +435,16 @@ fn operation_call_target_id<'nodes>(
     };
 
     if has_receiver {
-        return graph
-            .state_key_by_symbols(receiver_symbol, target_symbol)
-            .and_then(|key| state_id_for_key(state_nodes, key));
+        return graph.state_key_by_symbols(receiver_symbol, target_symbol);
     }
 
-    state_id_for_state_symbol(graph, state_nodes, target_symbol)
+    state_key_for_state_symbol(graph, target_symbol)
 }
 
 fn operation_external_call_scope_id<'nodes>(
     graph: &StateGraph,
-    machine_nodes: &'nodes [(SymbolHandle, String, String)],
+    machine_nodes: &'nodes [(SymbolHandle, String, String, StateKey, String)],
+    state_scope_nodes: &'nodes [(StateKey, String)],
     source_machine: &MachineGraph,
     operation: &Operation,
 ) -> Option<&'nodes str> {
@@ -288,45 +463,60 @@ fn operation_external_call_scope_id<'nodes>(
         return receiver_machine_scope_id(
             graph,
             machine_nodes,
+            state_scope_nodes,
             source_machine,
             *receiver_symbol,
             receiver.as_str(),
+            target.as_str(),
         );
     }
 
     if target_symbol.is_valid() {
-        if let Some(state) = graph
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .find(|state| state.key.state == *target_symbol)
-        {
-            return machine_id_for_symbol(machine_nodes, state.key.machine);
+        if let Some(key) = state_key_for_state_symbol(graph, *target_symbol) {
+            return scope_id_for_state(state_scope_nodes, key);
         }
     }
 
-    unique_machine_id_for_state_name(graph, machine_nodes, target.as_str())
+    unique_machine_id_for_state_name(graph, state_scope_nodes, target.as_str())
 }
 
 fn receiver_machine_scope_id<'nodes>(
     graph: &StateGraph,
-    machine_nodes: &'nodes [(SymbolHandle, String, String)],
+    machine_nodes: &'nodes [(SymbolHandle, String, String, StateKey, String)],
+    state_scope_nodes: &'nodes [(StateKey, String)],
     source_machine: &MachineGraph,
     receiver_symbol: SymbolHandle,
     receiver_name: &str,
+    target_name: &str,
 ) -> Option<&'nodes str> {
     if receiver_symbol == source_machine.symbol
         || names_match(source_machine.name.as_str(), receiver_name)
     {
-        return machine_id_for_symbol(machine_nodes, source_machine.symbol);
+        return machine_id_for_symbol_and_state_name(
+            machine_nodes,
+            source_machine.symbol,
+            target_name,
+        )
+        .or_else(|| unique_machine_id_for_state_name(graph, state_scope_nodes, target_name));
     }
 
     for contained in graph.machine_contains(source_machine) {
         if contained.symbol == receiver_symbol
             || names_match(contained.name.as_str(), receiver_name)
         {
-            return machine_id_for_symbol(machine_nodes, contained.type_symbol)
-                .or_else(|| machine_id_for_name(machine_nodes, contained.type_name.as_str()));
+            return machine_id_for_name_and_state_name(
+                machine_nodes,
+                contained.type_name.as_str(),
+                target_name,
+            )
+            .or_else(|| {
+                machine_id_for_symbol_and_state_name(
+                    machine_nodes,
+                    contained.type_symbol,
+                    target_name,
+                )
+            })
+            .or_else(|| unique_machine_id_for_state_name(graph, state_scope_nodes, target_name));
         }
     }
 
@@ -334,16 +524,16 @@ fn receiver_machine_scope_id<'nodes>(
         if owned_data.symbol == receiver_symbol
             || names_match(owned_data.name.as_str(), receiver_name)
         {
-            return machine_id_for_name(machine_nodes, owned_data.name.as_str());
+            return unique_machine_id_for_state_name(graph, state_scope_nodes, target_name);
         }
     }
 
-    machine_id_for_name(machine_nodes, receiver_name)
+    unique_machine_id_for_state_name(graph, state_scope_nodes, target_name)
 }
 
 fn unique_machine_id_for_state_name<'nodes>(
     graph: &StateGraph,
-    machine_nodes: &'nodes [(SymbolHandle, String, String)],
+    state_scope_nodes: &'nodes [(StateKey, String)],
     state_name: &str,
 ) -> Option<&'nodes str> {
     let mut matches = graph
@@ -351,7 +541,7 @@ fn unique_machine_id_for_state_name<'nodes>(
         .iter()
         .map(|(_, state)| state)
         .filter(|state| names_match(state.name.as_str(), state_name))
-        .filter_map(|state| machine_id_for_symbol(machine_nodes, state.key.machine));
+        .filter_map(|state| scope_id_for_state(state_scope_nodes, state.key));
     let first = matches.next()?;
     if matches.next().is_some() {
         return None;
@@ -359,24 +549,61 @@ fn unique_machine_id_for_state_name<'nodes>(
     Some(first)
 }
 
-fn machine_id_for_symbol(
-    machine_nodes: &[(SymbolHandle, String, String)],
+fn machine_id_for_root(
+    machine_nodes: &[(SymbolHandle, String, String, StateKey, String)],
     symbol: SymbolHandle,
+    root_key: StateKey,
 ) -> Option<&str> {
     machine_nodes
         .iter()
-        .find(|(machine_symbol, _, _)| *machine_symbol == symbol)
-        .map(|(_, _, id)| id.as_str())
+        .find(|(machine_symbol, _, _, candidate_root_key, _)| {
+            *machine_symbol == symbol && *candidate_root_key == root_key
+        })
+        .map(|(_, _, _, _, id)| id.as_str())
 }
 
-fn machine_id_for_name<'nodes>(
-    machine_nodes: &'nodes [(SymbolHandle, String, String)],
-    name: &str,
+fn machine_id_for_symbol_and_state_name<'nodes>(
+    machine_nodes: &'nodes [(SymbolHandle, String, String, StateKey, String)],
+    symbol: SymbolHandle,
+    state_name: &str,
 ) -> Option<&'nodes str> {
-    machine_nodes
+    let mut matches = machine_nodes
         .iter()
-        .find(|(_, machine_name, _)| names_match(machine_name, name))
-        .map(|(_, _, id)| id.as_str())
+        .filter(|(machine_symbol, _, root_state_name, _, _)| {
+            *machine_symbol == symbol && names_match(root_state_name, state_name)
+        })
+        .map(|(_, _, _, _, id)| id.as_str());
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(first)
+}
+
+fn machine_id_for_name_and_state_name<'nodes>(
+    machine_nodes: &'nodes [(SymbolHandle, String, String, StateKey, String)],
+    machine_name: &str,
+    state_name: &str,
+) -> Option<&'nodes str> {
+    let mut matches = machine_nodes
+        .iter()
+        .filter(|(_, candidate_machine_name, root_state_name, _, _)| {
+            names_match(candidate_machine_name, machine_name)
+                && names_match(root_state_name, state_name)
+        })
+        .map(|(_, _, _, _, id)| id.as_str());
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(first)
+}
+
+fn scope_id_for_state(state_scope_nodes: &[(StateKey, String)], key: StateKey) -> Option<&str> {
+    state_scope_nodes
+        .iter()
+        .find(|(candidate, _)| *candidate == key)
+        .map(|(_, id)| id.as_str())
 }
 
 fn names_match(left: &str, right: &str) -> bool {
@@ -423,6 +650,20 @@ fn state_id_for_state_symbol<'nodes>(
         .iter()
         .filter(|(key, _)| key.state == state_symbol && graph.state_by_key(*key).is_some())
         .map(|(_, id)| id.as_str());
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(first)
+}
+
+fn state_key_for_state_symbol(graph: &StateGraph, state_symbol: SymbolHandle) -> Option<StateKey> {
+    let mut matches = graph
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .filter(|state| state.key.state == state_symbol)
+        .map(|state| state.key);
     let first = matches.next()?;
     if matches.next().is_some() {
         return None;

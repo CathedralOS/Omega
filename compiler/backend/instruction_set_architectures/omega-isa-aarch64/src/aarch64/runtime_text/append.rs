@@ -11,9 +11,8 @@ use super::super::widths::{
     runtime_text_buffer_materialize_to_runtime_frame_indexed_width,
     runtime_text_buffer_materialize_to_runtime_pointee_width,
     runtime_text_buffer_materialize_width,
-    runtime_text_literal_append_width,
     runtime_text_literal_append_to_runtime_frame_indexed_width,
-    runtime_text_literal_append_to_runtime_pointee_width,
+    runtime_text_literal_append_to_runtime_pointee_width, runtime_text_literal_append_width,
     runtime_text_stored_place_append_to_runtime_frame_indexed_width,
     runtime_text_stored_place_append_to_runtime_pointee_width,
     runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
@@ -133,9 +132,9 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(
-        runtime_text_stored_place_append_to_runtime_pointee_width(field_byte_offset),
-    );
+    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_to_runtime_pointee_width(
+        field_byte_offset,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
