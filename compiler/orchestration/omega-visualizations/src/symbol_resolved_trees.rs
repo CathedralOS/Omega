@@ -460,10 +460,16 @@ fn machine_label(
     states: &[&State],
     root_symbols: &[SymbolHandle],
 ) -> String {
+    let attached_data = machine
+        .attached_data
+        .as_ref()
+        .map(|name| name.as_str())
+        .unwrap_or("<none>");
     let mut label = format!(
-        "machine {}\nsymbol: {}\nsatisfies: {}\ntargetable states: {}",
+        "machine {}\nsymbol: {}\nattached data: {}\nsatisfies: {}\ntargetable states: {}",
         machine.name.as_str(),
         symbol_label(machine.symbol),
+        attached_data,
         machine.satisfies.len(),
         entry_state
             .map(|entry_state| {

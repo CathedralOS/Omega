@@ -53,9 +53,17 @@ pub(super) fn write_layout_object_sections(
     }
 
     for (_, machine_layout) in backend_plan.layouts.machine_layouts.iter() {
+        let attached_data = machine_layout
+            .attached_data
+            .as_ref()
+            .map(|name| name.as_str())
+            .unwrap_or("<none>");
         output.push_str(&format!(
-            "- machine {}: size {}, align {}\n",
-            machine_layout.name, machine_layout.layout.size, machine_layout.layout.alignment
+            "- machine {}: attached {}, size {}, align {}\n",
+            machine_layout.name,
+            attached_data,
+            machine_layout.layout.size,
+            machine_layout.layout.alignment
         ));
         write_field_layouts(output, &backend_plan.layouts.fields, machine_layout.fields);
     }

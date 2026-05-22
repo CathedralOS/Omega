@@ -287,9 +287,15 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .first()
                 .copied()
                 .map(|entry_handle| syntax.items.state(entry_handle));
+            let attached_data = value
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str())
+                .unwrap_or("<none>");
             let mut label = format!(
-                "machine {}\nsatisfies: {}\ntargetable states: {}",
+                "machine {}\nattached data: {}\nsatisfies: {}\ntargetable states: {}",
                 value.name.as_str(),
+                attached_data,
                 value.satisfies.len(),
                 state_handles.len().saturating_sub(1)
             );

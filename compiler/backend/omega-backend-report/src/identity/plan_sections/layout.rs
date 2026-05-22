@@ -19,5 +19,8 @@ pub(in crate::identity) fn count_layout_strings(
     }
     for (_, machine_layout) in backend_plan.layouts.machine_layouts.iter() {
         storage.count_program_name_identity(&machine_layout.name);
+        if let Some(attached_data) = &machine_layout.attached_data {
+            storage.count_program_name_identity(attached_data);
+        }
     }
 }
