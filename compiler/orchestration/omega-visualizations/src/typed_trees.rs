@@ -530,7 +530,7 @@ fn append_call_references(
         let StatementNode::Call(call) = statement else {
             continue;
         };
-        let Some(scope_target_id) = call_scope_target_id(
+        let Some(call_target) = call_scope_target(
             program,
             state_scope_nodes,
             machine_scope_nodes,
@@ -539,7 +539,7 @@ fn append_call_references(
         ) else {
             continue;
         };
-        if scope_target_id == source_id {
+        if call_target.scope_id == source_id {
             continue;
         }
 
@@ -550,27 +550,35 @@ fn append_call_references(
                 statement_index
             ),
             format!(
-                "machine reference\n{}\n\ndouble-click to scope target",
+                "{}\n{}\n\ndouble-click to scope target",
+                call_target.label,
                 inline_label(statement_label(program, statement))
             ),
             "machine_ref",
             2,
-            scope_target_id,
+            call_target.scope_id,
         );
         diagram.edge(source_id, &call_id, "call");
         diagram.containment_edge(source_id, &call_id);
     }
 }
 
-fn call_scope_target_id<'nodes>(
+struct CallTarget<'nodes> {
+    scope_id: &'nodes str,
+    label: String,
+}
+
+fn call_scope_target<'nodes>(
     program: &TypedTrees,
     state_scope_nodes: &'nodes [(SymbolHandle, String)],
     machine_scope_nodes: &'nodes [(String, String, String)],
     source_machine_name: &str,
     call: &TableCall,
-) -> Option<&'nodes str> {
+) -> Option<CallTarget<'nodes>> {
     if let Some(scope_id) = scope_id_for_state(state_scope_nodes, call.target_symbol) {
-        return Some(scope_id);
+        let label = machine_scope_label_for_id(machine_scope_nodes, scope_id)
+            .unwrap_or_else(|| format!("{source_machine_name}::{}", call.target.as_str()));
+        return Some(CallTarget { scope_id, label });
     }
 
     let receiver_name = program
@@ -579,11 +587,33 @@ fn call_scope_target_id<'nodes>(
         .last()
         .map(|name| name.as_str())?;
     let receiver_type_name = receiver_type_name(program, source_machine_name, receiver_name)?;
-    machine_scope_id_for_name_and_state(
+    let scope_id = machine_scope_id_for_name_and_state(
         machine_scope_nodes,
         receiver_type_name,
         call.target.as_str(),
-    )
+    )?;
+    Some(CallTarget {
+        scope_id,
+        label: format!("{receiver_type_name}::{}", call.target.as_str()),
+    })
+}
+
+fn machine_scope_label_for_id(
+    machine_scope_nodes: &[(String, String, String)],
+    scope_id: &str,
+) -> Option<String> {
+    machine_scope_nodes
+        .iter()
+        .find(|(_, _, id)| id == scope_id)
+        .map(|(machine_name, state_name, _)| machine_scope_label(machine_name, state_name))
+}
+
+fn machine_scope_label(machine_name: &str, state_name: &str) -> String {
+    if machine_name.contains("::") {
+        machine_name.to_owned()
+    } else {
+        format!("{machine_name}::{state_name}")
+    }
 }
 
 fn receiver_type_name<'program>(
