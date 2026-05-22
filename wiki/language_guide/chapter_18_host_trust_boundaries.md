@@ -51,8 +51,6 @@ trait while exposing the same effect vocabulary to the compiler.
 
 Initial standard effects:
 
-- `pure`: no externally visible effect. This should not be mixed with other
-  effects.
 - `alloc`: may allocate memory through the language/runtime allocator.
 - `dealloc`: may release memory through the language/runtime allocator.
 - `stdin_io`: may read from standard input or an equivalent console input
@@ -87,6 +85,11 @@ Initial standard effects:
   virtual/physical memory regions.
 - `dynamic_link`: may load, unload, resolve, or call through dynamically linked
   code.
+
+Purity is the empty effect set, not a named effect. A machine with no inferred
+or declared effects is effect-free. Adding a boundary call, allocation, wait, or
+other effect later changes that inferred set and must satisfy the caller's
+context like any other effect.
 
 The compiler-side source of truth for this vocabulary is the standard effect
 name list in `omega-effects`; docs and implementation should move together.

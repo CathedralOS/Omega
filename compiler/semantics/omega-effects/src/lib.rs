@@ -2,7 +2,6 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 pub const STANDARD_EFFECT_NAMES: &[&str] = &[
-    "pure",
     "alloc",
     "dealloc",
     "stdin_io",

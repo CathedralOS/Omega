@@ -343,11 +343,9 @@ trait BoundedCounter {
     invariant self.value in range<0, 1000>;
 
     machine Self::increment(&mut self)
-        effects pure
         ensures self.value in range<0, 1000>;
 
-    machine Self::snapshot(&self, out: &mut CounterSnapshot)
-        effects pure;
+    machine Self::snapshot(&self, out: &mut CounterSnapshot);
 }
 ```
 
@@ -355,8 +353,9 @@ This matters because a reusable surface is not only "these calls exist." It is
 also "these calls preserve the obligations callers rely on."
 
 Effect names use the standard vocabulary from Chapter 18. Traits should name
-language-level effects such as `pure`, `alloc`, `stdout_io`, or
-`filesystem_io`, not target-specific syscall/library details.
+language-level effects such as `alloc`, `stdout_io`, or `filesystem_io`, not
+target-specific syscall/library details. An omitted `effects` clause means the
+empty effect set.
 
 For hot swapping and driver-like code, trait effects may be part of replacement
 safety:
@@ -365,7 +364,7 @@ safety:
 trait QuiescentMigratable<Old, New> {
     machine New::from(old: Old, out: &mut New)
         requires exclusive(old)
-        effects pure, alloc
+        effects alloc
         ensures New::invariants(out);
 }
 ```

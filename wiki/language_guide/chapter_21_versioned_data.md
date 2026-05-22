@@ -128,7 +128,7 @@ machine Counter::from_v1(
 )
 satisfies RuntimeMigratable<Counter::v1, Counter>
 effects
-    pure, alloc
+    alloc
 requires
     exclusive(old)
 ensures
@@ -146,7 +146,8 @@ Migrations should describe:
 
 - Source version.
 - Target version.
-- Effects: pure, alloc, fallible, blocking, device-touching, and so on.
+- Effects: alloc, blocking, device-touching, and so on. No effects means the
+  migration is effect-free.
 - Access requirements: shared, exclusive, frozen, pinned, or quiescent.
 - Invariant obligations.
 - Failure and rollback behavior.
@@ -258,7 +259,7 @@ data Counter:
   versions:
     v1, current
   migrations:
-    v1 -> current proven, effects: pure alloc
+    v1 -> current proven, effects: alloc
   replacements:
     Counter v2 replaces v1, requires quiescent
   missing:
