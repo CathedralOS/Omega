@@ -1181,17 +1181,19 @@ function drawNode(node) {
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
-    const scopeTarget = scopeTargetFor(node.id);
-    if (scopedId && scopeTarget && scopeTarget !== scopedId) {
-      setScope(scopeTarget, true);
-      return;
-    }
-    if (isExternalInCurrentScope(node.id)) {
-      setScope(scopeTarget, true);
-      return;
-    }
     const targetId = followTargetFor(node.id);
-    selectNode(targetId || node.id, true);
+    if (targetId) {
+      selectNode(targetId, true);
+      return;
+    }
+
+    const scopeTarget = scopeTargetFor(node.id);
+    if (scopeTarget && scopeTarget !== scopedId) {
+      setScope(scopeTarget, true);
+      return;
+    }
+
+    selectNode(node.id, true);
   });
   group.addEventListener("pointerenter", () => {
     hoveredId = node.id;
