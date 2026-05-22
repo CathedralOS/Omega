@@ -1,7 +1,7 @@
 use crate::pipeline::artifacts::{
     remove_stale_phase_diagrams, write_backend_report, write_control_flow_snapshot,
-    write_emission_plan, write_pipeline_index, write_resolved_snapshot, write_state_graph_snapshot,
-    write_syntax_snapshot, write_timings, write_typed_snapshot,
+    write_emission_plan, write_pipeline_index, write_pipeline_shell, write_resolved_snapshot,
+    write_state_graph_snapshot, write_syntax_snapshot, write_timings, write_typed_snapshot,
 };
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
@@ -76,6 +76,7 @@ impl Compiler {
         if self.options.write_output {
             write_output(&self.options, emitted)?;
             write_timings(&self.options, timings.as_slice())?;
+            write_pipeline_shell(&self.options)?;
         }
 
         Ok(CompileReport {

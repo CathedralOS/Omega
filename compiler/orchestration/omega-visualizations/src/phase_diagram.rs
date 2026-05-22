@@ -13,6 +13,13 @@ struct PhaseDiagramEdge {
     kind: String,
 }
 
+pub struct PipelineEmbeddedPage<'a> {
+    pub number: &'a str,
+    pub label: &'a str,
+    pub id: &'a str,
+    pub html: &'a str,
+}
+
 pub struct PhaseDiagramBuilder {
     title: String,
     nodes: Vec<PhaseDiagramNode>,
@@ -20,14 +27,14 @@ pub struct PhaseDiagramBuilder {
 }
 
 const PIPELINE_PAGES: &[(&str, &str, &str)] = &[
-    ("00", "Timings", "00_timings.html"),
-    ("02", "Syntax", "02_syntax_trees.html"),
-    ("03", "Symbols", "03_symbol_resolved_trees.html"),
-    ("04", "Typed", "04_typed_trees.html"),
-    ("06", "State Graph", "06_state_graph.html"),
-    ("07", "Control Flow", "07_control_flow.html"),
-    ("09", "Backend", "09_backend_report.html"),
-    ("11", "Emission", "11_emission.html"),
+    ("00", "Timings", "timings"),
+    ("02", "Syntax", "syntax"),
+    ("03", "Symbols", "symbols"),
+    ("04", "Typed", "typed"),
+    ("06", "State Graph", "state-graph"),
+    ("07", "Control Flow", "control-flow"),
+    ("09", "Backend", "backend"),
+    ("11", "Emission", "emission"),
 ];
 
 impl PhaseDiagramBuilder {
@@ -118,18 +125,59 @@ pub fn pipeline_index_html() -> String {
     html.push_str("<header><p>Omega build report</p><h1>Pipeline Visualizations</h1>");
     html.push_str("<p class=\"lede\">One landing page for the generated compiler artifacts. Open a phase directly, then use the embedded phase nav to move sideways.</p></header>\n");
     html.push_str("<main class=\"grid\">\n");
-    for (number, label, href) in PIPELINE_PAGES {
-        html.push_str("<a class=\"card\" target=\"_top\" href=\"");
-        html.push_str(&escape_html(href));
+    for (number, label, id) in PIPELINE_PAGES {
+        html.push_str("<a class=\"card\" target=\"_top\" href=\"00_pipeline.html#");
+        html.push_str(&escape_html(id));
         html.push_str("\"><span>");
         html.push_str(&escape_html(number));
         html.push_str("</span><strong>");
         html.push_str(&escape_html(label));
         html.push_str("</strong><small>");
-        html.push_str(&escape_html(href));
+        html.push('#');
+        html.push_str(&escape_html(id));
         html.push_str("</small></a>\n");
     }
     html.push_str("</main>\n</body>\n</html>\n");
+    html
+}
+
+pub fn pipeline_shell_html(pages: &[PipelineEmbeddedPage<'_>]) -> String {
+    let mut html = String::new();
+    html.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
+    html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    html.push_str("<title>Pipeline Visualizations</title>\n<style>\n");
+    html.push_str(SHELL_STYLE);
+    html.push_str("</style>\n</head>\n<body>\n<aside>\n<h1>Pipeline Visualizations</h1>\n");
+    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\">");
+    for page in pages {
+        html.push_str("<a href=\"#");
+        html.push_str(&escape_html(page.id));
+        html.push_str("\" data-page=\"");
+        html.push_str(&escape_html(page.id));
+        html.push_str("\"><span>");
+        html.push_str(&escape_html(page.number));
+        html.push_str("</span> ");
+        html.push_str(&escape_html(page.label));
+        html.push_str("</a>");
+    }
+    html.push_str("</nav>\n<p id=\"status\"></p>\n</aside>\n<main><iframe id=\"stage\" title=\"Pipeline stage\"></iframe></main>\n<script>\nconst PAGES = [");
+    for (index, page) in pages.iter().enumerate() {
+        if index > 0 {
+            html.push(',');
+        }
+        html.push_str("{\"number\":");
+        push_json_string(&mut html, page.number);
+        html.push_str(",\"label\":");
+        push_json_string(&mut html, page.label);
+        html.push_str(",\"id\":");
+        push_json_string(&mut html, page.id);
+        html.push_str(",\"html\":");
+        push_json_string(&mut html, page.html);
+        html.push('}');
+    }
+    html.push_str("];\n");
+    html.push_str(SHELL_SCRIPT);
+    html.push_str("\n</script>\n</body>\n</html>\n");
     html
 }
 
@@ -153,9 +201,9 @@ pub fn text_report_html(title: &str, contents: &str) -> String {
 
 fn push_pipeline_nav(html: &mut String) {
     html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a target=\"_top\" href=\"00_pipeline.html\">Index</a>");
-    for (number, label, href) in PIPELINE_PAGES {
-        html.push_str("<a target=\"_top\" href=\"");
-        html.push_str(&escape_html(href));
+    for (number, label, id) in PIPELINE_PAGES {
+        html.push_str("<a target=\"_top\" href=\"00_pipeline.html#");
+        html.push_str(&escape_html(id));
         html.push_str("\"><span>");
         html.push_str(&escape_html(number));
         html.push_str("</span> ");
@@ -210,6 +258,9 @@ fn push_json_string(output: &mut String, value: &str) {
         match ch {
             '"' => output.push_str("\\\""),
             '\\' => output.push_str("\\\\"),
+            '<' => output.push_str("\\u003c"),
+            '>' => output.push_str("\\u003e"),
+            '&' => output.push_str("\\u0026"),
             '\n' => output.push_str("\\n"),
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
@@ -472,6 +523,90 @@ h1 { font-size: clamp(36px, 7vw, 86px); line-height: 0.92; margin: 0; }
 .card strong { display: block; font-size: 22px; margin-top: auto; }
 .card small { color: var(--muted); margin-top: 10px; }
 "#;
+
+const SHELL_STYLE: &str = r#"
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+  --accent: #4dd4c6;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) 1fr;
+  background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
+  color: var(--text);
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+aside {
+  border-right: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  min-height: 100vh;
+  padding: 18px;
+  z-index: 2;
+}
+h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover,
+.phase-nav a.active {
+  background: #263247;
+  border-color: var(--accent);
+}
+.phase-nav span { color: var(--muted); }
+#status { color: var(--muted); margin-top: 16px; }
+main { min-width: 0; min-height: 0; }
+iframe {
+  border: 0;
+  display: block;
+  height: 100vh;
+  width: 100%;
+}
+"#;
+
+const SHELL_SCRIPT: &str = r##"
+const frame = document.getElementById("stage");
+const status = document.getElementById("status");
+const pagesById = new Map(PAGES.map(page => [page.id, page]));
+
+function selectedId() {
+  const hash = window.location.hash.slice(1);
+  return pagesById.has(hash) ? hash : PAGES[0]?.id;
+}
+
+function renderSelectedPage() {
+  const id = selectedId();
+  const page = pagesById.get(id);
+  if (!page) return;
+  frame.srcdoc = page.html;
+  status.textContent = `${page.number} ${page.label}`;
+  document.querySelectorAll(".phase-nav a").forEach(link => {
+    link.classList.toggle("active", link.dataset.page === id);
+  });
+}
+
+window.addEventListener("hashchange", renderSelectedPage);
+if (!window.location.hash && PAGES.length > 0) {
+  history.replaceState(null, "", `#${PAGES[0].id}`);
+}
+renderSelectedPage();
+"##;
 
 const TEXT_REPORT_STYLE: &str = r#"
 :root {

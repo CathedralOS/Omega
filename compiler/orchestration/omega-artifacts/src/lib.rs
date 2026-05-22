@@ -581,9 +581,9 @@ fn html_report(title: &str, contents: &str) -> String {
 
 fn push_report_nav(html: &mut String) {
     html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a target=\"_top\" href=\"00_pipeline.html\">Index</a>");
-    for (number, label, href) in REPORT_LINKS {
-        html.push_str("<a target=\"_top\" href=\"");
-        html.push_str(&escape_html(href));
+    for (number, label, id) in REPORT_LINKS {
+        html.push_str("<a target=\"_top\" href=\"00_pipeline.html#");
+        html.push_str(&escape_html(id));
         html.push_str("\"><span>");
         html.push_str(&escape_html(number));
         html.push_str("</span> ");
@@ -602,14 +602,14 @@ fn escape_html(value: &str) -> String {
 }
 
 const REPORT_LINKS: &[(&str, &str, &str)] = &[
-    ("00", "Timings", "00_timings.html"),
-    ("02", "Syntax", "02_syntax_trees.html"),
-    ("03", "Symbols", "03_symbol_resolved_trees.html"),
-    ("04", "Typed", "04_typed_trees.html"),
-    ("06", "State Graph", "06_state_graph.html"),
-    ("07", "Control Flow", "07_control_flow.html"),
-    ("09", "Backend", "09_backend_report.html"),
-    ("11", "Emission", "11_emission.html"),
+    ("00", "Timings", "timings"),
+    ("02", "Syntax", "syntax"),
+    ("03", "Symbols", "symbols"),
+    ("04", "Typed", "typed"),
+    ("06", "State Graph", "state-graph"),
+    ("07", "Control Flow", "control-flow"),
+    ("09", "Backend", "backend"),
+    ("11", "Emission", "emission"),
 ];
 
 const REPORT_STYLE: &str = r#"
