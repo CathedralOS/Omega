@@ -296,9 +296,10 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
         Item::Domain(value) => {
             let target = type_reference_label(syntax, value.target_type);
             format!(
-                "domain {}\ntarget: {}\nbody tokens: {}",
+                "domain {}\ntarget: {}\nfacts: {}\nbody tokens: {}",
                 value.name.as_str(),
                 target,
+                syntax.items.domain_facts(value.facts).len(),
                 value.body_token_count
             )
         }

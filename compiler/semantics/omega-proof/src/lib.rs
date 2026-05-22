@@ -3,7 +3,8 @@
 use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, Platform, StateSignature,
+    CapabilityContract, CapabilityContractKind, DataMember, DomainFact, Item, Machine, Platform,
+    StateSignature,
 };
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -28,6 +29,8 @@ pub struct InvariantSurface {
 pub struct DomainSurface {
     pub name: String,
     pub target_type: String,
+    pub fact_count: usize,
+    pub membership_fact_count: usize,
     pub body_token_count: usize,
 }
 
@@ -75,6 +78,13 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 report.domains.insert(DomainSurface {
                     name: domain.name.to_string(),
                     target_type: type_reference_name(syntax_trees, domain.target_type),
+                    fact_count: syntax_trees.items.domain_facts(domain.facts).len(),
+                    membership_fact_count: syntax_trees
+                        .items
+                        .domain_facts(domain.facts)
+                        .iter()
+                        .filter(|fact| matches!(fact, DomainFact::Membership(_)))
+                        .count(),
                     body_token_count: domain.body_token_count,
                 });
                 collect_bounded_type_site(
@@ -468,6 +478,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
+            facts: HandleSpan::empty(),
             body_token_count: 3,
         }));
 
@@ -477,6 +488,8 @@ mod tests {
         let (_, domain) = report.domains.iter().next().expect("domain surface");
         assert_eq!(domain.name, "NonEmpty");
         assert_eq!(domain.target_type, "String");
+        assert_eq!(domain.fact_count, 0);
+        assert_eq!(domain.membership_fact_count, 0);
         assert_eq!(domain.body_token_count, 3);
     }
 

@@ -1,4 +1,4 @@
-use crate::{data, expression, signature, snapshot, state, statement, tables, types};
+use crate::{data, domain, expression, signature, snapshot, state, statement, tables, types};
 use omega_core::arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use omega_core::diagnostics::PhaseSnapshot;
 use omega_core::symbols::SymbolTable;
@@ -32,6 +32,8 @@ pub struct SymbolResolvedTableStorage {
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub domain_facts: Arena<domain::DomainFact>,
+    pub domain_path_members: Arena<crate::name::DiagnosticName>,
     pub machine_contained_objects: Arena<crate::machine::ContainedObject>,
     pub machine_owned_data: Arena<crate::machine::OwnedData>,
     pub machine_trait_conformances: Arena<crate::machine::TraitConformance>,
@@ -72,6 +74,20 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .data_type_parameters
+            .span_or_empty(span)
+    }
+
+    pub fn domain_facts(&self, span: HandleSpan<domain::DomainFact>) -> &[domain::DomainFact] {
+        self.tables.declarations.domain_facts.span_or_empty(span)
+    }
+
+    pub fn domain_path_members(
+        &self,
+        span: HandleSpan<crate::name::DiagnosticName>,
+    ) -> &[crate::name::DiagnosticName] {
+        self.tables
+            .declarations
+            .domain_path_members
             .span_or_empty(span)
     }
 

@@ -1,6 +1,6 @@
 use crate::TypedTrees;
 use crate::data::{DataDefinition, DataMember};
-use crate::domain::DomainDefinition;
+use crate::domain::{DomainDefinition, DomainFact};
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
@@ -147,7 +147,21 @@ pub enum DataMemberSnapshot {
 pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
+    pub facts: Vec<DomainFactSnapshot>,
     pub body_token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DomainFactSnapshot {
+    Expression {
+        value: ExpressionSnapshot,
+    },
+    Membership {
+        value: ExpressionSnapshot,
+        domain: Vec<String>,
+        domain_symbol: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -416,8 +430,33 @@ fn domain_definition_snapshot(
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
         target_type: type_reference_snapshot(program, domain.target_type),
+        facts: domain_fact_snapshots(program, domain),
         body_token_count: domain.body_token_count,
     }
+}
+
+fn domain_fact_snapshots(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+) -> Vec<DomainFactSnapshot> {
+    program
+        .domain_facts(domain)
+        .iter()
+        .map(|fact| match fact {
+            DomainFact::Expression(expression) => DomainFactSnapshot::Expression {
+                value: expression_snapshot(program, *expression),
+            },
+            DomainFact::Membership(membership) => DomainFactSnapshot::Membership {
+                value: expression_snapshot(program, membership.value),
+                domain: program
+                    .domain_path_members(membership.domain)
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                domain_symbol: membership.domain_symbol.arena_index(),
+            },
+        })
+        .collect()
 }
 
 fn invariant_definition_snapshot(

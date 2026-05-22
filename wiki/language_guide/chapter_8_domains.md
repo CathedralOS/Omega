@@ -63,17 +63,15 @@ data Game {
     winner: Option<PlayerId>;
 }
 
-domain Game::NewGame
-    when self.phase == GamePhase.NewGame
-{
+domain Game::NewGame {
+    self.phase == GamePhase.NewGame;
     self.turns == 0;
     self.board.empty;
     self.winner == None;
 }
 
-domain Game::Playing
-    when self.phase == GamePhase.Playing
-{
+domain Game::Playing {
+    self.phase == GamePhase.Playing;
     self.winner == None;
 }
 
@@ -83,23 +81,6 @@ machine Game::start_game(&mut self)
 {
 }
 ```
-
-Domains may also be declared inside a `data` block as sugar when that is easier
-to read:
-
-```omega
-data Player {
-    health: i32;
-    in_cutscene: bool;
-
-    domain Dead {
-        health <= 0;
-        in_cutscene == false;
-    }
-}
-```
-
-That desugars to `domain Player::Dead { self.health <= 0; ... }`.
 
 ## Domains And Invariants
 
@@ -126,7 +107,9 @@ domain Player::Dead {
 ```
 
 The field constraint defines ordinary `Player` validity. The domains name
-semantic subsets inside that valid space.
+semantic subsets inside that valid space. A domain may include another domain
+with `self in Type::Domain`, which imports that domain's proof facts instead of
+duplicating them.
 
 A domain may not specify facts that violate the data or field invariants of the
 type it classifies.

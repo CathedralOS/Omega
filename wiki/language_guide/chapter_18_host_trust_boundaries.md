@@ -233,7 +233,7 @@ not invent special "initialized" words when a domain is what it means:
 
 ```omega
 domain String::NonEmpty {
-    length > 0
+    self.length > 0;
 }
 
 boundary trait Filesystem {

@@ -284,6 +284,7 @@ pub struct DataVariant {
 pub struct DomainDefinition {
     pub name: Identifier,
     pub target_type: crate::types::TypeReferenceHandle,
+    pub facts: HandleSpan<DomainFact>,
     pub body_token_count: usize,
 }
 
@@ -292,7 +293,35 @@ impl Default for DomainDefinition {
         Self {
             name: Identifier::generated(""),
             target_type: crate::types::TypeReferenceHandle::invalid(),
+            facts: HandleSpan::empty(),
             body_token_count: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DomainFact {
+    Expression(crate::expression::ExpressionHandle),
+    Membership(DomainMembershipFact),
+}
+
+impl Default for DomainFact {
+    fn default() -> Self {
+        Self::Expression(crate::expression::ExpressionHandle::invalid())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DomainMembershipFact {
+    pub value: crate::expression::ExpressionHandle,
+    pub domain: HandleSpan<Identifier>,
+}
+
+impl Default for DomainMembershipFact {
+    fn default() -> Self {
+        Self {
+            value: crate::expression::ExpressionHandle::invalid(),
+            domain: HandleSpan::empty(),
         }
     }
 }
@@ -368,6 +397,7 @@ struct DeclarationStorage {
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
+    domain_facts: Arena<DomainFact>,
     target_host_settings: Arena<TargetHostSetting>,
     trust_policies: Arena<TrustPolicy>,
 }
@@ -446,6 +476,10 @@ impl ItemTable {
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
         self.declaration_storage.data_members.span_or_empty(span)
+    }
+
+    pub fn domain_facts(&self, span: HandleSpan<DomainFact>) -> &[DomainFact] {
+        self.declaration_storage.domain_facts.span_or_empty(span)
     }
 
     pub fn target_host_settings(
@@ -581,6 +615,10 @@ impl ItemTable {
         self.declaration_storage.data_members.append(member)
     }
 
+    pub fn append_domain_fact(&mut self, fact: DomainFact) -> Handle<DomainFact> {
+        self.declaration_storage.domain_facts.append(fact)
+    }
+
     pub fn append_target_host_setting(
         &mut self,
         setting: TargetHostSetting,
@@ -677,6 +715,7 @@ impl DeclarationStorage {
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
+            domain_facts: Arena::new(),
             target_host_settings: Arena::new(),
             trust_policies: Arena::new(),
         }

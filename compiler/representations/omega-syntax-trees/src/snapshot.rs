@@ -3,7 +3,7 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, DomainFact, Item,
     LibraryFunction, StateParameterNode, StateSignature, TrustLevel,
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -52,6 +52,7 @@ pub enum ItemSnapshot {
     Domain {
         name: IdentifierSnapshot,
         target_type: TypeReferenceSnapshot,
+        facts: Vec<DomainFactSnapshot>,
         body_token_count: usize,
     },
     Invariant {
@@ -142,6 +143,18 @@ pub enum CapabilityContractKindSnapshot {
     Ensures,
     Requires,
     Trusted { trust_level: TrustLevelSnapshot },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DomainFactSnapshot {
+    Expression {
+        expression: ExpressionSnapshot,
+    },
+    Membership {
+        value: ExpressionSnapshot,
+        domain: Vec<IdentifierSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -424,6 +437,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(&value.name),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
+            facts: snapshot_domain_facts(syntax_trees, value.facts),
             body_token_count: value.body_token_count,
         },
         Item::Invariant(value) => ItemSnapshot::Invariant {
@@ -588,6 +602,34 @@ fn snapshot_capability_contract(contract: &CapabilityContract) -> CapabilityCont
             },
         },
         token_count: contract.token_count,
+    }
+}
+
+fn snapshot_domain_facts(
+    syntax_trees: &SyntaxTrees,
+    facts: omega_core::arena::HandleSpan<DomainFact>,
+) -> Vec<DomainFactSnapshot> {
+    syntax_trees
+        .items
+        .domain_facts(facts)
+        .iter()
+        .map(|fact| snapshot_domain_fact(syntax_trees, fact))
+        .collect()
+}
+
+fn snapshot_domain_fact(syntax_trees: &SyntaxTrees, fact: &DomainFact) -> DomainFactSnapshot {
+    match fact {
+        DomainFact::Expression(expression) => DomainFactSnapshot::Expression {
+            expression: snapshot_expression_handle(syntax_trees, *expression),
+        },
+        DomainFact::Membership(membership) => DomainFactSnapshot::Membership {
+            value: snapshot_expression_handle(syntax_trees, membership.value),
+            domain: snapshot_identifier_slice(
+                syntax_trees
+                    .items
+                    .identifier_path_members(membership.domain),
+            ),
+        },
     }
 }
 

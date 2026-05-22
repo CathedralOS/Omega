@@ -14,6 +14,7 @@ pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<
     let symbols = build_symbol_table(program, sources);
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
+    assign_domain_fact_symbols(program, &symbols);
     assign_statement_call_symbols(program, &symbols);
     program.symbols = symbols;
 }
@@ -727,6 +728,34 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             }
         }
     });
+}
+
+fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+    let domain_fact_spans = program
+        .domain_definitions
+        .iter()
+        .map(|domain| domain.facts)
+        .collect::<Vec<_>>();
+    let domain_path_members = &program.tables.declarations.domain_path_members;
+    let domain_facts = &mut program.tables.declarations.domain_facts;
+
+    for facts in domain_fact_spans {
+        for fact in domain_facts.span_mut_or_empty(facts) {
+            let omega_symbol_resolved_trees::domain::DomainFact::Membership(membership) = fact
+            else {
+                continue;
+            };
+            let name = domain_path_members
+                .span_or_empty(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            membership.domain_symbol = symbols
+                .find_child_by_name_and_kind(symbols.root(), &name, SymbolKind::Domain)
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+    }
 }
 
 struct MachineScope<'program> {
