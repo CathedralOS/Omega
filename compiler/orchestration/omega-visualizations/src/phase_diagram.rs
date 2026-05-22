@@ -103,7 +103,6 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
         "<label><input id=\"show-data\" type=\"checkbox\" checked> Data definitions</label>\n",
     );
     html.push_str("<p id=\"counts\"></p>\n");
-    html.push_str("<nav id=\"outline\" aria-label=\"Graph outline\"></nav>\n");
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
     html.push_str("</aside>\n");
     html.push_str("<main><svg id=\"canvas\" role=\"img\" aria-label=\"Phase graph\"><g id=\"viewport\"><g id=\"edges\"></g><g id=\"nodes\"></g></g></svg></main>\n");
@@ -343,7 +342,6 @@ button {
 button:hover { background: #2b3747; }
 label { display: block; color: var(--muted); margin: 10px 0; }
 #counts { color: var(--muted); }
-#outline,
 #scope-outline {
   border: 1px solid #283343;
   border-radius: 12px;
@@ -356,7 +354,6 @@ label { display: block; color: var(--muted); margin: 10px 0; }
 #scope-outline {
   max-height: calc(100vh - 150px);
 }
-#outline button,
 #scope-outline button {
   width: 100%;
   border: 0;
@@ -371,12 +368,8 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#outline button:hover,
 #scope-outline button:hover { background: #202a38; }
-#outline button.scoped,
 #scope-outline button.scoped { background: #263247; color: #ffffff; }
-#outline details { margin-left: 10px; }
-#outline summary,
 #scope-outline summary {
   color: var(--muted);
   cursor: pointer;
@@ -652,7 +645,6 @@ const nodeLayer = document.getElementById("nodes");
 const search = document.getElementById("search");
 const details = document.getElementById("details");
 const counts = document.getElementById("counts");
-const outline = document.getElementById("outline");
 const scopePanel = document.getElementById("scope-panel");
 const scopeTitle = document.getElementById("scope-title");
 const scopeSearch = document.getElementById("scope-search");
@@ -696,27 +688,48 @@ let scopedId = null;
 let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
 
-function layoutGraph() {
+function layoutGraph(allowedIds = null) {
   positions.clear();
-  if (!nodeById.has("root")) return fallbackLayout();
-  const rootWidth = layoutSubtreeWidth("root", new Set());
-  layoutSubtree("root", LEFT + Math.max(0, (rootWidth - nodeBox("root").width) / 2), TOP, new Set());
+  const allowed = allowedIds && allowedIds.size > 0
+    ? new Set(Array.from(allowedIds).filter(id => nodeById.has(id)))
+    : new Set(GRAPH.nodes.map(node => node.id));
+  if (allowed.size === 0) return fallbackLayout(allowed);
+
+  const roots = Array.from(allowed)
+    .filter(id => !hasContainmentParentIn(id, allowed))
+    .sort((a, b) => (nodeById.get(a)?.rank || 0) - (nodeById.get(b)?.rank || 0));
+  const hasTreeShape = roots.some(id => containmentChildrenFor(id, allowed).length > 0);
+  if (!hasTreeShape) return fallbackLayout(allowed);
+
+  let cursorX = LEFT;
+  for (const rootId of roots) {
+    const width = layoutSubtreeWidth(rootId, new Set(), allowed);
+    layoutSubtree(rootId, cursorX, TOP, new Set(), allowed);
+    cursorX += width + SECTION_GAP_X;
+  }
 }
 
-function layoutStandalone(id) {
-  const y = TOP + Array.from(positions.values()).reduce((sum, box) => sum + box.height + ROW_GAP, 0);
-  placeNode(id, LEFT, y);
+function containmentChildrenFor(id, allowed) {
+  return (containmentChildren.get(id) || [])
+    .filter(childId => allowed.has(childId) && nodeById.has(childId));
 }
 
-function layoutSubtreeWidth(id, seen) {
+function hasContainmentParentIn(id, allowed) {
+  for (const [parent, children] of containmentChildren.entries()) {
+    if (!allowed.has(parent)) continue;
+    if (children.some(childId => childId === id && allowed.has(childId))) return true;
+  }
+  return false;
+}
+
+function layoutSubtreeWidth(id, seen, allowed) {
   if (seen.has(id)) {
     return nodeBox(id).width;
   }
   seen.add(id);
 
   const box = nodeBox(id);
-  const children = (containmentChildren.get(id) || [])
-    .filter(childId => nodeById.has(childId));
+  const children = containmentChildrenFor(id, allowed);
 
   if (children.length === 0) {
     seen.delete(id);
@@ -724,14 +737,14 @@ function layoutSubtreeWidth(id, seen) {
   }
 
   const childrenWidth = children
-    .map(childId => layoutSubtreeWidth(childId, seen))
+    .map(childId => layoutSubtreeWidth(childId, seen, allowed))
     .reduce((sum, width) => sum + width, 0)
     + TREE_SIBLING_GAP * (children.length - 1);
   seen.delete(id);
   return Math.max(box.width, childrenWidth);
 }
 
-function layoutSubtree(id, x, y, seen) {
+function layoutSubtree(id, x, y, seen, allowed) {
   if (seen.has(id)) {
     placeNode(id, x, y);
     return nodeBox(id).width;
@@ -739,9 +752,8 @@ function layoutSubtree(id, x, y, seen) {
   seen.add(id);
 
   const box = nodeBox(id);
-  const children = (containmentChildren.get(id) || [])
-    .filter(childId => nodeById.has(childId));
-  const subtreeWidth = layoutSubtreeWidth(id, new Set());
+  const children = containmentChildrenFor(id, allowed);
+  const subtreeWidth = layoutSubtreeWidth(id, new Set(), allowed);
   placeNode(id, x + Math.max(0, (subtreeWidth - box.width) / 2), y);
 
   if (children.length === 0) {
@@ -752,8 +764,8 @@ function layoutSubtree(id, x, y, seen) {
   let cursorX = x;
   const childY = y + box.height + TREE_LEVEL_GAP;
   for (const childId of children) {
-    const childWidth = layoutSubtreeWidth(childId, seen);
-    layoutSubtree(childId, cursorX, childY, seen);
+    const childWidth = layoutSubtreeWidth(childId, seen, allowed);
+    layoutSubtree(childId, cursorX, childY, seen, allowed);
     cursorX += childWidth + TREE_SIBLING_GAP;
   }
 
@@ -761,29 +773,34 @@ function layoutSubtree(id, x, y, seen) {
   return subtreeWidth;
 }
 
-function fallbackLayout() {
-  const outgoing = new Map(GRAPH.nodes.map(node => [node.id, []]));
-  const incomingCount = new Map(GRAPH.nodes.map(node => [node.id, 0]));
+function fallbackLayout(allowedIds = null) {
+  const allowed = allowedIds && allowedIds.size > 0
+    ? allowedIds
+    : new Set(GRAPH.nodes.map(node => node.id));
+  const ids = Array.from(allowed).filter(id => nodeById.has(id));
+  const outgoing = new Map(ids.map(id => [id, []]));
+  const incomingCount = new Map(ids.map(id => [id, 0]));
   for (const edge of GRAPH.edges) {
+    if (!allowed.has(edge.from) || !allowed.has(edge.to)) continue;
     if (!outgoing.has(edge.from) || !incomingCount.has(edge.to)) continue;
     outgoing.get(edge.from).push(edge.to);
     incomingCount.set(edge.to, incomingCount.get(edge.to) + 1);
   }
 
   const ranks = new Map();
-  const roots = GRAPH.nodes
-    .filter(node => (incomingCount.get(node.id) || 0) === 0)
-    .map(node => node.id);
-  const pendingRoots = roots.length > 0 ? roots : GRAPH.nodes.slice(0, 1).map(node => node.id);
+  const roots = ids.filter(id => (incomingCount.get(id) || 0) === 0);
+  const pendingRoots = roots.length > 0 ? roots : ids.slice(0, 1);
 
   for (const root of pendingRoots) assignFallbackRanks(root, 0, ranks, outgoing);
-  for (const node of GRAPH.nodes) {
-    if (!ranks.has(node.id)) assignFallbackRanks(node.id, node.rank, ranks, outgoing);
+  for (const id of ids) {
+    const node = nodeById.get(id);
+    if (!ranks.has(id)) assignFallbackRanks(id, node.rank, ranks, outgoing);
   }
 
   const rowsByRank = new Map();
   const rowHeightsByRank = new Map();
-  GRAPH.nodes.forEach(node => {
+  ids.forEach(id => {
+    const node = nodeById.get(id);
     const rank = ranks.get(node.id) || 0;
     const row = rowsByRank.get(rank) || 0;
     rowsByRank.set(rank, row + 1);
@@ -792,7 +809,8 @@ function fallbackLayout() {
     rowHeightsByRank.set(rank, rankHeights);
   });
 
-  GRAPH.nodes.forEach(node => {
+  ids.forEach(id => {
+    const node = nodeById.get(id);
     const rank = ranks.get(node.id) || 0;
     const rankHeights = rowHeightsByRank.get(rank) || [];
     const placedInRank = Array.from(positions.keys())
@@ -889,36 +907,9 @@ function render() {
   nodeLayer.replaceChildren();
   for (const edge of GRAPH.edges) drawEdge(edge);
   for (const node of GRAPH.nodes) drawNode(node);
-  renderOutline();
   renderScopeOutline();
   calculateBounds();
   applyFilters();
-}
-
-function renderOutline() {
-  outline.replaceChildren();
-  if (!nodeById.has("root")) return renderFlatOutline();
-  const rootId = "root";
-  const topLevel = containmentChildren.get(rootId) || [];
-  let sectionCount = 0;
-  const groups = [
-    ["Data", topLevel.filter(id => nodeById.get(id)?.kind === "data")],
-    ["Traits", topLevel.filter(id => nodeById.get(id)?.kind === "trait")],
-    ["Machines", topLevel.filter(id => nodeById.get(id)?.kind === "machine")],
-    ["Other", topLevel.filter(id => !["file", "data", "trait", "machine"].includes(nodeById.get(id)?.kind))]
-  ];
-  for (const [title, ids] of groups) {
-    if (ids.length === 0) continue;
-    const section = document.createElement("details");
-    section.open = title !== "Data";
-    const summary = document.createElement("summary");
-    summary.textContent = `${title} (${ids.length})`;
-    section.appendChild(summary);
-    for (const id of ids) section.appendChild(outlineNode(id, 0));
-    outline.appendChild(section);
-    sectionCount += 1;
-  }
-  outline.classList.toggle("hidden", sectionCount === 0);
 }
 
 function renderScopeOutline() {
@@ -944,28 +935,6 @@ function renderScopeOutline() {
 
   const tree = buildScopeTree(visibleIds);
   appendScopeTree(scopeOutline, tree, 0, Boolean(query));
-}
-
-function renderFlatOutline() {
-  const groups = new Map();
-  for (const node of GRAPH.nodes) {
-    const group = outlineLabel(node).includes("::")
-      ? outlineLabel(node).split("::")[0]
-      : node.kind;
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push(node.id);
-  }
-
-  for (const [title, ids] of groups) {
-    const section = document.createElement("details");
-    section.open = true;
-    const summary = document.createElement("summary");
-    summary.textContent = `${title} (${ids.length})`;
-    section.appendChild(summary);
-    for (const id of ids) section.appendChild(outlineNode(id, 0));
-    outline.appendChild(section);
-  }
-  outline.classList.toggle("hidden", groups.size === 0);
 }
 
 function primaryScopes() {
@@ -1040,47 +1009,9 @@ function appendScopeTree(parent, tree, depth, forceOpen) {
   }
 }
 
-function outlineNode(id, depth) {
-  const node = nodeById.get(id);
-  const children = (containmentChildren.get(id) || []).filter(childId => nodeById.has(childId));
-  if (children.length === 0 || depth >= 4) {
-    const button = document.createElement("button");
-    button.textContent = outlineLabel(node);
-    button.title = node.label;
-    button.dataset.scopeId = id;
-    button.addEventListener("click", event => {
-      if (event.metaKey || event.ctrlKey) {
-        selectNode(id, true);
-      } else {
-        setScope(id, true);
-      }
-    });
-    return button;
-  }
-  const detailsElement = document.createElement("details");
-  const summary = document.createElement("summary");
-  summary.textContent = outlineLabel(node);
-  summary.title = node.label;
-  summary.addEventListener("click", event => {
-    if (event.metaKey || event.ctrlKey) {
-      event.preventDefault();
-      selectNode(id, true);
-    }
-  });
-  detailsElement.appendChild(summary);
-  const scopeButton = document.createElement("button");
-  scopeButton.textContent = `Scope ${outlineLabel(node)}`;
-  scopeButton.title = node.label;
-  scopeButton.dataset.scopeId = id;
-  scopeButton.addEventListener("click", () => setScope(id, true));
-  detailsElement.appendChild(scopeButton);
-  for (const childId of children) detailsElement.appendChild(outlineNode(childId, depth + 1));
-  return detailsElement;
-}
-
-function outlineScopeButton(id, node) {
+function scopeButton(id, node) {
   const button = document.createElement("button");
-  button.textContent = outlineLabel(node);
+  button.textContent = scopePath(id).slice(-1)[0] || outlineLabel(node);
   button.title = node.label;
   button.dataset.scopeId = id;
   button.addEventListener("click", event => {
@@ -1090,12 +1021,6 @@ function outlineScopeButton(id, node) {
       setScope(id, true);
     }
   });
-  return button;
-}
-
-function scopeButton(id, node) {
-  const button = outlineScopeButton(id, node);
-  button.textContent = scopePath(id).slice(-1)[0] || outlineLabel(node);
   return button;
 }
 
@@ -1247,7 +1172,7 @@ function setScope(id, fit) {
 function clearGraphScope(fit) {
   scopedId = null;
   selectedId = null;
-  details.textContent = "Full graph scope. Click an outline item to focus a slice.";
+  details.textContent = "Full graph scope. Click a scope item to focus a slice.";
   updateFollowTarget();
   applyFilters();
   if (fit) fitGraph();
@@ -1288,6 +1213,20 @@ function scopedNodeSet(id) {
   return result;
 }
 
+function updateGeometry() {
+  for (const node of GRAPH.nodes) {
+    const box = positions.get(node.id);
+    const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
+    if (element && box) element.setAttribute("transform", `translate(${box.x} ${box.y})`);
+  }
+  for (const edgeElement of document.querySelectorAll(".edge")) {
+    edgeElement.setAttribute(
+      "d",
+      edgePath(edgeElement.dataset.from, edgeElement.dataset.to, edgeElement.dataset.kind)
+    );
+  }
+}
+
 function applyFilters() {
   const query = search.value.trim().toLowerCase();
   const showDataNodes = showData.checked;
@@ -1316,12 +1255,11 @@ function applyFilters() {
     edgeElement.classList.toggle("hidden", !visibleKind || !fromVisible || !toVisible);
     edgeElement.classList.toggle("dim", query && !visibleSearch);
   }
-  outline.querySelectorAll("button[data-scope-id]").forEach(button => {
-    button.classList.toggle("scoped", button.dataset.scopeId === scopedId);
-  });
   scopeOutline.querySelectorAll("button[data-scope-id]").forEach(button => {
     button.classList.toggle("scoped", button.dataset.scopeId === scopedId);
   });
+  layoutGraph(visibleNodeIds);
+  updateGeometry();
   calculateBounds();
   const visibleEdges = Array.from(document.querySelectorAll(".edge")).filter(edge => !edge.classList.contains("hidden")).length;
   const scopeLabel = scopedId ? ` scoped to ${outlineLabel(nodeById.get(scopedId))}` : "";
