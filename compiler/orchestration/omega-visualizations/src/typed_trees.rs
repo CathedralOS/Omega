@@ -353,7 +353,12 @@ fn append_machine_relationships(
     root_index: u32,
     machine: &Machine,
 ) {
-    if let Some(data_id) = data_id_for_name(data_nodes, machine.name.as_str()) {
+    let attached_data_name = machine
+        .attached_data
+        .as_ref()
+        .map(|name| name.as_str())
+        .unwrap_or_else(|| machine.name.as_str());
+    if let Some(data_id) = data_id_for_name(data_nodes, attached_data_name) {
         diagram.edge(data_id, machine_id, "implements_data");
     }
 
