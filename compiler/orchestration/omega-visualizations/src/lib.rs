@@ -7,9 +7,9 @@ mod typed_trees;
 
 pub use control_flow::control_flow_html;
 pub use phase_diagram::{
-    pipeline_index_html, pipeline_shell_html, text_report_html, PipelineEmbeddedPage,
+    PipelineEmbeddedPage, pipeline_index_html, pipeline_shell_html, text_report_html,
 };
 pub use state_graph::state_graph_html;
 pub use symbol_resolved_trees::symbol_resolved_trees_html;
-pub use syntax_trees::{syntax_trees_html, syntax_trees_with_files_html, SyntaxSourceFile};
+pub use syntax_trees::{SyntaxSourceFile, syntax_trees_html, syntax_trees_with_files_html};
 pub use typed_trees::typed_trees_html;
