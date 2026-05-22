@@ -126,14 +126,11 @@ pub(super) fn write_backend_report(
         },
     );
 
-    let build_dir = options.build_dir();
-    let output_path = build_dir.join("09_backend_report.html");
-    std::fs::create_dir_all(build_dir).map_err(io_diagnostic)?;
-    std::fs::write(
-        output_path,
-        omega_visualizations::text_report_html("backend_report", &report),
+    write_phase_diagram(
+        options,
+        "09_backend_report.html",
+        &omega_visualizations::text_report_html("backend_report", &report),
     )
-    .map_err(io_diagnostic)
 }
 
 pub(super) fn write_emission_plan(
@@ -218,8 +215,4 @@ fn json_diagnostic(error: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
         "failed to serialize phase snapshot: {error}"
     ))]
-}
-
-fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(error.to_string())]
 }
