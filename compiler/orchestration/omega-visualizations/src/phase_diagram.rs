@@ -124,6 +124,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
         "<label><input id=\"show-data\" type=\"checkbox\" checked> Data definitions</label>\n",
     );
     html.push_str("<p id=\"counts\"></p>\n");
+    html.push_str("<div id=\"details-actions\" class=\"hidden\"></div>\n");
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
     html.push_str("</aside>\n");
     html.push_str("<main><svg id=\"canvas\" role=\"img\" aria-label=\"Phase graph\"><g id=\"viewport\"><g id=\"edges\"></g><g id=\"nodes\"></g></g></svg></main>\n");
@@ -436,6 +437,12 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   padding: 12px;
   min-height: 120px;
 }
+#details-actions {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+#details-actions.hidden { display: none; }
 main { min-width: 0; min-height: 0; position: relative; }
 #canvas {
   width: 100%;
@@ -675,6 +682,7 @@ const edgeLayer = document.getElementById("edges");
 const nodeLayer = document.getElementById("nodes");
 const search = document.getElementById("search");
 const details = document.getElementById("details");
+const detailsActions = document.getElementById("details-actions");
 const counts = document.getElementById("counts");
 const scopePanel = document.getElementById("scope-panel");
 const scopeTitle = document.getElementById("scope-title");
@@ -1177,23 +1185,15 @@ function drawNode(node) {
   });
   group.addEventListener("click", event => {
     event.stopPropagation();
+    if (event.detail >= 2) {
+      activateNode(node.id);
+      return;
+    }
     selectNode(node.id, false);
   });
   group.addEventListener("dblclick", event => {
     event.stopPropagation();
-    const targetId = followTargetFor(node.id);
-    if (targetId) {
-      selectNode(targetId, true);
-      return;
-    }
-
-    const scopeTarget = scopeTargetFor(node.id);
-    if (scopeTarget && scopeTarget !== scopedId) {
-      setScope(scopeTarget, true);
-      return;
-    }
-
-    selectNode(node.id, true);
+    activateNode(node.id);
   });
   group.addEventListener("pointerenter", () => {
     hoveredId = node.id;
@@ -1210,6 +1210,22 @@ function fitLine(line, max) {
   return line.length > max ? line.slice(0, max - 1) + "..." : line;
 }
 
+function activateNode(id) {
+  const targetId = followTargetFor(id);
+  if (targetId) {
+    selectNode(targetId, true);
+    return;
+  }
+
+  const scopeTarget = scopeTargetFor(id);
+  if (scopeTarget && scopeTarget !== scopedId) {
+    setScope(scopeTarget, true);
+    return;
+  }
+
+  selectNode(id, true);
+}
+
 function selectNode(id, center) {
   selectedId = id;
   markSelectedNode(id);
@@ -1217,6 +1233,7 @@ function selectNode(id, center) {
   const targetId = followTargetFor(id);
   const targetText = targetId ? `\n\nfollow target: ${outlineLabel(nodeById.get(targetId))}` : "";
   details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}${targetText}\n\n${node.label}`;
+  renderDetailsActions(id);
   if (center) centerOn(id);
 }
 
@@ -1230,6 +1247,7 @@ function setScope(id, fit) {
   scopedId = id === "root" ? null : id;
   selectedId = id;
   details.textContent = scopeDetails(id);
+  renderDetailsActions(id);
   applyFilters();
   markSelectedNode(id);
   if (fit) fitGraph();
@@ -1239,8 +1257,35 @@ function clearGraphScope(fit) {
   scopedId = null;
   selectedId = null;
   details.textContent = "Full graph scope. Click a scope item to focus a slice.";
+  detailsActions.replaceChildren();
+  detailsActions.classList.add("hidden");
   applyFilters();
   if (fit) fitGraph();
+}
+
+function renderDetailsActions(id) {
+  detailsActions.replaceChildren();
+  const actions = [];
+  const targetId = followTargetFor(id);
+  if (targetId) actions.push({ label: "Follow", action: () => selectNode(targetId, true) });
+
+  const scopeTarget = scopeTargetFor(id);
+  if (scopeTarget && scopeTarget !== scopedId) {
+    actions.push({ label: "Open Scope", action: () => setScope(scopeTarget, true) });
+  }
+
+  if (scopedId) actions.push({ label: "Clear Scope", action: () => clearGraphScope(true) });
+
+  detailsActions.classList.toggle("hidden", actions.length === 0);
+  for (const action of actions) {
+    const button = document.createElement("button");
+    button.textContent = action.label;
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      action.action();
+    });
+    detailsActions.appendChild(button);
+  }
 }
 
 function defaultScopeId() {
