@@ -698,6 +698,8 @@ const NODE_MAX_LINES = 14;
 const LINE_H = 16;
 const RANK_GAP = 70;
 const ROW_GAP = 18;
+const TREE_LEVEL_GAP = 96;
+const TREE_SIBLING_GAP = 34;
 const LEFT = 80;
 const TOP = 60;
 const SECTION_GAP_X = 110;
@@ -716,7 +718,8 @@ let transform = { x: 0, y: 0, scale: 1 };
 function layoutGraph() {
   positions.clear();
   if (!nodeById.has("root")) return fallbackLayout();
-  layoutSubtree("root", LEFT, TOP, new Set());
+  const rootWidth = layoutSubtreeWidth("root", new Set());
+  layoutSubtree("root", LEFT + Math.max(0, (rootWidth - nodeBox("root").width) / 2), TOP, new Set());
 }
 
 function layoutStandalone(id) {
@@ -724,10 +727,9 @@ function layoutStandalone(id) {
   placeNode(id, LEFT, y);
 }
 
-function layoutSubtree(id, x, y, seen) {
+function layoutSubtreeWidth(id, seen) {
   if (seen.has(id)) {
-    placeNode(id, x, y);
-    return nodeBox(id).height;
+    return nodeBox(id).width;
   }
   seen.add(id);
 
@@ -736,23 +738,46 @@ function layoutSubtree(id, x, y, seen) {
     .filter(childId => nodeById.has(childId));
 
   if (children.length === 0) {
-    placeNode(id, x, y);
     seen.delete(id);
-    return box.height;
+    return box.width;
   }
 
-  const childX = x + box.width + RANK_GAP;
-  let cursorY = y;
-  for (const childId of children) {
-    const childHeight = layoutSubtree(childId, childX, cursorY, seen);
-    cursorY += childHeight + ROW_GAP;
-  }
-
-  const childrenHeight = cursorY - y - ROW_GAP;
-  const subtreeHeight = Math.max(box.height, childrenHeight);
-  placeNode(id, x, y + Math.max(0, (subtreeHeight - box.height) / 2));
+  const childrenWidth = children
+    .map(childId => layoutSubtreeWidth(childId, seen))
+    .reduce((sum, width) => sum + width, 0)
+    + TREE_SIBLING_GAP * (children.length - 1);
   seen.delete(id);
-  return subtreeHeight;
+  return Math.max(box.width, childrenWidth);
+}
+
+function layoutSubtree(id, x, y, seen) {
+  if (seen.has(id)) {
+    placeNode(id, x, y);
+    return nodeBox(id).width;
+  }
+  seen.add(id);
+
+  const box = nodeBox(id);
+  const children = (containmentChildren.get(id) || [])
+    .filter(childId => nodeById.has(childId));
+  const subtreeWidth = layoutSubtreeWidth(id, new Set());
+  placeNode(id, x + Math.max(0, (subtreeWidth - box.width) / 2), y);
+
+  if (children.length === 0) {
+    seen.delete(id);
+    return subtreeWidth;
+  }
+
+  let cursorX = x;
+  const childY = y + box.height + TREE_LEVEL_GAP;
+  for (const childId of children) {
+    const childWidth = layoutSubtreeWidth(childId, seen);
+    layoutSubtree(childId, cursorX, childY, seen);
+    cursorX += childWidth + TREE_SIBLING_GAP;
+  }
+
+  seen.delete(id);
+  return subtreeWidth;
 }
 
 function fallbackLayout() {
@@ -979,18 +1004,18 @@ function edgePath(from, to, kind) {
   const a = positions.get(from);
   const b = positions.get(to);
   if (!a || !b) return "";
-  const ax = a.x + a.width;
-  const ay = a.y + a.height / 2;
-  const bx = b.x;
-  const by = b.y + b.height / 2;
+  const ax = a.x + a.width / 2;
+  const ay = a.y + a.height;
+  const bx = b.x + b.width / 2;
+  const by = b.y;
   if (kind === "sequence") {
     const sx = a.x + a.width / 2;
     const sy = a.y + a.height;
     const tx = b.x + b.width / 2;
     return `M ${sx} ${sy} C ${sx} ${sy + 18}, ${tx} ${by - 18}, ${tx} ${b.y}`;
   }
-  const mid = ax + Math.max(40, (bx - ax) / 2);
-  return `M ${ax} ${ay} C ${mid} ${ay}, ${mid} ${by}, ${bx} ${by}`;
+  const midY = ay + Math.max(34, (by - ay) / 2);
+  return `M ${ax} ${ay} C ${ax} ${midY}, ${bx} ${midY}, ${bx} ${by}`;
 }
 
 function drawEdge(edge) {
