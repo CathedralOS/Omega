@@ -496,6 +496,10 @@ fn trait_machine_signature_label(
                 .join(", "),
         );
     }
+    if machine.contracts.len() > 0 {
+        label.push_str("\ncontracts: ");
+        label.push_str(&machine.contracts.len().to_string());
+    }
     label
 }
 
@@ -540,6 +544,10 @@ fn machine_label(
                 .collect::<Vec<_>>()
                 .join(", "),
         );
+    }
+    if machine.contracts.len() > 0 {
+        label.push_str("\ncontracts: ");
+        label.push_str(&machine.contracts.len().to_string());
     }
 
     let Some(entry_state) = entry_state else {
