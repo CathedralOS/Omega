@@ -534,6 +534,8 @@ fn merge_machine_graph(target: &mut StateGraph, source: StateGraph, machine_grap
         symbol: machine_graph.symbol,
         name: machine_graph.name,
         attached_data: machine_graph.attached_data,
+        direct_effects: machine_graph.direct_effects,
+        reached_effects: machine_graph.reached_effects,
         contains,
         owned_data,
         states,
@@ -586,6 +588,8 @@ fn append_remapped_states(
                 key: state.key,
                 name: state.name,
                 index: state.index,
+                direct_effects: state.direct_effects,
+                reached_effects: state.reached_effects,
                 parameters,
                 borrow,
                 operations,
@@ -718,10 +722,14 @@ fn build_machine_graph(
 
     let states = append_machine_states(state_graph, program, &segments, &segment_transitions)?;
 
+    let (direct_effects, reached_effects) = machine_effect_bits(program, machine_symbol);
+
     Ok(MachineGraph {
         symbol: machine_symbol,
         name: machine.name.clone(),
         attached_data: machine.attached_data.clone(),
+        direct_effects,
+        reached_effects,
         contains: machine_contains(state_graph, program, machine),
         owned_data: machine_owned_data(state_graph, program, machine),
         states,
@@ -745,6 +753,35 @@ fn machine_owned_data(
                     type_reference: data.type_reference,
                 }),
         )
+}
+
+fn machine_effect_bits(
+    program: &Program,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+) -> (omega_effects::EffectBits, omega_effects::EffectBits) {
+    program
+        .facts
+        .effects
+        .machines()
+        .iter()
+        .find(|effects| effects.symbol == machine_symbol)
+        .map(|effects| (effects.direct.bits(), effects.transitive.bits()))
+        .unwrap_or_default()
+}
+
+fn state_effect_bits(
+    program: &Program,
+    state_symbol: omega_core::symbols::SymbolHandle,
+) -> (omega_effects::EffectBits, omega_effects::EffectBits) {
+    program
+        .facts
+        .effects
+        .machines()
+        .iter()
+        .flat_map(|machine| program.facts.effects.states.span_or_empty(machine.states))
+        .find(|effects| effects.symbol == state_symbol)
+        .map(|effects| (effects.direct.bits(), effects.transitive.bits()))
+        .unwrap_or_default()
 }
 
 fn estimated_machine_segment_capacity(program: &Program, machine: &Machine) -> usize {
@@ -865,6 +902,7 @@ fn append_machine_states(
     let mut states = HandleSpan::empty();
 
     for (index, segment) in segments.iter().enumerate() {
+        let (direct_effects, reached_effects) = state_effect_bits(program, segment.key.state);
         let transitions = append_segment_transitions(
             state_graph,
             program,
@@ -879,6 +917,8 @@ fn append_machine_states(
                 key: segment.key,
                 name: segment.name.clone(),
                 index,
+                direct_effects,
+                reached_effects,
                 parameters: segment.parameters,
                 borrow,
                 operations: segment.operations,

@@ -122,8 +122,13 @@ Effects propagate through the call graph. The compiler should compute direct
 effects for each callable and then compute transitive effects for every machine
 from the machines it can call. Entry points do not have to spell out every
 effect they reach, but the executable manifest should contain the union of the
-effects reachable from its entry points. Exported library APIs are stricter:
-their inferred transitive effects must fit inside their declared effect ceiling.
+effects reachable from its entry points.
+
+When a concrete machine declares an `effects` block, that block is also a
+ceiling for the machine's reached effects. Omitting the block means "infer and
+report this machine's effects." Declaring the block means "this machine must
+not reach anything outside this set." Exported library APIs can require this
+explicit ceiling policy at package boundaries.
 
 ```text
 Main::main

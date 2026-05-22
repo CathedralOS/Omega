@@ -11,4 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-core = { path = "../../foundation/omega-core" }
+omega-effects = { path = "../../semantics/omega-effects" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
