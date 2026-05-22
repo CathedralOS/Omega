@@ -179,6 +179,7 @@ pub struct CallEffects {
     pub call_ordinal: usize,
     pub target_state_symbol: SymbolHandle,
     pub target_machine_symbol: SymbolHandle,
+    pub direct: EffectSet,
     pub transitive: EffectSet,
 }
 
@@ -189,6 +190,7 @@ impl Default for CallEffects {
             call_ordinal: 0,
             target_state_symbol: SymbolHandle::invalid(),
             target_machine_symbol: SymbolHandle::invalid(),
+            direct: EffectSet::empty(),
             transitive: EffectSet::empty(),
         }
     }
@@ -216,6 +218,7 @@ struct CallWork {
     call_ordinal: usize,
     target_state_symbol: SymbolHandle,
     target_machine_symbol: SymbolHandle,
+    direct: EffectSet,
     transitive: EffectSet,
 }
 
@@ -341,11 +344,13 @@ fn push_statement_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
+    let direct = direct_effects_for_signature_symbol(program, target_state_symbol);
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
         target_state_symbol,
         target_machine_symbol,
+        direct,
         transitive: EffectSet::empty(),
     });
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
@@ -439,11 +444,13 @@ fn push_expression_call(
 ) {
     let target_state_symbol = call.target_symbol;
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
+    let direct = direct_effects_for_signature_symbol(program, target_state_symbol);
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
         target_state_symbol,
         target_machine_symbol,
+        direct,
         transitive: EffectSet::empty(),
     });
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
@@ -467,6 +474,41 @@ fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) ->
     SymbolHandle::invalid()
 }
 
+fn direct_effects_for_signature_symbol(program: &TypedTrees, symbol: SymbolHandle) -> EffectSet {
+    if !symbol.is_valid() {
+        return EffectSet::empty();
+    }
+
+    for platform in program.platforms() {
+        for signature in program.platform_state_signatures(platform) {
+            if signature.symbol == symbol {
+                return signature_effects(program, signature);
+            }
+        }
+    }
+
+    for trait_definition in program.traits() {
+        for signature in program.trait_machine_signatures(trait_definition) {
+            if signature.symbol == symbol {
+                return signature_effects(program, signature);
+            }
+        }
+    }
+
+    EffectSet::empty()
+}
+
+fn signature_effects(
+    program: &TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> EffectSet {
+    let mut effects = EffectSet::empty();
+    for effect in program.state_signature_effects(signature) {
+        effects.insert_name(effect.as_str());
+    }
+    effects
+}
+
 fn propagate_machine_effects(machines: &mut [MachineWork]) {
     loop {
         let previous = machines
@@ -479,6 +521,7 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
             for state in &machines[machine_index].states {
                 transitive.insert_all(state.direct);
                 for call in &state.calls {
+                    transitive.insert_all(call.direct);
                     if let Some(target_index) = machines
                         .iter()
                         .position(|machine| machine.symbol == call.target_machine_symbol)
@@ -508,11 +551,14 @@ fn propagate_machine_effects(machines: &mut [MachineWork]) {
         for state in &mut machine.states {
             let mut transitive = state.direct;
             for call in &mut state.calls {
-                call.transitive = machine_effects
+                call.transitive = call.direct;
+                if let Some(target_effects) = machine_effects
                     .iter()
                     .find(|(symbol, _)| *symbol == call.target_machine_symbol)
                     .map(|(_, effects)| *effects)
-                    .unwrap_or_else(EffectSet::empty);
+                {
+                    call.transitive.insert_all(target_effects);
+                }
                 transitive.insert_all(call.transitive);
             }
             state.transitive = transitive;
@@ -535,6 +581,7 @@ fn build_effect_plan(machines: Vec<MachineWork>) -> EffectPlan {
                         call_ordinal: call.call_ordinal,
                         target_state_symbol: call.target_state_symbol,
                         target_machine_symbol: call.target_machine_symbol,
+                        direct: call.direct,
                         transitive: call.transitive,
                     },
                 );
