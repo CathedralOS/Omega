@@ -726,6 +726,7 @@ let hoveredId = null;
 let scopedId = null;
 let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
+let lastActivation = { id: null, time: 0 };
 
 function layoutGraph(allowedIds = null) {
   positions.clear();
@@ -1183,6 +1184,18 @@ function drawNode(node) {
   group.addEventListener("pointerdown", event => {
     event.stopPropagation();
   });
+  group.addEventListener("mousedown", event => {
+    event.stopPropagation();
+    if (event.detail >= 2) {
+      activateNode(node.id);
+    }
+  });
+  group.addEventListener("mouseup", event => {
+    event.stopPropagation();
+    if (event.detail <= 1) {
+      selectNode(node.id, false);
+    }
+  });
   group.addEventListener("click", event => {
     event.stopPropagation();
     if (event.detail >= 2) {
@@ -1211,6 +1224,9 @@ function fitLine(line, max) {
 }
 
 function activateNode(id) {
+  const now = performance.now();
+  if (lastActivation.id === id && now - lastActivation.time < 300) return;
+  lastActivation = { id, time: now };
   const targetId = followTargetFor(id);
   if (targetId) {
     selectNode(targetId, true);
@@ -1218,6 +1234,11 @@ function activateNode(id) {
   }
 
   const scopeTarget = scopeTargetFor(id);
+  if (nodeById.get(id)?.kind === "external_call" && scopeTarget) {
+    selectNode(scopeTarget, true);
+    return;
+  }
+
   if (scopeTarget && scopeTarget !== scopedId) {
     setScope(scopeTarget, true);
     return;
@@ -1424,6 +1445,7 @@ function activeFocusId() {
 
 function applyRelationshipHighlight() {
   const focusId = activeFocusId();
+  const proxyFocusIds = focusIdsForRelationship(focusId);
   document.querySelectorAll(".node").forEach(node => {
     node.classList.remove("hovered", "related", "unrelated");
   });
@@ -1432,11 +1454,11 @@ function applyRelationshipHighlight() {
   });
   if (!focusId) return;
 
-  const relatedNodeIds = new Set([focusId]);
+  const relatedNodeIds = new Set(proxyFocusIds);
   const relatedEdgeElements = [];
   for (const edge of document.querySelectorAll(".edge")) {
     if (edge.classList.contains("hidden")) continue;
-    const related = edge.dataset.from === focusId || edge.dataset.to === focusId;
+    const related = proxyFocusIds.has(edge.dataset.from) || proxyFocusIds.has(edge.dataset.to);
     if (!related) continue;
     relatedEdgeElements.push(edge);
     relatedNodeIds.add(edge.dataset.from);
@@ -1446,8 +1468,8 @@ function applyRelationshipHighlight() {
   for (const node of document.querySelectorAll(".node")) {
     if (node.classList.contains("hidden")) continue;
     const id = node.dataset.id;
-    node.classList.toggle("hovered", id === focusId);
-    node.classList.toggle("related", relatedNodeIds.has(id) && id !== focusId);
+    node.classList.toggle("hovered", proxyFocusIds.has(id));
+    node.classList.toggle("related", relatedNodeIds.has(id) && !proxyFocusIds.has(id));
     node.classList.toggle("unrelated", !relatedNodeIds.has(id));
   }
   for (const edge of document.querySelectorAll(".edge")) {
@@ -1461,6 +1483,17 @@ function applyRelationshipHighlight() {
     const node = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
     if (node) nodeLayer.appendChild(node);
   }
+}
+
+function focusIdsForRelationship(id) {
+  const result = new Set();
+  if (!id) return result;
+  result.add(id);
+  const explicitTarget = nodeById.get(id)?.scopeTarget;
+  if (explicitTarget && nodeById.has(explicitTarget)) {
+    result.add(explicitTarget);
+  }
+  return result;
 }
 
 function setTransform(next) {

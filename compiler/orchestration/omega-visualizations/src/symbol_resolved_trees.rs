@@ -273,9 +273,14 @@ fn machine_label(
     machine: &Machine,
     entry_state: Option<&State>,
 ) -> String {
+    let machine_name = if let Some(entry_state) = entry_state {
+        format!("{}::{}", machine.name.as_str(), entry_state.name.as_str())
+    } else {
+        machine.name.as_str().to_owned()
+    };
     let mut label = format!(
         "machine {}\nsymbol: {}\nsatisfies: {}\ntargetable states: {}",
-        machine.name.as_str(),
+        machine_name,
         symbol_label(machine.symbol),
         machine.satisfies.len(),
         machine.states.len().saturating_sub(1)
@@ -285,8 +290,6 @@ fn machine_label(
         return label;
     };
 
-    label.push_str("\nentry: ");
-    label.push_str(entry_state.name.as_str());
     for (statement_index, statement) in program
         .state_statements(entry_state.statements)
         .iter()
