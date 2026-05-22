@@ -12,12 +12,19 @@ data Player {
     in_cutscene: bool;
 }
 
-domain Dead for Player {
+domain Player::Valid {
+    self.health >= 0;
+    self.health <= 100;
+}
+
+domain Player::Dead {
+    self in Player::Valid;
     self.health <= 0;
     self.in_cutscene == false;
 }
 
-domain Alive for Player {
+domain Player::Alive {
+    self in Player::Valid;
     self.health > 0;
 }
 ```
@@ -56,7 +63,7 @@ data Game {
     winner: Option<PlayerId>;
 }
 
-domain NewGame for Game
+domain Game::NewGame
     when self.phase == GamePhase.NewGame
 {
     self.turns == 0;
@@ -64,7 +71,7 @@ domain NewGame for Game
     self.winner == None;
 }
 
-domain Playing for Game
+domain Game::Playing
     when self.phase == GamePhase.Playing
 {
     self.winner == None;
@@ -92,7 +99,7 @@ data Player {
 }
 ```
 
-That desugars to `domain Dead for Player { self.health <= 0; ... }`.
+That desugars to `domain Player::Dead { self.health <= 0; ... }`.
 
 ## Domains And Invariants
 
@@ -103,11 +110,17 @@ data Player {
     health: i32[non_negative];
 }
 
-domain Alive for Player {
+domain Player::Valid {
+    self.health >= 0;
+}
+
+domain Player::Alive {
+    self in Player::Valid;
     self.health > 0;
 }
 
-domain Dead for Player {
+domain Player::Dead {
+    self in Player::Valid;
     self.health == 0;
 }
 ```
@@ -124,7 +137,7 @@ data Player {
 }
 
 // Invalid: `health == 0` contradicts `health: i32[positive]`.
-domain Dead for Player {
+domain Player::Dead {
     self.health == 0;
 }
 ```
@@ -187,13 +200,13 @@ Domains that participate in domain patterns should provide a cheap classifier
 with `when` when possible.
 
 ```omega
-domain Playing for Game
+domain Game::Playing
     when self.phase == GamePhase.Playing
 {
     self.winner == None;
 }
 
-domain Finished for Game
+domain Game::Finished
     when self.phase == GamePhase.Finished
 {
     self.winner != None || self.turns == 9;
@@ -236,12 +249,12 @@ are the reliable source-level mechanism.
 Domains may overlap when they are just proof facts.
 
 ```omega
-domain Valid for Password {
+domain Password::Valid {
     self.len >= 12;
     self.has_symbol;
 }
 
-domain Secure for Password {
+domain Password::Secure {
     self.entropy_bits >= 80;
 }
 ```

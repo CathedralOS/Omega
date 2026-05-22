@@ -232,7 +232,7 @@ Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
 
 ```omega
-domain NonEmpty for String {
+domain String::NonEmpty {
     length > 0
 }
 

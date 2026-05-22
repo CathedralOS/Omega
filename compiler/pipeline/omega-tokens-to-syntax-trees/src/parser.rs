@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn parses_domain_definition_surface() {
         let source = r#"
-        domain NonEmpty for String {
+        domain String::NonEmpty {
             length > 0
         }
         "#;
@@ -308,7 +308,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(domains.len(), 1);
-        assert_eq!(domains[0].name.as_str(), "NonEmpty");
+        assert_eq!(domains[0].name.as_str(), "String::NonEmpty");
         assert!(domains[0].target_type.is_valid());
         assert_eq!(domains[0].body_token_count, 3);
     }

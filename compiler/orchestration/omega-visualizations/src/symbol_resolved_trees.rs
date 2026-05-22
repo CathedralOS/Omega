@@ -68,7 +68,7 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
         let domain_id = diagram.node(
             format!("domain_{domain_index}"),
             format!(
-                "domain {} for {}\nsymbol: {}\nbody tokens: {}",
+                "domain {}\ntarget: {}\nsymbol: {}\nbody tokens: {}",
                 domain.name.as_str(),
                 domain
                     .target_type
