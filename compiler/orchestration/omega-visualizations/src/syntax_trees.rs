@@ -10,6 +10,7 @@ use omega_syntax_trees::SyntaxTrees;
 
 pub struct SyntaxSourceFile {
     pub path: String,
+    pub parent_path: Option<String>,
     pub root_items: Vec<ItemHandle>,
 }
 
@@ -42,20 +43,36 @@ pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceF
             );
         }
     } else {
+        let file_nodes = files
+            .iter()
+            .enumerate()
+            .map(|(file_index, file)| {
+                diagram.node(
+                    format!("file_{file_index}"),
+                    format!("file {}\nitems: {}", file.path, file.root_items.len()),
+                    "file",
+                    1,
+                )
+            })
+            .collect::<Vec<_>>();
         for (file_index, file) in files.iter().enumerate() {
-            let file_id = diagram.node(
-                format!("file_{file_index}"),
-                format!("file {}\nitems: {}", file.path, file.root_items.len()),
-                "file",
-                1,
-            );
-            diagram.containment_edge(&root, &file_id);
+            let file_id = &file_nodes[file_index];
+            let parent_index = file.parent_path.as_ref().and_then(|parent_path| {
+                files
+                    .iter()
+                    .position(|candidate| &candidate.path == parent_path)
+                    .filter(|parent_index| *parent_index < file_index)
+            });
+            let parent_id = parent_index
+                .map(|index| file_nodes[index].as_str())
+                .unwrap_or(root.as_str());
+            diagram.containment_edge(parent_id, file_id);
 
             for (item_index, item_handle) in file.root_items.iter().copied().enumerate() {
                 append_root_item(
                     &mut diagram,
                     syntax,
-                    &file_id,
+                    file_id,
                     file_index,
                     item_index,
                     item_handle,
