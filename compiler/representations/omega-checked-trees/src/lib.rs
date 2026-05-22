@@ -174,6 +174,7 @@ pub struct CheckFacts {
     pub borrow: BorrowFacts,
     pub proof: ProofFacts,
     pub invariants: InvariantFacts,
+    pub effects: omega_effects::EffectPlan,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

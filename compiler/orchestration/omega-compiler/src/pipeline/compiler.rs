@@ -1,7 +1,8 @@
 use crate::pipeline::artifacts::{
-    remove_stale_phase_diagrams, write_backend_report, write_control_flow_snapshot,
-    write_emission_plan, write_pipeline_index, write_pipeline_shell, write_resolved_snapshot,
-    write_state_graph_snapshot, write_syntax_snapshot, write_timings, write_typed_snapshot,
+    remove_stale_phase_diagrams, write_backend_report, write_checked_snapshot,
+    write_control_flow_snapshot, write_emission_plan, write_pipeline_index, write_pipeline_shell,
+    write_resolved_snapshot, write_state_graph_snapshot, write_syntax_snapshot, write_timings,
+    write_typed_snapshot,
 };
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
@@ -50,6 +51,7 @@ impl Compiler {
         write_typed_snapshot(&self.options, &typed)?;
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        write_checked_snapshot(&self.options, &checked.program)?;
         let backend_surface = build_backend_surface_report(&checked.program);
 
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;
