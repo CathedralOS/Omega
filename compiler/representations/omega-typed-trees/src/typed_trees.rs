@@ -217,6 +217,19 @@ impl TypedTrees {
             .span_or_empty(machine.satisfies)
     }
 
+    pub fn push_machine_effect(
+        &mut self,
+        machine: &mut machine::Machine,
+        effect: crate::name::ProgramName,
+    ) {
+        self.signature_effects
+            .append_to_span(&mut machine.effects, effect);
+    }
+
+    pub fn machine_effects(&self, machine: &machine::Machine) -> &[crate::name::ProgramName] {
+        self.signature_effects.span_or_empty(machine.effects)
+    }
+
     pub fn push_machine_state(
         &mut self,
         machine: &mut machine::Machine,

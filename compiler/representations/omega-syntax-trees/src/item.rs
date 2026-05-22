@@ -267,6 +267,7 @@ pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
     pub satisfies: HandleSpan<Identifier>,
+    pub effects: HandleSpan<Identifier>,
     pub states: HandleSpan<StateHandle>,
 }
 
@@ -582,6 +583,7 @@ impl ItemTable {
         self.state_storage.machines.append(MachineNode {
             name: machine.name.clone(),
             satisfies: machine.satisfies,
+            effects: machine.effects,
             states: machine.states,
         })
     }
@@ -671,6 +673,7 @@ pub struct StateNode {
 pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<Identifier>,
+    pub effects: HandleSpan<Identifier>,
     pub states: HandleSpan<StateHandle>,
 }
 

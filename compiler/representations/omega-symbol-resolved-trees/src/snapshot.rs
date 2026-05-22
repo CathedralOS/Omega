@@ -127,6 +127,7 @@ pub struct InvariantDefinitionSnapshot {
 pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
+    pub effects: Vec<String>,
     pub contains: Vec<ContainedObjectSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
@@ -383,6 +384,11 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
     MachineSnapshot {
         name: machine.name.to_string(),
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
+        effects: program
+            .machine_effects(machine)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         contains: program
             .machine_contained_objects(machine.contains)
             .iter()
@@ -837,6 +843,7 @@ mod tests {
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),
+                effects: HandleSpan::empty(),
                 states,
             },
         });

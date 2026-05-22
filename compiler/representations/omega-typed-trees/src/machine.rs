@@ -13,6 +13,7 @@ pub struct Machine {
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
+    pub effects: HandleSpan<ProgramName>,
     pub states: HandleSpan<State>,
 }
 
@@ -25,6 +26,7 @@ impl Default for Machine {
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }

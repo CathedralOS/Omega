@@ -94,7 +94,7 @@ fn lower_state_signature_parts(
     })
 }
 
-fn lower_signature_effects(
+pub(crate) fn lower_signature_effects(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     effects: HandleSpan<syntax::identifier::Identifier>,

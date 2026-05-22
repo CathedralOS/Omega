@@ -436,6 +436,7 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            effects: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));
 

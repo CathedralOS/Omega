@@ -27,6 +27,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
+    let (effects, next) = parse_machine_effects(syntax_trees, next)?;
     input = next;
     let MachinePath {
         name,
@@ -108,10 +109,56 @@ pub(super) fn parse_machine<'tokens, 'source>(
             name,
             attached_data,
             satisfies,
+            effects,
             states,
         },
         input,
     ))
+}
+
+fn parse_machine_effects<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
+    let mut effect_start = Handle::invalid();
+    let mut effect_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::LeftBrace) {
+        if input.at_contextual("effects") {
+            input = input.take_contextual("effects")?;
+            while !input.at_punctuation(PunctuationKind::LeftBrace)
+                && !input.at_contextual("requires")
+                && !input.at_contextual("ensures")
+                && !input.at_contextual("where")
+                && !input.at_contextual("satisfies")
+            {
+                let (effect, rest) = input.take_identifier()?;
+                let handle = syntax_trees.items.append_identifier_path_member(effect);
+                if effect_count == 0 {
+                    effect_start = handle;
+                }
+                effect_count = effect_count
+                    .checked_add(1)
+                    .expect("machine effect span count overflow");
+                input = rest;
+
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                }
+            }
+            continue;
+        }
+
+        let (_, rest) = input.expect_token()?;
+        input = rest;
+    }
+
+    let effects = if effect_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(effect_start, effect_count)
+    };
+    Ok((effects, input))
 }
 
 fn parse_satisfies_traits<'tokens, 'source>(
