@@ -15,6 +15,7 @@ pub enum Item {
     Data(DataDefinition),
     Invariant(InvariantDefinition),
     Library(LibraryDefinition),
+    Export(ExportItem),
     TrustDefinition(TrustDefinition),
     Use(UseItem),
     Machine(Machine),
@@ -38,6 +39,21 @@ impl Default for UseItem {
     fn default() -> Self {
         Self {
             path: HandleSpan::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportItem {
+    pub path: HandleSpan<Identifier>,
+    pub alias: Option<Identifier>,
+}
+
+impl Default for ExportItem {
+    fn default() -> Self {
+        Self {
+            path: HandleSpan::empty(),
+            alias: None,
         }
     }
 }

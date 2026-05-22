@@ -2,6 +2,7 @@ mod capability;
 mod context;
 mod data;
 mod diagnostics;
+mod export_item;
 mod expression;
 mod file;
 mod input;
@@ -175,6 +176,41 @@ mod tests {
         let effects = parsed.items.identifier_path_members(signature.effects);
         assert_eq!(effects.len(), 1);
         assert_eq!(effects[0].as_str(), "stdout_io");
+    }
+
+    #[test]
+    fn parses_export_items_with_optional_alias() {
+        let source = r#"
+        export internal_regex::Match as Match;
+        export Grep::search;
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let exports = parsed
+            .root_items()
+            .filter_map(|item| match item {
+                omega_syntax_trees::item::Item::Export(export) => Some(export),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(exports.len(), 2);
+        let first_path = parsed.items.identifier_path_members(exports[0].path);
+        assert_eq!(first_path.len(), 2);
+        assert_eq!(first_path[0].as_str(), "internal_regex");
+        assert_eq!(first_path[1].as_str(), "Match");
+        assert_eq!(
+            exports[0].alias.as_ref().map(|alias| alias.as_str()),
+            Some("Match")
+        );
+        let second_path = parsed.items.identifier_path_members(exports[1].path);
+        assert_eq!(second_path.len(), 2);
+        assert_eq!(second_path[0].as_str(), "Grep");
+        assert_eq!(second_path[1].as_str(), "search");
+        assert!(exports[1].alias.is_none());
     }
 
     #[test]
