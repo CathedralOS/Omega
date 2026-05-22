@@ -41,6 +41,10 @@ pub(super) fn mutation_kind(
         return mutation_kind_for_borrow_root(kind);
     }
 
+    if place.head_symbol == source_key.machine {
+        return StateMutationKind::MachineOwned;
+    }
+
     StateMutationKind::Unknown
 }
 

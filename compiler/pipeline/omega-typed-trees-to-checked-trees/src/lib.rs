@@ -190,6 +190,16 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut writable_roots_span = omega_core::arena::HandleSpan::empty();
+            for field in attached_data_fields(program, machine) {
+                writable_roots.append_to_span(
+                    &mut writable_roots_span,
+                    BorrowWritableRootFact {
+                        symbol: field.symbol,
+                        kind: BorrowRootKind::OwnedData,
+                    },
+                );
+            }
+
             for owned in program.machine_owned_data(machine) {
                 writable_roots.append_to_span(
                     &mut writable_roots_span,
@@ -280,6 +290,27 @@ fn machine_state_count(program: &omega_typed_trees::TypedTrees) -> usize {
         .sum()
 }
 
+fn attached_data_fields<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> impl Iterator<Item = &'program omega_typed_trees::data::DataField> {
+    machine
+        .attached_data
+        .as_ref()
+        .and_then(|attached_data| {
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name == *attached_data)
+        })
+        .into_iter()
+        .flat_map(|definition| program.data_members(definition).iter())
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => Some(field),
+            omega_typed_trees::data::DataMember::Variant(_) => None,
+        })
+}
+
 fn estimated_borrow_root_capacity(program: &omega_typed_trees::TypedTrees) -> usize {
     program
         .machines()
@@ -302,6 +333,7 @@ fn estimated_borrow_root_capacity(program: &omega_typed_trees::TypedTrees) -> us
                         .count();
 
                     program.machine_owned_data(machine).len()
+                        + attached_data_fields(program, machine).count()
                         + local_data_count
                         + mutable_parameter_count
                 })

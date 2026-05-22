@@ -166,12 +166,13 @@ pub(super) fn select_state_body_instructions(
         ) && let Some(mutation) =
             state_mutation_for_statement(input, state.key, operation.statement_index)
         {
+            let storage_dispatch_index =
+                storage_dispatch_index_for_state(input, state.key, dispatch_index);
+
             if aliases.bindings().is_empty()
-                && let Some(dispatch_index) =
-                    dispatch_index_for_state(input, state.key).or(dispatch_index)
                 && select_runtime_unaliased_storage_mutation_write_with_scratch(
                     input,
-                    dispatch_index,
+                    storage_dispatch_index,
                     state.key,
                     operation.statement_index,
                     mutation.target,
@@ -185,84 +186,79 @@ pub(super) fn select_state_body_instructions(
                 continue;
             }
 
-            if let Some(dispatch_index) =
-                dispatch_index_for_state(input, state.key).or(dispatch_index)
-            {
-                expressions.clear();
-                let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
-                    alias_expressions,
-                    aliases.bindings(),
-                    &mut expressions,
-                );
-                let target =
-                    expressions.copy_from(&input.state_storage.expressions, mutation.target);
-                let value = expressions.copy_from(&input.state_storage.expressions, mutation.value);
-                let resolved_target = resolve_runtime_alias_binding_handle(
-                    target,
-                    state.key,
-                    copied_aliases.bindings(),
-                    &mut expressions,
-                );
-                let resolved_value = resolve_runtime_alias_binding_handle(
-                    value,
-                    state.key,
-                    copied_aliases.bindings(),
-                    &mut expressions,
-                );
-                mutation_segment_expressions.clear();
-                if select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
-                    input,
-                    dispatch_index,
-                    state.key,
-                    resolved_target.source_key,
-                    resolved_value.source_key,
-                    operation.statement_index,
-                    &expressions,
-                    resolved_target.expression,
-                    resolved_value.expression,
-                    copied_aliases.bindings(),
-                    &mut static_values,
-                    &mut mutation_mutable_expressions,
-                    &mut mutation_segment_expressions,
-                    runtime_value_operands,
-                    selected_instructions,
-                ) {
-                    continue;
-                }
-                if select_assignment_value_call_terminal_fallback_write(
-                    input,
-                    dispatch_index,
-                    state.key,
-                    operation.statement_index,
-                    resolved_target.source_key,
-                    resolved_target.expression,
-                    &mut expressions,
-                    &mut static_values,
-                    &mut mutation_mutable_expressions,
-                    &mut mutation_segment_expressions,
-                    runtime_value_operands,
-                    selected_instructions,
-                ) {
-                    continue;
-                }
-                let resolved_target = expressions.to_tree(resolved_target.expression);
-                let resolved_value = expressions.to_tree(resolved_value.expression);
-                let (machine_name, state_name) =
-                    input.control_flow.state_names_by_key_cloned(state.key);
-                select_runtime_resolved_mutation_write(
-                    input,
-                    dispatch_index,
-                    state.key,
-                    &machine_name,
-                    &machine_name,
-                    &state_name,
-                    operation.statement_index,
-                    &resolved_target,
-                    &resolved_value,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
+            expressions.clear();
+            let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+                alias_expressions,
+                aliases.bindings(),
+                &mut expressions,
+            );
+            let target = expressions.copy_from(&input.state_storage.expressions, mutation.target);
+            let value = expressions.copy_from(&input.state_storage.expressions, mutation.value);
+            let resolved_target = resolve_runtime_alias_binding_handle(
+                target,
+                state.key,
+                copied_aliases.bindings(),
+                &mut expressions,
+            );
+            let resolved_value = resolve_runtime_alias_binding_handle(
+                value,
+                state.key,
+                copied_aliases.bindings(),
+                &mut expressions,
+            );
+            mutation_segment_expressions.clear();
+            if select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
+                input,
+                storage_dispatch_index,
+                state.key,
+                resolved_target.source_key,
+                resolved_value.source_key,
+                operation.statement_index,
+                &expressions,
+                resolved_target.expression,
+                resolved_value.expression,
+                copied_aliases.bindings(),
+                &mut static_values,
+                &mut mutation_mutable_expressions,
+                &mut mutation_segment_expressions,
+                runtime_value_operands,
+                selected_instructions,
+            ) {
+                continue;
             }
+            if select_assignment_value_call_terminal_fallback_write(
+                input,
+                storage_dispatch_index,
+                state.key,
+                operation.statement_index,
+                resolved_target.source_key,
+                resolved_target.expression,
+                &mut expressions,
+                &mut static_values,
+                &mut mutation_mutable_expressions,
+                &mut mutation_segment_expressions,
+                runtime_value_operands,
+                selected_instructions,
+            ) {
+                continue;
+            }
+            let resolved_target = expressions.to_tree(resolved_target.expression);
+            let resolved_value = expressions.to_tree(resolved_value.expression);
+            let (machine_name, state_name) =
+                input.control_flow.state_names_by_key_cloned(state.key);
+            select_runtime_resolved_mutation_write(
+                input,
+                storage_dispatch_index,
+                state.key,
+                &machine_name,
+                &machine_name,
+                &state_name,
+                operation.statement_index,
+                &resolved_target,
+                &resolved_value,
+                runtime_value_operands,
+                selected_instructions,
+            );
             continue;
         }
 
@@ -682,4 +678,14 @@ fn dispatch_index_for_state(
         .iter()
         .find(|(_, body)| body.key == state_key)
         .map(|(_, body)| body.dispatch_index)
+}
+
+fn storage_dispatch_index_for_state(
+    input: &InstructionSelectionInput<'_>,
+    state_key: StateKey,
+    current_dispatch_index: Option<u32>,
+) -> u32 {
+    dispatch_index_for_state(input, state_key)
+        .or(current_dispatch_index)
+        .unwrap_or(0)
 }

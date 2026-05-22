@@ -358,6 +358,7 @@ impl<'program> LayoutBuilder<'program> {
         Ok(MachineLayout {
             symbol: machine.symbol,
             name: machine.name.clone(),
+            attached_data: machine.attached_data.clone(),
             fields,
             layout,
         })
