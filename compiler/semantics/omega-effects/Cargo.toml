@@ -11,3 +11,9 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+
+[dev-dependencies]
+omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
+omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symbol-resolved-trees-to-typed-trees" }
+omega-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-symbol-resolved-trees" }
+omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
