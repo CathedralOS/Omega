@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use omega_checked_trees::{Program, machine::Machine, platform::Platform};
+use omega_checked_trees::{machine::Machine, platform::Platform, Program};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -37,6 +37,15 @@ impl ArtifactWriter {
                 path.display()
             ))
         })
+    }
+
+    pub fn write_html_report(
+        &self,
+        file_name: &str,
+        title: &str,
+        contents: &str,
+    ) -> Result<(), Diagnostic> {
+        self.write_text(file_name, &html_report(title, contents))
     }
 
     pub fn write_bytes(&self, file_name: &str, bytes: &[u8]) -> Result<PathBuf, Diagnostic> {
@@ -113,7 +122,7 @@ impl ArtifactWriter {
             write_source_file_artifact(&mut output, file);
         }
 
-        self.write_text("01_sources.txt", &output)
+        self.write_html_report("01_sources.html", "sources", &output)
     }
 
     pub fn write_ast(&self, ast_artifact: &AstArtifact) -> Result<(), Diagnostic> {
@@ -165,7 +174,7 @@ impl ArtifactWriter {
             write_ast_file_artifact(&mut output, file);
         }
 
-        self.write_text("02_ast.txt", &output)
+        self.write_html_report("02_ast.html", "ast", &output)
     }
 
     pub fn write_emission_plan(&self, emission_plan: &EmissionPlan) -> Result<(), Diagnostic> {
@@ -209,7 +218,7 @@ impl ArtifactWriter {
             }
         }
 
-        self.write_text("11_emission.txt", &output)
+        self.write_html_report("11_emission.html", "emission", &output)
     }
 
     pub fn write_emitted_native_output(
@@ -242,7 +251,7 @@ impl ArtifactWriter {
             emitted_output.final_image_relocations
         ));
 
-        self.write_text("12_emitted_output.txt", &output)?;
+        self.write_html_report("12_emitted_output.html", "emitted_output", &output)?;
 
         Ok(output_path)
     }
@@ -251,7 +260,9 @@ impl ArtifactWriter {
         self.remove_files([
             "omega-program",
             "12_emitted_output.txt",
+            "12_emitted_output.html",
             "13_finalization.txt",
+            "13_finalization.html",
         ])
     }
 
@@ -288,7 +299,7 @@ impl ArtifactWriter {
             );
         }
 
-        self.write_text("13_finalization.txt", &output)
+        self.write_html_report("13_finalization.html", "finalization", &output)
     }
 
     pub fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
@@ -439,7 +450,7 @@ impl ArtifactWriter {
             format_signed_bytes(total_net_live_bytes),
         ));
 
-        self.write_text("00_timings.txt", &output)
+        self.write_html_report("00_timings.html", "phase_timings", &output)
     }
 
     pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
@@ -537,9 +548,120 @@ impl ArtifactWriter {
             }
         }
 
-        self.write_text("10_trust.txt", &output)
+        self.write_html_report("10_trust.html", "trust", &output)
     }
 }
+
+fn html_report(title: &str, contents: &str) -> String {
+    let mut html = String::new();
+    html.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
+    html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    html.push_str("<title>");
+    html.push_str(&escape_html(title));
+    html.push_str("</title>\n<style>\n");
+    html.push_str(REPORT_STYLE);
+    html.push_str("</style>\n</head>\n<body>\n<aside>\n<h1>");
+    html.push_str(&escape_html(title));
+    html.push_str("</h1>\n");
+    push_report_nav(&mut html);
+    html.push_str("</aside>\n<main><pre>");
+    html.push_str(&escape_html(contents));
+    html.push_str("</pre></main>\n</body>\n</html>\n");
+    html
+}
+
+fn push_report_nav(html: &mut String) {
+    html.push_str("<nav class=\"phase-nav\" aria-label=\"Pipeline stages\"><a href=\"00_pipeline.html\">Index</a>");
+    for (number, label, href) in REPORT_LINKS {
+        html.push_str("<a href=\"");
+        html.push_str(&escape_html(href));
+        html.push_str("\"><span>");
+        html.push_str(&escape_html(number));
+        html.push_str("</span> ");
+        html.push_str(&escape_html(label));
+        html.push_str("</a>");
+    }
+    html.push_str("</nav>\n");
+}
+
+fn escape_html(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+const REPORT_LINKS: &[(&str, &str, &str)] = &[
+    ("00", "Timings", "00_timings.html"),
+    ("02", "Syntax", "02_syntax_trees.html"),
+    ("03", "Symbols", "03_symbol_resolved_trees.html"),
+    ("04", "Typed", "04_typed_trees.html"),
+    ("06", "State Graph", "06_state_graph.html"),
+    ("07", "Control Flow", "07_control_flow.html"),
+    ("09", "Backend", "09_backend_report.html"),
+    ("11", "Emission", "11_emission.html"),
+];
+
+const REPORT_STYLE: &str = r#"
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+}
+* { box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) 1fr;
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+aside {
+  border-right: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  min-height: 100vh;
+  padding: 18px;
+}
+h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover { background: #263247; border-color: #8ab4ff; }
+.phase-nav span { color: var(--muted); }
+main {
+  min-width: 0;
+  overflow: auto;
+  padding: 28px;
+}
+pre {
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid #283343;
+  border-radius: 18px;
+  color: #d8e2ef;
+  line-height: 1.45;
+  margin: 0;
+  min-height: calc(100vh - 56px);
+  overflow: auto;
+  padding: 24px;
+  white-space: pre;
+}
+"#;
 
 fn write_source_file_artifact(output: &mut String, file: &SourceFileArtifact) {
     let item_range = if file.item_count == 0 {
@@ -923,12 +1045,12 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use omega_checked_trees::Program;
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::platform::Platform;
     use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
+    use omega_checked_trees::Program;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
