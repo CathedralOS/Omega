@@ -107,7 +107,7 @@ fn render_html(title: &str, nodes: &[PhaseDiagramNode], edges: &[PhaseDiagramEdg
     html.push_str("<pre id=\"details\">Click a node for details.</pre>\n");
     html.push_str("</aside>\n");
     html.push_str("<main><svg id=\"canvas\" role=\"img\" aria-label=\"Phase graph\"><g id=\"viewport\"><g id=\"edges\"></g><g id=\"nodes\"></g></g></svg></main>\n");
-    html.push_str("<aside id=\"file-panel\">\n<h2>Files</h2>\n<input id=\"file-search\" type=\"search\" placeholder=\"Filter files...\" autocomplete=\"off\">\n<nav id=\"file-outline\" aria-label=\"Source files\"></nav>\n</aside>\n");
+    html.push_str("<aside id=\"scope-panel\">\n<h2 id=\"scope-title\">Scopes</h2>\n<input id=\"scope-search\" type=\"search\" placeholder=\"Filter scopes...\" autocomplete=\"off\">\n<nav id=\"scope-outline\" aria-label=\"Primary scopes\"></nav>\n</aside>\n");
     html.push_str("<script>\nconst GRAPH = ");
     push_graph_json(&mut html, title, nodes, edges);
     html.push_str(";\n");
@@ -296,11 +296,11 @@ body {
   color: var(--text);
   font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-body.has-files {
+body.has-scopes {
   grid-template-columns: minmax(280px, 22vw) 1fr minmax(280px, 24vw);
 }
 #panel,
-#file-panel {
+#scope-panel {
   border-right: 1px solid var(--panel-border);
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   padding: 18px;
@@ -308,7 +308,7 @@ body.has-files {
   box-shadow: 12px 0 40px rgba(0, 0, 0, 0.25);
   z-index: 2;
 }
-#file-panel {
+#scope-panel {
   border-left: 1px solid var(--panel-border);
   border-right: 0;
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.22);
@@ -344,7 +344,7 @@ button:hover { background: #2b3747; }
 label { display: block; color: var(--muted); margin: 10px 0; }
 #counts { color: var(--muted); }
 #outline,
-#file-outline {
+#scope-outline {
   border: 1px solid #283343;
   border-radius: 12px;
   background: #0d1117;
@@ -353,11 +353,11 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   overflow: auto;
   padding: 8px;
 }
-#file-outline {
+#scope-outline {
   max-height: calc(100vh - 150px);
 }
 #outline button,
-#file-outline button {
+#scope-outline button {
   width: 100%;
   border: 0;
   border-radius: 8px;
@@ -372,12 +372,12 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   white-space: nowrap;
 }
 #outline button:hover,
-#file-outline button:hover { background: #202a38; }
+#scope-outline button:hover { background: #202a38; }
 #outline button.scoped,
-#file-outline button.scoped { background: #263247; color: #ffffff; }
+#scope-outline button.scoped { background: #263247; color: #ffffff; }
 #outline details { margin-left: 10px; }
 #outline summary,
-#file-outline summary {
+#scope-outline summary {
   color: var(--muted);
   cursor: pointer;
   margin: 3px 0;
@@ -385,8 +385,8 @@ label { display: block; color: var(--muted); margin: 10px 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#file-outline details { margin-left: 12px; }
-#file-outline summary {
+#scope-outline details { margin-left: 12px; }
+#scope-outline summary {
   font-size: 12px;
   letter-spacing: 0.02em;
 }
@@ -653,9 +653,10 @@ const search = document.getElementById("search");
 const details = document.getElementById("details");
 const counts = document.getElementById("counts");
 const outline = document.getElementById("outline");
-const filePanel = document.getElementById("file-panel");
-const fileSearch = document.getElementById("file-search");
-const fileOutline = document.getElementById("file-outline");
+const scopePanel = document.getElementById("scope-panel");
+const scopeTitle = document.getElementById("scope-title");
+const scopeSearch = document.getElementById("scope-search");
+const scopeOutline = document.getElementById("scope-outline");
 const showSequence = document.getElementById("show-sequence");
 const showData = document.getElementById("show-data");
 const clearScope = document.getElementById("clear-scope");
@@ -889,7 +890,7 @@ function render() {
   for (const edge of GRAPH.edges) drawEdge(edge);
   for (const node of GRAPH.nodes) drawNode(node);
   renderOutline();
-  renderFileOutline();
+  renderScopeOutline();
   calculateBounds();
   applyFilters();
 }
@@ -920,30 +921,29 @@ function renderOutline() {
   outline.classList.toggle("hidden", sectionCount === 0);
 }
 
-function renderFileOutline() {
-  fileOutline.replaceChildren();
-  const fileIds = GRAPH.nodes
-    .filter(node => node.kind === "file")
-    .map(node => node.id);
-  document.body.classList.toggle("has-files", fileIds.length > 0);
-  filePanel.classList.toggle("hidden", fileIds.length === 0);
-  if (fileIds.length === 0) return;
+function renderScopeOutline() {
+  scopeOutline.replaceChildren();
+  const primary = primaryScopes();
+  scopeTitle.textContent = primary.title;
+  scopeSearch.placeholder = primary.placeholder;
+  document.body.classList.toggle("has-scopes", primary.ids.length > 0);
+  scopePanel.classList.toggle("hidden", primary.ids.length === 0);
+  if (primary.ids.length === 0) return;
 
-  const query = fileSearch.value.trim().toLowerCase();
-  const visibleFileIds = fileIds.filter(id => {
-    const node = nodeById.get(id);
-    const label = fileLabel(node).toLowerCase();
-    return !query || label.includes(query);
+  const query = scopeSearch.value.trim().toLowerCase();
+  const visibleIds = primary.ids.filter(id => {
+    const path = scopePath(id);
+    return !query || path.join("/").toLowerCase().includes(query);
   });
-  if (visibleFileIds.length === 0) {
+  if (visibleIds.length === 0) {
     const empty = document.createElement("p");
-    empty.textContent = "No matching files.";
-    fileOutline.appendChild(empty);
+    empty.textContent = "No matching scopes.";
+    scopeOutline.appendChild(empty);
     return;
   }
 
-  const tree = buildFileTree(visibleFileIds);
-  appendFileTree(fileOutline, tree, 0, Boolean(query));
+  const tree = buildScopeTree(visibleIds);
+  appendScopeTree(scopeOutline, tree, 0, Boolean(query));
 }
 
 function renderFlatOutline() {
@@ -968,13 +968,45 @@ function renderFlatOutline() {
   outline.classList.toggle("hidden", groups.size === 0);
 }
 
-function buildFileTree(fileIds) {
+function primaryScopes() {
+  const fileIds = GRAPH.nodes.filter(node => node.kind === "file").map(node => node.id);
+  if (fileIds.length > 0) {
+    return { title: "Files", placeholder: "Filter files...", ids: fileIds };
+  }
+
+  if (nodeById.has("root")) {
+    const topLevel = (containmentChildren.get("root") || [])
+      .filter(id => nodeById.has(id) && nodeById.get(id).kind !== "root");
+    if (topLevel.length > 0) {
+      return { title: "Scopes", placeholder: "Filter scopes...", ids: topLevel };
+    }
+  }
+
+  const fragments = GRAPH.nodes
+    .filter(node => ["data", "trait", "machine", "file"].includes(node.kind))
+    .map(node => node.id);
+  if (fragments.length > 0) {
+    return { title: "Scopes", placeholder: "Filter scopes...", ids: fragments };
+  }
+
+  const stateBlocks = GRAPH.nodes
+    .filter(node => node.kind === "state_block")
+    .map(node => node.id);
+  if (stateBlocks.length > 0) {
+    return { title: "Blocks", placeholder: "Filter blocks...", ids: stateBlocks };
+  }
+
+  const fallback = GRAPH.nodes
+    .filter(node => node.id !== "root")
+    .map(node => node.id);
+  return { title: "Scopes", placeholder: "Filter scopes...", ids: fallback };
+}
+
+function buildScopeTree(ids) {
   const root = { name: "", dirs: new Map(), files: [] };
-  for (const id of fileIds) {
-    const node = nodeById.get(id);
-    const path = fileLabel(node);
-    const parts = path.split(/[\\/]+/).filter(Boolean);
-    const fileName = parts.pop() || path;
+  for (const id of ids) {
+    const parts = scopePath(id);
+    const name = parts.pop() || outlineLabel(nodeById.get(id));
     let branch = root;
     for (const part of parts) {
       if (!branch.dirs.has(part)) {
@@ -982,12 +1014,12 @@ function buildFileTree(fileIds) {
       }
       branch = branch.dirs.get(part);
     }
-    branch.files.push({ id, name: fileName, path });
+    branch.files.push({ id, name, path: scopePath(id).join("/") });
   }
   return root;
 }
 
-function appendFileTree(parent, tree, depth, forceOpen) {
+function appendScopeTree(parent, tree, depth, forceOpen) {
   const dirs = Array.from(tree.dirs.values()).sort((a, b) => a.name.localeCompare(b.name));
   for (const dir of dirs) {
     const detailsElement = document.createElement("details");
@@ -995,15 +1027,15 @@ function appendFileTree(parent, tree, depth, forceOpen) {
     const summary = document.createElement("summary");
     summary.textContent = dir.name;
     detailsElement.appendChild(summary);
-    appendFileTree(detailsElement, dir, depth + 1, forceOpen);
+    appendScopeTree(detailsElement, dir, depth + 1, forceOpen);
     parent.appendChild(detailsElement);
   }
 
-  const files = tree.files.sort((a, b) => a.name.localeCompare(b.name));
-  for (const file of files) {
-    const button = fileScopeButton(file.id, nodeById.get(file.id));
-    button.textContent = file.name;
-    button.title = file.path;
+  const entries = tree.files.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const button = scopeButton(entry.id, nodeById.get(entry.id));
+    button.textContent = entry.name;
+    button.title = entry.path;
     parent.appendChild(button);
   }
 }
@@ -1061,9 +1093,9 @@ function outlineScopeButton(id, node) {
   return button;
 }
 
-function fileScopeButton(id, node) {
+function scopeButton(id, node) {
   const button = outlineScopeButton(id, node);
-  button.textContent = fileLabel(node);
+  button.textContent = scopePath(id).slice(-1)[0] || outlineLabel(node);
   return button;
 }
 
@@ -1074,6 +1106,35 @@ function outlineLabel(node) {
 function fileLabel(node) {
   const firstLine = outlineLabel(node);
   return firstLine.startsWith("file ") ? firstLine.slice(5) : firstLine;
+}
+
+function scopePath(id) {
+  const node = nodeById.get(id);
+  if (!node) return [id];
+  if (node.kind === "file") {
+    return fileLabel(node).split(/[\\/]+/).filter(Boolean);
+  }
+
+  const label = outlineLabel(node);
+  if (node.kind === "state_block" && label.includes("::")) {
+    const [owner, rest] = label.split("::", 2);
+    return [owner, rest];
+  }
+
+  const stripped = label.replace(/^(boundary trait|trait|data|machine|state)\s+/, "");
+  return [scopeKindLabel(node.kind), stripped];
+}
+
+function scopeKindLabel(kind) {
+  switch (kind) {
+    case "data": return "Data";
+    case "trait": return "Traits";
+    case "machine": return "Machines";
+    case "state":
+    case "state_block": return "States";
+    case "object": return "Objects";
+    default: return "Other";
+  }
 }
 
 function edgePath(from, to, kind) {
@@ -1192,12 +1253,14 @@ function clearGraphScope(fit) {
   if (fit) fitGraph();
 }
 
-function defaultFileScopeId() {
-  const fileNodes = GRAPH.nodes.filter(node => node.kind === "file");
-  if (fileNodes.length === 0) return null;
-  const mainFile = fileNodes.find(node => outlineLabel(node).endsWith("/main.omg") || outlineLabel(node).endsWith(" main.omg"));
+function defaultScopeId() {
+  const primary = primaryScopes();
+  if (primary.ids.length === 0) return null;
+  const mainFile = primary.ids
+    .map(id => nodeById.get(id))
+    .find(node => node?.kind === "file" && (outlineLabel(node).endsWith("/main.omg") || outlineLabel(node).endsWith(" main.omg")));
   if (mainFile) return mainFile.id;
-  return fileNodes[0].id;
+  return primary.ids[0];
 }
 
 function scopeDetails(id) {
@@ -1256,7 +1319,7 @@ function applyFilters() {
   outline.querySelectorAll("button[data-scope-id]").forEach(button => {
     button.classList.toggle("scoped", button.dataset.scopeId === scopedId);
   });
-  fileOutline.querySelectorAll("button[data-scope-id]").forEach(button => {
+  scopeOutline.querySelectorAll("button[data-scope-id]").forEach(button => {
     button.classList.toggle("scoped", button.dataset.scopeId === scopedId);
   });
   calculateBounds();
@@ -1383,8 +1446,8 @@ svg.addEventListener("click", () => {
   applyRelationshipHighlight();
 });
 search.addEventListener("input", applyFilters);
-fileSearch.addEventListener("input", () => {
-  renderFileOutline();
+scopeSearch.addEventListener("input", () => {
+  renderScopeOutline();
   applyFilters();
 });
 showSequence.addEventListener("change", applyFilters);
@@ -1399,7 +1462,7 @@ followTarget.addEventListener("click", () => {
 window.addEventListener("resize", fitGraph);
 
 render();
-const initialScopeId = defaultFileScopeId();
+const initialScopeId = defaultScopeId();
 if (initialScopeId) {
   setScope(initialScopeId, false);
 }

@@ -19,23 +19,12 @@ pub fn syntax_trees_html(syntax: &SyntaxTrees) -> String {
 
 pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceFile]) -> String {
     let mut diagram = PhaseDiagramBuilder::new("syntax_trees");
-    let root_label = if files.is_empty() {
-        format!("SyntaxTrees\nitems: {}", syntax.root_item_count())
-    } else {
-        format!(
-            "SyntaxTrees\nfiles: {}\nitems: {}",
-            files.len(),
-            syntax.root_item_count()
-        )
-    };
-    let root = diagram.node("root", root_label, "root", 0);
-
     if files.is_empty() {
         for (item_index, item_handle) in syntax.root_item_handles().iter().copied().enumerate() {
             append_root_item(
                 &mut diagram,
                 syntax,
-                &root,
+                None,
                 item_index,
                 item_index,
                 item_handle,
@@ -56,13 +45,12 @@ pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceF
             .collect::<Vec<_>>();
         for (file_index, file) in files.iter().enumerate() {
             let file_id = &file_nodes[file_index];
-            diagram.containment_edge(&root, file_id);
 
             for (item_index, item_handle) in file.root_items.iter().copied().enumerate() {
                 append_root_item(
                     &mut diagram,
                     syntax,
-                    file_id,
+                    Some(file_id),
                     file_index,
                     item_index,
                     item_handle,
@@ -77,7 +65,7 @@ pub fn syntax_trees_with_files_html(syntax: &SyntaxTrees, files: &[SyntaxSourceF
 fn append_root_item(
     diagram: &mut PhaseDiagramBuilder,
     syntax: &SyntaxTrees,
-    parent_id: &str,
+    parent_id: Option<&str>,
     owner_index: usize,
     item_index: usize,
     item_handle: ItemHandle,
@@ -89,7 +77,9 @@ fn append_root_item(
         item_kind(item),
         2,
     );
-    diagram.containment_edge(parent_id, &item_id);
+    if let Some(parent_id) = parent_id {
+        diagram.containment_edge(parent_id, &item_id);
+    }
 
     match item {
         Item::Machine(machine) => {

@@ -12,7 +12,6 @@ use omega_symbol_resolved_trees::types::TypeReference;
 
 pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");
-    let root = diagram.node("root", "SymbolResolvedTrees", "root", 0);
     let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
     let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
@@ -28,7 +27,6 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
             "data",
             1,
         );
-        diagram.containment_edge(&root, &data_id);
         data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
     }
 
@@ -50,7 +48,6 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
             "trait",
             1,
         );
-        diagram.containment_edge(&root, &trait_id);
         trait_nodes.push((
             trait_definition.symbol,
             trait_id.clone(),
@@ -108,7 +105,6 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
             "machine",
             1,
         );
-        diagram.containment_edge(&root, &machine_id);
         append_machine_relationships(
             &mut diagram,
             program,
