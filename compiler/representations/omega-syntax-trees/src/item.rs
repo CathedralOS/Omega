@@ -95,6 +95,7 @@ impl Default for LibraryFunction {
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
                 effects: HandleSpan::empty(),
+                contracts: HandleSpan::empty(),
             },
             symbol: None,
             calling_convention: None,
@@ -302,6 +303,7 @@ pub struct Machine {
     pub attached_data: Option<Identifier>,
     pub satisfies: HandleSpan<Identifier>,
     pub effects: HandleSpan<Identifier>,
+    pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
 }
 
@@ -333,6 +335,7 @@ pub struct StateSignature {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
+    pub contracts: HandleSpan<CapabilityContract>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -601,6 +604,7 @@ impl ItemTable {
             parameters: signature.parameters,
             return_type: signature.return_type,
             effects: signature.effects,
+            contracts: signature.contracts,
         })
     }
 
@@ -618,6 +622,7 @@ impl ItemTable {
             name: machine.name.clone(),
             satisfies: machine.satisfies,
             effects: machine.effects,
+            contracts: machine.contracts,
             states: machine.states,
         })
     }
@@ -693,6 +698,7 @@ pub struct StateSignatureNode {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
+    pub contracts: HandleSpan<CapabilityContract>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -708,6 +714,7 @@ pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<Identifier>,
     pub effects: HandleSpan<Identifier>,
+    pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,
 }
 

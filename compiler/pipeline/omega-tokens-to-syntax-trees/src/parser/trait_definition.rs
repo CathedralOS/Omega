@@ -2,7 +2,7 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::TraitDefinition;
+use omega_syntax_trees::item::{CapabilityContract, CapabilityContractKind, TraitDefinition};
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_trait_definition<'tokens, 'source>(
@@ -36,8 +36,9 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
 
         input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_state_signature(syntax_trees, input)?;
-        let (effects, rest) = parse_trait_signature_clauses(syntax_trees, rest)?;
+        let ((effects, contracts), rest) = parse_trait_signature_clauses(syntax_trees, rest)?;
         signature.effects = effects;
+        signature.contracts = contracts;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if machine_count == 0 {
@@ -85,13 +86,18 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> Result<
     (
-        HandleSpan<omega_syntax_trees::identifier::Identifier>,
+        (
+            HandleSpan<omega_syntax_trees::identifier::Identifier>,
+            HandleSpan<CapabilityContract>,
+        ),
         Input<'tokens, 'source>,
     ),
     crate::parse_error::ParseError,
 > {
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
+    let mut contract_start = Handle::invalid();
+    let mut contract_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::Semicolon) {
         if input.at_punctuation(PunctuationKind::RightBrace) {
@@ -122,6 +128,28 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let kind = if input.at_contextual("requires") {
+                input = input.take_contextual("requires")?;
+                CapabilityContractKind::Requires
+            } else {
+                input = input.take_contextual("ensures")?;
+                CapabilityContractKind::Ensures
+            };
+            let (token_count, rest) = skip_trait_contract_tokens(input)?;
+            let handle = syntax_trees
+                .items
+                .append_capability_contract(CapabilityContract { kind, token_count });
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("trait machine contract span count overflow");
+            input = rest;
+            continue;
+        }
+
         let (_, rest) = input.expect_token()?;
         input = rest;
     }
@@ -131,5 +159,28 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(effect_start, effect_count)
     };
-    Ok((effects, input))
+    let contracts = if contract_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(contract_start, contract_count)
+    };
+    Ok(((effects, contracts), input))
+}
+
+fn skip_trait_contract_tokens<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> Result<(usize, Input<'tokens, 'source>), crate::parse_error::ParseError> {
+    let mut count = 0usize;
+    while !(input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("effects")
+        || input.at_contextual("where")
+        || input.tokens.is_empty())
+    {
+        let (_, rest) = input.expect_token()?;
+        input = rest;
+        count += 1;
+    }
+    Ok((count, input))
 }

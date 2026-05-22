@@ -180,6 +180,79 @@ mod tests {
     }
 
     #[test]
+    fn parses_machine_contract_clauses() {
+        let source = r#"
+        machine distinct_indices(i: usize, j: usize)
+        requires
+            i < j
+        ensures
+            i != j
+        {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+        let contracts = parsed.items.capability_contracts(machine.contracts);
+
+        assert_eq!(contracts.len(), 2);
+        assert!(matches!(
+            contracts[0].kind,
+            omega_syntax_trees::item::CapabilityContractKind::Requires
+        ));
+        assert!(matches!(
+            contracts[1].kind,
+            omega_syntax_trees::item::CapabilityContractKind::Ensures
+        ));
+        assert!(contracts[0].token_count > 0);
+        assert!(contracts[1].token_count > 0);
+    }
+
+    #[test]
+    fn parses_trait_machine_contract_clauses() {
+        let source = r#"
+        boundary trait Filesystem {
+            machine open(path: String)
+            requires
+                path in String::NonEmpty
+            ensures
+                handle in FileHandle::Open
+            effects
+                filesystem_io;
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let trait_definition = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Trait(trait_definition) => Some(trait_definition),
+                _ => None,
+            })
+            .expect("trait root item");
+        let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
+        let signature = parsed.items.state_signature(signature_handle);
+        let contracts = parsed.items.capability_contracts(signature.contracts);
+        let effects = parsed.items.identifier_path_members(signature.effects);
+
+        assert_eq!(contracts.len(), 2);
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].as_str(), "filesystem_io");
+    }
+
+    #[test]
     fn parses_export_items_with_optional_alias() {
         let source = r#"
         export internal_regex::Match as Match;
