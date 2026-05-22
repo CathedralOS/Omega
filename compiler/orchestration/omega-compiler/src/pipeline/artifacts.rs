@@ -3,6 +3,14 @@ use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{backend_report_text, BackendReportInput, BackendReportPhaseTiming};
 use omega_core::diagnostics::Diagnostic;
 
+pub(super) fn write_pipeline_index(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {
+    write_phase_diagram(
+        options,
+        "00_pipeline.html",
+        &omega_visualizations::pipeline_index_html(),
+    )
+}
+
 pub(super) fn write_syntax_snapshot(
     options: &CompileOptions,
     syntax: &omega_syntax_trees::SyntaxTrees,
