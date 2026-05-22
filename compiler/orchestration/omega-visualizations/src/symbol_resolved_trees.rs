@@ -98,10 +98,19 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
             .iter()
             .copied()
             .collect::<Vec<_>>();
-        let state_nodes = state_handles
+        let entry_state = state_handles
+            .first()
+            .copied()
+            .map(|state_handle| program.machine_state(state_handle));
+        let targetable_states = state_handles
             .iter()
             .copied()
             .enumerate()
+            .skip(1)
+            .collect::<Vec<_>>();
+        let state_nodes = targetable_states
+            .iter()
+            .copied()
             .map(|(state_index, state_handle)| {
                 let state = program.machine_state(state_handle);
                 (
@@ -111,10 +120,6 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
                 )
             })
             .collect::<Vec<_>>();
-        let entry_state = state_handles
-            .first()
-            .copied()
-            .map(|state_handle| program.machine_state(state_handle));
         let machine_id = diagram.node(
             format!("machine_{machine_index}"),
             machine_label(program, machine, entry_state),
@@ -130,8 +135,15 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
             machine_index,
             machine,
         );
+        append_entry_transitions(
+            &mut diagram,
+            program,
+            &machine_id,
+            &state_nodes,
+            entry_state,
+        );
 
-        for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
+        for (state_index, state_handle) in targetable_states {
             append_state(
                 &mut diagram,
                 program,
@@ -262,11 +274,11 @@ fn machine_label(
     entry_state: Option<&State>,
 ) -> String {
     let mut label = format!(
-        "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
+        "machine {}\nsymbol: {}\nsatisfies: {}\ntargetable states: {}",
         machine.name.as_str(),
         symbol_label(machine.symbol),
         machine.satisfies.len(),
-        machine.states.len()
+        machine.states.len().saturating_sub(1)
     );
 
     let Some(entry_state) = entry_state else {
@@ -288,6 +300,26 @@ fn machine_label(
     }
 
     label
+}
+
+fn append_entry_transitions(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &SymbolResolvedTrees,
+    machine_id: &str,
+    state_nodes: &[(SymbolHandle, String, String)],
+    entry_state: Option<&State>,
+) {
+    let Some(entry_state) = entry_state else {
+        return;
+    };
+
+    for statement in program.state_statements(entry_state.statements) {
+        if let Statement::Transition(transition) = statement {
+            if let Some(target_id) = transition_target_id(state_nodes, transition) {
+                diagram.edge(machine_id, target_id, "transition_target");
+            }
+        }
+    }
 }
 
 fn append_state(
