@@ -118,6 +118,41 @@ machine TestConsole::write_line(text: String) satisfies Console {
 }
 ```
 
+Effects propagate through the call graph. The compiler should compute direct
+effects for each callable and then compute transitive effects for every machine
+from the machines it can call. Entry points do not have to spell out every
+effect they reach, but the executable manifest should contain the union of the
+effects reachable from its entry points. Exported library APIs are stricter:
+their inferred transitive effects must fit inside their declared effect ceiling.
+
+```text
+Main::main
+  declared: <none>
+  direct:   <none>
+  reached:  stdin_io, stdout_io, process_exit
+
+Grep::search
+  declared: filesystem_io
+  direct:   <none>
+  reached:  filesystem_io
+```
+
+The compiler can represent standard effects as a compact bitset because the
+standard vocabulary is finite and stable for a given toolchain. Names remain
+the source syntax, diagnostic format, package manifest format, and OS prompt
+format. Bit positions are an implementation detail owned by the compiler and
+loader, not a user-facing ABI.
+
+This gives each layer the shape it needs:
+
+- Source and docs use readable names such as `filesystem_io`.
+- Compiler checks use fast set operations such as subset, union, and
+  intersection.
+- Optimizers can use the propagated bitsets as reordering, inlining, and
+  scheduling facts.
+- Executables can carry a named capability manifest plus any loader-native
+  bitset encoding needed by the target OS.
+
 The list should stay intentionally small. More specific host details belong in
 boundary provider metadata, not in effect names. For example, `stdout_io` is
 enough for the language-level capability report; whether the implementation
