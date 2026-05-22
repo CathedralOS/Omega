@@ -1,4 +1,3 @@
-mod diagram;
 mod runtime_flow;
 
 use omega_core::arena::{Arena, HandleSpan};

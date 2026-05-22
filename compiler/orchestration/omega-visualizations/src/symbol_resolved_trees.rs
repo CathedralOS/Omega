@@ -1,156 +1,157 @@
-use crate::data::DataMember;
-use crate::machine::Machine;
-use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
-use crate::trait_definition::TraitDefinition;
-use crate::types::TypeReference;
-use crate::{state::State, SymbolResolvedTrees};
-use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
+use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::symbols::SymbolHandle;
+use omega_symbol_resolved_trees::data::DataMember;
+use omega_symbol_resolved_trees::machine::Machine;
+use omega_symbol_resolved_trees::state::State;
+use omega_symbol_resolved_trees::statement::{
+    Statement, Transition, TransitionGuard, TransitionTarget,
+};
+use omega_symbol_resolved_trees::trait_definition::TraitDefinition;
+use omega_symbol_resolved_trees::types::TypeReference;
+use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
-impl PhaseDiagram for SymbolResolvedTrees {
-    fn phase_html(&self) -> String {
-        let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");
-        let root = diagram.node("root", "SymbolResolvedTrees", "root", 0);
-        let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
-        let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
+pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
+    let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");
+    let root = diagram.node("root", "SymbolResolvedTrees", "root", 0);
+    let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
+    let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
-        for (data_index, data) in self.roots.data_definitions.iter().enumerate() {
-            let data_id = diagram.node(
-                format!("data_{data_index}"),
-                format!(
-                    "data {}\nsymbol: {}\nmembers: {}",
-                    data.name.as_str(),
-                    symbol_label(data.symbol),
-                    data.members.len()
-                ),
-                "data",
-                1,
-            );
-            diagram.containment_edge(&root, &data_id);
-            data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
-        }
+    for (data_index, data) in program.roots.data_definitions.iter().enumerate() {
+        let data_id = diagram.node(
+            format!("data_{data_index}"),
+            format!(
+                "data {}\nsymbol: {}\nmembers: {}",
+                data.name.as_str(),
+                symbol_label(data.symbol),
+                data.members.len()
+            ),
+            "data",
+            1,
+        );
+        diagram.containment_edge(&root, &data_id);
+        data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
+    }
 
-        for (trait_index, trait_definition) in self.roots.traits.iter().enumerate() {
-            let trait_id = diagram.node(
-                format!("trait_{trait_index}"),
-                format!(
-                    "{} {}\nsymbol: {}\nrequires: {}\nmachines: {}",
-                    if trait_definition.is_boundary {
-                        "boundary trait"
-                    } else {
-                        "trait"
-                    },
-                    trait_definition.name.as_str(),
-                    symbol_label(trait_definition.symbol),
-                    trait_definition.requires.len(),
-                    trait_definition.machines.len()
-                ),
-                "trait",
-                1,
-            );
-            diagram.containment_edge(&root, &trait_id);
-            trait_nodes.push((
-                trait_definition.symbol,
-                trait_id.clone(),
-                trait_definition.name.as_str().to_owned(),
-            ));
-            append_trait_machine_signatures(
-                &mut diagram,
-                self,
-                &trait_id,
-                trait_index,
-                trait_definition,
-            );
-        }
+    for (trait_index, trait_definition) in program.roots.traits.iter().enumerate() {
+        let trait_id = diagram.node(
+            format!("trait_{trait_index}"),
+            format!(
+                "{} {}\nsymbol: {}\nrequires: {}\nmachines: {}",
+                if trait_definition.is_boundary {
+                    "boundary trait"
+                } else {
+                    "trait"
+                },
+                trait_definition.name.as_str(),
+                symbol_label(trait_definition.symbol),
+                trait_definition.requires.len(),
+                trait_definition.machines.len()
+            ),
+            "trait",
+            1,
+        );
+        diagram.containment_edge(&root, &trait_id);
+        trait_nodes.push((
+            trait_definition.symbol,
+            trait_id.clone(),
+            trait_definition.name.as_str().to_owned(),
+        ));
+        append_trait_machine_signatures(
+            &mut diagram,
+            program,
+            &trait_id,
+            trait_index,
+            trait_definition,
+        );
+    }
 
-        for (trait_index, trait_definition) in self.roots.traits.iter().enumerate() {
-            let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
-                continue;
-            };
+    for (trait_index, trait_definition) in program.roots.traits.iter().enumerate() {
+        let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
+            continue;
+        };
 
-            append_trait_relationships(
-                &mut diagram,
-                self,
-                &trait_nodes,
-                trait_id,
-                trait_definition,
-            );
-        }
+        append_trait_relationships(
+            &mut diagram,
+            program,
+            &trait_nodes,
+            trait_id,
+            trait_definition,
+        );
+    }
 
-        for (data_index, data) in self.roots.data_definitions.iter().enumerate() {
-            let Some((_, data_id, _)) = data_nodes.get(data_index) else {
-                continue;
-            };
-            for member in self.data_members(data.members) {
-                if let DataMember::Field(field) = member {
-                    let target_symbol = type_reference_symbol(self, &field.type_reference);
-                    if let Some(target_id) =
-                        type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol)
-                    {
-                        diagram.edge(data_id, target_id, "field_type");
-                    }
+    for (data_index, data) in program.roots.data_definitions.iter().enumerate() {
+        let Some((_, data_id, _)) = data_nodes.get(data_index) else {
+            continue;
+        };
+        for member in program.data_members(data.members) {
+            if let DataMember::Field(field) = member {
+                let target_symbol = type_reference_symbol(program, &field.type_reference);
+                if let Some(target_id) =
+                    type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol)
+                {
+                    diagram.edge(data_id, target_id, "field_type");
                 }
             }
         }
-
-        for (machine_index, machine) in self.roots.machines.iter().enumerate() {
-            let machine_id = diagram.node(
-                format!("machine_{machine_index}"),
-                format!(
-                    "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
-                    machine.name.as_str(),
-                    symbol_label(machine.symbol),
-                    machine.satisfies.len(),
-                    machine.states.len()
-                ),
-                "machine",
-                1,
-            );
-            diagram.containment_edge(&root, &machine_id);
-            append_machine_relationships(
-                &mut diagram,
-                self,
-                &data_nodes,
-                &trait_nodes,
-                &machine_id,
-                machine_index,
-                machine,
-            );
-
-            let state_handles = self
-                .machine_state_handles(machine.states)
-                .iter()
-                .copied()
-                .collect::<Vec<_>>();
-            let state_nodes = state_handles
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(state_index, state_handle)| {
-                    let state = self.machine_state(state_handle);
-                    (
-                        state.symbol,
-                        state.name.as_str().to_owned(),
-                        format!("state_{machine_index}_{state_index}"),
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
-                append_state(
-                    &mut diagram,
-                    self,
-                    &machine_id,
-                    &state_nodes,
-                    machine_index,
-                    state_index,
-                    self.machine_state(state_handle),
-                );
-            }
-        }
-
-        diagram.finish()
     }
+
+    for (machine_index, machine) in program.roots.machines.iter().enumerate() {
+        let machine_id = diagram.node(
+            format!("machine_{machine_index}"),
+            format!(
+                "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
+                machine.name.as_str(),
+                symbol_label(machine.symbol),
+                machine.satisfies.len(),
+                machine.states.len()
+            ),
+            "machine",
+            1,
+        );
+        diagram.containment_edge(&root, &machine_id);
+        append_machine_relationships(
+            &mut diagram,
+            program,
+            &data_nodes,
+            &trait_nodes,
+            &machine_id,
+            machine_index,
+            machine,
+        );
+
+        let state_handles = program
+            .machine_state_handles(machine.states)
+            .iter()
+            .copied()
+            .collect::<Vec<_>>();
+        let state_nodes = state_handles
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(state_index, state_handle)| {
+                let state = program.machine_state(state_handle);
+                (
+                    state.symbol,
+                    state.name.as_str().to_owned(),
+                    format!("state_{machine_index}_{state_index}"),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
+            append_state(
+                &mut diagram,
+                program,
+                &machine_id,
+                &state_nodes,
+                machine_index,
+                state_index,
+                program.machine_state(state_handle),
+            );
+        }
+    }
+
+    diagram.finish()
 }
 
 fn append_trait_relationships(

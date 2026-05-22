@@ -1,13 +1,17 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{backend_report_text, BackendReportInput, BackendReportPhaseTiming};
-use omega_core::diagnostics::{Diagnostic, PhaseDiagram};
+use omega_core::diagnostics::Diagnostic;
 
 pub(super) fn write_syntax_snapshot(
     options: &CompileOptions,
     syntax: &omega_syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    write_phase_diagram(options, "02_syntax_trees.html", &syntax.phase_html())?;
+    write_phase_diagram(
+        options,
+        "02_syntax_trees.html",
+        &omega_visualizations::syntax_trees_html(syntax),
+    )?;
     write_phase_json(
         options,
         "02_syntax_trees.json",
@@ -22,7 +26,7 @@ pub(super) fn write_resolved_snapshot(
     write_phase_diagram(
         options,
         "03_symbol_resolved_trees.html",
-        &resolved.phase_html(),
+        &omega_visualizations::symbol_resolved_trees_html(resolved),
     )?;
     write_phase_json(
         options,
@@ -35,7 +39,11 @@ pub(super) fn write_typed_snapshot(
     options: &CompileOptions,
     typed: &omega_typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    write_phase_diagram(options, "04_typed_trees.html", &typed.phase_html())?;
+    write_phase_diagram(
+        options,
+        "04_typed_trees.html",
+        &omega_visualizations::typed_trees_html(typed),
+    )?;
     write_phase_json(
         options,
         "04_typed_trees.json",
@@ -47,14 +55,22 @@ pub(super) fn write_state_graph_snapshot(
     options: &CompileOptions,
     state_graph: &omega_state_graph::StateGraph,
 ) -> Result<(), Vec<Diagnostic>> {
-    write_phase_diagram(options, "06_state_graph.html", &state_graph.phase_html())
+    write_phase_diagram(
+        options,
+        "06_state_graph.html",
+        &omega_visualizations::state_graph_html(state_graph),
+    )
 }
 
 pub(super) fn write_control_flow_snapshot(
     options: &CompileOptions,
     control_flow: &omega_control_flow::ControlFlowPlan,
 ) -> Result<(), Vec<Diagnostic>> {
-    write_phase_diagram(options, "07_control_flow.html", &control_flow.phase_html())
+    write_phase_diagram(
+        options,
+        "07_control_flow.html",
+        &omega_visualizations::control_flow_html(control_flow),
+    )
 }
 
 pub(super) fn write_backend_report(

@@ -1,150 +1,150 @@
-use crate::statement::{
-    StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
-};
-use crate::trait_definition::TraitDefinition;
-use crate::{data::DataMember, machine::Machine};
-use crate::{state::State, TypedTrees};
-use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
+use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::statement::TableNamePath;
+use omega_typed_trees::statement::{
+    StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
+};
+use omega_typed_trees::trait_definition::TraitDefinition;
+use omega_typed_trees::{data::DataMember, machine::Machine};
+use omega_typed_trees::{state::State, TypedTrees};
 
-impl PhaseDiagram for TypedTrees {
-    fn phase_html(&self) -> String {
-        let mut diagram = PhaseDiagramBuilder::new("typed_trees");
-        let root = diagram.node("root", "TypedTrees", "root", 0);
-        let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
-        let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
+pub fn typed_trees_html(typed: &TypedTrees) -> String {
+    let mut diagram = PhaseDiagramBuilder::new("typed_trees");
+    let root = diagram.node("root", "TypedTrees", "root", 0);
+    let mut data_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
+    let mut trait_nodes: Vec<(SymbolHandle, String, String)> = Vec::new();
 
-        for (data_index, data) in self.data_definitions().iter().enumerate() {
-            let data_id = diagram.node(
-                format!("data_{data_index}"),
-                format!(
-                    "data {}\nsymbol: {}\nmembers: {}",
-                    data.name.as_str(),
-                    symbol_label(data.symbol),
-                    data.members.len()
-                ),
-                "data",
-                1,
-            );
-            diagram.containment_edge(&root, &data_id);
-            data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
-        }
+    for (data_index, data) in typed.data_definitions().iter().enumerate() {
+        let data_id = diagram.node(
+            format!("data_{data_index}"),
+            format!(
+                "data {}\nsymbol: {}\nmembers: {}",
+                data.name.as_str(),
+                symbol_label(data.symbol),
+                data.members.len()
+            ),
+            "data",
+            1,
+        );
+        diagram.containment_edge(&root, &data_id);
+        data_nodes.push((data.symbol, data_id, data.name.as_str().to_owned()));
+    }
 
-        for (trait_index, trait_definition) in self.traits().iter().enumerate() {
-            let trait_id = diagram.node(
-                format!("trait_{trait_index}"),
-                format!(
-                    "{} {}\nsymbol: {}\nrequires: {}\nmachines: {}",
-                    if trait_definition.is_boundary {
-                        "boundary trait"
-                    } else {
-                        "trait"
-                    },
-                    trait_definition.name.as_str(),
-                    symbol_label(trait_definition.symbol),
-                    trait_definition.requires.len(),
-                    trait_definition.machines.len()
-                ),
-                "trait",
-                1,
-            );
-            diagram.containment_edge(&root, &trait_id);
-            trait_nodes.push((
-                trait_definition.symbol,
-                trait_id.clone(),
-                trait_definition.name.as_str().to_owned(),
-            ));
-            append_trait_machine_signatures(
-                &mut diagram,
-                self,
-                &trait_id,
-                trait_index,
-                trait_definition,
-            );
-        }
+    for (trait_index, trait_definition) in typed.traits().iter().enumerate() {
+        let trait_id = diagram.node(
+            format!("trait_{trait_index}"),
+            format!(
+                "{} {}\nsymbol: {}\nrequires: {}\nmachines: {}",
+                if trait_definition.is_boundary {
+                    "boundary trait"
+                } else {
+                    "trait"
+                },
+                trait_definition.name.as_str(),
+                symbol_label(trait_definition.symbol),
+                trait_definition.requires.len(),
+                trait_definition.machines.len()
+            ),
+            "trait",
+            1,
+        );
+        diagram.containment_edge(&root, &trait_id);
+        trait_nodes.push((
+            trait_definition.symbol,
+            trait_id.clone(),
+            trait_definition.name.as_str().to_owned(),
+        ));
+        append_trait_machine_signatures(
+            &mut diagram,
+            typed,
+            &trait_id,
+            trait_index,
+            trait_definition,
+        );
+    }
 
-        for (trait_index, trait_definition) in self.traits().iter().enumerate() {
-            let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
-                continue;
-            };
+    for (trait_index, trait_definition) in typed.traits().iter().enumerate() {
+        let Some((_, trait_id, _)) = trait_nodes.get(trait_index) else {
+            continue;
+        };
 
-            append_trait_relationships(
-                &mut diagram,
-                self,
-                &trait_nodes,
-                trait_id,
-                trait_definition,
-            );
-        }
+        append_trait_relationships(
+            &mut diagram,
+            typed,
+            &trait_nodes,
+            trait_id,
+            trait_definition,
+        );
+    }
 
-        for (data_index, data) in self.data_definitions().iter().enumerate() {
-            let Some((_, data_id, _)) = data_nodes.get(data_index) else {
-                continue;
-            };
-            for member in self.data_members(data) {
-                if let DataMember::Field(field) = member {
-                    let target_symbol = self.type_reference_symbol(field.type_reference);
-                    if let Some(target_id) =
-                        type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol)
-                    {
-                        diagram.edge(data_id, target_id, "field_type");
-                    }
+    for (data_index, data) in typed.data_definitions().iter().enumerate() {
+        let Some((_, data_id, _)) = data_nodes.get(data_index) else {
+            continue;
+        };
+        for member in typed.data_members(data) {
+            if let DataMember::Field(field) = member {
+                let target_symbol = typed.type_reference_symbol(field.type_reference);
+                if let Some(target_id) =
+                    type_id_for_symbol(&data_nodes, &trait_nodes, target_symbol)
+                {
+                    diagram.edge(data_id, target_id, "field_type");
                 }
             }
         }
-
-        for (machine_index, machine) in self.machines().iter().enumerate() {
-            let machine_id = diagram.node(
-                format!("machine_{machine_index}"),
-                format!(
-                    "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
-                    machine.name.as_str(),
-                    symbol_label(machine.symbol),
-                    machine.satisfies.len(),
-                    machine.states.len()
-                ),
-                "machine",
-                1,
-            );
-            diagram.containment_edge(&root, &machine_id);
-            append_machine_relationships(
-                &mut diagram,
-                self,
-                &data_nodes,
-                &trait_nodes,
-                &machine_id,
-                machine_index,
-                machine,
-            );
-
-            let states = self.machine_states(machine);
-            let state_nodes = states
-                .iter()
-                .enumerate()
-                .map(|(state_index, state)| {
-                    (
-                        state.symbol,
-                        state.name.as_str().to_owned(),
-                        format!("state_{machine_index}_{state_index}"),
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            for (state_index, state) in states.iter().enumerate() {
-                append_state(
-                    &mut diagram,
-                    self,
-                    &machine_id,
-                    &state_nodes,
-                    machine_index,
-                    state_index,
-                    state,
-                );
-            }
-        }
-
-        diagram.finish()
     }
+
+    for (machine_index, machine) in typed.machines().iter().enumerate() {
+        let machine_id = diagram.node(
+            format!("machine_{machine_index}"),
+            format!(
+                "machine {}\nsymbol: {}\nsatisfies: {}\nstates: {}",
+                machine.name.as_str(),
+                symbol_label(machine.symbol),
+                machine.satisfies.len(),
+                machine.states.len()
+            ),
+            "machine",
+            1,
+        );
+        diagram.containment_edge(&root, &machine_id);
+        append_machine_relationships(
+            &mut diagram,
+            typed,
+            &data_nodes,
+            &trait_nodes,
+            &machine_id,
+            machine_index,
+            machine,
+        );
+
+        let states = typed.machine_states(machine);
+        let state_nodes = states
+            .iter()
+            .enumerate()
+            .map(|(state_index, state)| {
+                (
+                    state.symbol,
+                    state.name.as_str().to_owned(),
+                    format!("state_{machine_index}_{state_index}"),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        for (state_index, state) in states.iter().enumerate() {
+            append_state(
+                &mut diagram,
+                typed,
+                &machine_id,
+                &state_nodes,
+                machine_index,
+                state_index,
+                state,
+            );
+        }
+    }
+
+    diagram.finish()
 }
 
 fn append_trait_relationships(
@@ -346,10 +346,7 @@ fn transition_label(program: &TypedTrees, transition: &TableTransition) -> Strin
     format!("transition {target}\nguard: {guard}")
 }
 
-fn transition_target_label(
-    program: &TypedTrees,
-    target: crate::statement::TransitionTargetHandle,
-) -> String {
+fn transition_target_label(program: &TypedTrees, target: TransitionTargetHandle) -> String {
     if !target.is_valid() {
         return "terminal".to_owned();
     }
@@ -389,10 +386,7 @@ fn transition_target_id<'a>(
     }
 }
 
-fn transition_target_name(
-    program: &TypedTrees,
-    path: crate::statement::TableNamePath,
-) -> Option<&str> {
+fn transition_target_name(program: &TypedTrees, path: TableNamePath) -> Option<&str> {
     program
         .statement_table
         .name_path_members(path.members)

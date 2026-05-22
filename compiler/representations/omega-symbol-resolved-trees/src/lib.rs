@@ -1,5 +1,4 @@
 pub mod data;
-pub mod diagram;
 pub mod expression;
 pub mod identity;
 pub mod invariant;

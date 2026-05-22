@@ -1,82 +1,82 @@
-use crate::item::{Item, StateNode, StateSignatureNode};
-use crate::statement::{
-    StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
-};
-use crate::SyntaxTrees;
+use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::arena::HandleSpan;
-use omega_core::diagnostics::{PhaseDiagram, PhaseDiagramBuilder};
+use omega_syntax_trees::identifier::Identifier;
+use omega_syntax_trees::item::{Item, StateNode, StateSignatureNode};
+use omega_syntax_trees::statement::{
+    StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
+};
+use omega_syntax_trees::SyntaxTrees;
 
-impl PhaseDiagram for SyntaxTrees {
-    fn phase_html(&self) -> String {
-        let mut diagram = PhaseDiagramBuilder::new("syntax_trees");
-        let root = diagram.node("root", "SyntaxTrees", "root", 0);
+pub fn syntax_trees_html(syntax: &SyntaxTrees) -> String {
+    let mut diagram = PhaseDiagramBuilder::new("syntax_trees");
+    let root = diagram.node("root", "SyntaxTrees", "root", 0);
 
-        for (item_index, item_handle) in self.root_item_handles().iter().copied().enumerate() {
-            let item_id = diagram.node(
-                format!("item_{item_index}"),
-                item_label(self.root_item(item_handle)),
-                item_kind(self.root_item(item_handle)),
-                1,
-            );
-            diagram.containment_edge(&root, &item_id);
+    for (item_index, item_handle) in syntax.root_item_handles().iter().copied().enumerate() {
+        let item_id = diagram.node(
+            format!("item_{item_index}"),
+            item_label(syntax.root_item(item_handle)),
+            item_kind(syntax.root_item(item_handle)),
+            1,
+        );
+        diagram.containment_edge(&root, &item_id);
 
-            match self.root_item(item_handle) {
-                Item::Machine(machine) => {
-                    let state_handles = self
-                        .items
-                        .state_handles(machine.states)
-                        .iter()
-                        .copied()
-                        .collect::<Vec<_>>();
-                    let state_nodes = state_handles
-                        .iter()
-                        .copied()
-                        .enumerate()
-                        .map(|(state_index, state_handle)| {
-                            let state = self.items.state(state_handle);
-                            (
-                                state.name.as_str().to_owned(),
-                                format!("state_{item_index}_{state_index}"),
-                            )
-                        })
-                        .collect::<Vec<_>>();
+        match syntax.root_item(item_handle) {
+            Item::Machine(machine) => {
+                let state_handles = syntax
+                    .items
+                    .state_handles(machine.states)
+                    .iter()
+                    .copied()
+                    .collect::<Vec<_>>();
+                let state_nodes = state_handles
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .map(|(state_index, state_handle)| {
+                        let state = syntax.items.state(state_handle);
+                        (
+                            state.name.as_str().to_owned(),
+                            format!("state_{item_index}_{state_index}"),
+                        )
+                    })
+                    .collect::<Vec<_>>();
 
-                    for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
-                        let state = self.items.state(state_handle);
-                        append_state(
-                            &mut diagram,
-                            self,
-                            &item_id,
-                            &state_nodes,
-                            item_index,
-                            state_index,
-                            state,
-                        );
-                    }
+                for (state_index, state_handle) in state_handles.iter().copied().enumerate() {
+                    let state = syntax.items.state(state_handle);
+                    append_state(
+                        &mut diagram,
+                        syntax,
+                        &item_id,
+                        &state_nodes,
+                        item_index,
+                        state_index,
+                        state,
+                    );
                 }
-                Item::Trait(trait_definition) => {
-                    for (signature_index, signature_handle) in self
-                        .items
-                        .state_signatures(trait_definition.machines)
-                        .iter()
-                        .copied()
-                        .enumerate()
-                    {
-                        append_state_signature(
-                            &mut diagram,
-                            &item_id,
-                            item_index,
-                            signature_index,
-                            self.items.state_signature(signature_handle),
-                        );
-                    }
-                }
-                _ => {}
             }
+            Item::Trait(trait_definition) => {
+                for (signature_index, signature_handle) in syntax
+                    .items
+                    .state_signatures(trait_definition.machines)
+                    .iter()
+                    .copied()
+                    .enumerate()
+                {
+                    append_state_signature(
+                        &mut diagram,
+                        &item_id,
+                        item_index,
+                        signature_index,
+                        syntax.items.state_signature(signature_handle),
+                    );
+                }
+            }
+            _ => {}
         }
-
-        diagram.finish()
     }
+
+    diagram.finish()
 }
 
 fn append_state(
@@ -258,10 +258,7 @@ fn transition_label(syntax: &SyntaxTrees, transition: &TableTransition) -> Strin
     format!("transition {target}\nguard: {guard}")
 }
 
-fn transition_target_label(
-    syntax: &SyntaxTrees,
-    target: crate::statement::TransitionTargetHandle,
-) -> String {
+fn transition_target_label(syntax: &SyntaxTrees, target: TransitionTargetHandle) -> String {
     if !target.is_valid() {
         return "terminal".to_owned();
     }
@@ -304,10 +301,7 @@ fn transition_target_id<'a>(
     }
 }
 
-fn transition_target_name(
-    syntax: &SyntaxTrees,
-    path: HandleSpan<crate::identifier::Identifier>,
-) -> Option<&str> {
+fn transition_target_name(syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> Option<&str> {
     syntax
         .statements
         .identifier_path_members(path)

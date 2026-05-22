@@ -1,0 +1,17 @@
+[package]
+name = "omega-visualizations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_visualizations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
+omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }
