@@ -120,15 +120,26 @@ machine TestConsole::write_line(text: String) satisfies Console {
 
 Effects propagate through the call graph. The compiler should compute direct
 effects for each callable and then compute transitive effects for every machine
-from the machines it can call. Entry points do not have to spell out every
-effect they reach, but the executable manifest should contain the union of the
-effects reachable from its entry points.
+from the machines it can call.
 
-When a concrete machine declares an `effects` block, that block is also a
-ceiling for the machine's reached effects. Omitting the block means "infer and
-report this machine's effects." Declaring the block means "this machine must
-not reach anything outside this set." Exported library APIs can require this
-explicit ceiling policy at package boundaries.
+Effect declarations are policy surfaces, not required noise on every machine:
+
+- Boundary traits must declare effects. They are the trusted edge where
+  externally visible capabilities enter the program.
+- Exported library APIs should declare effects. This makes the public contract
+  stable and lets callers reject libraries that unexpectedly grow filesystem,
+  network, process, dynamic-link, or other host capabilities.
+- Private/internal machines may omit effects. The compiler infers and reports
+  their reached effects from their bodies and callees.
+- Executable entry points may omit effects in normal development builds. The
+  final executable manifest still records the union of effects reachable from
+  the entry point so an OS, loader, store, or build policy can prompt, deny, or
+  audit the requested capabilities.
+
+When a concrete machine declares an `effects` block, that block is a ceiling
+for the machine's reached effects. Omitting the block means "infer and report
+this machine's effects." Declaring the block means "this machine must not
+reach anything outside this set."
 
 ```text
 Main::main
@@ -136,11 +147,19 @@ Main::main
   direct:   <none>
   reached:  stdin_io, stdout_io, process_exit
 
+executable manifest:
+  stdin_io, stdout_io, process_exit
+
 Grep::search
   declared: filesystem_io
   direct:   <none>
   reached:  filesystem_io
 ```
+
+A stricter release, OS, or audited build can require an explicit checked-in
+capability manifest for executable entry points. That requirement belongs to
+build policy. It does not mean ordinary application authors must manually
+thread every reached effect through `main` while iterating locally.
 
 The compiler can represent standard effects as a compact bitset because the
 standard vocabulary is finite and stable for a given toolchain. Names remain
