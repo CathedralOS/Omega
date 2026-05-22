@@ -42,6 +42,65 @@ Working interpretation:
   stdin, stdout, network, thread, clock, or device access.
 - Build policy decides which boundary providers are allowed for a target.
 
+## Standard Effects
+
+Effects are stable language-level names for externally visible behavior. They
+are not host-specific syscall names. A Darwin provider, Linux provider, Windows
+provider, firmware provider, or test provider can satisfy the same boundary
+trait while exposing the same effect vocabulary to the compiler.
+
+Initial standard effects:
+
+- `pure`: no externally visible effect. This should not be mixed with other
+  effects.
+- `alloc`: may allocate memory through the language/runtime allocator.
+- `dealloc`: may release memory through the language/runtime allocator.
+- `stdin_io`: may read from standard input or an equivalent console input
+  stream.
+- `stdout_io`: may write to standard output or an equivalent console output
+  stream.
+- `stderr_io`: may write to standard error or an equivalent diagnostics stream.
+- `filesystem_io`: may read, write, open, close, query, rename, or delete
+  filesystem objects.
+- `network_io`: may use network sockets, packet interfaces, or equivalent
+  network services.
+- `process_spawn`: may create or launch a process/task outside the current
+  program image.
+- `process_exit`: may terminate the current process/task.
+- `process_signal`: may signal, cancel, suspend, resume, or otherwise affect
+  another process/task.
+- `env_read`: may read process, user, host, or build environment values.
+- `env_write`: may mutate process, user, host, or build environment values.
+- `clock_read`: may observe wall-clock time, monotonic time, timers, or
+  scheduler time.
+- `random_read`: may read entropy or random values from a host/runtime source.
+- `thread_spawn`: may create a concurrent thread/task/fiber of execution.
+- `thread_block`: may block the current thread/task/fiber waiting for another
+  event.
+- `sync_wait`: may wait on a synchronization object such as a lock, condition,
+  join handle, semaphore, futex, or channel receive.
+- `sync_wake`: may wake or signal a synchronization object such as a lock,
+  condition, semaphore, futex, or channel send.
+- `device_io`: may interact with hardware, drivers, firmware, or memory-mapped
+  device registers.
+- `memory_map`: may map, unmap, remap, pin, share, or change permissions on
+  virtual/physical memory regions.
+- `dynamic_link`: may load, unload, resolve, or call through dynamically linked
+  code.
+
+The compiler-side source of truth for this vocabulary is the standard effect
+name list in `omega-effects`; docs and implementation should move together.
+
+The list should stay intentionally small. More specific host details belong in
+boundary provider metadata, not in effect names. For example, `stdout_io` is
+enough for the language-level capability report; whether the implementation
+uses Darwin `libSystem`, Linux `write`, Windows console APIs, or a firmware
+UART is a provider detail.
+
+Unknown effects should be rejected in normal safe builds once the compiler has
+a complete standard vocabulary. Toolchain or firmware authors can extend the
+vocabulary only through explicitly trusted target configuration.
+
 Console capability should use the same shape:
 
 ```omega

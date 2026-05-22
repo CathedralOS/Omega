@@ -77,6 +77,7 @@ impl Default for LibraryFunction {
                 name: Identifier::default(),
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
+                effects: HandleSpan::empty(),
             },
             symbol: None,
             calling_convention: None,
@@ -296,6 +297,7 @@ pub struct StateSignature {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    pub effects: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -563,6 +565,7 @@ impl ItemTable {
             name: signature.name.clone(),
             parameters: signature.parameters,
             return_type: signature.return_type,
+            effects: signature.effects,
         })
     }
 
@@ -653,6 +656,7 @@ pub struct StateSignatureNode {
     pub name: Identifier,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
+    pub effects: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

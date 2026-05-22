@@ -191,6 +191,7 @@ pub struct StateSignatureSnapshot {
     pub name: IdentifierSnapshot,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
+    pub effects: Vec<IdentifierSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -641,6 +642,11 @@ fn snapshot_state_signature(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+        effects: snapshot_identifier_slice(
+            syntax_trees
+                .items
+                .identifier_path_members(signature.effects),
+        ),
     }
 }
 
@@ -659,6 +665,11 @@ fn snapshot_state_signature_node(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+        effects: snapshot_identifier_slice(
+            syntax_trees
+                .items
+                .identifier_path_members(signature.effects),
+        ),
     }
 }
 

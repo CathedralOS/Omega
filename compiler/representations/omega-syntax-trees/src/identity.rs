@@ -223,6 +223,12 @@ fn count_state_signature(
     if signature.return_type.is_valid() {
         count_type_reference_handle(syntax_trees, signature.return_type, counts);
     }
+    for effect in syntax_trees
+        .items
+        .identifier_path_members(signature.effects)
+    {
+        count_identifier(effect, counts);
+    }
 }
 
 fn count_state_signature_node(
@@ -236,6 +242,12 @@ fn count_state_signature_node(
     }
     if signature.return_type.is_valid() {
         count_type_reference_handle(syntax_trees, signature.return_type, counts);
+    }
+    for effect in syntax_trees
+        .items
+        .identifier_path_members(signature.effects)
+    {
+        count_identifier(effect, counts);
     }
 }
 

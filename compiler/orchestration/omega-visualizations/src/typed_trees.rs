@@ -6,7 +6,7 @@ use omega_typed_trees::statement::{
     TransitionTargetNode,
 };
 use omega_typed_trees::trait_definition::TraitDefinition;
-use omega_typed_trees::{TypedTrees, state::State};
+use omega_typed_trees::{TypedTrees, signature::StateSignature, state::State};
 use omega_typed_trees::{data::DataMember, machine::Machine};
 
 pub fn typed_trees_html(typed: &TypedTrees) -> String {
@@ -425,17 +425,33 @@ fn append_trait_machine_signatures(
     {
         let machine_id = diagram.node(
             format!("trait_{trait_index}_machine_{machine_index}"),
-            format!(
-                "machine {}\nsymbol: {}\nparams: {}",
-                machine.name.as_str(),
-                symbol_label(machine.symbol),
-                machine.parameters.len()
-            ),
+            trait_machine_signature_label(program, machine),
             "state",
             2,
         );
         diagram.containment_edge(trait_id, &machine_id);
     }
+}
+
+fn trait_machine_signature_label(program: &TypedTrees, machine: &StateSignature) -> String {
+    let mut label = format!(
+        "machine {}\nsymbol: {}\nparams: {}",
+        machine.name.as_str(),
+        symbol_label(machine.symbol),
+        machine.parameters.len()
+    );
+    let effects = program.state_signature_effects(machine);
+    if !effects.is_empty() {
+        label.push_str("\neffects: ");
+        label.push_str(
+            &effects
+                .iter()
+                .map(|effect| effect.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
+    label
 }
 
 fn machine_label(

@@ -9,6 +9,7 @@ pub struct StateSignature {
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
+    pub effects: HandleSpan<ProgramName>,
 }
 
 impl Default for StateSignature {
@@ -18,6 +19,7 @@ impl Default for StateSignature {
             name: ProgramName::default(),
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
+            effects: HandleSpan::empty(),
         }
     }
 }

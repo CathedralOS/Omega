@@ -35,7 +35,9 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         }
 
         input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (signature, rest) = parse_state_signature(syntax_trees, input)?;
+        let (mut signature, rest) = parse_state_signature(syntax_trees, input)?;
+        let (effects, rest) = parse_trait_signature_clauses(syntax_trees, rest)?;
+        signature.effects = effects;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if machine_count == 0 {
@@ -44,8 +46,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         machine_count = machine_count
             .checked_add(1)
             .expect("trait machine signature span count overflow");
-        input = skip_trait_signature_clauses(rest)?;
-        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -79,17 +80,56 @@ fn parse_trait_requirement<'tokens, 'source>(
     Ok((required_trait, input))
 }
 
-fn skip_trait_signature_clauses<'tokens, 'source>(
+fn parse_trait_signature_clauses<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<
+    (
+        HandleSpan<omega_syntax_trees::identifier::Identifier>,
+        Input<'tokens, 'source>,
+    ),
+    crate::parse_error::ParseError,
+> {
+    let mut effect_start = Handle::invalid();
+    let mut effect_count = 0u32;
+
     while !input.at_punctuation(PunctuationKind::Semicolon) {
         if input.at_punctuation(PunctuationKind::RightBrace) {
             return Err(input.expected_one_of_here(&["`;`"]));
+        }
+
+        if input.at_contextual("effects") {
+            input = input.take_contextual("effects")?;
+            while !input.at_punctuation(PunctuationKind::Semicolon)
+                && !input.at_contextual("requires")
+                && !input.at_contextual("ensures")
+                && !input.at_contextual("where")
+            {
+                let (effect, rest) = input.take_identifier()?;
+                let handle = syntax_trees.items.append_identifier_path_member(effect);
+                if effect_count == 0 {
+                    effect_start = handle;
+                }
+                effect_count = effect_count
+                    .checked_add(1)
+                    .expect("trait machine effect span count overflow");
+                input = rest;
+
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                }
+            }
+            continue;
         }
 
         let (_, rest) = input.expect_token()?;
         input = rest;
     }
 
-    Ok(input)
+    let effects = if effect_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(effect_start, effect_count)
+    };
+    Ok((effects, input))
 }

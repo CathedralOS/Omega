@@ -27,6 +27,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             name,
             parameters,
             return_type,
+            effects: HandleSpan::empty(),
         },
         input,
     ))
