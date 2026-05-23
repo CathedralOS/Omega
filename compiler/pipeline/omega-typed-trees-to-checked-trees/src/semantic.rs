@@ -1,4 +1,8 @@
 use super::*;
+use crate::flow::{
+    canonical_place_from_expression, effective_member_symbol, expression_type_symbol,
+    symbol_type_symbol,
+};
 
 pub(crate) fn build_semantic_facts(
     program: &omega_typed_trees::TypedTrees,
