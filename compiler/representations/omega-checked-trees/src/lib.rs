@@ -270,6 +270,34 @@ pub struct FlowSemanticContextRef {
     pub context: omega_facts::FactContextHandle,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlowInvalidationSource {
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+    },
+}
+
+impl Default for FlowInvalidationSource {
+    fn default() -> Self {
+        Self::Statement { statement_index: 0 }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowInvalidationFact {
+    pub source: FlowInvalidationSource,
+    pub context: omega_facts::FactContextHandle,
+    pub fact: omega_facts::FactHandle,
+    pub mutated_root: omega_facts::PlaceRoot,
+    pub mutated_segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub dependency_segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowCallFact {
     pub statement_index: usize,
@@ -281,6 +309,7 @@ pub struct FlowCallFact {
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub requires_contexts: HandleSpan<FlowSemanticContextRef>,
     pub exit_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
     pub direct_effects: omega_effects::EffectSet,
@@ -304,6 +333,7 @@ pub struct FlowStateFact {
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
     pub direct_effects: omega_effects::EffectSet,
@@ -313,6 +343,8 @@ pub struct FlowStateFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowFacts {
     pub semantic_context_refs: Arena<FlowSemanticContextRef>,
+    pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
+    pub invalidations: Arena<FlowInvalidationFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
     pub states: Arena<FlowStateFact>,
