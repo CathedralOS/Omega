@@ -47,6 +47,10 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         checked_trees.contains("place: self"),
         "checked semantic facts should retain a readable place for self membership"
     );
+    assert!(
+        checked_trees.contains("Flow Environments"),
+        "checked tree visualization should expose the shared flow environment spine"
+    );
 
     let _ = fs::remove_dir_all(&build_dir);
 }

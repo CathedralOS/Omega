@@ -6,9 +6,9 @@ use omega_checked_trees::statement::{
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
-    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, InvariantFact,
-    InvariantFacts, Program, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner,
-    StateBorrowFact,
+    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, FlowCallFact,
+    FlowExitFact, FlowFacts, FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts,
+    Program, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -30,12 +30,14 @@ pub fn lower_typed_trees(
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let invariants = build_invariant_facts(&program);
     let semantic = build_semantic_facts(&program, &proof);
+    let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &effects);
     let facts = CheckFacts {
         semantic,
         proof,
         borrow,
         invariants,
         effects,
+        flow,
     };
 
     Ok(Program {
@@ -940,6 +942,250 @@ fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFa
     }
 
     InvariantFacts { definitions }
+}
+
+fn build_flow_facts(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    proof: &ProofFacts,
+    semantic: &FactPlan,
+    effects: &omega_effects::EffectPlan,
+) -> FlowFacts {
+    let mut semantic_context_refs =
+        omega_core::arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2));
+    let mut calls = omega_core::arena::Arena::with_capacity(borrow.calls.len());
+    let mut exits = omega_core::arena::Arena::with_capacity(proof.contract_exits.len());
+    let mut states = omega_core::arena::Arena::with_capacity(borrow.states.len());
+
+    for machine in program.machines() {
+        let machine_effects = effects_machine(effects, machine.symbol);
+
+        for state in program.machine_states(machine) {
+            let Some(borrow_state) = borrow_state_fact(borrow, machine.symbol, state.symbol) else {
+                continue;
+            };
+            let state_effects = effects_state(effects, machine_effects, state.symbol);
+            let mut state_contexts = omega_core::arena::HandleSpan::empty();
+            append_flow_contexts_for_points(
+                semantic,
+                &mut semantic_context_refs,
+                &mut state_contexts,
+                &[
+                    ProgramPoint::Global,
+                    ProgramPoint::Machine {
+                        machine_symbol: machine.symbol,
+                    },
+                    ProgramPoint::State {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                    },
+                ],
+            );
+
+            let mut state_calls = omega_core::arena::HandleSpan::empty();
+            for borrow_call in borrow.calls.span_or_empty(borrow_state.calls) {
+                let effect_call = effects_call(effects, state_effects, borrow_call);
+                let contract_call = proof_contract_call(
+                    proof,
+                    machine.symbol,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    borrow_call.call_ordinal,
+                );
+                let mut call_contexts = omega_core::arena::HandleSpan::empty();
+                append_flow_contexts_for_points(
+                    semantic,
+                    &mut semantic_context_refs,
+                    &mut call_contexts,
+                    &[
+                        ProgramPoint::Global,
+                        ProgramPoint::Machine {
+                            machine_symbol: machine.symbol,
+                        },
+                        ProgramPoint::State {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                        },
+                        ProgramPoint::Call {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            statement_index: borrow_call.statement_index,
+                            call_ordinal: borrow_call.call_ordinal,
+                        },
+                    ],
+                );
+
+                calls.append_to_span(
+                    &mut state_calls,
+                    FlowCallFact {
+                        statement_index: borrow_call.statement_index,
+                        call_ordinal: borrow_call.call_ordinal,
+                        receiver_symbol: borrow_call.receiver_symbol,
+                        target_symbol: borrow_call.target_symbol,
+                        has_receiver: borrow_call.has_receiver,
+                        accesses: borrow_call.accesses,
+                        semantic_contexts: call_contexts,
+                        requires: contract_call
+                            .map(|call| call.requires)
+                            .unwrap_or_else(HandleSpan::empty),
+                        ensures: contract_call
+                            .map(|call| call.ensures)
+                            .unwrap_or_else(HandleSpan::empty),
+                        direct_effects: effect_call
+                            .map(|call| call.direct)
+                            .unwrap_or_else(omega_effects::EffectSet::empty),
+                        transitive_effects: effect_call
+                            .map(|call| call.transitive)
+                            .unwrap_or_else(omega_effects::EffectSet::empty),
+                    },
+                );
+            }
+
+            let mut state_exits = omega_core::arena::HandleSpan::empty();
+            for contract_exit in proof.contract_exits.iter().filter_map(|(_, exit)| {
+                (exit.machine_symbol == machine.symbol && exit.state_symbol == state.symbol)
+                    .then_some(exit)
+            }) {
+                let mut exit_contexts = omega_core::arena::HandleSpan::empty();
+                append_flow_contexts_for_points(
+                    semantic,
+                    &mut semantic_context_refs,
+                    &mut exit_contexts,
+                    &[
+                        ProgramPoint::Global,
+                        ProgramPoint::Machine {
+                            machine_symbol: machine.symbol,
+                        },
+                        ProgramPoint::State {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                        },
+                        ProgramPoint::Exit {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            statement_index: contract_exit.statement_index,
+                        },
+                    ],
+                );
+
+                exits.append_to_span(
+                    &mut state_exits,
+                    FlowExitFact {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index: contract_exit.statement_index,
+                        semantic_contexts: exit_contexts,
+                        ensures: contract_exit.ensures,
+                    },
+                );
+            }
+
+            states.append(FlowStateFact {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                writable_roots: borrow_state.writable_roots,
+                mutable_parameter_count: borrow_state.mutable_parameter_count,
+                semantic_contexts: state_contexts,
+                calls: state_calls,
+                exits: state_exits,
+                direct_effects: state_effects
+                    .map(|state_effects| state_effects.direct)
+                    .unwrap_or_else(omega_effects::EffectSet::empty),
+                transitive_effects: state_effects
+                    .map(|state_effects| state_effects.transitive)
+                    .unwrap_or_else(omega_effects::EffectSet::empty),
+            });
+        }
+    }
+
+    FlowFacts {
+        semantic_context_refs,
+        calls,
+        exits,
+        states,
+    }
+}
+
+fn append_flow_contexts_for_points(
+    semantic: &FactPlan,
+    semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
+    refs: &mut omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+    points: &[ProgramPoint],
+) {
+    for point in points {
+        for context in semantic.context_handles_at_point(*point) {
+            semantic_context_refs.append_to_span(refs, FlowSemanticContextRef { context });
+        }
+    }
+}
+
+fn borrow_state_fact(
+    borrow: &BorrowFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Option<&StateBorrowFact> {
+    borrow.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    })
+}
+
+fn proof_contract_call(
+    proof: &ProofFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<&ContractCallFact> {
+    proof.contract_calls.iter().find_map(|(_, call)| {
+        (call.caller_machine_symbol == machine_symbol
+            && call.caller_state_symbol == state_symbol
+            && call.statement_index == statement_index
+            && call.call_ordinal == call_ordinal)
+            .then_some(call)
+    })
+}
+
+fn effects_machine(
+    effects: &omega_effects::EffectPlan,
+    machine_symbol: SymbolHandle,
+) -> Option<&omega_effects::MachineEffects> {
+    effects
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+}
+
+fn effects_state<'effects>(
+    effects: &'effects omega_effects::EffectPlan,
+    machine_effects: Option<&'effects omega_effects::MachineEffects>,
+    state_symbol: SymbolHandle,
+) -> Option<&'effects omega_effects::StateEffects> {
+    machine_effects.and_then(|machine_effects| {
+        effects
+            .states
+            .span_or_empty(machine_effects.states)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+    })
+}
+
+fn effects_call<'effects>(
+    effects: &'effects omega_effects::EffectPlan,
+    state_effects: Option<&'effects omega_effects::StateEffects>,
+    borrow_call: &BorrowCallFact,
+) -> Option<&'effects omega_effects::CallEffects> {
+    state_effects.and_then(|state_effects| {
+        effects
+            .calls
+            .span_or_empty(state_effects.calls)
+            .iter()
+            .find(|call| {
+                call.statement_index == borrow_call.statement_index
+                    && call.call_ordinal == borrow_call.call_ordinal
+                    && call.target_state_symbol == borrow_call.target_symbol
+            })
+    })
 }
 
 fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
@@ -1944,7 +2190,7 @@ fn first_valid_name_path_symbol(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_borrow_facts, build_proof_facts, build_semantic_facts};
+    use super::{build_borrow_facts, build_flow_facts, build_proof_facts, build_semantic_facts};
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
     use omega_checked_trees::machine::{Machine, TraitConformance};
     use omega_checked_trees::name::ProgramName;
@@ -2078,6 +2324,117 @@ mod tests {
             .next()
             .expect("machine contract context");
         assert_eq!(context.boolean_facts().count(), 1);
+    }
+
+    #[test]
+    fn builds_shared_flow_facts_for_state_and_call_sites() {
+        let caller_machine_symbol = SymbolHandle::from_arena_index(40);
+        let caller_state_symbol = SymbolHandle::from_arena_index(41);
+        let callee_machine_symbol = SymbolHandle::from_arena_index(42);
+        let callee_state_symbol = SymbolHandle::from_arena_index(43);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let contract_expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let contract_fact =
+            program
+                .proof_facts
+                .append(omega_typed_trees::domain::ProofFact::Expression(
+                    contract_expression,
+                ));
+
+        let callee_state = State {
+            symbol: callee_state_symbol,
+            name: ProgramName::generated("run"),
+            parameters: Default::default(),
+            return_type: Default::default(),
+            statement_nodes: Default::default(),
+        };
+        let mut callee_machine = Machine {
+            symbol: callee_machine_symbol,
+            name: ProgramName::generated("Worker::run"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_state(&mut callee_machine, callee_state);
+        program.push_machine_contract(
+            &mut callee_machine,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: HandleSpan::from_parts(contract_fact, 1),
+                token_count: 1,
+            },
+        );
+        program.push_machine(callee_machine);
+
+        let call_arguments = HandleSpan::empty();
+        let call_statement_receiver = HandleSpan::empty();
+        let call_statement = StatementNode::Call(TableCall {
+            receiver: call_statement_receiver,
+            receiver_symbol: caller_machine_symbol,
+            target: ProgramName::generated("run"),
+            target_symbol: callee_state_symbol,
+            arguments: call_arguments,
+        });
+        let caller_statement = program.statement_table.insert(call_statement);
+        let caller_state = State {
+            symbol: caller_state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: Default::default(),
+            statement_nodes: HandleSpan::from_parts(caller_statement, 1),
+        };
+        let mut caller_machine = Machine {
+            symbol: caller_machine_symbol,
+            name: ProgramName::generated("Main::main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_state(&mut caller_machine, caller_state);
+        program.push_machine(caller_machine);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let effects = omega_effects::infer_effects(&program);
+        let borrow = build_borrow_facts(&program);
+        let proof = build_proof_facts(&program, &proof_plan, &borrow);
+        let semantic = build_semantic_facts(&program, &proof);
+        let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &effects);
+
+        let caller_flow = flow
+            .states
+            .iter()
+            .find_map(|(_, state)| {
+                (state.machine_symbol == caller_machine_symbol
+                    && state.state_symbol == caller_state_symbol)
+                    .then_some(state)
+            })
+            .expect("caller flow state");
+        assert!(caller_flow.semantic_contexts.is_empty());
+        assert_eq!(flow.calls.span_or_empty(caller_flow.calls).len(), 1);
+
+        let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
+        assert_eq!(call_flow.statement_index, 0);
+        assert_eq!(call_flow.call_ordinal, 0);
+        assert_eq!(call_flow.target_symbol, callee_state_symbol);
+        assert!(!call_flow.semantic_contexts.is_empty());
+        assert_eq!(
+            proof
+                .contract_fact_refs
+                .span_or_empty(call_flow.requires)
+                .len(),
+            1
+        );
     }
 
     #[test]

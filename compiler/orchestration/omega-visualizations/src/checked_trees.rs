@@ -140,6 +140,94 @@ fn checked_effects_report(program: &Program) -> String {
         report.push('\n');
     }
 
+    report.push_str("Flow Environments\n");
+    report.push_str("-----------------\n");
+    report.push_str(
+        "Shared state/call/exit snapshots tie borrow roots, semantic contexts, contracts, and effects together.\n\n",
+    );
+    report.push_str("states:   ");
+    report.push_str(&program.facts.flow.states.len().to_string());
+    report.push('\n');
+    report.push_str("calls:    ");
+    report.push_str(&program.facts.flow.calls.len().to_string());
+    report.push('\n');
+    report.push_str("exits:    ");
+    report.push_str(&program.facts.flow.exits.len().to_string());
+    report.push('\n');
+    report.push_str("contexts: ");
+    report.push_str(&program.facts.flow.semantic_context_refs.len().to_string());
+    report.push_str("\n\n");
+
+    for (_, state_flow) in program.facts.flow.states.iter() {
+        report.push_str("state ");
+        report.push_str(&machine_name(program, state_flow.machine_symbol));
+        report.push_str("::");
+        report.push_str(&state_name(program, state_flow.state_symbol));
+        report.push('\n');
+        report.push_str("  writable roots: ");
+        report.push_str(
+            &program
+                .facts
+                .borrow
+                .writable_roots
+                .span_or_empty(state_flow.writable_roots)
+                .len()
+                .to_string(),
+        );
+        report.push('\n');
+        report.push_str("  mutable params: ");
+        report.push_str(&state_flow.mutable_parameter_count.to_string());
+        report.push('\n');
+        report.push_str("  contexts: ");
+        append_flow_context_labels(program, &mut report, state_flow.semantic_contexts);
+        report.push('\n');
+        report.push_str("  direct effects:  ");
+        report.push_str(&format_effect_set(state_flow.direct_effects));
+        report.push('\n');
+        report.push_str("  reached effects: ");
+        report.push_str(&format_effect_set(state_flow.transitive_effects));
+        report.push('\n');
+
+        for call_flow in program.facts.flow.calls.span_or_empty(state_flow.calls) {
+            report.push_str("  call ");
+            report.push_str(&call_flow.statement_index.to_string());
+            report.push('.');
+            report.push_str(&call_flow.call_ordinal.to_string());
+            report.push_str(" -> ");
+            report.push_str(&state_label_from_symbol(program, call_flow.target_symbol));
+            report.push('\n');
+            report.push_str("    contexts: ");
+            append_flow_context_labels(program, &mut report, call_flow.semantic_contexts);
+            report.push('\n');
+            report.push_str("    requires: ");
+            append_contract_fact_ref_summary(program, &mut report, call_flow.requires);
+            report.push('\n');
+            report.push_str("    ensures: ");
+            append_contract_fact_ref_summary(program, &mut report, call_flow.ensures);
+            report.push('\n');
+            report.push_str("    direct effects:  ");
+            report.push_str(&format_effect_set(call_flow.direct_effects));
+            report.push('\n');
+            report.push_str("    reached effects: ");
+            report.push_str(&format_effect_set(call_flow.transitive_effects));
+            report.push('\n');
+        }
+
+        for exit_flow in program.facts.flow.exits.span_or_empty(state_flow.exits) {
+            report.push_str("  exit ");
+            report.push_str(&exit_flow.statement_index.to_string());
+            report.push('\n');
+            report.push_str("    contexts: ");
+            append_flow_context_labels(program, &mut report, exit_flow.semantic_contexts);
+            report.push('\n');
+            report.push_str("    ensures: ");
+            append_contract_fact_ref_summary(program, &mut report, exit_flow.ensures);
+            report.push('\n');
+        }
+
+        report.push('\n');
+    }
+
     report.push_str("Contract Facts\n");
     report.push_str("--------------\n");
     report.push_str("Contracts are stored as checked-tree proof facts pointing into typed proof fact arenas.\n\n");
@@ -636,6 +724,64 @@ fn typed_proof_fact_label(
                 domain
             )
         }
+    }
+}
+
+fn state_label_from_symbol(program: &Program, symbol: SymbolHandle) -> String {
+    program
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == symbol)
+                .map(|state| format!("{}::{}", machine.name.as_str(), state.name.as_str()))
+        })
+        .unwrap_or_else(|| symbol_label(symbol))
+}
+
+fn append_flow_context_labels(
+    program: &Program,
+    report: &mut String,
+    contexts: omega_core::arena::HandleSpan<omega_checked_trees::FlowSemanticContextRef>,
+) {
+    let contexts = program
+        .facts
+        .flow
+        .semantic_context_refs
+        .span_or_empty(contexts);
+    if contexts.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, context_ref) in contexts.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        let context = program.facts.semantic.contexts.get(context_ref.context);
+        report.push_str(&semantic_point_label(program, context.point));
+    }
+}
+
+fn append_contract_fact_ref_summary(
+    program: &Program,
+    report: &mut String,
+    facts: omega_core::arena::HandleSpan<omega_checked_trees::ContractProofFactRef>,
+) {
+    let fact_refs = program.facts.proof.contract_fact_refs.span_or_empty(facts);
+    if fact_refs.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, fact_ref) in fact_refs.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        let fact = program.facts.proof.contract_facts.get(fact_ref.fact);
+        report.push_str(&typed_proof_fact_label(program, fact.fact));
     }
 }
 
