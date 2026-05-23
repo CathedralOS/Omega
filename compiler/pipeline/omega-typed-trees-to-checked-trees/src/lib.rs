@@ -2682,6 +2682,26 @@ fn canonical_place_overlaps_segments(
         })
 }
 
+fn canonical_place_overlaps_joined_segments(
+    prefix: &[omega_facts::PlaceSegment],
+    suffix: &[omega_facts::PlaceSegment],
+    right: &[omega_facts::PlaceSegment],
+) -> bool {
+    let shared_len = prefix
+        .len()
+        .saturating_add(suffix.len())
+        .min(right.len());
+
+    (0..shared_len).all(|index| {
+        let left_segment = if index < prefix.len() {
+            prefix[index]
+        } else {
+            suffix[index - prefix.len()]
+        };
+        canonical_place_segments_equal(left_segment, right[index])
+    })
+}
+
 fn canonical_place_overlaps_fact_place(
     program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
@@ -2740,11 +2760,11 @@ fn domain_membership_alias_overlaps(
     }
 
     Some(dependencies.iter().any(|dependency_segments| {
-        let mut rebased_segments =
-            Vec::with_capacity(fact_segments.len().saturating_add(dependency_segments.len()));
-        rebased_segments.extend(fact_segments.iter().copied());
-        rebased_segments.extend(dependency_segments.iter().copied());
-        canonical_place_overlaps_segments(&rebased_segments, &mutated_place.segments)
+        canonical_place_overlaps_joined_segments(
+            fact_segments,
+            dependency_segments,
+            &mutated_place.segments,
+        )
     }))
 }
 
@@ -5089,6 +5109,125 @@ mod tests {
                 .message
                 .contains("cannot prove requires contract for call heal from Main::main")
         }));
+    }
+
+    #[test]
+    fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
+        let source = r#"
+            data Player {
+                health: i32;
+                mana: i32;
+                stamina: i32;
+            }
+
+            domain Player::Valid {
+                self.health >= 0;
+                self.health <= 100;
+            }
+
+            domain Player::Ready {
+                self in Player::Valid;
+                self.mana >= 0;
+            }
+
+            data Main {
+                player: Player;
+            }
+
+            machine Main::mark_ready(&mut self, player: &mut Player)
+            ensures
+                player in Player::Ready
+            {
+                player.health = 40;
+                player.mana = 5;
+            }
+
+            machine Main::spend_stamina(&mut self, player: &mut Player) {
+                player.stamina = 0;
+            }
+
+            machine Main::heal(&mut self, player: &mut Player)
+            requires
+                player in Player::Ready
+            {
+                player.health = 50;
+            }
+
+            machine Main::main(&mut self) {
+                self.mark_ready(&mut self.player);
+                self.spend_stamina(&mut self.player);
+                self.heal(&mut self.player);
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+        let effects = omega_effects::infer_effects(&typed);
+        let borrow = build_borrow_facts(&typed);
+        let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+        let semantic = build_semantic_facts(&typed, &proof);
+        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &effects);
+        let main_machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("main machine");
+        let main_state = typed
+            .machine_states(main_machine)
+            .iter()
+            .find(|state| state.name.as_str() == "main")
+            .expect("main state");
+        let caller_flow = flow
+            .states
+            .iter()
+            .find_map(|(_, state)| {
+                (state.machine_symbol == main_machine.symbol
+                    && state.state_symbol == main_state.symbol)
+                    .then_some(state)
+            })
+            .expect("main flow state");
+        let calls = flow.calls.span_or_empty(caller_flow.calls);
+        let heal_call = &calls[2];
+        let (required_place, required_domain) = flow
+            .semantic_context_refs
+            .span_or_empty(heal_call.requires_contexts)
+            .iter()
+            .find_map(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                semantic
+                    .context_view(context)
+                    .facts()
+                    .find_map(|fact| match fact.payload {
+                        FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                            let FactPlace::Place(place) = fact.place else {
+                                return None;
+                            };
+                            Some((place, domain_symbol))
+                        }
+                        _ => None,
+                    })
+            })
+            .expect("heal requires domain membership");
+        let heal_entry_proves = flow
+            .semantic_context_refs
+            .span_or_empty(calls[2].entry_semantic_contexts)
+            .iter()
+            .any(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                context_proves_requirement_place_domain(
+                    &typed,
+                    &semantic,
+                    context,
+                    required_place,
+                    required_domain,
+                )
+            });
+
+        assert!(heal_entry_proves);
+        lower_typed_trees(typed).expect("disjoint mutation should preserve imported domain fact");
     }
 
     #[test]
