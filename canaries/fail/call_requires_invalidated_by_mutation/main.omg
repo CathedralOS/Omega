@@ -1,0 +1,43 @@
+data Player {
+    health: i32;
+}
+
+domain Player::Valid {
+    self.health >= 0;
+    self.health <= 100;
+}
+
+domain Player::Alive {
+    self in Player::Valid;
+    self.health > 0;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::mark_valid(&mut self, player: &mut Player)
+ensures
+    player in Player::Valid
+{
+    player.health = 0;
+}
+
+machine Main::break_valid(&mut self, player: &mut Player) {
+    player.health = 200;
+}
+
+machine Main::heal(&mut self, player: &mut Player)
+requires
+    player in Player::Valid
+ensures
+    player in Player::Alive
+{
+    player.health = 10;
+}
+
+machine Main::main(&mut self) {
+    self.mark_valid(&mut self.player);
+    self.break_valid(&mut self.player);
+    self.heal(&mut self.player);
+}

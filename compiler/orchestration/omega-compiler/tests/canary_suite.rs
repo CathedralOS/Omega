@@ -191,6 +191,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "call_requires_invalidated_by_mutation",
     "call_requires_unproven",
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
