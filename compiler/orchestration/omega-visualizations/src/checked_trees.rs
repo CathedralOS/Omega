@@ -106,6 +106,22 @@ fn checked_effects_report(program: &Program) -> String {
         report.push('\n');
     }
 
+    report.push_str("Contract Facts\n");
+    report.push_str("--------------\n");
+    report.push_str("Contracts are stored as checked-tree proof facts pointing into typed proof fact arenas.\n\n");
+
+    for (_, fact) in program.facts.proof.contract_facts.iter() {
+        report.push_str("contract fact ");
+        report.push_str(&contract_fact_kind(fact));
+        report.push('\n');
+        report.push_str("  owner: ");
+        report.push_str(&contract_fact_owner(program, fact));
+        report.push('\n');
+        report.push_str("  fact:  ");
+        report.push_str(&typed_proof_fact_label(program, fact.fact));
+        report.push('\n');
+    }
+
     report
 }
 
@@ -204,6 +220,47 @@ fn state_name(program: &Program, symbol: SymbolHandle) -> String {
         .find(|state| state.symbol == symbol)
         .map(|state| state.name.as_str().to_owned())
         .unwrap_or_else(|| symbol_label(symbol))
+}
+
+fn contract_fact_kind(fact: &omega_checked_trees::ContractProofFact) -> &'static str {
+    match fact.kind {
+        omega_checked_trees::ContractProofFactKind::Requires => "requires",
+        omega_checked_trees::ContractProofFactKind::Ensures => "ensures",
+        omega_checked_trees::ContractProofFactKind::Trusted => "trusted",
+    }
+}
+
+fn contract_fact_owner(program: &Program, fact: &omega_checked_trees::ContractProofFact) -> String {
+    match fact.owner {
+        omega_checked_trees::ContractProofFactOwner::Unknown => "unknown".to_owned(),
+        omega_checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
+            format!("machine {}", machine_name(program, machine_symbol))
+        }
+    }
+}
+
+fn typed_proof_fact_label(
+    program: &Program,
+    fact: omega_core::arena::Handle<omega_typed_trees::domain::ProofFact>,
+) -> String {
+    match program.proof_facts.get(fact) {
+        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+            program.expression_table.display_name(*expression)
+        }
+        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+            let domain = program
+                .domain_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "{} in {}",
+                program.expression_table.display_name(membership.value),
+                domain
+            )
+        }
+    }
 }
 
 fn format_effect_set(effects: EffectSet) -> String {

@@ -1706,14 +1706,13 @@ mod tests {
         let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
         let diagnostics = validate_program(&typed).expect_err("validation should reject import");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| {
-                    diagnostic.message.contains(
-                "domain `Player::Alive` imports `Enemy::Valid` but they classify different types"
+        let has_target_mismatch = diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(
+                "domain `Player::Alive` imports `Enemy::Valid` but they classify different types",
             )
-                }),
+        });
+        assert!(
+            has_target_mismatch,
             "expected domain target mismatch diagnostic, got {diagnostics:#?}"
         );
     }

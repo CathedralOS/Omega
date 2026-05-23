@@ -3,8 +3,7 @@ pub use omega_typed_trees::{
     trait_definition, types,
 };
 
-use omega_core::arena::Arena;
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 pub mod statement {
@@ -108,6 +107,30 @@ pub struct ProofObligationFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ContractProofFactKind {
+    #[default]
+    Requires,
+    Ensures,
+    Trusted,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ContractProofFactOwner {
+    #[default]
+    Unknown,
+    Machine {
+        machine_symbol: SymbolHandle,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContractProofFact {
+    pub kind: ContractProofFactKind,
+    pub owner: ContractProofFactOwner,
+    pub fact: Handle<omega_typed_trees::domain::ProofFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ProofObligationOwner {
     #[default]
     Unknown,
@@ -155,6 +178,7 @@ impl Default for ProofObligationFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
+    pub contract_facts: Arena<ContractProofFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
