@@ -254,6 +254,16 @@ fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) 
         omega_facts::FactPayload::BooleanExpression(expression) => {
             program.expression_table.display_name(expression)
         }
+        omega_facts::FactPayload::ContractBooleanExpression {
+            kind,
+            fact,
+            expression,
+        } => format!(
+            "{} contract {} ({})",
+            semantic_contract_kind(kind),
+            program.expression_table.display_name(expression),
+            typed_proof_fact_label(program, fact)
+        ),
         omega_facts::FactPayload::DomainMembership {
             value,
             domain: _,
@@ -262,6 +272,19 @@ fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) 
             "{} in {}",
             program.expression_table.display_name(value),
             semantic_symbol_name(program, domain_symbol)
+        ),
+        omega_facts::FactPayload::ContractDomainMembership {
+            kind,
+            fact,
+            value,
+            domain: _,
+            domain_symbol,
+        } => format!(
+            "{} contract {} in {} ({})",
+            semantic_contract_kind(kind),
+            program.expression_table.display_name(value),
+            semantic_symbol_name(program, domain_symbol),
+            typed_proof_fact_label(program, fact)
         ),
         omega_facts::FactPayload::TypeConstraint { constraint } => program
             .type_reference_table

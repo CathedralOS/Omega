@@ -2,7 +2,7 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
-use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
@@ -145,6 +145,18 @@ pub enum FactPayload {
         kind: ContractFactKind,
         fact: Handle<ProofFact>,
     },
+    ContractBooleanExpression {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        expression: ExpressionHandle,
+    },
+    ContractDomainMembership {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        value: ExpressionHandle,
+        domain: HandleSpan<ProgramName>,
+        domain_symbol: SymbolHandle,
+    },
     InvariantDefinition {
         constraint_count: usize,
     },
@@ -216,7 +228,10 @@ impl<'facts> FactContextView<'facts> {
 
     pub fn boolean_facts(self) -> impl Iterator<Item = BooleanFact> + 'facts {
         self.facts().filter_map(|fact| match fact.payload {
-            FactPayload::BooleanExpression(expression) => Some(BooleanFact { expression }),
+            FactPayload::BooleanExpression(expression)
+            | FactPayload::ContractBooleanExpression { expression, .. } => {
+                Some(BooleanFact { expression })
+            }
             _ => None,
         })
     }
@@ -227,6 +242,12 @@ impl<'facts> FactContextView<'facts> {
                 value,
                 domain,
                 domain_symbol,
+            }
+            | FactPayload::ContractDomainMembership {
+                value,
+                domain,
+                domain_symbol,
+                ..
             } => Some(DomainMembershipFact {
                 value,
                 domain,
@@ -241,13 +262,14 @@ impl<'facts> FactContextView<'facts> {
         value: ExpressionHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
-        self.domain_memberships()
-            .any(|fact| fact.value == value && fact.domain_symbol == domain_symbol)
+        self.domain_memberships().any(|fact| {
+            fact.value == value && self.plan.domain_implies(fact.domain_symbol, domain_symbol)
+        })
     }
 
     pub fn references_domain(self, domain_symbol: SymbolHandle) -> bool {
         self.domain_memberships()
-            .any(|fact| fact.domain_symbol == domain_symbol)
+            .any(|fact| self.plan.domain_implies(fact.domain_symbol, domain_symbol))
     }
 
     pub fn type_constraints(self) -> impl Iterator<Item = TypeConstraintFact> + 'facts {
@@ -300,6 +322,66 @@ impl FactPlan {
             root: PlaceRoot::Expression(expression),
             segments: HandleSpan::empty(),
         })
+    }
+
+    pub fn append_place_from_expression(
+        &mut self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> PlaceHandle {
+        if !expression.is_valid() {
+            return self.append_place(Place {
+                root: PlaceRoot::Unknown,
+                segments: HandleSpan::empty(),
+            });
+        }
+
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Mutable(inner) => self.append_place_from_expression(program, *inner),
+            ExpressionNode::Name(path) => {
+                let root = if path.head_symbol.is_valid() {
+                    path.head_symbol
+                } else {
+                    path.symbol
+                };
+                let place = self.append_symbol_place(root);
+                for member_symbol in program
+                    .expression_table
+                    .name_path_member_symbols(path.member_symbols)
+                    .iter()
+                    .skip(1)
+                {
+                    self.push_place_segment(
+                        place,
+                        PlaceSegment::Field {
+                            symbol: *member_symbol,
+                        },
+                    );
+                }
+                place
+            }
+            ExpressionNode::Member(member) => {
+                let place = self.append_place_from_expression(program, member.receiver);
+                self.push_place_segment(
+                    place,
+                    PlaceSegment::Field {
+                        symbol: member.member_symbol,
+                    },
+                );
+                place
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let place = self.append_place_from_expression(program, indexed.collection);
+                self.push_place_segment(
+                    place,
+                    PlaceSegment::Index {
+                        expression: indexed.index,
+                    },
+                );
+                place
+            }
+            _ => self.append_expression_place(expression),
+        }
     }
 
     pub fn append_type_reference_place(
@@ -404,7 +486,39 @@ impl FactPlan {
         domain_symbol: SymbolHandle,
     ) -> bool {
         self.domain_memberships_for_symbol(symbol)
-            .any(|fact| fact.domain_symbol == domain_symbol)
+            .any(|fact| self.domain_implies(fact.domain_symbol, domain_symbol))
+    }
+
+    pub fn domain_implies(
+        &self,
+        source_domain_symbol: SymbolHandle,
+        target_domain_symbol: SymbolHandle,
+    ) -> bool {
+        let mut visited = Vec::new();
+        self.domain_implies_inner(source_domain_symbol, target_domain_symbol, &mut visited)
+    }
+
+    fn domain_implies_inner(
+        &self,
+        source_domain_symbol: SymbolHandle,
+        target_domain_symbol: SymbolHandle,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if !source_domain_symbol.is_valid() || !target_domain_symbol.is_valid() {
+            return false;
+        }
+        if source_domain_symbol == target_domain_symbol {
+            return true;
+        }
+        if visited.contains(&source_domain_symbol) {
+            return false;
+        }
+        visited.push(source_domain_symbol);
+
+        self.domain_memberships_for_symbol(source_domain_symbol)
+            .any(|fact| {
+                self.domain_implies_inner(fact.domain_symbol, target_domain_symbol, visited)
+            })
     }
 
     pub fn boolean_facts_for_symbol(
@@ -413,7 +527,10 @@ impl FactPlan {
     ) -> impl Iterator<Item = BooleanFact> + '_ {
         self.facts_for_symbol(symbol)
             .filter_map(|fact| match fact.payload {
-                FactPayload::BooleanExpression(expression) => Some(BooleanFact { expression }),
+                FactPayload::BooleanExpression(expression)
+                | FactPayload::ContractBooleanExpression { expression, .. } => {
+                    Some(BooleanFact { expression })
+                }
                 _ => None,
             })
     }
@@ -428,6 +545,12 @@ impl FactPlan {
                     value,
                     domain,
                     domain_symbol,
+                }
+                | FactPayload::ContractDomainMembership {
+                    value,
+                    domain,
+                    domain_symbol,
+                    ..
                 } => Some(DomainMembershipFact {
                     value,
                     domain,
@@ -488,9 +611,10 @@ fn estimated_definition_context_capacity(program: &TypedTrees) -> usize {
 fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for domain in program.domain_definitions() {
         let mut refs = HandleSpan::empty();
-        let place = facts.append_symbol_place(domain.symbol);
         for fact_handle in proof_fact_handles(domain.facts) {
-            let payload = match program.proof_facts.get(fact_handle) {
+            let proof_fact = program.proof_facts.get(fact_handle);
+            let place = append_proof_fact_place(program, facts, proof_fact);
+            let payload = match proof_fact {
                 ProofFact::Expression(expression) => FactPayload::BooleanExpression(*expression),
                 ProofFact::Membership(membership) => FactPayload::DomainMembership {
                     value: membership.value,
@@ -517,6 +641,21 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
             refs,
         );
         facts.append_symbol_set(domain.symbol, refs);
+    }
+}
+
+fn append_proof_fact_place(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    proof_fact: &ProofFact,
+) -> PlaceHandle {
+    match proof_fact {
+        ProofFact::Expression(expression) => {
+            facts.append_place_from_expression(program, *expression)
+        }
+        ProofFact::Membership(membership) => {
+            facts.append_place_from_expression(program, membership.value)
+        }
     }
 }
 
@@ -577,20 +716,26 @@ fn type_constraint_handles(
 
 #[cfg(test)]
 mod tests {
-    use super::build_definition_fact_plan;
+    use super::{
+        Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
+        build_definition_fact_plan,
+    };
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::TypedTrees;
     use omega_typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
-    use omega_typed_trees::expression::ExpressionNode;
+    use omega_typed_trees::expression::{
+        ExpressionNode, TableIndexedExpression, TableMemberExpression, TableNamePath,
+    };
     use omega_typed_trees::invariant::InvariantDefinition;
     use omega_typed_trees::name::ProgramName;
     use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
     #[test]
     fn builds_definition_fact_plan_for_domains_and_invariants() {
-        let domain_symbol = SymbolHandle::from_arena_index(10);
-        let invariant_symbol = SymbolHandle::from_arena_index(11);
+        let valid_domain_symbol = SymbolHandle::from_arena_index(10);
+        let alive_domain_symbol = SymbolHandle::from_arena_index(11);
+        let invariant_symbol = SymbolHandle::from_arena_index(12);
 
         let mut program = TypedTrees::default();
         let expression = program
@@ -604,15 +749,22 @@ mod tests {
             .append(ProofFact::Membership(ProofMembershipFact {
                 value: expression,
                 domain: HandleSpan::empty(),
-                domain_symbol,
+                domain_symbol: valid_domain_symbol,
             }));
         assert_eq!(membership.arena_index(), fact.arena_index() + 1);
         program.push_domain_definition(DomainDefinition {
-            symbol: domain_symbol,
+            symbol: alive_domain_symbol,
             name: ProgramName::generated("Player::Alive"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::from_parts(fact, 2),
             body_token_count: 2,
+        });
+        program.push_domain_definition(DomainDefinition {
+            symbol: valid_domain_symbol,
+            name: ProgramName::generated("Player::Valid"),
+            target_type: TypeReferenceHandle::invalid(),
+            facts: HandleSpan::empty(),
+            body_token_count: 0,
         });
 
         let constraint = program
@@ -626,12 +778,15 @@ mod tests {
 
         let facts = build_definition_fact_plan(&program);
 
-        assert_eq!(facts.places.len(), 2);
+        assert_eq!(facts.places.len(), 3);
         assert_eq!(facts.facts.len(), 3);
-        assert_eq!(facts.contexts.len(), 2);
-        assert_eq!(facts.symbol_sets.len(), 2);
-        assert_eq!(facts.boolean_facts_for_symbol(domain_symbol).count(), 1);
-        assert!(facts.symbol_references_domain(domain_symbol, domain_symbol));
+        assert_eq!(facts.contexts.len(), 3);
+        assert_eq!(facts.symbol_sets.len(), 3);
+        assert_eq!(
+            facts.boolean_facts_for_symbol(alive_domain_symbol).count(),
+            1
+        );
+        assert!(facts.symbol_references_domain(alive_domain_symbol, valid_domain_symbol));
         assert_eq!(
             facts.type_constraints_for_symbol(invariant_symbol).count(),
             1
@@ -639,19 +794,19 @@ mod tests {
         assert_eq!(
             facts
                 .facts_at_point(super::ProgramPoint::Definition {
-                    symbol: domain_symbol,
+                    symbol: alive_domain_symbol,
                 })
                 .count(),
             2
         );
         let domain_context = facts
             .contexts_at_point(super::ProgramPoint::Definition {
-                symbol: domain_symbol,
+                symbol: alive_domain_symbol,
             })
             .next()
             .expect("domain context");
         assert_eq!(domain_context.boolean_facts().count(), 1);
-        assert!(domain_context.proves_domain_membership(expression, domain_symbol));
+        assert!(domain_context.proves_domain_membership(expression, valid_domain_symbol));
 
         let invariant_context = facts
             .contexts_at_point(super::ProgramPoint::Definition {
@@ -660,5 +815,118 @@ mod tests {
             .next()
             .expect("invariant context");
         assert_eq!(invariant_context.type_constraints().count(), 1);
+    }
+
+    #[test]
+    fn domain_membership_queries_follow_domain_imports() {
+        let valid_domain_symbol = SymbolHandle::from_arena_index(20);
+        let alive_domain_symbol = SymbolHandle::from_arena_index(21);
+
+        let mut program = TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let membership = program
+            .proof_facts
+            .append(ProofFact::Membership(ProofMembershipFact {
+                value: expression,
+                domain: HandleSpan::empty(),
+                domain_symbol: valid_domain_symbol,
+            }));
+        program.push_domain_definition(DomainDefinition {
+            symbol: alive_domain_symbol,
+            name: ProgramName::generated("Player::Alive"),
+            target_type: TypeReferenceHandle::invalid(),
+            facts: HandleSpan::from_parts(membership, 1),
+            body_token_count: 1,
+        });
+        program.push_domain_definition(DomainDefinition {
+            symbol: valid_domain_symbol,
+            name: ProgramName::generated("Player::Valid"),
+            target_type: TypeReferenceHandle::invalid(),
+            facts: HandleSpan::empty(),
+            body_token_count: 0,
+        });
+
+        let mut facts = build_definition_fact_plan(&program);
+        let place = facts.append_expression_place(expression);
+        facts.append_fact_context(Fact {
+            place: FactPlace::Place(place),
+            point: ProgramPoint::Global,
+            origin: FactOrigin::Unknown,
+            payload: FactPayload::DomainMembership {
+                value: expression,
+                domain: HandleSpan::empty(),
+                domain_symbol: alive_domain_symbol,
+            },
+        });
+
+        assert!(facts.domain_implies(alive_domain_symbol, valid_domain_symbol));
+        assert!(facts.proves_domain_membership_at_point(
+            ProgramPoint::Global,
+            expression,
+            valid_domain_symbol
+        ));
+    }
+
+    #[test]
+    fn expression_places_preserve_roots_and_segments() {
+        let root_symbol = SymbolHandle::from_arena_index(30);
+        let field_symbol = SymbolHandle::from_arena_index(31);
+        let tail_symbol = SymbolHandle::from_arena_index(32);
+
+        let mut program = TypedTrees::default();
+        let mut member_symbols = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member_symbol(&mut member_symbols, root_symbol);
+        program
+            .expression_table
+            .push_name_path_member_symbol(&mut member_symbols, field_symbol);
+        let name = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members: HandleSpan::empty(),
+                member_symbols,
+                head_symbol: root_symbol,
+                symbol: field_symbol,
+            }));
+        let index = program.expression_table.insert(ExpressionNode::Integer(0));
+        let indexed =
+            program
+                .expression_table
+                .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection: name,
+                    index,
+                }));
+        let member =
+            program
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: indexed,
+                    member_symbol: tail_symbol,
+                    member: ProgramName::generated("tail"),
+                }));
+
+        let mut facts = FactPlan::default();
+        let place = facts.append_place_from_expression(&program, member);
+        let place = facts.places.get(place);
+        let segments = facts.place_segments.span_or_empty(place.segments);
+
+        assert_eq!(place.root, PlaceRoot::Symbol(root_symbol));
+        assert_eq!(segments.len(), 3);
+        assert_eq!(
+            segments[0],
+            PlaceSegment::Field {
+                symbol: field_symbol
+            }
+        );
+        assert_eq!(segments[1], PlaceSegment::Index { expression: index });
+        assert_eq!(
+            segments[2],
+            PlaceSegment::Field {
+                symbol: tail_symbol
+            }
+        );
     }
 }
