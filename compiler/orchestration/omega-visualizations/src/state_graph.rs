@@ -153,7 +153,7 @@ fn machine_label(
 
 fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) -> String {
     let mut label = format!(
-        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ndirect effects: {}\nreached effects: {}",
+        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ncontracts: calls {} exits {}\ndirect effects: {}\nreached effects: {}",
         machine.name.as_str(),
         state.name.as_str(),
         state.key.segment_index,
@@ -161,9 +161,33 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         state.borrow.mutable_parameter_count,
         state.operations.len(),
         state.transitions.len(),
+        state.contracts.calls.len(),
+        state.contracts.exits.len(),
         format_effect_bits(state.direct_effects),
         format_effect_bits(state.reached_effects)
     );
+
+    for call in graph.contract_calls.span_or_empty(state.contracts.calls) {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&format!(
+            "contract call #{}.{} requires {} ensures {}",
+            call.statement_index,
+            call.call_ordinal,
+            call.requires.len(),
+            call.ensures.len()
+        ));
+    }
+
+    for exit in graph.contract_exits.span_or_empty(state.contracts.exits) {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&format!(
+            "contract exit #{} ensures {}",
+            exit.statement_index,
+            exit.ensures.len()
+        ));
+    }
 
     for operation in graph.operations.span_or_empty(state.operations) {
         label.push('\n');

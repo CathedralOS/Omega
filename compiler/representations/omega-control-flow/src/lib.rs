@@ -14,6 +14,9 @@ pub struct ControlFlowPlan {
     pub state_parameters: Arena<StateParameterFlow>,
     pub proof_obligations: Arena<ProofObligationFact>,
     pub invariants: Arena<InvariantFact>,
+    pub contract_fact_refs: Arena<StateContractFactRef>,
+    pub contract_calls: Arena<StateContractCall>,
+    pub contract_exits: Arena<StateContractExit>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub borrow_calls: Arena<StateBorrowCall>,
@@ -232,6 +235,7 @@ pub struct StateFlow {
     pub direct_effects: omega_effects::EffectBits,
     pub reached_effects: omega_effects::EffectBits,
     pub parameters: HandleSpan<StateParameterFlow>,
+    pub contracts: StateContractSummary,
     pub borrow: StateBorrowSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
@@ -246,11 +250,48 @@ impl Default for StateFlow {
             direct_effects: 0,
             reached_effects: 0,
             parameters: HandleSpan::empty(),
+            contracts: StateContractSummary::default(),
             borrow: StateBorrowSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StateContractFactKind {
+    #[default]
+    Requires,
+    Ensures,
+    Trusted,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractFactRef {
+    pub kind: StateContractFactKind,
+    pub fact: omega_core::arena::Handle<omega_typed_trees::domain::ProofFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractCall {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_machine_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub requires: HandleSpan<StateContractFactRef>,
+    pub ensures: HandleSpan<StateContractFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractExit {
+    pub statement_index: usize,
+    pub ensures: HandleSpan<StateContractFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractSummary {
+    pub calls: HandleSpan<StateContractCall>,
+    pub exits: HandleSpan<StateContractExit>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

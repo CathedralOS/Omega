@@ -8,8 +8,9 @@ use omega_state_graph::{
     ContainedGraph, InvariantFact, MachineGraph, MachineOwnedDataGraph, Operation,
     OperationExpressionRefs, PlannedTransitionTarget, ProofFactKind, ProofObligationFact,
     ProofObligationOwner, StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall,
-    StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateGraph, StateKey,
-    StateNode, StateParameterNode, TransitionEdge, TransitionExpressionRefs,
+    StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateContractCall,
+    StateContractExit, StateContractFactKind, StateContractFactRef, StateContractSummary,
+    StateGraph, StateKey, StateNode, StateParameterNode, TransitionEdge, TransitionExpressionRefs,
 };
 use std::sync::Arc;
 
@@ -38,6 +39,9 @@ pub fn build_state_graph_with_workers(
     if program.machines().is_empty() {
         return Ok(StateGraph::with_capacity(
             ExpressionTableCapacity::default(),
+            0,
+            0,
+            0,
             0,
             0,
             0,
@@ -102,6 +106,9 @@ struct StateGraphCapacity {
     state_parameters: usize,
     proof_obligations: usize,
     invariants: usize,
+    contract_fact_refs: usize,
+    contract_calls: usize,
+    contract_exits: usize,
     borrow_writable_roots: usize,
     borrow_argument_accesses: usize,
     borrow_calls: usize,
@@ -120,6 +127,9 @@ impl StateGraphCapacity {
             state_parameters: program.state_parameters.len(),
             proof_obligations: program.facts.proof.obligations.len(),
             invariants: program.facts.invariants.definitions.len(),
+            contract_fact_refs: program.facts.proof.contract_fact_refs.len(),
+            contract_calls: program.facts.proof.contract_calls.len(),
+            contract_exits: program.facts.proof.contract_exits.len(),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
             borrow_calls: program.facts.borrow.calls.len(),
@@ -157,6 +167,9 @@ impl StateGraphCapacity {
             state_parameters: state_parameter_capacity,
             proof_obligations: 0,
             invariants: 0,
+            contract_fact_refs: machine_contract_fact_ref_count(program, machine),
+            contract_calls: machine_contract_call_count(program, machine),
+            contract_exits: machine_contract_exit_count(program, machine),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
             borrow_calls: program.facts.borrow.calls.len(),
@@ -175,6 +188,9 @@ impl StateGraphCapacity {
             self.state_parameters,
             self.proof_obligations,
             self.invariants,
+            self.contract_fact_refs,
+            self.contract_calls,
+            self.contract_exits,
             self.borrow_writable_roots,
             self.borrow_argument_accesses,
             self.borrow_calls,
@@ -382,6 +398,47 @@ fn machine_statement_count(program: &Program, machine: &Machine) -> usize {
         .sum()
 }
 
+fn machine_contract_call_count(program: &Program, machine: &Machine) -> usize {
+    program
+        .facts
+        .proof
+        .contract_calls
+        .iter()
+        .filter(|(_, call)| call.caller_machine_symbol == machine.symbol)
+        .count()
+}
+
+fn machine_contract_exit_count(program: &Program, machine: &Machine) -> usize {
+    program
+        .facts
+        .proof
+        .contract_exits
+        .iter()
+        .filter(|(_, exit)| exit.machine_symbol == machine.symbol)
+        .count()
+}
+
+fn machine_contract_fact_ref_count(program: &Program, machine: &Machine) -> usize {
+    let call_refs = program
+        .facts
+        .proof
+        .contract_calls
+        .iter()
+        .filter(|(_, call)| call.caller_machine_symbol == machine.symbol)
+        .map(|(_, call)| call.requires.len().saturating_add(call.ensures.len()))
+        .sum::<usize>();
+    let exit_refs = program
+        .facts
+        .proof
+        .contract_exits
+        .iter()
+        .filter(|(_, exit)| exit.machine_symbol == machine.symbol)
+        .map(|(_, exit)| exit.ensures.len())
+        .sum::<usize>();
+
+    call_refs.saturating_add(exit_refs)
+}
+
 fn remap_proof_obligations<'a>(
     fact_count: usize,
     facts: impl Iterator<Item = &'a omega_checked_trees::ProofObligationFact>,
@@ -503,6 +560,9 @@ fn merge_machine_graph(target: &mut StateGraph, source: StateGraph, machine_grap
         state_parameters,
         proof_obligations: _,
         invariants: _,
+        contract_fact_refs,
+        contract_calls,
+        contract_exits,
         borrow_writable_roots,
         borrow_argument_accesses,
         borrow_calls,
@@ -515,6 +575,9 @@ fn merge_machine_graph(target: &mut StateGraph, source: StateGraph, machine_grap
         &expressions,
         states.into_span_items(machine_graph.states),
         &state_parameters,
+        &contract_fact_refs,
+        &contract_calls,
+        &contract_exits,
         &borrow_writable_roots,
         &borrow_argument_accesses,
         &borrow_calls,
@@ -547,6 +610,9 @@ fn append_remapped_states(
     source_expressions: &omega_checked_trees::expression::ExpressionTable,
     states: impl Iterator<Item = StateNode>,
     source_state_parameters: &Arena<StateParameterNode>,
+    source_contract_fact_refs: &Arena<StateContractFactRef>,
+    source_contract_calls: &Arena<StateContractCall>,
+    source_contract_exits: &Arena<StateContractExit>,
     source_borrow_writable_roots: &Arena<StateBorrowWritableRoot>,
     source_borrow_argument_accesses: &Arena<StateBorrowArgumentAccess>,
     source_borrow_calls: &Arena<StateBorrowCall>,
@@ -575,6 +641,13 @@ fn append_remapped_states(
             source_transitions,
             state.transitions,
         );
+        let contracts = remap_state_contract_summary(
+            target,
+            source_contract_fact_refs,
+            source_contract_calls,
+            source_contract_exits,
+            &state.contracts,
+        );
         let borrow = remap_state_borrow_summary(
             target,
             source_borrow_writable_roots,
@@ -591,6 +664,7 @@ fn append_remapped_states(
                 direct_effects: state.direct_effects,
                 reached_effects: state.reached_effects,
                 parameters,
+                contracts,
                 borrow,
                 operations,
                 transitions,
@@ -599,6 +673,81 @@ fn append_remapped_states(
     }
 
     remapped_states
+}
+
+fn remap_state_contract_summary(
+    target: &mut StateGraph,
+    source_fact_refs: &Arena<StateContractFactRef>,
+    source_calls: &Arena<StateContractCall>,
+    source_exits: &Arena<StateContractExit>,
+    contracts: &StateContractSummary,
+) -> StateContractSummary {
+    let calls =
+        append_remapped_contract_calls(target, source_fact_refs, source_calls, contracts.calls);
+    let exits =
+        append_remapped_contract_exits(target, source_fact_refs, source_exits, contracts.exits);
+
+    StateContractSummary { calls, exits }
+}
+
+fn append_remapped_contract_calls(
+    target: &mut StateGraph,
+    source_fact_refs: &Arena<StateContractFactRef>,
+    source_calls: &Arena<StateContractCall>,
+    calls: HandleSpan<StateContractCall>,
+) -> HandleSpan<StateContractCall> {
+    let mut remapped_calls = HandleSpan::empty();
+
+    for call in source_calls.span_or_empty(calls) {
+        let requires = target.contract_fact_refs.insert_many(
+            source_fact_refs
+                .span_or_empty(call.requires)
+                .iter()
+                .cloned(),
+        );
+        let ensures = target
+            .contract_fact_refs
+            .insert_many(source_fact_refs.span_or_empty(call.ensures).iter().cloned());
+
+        target.contract_calls.append_to_span(
+            &mut remapped_calls,
+            StateContractCall {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_machine_symbol: call.target_machine_symbol,
+                target_state_symbol: call.target_state_symbol,
+                requires,
+                ensures,
+            },
+        );
+    }
+
+    remapped_calls
+}
+
+fn append_remapped_contract_exits(
+    target: &mut StateGraph,
+    source_fact_refs: &Arena<StateContractFactRef>,
+    source_exits: &Arena<StateContractExit>,
+    exits: HandleSpan<StateContractExit>,
+) -> HandleSpan<StateContractExit> {
+    let mut remapped_exits = HandleSpan::empty();
+
+    for exit in source_exits.span_or_empty(exits) {
+        let ensures = target
+            .contract_fact_refs
+            .insert_many(source_fact_refs.span_or_empty(exit.ensures).iter().cloned());
+
+        target.contract_exits.append_to_span(
+            &mut remapped_exits,
+            StateContractExit {
+                statement_index: exit.statement_index,
+                ensures,
+            },
+        );
+    }
+
+    remapped_exits
 }
 
 fn remap_state_borrow_summary(
@@ -910,6 +1059,7 @@ fn append_machine_states(
             segments,
             segment_transitions,
         )?;
+        let contracts = state_contract_summary(state_graph, program, segment, segment_transitions);
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         state_graph.states.append_to_span(
             &mut states,
@@ -920,6 +1070,7 @@ fn append_machine_states(
                 direct_effects,
                 reached_effects,
                 parameters: segment.parameters,
+                contracts,
                 borrow,
                 operations: segment.operations,
                 transitions,
@@ -928,6 +1079,129 @@ fn append_machine_states(
     }
 
     Ok(states)
+}
+
+fn state_contract_summary(
+    state_graph: &mut StateGraph,
+    program: &Program,
+    segment: &crate::segments::StateSegment,
+    segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
+) -> StateContractSummary {
+    let mut calls = HandleSpan::empty();
+    for (_, call) in program.facts.proof.contract_calls.iter() {
+        if call.caller_machine_symbol != segment.key.machine
+            || call.caller_state_symbol != segment.key.state
+            || !segment_contains_statement_index(
+                state_graph,
+                segment,
+                segment_transitions,
+                call.statement_index,
+            )
+        {
+            continue;
+        }
+
+        let requires = append_state_contract_fact_refs(state_graph, program, call.requires);
+        let ensures = append_state_contract_fact_refs(state_graph, program, call.ensures);
+        state_graph.contract_calls.append_to_span(
+            &mut calls,
+            StateContractCall {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_machine_symbol: call.target_machine_symbol,
+                target_state_symbol: call.target_state_symbol,
+                requires,
+                ensures,
+            },
+        );
+    }
+
+    let mut exits = HandleSpan::empty();
+    for (_, exit) in program.facts.proof.contract_exits.iter() {
+        if exit.machine_symbol != segment.key.machine
+            || exit.state_symbol != segment.key.state
+            || !segment_contains_statement_index(
+                state_graph,
+                segment,
+                segment_transitions,
+                exit.statement_index,
+            )
+        {
+            continue;
+        }
+
+        let ensures = append_state_contract_fact_refs(state_graph, program, exit.ensures);
+        state_graph.contract_exits.append_to_span(
+            &mut exits,
+            StateContractExit {
+                statement_index: exit.statement_index,
+                ensures,
+            },
+        );
+    }
+
+    StateContractSummary { calls, exits }
+}
+
+fn segment_contains_statement_index(
+    state_graph: &StateGraph,
+    segment: &crate::segments::StateSegment,
+    segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
+    statement_index: usize,
+) -> bool {
+    state_graph
+        .operations
+        .span_or_empty(segment.operations)
+        .iter()
+        .any(|operation| operation.statement_index == statement_index)
+        || segment_transitions
+            .span_or_empty(segment.transitions)
+            .iter()
+            .any(|transition| match transition {
+                crate::segments::SegmentTransition::Tree {
+                    statement_index: transition_statement_index,
+                    ..
+                }
+                | crate::segments::SegmentTransition::ReturnExpression {
+                    statement_index: transition_statement_index,
+                    ..
+                }
+                | crate::segments::SegmentTransition::BranchCall {
+                    statement_index: transition_statement_index,
+                    ..
+                } => *transition_statement_index == statement_index,
+            })
+}
+
+fn append_state_contract_fact_refs(
+    state_graph: &mut StateGraph,
+    program: &Program,
+    refs: HandleSpan<omega_checked_trees::ContractProofFactRef>,
+) -> HandleSpan<StateContractFactRef> {
+    let mut fact_refs = HandleSpan::empty();
+
+    for reference in program.facts.proof.contract_fact_refs.span_or_empty(refs) {
+        let contract_fact = program.facts.proof.contract_facts.get(reference.fact);
+        state_graph.contract_fact_refs.append_to_span(
+            &mut fact_refs,
+            StateContractFactRef {
+                kind: match contract_fact.kind {
+                    omega_checked_trees::ContractProofFactKind::Requires => {
+                        StateContractFactKind::Requires
+                    }
+                    omega_checked_trees::ContractProofFactKind::Ensures => {
+                        StateContractFactKind::Ensures
+                    }
+                    omega_checked_trees::ContractProofFactKind::Trusted => {
+                        StateContractFactKind::Trusted
+                    }
+                },
+                fact: contract_fact.fact,
+            },
+        );
+    }
+
+    fact_refs
 }
 
 fn state_borrow_summary(

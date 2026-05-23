@@ -2,8 +2,10 @@ use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, MachineOwnedDataFlow, Operation,
     OperationExpressionRefs, OperationKind, PlannedTransitionTarget, ProofFactKind,
     ProofObligationFact, ProofObligationOwner, StateBorrowAccessKind, StateBorrowArgumentAccess,
-    StateBorrowCall, StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateFlow,
-    StateKey, StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
+    StateBorrowCall, StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot,
+    StateContractCall, StateContractExit, StateContractFactKind, StateContractFactRef,
+    StateContractSummary, StateFlow, StateKey, StateParameterFlow, TransitionExpressionRefs,
+    TransitionFlow,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -25,6 +27,9 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
         state_parameters,
         proof_obligations: remap_proof_obligations(state_graph),
         invariants: remap_invariants(state_graph),
+        contract_fact_refs: remap_contract_fact_refs(state_graph),
+        contract_calls: remap_contract_calls(state_graph),
+        contract_exits: remap_contract_exits(state_graph),
         borrow_writable_roots: remap_borrow_writable_roots(state_graph),
         borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
         borrow_calls: remap_borrow_calls(state_graph),
@@ -45,6 +50,9 @@ pub fn build_control_flow_plan_owned(
         state_parameters,
         proof_obligations,
         invariants,
+        contract_fact_refs,
+        contract_calls,
+        contract_exits,
         borrow_writable_roots,
         borrow_argument_accesses,
         borrow_calls,
@@ -61,6 +69,9 @@ pub fn build_control_flow_plan_owned(
         state_parameters: state_parameters.map(remap_parameter_owned),
         proof_obligations: proof_obligations.map(remap_proof_obligation_owned),
         invariants: invariants.map(remap_invariant_owned),
+        contract_fact_refs: contract_fact_refs.map(remap_contract_fact_ref_owned),
+        contract_calls: contract_calls.map(remap_contract_call_owned),
+        contract_exits: contract_exits.map(remap_contract_exit_owned),
         borrow_writable_roots: borrow_writable_roots.map(remap_borrow_writable_root_owned),
         borrow_argument_accesses: borrow_argument_accesses.map(remap_borrow_argument_access_owned),
         borrow_calls: borrow_calls.map(remap_borrow_call_owned),
@@ -318,6 +329,90 @@ fn remap_invariant_owned(invariant: omega_state_graph::InvariantFact) -> Invaria
     }
 }
 
+fn remap_contract_fact_refs(state_graph: &StateGraph) -> Arena<StateContractFactRef> {
+    let mut refs = Arena::with_capacity(state_graph.contract_fact_refs.len());
+
+    for (_, reference) in state_graph.contract_fact_refs.iter() {
+        refs.append(remap_contract_fact_ref(reference));
+    }
+
+    refs
+}
+
+fn remap_contract_fact_ref(
+    reference: &omega_state_graph::StateContractFactRef,
+) -> StateContractFactRef {
+    StateContractFactRef {
+        kind: match reference.kind {
+            omega_state_graph::StateContractFactKind::Requires => StateContractFactKind::Requires,
+            omega_state_graph::StateContractFactKind::Ensures => StateContractFactKind::Ensures,
+            omega_state_graph::StateContractFactKind::Trusted => StateContractFactKind::Trusted,
+        },
+        fact: reference.fact,
+    }
+}
+
+fn remap_contract_fact_ref_owned(
+    reference: omega_state_graph::StateContractFactRef,
+) -> StateContractFactRef {
+    remap_contract_fact_ref(&reference)
+}
+
+fn remap_contract_calls(state_graph: &StateGraph) -> Arena<StateContractCall> {
+    let mut calls = Arena::with_capacity(state_graph.contract_calls.len());
+
+    for (_, call) in state_graph.contract_calls.iter() {
+        calls.append(remap_contract_call(call));
+    }
+
+    calls
+}
+
+fn remap_contract_call(call: &omega_state_graph::StateContractCall) -> StateContractCall {
+    StateContractCall {
+        statement_index: call.statement_index,
+        call_ordinal: call.call_ordinal,
+        target_machine_symbol: call.target_machine_symbol,
+        target_state_symbol: call.target_state_symbol,
+        requires: remap_contract_fact_ref_span(call.requires),
+        ensures: remap_contract_fact_ref_span(call.ensures),
+    }
+}
+
+fn remap_contract_call_owned(call: omega_state_graph::StateContractCall) -> StateContractCall {
+    remap_contract_call(&call)
+}
+
+fn remap_contract_exits(state_graph: &StateGraph) -> Arena<StateContractExit> {
+    let mut exits = Arena::with_capacity(state_graph.contract_exits.len());
+
+    for (_, exit) in state_graph.contract_exits.iter() {
+        exits.append(remap_contract_exit(exit));
+    }
+
+    exits
+}
+
+fn remap_contract_exit(exit: &omega_state_graph::StateContractExit) -> StateContractExit {
+    StateContractExit {
+        statement_index: exit.statement_index,
+        ensures: remap_contract_fact_ref_span(exit.ensures),
+    }
+}
+
+fn remap_contract_exit_owned(exit: omega_state_graph::StateContractExit) -> StateContractExit {
+    remap_contract_exit(&exit)
+}
+
+fn remap_contract_summary(
+    contracts: &omega_state_graph::StateContractSummary,
+) -> StateContractSummary {
+    StateContractSummary {
+        calls: remap_contract_call_span(contracts.calls),
+        exits: remap_contract_exit_span(contracts.exits),
+    }
+}
+
 fn remap_state(
     state_graph: &StateGraph,
     state: &StateNode,
@@ -335,6 +430,7 @@ fn remap_state(
                 .iter()
                 .map(remap_parameter),
         ),
+        contracts: remap_contract_summary(&state.contracts),
         borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
@@ -349,6 +445,7 @@ fn remap_state_owned(state: StateNode) -> StateFlow {
         direct_effects: state.direct_effects,
         reached_effects: state.reached_effects,
         parameters: remap_parameter_span(state.parameters),
+        contracts: remap_contract_summary(&state.contracts),
         borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
@@ -721,6 +818,42 @@ fn remap_borrow_call_span(
 fn remap_borrow_call_handle(
     handle: Handle<omega_state_graph::StateBorrowCall>,
 ) -> Handle<StateBorrowCall> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_contract_fact_ref_span(
+    refs: HandleSpan<omega_state_graph::StateContractFactRef>,
+) -> HandleSpan<StateContractFactRef> {
+    HandleSpan::from_parts(remap_contract_fact_ref_handle(refs.start()), refs.count())
+}
+
+fn remap_contract_fact_ref_handle(
+    handle: Handle<omega_state_graph::StateContractFactRef>,
+) -> Handle<StateContractFactRef> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_contract_call_span(
+    calls: HandleSpan<omega_state_graph::StateContractCall>,
+) -> HandleSpan<StateContractCall> {
+    HandleSpan::from_parts(remap_contract_call_handle(calls.start()), calls.count())
+}
+
+fn remap_contract_call_handle(
+    handle: Handle<omega_state_graph::StateContractCall>,
+) -> Handle<StateContractCall> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_contract_exit_span(
+    exits: HandleSpan<omega_state_graph::StateContractExit>,
+) -> HandleSpan<StateContractExit> {
+    HandleSpan::from_parts(remap_contract_exit_handle(exits.start()), exits.count())
+}
+
+fn remap_contract_exit_handle(
+    handle: Handle<omega_state_graph::StateContractExit>,
+) -> Handle<StateContractExit> {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
