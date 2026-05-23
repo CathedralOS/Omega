@@ -271,7 +271,49 @@ fn contract_fact_owner(program: &Program, fact: &omega_checked_trees::ContractPr
         omega_checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
             format!("machine {}", machine_name(program, machine_symbol))
         }
+        omega_checked_trees::ContractProofFactOwner::StateSignature {
+            owner_symbol,
+            state_symbol,
+        } => format!(
+            "signature {}::{}",
+            signature_owner_name(program, owner_symbol),
+            state_signature_name(program, state_symbol)
+        ),
     }
+}
+
+fn signature_owner_name(program: &Program, symbol: SymbolHandle) -> String {
+    program
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == symbol)
+        .map(|trait_definition| trait_definition.name.as_str().to_owned())
+        .or_else(|| {
+            program
+                .platforms()
+                .iter()
+                .find(|platform| platform.symbol == symbol)
+                .map(|platform| platform.name.as_str().to_owned())
+        })
+        .unwrap_or_else(|| symbol_label(symbol))
+}
+
+fn state_signature_name(program: &Program, symbol: SymbolHandle) -> String {
+    program
+        .traits()
+        .iter()
+        .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition))
+        .find(|signature| signature.symbol == symbol)
+        .map(|signature| signature.name.as_str().to_owned())
+        .or_else(|| {
+            program
+                .platforms()
+                .iter()
+                .flat_map(|platform| program.platform_state_signatures(platform))
+                .find(|signature| signature.symbol == symbol)
+                .map(|signature| signature.name.as_str().to_owned())
+        })
+        .unwrap_or_else(|| symbol_label(symbol))
 }
 
 fn typed_proof_fact_label(
