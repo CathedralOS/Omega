@@ -12,6 +12,10 @@ use omega_checked_trees::{
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use omega_facts::{
+    ContractFactKind as SemanticContractFactKind, Fact, FactOrigin, FactPayload, FactPlace,
+    FactPlan, FactRef, ProgramPoint, ProofObligationKind as SemanticProofObligationKind,
+};
 
 pub fn lower_typed_trees(
     program: omega_typed_trees::TypedTrees,
@@ -23,10 +27,14 @@ pub fn lower_typed_trees(
     let effects = omega_effects::infer_effects(&program);
     omega_validation::validate_effect_plan(&program, &effects)?;
     let borrow = build_borrow_facts(&program);
+    let proof = build_proof_facts(&program, &proof_plan, &borrow);
+    let invariants = build_invariant_facts(&program);
+    let semantic = build_semantic_facts(&program, &proof, &invariants);
     let facts = CheckFacts {
-        proof: build_proof_facts(&program, &proof_plan, &borrow),
+        semantic,
+        proof,
         borrow,
-        invariants: build_invariant_facts(&program),
+        invariants,
         effects,
     };
 
@@ -34,6 +42,356 @@ pub fn lower_typed_trees(
         typed: program,
         facts,
     })
+}
+
+fn build_semantic_facts(
+    program: &omega_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    invariants: &InvariantFacts,
+) -> FactPlan {
+    let mut facts = FactPlan::with_capacity(
+        estimated_semantic_fact_capacity(program, proof, invariants),
+        estimated_semantic_context_capacity(program, proof),
+    );
+
+    append_domain_semantic_facts(program, &mut facts);
+    append_invariant_semantic_facts(program, invariants, &mut facts);
+    append_proof_obligation_semantic_facts(proof, &mut facts);
+    append_contract_semantic_facts(proof, &mut facts);
+
+    facts
+}
+
+fn estimated_semantic_fact_capacity(
+    program: &omega_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    invariants: &InvariantFacts,
+) -> usize {
+    let domain_facts = program
+        .domain_definitions()
+        .iter()
+        .map(|domain| program.proof_facts(domain).len())
+        .sum::<usize>();
+    domain_facts
+        .saturating_add(
+            invariants
+                .definitions
+                .iter()
+                .map(|(_, invariant)| invariant.constraint_count)
+                .sum::<usize>(),
+        )
+        .saturating_add(proof.obligations.len())
+        .saturating_add(proof.contract_facts.len())
+}
+
+fn estimated_semantic_context_capacity(
+    program: &omega_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+) -> usize {
+    program
+        .domain_definitions()
+        .len()
+        .saturating_add(program.invariant_definitions().len())
+        .saturating_add(proof.contract_facts.len())
+        .saturating_add(proof.contract_calls.len())
+        .saturating_add(proof.contract_exits.len())
+}
+
+fn append_domain_semantic_facts(program: &omega_typed_trees::TypedTrees, facts: &mut FactPlan) {
+    for domain in program.domain_definitions() {
+        let mut refs = HandleSpan::empty();
+        for fact_handle in fact_handles(domain.facts) {
+            let payload = match program.proof_facts.get(fact_handle) {
+                omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                    FactPayload::BooleanExpression(*expression)
+                }
+                omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                    FactPayload::DomainMembership {
+                        value: membership.value,
+                        domain_symbol: membership.domain_symbol,
+                    }
+                }
+            };
+            let fact = facts.append_fact(Fact {
+                place: FactPlace::Symbol(domain.symbol),
+                point: ProgramPoint::Definition {
+                    symbol: domain.symbol,
+                },
+                origin: FactOrigin::DomainDefinition {
+                    domain_symbol: domain.symbol,
+                },
+                payload,
+            });
+            facts.append_ref(&mut refs, fact);
+        }
+        facts.append_context(
+            ProgramPoint::Definition {
+                symbol: domain.symbol,
+            },
+            refs,
+        );
+        facts.append_symbol_set(domain.symbol, refs);
+    }
+}
+
+fn append_invariant_semantic_facts(
+    program: &omega_typed_trees::TypedTrees,
+    invariants: &InvariantFacts,
+    facts: &mut FactPlan,
+) {
+    for invariant in program.invariant_definitions() {
+        let mut refs = HandleSpan::empty();
+        for constraint in constraint_handles(invariant.constraints) {
+            let fact = facts.append_fact(Fact {
+                place: FactPlace::Symbol(invariant.symbol),
+                point: ProgramPoint::Definition {
+                    symbol: invariant.symbol,
+                },
+                origin: FactOrigin::InvariantDefinition {
+                    invariant_symbol: invariant.symbol,
+                },
+                payload: FactPayload::TypeConstraint { constraint },
+            });
+            facts.append_ref(&mut refs, fact);
+        }
+
+        if refs.is_empty() {
+            let constraint_count = invariants
+                .definitions
+                .iter()
+                .find(|(_, fact)| fact.symbol == invariant.symbol)
+                .map(|(_, fact)| fact.constraint_count)
+                .unwrap_or_default();
+            let fact = facts.append_fact(Fact {
+                place: FactPlace::Symbol(invariant.symbol),
+                point: ProgramPoint::Definition {
+                    symbol: invariant.symbol,
+                },
+                origin: FactOrigin::InvariantDefinition {
+                    invariant_symbol: invariant.symbol,
+                },
+                payload: FactPayload::InvariantDefinition { constraint_count },
+            });
+            facts.append_ref(&mut refs, fact);
+        }
+
+        facts.append_context(
+            ProgramPoint::Definition {
+                symbol: invariant.symbol,
+            },
+            refs,
+        );
+        facts.append_symbol_set(invariant.symbol, refs);
+    }
+}
+
+fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
+    for (_, obligation) in proof.obligations.iter() {
+        let point = proof_obligation_point(obligation);
+        let fact = facts.append_fact(Fact {
+            place: FactPlace::Unknown,
+            point,
+            origin: FactOrigin::ProofObligation,
+            payload: FactPayload::ProofObligation {
+                kind: semantic_proof_obligation_kind(obligation.kind.clone()),
+            },
+        });
+        let mut refs = HandleSpan::empty();
+        facts.append_ref(&mut refs, fact);
+        facts.append_context(point, refs);
+    }
+}
+
+fn append_contract_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
+    let mut semantic_handles = Vec::with_capacity(proof.contract_facts.len());
+
+    for (contract_handle, contract) in proof.contract_facts.iter() {
+        let point = contract_fact_point(contract);
+        let fact = facts.append_fact(Fact {
+            place: contract_fact_place(contract),
+            point,
+            origin: contract_fact_origin(contract),
+            payload: FactPayload::Contract {
+                kind: semantic_contract_fact_kind(contract.kind),
+                fact: contract.fact,
+            },
+        });
+        let contract_index = usize::try_from(contract_handle.arena_index())
+            .expect("contract fact handle index overflow");
+        while semantic_handles.len() <= contract_index {
+            semantic_handles.push(None);
+        }
+        semantic_handles[contract_index] = Some(fact);
+
+        let mut refs = HandleSpan::empty();
+        facts.append_ref(&mut refs, fact);
+        facts.append_context(point, refs);
+    }
+
+    for (_, call) in proof.contract_calls.iter() {
+        let mut refs = HandleSpan::empty();
+        append_semantic_contract_refs(proof, facts, &semantic_handles, call.requires, &mut refs);
+        append_semantic_contract_refs(proof, facts, &semantic_handles, call.ensures, &mut refs);
+        facts.append_context(
+            ProgramPoint::Call {
+                machine_symbol: call.caller_machine_symbol,
+                state_symbol: call.caller_state_symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+            },
+            refs,
+        );
+        facts.append_symbol_set(call.target_machine_symbol, refs);
+    }
+
+    for (_, exit) in proof.contract_exits.iter() {
+        let mut refs = HandleSpan::empty();
+        append_semantic_contract_refs(proof, facts, &semantic_handles, exit.ensures, &mut refs);
+        facts.append_context(
+            ProgramPoint::Exit {
+                machine_symbol: exit.machine_symbol,
+                state_symbol: exit.state_symbol,
+                statement_index: exit.statement_index,
+            },
+            refs,
+        );
+        facts.append_symbol_set(exit.machine_symbol, refs);
+    }
+}
+
+fn append_semantic_contract_refs(
+    proof: &ProofFacts,
+    facts: &mut FactPlan,
+    semantic_handles: &[Option<omega_facts::FactHandle>],
+    source_refs: HandleSpan<ContractProofFactRef>,
+    refs: &mut HandleSpan<FactRef>,
+) {
+    for source_ref in proof.contract_fact_refs.span_or_empty(source_refs) {
+        let source_index = usize::try_from(source_ref.fact.arena_index())
+            .expect("contract fact ref handle index overflow");
+        let Some(Some(fact)) = semantic_handles.get(source_index) else {
+            continue;
+        };
+        facts.append_ref(refs, *fact);
+    }
+}
+
+fn proof_obligation_point(obligation: &ProofObligationFact) -> ProgramPoint {
+    match obligation.owner {
+        ProofObligationOwner::MachineState {
+            machine_symbol,
+            state_symbol,
+        }
+        | ProofObligationOwner::StateReturn {
+            machine_symbol,
+            state_symbol,
+        } => ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        },
+        ProofObligationOwner::MachineOwnedData {
+            machine_symbol,
+            data_symbol: _,
+        } => ProgramPoint::Machine { machine_symbol },
+        ProofObligationOwner::StateParameter {
+            machine_symbol,
+            state_symbol,
+            parameter_symbol: _,
+        }
+        | ProofObligationOwner::CallParameter {
+            machine_symbol,
+            state_symbol,
+            target_symbol: _,
+            parameter_symbol: _,
+        }
+        | ProofObligationOwner::TransitionParameter {
+            machine_symbol,
+            state_symbol,
+            parameter_symbol: _,
+        } => ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        },
+        ProofObligationOwner::Unknown => ProgramPoint::Global,
+    }
+}
+
+fn contract_fact_point(contract: &ContractProofFact) -> ProgramPoint {
+    match contract.owner {
+        ContractProofFactOwner::Machine { machine_symbol } => {
+            ProgramPoint::Machine { machine_symbol }
+        }
+        ContractProofFactOwner::MachineState {
+            machine_symbol,
+            state_symbol,
+        } => ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        },
+        ContractProofFactOwner::StateSignature {
+            owner_symbol,
+            state_symbol,
+        } => ProgramPoint::State {
+            machine_symbol: owner_symbol,
+            state_symbol,
+        },
+        ContractProofFactOwner::Unknown => ProgramPoint::Global,
+    }
+}
+
+fn contract_fact_place(contract: &ContractProofFact) -> FactPlace {
+    match contract.owner {
+        ContractProofFactOwner::Machine { machine_symbol }
+        | ContractProofFactOwner::MachineState {
+            machine_symbol,
+            state_symbol: _,
+        } => FactPlace::Symbol(machine_symbol),
+        ContractProofFactOwner::StateSignature {
+            owner_symbol,
+            state_symbol: _,
+        } => FactPlace::Symbol(owner_symbol),
+        ContractProofFactOwner::Unknown => FactPlace::Unknown,
+    }
+}
+
+fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
+    match contract.owner {
+        ContractProofFactOwner::Machine { machine_symbol }
+        | ContractProofFactOwner::MachineState {
+            machine_symbol,
+            state_symbol: _,
+        } => FactOrigin::MachineContract { machine_symbol },
+        ContractProofFactOwner::StateSignature {
+            owner_symbol,
+            state_symbol,
+        } => FactOrigin::StateSignatureContract {
+            owner_symbol,
+            state_symbol,
+        },
+        ContractProofFactOwner::Unknown => FactOrigin::Unknown,
+    }
+}
+
+fn semantic_contract_fact_kind(kind: ContractProofFactKind) -> SemanticContractFactKind {
+    match kind {
+        ContractProofFactKind::Requires => SemanticContractFactKind::Requires,
+        ContractProofFactKind::Ensures => SemanticContractFactKind::Ensures,
+        ContractProofFactKind::Trusted => SemanticContractFactKind::Trusted,
+    }
+}
+
+fn semantic_proof_obligation_kind(kind: ProofFactKind) -> SemanticProofObligationKind {
+    match kind {
+        ProofFactKind::BoundedAssignment => SemanticProofObligationKind::BoundedAssignment,
+        ProofFactKind::BoundedCallArgument => SemanticProofObligationKind::BoundedCallArgument,
+        ProofFactKind::BoundedInitializer => SemanticProofObligationKind::BoundedInitializer,
+        ProofFactKind::BoundedStateReturn => SemanticProofObligationKind::BoundedStateReturn,
+        ProofFactKind::BoundedValue => SemanticProofObligationKind::BoundedValue,
+        ProofFactKind::BoundedTransitionArgument => {
+            SemanticProofObligationKind::BoundedTransitionArgument
+        }
+        ProofFactKind::GuardedTransition => SemanticProofObligationKind::GuardedTransition,
+    }
 }
 
 pub fn lower_typed_program(
@@ -615,6 +973,21 @@ fn fact_handles(
                 .checked_add(offset)
                 .expect("proof fact handle index overflow"),
             facts.start().generation(),
+        )
+    })
+}
+
+fn constraint_handles(
+    constraints: HandleSpan<omega_typed_trees::types::TypeConstraintNode>,
+) -> impl Iterator<Item = Handle<omega_typed_trees::types::TypeConstraintNode>> {
+    (0..constraints.count()).map(move |offset| {
+        Handle::from_parts(
+            constraints
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("type constraint handle index overflow"),
+            constraints.start().generation(),
         )
     })
 }
@@ -1698,7 +2071,9 @@ fn first_valid_name_path_symbol(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_borrow_facts, build_proof_facts};
+    use super::{
+        build_borrow_facts, build_invariant_facts, build_proof_facts, build_semantic_facts,
+    };
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
     use omega_checked_trees::machine::{Machine, TraitConformance};
     use omega_checked_trees::name::ProgramName;
@@ -1762,6 +2137,67 @@ mod tests {
         assert_eq!(
             contract_fact.owner,
             ContractProofFactOwner::Machine { machine_symbol }
+        );
+    }
+
+    #[test]
+    fn centralizes_contract_facts_in_semantic_fact_plan() {
+        let machine_symbol = SymbolHandle::from_arena_index(5);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let fact = program
+            .proof_facts
+            .append(omega_typed_trees::domain::ProofFact::Expression(expression));
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: ProgramName::generated("Main::main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_contract(
+            &mut machine,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: HandleSpan::from_parts(fact, 1),
+                token_count: 1,
+            },
+        );
+        program.push_machine(machine);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let borrow = build_borrow_facts(&program);
+        let proof = build_proof_facts(&program, &proof_plan, &borrow);
+        let invariants = build_invariant_facts(&program);
+        let semantic = build_semantic_facts(&program, &proof, &invariants);
+
+        assert_eq!(semantic.facts.len(), 1);
+        assert_eq!(semantic.contexts.len(), 1);
+        assert_eq!(semantic.symbol_sets.len(), 0);
+
+        let semantic_fact = semantic
+            .facts
+            .iter()
+            .next()
+            .map(|(_, fact)| fact)
+            .expect("semantic contract fact");
+        assert_eq!(
+            semantic_fact.place,
+            omega_facts::FactPlace::Symbol(machine_symbol)
+        );
+        assert_eq!(
+            semantic_fact.payload,
+            omega_facts::FactPayload::Contract {
+                kind: omega_facts::ContractFactKind::Requires,
+                fact,
+            }
         );
     }
 

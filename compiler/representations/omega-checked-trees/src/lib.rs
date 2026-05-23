@@ -231,6 +231,7 @@ pub struct InvariantFacts {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    pub semantic: omega_facts::FactPlan,
     pub borrow: BorrowFacts,
     pub proof: ProofFacts,
     pub invariants: InvariantFacts,

@@ -199,6 +199,7 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-typed-trees",
 ]
 
@@ -336,6 +337,14 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-facts"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
  "omega-typed-trees",
 ]
 
@@ -814,6 +823,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-proof",
  "omega-typed-trees",
  "omega-validation",
@@ -848,6 +858,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-state-graph",
  "omega-symbol-resolved-trees",
  "omega-syntax-trees",

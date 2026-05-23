@@ -13,6 +13,7 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-effects = { path = "../../semantics/omega-effects" }
+omega-facts = { path = "../../semantics/omega-facts" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
 omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }

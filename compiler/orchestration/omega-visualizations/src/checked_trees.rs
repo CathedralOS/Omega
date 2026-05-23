@@ -106,6 +106,40 @@ fn checked_effects_report(program: &Program) -> String {
         report.push('\n');
     }
 
+    report.push_str("Semantic Fact Spine\n");
+    report.push_str("-------------------\n");
+    report.push_str(
+        "Centralized fact storage: dense facts, dense refs, and context/symbol indexes.\n\n",
+    );
+    report.push_str("facts:       ");
+    report.push_str(&program.facts.semantic.facts.len().to_string());
+    report.push('\n');
+    report.push_str("refs:        ");
+    report.push_str(&program.facts.semantic.refs.len().to_string());
+    report.push('\n');
+    report.push_str("contexts:    ");
+    report.push_str(&program.facts.semantic.contexts.len().to_string());
+    report.push('\n');
+    report.push_str("symbol sets: ");
+    report.push_str(&program.facts.semantic.symbol_sets.len().to_string());
+    report.push_str("\n\n");
+
+    for (_, context) in program.facts.semantic.contexts.iter() {
+        report.push_str("context ");
+        report.push_str(&semantic_point_label(program, context.point));
+        report.push('\n');
+        for fact_ref in program.facts.semantic.refs.span_or_empty(context.facts) {
+            let fact = program.facts.semantic.facts.get(fact_ref.fact);
+            report.push_str("  ");
+            report.push_str(&semantic_fact_label(program, fact));
+            report.push('\n');
+        }
+    }
+
+    if !program.facts.semantic.contexts.is_empty() {
+        report.push('\n');
+    }
+
     report.push_str("Contract Facts\n");
     report.push_str("--------------\n");
     report.push_str("Contracts are stored as checked-tree proof facts pointing into typed proof fact arenas.\n\n");
@@ -158,6 +192,201 @@ fn checked_effects_report(program: &Program) -> String {
     }
 
     report
+}
+
+fn semantic_point_label(program: &Program, point: omega_facts::ProgramPoint) -> String {
+    match point {
+        omega_facts::ProgramPoint::Global => "global".to_owned(),
+        omega_facts::ProgramPoint::Definition { symbol } => {
+            format!("definition {}", semantic_symbol_name(program, symbol))
+        }
+        omega_facts::ProgramPoint::Machine { machine_symbol } => {
+            format!("machine {}", machine_name(program, machine_symbol))
+        }
+        omega_facts::ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        } => format!(
+            "state {}::{}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
+        omega_facts::ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+        } => format!(
+            "statement {}::{} {statement_index}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
+        omega_facts::ProgramPoint::Call {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+        } => format!(
+            "call {}::{} {statement_index}.{call_ordinal}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
+        omega_facts::ProgramPoint::Exit {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+        } => format!(
+            "exit {}::{} {statement_index}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
+    }
+}
+
+fn semantic_fact_label(program: &Program, fact: &omega_facts::Fact) -> String {
+    let origin = semantic_origin_label(program, fact.origin);
+    let payload = semantic_payload_label(program, fact.payload);
+    let place = semantic_place_label(program, fact.place);
+    format!("{payload} | place: {place} | origin: {origin}")
+}
+
+fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) -> String {
+    match payload {
+        omega_facts::FactPayload::BooleanExpression(expression) => {
+            program.expression_table.display_name(expression)
+        }
+        omega_facts::FactPayload::DomainMembership {
+            value,
+            domain_symbol,
+        } => format!(
+            "{} in {}",
+            program.expression_table.display_name(value),
+            semantic_symbol_name(program, domain_symbol)
+        ),
+        omega_facts::FactPayload::TypeConstraint { constraint } => program
+            .type_reference_table
+            .constraints(omega_core::arena::HandleSpan::from_parts(constraint, 1))
+            .first()
+            .map(|constraint| constraint.display_name(&program.expression_table))
+            .unwrap_or_else(|| "<missing constraint>".to_owned()),
+        omega_facts::FactPayload::ProofObligation { kind } => {
+            format!("proof obligation {}", semantic_proof_obligation_kind(kind))
+        }
+        omega_facts::FactPayload::Contract { kind, fact } => {
+            format!(
+                "{} contract {}",
+                semantic_contract_kind(kind),
+                typed_proof_fact_label(program, fact)
+            )
+        }
+        omega_facts::FactPayload::InvariantDefinition { constraint_count } => {
+            format!("invariant definition ({constraint_count} constraints)")
+        }
+    }
+}
+
+fn semantic_place_label(program: &Program, place: omega_facts::FactPlace) -> String {
+    match place {
+        omega_facts::FactPlace::Unknown => "unknown".to_owned(),
+        omega_facts::FactPlace::Symbol(symbol) => semantic_symbol_name(program, symbol),
+        omega_facts::FactPlace::Expression(expression) => {
+            program.expression_table.display_name(expression)
+        }
+        omega_facts::FactPlace::TypeReference(type_reference) => {
+            program.display_type_reference(type_reference)
+        }
+    }
+}
+
+fn semantic_origin_label(program: &Program, origin: omega_facts::FactOrigin) -> String {
+    match origin {
+        omega_facts::FactOrigin::Unknown => "unknown".to_owned(),
+        omega_facts::FactOrigin::DomainDefinition { domain_symbol } => {
+            format!("domain {}", semantic_symbol_name(program, domain_symbol))
+        }
+        omega_facts::FactOrigin::InvariantDefinition { invariant_symbol } => {
+            format!(
+                "invariant {}",
+                semantic_symbol_name(program, invariant_symbol)
+            )
+        }
+        omega_facts::FactOrigin::TypeReference => "type reference".to_owned(),
+        omega_facts::FactOrigin::ProofObligation => "proof obligation".to_owned(),
+        omega_facts::FactOrigin::MachineContract { machine_symbol } => {
+            format!("machine contract {}", machine_name(program, machine_symbol))
+        }
+        omega_facts::FactOrigin::StateSignatureContract {
+            owner_symbol,
+            state_symbol,
+        } => format!(
+            "signature contract {}::{}",
+            signature_owner_name(program, owner_symbol),
+            state_signature_name(program, state_symbol)
+        ),
+        omega_facts::FactOrigin::CallRequires => "call requires".to_owned(),
+        omega_facts::FactOrigin::CallEnsures => "call ensures".to_owned(),
+        omega_facts::FactOrigin::ExitEnsures => "exit ensures".to_owned(),
+    }
+}
+
+fn semantic_contract_kind(kind: omega_facts::ContractFactKind) -> &'static str {
+    match kind {
+        omega_facts::ContractFactKind::Requires => "requires",
+        omega_facts::ContractFactKind::Ensures => "ensures",
+        omega_facts::ContractFactKind::Trusted => "trusted",
+    }
+}
+
+fn semantic_proof_obligation_kind(kind: omega_facts::ProofObligationKind) -> &'static str {
+    match kind {
+        omega_facts::ProofObligationKind::BoundedAssignment => "bounded assignment",
+        omega_facts::ProofObligationKind::BoundedCallArgument => "bounded call argument",
+        omega_facts::ProofObligationKind::BoundedInitializer => "bounded initializer",
+        omega_facts::ProofObligationKind::BoundedStateReturn => "bounded state return",
+        omega_facts::ProofObligationKind::BoundedValue => "bounded value",
+        omega_facts::ProofObligationKind::BoundedTransitionArgument => {
+            "bounded transition argument"
+        }
+        omega_facts::ProofObligationKind::GuardedTransition => "guarded transition",
+    }
+}
+
+fn semantic_symbol_name(program: &Program, symbol: SymbolHandle) -> String {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+    {
+        return machine.name.as_str().to_owned();
+    }
+    if let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == symbol)
+    {
+        return domain.name.to_string();
+    }
+    if let Some(invariant) = program
+        .invariant_definitions()
+        .iter()
+        .find(|invariant| invariant.symbol == symbol)
+    {
+        return invariant.name.to_string();
+    }
+    if let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == symbol)
+    {
+        return trait_definition.name.as_str().to_owned();
+    }
+    if let Some(platform) = program
+        .platforms()
+        .iter()
+        .find(|platform| platform.symbol == symbol)
+    {
+        return platform.name.as_str().to_owned();
+    }
+    symbol_label(symbol)
 }
 
 fn capability_manifest_text(program: &Program) -> String {
