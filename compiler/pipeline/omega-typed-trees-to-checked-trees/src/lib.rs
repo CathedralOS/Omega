@@ -6,9 +6,10 @@ use omega_checked_trees::statement::{
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
-    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, FlowCallFact,
-    FlowExitFact, FlowFacts, FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts,
-    Program, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
+    DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowExitFact, FlowFacts,
+    FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, Program, ProofFactKind,
+    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -32,12 +33,14 @@ pub fn lower_typed_trees(
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let invariants = build_invariant_facts(&program);
     let semantic = build_semantic_facts(&program, &proof);
-    let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &effects);
+    let domains = build_domain_facts(&program, &semantic);
+    let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &domains, &effects);
     let facts = CheckFacts {
         semantic,
         proof,
         borrow,
         invariants,
+        domains,
         effects,
         flow,
     };
@@ -2120,14 +2123,54 @@ fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFa
     InvariantFacts { definitions }
 }
 
+fn build_domain_facts(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+) -> DomainFacts {
+    let mut cache = DomainDependencyCache::default();
+    let mut segments = omega_core::arena::Arena::new();
+    let mut dependency_paths = omega_core::arena::Arena::new();
+    let mut dependencies =
+        omega_core::arena::Arena::with_capacity(program.domain_definitions().len());
+
+    for domain in program.domain_definitions() {
+        let dependency_segments =
+            domain_dependency_segments(program, semantic, &mut cache, domain.symbol);
+        let mut dependency_span = omega_core::arena::HandleSpan::empty();
+        for dependency in dependency_segments {
+            let mut segment_span = omega_core::arena::HandleSpan::empty();
+            for segment in dependency {
+                segments.append_to_span(&mut segment_span, *segment);
+            }
+            dependency_paths.append_to_span(
+                &mut dependency_span,
+                DomainDependencyPathFact {
+                    segments: segment_span,
+                },
+            );
+        }
+
+        dependencies.append(DomainDependencyFact {
+            domain_symbol: domain.symbol,
+            dependencies: dependency_span,
+        });
+    }
+
+    DomainFacts {
+        segments,
+        dependency_paths,
+        dependencies,
+    }
+}
+
 fn build_flow_facts(
     program: &omega_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &FactPlan,
+    domains: &DomainFacts,
     effects: &omega_effects::EffectPlan,
 ) -> FlowFacts {
-    let mut domain_dependency_cache = DomainDependencyCache::default();
     let mut state_mutation_summary_cache = StateMutationSummaryCache::default();
     let mut semantic_context_refs =
         omega_core::arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2));
@@ -2213,9 +2256,8 @@ fn build_flow_facts(
                                 omega_core::arena::HandleSpan::empty()
                             } else {
                                 filter_contexts_after_place_mutations(
-                                    program,
                                     semantic,
-                                    &mut domain_dependency_cache,
+                                    domains,
                                     &mut semantic_context_refs,
                                     active_contexts,
                                     &mutated_places,
@@ -2272,9 +2314,8 @@ fn build_flow_facts(
                     statement_mutated_place(program, machine, statement)
                 {
                     active_contexts = filter_contexts_after_place_mutations(
-                        program,
                         semantic,
-                        &mut domain_dependency_cache,
+                        domains,
                         &mut semantic_context_refs,
                         active_contexts,
                         &[place],
@@ -2357,9 +2398,8 @@ fn clone_flow_contexts(
 }
 
 fn filter_contexts_after_place_mutations(
-    program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
-    domain_dependencies: &mut DomainDependencyCache,
+    domain_dependencies: &DomainFacts,
     semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
     source: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
     mutated_places: &[CanonicalPlace],
@@ -2378,7 +2418,6 @@ fn filter_contexts_after_place_mutations(
     for context_ref in copied {
         let context = semantic.contexts.get(context_ref.context);
         if context_survives_place_mutations(
-            program,
             semantic,
             domain_dependencies,
             context,
@@ -2394,9 +2433,8 @@ fn filter_contexts_after_place_mutations(
 }
 
 fn context_survives_place_mutations(
-    program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
-    domain_dependencies: &mut DomainDependencyCache,
+    domain_dependencies: &DomainFacts,
     context: &omega_facts::FactContext,
     mutated_places: &[CanonicalPlace],
 ) -> bool {
@@ -2408,7 +2446,6 @@ fn context_survives_place_mutations(
             .iter()
             .any(|mutated_place| {
                 canonical_place_overlaps_fact_place(
-                    program,
                     semantic,
                     domain_dependencies,
                     fact,
@@ -2703,9 +2740,8 @@ fn canonical_place_overlaps_joined_segments(
 }
 
 fn canonical_place_overlaps_fact_place(
-    program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
-    domain_dependencies: &mut DomainDependencyCache,
+    domain_dependencies: &DomainFacts,
     fact: &Fact,
     fact_place: omega_facts::PlaceHandle,
     mutated_place: &CanonicalPlace,
@@ -2713,8 +2749,6 @@ fn canonical_place_overlaps_fact_place(
     let place = semantic.places.get(fact_place);
     let fact_segments = semantic.place_segments.span_or_empty(place.segments);
     if let Some(overlaps) = domain_membership_alias_overlaps(
-        program,
-        semantic,
         domain_dependencies,
         fact,
         place,
@@ -2732,9 +2766,7 @@ fn canonical_place_overlaps_fact_place(
 }
 
 fn domain_membership_alias_overlaps(
-    program: &omega_typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    domain_dependencies: &mut DomainDependencyCache,
+    domain_dependencies: &DomainFacts,
     fact: &Fact,
     fact_place: &omega_facts::Place,
     fact_segments: &[omega_facts::PlaceSegment],
@@ -2750,22 +2782,39 @@ fn domain_membership_alias_overlaps(
         return Some(false);
     }
 
-    let dependencies =
-        domain_dependency_segments(program, semantic, domain_dependencies, domain_symbol);
-    if dependencies.is_empty() {
+    let Some(domain_dependency) = domain_dependencies
+        .dependencies
+        .iter()
+        .find_map(|(_, fact)| (fact.domain_symbol == domain_symbol).then_some(fact))
+    else {
+        return Some(canonical_place_overlaps_segments(
+            fact_segments,
+            &mutated_place.segments,
+        ));
+    };
+
+    if domain_dependency.dependencies.is_empty() {
         return Some(canonical_place_overlaps_segments(
             fact_segments,
             &mutated_place.segments,
         ));
     }
 
-    Some(dependencies.iter().any(|dependency_segments| {
+    Some(
+        domain_dependencies
+            .dependency_paths
+            .span_or_empty(domain_dependency.dependencies)
+            .iter()
+            .any(|path| {
+                let dependency_segments =
+                    domain_dependencies.segments.span_or_empty(path.segments);
         canonical_place_overlaps_joined_segments(
             fact_segments,
             dependency_segments,
             &mutated_place.segments,
         )
-    }))
+            }),
+    )
 }
 
 fn domain_dependency_segments<'cache>(
@@ -4579,7 +4628,8 @@ fn first_valid_name_path_symbol(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_borrow_facts, build_flow_facts, build_proof_facts, build_semantic_facts,
+        build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
+        build_semantic_facts,
         call_mutated_places, context_proves_requirement_place_domain,
         instantiate_call_contract_place, lower_typed_trees, StateMutationSummaryCache,
     };
@@ -4806,7 +4856,8 @@ mod tests {
         let borrow = build_borrow_facts(&program);
         let proof = build_proof_facts(&program, &proof_plan, &borrow);
         let semantic = build_semantic_facts(&program, &proof);
-        let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &effects);
+        let domains = build_domain_facts(&program, &semantic);
+        let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &domains, &effects);
 
         let caller_flow = flow
             .states
@@ -4886,7 +4937,8 @@ mod tests {
         let borrow = build_borrow_facts(&typed);
         let proof = build_proof_facts(&typed, &proof_plan, &borrow);
         let semantic = build_semantic_facts(&typed, &proof);
-        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &effects);
+        let domains = build_domain_facts(&typed, &semantic);
+        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
         let main_machine = typed
             .machines()
             .iter()
@@ -5044,7 +5096,8 @@ mod tests {
         let borrow = build_borrow_facts(&typed);
         let proof = build_proof_facts(&typed, &proof_plan, &borrow);
         let semantic = build_semantic_facts(&typed, &proof);
-        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &effects);
+        let domains = build_domain_facts(&typed, &semantic);
+        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
         let main_machine = typed
             .machines()
             .iter()
@@ -5169,7 +5222,8 @@ mod tests {
         let borrow = build_borrow_facts(&typed);
         let proof = build_proof_facts(&typed, &proof_plan, &borrow);
         let semantic = build_semantic_facts(&typed, &proof);
-        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &effects);
+        let domains = build_domain_facts(&typed, &semantic);
+        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
         let main_machine = typed
             .machines()
             .iter()
@@ -5228,6 +5282,84 @@ mod tests {
 
         assert!(heal_entry_proves);
         lower_typed_trees(typed).expect("disjoint mutation should preserve imported domain fact");
+    }
+
+    #[test]
+    fn materializes_domain_dependency_facts() {
+        let source = r#"
+            data Player {
+                health: i32;
+                mana: i32;
+            }
+
+            domain Player::Valid {
+                self.health >= 0;
+                self.health <= 100;
+            }
+
+            domain Player::Ready {
+                self in Player::Valid;
+                self.mana >= 0;
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+        let borrow = build_borrow_facts(&typed);
+        let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+        let semantic = build_semantic_facts(&typed, &proof);
+        let domains = build_domain_facts(&typed, &semantic);
+
+        let ready_symbol = typed
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.name.as_str() == "Player::Ready")
+            .map(|domain| domain.symbol)
+            .expect("ready domain");
+        let ready_fact = domains
+            .dependencies
+            .iter()
+            .find_map(|(_, fact)| (fact.domain_symbol == ready_symbol).then_some(fact))
+            .expect("ready dependency fact");
+
+        let paths = domains.dependency_paths.span_or_empty(ready_fact.dependencies);
+        assert_eq!(paths.len(), 2);
+
+        let mut field_symbols = paths
+            .iter()
+            .filter_map(|path| {
+                let segments = domains.segments.span_or_empty(path.segments);
+                match segments {
+                    [omega_facts::PlaceSegment::Field { symbol }] => Some(*symbol),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        field_symbols.sort_by_key(|symbol| symbol.arena_index());
+
+        let player = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Player")
+            .expect("player data");
+        let mut expected = typed
+            .data_members(player)
+            .iter()
+            .filter_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == "health" || field.name.as_str() == "mana" =>
+                {
+                    Some(field.symbol)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        expected.sort_by_key(|symbol| symbol.arena_index());
+
+        assert_eq!(field_symbols, expected);
     }
 
     #[test]

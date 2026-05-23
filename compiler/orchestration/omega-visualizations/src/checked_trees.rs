@@ -140,6 +140,20 @@ fn checked_effects_report(program: &Program) -> String {
         report.push('\n');
     }
 
+    report.push_str("Domain Dependencies\n");
+    report.push_str("-------------------\n");
+    report.push_str("Packed dependency paths for domain facts used by flow invalidation and future proof analysis.\n\n");
+    report.push_str("domains: ");
+    report.push_str(&program.facts.domains.dependencies.len().to_string());
+    report.push('\n');
+    report.push_str("paths:   ");
+    report.push_str(&program.facts.domains.dependency_paths.len().to_string());
+    report.push('\n');
+    report.push_str("segments:");
+    report.push(' ');
+    report.push_str(&program.facts.domains.segments.len().to_string());
+    report.push_str("\n\n");
+
     report.push_str("Flow Environments\n");
     report.push_str("-----------------\n");
     report.push_str(
