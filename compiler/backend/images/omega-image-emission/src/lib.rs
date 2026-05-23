@@ -16,7 +16,9 @@ pub struct ExecutableImageInput<'a> {
 pub fn can_emit_executable_image(target: NativeTarget) -> bool {
     matches!(
         (target.object_format, target.architecture),
-        (ObjectFormat::Elf, Architecture::Aarch64) | (ObjectFormat::MachO, Architecture::Aarch64)
+        (ObjectFormat::Elf, Architecture::Aarch64)
+            | (ObjectFormat::MachO, Architecture::Aarch64)
+            | (ObjectFormat::Coff, Architecture::X86_64)
     )
 }
 
@@ -26,6 +28,7 @@ pub fn emit_executable_image(
     match (input.target.object_format, input.target.architecture) {
         (ObjectFormat::Elf, Architecture::Aarch64) => Some(emit_elf_aarch64_executable(input)),
         (ObjectFormat::MachO, Architecture::Aarch64) => Some(emit_macho_aarch64_executable(input)),
+        (ObjectFormat::Coff, Architecture::X86_64) => Some(emit_pe_x86_64_executable(input)),
         _ => None,
     }
 }
@@ -65,6 +68,14 @@ fn emit_macho_aarch64_executable(
 ) -> Result<EmittedImageOutput, Diagnostic> {
     let image = build_final_image(input);
     let output = omega_image_macho::emit_macho_aarch64_executable(image)?;
+    Ok(emitted_direct_executable_output(output))
+}
+
+fn emit_pe_x86_64_executable(
+    input: ExecutableImageInput<'_>,
+) -> Result<EmittedImageOutput, Diagnostic> {
+    let image = build_final_image(input);
+    let output = omega_image_pe::emit_pe_x86_64_executable(image)?;
     Ok(emitted_direct_executable_output(output))
 }
 

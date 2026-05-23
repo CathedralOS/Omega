@@ -1,12 +1,21 @@
+use omega_calling_conventions::HostOperationKey;
 use omega_object::RelocationKind;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperand;
 
 pub(super) fn external_call_relocation_offset(
     architecture: Architecture,
+    operation_key: HostOperationKey,
     selected_text_offset: usize,
     operands: &[InstructionOperand],
 ) -> usize {
+    if architecture == Architecture::X86_64
+        && let Some(site) =
+            omega_isa_x86_64::host_call_external_relocation_site(operation_key, operands)
+    {
+        return selected_text_offset + site.byte_offset;
+    }
+
     let operand_bytes = operands
         .iter()
         .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
@@ -23,7 +32,7 @@ pub(super) fn external_call_relocation_offset(
 pub(super) fn string_descriptor_machine_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => 10,
     }
 }
 
@@ -37,7 +46,7 @@ pub(super) fn string_descriptor_pointee_address_offset(architecture: Architectur
 pub(super) fn runtime_storage_copy_target_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => 10,
     }
 }
 

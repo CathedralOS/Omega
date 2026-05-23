@@ -86,12 +86,7 @@ pub(crate) fn platform_call_receiver_type<'program>(
                 .flatten()
         })?;
 
-    program
-        .traits()
-        .iter()
-        .filter(|trait_definition| trait_definition.is_boundary)
-        .find(|trait_definition| trait_definition.symbol == receiver_type_symbol)
-        .map(|trait_definition| trait_definition.name.as_str())
+    receiver_surface_name(program, receiver_type_symbol)
 }
 
 fn receiver_leaf_name<'program>(
@@ -122,6 +117,22 @@ fn data_field_type_symbol(program: &Program, field_symbol: SymbolHandle) -> Opti
                     }
                     _ => None,
                 })
+        })
+}
+
+fn receiver_surface_name(program: &Program, symbol: SymbolHandle) -> Option<&str> {
+    program
+        .traits()
+        .iter()
+        .filter(|trait_definition| trait_definition.is_boundary)
+        .find(|trait_definition| trait_definition.symbol == symbol)
+        .map(|trait_definition| trait_definition.name.as_str())
+        .or_else(|| {
+            program
+                .platforms()
+                .iter()
+                .find(|platform| platform.symbol == symbol)
+                .map(|platform| platform.name.as_str())
         })
 }
 

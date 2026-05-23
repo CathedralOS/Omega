@@ -1,18 +1,14 @@
 [package]
-name = "omega-image-emission"
+name = "omega-image-pe"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_image_emission"
+name = "omega_image_pe"
 path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../../foundation/omega-core" }
 omega-image = { path = "../omega-image" }
-omega-image-elf = { path = "../omega-image-elf" }
-omega-image-macho = { path = "../omega-image-macho" }
-omega-image-pe = { path = "../omega-image-pe" }
 omega-object = { path = "../../object/omega-object" }
-omega-target = { path = "../../omega-target" }

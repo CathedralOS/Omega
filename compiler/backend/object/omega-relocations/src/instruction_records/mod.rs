@@ -11,6 +11,7 @@ use super::offsets::{
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
 use omega_object::{ObjectSymbolHandle, RelocationPlan};
+use omega_target::Architecture;
 use omega_target_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
     StateGuardLowering, StateGuardOperator,
@@ -33,11 +34,15 @@ pub(super) fn collect_instruction_relocations(
     };
 
     match &instruction.kind {
-        SelectedInstructionKind::HostOperation { operands, .. } => {
+        SelectedInstructionKind::HostOperation {
+            operation_key,
+            operands,
+        } => {
             collect_data_address_relocations(
                 input,
                 function_symbol_handle,
                 selected_instruction_index,
+                Some(*operation_key),
                 *operands,
                 selected_text_offset,
                 context.relocation_plan,
@@ -111,7 +116,11 @@ pub(super) fn collect_instruction_relocations(
         } => {
             let target_symbol = context.storage_region_symbol_handle(*target_region);
             context.insert_data_address_at_instruction_start(target_symbol);
-            let left_offset = context.selected_text_offset + 8;
+            let left_offset = context.selected_text_offset
+                + match input.target.architecture {
+                    Architecture::Aarch64 => 8,
+                    Architecture::X86_64 => 10,
+                };
             collect_runtime_value_operand_relocations(&mut context, left_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 input.target.architecture,
@@ -219,8 +228,14 @@ pub(super) fn collect_instruction_relocations(
         } => {
             let source_symbol = context.storage_region_symbol_handle(*source_region);
             context.insert_data_address_at_instruction_start(source_symbol);
-            context
-                .insert_data_address_at_relative_offset(12, context.runtime_frame_symbol_handle());
+            let frame_offset = match input.target.architecture {
+                Architecture::Aarch64 => 12,
+                Architecture::X86_64 => 17,
+            };
+            context.insert_data_address_at_relative_offset(
+                frame_offset,
+                context.runtime_frame_symbol_handle(),
+            );
         }
         SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. } => {
             context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
