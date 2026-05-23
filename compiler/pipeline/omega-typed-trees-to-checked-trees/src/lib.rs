@@ -511,7 +511,9 @@ fn find_call_site_in_statement<'program>(
             current_ordinal,
         ),
         StatementNode::Call(call) => {
-            if statement_call_can_dispatch_to_machine(program, machine, state, call) {
+            let is_machine_call = statement_call_can_dispatch_to_machine(program, machine, state, call)
+                || call.target_symbol.is_valid();
+            if is_machine_call {
                 if current_statement_index == target_statement_index
                     && *current_ordinal == target_call_ordinal
                 {
@@ -1970,7 +1972,7 @@ fn build_flow_facts(
                             call_ordinal: borrow_call.call_ordinal,
                         }],
                     );
-                    let mutated_roots = call_mutated_roots(
+                    let mutated_places = call_mutated_places(
                         program,
                         machine.symbol,
                         state.symbol,
@@ -1979,17 +1981,16 @@ fn build_flow_facts(
                     );
                     let post_call_contexts =
                         if call_may_mutate_contract_state(program, borrow, borrow_call) {
-                            let filtered_contexts = filter_contexts_after_root_mutations(
-                                program,
-                                semantic,
-                                &mut semantic_context_refs,
-                                active_contexts,
-                                &mutated_roots,
-                            );
-                            if filtered_contexts == active_contexts {
+                            if mutated_places.is_empty() {
                                 omega_core::arena::HandleSpan::empty()
                             } else {
-                                filtered_contexts
+                                filter_contexts_after_place_mutations(
+                                    program,
+                                    semantic,
+                                    &mut semantic_context_refs,
+                                    active_contexts,
+                                    &mutated_places,
+                                )
                             }
                         } else {
                             clone_flow_contexts(&mut semantic_context_refs, active_contexts)
@@ -2038,15 +2039,15 @@ fn build_flow_facts(
                     );
                 }
 
-                if let Some(root_symbol) =
-                    statement_mutated_root_symbol(program, machine, statement)
+                if let Some(place) =
+                    statement_mutated_place(program, machine, statement)
                 {
-                    active_contexts = filter_contexts_after_root_mutations(
+                    active_contexts = filter_contexts_after_place_mutations(
                         program,
                         semantic,
                         &mut semantic_context_refs,
                         active_contexts,
-                        &[root_symbol],
+                        &[place],
                     );
                 }
             }
@@ -2125,14 +2126,14 @@ fn clone_flow_contexts(
     cloned
 }
 
-fn filter_contexts_after_root_mutations(
+fn filter_contexts_after_place_mutations(
     program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
     semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
     source: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
-    mutated_roots: &[SymbolHandle],
+    mutated_places: &[CanonicalPlace],
 ) -> omega_core::arena::HandleSpan<FlowSemanticContextRef> {
-    if mutated_roots.is_empty() {
+    if mutated_places.is_empty() {
         return source;
     }
 
@@ -2145,7 +2146,7 @@ fn filter_contexts_after_root_mutations(
         .collect();
     for context_ref in copied {
         let context = semantic.contexts.get(context_ref.context);
-        if context_survives_root_mutations(program, semantic, context, mutated_roots) {
+        if context_survives_place_mutations(program, semantic, context, mutated_places) {
             semantic_context_refs.append_to_span(&mut filtered, context_ref);
         } else {
             removed_any = true;
@@ -2155,78 +2156,168 @@ fn filter_contexts_after_root_mutations(
     if removed_any { filtered } else { source }
 }
 
-fn context_survives_root_mutations(
+fn context_survives_place_mutations(
     program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
     context: &omega_facts::FactContext,
-    mutated_roots: &[SymbolHandle],
+    mutated_places: &[CanonicalPlace],
 ) -> bool {
     !semantic.context_view(context).facts().any(|fact| {
         let FactPlace::Place(place) = fact.place else {
             return false;
         };
-        let place = semantic.places.get(place);
-        match place.root {
-            omega_facts::PlaceRoot::Symbol(symbol) if mutated_roots.contains(&symbol) => true,
-            omega_facts::PlaceRoot::Expression(expression) => {
-                expression_place_overlaps_mutated_roots(program, expression, mutated_roots)
-            }
-            _ => semantic
-                .place_segments
-                .span_or_empty(place.segments)
-                .iter()
-                .any(|segment| match segment {
-                    omega_facts::PlaceSegment::Field { symbol } => mutated_roots.contains(symbol),
-                    omega_facts::PlaceSegment::Index { .. } => false,
-                }),
-        }
+        mutated_places
+            .iter()
+            .any(|mutated_place| {
+                canonical_place_overlaps_fact_place(program, semantic, fact, place, mutated_place)
+            })
     })
 }
 
-fn expression_place_overlaps_mutated_roots(
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CanonicalPlace {
+    root: omega_facts::PlaceRoot,
+    segments: Vec<omega_facts::PlaceSegment>,
+}
+
+fn canonical_place_from_expression(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    mutated_roots: &[SymbolHandle],
-) -> bool {
+) -> Option<CanonicalPlace> {
     if !expression.is_valid() {
-        return false;
+        return None;
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            expression_place_overlaps_mutated_roots(program, *inner, mutated_roots)
-        }
+        ExpressionNode::Mutable(inner) => canonical_place_from_expression(program, *inner),
         ExpressionNode::Name(path) => {
-            first_valid_name_path_symbol(path, &program.expression_table)
-                .is_some_and(|symbol| mutated_roots.contains(&symbol))
-                || program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols)
-                    .iter()
-                    .any(|symbol| mutated_roots.contains(symbol))
+            let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
+            let segments = program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols)
+                .iter()
+                .skip(1)
+                .copied()
+                .map(|symbol| omega_facts::PlaceSegment::Field { symbol })
+                .collect();
+            Some(CanonicalPlace {
+                root: omega_facts::PlaceRoot::Symbol(root_symbol),
+                segments,
+            })
         }
         ExpressionNode::Member(member) => {
-            mutated_roots.contains(&member.member_symbol)
-                || expression_place_overlaps_mutated_roots(program, member.receiver, mutated_roots)
+            let mut place = canonical_place_from_expression(program, member.receiver)?;
+            place.segments.push(omega_facts::PlaceSegment::Field {
+                symbol: member.member_symbol,
+            });
+            Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
-            expression_place_overlaps_mutated_roots(program, indexed.collection, mutated_roots)
+            let mut place = canonical_place_from_expression(program, indexed.collection)?;
+            place.segments.push(omega_facts::PlaceSegment::Index {
+                expression: indexed.index,
+            });
+            Some(place)
         }
+        _ => Some(CanonicalPlace {
+            root: omega_facts::PlaceRoot::Expression(expression),
+            segments: Vec::new(),
+        }),
+    }
+}
+
+fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<CanonicalPlace> {
+    symbol.is_valid().then_some(CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(symbol),
+        segments: Vec::new(),
+    })
+}
+
+fn canonical_place_segments_equal(
+    left: omega_facts::PlaceSegment,
+    right: omega_facts::PlaceSegment,
+) -> bool {
+    match (left, right) {
+        (
+            omega_facts::PlaceSegment::Field { symbol: left_symbol },
+            omega_facts::PlaceSegment::Field {
+                symbol: right_symbol,
+            },
+        ) => left_symbol == right_symbol,
+        (
+            omega_facts::PlaceSegment::Index {
+                expression: left_expression,
+            },
+            omega_facts::PlaceSegment::Index {
+                expression: right_expression,
+            },
+        ) => left_expression == right_expression,
         _ => false,
     }
 }
 
-fn call_mutated_roots(
+fn canonical_place_overlaps_segments(
+    left: &[omega_facts::PlaceSegment],
+    right: &[omega_facts::PlaceSegment],
+) -> bool {
+    let shared_len = left.len().min(right.len());
+    left.iter()
+        .take(shared_len)
+        .zip(right.iter().take(shared_len))
+        .all(|(left_segment, right_segment)| {
+            canonical_place_segments_equal(*left_segment, *right_segment)
+        })
+}
+
+fn canonical_place_overlaps_fact_place(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    fact: &Fact,
+    fact_place: omega_facts::PlaceHandle,
+    mutated_place: &CanonicalPlace,
+) -> bool {
+    let place = semantic.places.get(fact_place);
+    if place.root != mutated_place.root {
+        return root_domain_membership_alias_overlaps(program, semantic, fact, place, mutated_place);
+    }
+
+    let fact_segments = semantic.place_segments.span_or_empty(place.segments);
+    canonical_place_overlaps_segments(fact_segments, &mutated_place.segments)
+}
+
+fn root_domain_membership_alias_overlaps(
+    _program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    fact: &Fact,
+    fact_place: &omega_facts::Place,
+    _mutated_place: &CanonicalPlace,
+) -> bool {
+    let is_domain_membership = matches!(
+        fact.payload,
+        FactPayload::DomainMembership { .. } | FactPayload::ContractDomainMembership { .. }
+    );
+    if !is_domain_membership {
+        return false;
+    }
+
+    let fact_segments = semantic.place_segments.span_or_empty(fact_place.segments);
+    fact_segments.is_empty()
+}
+
+fn call_mutated_places(
     program: &omega_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-) -> Vec<SymbolHandle> {
-    let mut roots = Vec::new();
+) -> Vec<CanonicalPlace> {
+    let mut places = Vec::new();
     for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
-        if access.kind == BorrowAccessKind::Mutable && !roots.contains(&access.root_symbol) {
-            roots.push(access.root_symbol);
+        if access.kind == BorrowAccessKind::Mutable
+            && let Some(place) = canonical_place_from_symbol(access.root_symbol)
+            && !places.contains(&place)
+        {
+            places.push(place);
         }
     }
 
@@ -2254,27 +2345,28 @@ fn call_mutated_roots(
             }
 
             if let Some(argument) = argument
-                && let Some(root_symbol) = expression_root_symbol(
-                    argument,
-                    &program.expression_table,
-                    caller_machine_symbol,
-                )
-                && !roots.contains(&root_symbol)
+                && let Some(place) = canonical_place_from_expression(program, argument)
+                && !places.contains(&place)
             {
-                roots.push(root_symbol);
+                places.push(place);
             }
         }
     }
 
     if borrow_call.has_receiver
-        && borrow_call.receiver_symbol.is_valid()
         && call_receiver_is_mutable(program, borrow, borrow_call)
-        && !roots.contains(&borrow_call.receiver_symbol)
+        && let Some(place) = call_receiver_mutated_place(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            borrow_call,
+        )
+        && !places.contains(&place)
     {
-        roots.push(borrow_call.receiver_symbol);
+        places.push(place);
     }
 
-    roots
+    places
 }
 
 fn call_receiver_is_mutable(
@@ -2332,6 +2424,51 @@ fn call_may_mutate_contract_state(
         || call_receiver_is_mutable(program, borrow, borrow_call)
 }
 
+fn call_receiver_mutated_place(
+    program: &omega_typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+) -> Option<CanonicalPlace> {
+    let call_site = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    )?;
+    match call_site {
+        CallSite::Statement(statement) => {
+            if let Some(path) = statement_call_receiver_path(program, statement) {
+                return Some(CanonicalPlace {
+                    root: omega_facts::PlaceRoot::Symbol(path.head_symbol()),
+                    segments: path
+                        .member_symbols()
+                        .iter()
+                        .skip(1)
+                        .copied()
+                        .map(|symbol| omega_facts::PlaceSegment::Field { symbol })
+                        .collect(),
+                });
+            }
+            canonical_place_from_symbol(statement.receiver_symbol)
+        }
+        CallSite::Expression(call) => {
+            if call.receiver.is_valid() {
+                canonical_place_from_expression(program, call.receiver)
+            } else {
+                let caller_state =
+                    find_state_in_machine(program, caller_machine_symbol, caller_state_symbol)?;
+                let self_parameter = program
+                    .state_parameters(caller_state)
+                    .iter()
+                    .find(|parameter| parameter.is_self)?;
+                canonical_place_from_symbol(self_parameter.symbol)
+            }
+        }
+    }
+}
+
 fn append_flow_contexts_for_points(
     semantic: &FactPlan,
     semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
@@ -2345,14 +2482,17 @@ fn append_flow_contexts_for_points(
     }
 }
 
-fn statement_mutated_root_symbol(
+fn statement_mutated_place(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     statement: &StatementNode,
-) -> Option<SymbolHandle> {
+) -> Option<CanonicalPlace> {
     match statement {
         StatementNode::Assignment(assignment) => {
-            expression_root_symbol(assignment.target, &program.expression_table, machine.symbol)
+            canonical_place_from_expression(program, assignment.target).or_else(|| {
+                expression_root_symbol(assignment.target, &program.expression_table, machine.symbol)
+                    .and_then(canonical_place_from_symbol)
+            })
         }
         _ => None,
     }
@@ -3434,7 +3574,7 @@ fn first_valid_name_path_symbol(
 mod tests {
     use super::{
         build_borrow_facts, build_flow_facts, build_proof_facts, build_semantic_facts,
-        call_mutated_roots, context_proves_requirement_place_domain,
+        call_mutated_places, context_proves_requirement_place_domain,
         instantiate_call_contract_place, lower_typed_trees,
     };
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
@@ -3735,12 +3875,6 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let diagnostics =
-            lower_typed_trees(typed.clone()).expect_err("requires should fail after mutation");
-        assert!(diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot prove requires contract for call heal from Main::main: player in Player::Valid")));
-
         let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
         let effects = omega_effects::infer_effects(&typed);
         let borrow = build_borrow_facts(&typed);
@@ -3834,6 +3968,12 @@ mod tests {
                     required_domain,
                 )
             });
+
+        let diagnostics =
+            lower_typed_trees(typed.clone()).expect_err("requires should fail after mutation");
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract for call heal from Main::main: player in Player::Valid")));
 
         assert!(mark_exit_proves);
         assert!(break_entry_proves);
@@ -4545,7 +4685,7 @@ mod tests {
     }
 
     #[test]
-    fn call_mutated_roots_include_mutable_attached_data_arguments() {
+    fn call_mutated_places_include_mutable_attached_data_arguments() {
         let machine_symbol = SymbolHandle::from_arena_index(1);
         let state_symbol = SymbolHandle::from_arena_index(2);
         let target_symbol = SymbolHandle::from_arena_index(3);
@@ -4636,9 +4776,11 @@ mod tests {
         let facts = build_borrow_facts(&program);
         let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
         let call = facts.calls.span(state.calls).unwrap()[0].clone();
-        let roots = call_mutated_roots(&program, machine_symbol, state_symbol, &facts, &call);
+        let places = call_mutated_places(&program, machine_symbol, state_symbol, &facts, &call);
 
-        assert_eq!(roots, vec![player_symbol]);
+        assert!(places.iter().any(|place| place.root
+            == omega_facts::PlaceRoot::Symbol(player_symbol)
+            && place.segments.is_empty()));
     }
 
     #[test]
