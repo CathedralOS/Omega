@@ -1,6 +1,89 @@
 use omega_compiler::{CompileOptions, compile};
 use std::fs;
+#[cfg(windows)]
+use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::process::Command;
+#[cfg(windows)]
+use std::process::Stdio;
+
+#[cfg(windows)]
+#[test]
+fn windows_x64_cli_mvp_emits_runnable_pe() {
+    let sample = repo_root().join("samples").join("cli_mvp");
+    let main_path = sample.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-windows-x64-cli-mvp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("Windows x64 CLI MVP should compile to a PE executable");
+
+    let output = Command::new(build_dir.join("omega-program.exe"))
+        .output()
+        .expect("Windows x64 PE executable should run");
+
+    assert!(
+        output.status.success(),
+        "generated PE exited with {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "Hello, Omega.\n");
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_x64_dungeon_crawler_emits_runnable_pe() {
+    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let main_path = sample.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-windows-x64-dungeon-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("Windows x64 dungeon crawler should compile to a PE executable");
+
+    let mut child = Command::new(build_dir.join("omega-program.exe"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Windows x64 dungeon PE executable should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"look\r\nquit\r\n")
+        .expect("scripted dungeon input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("Windows x64 dungeon PE executable should finish");
+
+    assert!(
+        output.status.success(),
+        "generated dungeon PE exited with {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Omega Dungeon"));
+    assert!(stdout.contains("A bottomless dark room near the dungeon heart."));
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
 
 #[test]
 fn contract_canary_visualizes_flow_contract_summaries() {

@@ -381,6 +381,7 @@ dependencies = [
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",
+ "omega-image-pe",
  "omega-object",
  "omega-target",
 ]
@@ -395,6 +396,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-image-pe"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-image",
+ "omega-object",
+]
+
+[[package]]
 name = "omega-instruction-selection"
 version = "0.1.0"
 dependencies = [
@@ -403,6 +413,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-isa-aarch64",
+ "omega-isa-x86_64",
  "omega-layout",
  "omega-object",
  "omega-platform-interface",
@@ -425,6 +436,15 @@ dependencies = [
 name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
+ "omega-core",
+ "omega-target-operations",
+]
+
+[[package]]
+name = "omega-isa-x86_64"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
  "omega-core",
  "omega-target-operations",
 ]
@@ -455,6 +475,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-instruction-selection",
+ "omega-isa-x86_64",
  "omega-machine-bytes",
  "omega-machine-program",
  "omega-target",
@@ -537,6 +558,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-core",
  "omega-instruction-selection",
+ "omega-isa-x86_64",
  "omega-machine-bytes",
  "omega-object",
  "omega-target",

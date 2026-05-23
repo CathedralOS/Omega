@@ -1,5 +1,6 @@
 mod aarch64_relocations;
 mod model;
+mod x86_64_relocations;
 
 pub use aarch64_relocations::apply_aarch64_relocations;
 pub use model::{
@@ -11,6 +12,7 @@ use omega_object::{
     ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind, SymbolSection,
 };
 use omega_target::NativeTarget;
+pub use x86_64_relocations::apply_x86_64_relocations;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {

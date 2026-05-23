@@ -1,6 +1,7 @@
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
+use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
@@ -62,7 +63,14 @@ pub fn encode_runtime_value_compare(
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_value_compare(
+            runtime_value_operands,
+            left,
+            right,
+            byte_size,
+            failure_branch_distance,
+            operator,
+        ),
     }
 }
 
@@ -76,7 +84,9 @@ pub fn encode_runtime_machine_integer_write(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
+        }
     }
 }
 
@@ -116,7 +126,14 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             right,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_binary_write(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
     }
 }
 
@@ -203,7 +220,9 @@ pub fn encode_runtime_machine_string_write(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_string_write(byte_offset, byte_length)
+        }
     }
 }
 
@@ -253,7 +272,10 @@ pub fn encode_runtime_storage_address_to_runtime_frame_write(
             source_offset,
             target_offset,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_address_to_runtime_frame_write(
+            source_offset,
+            target_offset,
+        ),
     }
 }
 
@@ -283,7 +305,9 @@ pub fn encode_runtime_storage_copy(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
+        }
     }
 }
 

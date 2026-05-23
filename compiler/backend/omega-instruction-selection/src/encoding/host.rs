@@ -1,18 +1,21 @@
 use crate::aarch64_call_operand;
+use omega_calling_conventions::HostOperationKey;
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
+use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperand;
 
 pub fn encode_host_call_sequence(
     architecture: Architecture,
+    operation_key: HostOperationKey,
     operands: &[InstructionOperand],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_host_call_sequence_from_operands(
             operands.iter().map(aarch64_call_operand),
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_host_call_sequence(operation_key, operands),
     }
 }
 
@@ -54,7 +57,11 @@ pub fn encode_return_bytes(architecture: Architecture) -> Result<(Vec<u8>, usize
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
-        Architecture::X86_64 => Ok((vec![0xC3], 1)),
+        Architecture::X86_64 => {
+            let bytes = x86_64::encode_return_bytes().to_vec();
+            let byte_count = bytes.len();
+            Ok((bytes, byte_count))
+        }
     }
 }
 
@@ -70,7 +77,11 @@ pub fn encode_return_register_integer_write_bytes(
             let byte_count = bytes.len();
             Ok((bytes, byte_count))
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding().map(|bytes| (bytes, 0)),
+        Architecture::X86_64 => {
+            let bytes = x86_64::encode_return_register_integer_write_bytes(byte_size, value)?;
+            let byte_count = bytes.len();
+            Ok((bytes, byte_count))
+        }
     }
 }
 

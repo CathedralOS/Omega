@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-calling-conventions = { path = "../../omega-calling-conventions" }
 omega-core = { path = "../../../foundation/omega-core" }
 omega-instruction-selection = { path = "../../omega-instruction-selection" }
+omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
 omega-object = { path = "../omega-object" }
 omega-target = { path = "../../omega-target" }

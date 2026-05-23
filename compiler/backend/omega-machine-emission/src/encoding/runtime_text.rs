@@ -17,6 +17,7 @@ pub(super) fn encode_runtime_text_literal_compare(
         input.target.architecture,
         literal,
         byte_distances_to_next_runtime_machine_write_end(
+            input.target.architecture,
             input,
             machine_instructions,
             machine_instruction_index,

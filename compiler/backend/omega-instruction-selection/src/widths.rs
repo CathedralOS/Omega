@@ -1,6 +1,8 @@
 use crate::aarch64_call_operand;
+use omega_calling_conventions::HostOperationKey;
 use omega_core::arena::Arena;
 use omega_isa_aarch64::aarch64;
+use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::{
     InstructionOperand, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
@@ -9,13 +11,14 @@ use omega_target_operations::{
 
 pub fn host_call_sequence_width(
     architecture: Architecture,
+    operation_key: HostOperationKey,
     operands: &[InstructionOperand],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::host_call_sequence_width_from_operands(
             operands.iter().map(aarch64_call_operand),
         ),
-        Architecture::X86_64 => operands.len() * 8 + 5,
+        Architecture::X86_64 => x86_64::host_call_sequence_width(operation_key, operands),
     }
 }
 
@@ -43,42 +46,42 @@ pub fn function_enter_width(architecture: Architecture) -> usize {
 pub fn return_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_width(),
-        Architecture::X86_64 => 1,
+        Architecture::X86_64 => x86_64::return_width(),
     }
 }
 
 pub fn return_register_integer_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_register_integer_write_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::return_register_integer_write_width(),
     }
 }
 
 pub fn dispatch_loop_enter_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_loop_enter_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::dispatch_loop_enter_width(),
     }
 }
 
 pub fn dispatch_case_enter_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_case_enter_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::dispatch_case_enter_width(),
     }
 }
 
 pub fn dispatch_state_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_state_write_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::dispatch_state_write_width(),
     }
 }
 
 pub fn dispatch_case_leave_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_case_leave_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::dispatch_case_leave_width(),
     }
 }
 
@@ -92,7 +95,7 @@ pub fn dispatch_guard_compare_static_width(architecture: Architecture) -> usize 
 pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_compare_width(literal),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_literal_compare_width(literal),
     }
 }
 
@@ -253,7 +256,7 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
 pub fn runtime_machine_integer_write_width(architecture: Architecture, byte_size: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_integer_write_width(byte_size),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_machine_integer_write_width(byte_size),
     }
 }
 
@@ -286,7 +289,13 @@ pub fn runtime_storage_binary_write_width(
             operator,
             right,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_storage_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
     }
 }
 
@@ -333,7 +342,9 @@ pub fn runtime_value_compare_width(
         Architecture::Aarch64 => {
             aarch64::runtime_value_compare_width(runtime_value_operands, left, right)
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_value_compare_width(runtime_value_operands, left, right)
+        }
     }
 }
 
@@ -346,7 +357,9 @@ pub fn runtime_value_operand_width(
         Architecture::Aarch64 => {
             aarch64::runtime_value_operand_width(runtime_value_operands, operand)
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_value_operand_width(runtime_value_operands, operand)
+        }
     }
 }
 
@@ -393,7 +406,7 @@ pub fn runtime_frame_indexed_binary_write_width(
 pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_machine_string_write_width(byte_length),
     }
 }
 
@@ -429,7 +442,7 @@ pub fn runtime_frame_indexed_string_write_width(
 pub fn runtime_storage_address_to_runtime_frame_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_address_to_runtime_frame_write_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_storage_address_to_runtime_frame_write_width(),
     }
 }
 
@@ -492,7 +505,9 @@ pub fn runtime_storage_copy_width(
         Architecture::Aarch64 => {
             aarch64::runtime_storage_copy_width(source_offset, target_offset, byte_count)
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_width(source_offset, target_offset, byte_count)
+        }
     }
 }
 

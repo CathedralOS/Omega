@@ -24,6 +24,10 @@ pub(super) fn encode_host_operation(
             *number_register,
             *supervisor_call,
         ),
-        _ => architecture::encode_host_call_sequence(input.target.architecture, operands),
+        _ => architecture::encode_host_call_sequence(
+            input.target.architecture,
+            operation_key,
+            operands,
+        ),
     }
 }
