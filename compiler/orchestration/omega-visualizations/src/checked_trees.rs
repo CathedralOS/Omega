@@ -178,8 +178,8 @@ fn checked_effects_report(program: &Program) -> String {
         report.push_str("  mutable params: ");
         report.push_str(&state_flow.mutable_parameter_count.to_string());
         report.push('\n');
-        report.push_str("  contexts: ");
-        append_flow_context_labels(program, &mut report, state_flow.semantic_contexts);
+        report.push_str("  entry contexts: ");
+        append_flow_context_labels(program, &mut report, state_flow.entry_semantic_contexts);
         report.push('\n');
         report.push_str("  direct effects:  ");
         report.push_str(&format_effect_set(state_flow.direct_effects));
@@ -196,8 +196,14 @@ fn checked_effects_report(program: &Program) -> String {
             report.push_str(" -> ");
             report.push_str(&state_label_from_symbol(program, call_flow.target_symbol));
             report.push('\n');
-            report.push_str("    contexts: ");
-            append_flow_context_labels(program, &mut report, call_flow.semantic_contexts);
+            report.push_str("    entry contexts: ");
+            append_flow_context_labels(program, &mut report, call_flow.entry_semantic_contexts);
+            report.push('\n');
+            report.push_str("    requires contexts: ");
+            append_flow_context_labels(program, &mut report, call_flow.requires_contexts);
+            report.push('\n');
+            report.push_str("    exit contexts: ");
+            append_flow_context_labels(program, &mut report, call_flow.exit_semantic_contexts);
             report.push('\n');
             report.push_str("    requires: ");
             append_contract_fact_ref_summary(program, &mut report, call_flow.requires);
@@ -217,8 +223,11 @@ fn checked_effects_report(program: &Program) -> String {
             report.push_str("  exit ");
             report.push_str(&exit_flow.statement_index.to_string());
             report.push('\n');
-            report.push_str("    contexts: ");
-            append_flow_context_labels(program, &mut report, exit_flow.semantic_contexts);
+            report.push_str("    entry contexts: ");
+            append_flow_context_labels(program, &mut report, exit_flow.entry_semantic_contexts);
+            report.push('\n');
+            report.push_str("    ensures contexts: ");
+            append_flow_context_labels(program, &mut report, exit_flow.ensures_contexts);
             report.push('\n');
             report.push_str("    ensures: ");
             append_contract_fact_ref_summary(program, &mut report, exit_flow.ensures);
@@ -315,6 +324,26 @@ fn semantic_point_label(program: &Program, point: omega_facts::ProgramPoint) -> 
             call_ordinal,
         } => format!(
             "call {}::{} {statement_index}.{call_ordinal}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
+        omega_facts::ProgramPoint::CallRequires {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+        } => format!(
+            "call requires {}::{} {statement_index}.{call_ordinal}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
+        omega_facts::ProgramPoint::CallEnsures {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+        } => format!(
+            "call ensures {}::{} {statement_index}.{call_ordinal}",
             machine_name(program, machine_symbol),
             state_name(program, state_symbol)
         ),

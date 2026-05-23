@@ -76,6 +76,18 @@ pub enum ProgramPoint {
         statement_index: usize,
         call_ordinal: usize,
     },
+    CallRequires {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+    },
+    CallEnsures {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+    },
     Exit {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
