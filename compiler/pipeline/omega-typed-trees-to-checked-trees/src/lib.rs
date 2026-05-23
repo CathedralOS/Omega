@@ -58,6 +58,8 @@ pub fn lower_typed_trees(
 
 
 mod semantic;
+mod semantic_calls;
+mod semantic_places;
 
 pub use semantic::lower_typed_program;
 use semantic::{
