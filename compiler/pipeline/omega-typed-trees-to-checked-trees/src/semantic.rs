@@ -1,4 +1,9 @@
 use super::*;
+use crate::borrow::{
+    call_receiver_parts, machine_by_symbol, receiver_can_dispatch_to_machine,
+    resolve_state_call_target, statement_call_can_dispatch_to_machine,
+    statement_call_receiver_members, statement_call_receiver_path,
+};
 use crate::flow::{
     canonical_place_from_expression, effective_member_symbol, expression_type_symbol,
     symbol_type_symbol,
