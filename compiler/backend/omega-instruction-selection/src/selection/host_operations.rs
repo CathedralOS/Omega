@@ -75,16 +75,59 @@ pub(super) fn select_host_call(
             .is_some()
         && let Some(newline) = newline_data_object(input)
     {
-        let newline_operands = operands.insert_many([
-            operand(InstructionOperandKind::ImmediateInteger(1)),
-            operand(InstructionOperandKind::DataAddress {
-                data: data_object_handle(input, newline),
-            }),
-            operand(InstructionOperandKind::ByteLength(1)),
-        ]);
+        let uses_write_file = operations.iter().any(|operation| {
+            operation.operation_key
+                == HostOperationKey::new(HostCapability::Stdout, HostOperation::WriteFile)
+        });
+        if uses_write_file
+            && let Some(get_std_handle) = operations.iter().find(|operation| {
+                operation.operation_key
+                    == HostOperationKey::new(HostCapability::Stdout, HostOperation::GetStdHandle)
+            })
+        {
+            let handle_operands = select_host_operation_operands(
+                input,
+                host_call,
+                dispatch_index,
+                alias_context,
+                get_std_handle.operation_key,
+                operands,
+            );
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::HostOperation {
+                    operation_key: get_std_handle.operation_key,
+                    operands: handle_operands,
+                },
+                source_key: host_call.source_key,
+                source_statement: host_call.statement_index,
+            });
+        }
+        let newline_operands = if uses_write_file {
+            operands.insert_many([
+                operand(InstructionOperandKind::DataAddress {
+                    data: data_object_handle(input, newline),
+                }),
+                operand(InstructionOperandKind::ByteLength(1)),
+            ])
+        } else {
+            operands.insert_many([
+                operand(InstructionOperandKind::ImmediateInteger(1)),
+                operand(InstructionOperandKind::DataAddress {
+                    data: data_object_handle(input, newline),
+                }),
+                operand(InstructionOperandKind::ByteLength(1)),
+            ])
+        };
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
-                operation_key: HostOperationKey::new(HostCapability::Stdout, HostOperation::Write),
+                operation_key: HostOperationKey::new(
+                    HostCapability::Stdout,
+                    if uses_write_file {
+                        HostOperation::WriteFile
+                    } else {
+                        HostOperation::Write
+                    },
+                ),
                 operands: newline_operands,
             },
             source_key: host_call.source_key,

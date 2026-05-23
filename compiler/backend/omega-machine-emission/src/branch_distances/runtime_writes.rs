@@ -4,8 +4,10 @@ use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::MachineInstructionKind;
+use omega_target::Architecture;
 
 pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
+    architecture: Architecture,
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
@@ -32,6 +34,7 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
         target_offset,
         byte_index: 0,
         byte_count: literal.len(),
+        architecture,
     })
 }
 
@@ -40,6 +43,7 @@ pub(crate) struct RuntimeMachineWriteEndBranchDistances {
     target_offset: usize,
     byte_index: usize,
     byte_count: usize,
+    architecture: Architecture,
 }
 
 impl Iterator for RuntimeMachineWriteEndBranchDistances {
@@ -50,7 +54,15 @@ impl Iterator for RuntimeMachineWriteEndBranchDistances {
             return None;
         }
 
-        let branch_program_counter = self.current_offset + 8 + self.byte_index * 12 + 8;
+        let branch_program_counter = match self.architecture {
+            Architecture::Aarch64 => self.current_offset + 8 + self.byte_index * 12 + 8,
+            Architecture::X86_64 => {
+                self.current_offset
+                    + omega_isa_x86_64::runtime_text_literal_compare_branch_next_offset(
+                        self.byte_index,
+                    )
+            }
+        };
         self.byte_index += 1;
         Some(self.target_offset as isize - branch_program_counter as isize)
     }

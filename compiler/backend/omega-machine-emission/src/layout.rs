@@ -73,7 +73,7 @@ fn machine_instruction_width(
                 Some(HostBindingMechanism::Syscall { number, .. }) => {
                     syscall_sequence_width(input.target.architecture, operands, *number)
                 }
-                _ => host_call_sequence_width(input.target.architecture, operands),
+                _ => host_call_sequence_width(input.target.architecture, *operation_key, operands),
             }
         }
         SelectedInstructionKind::EnterDispatchLoop { .. } => {

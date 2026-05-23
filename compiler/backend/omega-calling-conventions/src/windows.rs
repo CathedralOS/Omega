@@ -8,6 +8,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
         windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
         windows_import("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+        windows_import("Stdout", "write", "Kernel32.dll", "WriteFile"),
         windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
         windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
     ]);

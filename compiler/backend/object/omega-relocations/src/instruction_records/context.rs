@@ -4,6 +4,7 @@ use omega_object::{
     ObjectSymbolHandle, RelocationPlan, machine_storage_symbol_name, object_symbol_handle_by_name,
     storage_region_symbol_name,
 };
+use omega_target::Architecture;
 use omega_target_operations::{RuntimeStorageRegion, TargetDataObjectHandle};
 
 pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
@@ -44,6 +45,10 @@ impl InstructionRelocationContext<'_, '_> {
     }
 
     pub(super) fn insert_data_address(&mut self, byte_offset: usize, symbol: ObjectSymbolHandle) {
+        let byte_offset = match self.input.target.architecture {
+            Architecture::Aarch64 => byte_offset,
+            Architecture::X86_64 => byte_offset + 2,
+        };
         insert_data_address_relocations(
             self.input,
             self.relocation_plan,

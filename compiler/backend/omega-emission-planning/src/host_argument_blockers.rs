@@ -1,5 +1,5 @@
 use crate::EmissionPlanningInput;
-use omega_calling_conventions::PlatformCallData;
+use omega_calling_conventions::{HostCapability, HostOperation, PlatformCallData};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
@@ -287,11 +287,12 @@ fn runtime_text_buffer_has_selected_producer(
         .instructions
         .iter()
         .any(|(_, instruction)| {
-            selected_instruction_writes_runtime_text_buffer(&instruction.kind, data_handle)
+            selected_instruction_writes_runtime_text_buffer(input, &instruction.kind, data_handle)
         })
 }
 
 fn selected_instruction_writes_runtime_text_buffer(
+    input: &EmissionPlanningInput<'_>,
     kind: &SelectedInstructionKind,
     data_handle: TargetDataObjectHandle,
 ) -> bool {
@@ -320,6 +321,25 @@ fn selected_instruction_writes_runtime_text_buffer(
         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
             buffer, ..
         } => *buffer == data_handle,
+        SelectedInstructionKind::HostOperation {
+            operation_key,
+            operands,
+        } if operation_key.capability == HostCapability::Stdin
+            && operation_key.operation == HostOperation::ReadFile =>
+        {
+            input
+                .instructions
+                .operands
+                .span(*operands)
+                .unwrap_or(&[])
+                .iter()
+                .any(|operand| {
+                    matches!(
+                        operand.kind,
+                        InstructionOperandKind::DataAddress { data } if data == data_handle
+                    )
+                })
+        }
         _ => false,
     }
 }
