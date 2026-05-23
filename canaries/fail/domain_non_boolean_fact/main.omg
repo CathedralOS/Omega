@@ -1,0 +1,15 @@
+data Player {
+    health: i32;
+}
+
+domain Player::Weird {
+    1 + 2;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::main(&mut self) {
+    self.player.health = 10;
+}

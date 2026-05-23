@@ -1,0 +1,1 @@
+domain `Player::Alive` imports `Enemy::Valid` but they classify different types
