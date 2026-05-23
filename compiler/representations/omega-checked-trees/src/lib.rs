@@ -148,6 +148,14 @@ pub struct ContractCallFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContractExitFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub ensures: HandleSpan<ContractProofFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ProofObligationOwner {
     #[default]
     Unknown,
@@ -198,6 +206,7 @@ pub struct ProofFacts {
     pub contract_facts: Arena<ContractProofFact>,
     pub contract_fact_refs: Arena<ContractProofFactRef>,
     pub contract_calls: Arena<ContractCallFact>,
+    pub contract_exits: Arena<ContractExitFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
