@@ -5,9 +5,11 @@ use omega_checked_trees::statement::{
 };
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
-    BorrowWritableRootFact, CheckFacts, InvariantFact, InvariantFacts, Program, ProofFactKind,
-    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    BorrowWritableRootFact, CheckFacts, ContractProofFact, ContractProofFactKind,
+    ContractProofFactOwner, InvariantFact, InvariantFacts, Program, ProofFactKind, ProofFacts,
+    ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 pub fn lower_typed_trees(
@@ -39,10 +41,12 @@ pub fn lower_typed_program(
 }
 
 fn build_proof_facts(
-    _program: &omega_typed_trees::TypedTrees,
+    program: &omega_typed_trees::TypedTrees,
     proof_plan: &omega_proof::obligations::ProofPlan,
 ) -> ProofFacts {
     let mut obligations = omega_core::arena::Arena::with_capacity(proof_plan.obligations.len());
+    let mut contract_facts =
+        omega_core::arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
 
     for (_, obligation) in proof_plan.obligations.iter() {
         obligations.append(match obligation {
@@ -117,7 +121,77 @@ fn build_proof_facts(
         });
     }
 
-    ProofFacts { obligations }
+    for machine in program.machines() {
+        append_machine_contract_facts(program, machine, &mut contract_facts);
+    }
+
+    ProofFacts {
+        obligations,
+        contract_facts,
+    }
+}
+
+fn estimated_contract_fact_capacity(program: &omega_typed_trees::TypedTrees) -> usize {
+    program
+        .machines()
+        .iter()
+        .map(|machine| {
+            program
+                .machine_contracts(machine)
+                .iter()
+                .map(|contract| contract.facts.len())
+                .sum::<usize>()
+        })
+        .sum()
+}
+
+fn append_machine_contract_facts(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    contract_facts: &mut omega_core::arena::Arena<ContractProofFact>,
+) {
+    for contract in program.machine_contracts(machine) {
+        for fact in fact_handles(contract.facts) {
+            contract_facts.append(ContractProofFact {
+                kind: contract_fact_kind(contract.kind),
+                owner: ContractProofFactOwner::Machine {
+                    machine_symbol: machine.symbol,
+                },
+                fact,
+            });
+        }
+    }
+}
+
+fn fact_handles(
+    facts: HandleSpan<omega_typed_trees::domain::ProofFact>,
+) -> impl Iterator<Item = Handle<omega_typed_trees::domain::ProofFact>> {
+    (0..facts.count()).map(move |offset| {
+        Handle::from_parts(
+            facts
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("proof fact handle index overflow"),
+            facts.start().generation(),
+        )
+    })
+}
+
+fn contract_fact_kind(
+    kind: omega_typed_trees::signature::SignatureContractKind,
+) -> ContractProofFactKind {
+    match kind {
+        omega_typed_trees::signature::SignatureContractKind::Requires => {
+            ContractProofFactKind::Requires
+        }
+        omega_typed_trees::signature::SignatureContractKind::Ensures => {
+            ContractProofFactKind::Ensures
+        }
+        omega_typed_trees::signature::SignatureContractKind::Trusted => {
+            ContractProofFactKind::Trusted
+        }
+    }
 }
 
 fn state_owner(machine_symbol: SymbolHandle, state_symbol: SymbolHandle) -> ProofObligationOwner {
@@ -1183,16 +1257,70 @@ fn first_valid_name_path_symbol(
 
 #[cfg(test)]
 mod tests {
-    use super::build_borrow_facts;
+    use super::{build_borrow_facts, build_proof_facts};
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::ProgramName;
-    use omega_checked_trees::signature::StateParameter;
+    use omega_checked_trees::signature::{
+        SignatureContract, SignatureContractKind, StateParameter,
+    };
     use omega_checked_trees::state::State;
     use omega_checked_trees::statement::{StatementNode, TableCall};
     use omega_checked_trees::types::TypeReferenceNode;
+    use omega_checked_trees::{ContractProofFactKind, ContractProofFactOwner};
+    use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
     use std::sync::Arc;
+
+    #[test]
+    fn carries_machine_contract_facts_into_checked_proof_facts() {
+        let machine_symbol = SymbolHandle::from_arena_index(5);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let fact = program
+            .proof_facts
+            .append(omega_typed_trees::domain::ProofFact::Expression(expression));
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: ProgramName::generated("Main::main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_contract(
+            &mut machine,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: HandleSpan::from_parts(fact, 1),
+                token_count: 1,
+            },
+        );
+        program.push_machine(machine);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let facts = build_proof_facts(&program, &proof_plan);
+        let contract_fact = facts
+            .contract_facts
+            .iter()
+            .next()
+            .map(|(_, fact)| fact)
+            .expect("checked proof facts should include the machine contract");
+
+        assert_eq!(facts.contract_facts.len(), 1);
+        assert_eq!(contract_fact.kind, ContractProofFactKind::Requires);
+        assert_eq!(contract_fact.fact, fact);
+        assert_eq!(
+            contract_fact.owner,
+            ContractProofFactOwner::Machine { machine_symbol }
+        );
+    }
 
     #[test]
     fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
@@ -1230,6 +1358,7 @@ mod tests {
             owned_data: Default::default(),
             satisfies: Default::default(),
             effects: Default::default(),
+            contracts: Default::default(),
             states: Default::default(),
         };
         let mut entry_state = State {
