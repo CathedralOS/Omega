@@ -166,6 +166,52 @@ pub struct TypeConstraintFact {
     pub constraint: Handle<TypeConstraintNode>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct FactContextView<'facts> {
+    plan: &'facts FactPlan,
+    pub point: ProgramPoint,
+    facts: HandleSpan<FactRef>,
+}
+
+impl<'facts> FactContextView<'facts> {
+    pub fn facts(self) -> impl Iterator<Item = &'facts Fact> {
+        self.plan
+            .refs
+            .span_or_empty(self.facts)
+            .iter()
+            .map(move |reference| self.plan.facts.get(reference.fact))
+    }
+
+    pub fn boolean_facts(self) -> impl Iterator<Item = BooleanFact> + 'facts {
+        self.facts().filter_map(|fact| match fact.payload {
+            FactPayload::BooleanExpression(expression) => Some(BooleanFact { expression }),
+            _ => None,
+        })
+    }
+
+    pub fn domain_memberships(self) -> impl Iterator<Item = DomainMembershipFact> + 'facts {
+        self.facts().filter_map(|fact| match fact.payload {
+            FactPayload::DomainMembership {
+                value,
+                domain,
+                domain_symbol,
+            } => Some(DomainMembershipFact {
+                value,
+                domain,
+                domain_symbol,
+            }),
+            _ => None,
+        })
+    }
+
+    pub fn type_constraints(self) -> impl Iterator<Item = TypeConstraintFact> + 'facts {
+        self.facts().filter_map(|fact| match fact.payload {
+            FactPayload::TypeConstraint { constraint } => Some(TypeConstraintFact { constraint }),
+            _ => None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FactPlan {
     pub facts: Arena<Fact>,
@@ -227,11 +273,27 @@ impl FactPlan {
             .map(move |reference| self.facts.get(reference.fact))
     }
 
-    pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
+    pub fn context_view(&self, context: &FactContext) -> FactContextView<'_> {
+        FactContextView {
+            plan: self,
+            point: context.point,
+            facts: context.facts,
+        }
+    }
+
+    pub fn contexts_at_point(
+        &self,
+        point: ProgramPoint,
+    ) -> impl Iterator<Item = FactContextView<'_>> {
         self.contexts
             .iter()
             .filter(move |(_, context)| context.point == point)
-            .flat_map(move |(_, context)| self.context_facts(context))
+            .map(move |(_, context)| self.context_view(context))
+    }
+
+    pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
+        self.contexts_at_point(point)
+            .flat_map(|context| context.facts())
     }
 
     pub fn boolean_facts_for_symbol(
@@ -459,5 +521,20 @@ mod tests {
                 .count(),
             1
         );
+        let domain_context = facts
+            .contexts_at_point(super::ProgramPoint::Definition {
+                symbol: domain_symbol,
+            })
+            .next()
+            .expect("domain context");
+        assert_eq!(domain_context.boolean_facts().count(), 1);
+
+        let invariant_context = facts
+            .contexts_at_point(super::ProgramPoint::Definition {
+                symbol: invariant_symbol,
+            })
+            .next()
+            .expect("invariant context");
+        assert_eq!(invariant_context.type_constraints().count(), 1);
     }
 }
