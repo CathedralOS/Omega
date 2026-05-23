@@ -1,4 +1,5 @@
 use super::*;
+use crate::lookup::expression_root_symbol;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StateMutationSummaryCache {
