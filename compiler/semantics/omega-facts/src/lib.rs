@@ -9,11 +9,43 @@ use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 pub type FactHandle = Handle<Fact>;
 pub type FactRefHandle = Handle<FactRef>;
 pub type FactContextHandle = Handle<FactContext>;
+pub type PlaceHandle = Handle<Place>;
+pub type PlaceSegmentHandle = Handle<PlaceSegment>;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PlaceRoot {
+    #[default]
+    Unknown,
+    Symbol(SymbolHandle),
+    Expression(ExpressionHandle),
+    TypeReference(TypeReferenceHandle),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaceSegment {
+    Field { symbol: SymbolHandle },
+    Index { expression: ExpressionHandle },
+}
+
+impl Default for PlaceSegment {
+    fn default() -> Self {
+        Self::Field {
+            symbol: SymbolHandle::invalid(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Place {
+    pub root: PlaceRoot,
+    pub segments: HandleSpan<PlaceSegment>,
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum FactPlace {
     #[default]
     Unknown,
+    Place(PlaceHandle),
     Symbol(SymbolHandle),
     Expression(ExpressionHandle),
     TypeReference(TypeReferenceHandle),
@@ -214,6 +246,8 @@ impl<'facts> FactContextView<'facts> {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FactPlan {
+    pub places: Arena<Place>,
+    pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
     pub refs: Arena<FactRef>,
     pub contexts: Arena<FactContext>,
@@ -223,6 +257,8 @@ pub struct FactPlan {
 impl FactPlan {
     pub fn with_capacity(fact_capacity: usize, context_capacity: usize) -> Self {
         Self {
+            places: Arena::with_capacity(fact_capacity),
+            place_segments: Arena::with_capacity(fact_capacity),
             facts: Arena::with_capacity(fact_capacity),
             refs: Arena::with_capacity(fact_capacity),
             contexts: Arena::with_capacity(context_capacity),
@@ -232,6 +268,39 @@ impl FactPlan {
 
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
         self.facts.append(fact)
+    }
+
+    pub fn append_place(&mut self, place: Place) -> PlaceHandle {
+        self.places.append(place)
+    }
+
+    pub fn append_symbol_place(&mut self, symbol: SymbolHandle) -> PlaceHandle {
+        self.append_place(Place {
+            root: PlaceRoot::Symbol(symbol),
+            segments: HandleSpan::empty(),
+        })
+    }
+
+    pub fn append_expression_place(&mut self, expression: ExpressionHandle) -> PlaceHandle {
+        self.append_place(Place {
+            root: PlaceRoot::Expression(expression),
+            segments: HandleSpan::empty(),
+        })
+    }
+
+    pub fn append_type_reference_place(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+    ) -> PlaceHandle {
+        self.append_place(Place {
+            root: PlaceRoot::TypeReference(type_reference),
+            segments: HandleSpan::empty(),
+        })
+    }
+
+    pub fn push_place_segment(&mut self, place: PlaceHandle, segment: PlaceSegment) {
+        let segment = self.place_segments.append(segment);
+        self.places.get_mut(place).segments.push_contiguous(segment);
     }
 
     pub fn append_fact_context(&mut self, fact: Fact) -> FactHandle {
@@ -386,6 +455,7 @@ fn estimated_definition_context_capacity(program: &TypedTrees) -> usize {
 fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for domain in program.domain_definitions() {
         let mut refs = HandleSpan::empty();
+        let place = facts.append_symbol_place(domain.symbol);
         for fact_handle in proof_fact_handles(domain.facts) {
             let payload = match program.proof_facts.get(fact_handle) {
                 ProofFact::Expression(expression) => FactPayload::BooleanExpression(*expression),
@@ -396,7 +466,7 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
                 },
             };
             let fact = facts.append_fact(Fact {
-                place: FactPlace::Symbol(domain.symbol),
+                place: FactPlace::Place(place),
                 point: ProgramPoint::Definition {
                     symbol: domain.symbol,
                 },
@@ -420,9 +490,10 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
 fn append_invariant_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for invariant in program.invariant_definitions() {
         let mut refs = HandleSpan::empty();
+        let place = facts.append_symbol_place(invariant.symbol);
         for constraint in type_constraint_handles(invariant.constraints) {
             let fact = facts.append_fact(Fact {
-                place: FactPlace::Symbol(invariant.symbol),
+                place: FactPlace::Place(place),
                 point: ProgramPoint::Definition {
                     symbol: invariant.symbol,
                 },
@@ -514,6 +585,7 @@ mod tests {
 
         let facts = build_definition_fact_plan(&program);
 
+        assert_eq!(facts.places.len(), 2);
         assert_eq!(facts.facts.len(), 2);
         assert_eq!(facts.contexts.len(), 2);
         assert_eq!(facts.symbol_sets.len(), 2);
