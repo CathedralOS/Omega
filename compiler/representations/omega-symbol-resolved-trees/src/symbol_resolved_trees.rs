@@ -32,7 +32,7 @@ pub struct SymbolResolvedTableStorage {
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_type_parameters: Arena<data::TypeParameter>,
-    pub domain_facts: Arena<domain::DomainFact>,
+    pub proof_facts: Arena<domain::ProofFact>,
     pub domain_path_members: Arena<crate::name::DiagnosticName>,
     pub machine_contained_objects: Arena<crate::machine::ContainedObject>,
     pub machine_owned_data: Arena<crate::machine::OwnedData>,
@@ -77,8 +77,8 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn domain_facts(&self, span: HandleSpan<domain::DomainFact>) -> &[domain::DomainFact] {
-        self.tables.declarations.domain_facts.span_or_empty(span)
+    pub fn proof_facts(&self, span: HandleSpan<domain::ProofFact>) -> &[domain::ProofFact] {
+        self.tables.declarations.proof_facts.span_or_empty(span)
     }
 
     pub fn domain_path_members(

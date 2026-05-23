@@ -1,4 +1,4 @@
-use crate::domain::lower_domain_facts;
+use crate::domain::lower_proof_facts;
 use crate::program::Lowerer;
 use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference_handle;
@@ -126,7 +126,7 @@ pub(crate) fn lower_signature_contracts(
     let mut span = HandleSpan::empty();
 
     for contract in syntax_trees.items.capability_contracts(contracts) {
-        let facts = lower_domain_facts(lowerer, syntax_trees, contract.facts)?;
+        let facts = lower_proof_facts(lowerer, syntax_trees, contract.facts)?;
         lowerer
             .symbol_resolved_trees
             .tables

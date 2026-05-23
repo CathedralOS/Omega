@@ -5,8 +5,8 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
-use omega_typed_trees::domain::DomainFact;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::domain::ProofFact;
+use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
@@ -383,34 +383,79 @@ fn validate_domain_definitions(
                 generic_depth: 0,
             },
         );
-        validate_domain_facts(
+        validate_proof_facts(
             program,
-            program.domain_facts(domain),
+            program.proof_facts(domain),
             diagnostics,
             ProofFactOwner::Domain(domain.name.as_str()),
         );
+        validate_domain_membership_targets(program, domain, diagnostics);
     }
+
+    validate_domain_membership_cycles(program, diagnostics);
 }
 
-fn validate_domain_facts(
+fn validate_proof_facts(
     program: &TypedTrees,
-    facts: &[DomainFact],
+    facts: &[ProofFact],
     diagnostics: &mut Vec<Diagnostic>,
     owner: ProofFactOwner<'_>,
 ) {
     for fact in facts {
-        let DomainFact::Membership(membership) = fact else {
-            continue;
-        };
+        match fact {
+            ProofFact::Expression(expression) => {
+                if !is_boolean_fact_expression(program, *expression) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} proof fact `{}` is not boolean-shaped",
+                        program.expression_table.display_name(*expression)
+                    )));
+                }
+            }
+            ProofFact::Membership(membership) => {
+                if membership.domain_symbol.is_valid() {
+                    continue;
+                }
 
-        if membership.domain_symbol.is_valid() {
-            continue;
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown domain `{}`",
+                    domain_path_label(program, membership.domain)
+                )));
+            }
         }
+    }
+}
 
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} references unknown domain `{}`",
-            domain_path_label(program, membership.domain)
-        )));
+fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => match binary.operator {
+            BinaryOperator::And
+            | BinaryOperator::Equal
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Or => true,
+            BinaryOperator::Add
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::Multiply
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::Subtract => false,
+        },
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Name(_) => true,
+        ExpressionNode::Mutable(inner) => is_boolean_fact_expression(program, *inner),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::StructLiteral(_) => false,
     }
 }
 
@@ -427,6 +472,104 @@ fn domain_path_label(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::")
+}
+
+fn validate_domain_membership_targets(
+    program: &TypedTrees,
+    domain: &omega_typed_trees::domain::DomainDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for membership in proof_memberships(program, domain.facts) {
+        let Some(referenced_domain) =
+            domain_definition_by_symbol(program, membership.domain_symbol)
+        else {
+            continue;
+        };
+
+        if type_references_match(program, domain.target_type, referenced_domain.target_type) {
+            continue;
+        }
+
+        diagnostics.push(Diagnostic::error(format!(
+            "domain `{}` imports `{}` but they classify different types: `{}` vs `{}`",
+            domain.name,
+            referenced_domain.name,
+            type_reference_label(program, domain.target_type),
+            type_reference_label(program, referenced_domain.target_type)
+        )));
+    }
+}
+
+fn validate_domain_membership_cycles(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    let mut reported = Vec::new();
+    for domain in program.domain_definitions() {
+        let mut path = Vec::new();
+        validate_domain_membership_cycle_from(
+            program,
+            domain.symbol,
+            &mut path,
+            &mut reported,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_domain_membership_cycle_from(
+    program: &TypedTrees,
+    domain_symbol: SymbolHandle,
+    path: &mut Vec<SymbolHandle>,
+    reported: &mut Vec<SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !domain_symbol.is_valid() || reported.contains(&domain_symbol) {
+        return;
+    }
+
+    if let Some(cycle_start) = path.iter().position(|symbol| *symbol == domain_symbol) {
+        reported.push(domain_symbol);
+        let cycle = path[cycle_start..]
+            .iter()
+            .copied()
+            .chain(std::iter::once(domain_symbol))
+            .filter_map(|symbol| domain_definition_by_symbol(program, symbol))
+            .map(|domain| domain.name.to_string())
+            .collect::<Vec<_>>()
+            .join(" -> ");
+        diagnostics.push(Diagnostic::error(format!(
+            "domain membership cycle: {cycle}"
+        )));
+        return;
+    }
+
+    let Some(domain) = domain_definition_by_symbol(program, domain_symbol) else {
+        return;
+    };
+
+    path.push(domain_symbol);
+    for membership in proof_memberships(program, domain.facts) {
+        validate_domain_membership_cycle_from(
+            program,
+            membership.domain_symbol,
+            path,
+            reported,
+            diagnostics,
+        );
+    }
+    path.pop();
+}
+
+fn proof_memberships(
+    program: &TypedTrees,
+    facts: omega_core::arena::HandleSpan<ProofFact>,
+) -> impl Iterator<Item = &omega_typed_trees::domain::ProofMembershipFact> {
+    program
+        .proof_facts
+        .span_or_empty(facts)
+        .iter()
+        .filter_map(|fact| match fact {
+            ProofFact::Expression(_) => None,
+            ProofFact::Membership(membership) => Some(membership),
+        })
 }
 
 struct WritableRoots<'program, 'state> {
@@ -992,9 +1135,9 @@ fn validate_state_signature_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in signature.contracts {
-        validate_domain_facts(
+        validate_proof_facts(
             program,
-            program.domain_facts.span_or_empty(contract.facts),
+            program.proof_facts.span_or_empty(contract.facts),
             diagnostics,
             ProofFactOwner::StateSignatureContract {
                 owner,
@@ -1026,9 +1169,9 @@ fn validate_machine_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in program.machine_contracts(machine) {
-        validate_domain_facts(
+        validate_proof_facts(
             program,
-            program.domain_facts.span_or_empty(contract.facts),
+            program.proof_facts.span_or_empty(contract.facts),
             diagnostics,
             ProofFactOwner::MachineContract {
                 machine: machine.name.as_str(),
@@ -1499,6 +1642,122 @@ mod tests {
     }
 
     #[test]
+    fn rejects_non_boolean_shaped_proof_fact() {
+        let source = r#"
+        data Player {
+        }
+
+        domain Player::Weird {
+            1 + 2
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics = validate_program(&typed).expect_err("validation should reject fact");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("domain `Player::Weird` proof fact `1 + 2` is not boolean-shaped")),
+            "expected non-boolean proof fact diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn rejects_domain_import_with_different_target_type() {
+        let source = r#"
+        data Player {
+        }
+
+        data Enemy {
+        }
+
+        domain Enemy::Valid {
+            true
+        }
+
+        domain Player::Alive {
+            self in Enemy::Valid
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics = validate_program(&typed).expect_err("validation should reject import");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| {
+                    diagnostic.message.contains(
+                "domain `Player::Alive` imports `Enemy::Valid` but they classify different types"
+            )
+                }),
+            "expected domain target mismatch diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn rejects_domain_import_cycles() {
+        let source = r#"
+        data Player {
+        }
+
+        domain Player::Alive {
+            self in Player::Valid
+        }
+
+        domain Player::Valid {
+            self in Player::Alive
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics = validate_program(&typed).expect_err("validation should reject cycle");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains(
+                    "domain membership cycle: Player::Alive -> Player::Valid -> Player::Alive",
+                )
+            }),
+            "expected domain cycle diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
     fn rejects_machine_effects_outside_trait_ceiling() {
         let source = r#"
         boundary trait Console {
@@ -1917,6 +2176,20 @@ fn trait_definition_by_symbol(
         .traits()
         .iter()
         .find(|trait_definition| trait_definition.symbol == symbol)
+}
+
+fn domain_definition_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::domain::DomainDefinition> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == symbol)
 }
 
 fn validate_machine_state_satisfies_trait_signature(

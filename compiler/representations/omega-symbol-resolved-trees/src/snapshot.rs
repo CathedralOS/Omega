@@ -1,6 +1,6 @@
 use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
-use crate::domain::{DomainDefinition, DomainFact};
+use crate::domain::{DomainDefinition, ProofFact};
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
@@ -128,13 +128,13 @@ pub enum DataMemberSnapshot {
 pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
-    pub facts: Vec<DomainFactSnapshot>,
+    pub facts: Vec<ProofFactSnapshot>,
     pub body_token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum DomainFactSnapshot {
+pub enum ProofFactSnapshot {
     Expression {
         value: ExpressionSnapshot,
     },
@@ -210,7 +210,7 @@ pub struct StateSignatureSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SignatureContractSnapshot {
     pub kind: &'static str,
-    pub facts: Vec<DomainFactSnapshot>,
+    pub facts: Vec<ProofFactSnapshot>,
     pub token_count: usize,
 }
 
@@ -414,16 +414,16 @@ fn domain_definition_snapshot(
 
 fn domain_fact_snapshots(
     program: &SymbolResolvedTrees,
-    facts: omega_core::arena::HandleSpan<DomainFact>,
-) -> Vec<DomainFactSnapshot> {
+    facts: omega_core::arena::HandleSpan<ProofFact>,
+) -> Vec<ProofFactSnapshot> {
     program
-        .domain_facts(facts)
+        .proof_facts(facts)
         .iter()
         .map(|fact| match fact {
-            DomainFact::Expression(expression) => DomainFactSnapshot::Expression {
+            ProofFact::Expression(expression) => ProofFactSnapshot::Expression {
                 value: table_expression_snapshot(program, *expression),
             },
-            DomainFact::Membership(membership) => DomainFactSnapshot::Membership {
+            ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
                 value: table_expression_snapshot(program, membership.value),
                 domain: program
                     .domain_path_members(membership.domain)

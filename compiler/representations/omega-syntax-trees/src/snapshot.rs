@@ -3,8 +3,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, DomainFact, Item,
-    LibraryFunction, StateParameterNode, StateSignature, TrustLevel,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
+    LibraryFunction, ProofFact, StateParameterNode, StateSignature, TrustLevel,
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
@@ -52,7 +52,7 @@ pub enum ItemSnapshot {
     Domain {
         name: IdentifierSnapshot,
         target_type: TypeReferenceSnapshot,
-        facts: Vec<DomainFactSnapshot>,
+        facts: Vec<ProofFactSnapshot>,
         body_token_count: usize,
     },
     Invariant {
@@ -134,7 +134,7 @@ pub enum CapabilityMemberSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CapabilityContractSnapshot {
     pub kind: CapabilityContractKindSnapshot,
-    pub facts: Vec<DomainFactSnapshot>,
+    pub facts: Vec<ProofFactSnapshot>,
     pub token_count: usize,
 }
 
@@ -148,7 +148,7 @@ pub enum CapabilityContractKindSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum DomainFactSnapshot {
+pub enum ProofFactSnapshot {
     Expression {
         expression: ExpressionSnapshot,
     },
@@ -438,7 +438,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(&value.name),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
-            facts: snapshot_domain_facts(syntax_trees, value.facts),
+            facts: snapshot_proof_facts(syntax_trees, value.facts),
             body_token_count: value.body_token_count,
         },
         Item::Invariant(value) => ItemSnapshot::Invariant {
@@ -605,29 +605,29 @@ fn snapshot_capability_contract(
                 trust_level: snapshot_trust_level(level),
             },
         },
-        facts: snapshot_domain_facts(syntax_trees, contract.facts),
+        facts: snapshot_proof_facts(syntax_trees, contract.facts),
         token_count: contract.token_count,
     }
 }
 
-fn snapshot_domain_facts(
+fn snapshot_proof_facts(
     syntax_trees: &SyntaxTrees,
-    facts: omega_core::arena::HandleSpan<DomainFact>,
-) -> Vec<DomainFactSnapshot> {
+    facts: omega_core::arena::HandleSpan<ProofFact>,
+) -> Vec<ProofFactSnapshot> {
     syntax_trees
         .items
-        .domain_facts(facts)
+        .proof_facts(facts)
         .iter()
-        .map(|fact| snapshot_domain_fact(syntax_trees, fact))
+        .map(|fact| snapshot_proof_fact(syntax_trees, fact))
         .collect()
 }
 
-fn snapshot_domain_fact(syntax_trees: &SyntaxTrees, fact: &DomainFact) -> DomainFactSnapshot {
+fn snapshot_proof_fact(syntax_trees: &SyntaxTrees, fact: &ProofFact) -> ProofFactSnapshot {
     match fact {
-        DomainFact::Expression(expression) => DomainFactSnapshot::Expression {
+        ProofFact::Expression(expression) => ProofFactSnapshot::Expression {
             expression: snapshot_expression_handle(syntax_trees, *expression),
         },
-        DomainFact::Membership(membership) => DomainFactSnapshot::Membership {
+        ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
             value: snapshot_expression_handle(syntax_trees, membership.value),
             domain: snapshot_identifier_slice(
                 syntax_trees

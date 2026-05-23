@@ -745,11 +745,11 @@ fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &Symbo
             .map(|(_, contract)| contract.facts),
     );
     let domain_path_members = &program.tables.declarations.domain_path_members;
-    let domain_facts = &mut program.tables.declarations.domain_facts;
+    let proof_facts = &mut program.tables.declarations.proof_facts;
 
     for facts in domain_fact_spans {
-        for fact in domain_facts.span_mut_or_empty(facts) {
-            let omega_symbol_resolved_trees::domain::DomainFact::Membership(membership) = fact
+        for fact in proof_facts.span_mut_or_empty(facts) {
+            let omega_symbol_resolved_trees::domain::ProofFact::Membership(membership) = fact
             else {
                 continue;
             };

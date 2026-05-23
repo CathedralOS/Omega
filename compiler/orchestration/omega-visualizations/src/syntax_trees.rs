@@ -259,8 +259,66 @@ fn contract_fact_count(
         .items
         .capability_contracts(contracts)
         .iter()
-        .map(|contract| syntax.items.domain_facts(contract.facts).len())
+        .map(|contract| syntax.items.proof_facts(contract.facts).len())
         .sum()
+}
+
+fn append_contract_facts(
+    label: &mut String,
+    syntax: &SyntaxTrees,
+    contracts: HandleSpan<omega_syntax_trees::item::CapabilityContract>,
+) {
+    for (contract_index, contract) in syntax
+        .items
+        .capability_contracts(contracts)
+        .iter()
+        .enumerate()
+    {
+        let facts = proof_fact_labels(syntax, contract.facts);
+        if facts.is_empty() {
+            continue;
+        }
+
+        label.push_str("\n  contract ");
+        label.push_str(&contract_index.to_string());
+        label.push_str(": ");
+        label.push_str(&facts.join(" | "));
+    }
+}
+
+fn proof_fact_labels(
+    syntax: &SyntaxTrees,
+    facts: HandleSpan<omega_syntax_trees::item::ProofFact>,
+) -> Vec<String> {
+    syntax
+        .items
+        .proof_facts(facts)
+        .iter()
+        .take(5)
+        .map(|fact| proof_fact_label(syntax, fact))
+        .collect()
+}
+
+fn proof_fact_label(syntax: &SyntaxTrees, fact: &omega_syntax_trees::item::ProofFact) -> String {
+    match fact {
+        omega_syntax_trees::item::ProofFact::Expression(expression) => {
+            syntax.expressions.display_name(*expression)
+        }
+        omega_syntax_trees::item::ProofFact::Membership(membership) => {
+            let domain = syntax
+                .items
+                .identifier_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "{} in {}",
+                syntax.expressions.display_name(membership.value),
+                domain
+            )
+        }
+    }
 }
 
 fn append_state_signature(
@@ -291,6 +349,7 @@ fn append_state_signature(
     if signature.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
         label.push_str(&contract_summary(syntax, signature.contracts));
+        append_contract_facts(&mut label, syntax, signature.contracts);
     }
     let signature_id = diagram.node(
         format!("signature_{owner_index}_{item_index}_{signature_index}"),
@@ -322,13 +381,18 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
         ),
         Item::Domain(value) => {
             let target = type_reference_label(syntax, value.target_type);
-            format!(
+            let mut label = format!(
                 "domain {}\ntarget: {}\nfacts: {}\nbody tokens: {}",
                 value.name.as_str(),
                 target,
-                syntax.items.domain_facts(value.facts).len(),
+                syntax.items.proof_facts(value.facts).len(),
                 value.body_token_count
-            )
+            );
+            for fact in proof_fact_labels(syntax, value.facts) {
+                label.push_str("\n  ");
+                label.push_str(&fact);
+            }
+            label
         }
         Item::Invariant(value) => format!("invariant {}", value.name.as_str()),
         Item::Library(value) => {
@@ -369,6 +433,7 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                         .join(", "),
                 );
             }
+            append_contract_facts(&mut label, syntax, value.contracts);
             if let Some(entry_state) = entry_state {
                 append_entry_statements(&mut label, syntax, entry_state);
             }

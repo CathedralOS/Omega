@@ -14,7 +14,7 @@ pub struct TypedTrees {
     pub data_members: Arena<data::DataMember>,
     pub root_domains: HandleSpan<domain::DomainDefinition>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
-    pub domain_facts: Arena<domain::DomainFact>,
+    pub proof_facts: Arena<domain::ProofFact>,
     pub domain_path_members: Arena<crate::name::ProgramName>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
@@ -90,8 +90,8 @@ impl TypedTrees {
         self.domain_definitions.span_or_empty(self.root_domains)
     }
 
-    pub fn domain_facts(&self, domain: &domain::DomainDefinition) -> &[domain::DomainFact] {
-        self.domain_facts.span_or_empty(domain.facts)
+    pub fn proof_facts(&self, domain: &domain::DomainDefinition) -> &[domain::ProofFact] {
+        self.proof_facts.span_or_empty(domain.facts)
     }
 
     pub fn domain_path_members(

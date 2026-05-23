@@ -4,7 +4,7 @@ use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_symbol_resolved_trees::domain::{DomainDefinition, DomainFact, DomainMembershipFact};
+use omega_symbol_resolved_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_domain_definition(
@@ -12,7 +12,7 @@ pub(crate) fn lower_domain_definition(
     syntax_trees: &SyntaxTrees,
     domain: &syntax::item::DomainDefinition,
 ) -> Result<DomainDefinition, Diagnostic> {
-    let facts = lower_domain_facts(lowerer, syntax_trees, domain.facts)?;
+    let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
 
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
@@ -23,24 +23,24 @@ pub(crate) fn lower_domain_definition(
     })
 }
 
-pub(crate) fn lower_domain_facts(
+pub(crate) fn lower_proof_facts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    facts: omega_core::arena::HandleSpan<syntax::item::DomainFact>,
-) -> Result<omega_core::arena::HandleSpan<DomainFact>, Diagnostic> {
+    facts: omega_core::arena::HandleSpan<syntax::item::ProofFact>,
+) -> Result<omega_core::arena::HandleSpan<ProofFact>, Diagnostic> {
     let mut lowered = omega_core::arena::HandleSpan::empty();
 
-    for fact in syntax_trees.items.domain_facts(facts) {
+    for fact in syntax_trees.items.proof_facts(facts) {
         let fact = match fact {
-            syntax::item::DomainFact::Expression(expression) => {
+            syntax::item::ProofFact::Expression(expression) => {
                 let expression = lower_expression_into_table(
                     syntax_trees,
                     &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
                     *expression,
                 )?;
-                DomainFact::Expression(expression)
+                ProofFact::Expression(expression)
             }
-            syntax::item::DomainFact::Membership(membership) => {
+            syntax::item::ProofFact::Membership(membership) => {
                 let value = lower_expression_into_table(
                     syntax_trees,
                     &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
@@ -58,7 +58,7 @@ pub(crate) fn lower_domain_facts(
                         .domain_path_members
                         .append_to_span(&mut domain, lower_name(member));
                 }
-                DomainFact::Membership(DomainMembershipFact {
+                ProofFact::Membership(ProofMembershipFact {
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),
@@ -70,7 +70,7 @@ pub(crate) fn lower_domain_facts(
             .symbol_resolved_trees
             .tables
             .declarations
-            .domain_facts
+            .proof_facts
             .append_to_span(&mut lowered, fact);
     }
 

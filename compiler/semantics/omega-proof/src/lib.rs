@@ -3,7 +3,7 @@
 use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, DataMember, DomainFact, Item, Machine, Platform,
+    CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, Platform, ProofFact,
     StateSignature,
 };
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -80,12 +80,12 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 report.domains.insert(DomainSurface {
                     name: domain.name.to_string(),
                     target_type: type_reference_name(syntax_trees, domain.target_type),
-                    fact_count: syntax_trees.items.domain_facts(domain.facts).len(),
+                    fact_count: syntax_trees.items.proof_facts(domain.facts).len(),
                     membership_fact_count: syntax_trees
                         .items
-                        .domain_facts(domain.facts)
+                        .proof_facts(domain.facts)
                         .iter()
-                        .filter(|fact| matches!(fact, DomainFact::Membership(_)))
+                        .filter(|fact| matches!(fact, ProofFact::Membership(_)))
                         .count(),
                     body_token_count: domain.body_token_count,
                 });
@@ -291,12 +291,12 @@ fn collect_contracts(
                 CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
                 CapabilityContractKind::Trusted(_) => ContractKindSurface::Trusted,
             },
-            fact_count: syntax_trees.items.domain_facts(contract.facts).len(),
+            fact_count: syntax_trees.items.proof_facts(contract.facts).len(),
             membership_fact_count: syntax_trees
                 .items
-                .domain_facts(contract.facts)
+                .proof_facts(contract.facts)
                 .iter()
-                .filter(|fact| matches!(fact, DomainFact::Membership(_)))
+                .filter(|fact| matches!(fact, ProofFact::Membership(_)))
                 .count(),
             token_count: contract.token_count,
         });
