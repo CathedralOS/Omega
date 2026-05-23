@@ -154,6 +154,29 @@ fn checked_effects_report(program: &Program) -> String {
     report.push_str(&program.facts.domains.segments.len().to_string());
     report.push_str("\n\n");
 
+    for (_, dependency) in program.facts.domains.dependencies.iter() {
+        report.push_str("domain ");
+        report.push_str(&semantic_symbol_name(program, dependency.domain_symbol));
+        report.push('\n');
+        let mut path_count = 0usize;
+        for path in program.facts.domains.dependency_paths(dependency) {
+            path_count = path_count.saturating_add(1);
+            report.push_str("  path ");
+            report.push_str(&path_count.to_string());
+            report.push_str(": ");
+            if path.is_empty() {
+                report.push_str("<self>");
+            } else {
+                append_dependency_path_label(program, &mut report, path);
+            }
+            report.push('\n');
+        }
+    }
+
+    if !program.facts.domains.dependencies.is_empty() {
+        report.push('\n');
+    }
+
     report.push_str("Flow Environments\n");
     report.push_str("-----------------\n");
     report.push_str(
@@ -488,6 +511,27 @@ fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place)
     }
 
     label
+}
+
+fn append_dependency_path_label(
+    program: &Program,
+    report: &mut String,
+    segments: &[omega_facts::PlaceSegment],
+) {
+    report.push_str("self");
+    for segment in segments {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                report.push('.');
+                report.push_str(&semantic_symbol_name(program, *symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                report.push('[');
+                report.push_str(&program.expression_table.display_name(*expression));
+                report.push(']');
+            }
+        }
+    }
 }
 
 fn semantic_origin_label(program: &Program, origin: omega_facts::FactOrigin) -> String {

@@ -1,1 +1,1 @@
-cannot prove requires contract for call heal from Main::main: Main::main.player in Player::Valid
+cannot prove requires contract for call heal from Main::main: Main::main.player in Player::Valid (invalidated by prior mutation of Main::main.player.health; Main::main.player.health is part of Player::Valid)
