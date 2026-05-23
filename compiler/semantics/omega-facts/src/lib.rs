@@ -344,6 +344,9 @@ impl FactPlan {
                 } else {
                     path.symbol
                 };
+                if !root.is_valid() {
+                    return self.append_expression_place(expression);
+                }
                 let place = self.append_symbol_place(root);
                 for member_symbol in program
                     .expression_table

@@ -24,6 +24,8 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         .expect("state graph visualization should be written");
     let control_flow = fs::read_to_string(build_dir.join("07_control_flow.html"))
         .expect("control flow visualization should be written");
+    let checked_trees = fs::read_to_string(build_dir.join("05_checked_trees.html"))
+        .expect("checked tree visualization should be written");
 
     assert!(
         state_graph.contains("contract call #1.0 requires 1 ensures 1"),
@@ -32,6 +34,18 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     assert!(
         control_flow.contains("contract call #1.0 requires 1 ensures 1"),
         "control flow should show propagated contract call summaries"
+    );
+    assert!(
+        checked_trees.contains("requires contract self in Player::Valid"),
+        "checked semantic facts should expose requires as a domain-membership fact"
+    );
+    assert!(
+        checked_trees.contains("ensures contract self in Player::Alive"),
+        "checked semantic facts should expose ensures as a domain-membership fact"
+    );
+    assert!(
+        checked_trees.contains("place: self"),
+        "checked semantic facts should retain a readable place for self membership"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
