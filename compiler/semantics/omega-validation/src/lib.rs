@@ -3,7 +3,7 @@ mod symbols;
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_facts::{FactPayload, FactPlan};
+use omega_facts::FactPlan;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::domain::ProofFact;
@@ -354,8 +354,7 @@ fn validate_invariant_definitions(
 ) {
     for invariant in program.invariant_definitions() {
         let constraint_fact_count = fact_plan
-            .facts_for_symbol(invariant.symbol)
-            .filter(|fact| matches!(fact.payload, FactPayload::TypeConstraint { .. }))
+            .type_constraints_for_symbol(invariant.symbol)
             .count();
 
         if constraint_fact_count != invariant.constraints.len() {
@@ -405,35 +404,24 @@ fn validate_domain_fact_payloads(
     diagnostics: &mut Vec<Diagnostic>,
     owner: ProofFactOwner<'_>,
 ) {
-    for fact in fact_plan.facts_for_symbol(symbol) {
-        match fact.payload {
-            FactPayload::BooleanExpression(expression) => {
-                if !is_boolean_fact_expression(program, expression) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{owner} proof fact `{}` is not boolean-shaped",
-                        program.expression_table.display_name(expression)
-                    )));
-                }
-            }
-            FactPayload::DomainMembership {
-                domain,
-                domain_symbol,
-                ..
-            } => {
-                if domain_symbol.is_valid() {
-                    continue;
-                }
-
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown domain `{}`",
-                    domain_path_label(program, domain)
-                )));
-            }
-            FactPayload::TypeConstraint { .. }
-            | FactPayload::ProofObligation { .. }
-            | FactPayload::Contract { .. }
-            | FactPayload::InvariantDefinition { .. } => {}
+    for fact in fact_plan.boolean_facts_for_symbol(symbol) {
+        if !is_boolean_fact_expression(program, fact.expression) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} proof fact `{}` is not boolean-shaped",
+                program.expression_table.display_name(fact.expression)
+            )));
         }
+    }
+
+    for membership in fact_plan.domain_memberships_for_symbol(symbol) {
+        if membership.domain_symbol.is_valid() {
+            continue;
+        }
+
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} references unknown domain `{}`",
+            domain_path_label(program, membership.domain)
+        )));
     }
 }
 
@@ -608,23 +596,11 @@ fn validate_domain_membership_cycle_from(
     path.pop();
 }
 
-#[derive(Debug, Clone, Copy)]
-struct DomainMembershipFact {
-    domain_symbol: SymbolHandle,
-}
-
 fn domain_membership_facts(
     fact_plan: &FactPlan,
     symbol: SymbolHandle,
-) -> impl Iterator<Item = DomainMembershipFact> + '_ {
-    fact_plan
-        .facts_for_symbol(symbol)
-        .filter_map(|fact| match fact.payload {
-            FactPayload::DomainMembership { domain_symbol, .. } => {
-                Some(DomainMembershipFact { domain_symbol })
-            }
-            _ => None,
-        })
+) -> impl Iterator<Item = omega_facts::DomainMembershipFact> + '_ {
+    fact_plan.domain_memberships_for_symbol(symbol)
 }
 
 struct WritableRoots<'program, 'state> {

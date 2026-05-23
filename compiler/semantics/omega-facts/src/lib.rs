@@ -149,6 +149,23 @@ pub struct SymbolFactSet {
     pub facts: HandleSpan<FactRef>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BooleanFact {
+    pub expression: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DomainMembershipFact {
+    pub value: ExpressionHandle,
+    pub domain: HandleSpan<ProgramName>,
+    pub domain_symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeConstraintFact {
+    pub constraint: Handle<TypeConstraintNode>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FactPlan {
     pub facts: Arena<Fact>,
@@ -208,6 +225,56 @@ impl FactPlan {
             .span_or_empty(context.facts)
             .iter()
             .map(move |reference| self.facts.get(reference.fact))
+    }
+
+    pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
+        self.contexts
+            .iter()
+            .filter(move |(_, context)| context.point == point)
+            .flat_map(move |(_, context)| self.context_facts(context))
+    }
+
+    pub fn boolean_facts_for_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> impl Iterator<Item = BooleanFact> + '_ {
+        self.facts_for_symbol(symbol)
+            .filter_map(|fact| match fact.payload {
+                FactPayload::BooleanExpression(expression) => Some(BooleanFact { expression }),
+                _ => None,
+            })
+    }
+
+    pub fn domain_memberships_for_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> impl Iterator<Item = DomainMembershipFact> + '_ {
+        self.facts_for_symbol(symbol)
+            .filter_map(|fact| match fact.payload {
+                FactPayload::DomainMembership {
+                    value,
+                    domain,
+                    domain_symbol,
+                } => Some(DomainMembershipFact {
+                    value,
+                    domain,
+                    domain_symbol,
+                }),
+                _ => None,
+            })
+    }
+
+    pub fn type_constraints_for_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> impl Iterator<Item = TypeConstraintFact> + '_ {
+        self.facts_for_symbol(symbol)
+            .filter_map(|fact| match fact.payload {
+                FactPayload::TypeConstraint { constraint } => {
+                    Some(TypeConstraintFact { constraint })
+                }
+                _ => None,
+            })
     }
 }
 
@@ -335,7 +402,7 @@ fn type_constraint_handles(
 
 #[cfg(test)]
 mod tests {
-    use super::{FactPayload, build_definition_fact_plan};
+    use super::build_definition_fact_plan;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::TypedTrees;
@@ -379,15 +446,18 @@ mod tests {
         assert_eq!(facts.facts.len(), 2);
         assert_eq!(facts.contexts.len(), 2);
         assert_eq!(facts.symbol_sets.len(), 2);
-        assert!(
-            facts
-                .facts_for_symbol(domain_symbol)
-                .any(|fact| matches!(fact.payload, FactPayload::BooleanExpression(_)))
+        assert_eq!(facts.boolean_facts_for_symbol(domain_symbol).count(), 1);
+        assert_eq!(
+            facts.type_constraints_for_symbol(invariant_symbol).count(),
+            1
         );
-        assert!(
+        assert_eq!(
             facts
-                .facts_for_symbol(invariant_symbol)
-                .any(|fact| matches!(fact.payload, FactPayload::TypeConstraint { .. }))
+                .facts_at_point(super::ProgramPoint::Definition {
+                    symbol: domain_symbol,
+                })
+                .count(),
+            1
         );
     }
 }
