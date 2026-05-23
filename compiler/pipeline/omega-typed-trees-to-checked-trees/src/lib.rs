@@ -5,9 +5,10 @@ use omega_checked_trees::statement::{
 };
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
-    BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractProofFact, ContractProofFactKind,
-    ContractProofFactOwner, ContractProofFactRef, InvariantFact, InvariantFacts, Program,
-    ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
+    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, InvariantFact,
+    InvariantFacts, Program, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner,
+    StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -126,14 +127,17 @@ fn build_proof_facts(
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts);
     }
-    let (contract_fact_refs, contract_calls) =
+    let (mut contract_fact_refs, contract_calls) =
         build_contract_call_facts(program, borrow, &contract_facts);
+    let contract_exits =
+        build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
 
     ProofFacts {
         obligations,
         contract_facts,
         contract_fact_refs,
         contract_calls,
+        contract_exits,
     }
 }
 
@@ -250,6 +254,44 @@ fn append_contract_call(
         requires,
         ensures,
     });
+}
+
+fn build_contract_exit_facts(
+    program: &omega_typed_trees::TypedTrees,
+    contract_facts: &omega_core::arena::Arena<ContractProofFact>,
+    fact_refs: &mut omega_core::arena::Arena<ContractProofFactRef>,
+) -> omega_core::arena::Arena<ContractExitFact> {
+    let mut exits = omega_core::arena::Arena::with_capacity(machine_state_count(program));
+
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let Some((statement_index, StatementNode::Expression(_))) =
+                statements.iter().enumerate().next_back()
+            else {
+                continue;
+            };
+            let ensures = append_contract_fact_refs(
+                contract_facts,
+                fact_refs,
+                machine.symbol,
+                ContractProofFactKind::Ensures,
+            );
+
+            if ensures.is_empty() {
+                continue;
+            }
+
+            exits.append(ContractExitFact {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                statement_index,
+                ensures,
+            });
+        }
+    }
+
+    exits
 }
 
 fn append_contract_fact_refs(
@@ -1556,6 +1598,77 @@ mod tests {
         assert_eq!(contract_call.target_state_symbol, target_state_symbol);
         assert_eq!(requires.len(), 1);
         assert_eq!(facts.contract_facts.get(requires[0].fact).fact, fact);
+    }
+
+    #[test]
+    fn indexes_terminal_state_contract_ensures() {
+        let machine_symbol = SymbolHandle::from_arena_index(5);
+        let state_symbol = SymbolHandle::from_arena_index(6);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let fact_expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let fact = program
+            .proof_facts
+            .append(omega_typed_trees::domain::ProofFact::Expression(
+                fact_expression,
+            ));
+        let return_expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Integer(0));
+
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: ProgramName::generated("Main::main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_contract(
+            &mut machine,
+            SignatureContract {
+                kind: SignatureContractKind::Ensures,
+                facts: HandleSpan::from_parts(fact, 1),
+                token_count: 1,
+            },
+        );
+
+        let mut state = State {
+            symbol: state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(return_expression),
+        );
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let borrow = build_borrow_facts(&program);
+        let facts = build_proof_facts(&program, &proof_plan, &borrow);
+        let exit = facts
+            .contract_exits
+            .iter()
+            .next()
+            .map(|(_, exit)| exit)
+            .expect("checked proof facts should index the exit contract");
+        let ensures = facts.contract_fact_refs.span_or_empty(exit.ensures);
+
+        assert_eq!(facts.contract_exits.len(), 1);
+        assert_eq!(exit.machine_symbol, machine_symbol);
+        assert_eq!(exit.state_symbol, state_symbol);
+        assert_eq!(exit.statement_index, 0);
+        assert_eq!(ensures.len(), 1);
+        assert_eq!(facts.contract_facts.get(ensures[0].fact).fact, fact);
     }
 
     #[test]

@@ -143,6 +143,20 @@ fn checked_effects_report(program: &Program) -> String {
         append_contract_fact_ref_list(program, &mut report, "ensures", call.ensures);
     }
 
+    if !program.facts.proof.contract_exits.is_empty() {
+        report.push('\n');
+    }
+    for (_, exit) in program.facts.proof.contract_exits.iter() {
+        report.push_str("exit ");
+        report.push_str(&machine_name(program, exit.machine_symbol));
+        report.push_str("::");
+        report.push_str(&state_name(program, exit.state_symbol));
+        report.push(' ');
+        report.push_str(&exit.statement_index.to_string());
+        report.push('\n');
+        append_contract_fact_ref_list(program, &mut report, "ensures", exit.ensures);
+    }
+
     report
 }
 
