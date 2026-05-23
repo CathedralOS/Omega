@@ -1,4 +1,5 @@
 use super::*;
+use crate::lookup::{machine_by_symbol, machine_symbol_from_type_reference_handle};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DomainDependencyCache {
