@@ -1,0 +1,13 @@
+[package]
+name = "omega-facts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_facts"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

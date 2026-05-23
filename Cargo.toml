@@ -9,6 +9,7 @@ members = [
     "compiler/semantics/omega-names",
     "compiler/semantics/omega-types",
     "compiler/semantics/omega-graph",
+    "compiler/semantics/omega-facts",
     "compiler/semantics/omega-effects",
     "compiler/semantics/omega-validation",
     "compiler/semantics/omega-proof",
