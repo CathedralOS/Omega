@@ -21,6 +21,9 @@ pub struct StateGraph {
     pub state_parameters: Arena<StateParameterNode>,
     pub proof_obligations: Arena<ProofObligationFact>,
     pub invariants: Arena<InvariantFact>,
+    pub contract_fact_refs: Arena<StateContractFactRef>,
+    pub contract_calls: Arena<StateContractCall>,
+    pub contract_exits: Arena<StateContractExit>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub borrow_calls: Arena<StateBorrowCall>,
@@ -38,6 +41,9 @@ impl StateGraph {
         state_parameter_capacity: usize,
         proof_obligation_capacity: usize,
         invariant_capacity: usize,
+        contract_fact_ref_capacity: usize,
+        contract_call_capacity: usize,
+        contract_exit_capacity: usize,
         borrow_writable_root_capacity: usize,
         borrow_argument_access_capacity: usize,
         borrow_call_capacity: usize,
@@ -53,6 +59,9 @@ impl StateGraph {
             state_parameters: Arena::with_capacity(state_parameter_capacity),
             proof_obligations: Arena::with_capacity(proof_obligation_capacity),
             invariants: Arena::with_capacity(invariant_capacity),
+            contract_fact_refs: Arena::with_capacity(contract_fact_ref_capacity),
+            contract_calls: Arena::with_capacity(contract_call_capacity),
+            contract_exits: Arena::with_capacity(contract_exit_capacity),
             borrow_writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
             borrow_argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),
             borrow_calls: Arena::with_capacity(borrow_call_capacity),
@@ -196,6 +205,7 @@ pub struct StateNode {
     pub direct_effects: omega_effects::EffectBits,
     pub reached_effects: omega_effects::EffectBits,
     pub parameters: HandleSpan<StateParameterNode>,
+    pub contracts: StateContractSummary,
     pub borrow: StateBorrowSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionEdge>,
@@ -210,11 +220,48 @@ impl Default for StateNode {
             direct_effects: 0,
             reached_effects: 0,
             parameters: HandleSpan::empty(),
+            contracts: StateContractSummary::default(),
             borrow: StateBorrowSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StateContractFactKind {
+    #[default]
+    Requires,
+    Ensures,
+    Trusted,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractFactRef {
+    pub kind: StateContractFactKind,
+    pub fact: omega_core::arena::Handle<omega_typed_trees::domain::ProofFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractCall {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_machine_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub requires: HandleSpan<StateContractFactRef>,
+    pub ensures: HandleSpan<StateContractFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractExit {
+    pub statement_index: usize,
+    pub ensures: HandleSpan<StateContractFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractSummary {
+    pub calls: HandleSpan<StateContractCall>,
+    pub exits: HandleSpan<StateContractExit>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
