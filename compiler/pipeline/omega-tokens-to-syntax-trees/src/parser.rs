@@ -216,8 +216,8 @@ mod tests {
         ));
         assert!(contracts[0].token_count > 0);
         assert!(contracts[1].token_count > 0);
-        assert_eq!(parsed.items.domain_facts(contracts[0].facts).len(), 1);
-        assert_eq!(parsed.items.domain_facts(contracts[1].facts).len(), 1);
+        assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
+        assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
     }
 
     #[test]
@@ -251,8 +251,8 @@ mod tests {
         let effects = parsed.items.identifier_path_members(signature.effects);
 
         assert_eq!(contracts.len(), 2);
-        assert_eq!(parsed.items.domain_facts(contracts[0].facts).len(), 1);
-        assert_eq!(parsed.items.domain_facts(contracts[1].facts).len(), 1);
+        assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
+        assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
         assert_eq!(effects.len(), 1);
         assert_eq!(effects[0].as_str(), "filesystem_io");
     }
@@ -316,17 +316,17 @@ mod tests {
         assert_eq!(domains.len(), 1);
         assert_eq!(domains[0].name.as_str(), "Player::Alive");
         assert!(domains[0].target_type.is_valid());
-        assert_eq!(parsed.items.domain_facts(domains[0].facts).len(), 2);
+        assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
         assert!(domains[0].body_token_count > 3);
 
-        let facts = parsed.items.domain_facts(domains[0].facts);
+        let facts = parsed.items.proof_facts(domains[0].facts);
         assert!(matches!(
             facts[0],
-            omega_syntax_trees::item::DomainFact::Membership(_)
+            omega_syntax_trees::item::ProofFact::Membership(_)
         ));
         assert!(matches!(
             facts[1],
-            omega_syntax_trees::item::DomainFact::Expression(_)
+            omega_syntax_trees::item::ProofFact::Expression(_)
         ));
     }
 

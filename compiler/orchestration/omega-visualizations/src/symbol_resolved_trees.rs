@@ -68,16 +68,23 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
         let target_symbol = type_reference_symbol(program, &domain.target_type);
         let domain_id = diagram.node(
             format!("domain_{domain_index}"),
-            format!(
-                "domain {}\ntarget: {}\nsymbol: {}\nfacts: {}\nbody tokens: {}",
-                domain.name.as_str(),
-                domain
-                    .target_type
-                    .display_name_with_constraints(&program.tables.types.constraints),
-                symbol_label(domain.symbol),
-                program.domain_facts(domain.facts).len(),
-                domain.body_token_count
-            ),
+            {
+                let mut label = format!(
+                    "domain {}\ntarget: {}\nsymbol: {}\nfacts: {}\nbody tokens: {}",
+                    domain.name.as_str(),
+                    domain
+                        .target_type
+                        .display_name_with_constraints(&program.tables.types.constraints),
+                    symbol_label(domain.symbol),
+                    program.proof_facts(domain.facts).len(),
+                    domain.body_token_count
+                );
+                for fact in proof_fact_labels(program, domain.facts) {
+                    label.push_str("\n  ");
+                    label.push_str(&fact);
+                }
+                label
+            },
             "domain",
             1,
         );
@@ -501,6 +508,7 @@ fn trait_machine_signature_label(
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
         label.push_str(&contract_summary(program, machine.contracts));
+        append_contract_facts(&mut label, program, machine.contracts);
     }
     label
 }
@@ -550,6 +558,7 @@ fn machine_label(
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
         label.push_str(&contract_summary(program, machine.contracts));
+        append_contract_facts(&mut label, program, machine.contracts);
     }
 
     let Some(entry_state) = entry_state else {
@@ -820,8 +829,66 @@ fn contract_fact_count(
     program
         .signature_contracts(contracts)
         .iter()
-        .map(|contract| program.domain_facts(contract.facts).len())
+        .map(|contract| program.proof_facts(contract.facts).len())
         .sum()
+}
+
+fn append_contract_facts(
+    label: &mut String,
+    program: &SymbolResolvedTrees,
+    contracts: HandleSpan<omega_symbol_resolved_trees::signature::SignatureContract>,
+) {
+    for (contract_index, contract) in program.signature_contracts(contracts).iter().enumerate() {
+        let facts = proof_fact_labels(program, contract.facts);
+        if facts.is_empty() {
+            continue;
+        }
+
+        label.push_str("\n  contract ");
+        label.push_str(&contract_index.to_string());
+        label.push_str(": ");
+        label.push_str(&facts.join(" | "));
+    }
+}
+
+fn proof_fact_labels(
+    program: &SymbolResolvedTrees,
+    facts: HandleSpan<omega_symbol_resolved_trees::domain::ProofFact>,
+) -> Vec<String> {
+    program
+        .proof_facts(facts)
+        .iter()
+        .take(5)
+        .map(|fact| proof_fact_label(program, fact))
+        .collect()
+}
+
+fn proof_fact_label(
+    program: &SymbolResolvedTrees,
+    fact: &omega_symbol_resolved_trees::domain::ProofFact,
+) -> String {
+    match fact {
+        omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+            program.tables.bodies.expressions.display_name(*expression)
+        }
+        omega_symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+            let domain = program
+                .domain_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "{} in {}",
+                program
+                    .tables
+                    .bodies
+                    .expressions
+                    .display_name(membership.value),
+                domain
+            )
+        }
+    }
 }
 
 fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> String {

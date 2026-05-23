@@ -7,11 +7,11 @@ use crate::identifier::Identifier;
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
-    DomainDefinition, DomainFact, DomainMembershipFact, Item, ItemHandle, ItemTable,
-    LibraryDefinition, LibraryFunction, Machine, Platform, State, StateHandle,
-    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
-    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
+    DomainDefinition, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
+    Platform, ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle,
+    StateParameterNode, StateSignature, StateSignatureHandle, TargetDefinition, TargetHost,
+    TargetHostSetting, TargetHostSettingValue, TraitDefinition, TrustDefinition, TrustLevel,
+    TrustMode, TrustPolicy, TypeParameter, UseItem,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -360,22 +360,20 @@ impl SyntaxTrees {
     fn copy_domain_fact_span(
         &mut self,
         other: &SyntaxTrees,
-        span: HandleSpan<DomainFact>,
-    ) -> HandleSpan<DomainFact> {
+        span: HandleSpan<ProofFact>,
+    ) -> HandleSpan<ProofFact> {
         self.copy_mapped_span(
-            other.items.domain_facts(span),
+            other.items.proof_facts(span),
             |this, fact| match fact {
-                DomainFact::Expression(expression) => {
-                    DomainFact::Expression(this.copy_expression_handle(other, *expression))
+                ProofFact::Expression(expression) => {
+                    ProofFact::Expression(this.copy_expression_handle(other, *expression))
                 }
-                DomainFact::Membership(membership) => {
-                    DomainFact::Membership(DomainMembershipFact {
-                        value: this.copy_expression_handle(other, membership.value),
-                        domain: this.copy_item_identifier_span(other, membership.domain),
-                    })
-                }
+                ProofFact::Membership(membership) => ProofFact::Membership(ProofMembershipFact {
+                    value: this.copy_expression_handle(other, membership.value),
+                    domain: this.copy_item_identifier_span(other, membership.domain),
+                }),
             },
-            |this, fact| this.items.append_domain_fact(fact),
+            |this, fact| this.items.append_proof_fact(fact),
         )
     }
 

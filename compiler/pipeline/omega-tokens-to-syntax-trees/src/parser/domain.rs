@@ -3,7 +3,7 @@ use crate::parser::proof_fact::parse_proof_facts_until;
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{DomainDefinition, DomainFact};
+use omega_syntax_trees::item::{DomainDefinition, ProofFact};
 use omega_syntax_trees::types::TypeReferenceNode;
 use omega_tokens::PunctuationKind;
 
@@ -34,7 +34,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
 fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (HandleSpan<DomainFact>, usize)> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<ProofFact>, usize)> {
     let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let ((facts, body_token_count), mut input) =
         parse_proof_facts_until(syntax_trees, input, |input| {

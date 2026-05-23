@@ -11,7 +11,7 @@ pub(crate) fn lower_domain_definition(
     lowerer: &mut Lowerer,
     domain: &resolved::domain::DomainDefinition,
 ) -> Result<typed::domain::DomainDefinition, Diagnostic> {
-    let facts = lower_domain_facts(lowerer, domain.facts)?;
+    let facts = lower_proof_facts(lowerer, domain.facts)?;
 
     Ok(typed::domain::DomainDefinition {
         symbol: domain.symbol,
@@ -22,23 +22,23 @@ pub(crate) fn lower_domain_definition(
     })
 }
 
-pub(crate) fn lower_domain_facts(
+pub(crate) fn lower_proof_facts(
     lowerer: &mut Lowerer,
-    facts: HandleSpan<resolved::domain::DomainFact>,
-) -> Result<HandleSpan<typed::domain::DomainFact>, Diagnostic> {
+    facts: HandleSpan<resolved::domain::ProofFact>,
+) -> Result<HandleSpan<typed::domain::ProofFact>, Diagnostic> {
     let mut lowered = HandleSpan::empty();
 
-    for fact in lowerer.source_trees.domain_facts(facts) {
+    for fact in lowerer.source_trees.proof_facts(facts) {
         let fact = match fact {
-            resolved::domain::DomainFact::Expression(expression) => {
+            resolved::domain::ProofFact::Expression(expression) => {
                 let expression = lower_expression_handle_from_table(
                     &lowerer.source_trees.tables.bodies.expressions,
                     &mut lowerer.typed_trees.expression_table,
                     *expression,
                 )?;
-                typed::domain::DomainFact::Expression(expression)
+                typed::domain::ProofFact::Expression(expression)
             }
-            resolved::domain::DomainFact::Membership(membership) => {
+            resolved::domain::ProofFact::Membership(membership) => {
                 let value = lower_expression_handle_from_table(
                     &lowerer.source_trees.tables.bodies.expressions,
                     &mut lowerer.typed_trees.expression_table,
@@ -51,7 +51,7 @@ pub(crate) fn lower_domain_facts(
                         .domain_path_members
                         .append_to_span(&mut domain, lower_name(member));
                 }
-                typed::domain::DomainFact::Membership(typed::domain::DomainMembershipFact {
+                typed::domain::ProofFact::Membership(typed::domain::ProofMembershipFact {
                     value,
                     domain,
                     domain_symbol: membership.domain_symbol,
@@ -61,7 +61,7 @@ pub(crate) fn lower_domain_facts(
 
         lowerer
             .typed_trees
-            .domain_facts
+            .proof_facts
             .append_to_span(&mut lowered, fact);
     }
 

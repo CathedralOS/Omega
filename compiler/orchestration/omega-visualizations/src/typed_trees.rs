@@ -68,14 +68,21 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
         let target_symbol = typed.type_reference_symbol(domain.target_type);
         let domain_id = diagram.node(
             format!("domain_{domain_index}"),
-            format!(
-                "domain {}\ntarget: {}\nsymbol: {}\nfacts: {}\nbody tokens: {}",
-                domain.name.as_str(),
-                typed.display_type_reference_with_constraints(domain.target_type),
-                symbol_label(domain.symbol),
-                typed.domain_facts(domain).len(),
-                domain.body_token_count
-            ),
+            {
+                let mut label = format!(
+                    "domain {}\ntarget: {}\nsymbol: {}\nfacts: {}\nbody tokens: {}",
+                    domain.name.as_str(),
+                    typed.display_type_reference_with_constraints(domain.target_type),
+                    symbol_label(domain.symbol),
+                    typed.proof_facts(domain).len(),
+                    domain.body_token_count
+                );
+                for fact in proof_fact_labels(typed, domain.facts) {
+                    label.push_str("\n  ");
+                    label.push_str(&fact);
+                }
+                label
+            },
             "domain",
             1,
         );
@@ -489,6 +496,7 @@ fn trait_machine_signature_label(program: &TypedTrees, machine: &StateSignature)
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
         label.push_str(&contract_summary(program, machine.contracts));
+        append_contract_facts(&mut label, program, machine.contracts);
     }
     label
 }
@@ -534,6 +542,7 @@ fn machine_label(
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
         label.push_str(&contract_summary(program, machine.contracts));
+        append_contract_facts(&mut label, program, machine.contracts);
     }
 
     let Some(entry_state) = entry_state else {
@@ -833,8 +842,65 @@ fn contract_fact_count(
         .signature_contracts
         .span_or_empty(contracts)
         .iter()
-        .map(|contract| program.domain_facts.span_or_empty(contract.facts).len())
+        .map(|contract| program.proof_facts.span_or_empty(contract.facts).len())
         .sum()
+}
+
+fn append_contract_facts(
+    label: &mut String,
+    program: &TypedTrees,
+    contracts: HandleSpan<omega_typed_trees::signature::SignatureContract>,
+) {
+    for (contract_index, contract) in program
+        .signature_contracts
+        .span_or_empty(contracts)
+        .iter()
+        .enumerate()
+    {
+        let facts = proof_fact_labels(program, contract.facts);
+        if facts.is_empty() {
+            continue;
+        }
+
+        label.push_str("\n  contract ");
+        label.push_str(&contract_index.to_string());
+        label.push_str(": ");
+        label.push_str(&facts.join(" | "));
+    }
+}
+
+fn proof_fact_labels(
+    program: &TypedTrees,
+    facts: HandleSpan<omega_typed_trees::domain::ProofFact>,
+) -> Vec<String> {
+    program
+        .proof_facts
+        .span_or_empty(facts)
+        .iter()
+        .take(5)
+        .map(|fact| proof_fact_label(program, fact))
+        .collect()
+}
+
+fn proof_fact_label(program: &TypedTrees, fact: &omega_typed_trees::domain::ProofFact) -> String {
+    match fact {
+        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+            program.expression_table.display_name(*expression)
+        }
+        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+            let domain = program
+                .domain_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "{} in {}",
+                program.expression_table.display_name(membership.value),
+                domain
+            )
+        }
+    }
 }
 
 fn statement_label(program: &TypedTrees, statement: &StatementNode) -> String {

@@ -162,9 +162,9 @@ mod tests {
             .expect("alive domain should lower");
         assert!(domain.symbol.is_valid());
         assert_eq!(domain.name.as_str(), "Player::Alive");
-        let facts = program.domain_facts(domain.facts);
+        let facts = program.proof_facts(domain.facts);
         assert_eq!(facts.len(), 2);
-        let omega_symbol_resolved_trees::domain::DomainFact::Membership(membership) = &facts[0]
+        let omega_symbol_resolved_trees::domain::ProofFact::Membership(membership) = &facts[0]
         else {
             panic!("first domain fact should be membership")
         };
@@ -201,8 +201,8 @@ mod tests {
         assert_eq!(contracts.len(), 2);
         assert!(contracts[0].token_count >= 3);
         assert!(contracts[1].token_count >= 3);
-        assert_eq!(program.domain_facts(contracts[0].facts).len(), 1);
-        assert_eq!(program.domain_facts(contracts[1].facts).len(), 1);
+        assert_eq!(program.proof_facts(contracts[0].facts).len(), 1);
+        assert_eq!(program.proof_facts(contracts[1].facts).len(), 1);
     }
 
     #[test]

@@ -3,14 +3,14 @@ use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{DomainFact, DomainMembershipFact};
+use omega_syntax_trees::item::{ProofFact, ProofMembershipFact};
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     mut is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
-) -> Result<((HandleSpan<DomainFact>, usize), Input<'tokens, 'source>), ParseError> {
+) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
     let mut fact_start = Handle::invalid();
@@ -30,12 +30,12 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
                 syntax_trees.items.append_identifier_path_member(member)
             })?;
             input = rest;
-            DomainFact::Membership(DomainMembershipFact { value, domain })
+            ProofFact::Membership(ProofMembershipFact { value, domain })
         } else {
-            DomainFact::Expression(value)
+            ProofFact::Expression(value)
         };
 
-        let handle = syntax_trees.items.append_domain_fact(fact);
+        let handle = syntax_trees.items.append_proof_fact(fact);
         if fact_count == 0 {
             fact_start = handle;
         }

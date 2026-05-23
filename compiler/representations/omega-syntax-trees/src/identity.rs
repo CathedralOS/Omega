@@ -1,7 +1,7 @@
 use crate::SyntaxTrees;
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContractKind, CapabilityMember, DomainFact, Item, TargetHostSettingValue, TrustLevel,
+    CapabilityContractKind, CapabilityMember, Item, ProofFact, TargetHostSettingValue, TrustLevel,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -71,12 +71,12 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Domain(domain) => {
             count_identifier(&domain.name, counts);
             count_type_reference_handle(syntax_trees, domain.target_type, counts);
-            for fact in syntax_trees.items.domain_facts(domain.facts) {
+            for fact in syntax_trees.items.proof_facts(domain.facts) {
                 match fact {
-                    DomainFact::Expression(expression) => {
+                    ProofFact::Expression(expression) => {
                         count_expression_handle(syntax_trees, *expression, counts);
                     }
-                    DomainFact::Membership(membership) => {
+                    ProofFact::Membership(membership) => {
                         count_expression_handle(syntax_trees, membership.value, counts);
                         count_identifier_members(
                             syntax_trees
@@ -290,21 +290,21 @@ fn count_contract(
     if let CapabilityContractKind::Trusted(TrustLevel::Named(name)) = &contract.kind {
         count_identifier(name, counts);
     }
-    for fact in syntax_trees.items.domain_facts(contract.facts) {
-        count_domain_fact(syntax_trees, fact, counts);
+    for fact in syntax_trees.items.proof_facts(contract.facts) {
+        count_proof_fact(syntax_trees, fact, counts);
     }
 }
 
-fn count_domain_fact(
+fn count_proof_fact(
     syntax_trees: &SyntaxTrees,
-    fact: &DomainFact,
+    fact: &ProofFact,
     counts: &mut AstIdentityStorageCounts,
 ) {
     match fact {
-        DomainFact::Expression(expression) => {
+        ProofFact::Expression(expression) => {
             count_expression_handle(syntax_trees, *expression, counts);
         }
-        DomainFact::Membership(membership) => {
+        ProofFact::Membership(membership) => {
             count_expression_handle(syntax_trees, membership.value, counts);
             count_identifier_members(
                 syntax_trees

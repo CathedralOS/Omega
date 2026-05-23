@@ -8,7 +8,7 @@ pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub target_type: TypeReferenceHandle,
-    pub facts: HandleSpan<DomainFact>,
+    pub facts: HandleSpan<ProofFact>,
     pub body_token_count: usize,
 }
 
@@ -25,25 +25,25 @@ impl Default for DomainDefinition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DomainFact {
+pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
-    Membership(DomainMembershipFact),
+    Membership(ProofMembershipFact),
 }
 
-impl Default for DomainFact {
+impl Default for ProofFact {
     fn default() -> Self {
         Self::Expression(crate::expression::ExpressionHandle::invalid())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DomainMembershipFact {
+pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<ProgramName>,
     pub domain_symbol: SymbolHandle,
 }
 
-impl Default for DomainMembershipFact {
+impl Default for ProofMembershipFact {
     fn default() -> Self {
         Self {
             value: crate::expression::ExpressionHandle::invalid(),
