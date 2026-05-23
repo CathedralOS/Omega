@@ -5,10 +5,11 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
+use omega_typed_trees::domain::DomainFact;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::ProgramName;
-use omega_typed_trees::signature::{StateParameter, StateSignature};
+use omega_typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
@@ -22,6 +23,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = ProgramSymbols::build(program, &mut diagnostics);
 
+    validate_domain_definitions(program, &symbols, &mut diagnostics);
     validate_invariant_definitions(program, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &mut diagnostics);
@@ -34,6 +36,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_machine_effects(program, machine, &mut diagnostics);
+        validate_machine_contracts(program, machine, &mut diagnostics);
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
         for state in program.machine_states(machine) {
@@ -364,6 +367,68 @@ fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Di
     }
 }
 
+fn validate_domain_definitions(
+    program: &TypedTrees,
+    symbols: &ProgramSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for domain in program.domain_definitions() {
+        validate_type_reference_handle(
+            program,
+            domain.target_type,
+            symbols,
+            diagnostics,
+            TypeReferenceOwner::DomainTarget {
+                domain: domain.name.as_str(),
+                generic_depth: 0,
+            },
+        );
+        validate_domain_facts(
+            program,
+            program.domain_facts(domain),
+            diagnostics,
+            ProofFactOwner::Domain(domain.name.as_str()),
+        );
+    }
+}
+
+fn validate_domain_facts(
+    program: &TypedTrees,
+    facts: &[DomainFact],
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: ProofFactOwner<'_>,
+) {
+    for fact in facts {
+        let DomainFact::Membership(membership) = fact else {
+            continue;
+        };
+
+        if membership.domain_symbol.is_valid() {
+            continue;
+        }
+
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} references unknown domain `{}`",
+            domain_path_label(program, membership.domain)
+        )));
+    }
+}
+
+fn domain_path_label(
+    program: &TypedTrees,
+    domain: omega_core::arena::HandleSpan<ProgramName>,
+) -> String {
+    let path = program.domain_path_members(domain);
+    if path.is_empty() {
+        return "<unknown>".to_owned();
+    }
+
+    path.iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 struct WritableRoots<'program, 'state> {
     machine_symbols: &'state MachineSymbols<'program>,
     statements: &'state [StatementNode],
@@ -555,6 +620,7 @@ fn validate_callable_state_signatures(
                     parameters: program.state_parameters(state),
                     return_type: state.return_type,
                     effects: &[],
+                    contracts: &[],
                 }),
             program,
             symbols,
@@ -572,6 +638,7 @@ fn validate_callable_state_signatures(
                 parameters: program.state_signature_parameters(state),
                 return_type: state.return_type,
                 effects: program.state_signature_effects(state),
+                contracts: program.state_signature_contracts(state),
             }),
             program,
             symbols,
@@ -590,6 +657,7 @@ fn validate_callable_state_signatures(
                     parameters: program.state_signature_parameters(machine),
                     return_type: machine.return_type,
                     effects: program.state_signature_effects(machine),
+                    contracts: program.state_signature_contracts(machine),
                 }),
             program,
             symbols,
@@ -605,6 +673,7 @@ struct StateSignatureView<'program> {
     parameters: &'program [StateParameter],
     return_type: TypeReferenceHandle,
     effects: &'program [ProgramName],
+    contracts: &'program [SignatureContract],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -626,6 +695,10 @@ impl fmt::Display for StateSignatureOwner<'_> {
 
 #[derive(Debug, Clone, Copy)]
 enum TypeReferenceOwner<'program> {
+    DomainTarget {
+        domain: &'program str,
+        generic_depth: usize,
+    },
     DataField {
         data: &'program str,
         field: &'program str,
@@ -681,6 +754,34 @@ enum ExpressionTypeOwner<'program> {
     },
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ProofFactOwner<'program> {
+    Domain(&'program str),
+    MachineContract {
+        machine: &'program str,
+        kind: &'static str,
+    },
+    StateSignatureContract {
+        owner: StateSignatureOwner<'program>,
+        state: &'program str,
+        kind: &'static str,
+    },
+}
+
+impl fmt::Display for ProofFactOwner<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Domain(domain) => write!(formatter, "domain `{domain}`"),
+            Self::MachineContract { machine, kind } => {
+                write!(formatter, "machine `{machine}` {kind} contract")
+            }
+            Self::StateSignatureContract { owner, state, kind } => {
+                write!(formatter, "{owner} state `{state}` {kind} contract")
+            }
+        }
+    }
+}
+
 impl fmt::Display for ExpressionTypeOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -697,6 +798,13 @@ impl fmt::Display for ExpressionTypeOwner<'_> {
 impl TypeReferenceOwner<'_> {
     fn generic_argument(self) -> Self {
         match self {
+            Self::DomainTarget {
+                domain,
+                generic_depth,
+            } => Self::DomainTarget {
+                domain,
+                generic_depth: generic_depth + 1,
+            },
             Self::DataField {
                 data,
                 field,
@@ -753,6 +861,13 @@ impl TypeReferenceOwner<'_> {
 impl fmt::Display for TypeReferenceOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let generic_depth = match self {
+            Self::DomainTarget {
+                domain,
+                generic_depth,
+            } => {
+                write!(formatter, "domain `{domain}` target type")?;
+                *generic_depth
+            }
             Self::DataField {
                 data,
                 field,
@@ -818,6 +933,7 @@ fn validate_state_signature_types<'program>(
     for signature in signatures {
         validate_state_parameter_names(signature, owner, diagnostics);
         validate_state_signature_effects(signature, owner, diagnostics);
+        validate_state_signature_contracts(program, signature, owner, diagnostics);
 
         for parameter in signature.parameters {
             if parameter.is_self {
@@ -869,6 +985,26 @@ fn validate_state_signature_effects(
     }
 }
 
+fn validate_state_signature_contracts(
+    program: &TypedTrees,
+    signature: StateSignatureView<'_>,
+    owner: StateSignatureOwner<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for contract in signature.contracts {
+        validate_domain_facts(
+            program,
+            program.domain_facts.span_or_empty(contract.facts),
+            diagnostics,
+            ProofFactOwner::StateSignatureContract {
+                owner,
+                state: signature.name,
+                kind: contract_kind_label(contract.kind),
+            },
+        );
+    }
+}
+
 fn validate_machine_effects(
     program: &TypedTrees,
     machine: &Machine,
@@ -881,6 +1017,32 @@ fn validate_machine_effects(
                 machine.name, effect
             )));
         }
+    }
+}
+
+fn validate_machine_contracts(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for contract in program.machine_contracts(machine) {
+        validate_domain_facts(
+            program,
+            program.domain_facts.span_or_empty(contract.facts),
+            diagnostics,
+            ProofFactOwner::MachineContract {
+                machine: machine.name.as_str(),
+                kind: contract_kind_label(contract.kind),
+            },
+        );
+    }
+}
+
+fn contract_kind_label(kind: omega_typed_trees::signature::SignatureContractKind) -> &'static str {
+    match kind {
+        omega_typed_trees::signature::SignatureContractKind::Requires => "requires",
+        omega_typed_trees::signature::SignatureContractKind::Ensures => "ensures",
+        omega_typed_trees::signature::SignatureContractKind::Trusted => "trusted",
     }
 }
 
@@ -1265,6 +1427,74 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.message.contains("unknown effect `stdoutish`")),
             "expected unknown effect diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_domain_membership_in_domain_body() {
+        let source = r#"
+        data Player {
+        }
+
+        domain Player::Alive {
+            self in Player::Valid
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics = validate_program(&typed).expect_err("validation should reject domain");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("domain `Player::Alive` references unknown domain `Player::Valid`")),
+            "expected unknown domain diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_domain_membership_in_contract() {
+        let source = r#"
+        data Player {
+        }
+
+        boundary trait Renderer {
+            machine draw(player: Player)
+            requires
+                player in Player::Drawable;
+        }
+
+        data Main {
+        }
+
+        machine Main::main(&mut self) {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let diagnostics = validate_program(&typed).expect_err("validation should reject domain");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+                "trait `Renderer` state `draw` requires contract references unknown domain `Player::Drawable`"
+            )),
+            "expected unknown contract domain diagnostic, got {diagnostics:#?}"
         );
     }
 

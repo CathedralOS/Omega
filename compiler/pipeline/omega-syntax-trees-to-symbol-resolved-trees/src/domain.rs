@@ -23,7 +23,7 @@ pub(crate) fn lower_domain_definition(
     })
 }
 
-fn lower_domain_facts(
+pub(crate) fn lower_domain_facts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     facts: omega_core::arena::HandleSpan<syntax::item::DomainFact>,

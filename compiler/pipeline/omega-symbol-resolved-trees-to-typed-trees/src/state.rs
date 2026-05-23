@@ -1,3 +1,4 @@
+use crate::domain::lower_domain_facts;
 use crate::program::Lowerer;
 use crate::statement::lower_statement_node;
 use crate::type_reference::lower_type_reference_into_table;
@@ -81,6 +82,7 @@ pub(crate) fn lower_state_signature(
         .source_trees
         .signature_contracts(signature.contracts)
     {
+        let facts = lower_domain_facts(lowerer, contract.facts)?;
         lowerer.typed_trees.push_state_signature_contract(
             &mut typed_signature,
             typed::signature::SignatureContract {
@@ -95,6 +97,7 @@ pub(crate) fn lower_state_signature(
                         typed::signature::SignatureContractKind::Trusted
                     }
                 },
+                facts,
                 token_count: contract.token_count,
             },
         );

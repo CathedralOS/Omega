@@ -1,4 +1,5 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_symbol_resolved_trees::data::DataMember;
@@ -499,7 +500,7 @@ fn trait_machine_signature_label(
     }
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
-        label.push_str(&machine.contracts.len().to_string());
+        label.push_str(&contract_summary(program, machine.contracts));
     }
     label
 }
@@ -548,7 +549,7 @@ fn machine_label(
     }
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
-        label.push_str(&machine.contracts.len().to_string());
+        label.push_str(&contract_summary(program, machine.contracts));
     }
 
     let Some(entry_state) = entry_state else {
@@ -795,6 +796,32 @@ fn state_label(program: &SymbolResolvedTrees, state: &State) -> String {
 
 fn inline_label(label: String) -> String {
     label.replace('\n', " | ")
+}
+
+fn contract_summary(
+    program: &SymbolResolvedTrees,
+    contracts: HandleSpan<omega_symbol_resolved_trees::signature::SignatureContract>,
+) -> String {
+    if contracts.len() == 0 {
+        return "0".to_owned();
+    }
+
+    format!(
+        "{} / facts: {}",
+        contracts.len(),
+        contract_fact_count(program, contracts)
+    )
+}
+
+fn contract_fact_count(
+    program: &SymbolResolvedTrees,
+    contracts: HandleSpan<omega_symbol_resolved_trees::signature::SignatureContract>,
+) -> usize {
+    program
+        .signature_contracts(contracts)
+        .iter()
+        .map(|contract| program.domain_facts(contract.facts).len())
+        .sum()
 }
 
 fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> String {

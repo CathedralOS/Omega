@@ -1,4 +1,5 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_effects::{EffectPlan, EffectSet};
 use omega_typed_trees::statement::TableNamePath;
@@ -487,7 +488,7 @@ fn trait_machine_signature_label(program: &TypedTrees, machine: &StateSignature)
     }
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
-        label.push_str(&machine.contracts.len().to_string());
+        label.push_str(&contract_summary(program, machine.contracts));
     }
     label
 }
@@ -532,7 +533,7 @@ fn machine_label(
     }
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
-        label.push_str(&machine.contracts.len().to_string());
+        label.push_str(&contract_summary(program, machine.contracts));
     }
 
     let Some(entry_state) = entry_state else {
@@ -807,6 +808,33 @@ fn state_label(program: &TypedTrees, effect_plan: &EffectPlan, state: &State) ->
 
 fn inline_label(label: String) -> String {
     label.replace('\n', " | ")
+}
+
+fn contract_summary(
+    program: &TypedTrees,
+    contracts: HandleSpan<omega_typed_trees::signature::SignatureContract>,
+) -> String {
+    if contracts.len() == 0 {
+        return "0".to_owned();
+    }
+
+    format!(
+        "{} / facts: {}",
+        contracts.len(),
+        contract_fact_count(program, contracts)
+    )
+}
+
+fn contract_fact_count(
+    program: &TypedTrees,
+    contracts: HandleSpan<omega_typed_trees::signature::SignatureContract>,
+) -> usize {
+    program
+        .signature_contracts
+        .span_or_empty(contracts)
+        .iter()
+        .map(|contract| program.domain_facts.span_or_empty(contract.facts).len())
+        .sum()
 }
 
 fn statement_label(program: &TypedTrees, statement: &StatementNode) -> String {

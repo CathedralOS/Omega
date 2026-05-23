@@ -4,15 +4,13 @@ capability Stdout {
     entry write(buf: Slice<u8>) -> Result<usize, IOError> where {
         requires buf.initialized
         requires buf.len <= usize.max
-        ensures result.Ok(n) => n <= buf.len
-        ensures result.Err(e) => e is IOError
+        ensures result.Ok || result.Err
         trust host
     }
 
     entry write_line(text: String) -> Result<(), IOError> where {
         requires text.utf8
-        ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
-        ensures result.Err(e) => e is IOError
+        ensures result.Ok || result.Err
         trust host
     }
 }

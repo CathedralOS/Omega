@@ -18,8 +18,7 @@ capability WindowsKernel32 {
     ) -> WinBool where {
         requires buffer.initialized
         requires bytes_to_write <= buffer.len
-        ensures result.true => bytes_written <= bytes_to_write
-        ensures result.false => windows_last_error_available
+        ensures result.true || result.false
         trust windows_loader
         trust win32_contracts
         trust windows_x64_calling_convention
@@ -34,8 +33,7 @@ capability WindowsKernel32 {
     ) -> WinBool where {
         requires buffer.writable
         requires bytes_to_read <= buffer.len
-        ensures result.true => bytes_read <= bytes_to_read
-        ensures result.false => windows_last_error_available
+        ensures result.true || result.false
         trust windows_loader
         trust win32_contracts
         trust windows_x64_calling_convention

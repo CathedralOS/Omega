@@ -236,6 +236,33 @@ fn inline_label(label: String) -> String {
     label.replace('\n', " | ")
 }
 
+fn contract_summary(
+    syntax: &SyntaxTrees,
+    contracts: HandleSpan<omega_syntax_trees::item::CapabilityContract>,
+) -> String {
+    if contracts.len() == 0 {
+        return "0".to_owned();
+    }
+
+    format!(
+        "{} / facts: {}",
+        contracts.len(),
+        contract_fact_count(syntax, contracts)
+    )
+}
+
+fn contract_fact_count(
+    syntax: &SyntaxTrees,
+    contracts: HandleSpan<omega_syntax_trees::item::CapabilityContract>,
+) -> usize {
+    syntax
+        .items
+        .capability_contracts(contracts)
+        .iter()
+        .map(|contract| syntax.items.domain_facts(contract.facts).len())
+        .sum()
+}
+
 fn append_state_signature(
     diagram: &mut PhaseDiagramBuilder,
     syntax: &SyntaxTrees,
@@ -263,7 +290,7 @@ fn append_state_signature(
     }
     if signature.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
-        label.push_str(&signature.contracts.len().to_string());
+        label.push_str(&contract_summary(syntax, signature.contracts));
     }
     let signature_id = diagram.node(
         format!("signature_{owner_index}_{item_index}_{signature_index}"),
@@ -328,7 +355,7 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 value.name.as_str(),
                 attached_data,
                 value.satisfies.len(),
-                value.contracts.len(),
+                contract_summary(syntax, value.contracts),
                 state_handles.len().saturating_sub(1)
             );
             let effects = syntax.items.identifier_path_members(value.effects);

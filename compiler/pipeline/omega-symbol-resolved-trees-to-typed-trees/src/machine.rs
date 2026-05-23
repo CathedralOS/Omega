@@ -1,3 +1,4 @@
+use crate::domain::lower_domain_facts;
 use crate::expression::lower_expression_handle_from_table;
 use crate::program::Lowerer;
 use crate::state::lower_state;
@@ -81,10 +82,12 @@ pub(crate) fn lower_machine(
     }
 
     for contract in lowerer.source_trees.machine_contracts(machine) {
+        let facts = lower_domain_facts(lowerer, contract.facts)?;
         lowerer.typed_trees.push_machine_contract(
             &mut typed_machine,
             typed::signature::SignatureContract {
                 kind: lower_contract_kind(contract.kind),
+                facts,
                 token_count: contract.token_count,
             },
         );

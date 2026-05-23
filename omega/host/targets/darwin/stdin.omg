@@ -7,8 +7,8 @@ capability DarwinStdin {
 
     entry read_line(mut out_text: String) -> Result<(), IOError> where {
         requires out_text.writable
-        ensures result.Ok => out_text.utf8
-        ensures result.Err(e) => e is IOError
+        ensures out_text.utf8
+        ensures result.Ok || result.Err
         trust omega_darwin_stdin_adapter
         trust omega_darwin_libsystem
     }

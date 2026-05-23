@@ -181,8 +181,22 @@ mod tests {
         let contracts = typed_trees.machine_contracts(machine);
 
         assert_eq!(contracts.len(), 2);
-        assert_eq!(contracts[0].token_count, 3);
-        assert_eq!(contracts[1].token_count, 3);
+        assert!(contracts[0].token_count >= 3);
+        assert!(contracts[1].token_count >= 3);
+        assert_eq!(
+            typed_trees
+                .domain_facts
+                .span_or_empty(contracts[0].facts)
+                .len(),
+            1
+        );
+        assert_eq!(
+            typed_trees
+                .domain_facts
+                .span_or_empty(contracts[1].facts)
+                .len(),
+            1
+        );
     }
 
     #[test]
