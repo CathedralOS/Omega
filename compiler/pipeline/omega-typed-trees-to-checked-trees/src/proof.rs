@@ -1,5 +1,5 @@
 use super::*;
-use crate::borrow::machine_state_count;
+use crate::lookup::machine_state_count;
 
 pub(crate) fn build_proof_facts(
     program: &omega_typed_trees::TypedTrees,

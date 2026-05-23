@@ -1,5 +1,6 @@
 mod checks;
 mod labels;
+mod lookup;
 
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
 use omega_checked_trees::name::ProgramName;
