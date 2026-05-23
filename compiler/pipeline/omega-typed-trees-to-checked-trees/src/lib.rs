@@ -47,7 +47,7 @@ pub fn lower_typed_trees(
 fn build_semantic_facts(program: &omega_typed_trees::TypedTrees, proof: &ProofFacts) -> FactPlan {
     let mut facts = omega_facts::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
-    append_contract_semantic_facts(proof, &mut facts);
+    append_contract_semantic_facts(program, proof, &mut facts);
 
     facts
 }
@@ -66,19 +66,22 @@ fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPl
     }
 }
 
-fn append_contract_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
+fn append_contract_semantic_facts(
+    program: &omega_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    facts: &mut FactPlan,
+) {
     let mut semantic_handles = Vec::with_capacity(proof.contract_facts.len());
 
     for (contract_handle, contract) in proof.contract_facts.iter() {
         let point = contract_fact_point(contract);
+        let place = contract_fact_place(program, facts, contract);
+        let payload = semantic_contract_payload(program, contract);
         let fact = facts.append_fact_context(Fact {
-            place: contract_fact_place(contract),
+            place,
             point,
             origin: contract_fact_origin(contract),
-            payload: FactPayload::Contract {
-                kind: semantic_contract_fact_kind(contract.kind),
-                fact: contract.fact,
-            },
+            payload,
         });
         let contract_index = usize::try_from(contract_handle.arena_index())
             .expect("contract fact handle index overflow");
@@ -199,18 +202,18 @@ fn contract_fact_point(contract: &ContractProofFact) -> ProgramPoint {
     }
 }
 
-fn contract_fact_place(contract: &ContractProofFact) -> FactPlace {
-    match contract.owner {
-        ContractProofFactOwner::Machine { machine_symbol }
-        | ContractProofFactOwner::MachineState {
-            machine_symbol,
-            state_symbol: _,
-        } => FactPlace::Symbol(machine_symbol),
-        ContractProofFactOwner::StateSignature {
-            owner_symbol,
-            state_symbol: _,
-        } => FactPlace::Symbol(owner_symbol),
-        ContractProofFactOwner::Unknown => FactPlace::Unknown,
+fn contract_fact_place(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    contract: &ContractProofFact,
+) -> FactPlace {
+    match program.proof_facts.get(contract.fact) {
+        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+            FactPlace::Place(facts.append_place_from_expression(program, *expression))
+        }
+        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+            FactPlace::Place(facts.append_place_from_expression(program, membership.value))
+        }
     }
 }
 
@@ -229,6 +232,31 @@ fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
             state_symbol,
         },
         ContractProofFactOwner::Unknown => FactOrigin::Unknown,
+    }
+}
+
+fn semantic_contract_payload(
+    program: &omega_typed_trees::TypedTrees,
+    contract: &ContractProofFact,
+) -> FactPayload {
+    let kind = semantic_contract_fact_kind(contract.kind);
+    match program.proof_facts.get(contract.fact) {
+        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+            FactPayload::ContractBooleanExpression {
+                kind,
+                fact: contract.fact,
+                expression: *expression,
+            }
+        }
+        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+            FactPayload::ContractDomainMembership {
+                kind,
+                fact: contract.fact,
+                value: membership.value,
+                domain: membership.domain,
+                domain_symbol: membership.domain_symbol,
+            }
+        }
     }
 }
 
@@ -2030,17 +2058,26 @@ mod tests {
             .next()
             .map(|(_, fact)| fact)
             .expect("semantic contract fact");
+        let omega_facts::FactPlace::Place(place) = semantic_fact.place else {
+            panic!("expected canonical contract fact place");
+        };
         assert_eq!(
-            semantic_fact.place,
-            omega_facts::FactPlace::Symbol(machine_symbol)
+            semantic.places.get(place).root,
+            omega_facts::PlaceRoot::Expression(expression)
         );
         assert_eq!(
             semantic_fact.payload,
-            omega_facts::FactPayload::Contract {
+            omega_facts::FactPayload::ContractBooleanExpression {
                 kind: omega_facts::ContractFactKind::Requires,
                 fact,
+                expression,
             }
         );
+        let context = semantic
+            .contexts_at_point(omega_facts::ProgramPoint::Machine { machine_symbol })
+            .next()
+            .expect("machine contract context");
+        assert_eq!(context.boolean_facts().count(), 1);
     }
 
     #[test]
