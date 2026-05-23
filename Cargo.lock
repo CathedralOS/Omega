@@ -825,6 +825,10 @@ dependencies = [
  "omega-effects",
  "omega-facts",
  "omega-proof",
+ "omega-source-files-to-tokens",
+ "omega-symbol-resolved-trees-to-typed-trees",
+ "omega-syntax-trees-to-symbol-resolved-trees",
+ "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
  "omega-validation",
 ]

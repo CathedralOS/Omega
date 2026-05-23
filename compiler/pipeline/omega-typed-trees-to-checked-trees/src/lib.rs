@@ -375,11 +375,12 @@ fn call_contract_place_substitution(
     let omega_facts::PlaceRoot::Symbol(parameter_symbol) = original_place.root else {
         return None;
     };
-    let statement = call_statement(
+    let call_site = find_call_site(
         program,
         call.caller_machine_symbol,
         call.caller_state_symbol,
         call.statement_index,
+        call.call_ordinal,
     )?;
     let target_state = find_state(program, call.target_state_symbol)?;
     let mut argument_index = 0usize;
@@ -391,11 +392,9 @@ fn call_contract_place_substitution(
             if !parameter_matches {
                 continue;
             }
-            receiver_place_for_call(program, facts, call, statement)
+            receiver_place_for_call(program, facts, call, &call_site)
         } else {
-            let argument = program
-                .statement_table
-                .expression_handles(statement.arguments)
+            let argument = call_site_argument_expressions(program, &call_site)
                 .get(argument_index)
                 .copied();
             argument_index = argument_index.saturating_add(1);
@@ -419,7 +418,7 @@ fn call_contract_place_substitution(
     }
 
     if symbol_name(program, parameter_symbol) == "self" {
-        let substitution_place = receiver_place_for_call(program, facts, call, statement)?;
+        let substitution_place = receiver_place_for_call(program, facts, call, &call_site)?;
         let place = *facts.places.get(substitution_place);
         let segments = facts
             .place_segments
@@ -451,20 +450,405 @@ fn append_place_with_segments(
     place
 }
 
-fn call_statement<'program>(
+enum CallSite<'program> {
+    Statement(&'program omega_typed_trees::statement::TableCall),
+    Expression(&'program omega_typed_trees::expression::TableCallExpression),
+}
+
+fn find_call_site<'program>(
     program: &'program omega_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-) -> Option<&'program omega_typed_trees::statement::TableCall> {
+    call_ordinal: usize,
+) -> Option<CallSite<'program>> {
     let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
-    match program
+    let machine = machine_by_symbol(program, machine_symbol)?;
+    let mut current_ordinal = 0usize;
+
+    for (current_statement_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
-        .get(statement_index)?
+        .iter()
+        .enumerate()
     {
-        StatementNode::Call(call) => Some(call),
-        _ => None,
+        if let Some(call_site) = find_call_site_in_statement(
+            program,
+            machine,
+            state,
+            statement,
+            current_statement_index,
+            statement_index,
+            call_ordinal,
+            &mut current_ordinal,
+        ) {
+            return Some(call_site);
+        }
+    }
+
+    None
+}
+
+fn find_call_site_in_statement<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine: &'program omega_typed_trees::machine::Machine,
+    state: &'program omega_typed_trees::state::State,
+    statement: &'program StatementNode,
+    current_statement_index: usize,
+    target_statement_index: usize,
+    target_call_ordinal: usize,
+    current_ordinal: &mut usize,
+) -> Option<CallSite<'program>> {
+    match statement {
+        StatementNode::Assignment(assignment) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            assignment.value,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        ),
+        StatementNode::Call(call) => {
+            if statement_call_can_dispatch_to_machine(program, machine, state, call) {
+                if current_statement_index == target_statement_index
+                    && *current_ordinal == target_call_ordinal
+                {
+                    return Some(CallSite::Statement(call));
+                }
+                *current_ordinal = current_ordinal.saturating_add(1);
+            }
+
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                if let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                ) {
+                    return Some(call_site);
+                }
+            }
+
+            None
+        }
+        StatementNode::Expression(expression) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            *expression,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        ),
+        StatementNode::LocalData(local_data) => {
+            if !local_data.initial_value.is_valid() {
+                return None;
+            }
+            find_call_site_in_expression(
+                program,
+                machine,
+                state,
+                local_data.initial_value,
+                current_statement_index,
+                target_statement_index,
+                target_call_ordinal,
+                current_ordinal,
+            )
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(expression) = transition.guard
+                && let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    expression,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                )
+            {
+                return Some(call_site);
+            }
+
+            if let Some(call_site) = find_call_site_in_transition_target(
+                program,
+                machine,
+                state,
+                transition.target,
+                current_statement_index,
+                target_statement_index,
+                target_call_ordinal,
+                current_ordinal,
+            ) {
+                return Some(call_site);
+            }
+
+            if transition.continuation.is_valid() {
+                return find_call_site_in_transition_target(
+                    program,
+                    machine,
+                    state,
+                    transition.continuation,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                );
+            }
+
+            None
+        }
+    }
+}
+
+fn find_call_site_in_transition_target<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine: &'program omega_typed_trees::machine::Machine,
+    state: &'program omega_typed_trees::state::State,
+    target: omega_typed_trees::statement::TransitionTargetHandle,
+    current_statement_index: usize,
+    target_statement_index: usize,
+    target_call_ordinal: usize,
+    current_ordinal: &mut usize,
+) -> Option<CallSite<'program>> {
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. } => {
+            for argument in program.statement_table.expression_handles(*arguments) {
+                if let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                ) {
+                    return Some(call_site);
+                }
+            }
+            None
+        }
+        TransitionTargetNode::Value(expression) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            *expression,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        ),
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => None,
+    }
+}
+
+fn find_call_site_in_expression<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine: &'program omega_typed_trees::machine::Machine,
+    state: &'program omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+    current_statement_index: usize,
+    target_statement_index: usize,
+    target_call_ordinal: usize,
+    current_ordinal: &mut usize,
+) -> Option<CallSite<'program>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                if let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    *value,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                ) {
+                    return Some(call_site);
+                }
+            }
+            None
+        }
+        ExpressionNode::Binary(binary) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            binary.left,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        )
+        .or_else(|| {
+            find_call_site_in_expression(
+                program,
+                machine,
+                state,
+                binary.right,
+                current_statement_index,
+                target_statement_index,
+                target_call_ordinal,
+                current_ordinal,
+            )
+        }),
+        ExpressionNode::Call(call) => {
+            let (receiver_symbol, receiver_path) = call_receiver_parts(program, call.receiver);
+            let is_machine_call = resolve_state_call_target(
+                program,
+                machine,
+                state,
+                receiver_symbol,
+                call.target_symbol,
+                receiver_path.as_deref(),
+                &call.target,
+            )
+            .is_valid()
+                || receiver_can_dispatch_to_machine(
+                    program,
+                    machine,
+                    state,
+                    receiver_symbol,
+                    receiver_path.as_deref(),
+                );
+
+            if is_machine_call {
+                if current_statement_index == target_statement_index
+                    && *current_ordinal == target_call_ordinal
+                {
+                    return Some(CallSite::Expression(call));
+                }
+                *current_ordinal = current_ordinal.saturating_add(1);
+            }
+
+            if call.receiver.is_valid()
+                && let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    call.receiver,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                )
+            {
+                return Some(call_site);
+            }
+
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                if let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                ) {
+                    return Some(call_site);
+                }
+            }
+
+            None
+        }
+        ExpressionNode::Cast(cast) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            cast.value,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        ),
+        ExpressionNode::Indexed(indexed) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            indexed.collection,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        )
+        .or_else(|| {
+            find_call_site_in_expression(
+                program,
+                machine,
+                state,
+                indexed.index,
+                current_statement_index,
+                target_statement_index,
+                target_call_ordinal,
+                current_ordinal,
+            )
+        }),
+        ExpressionNode::Member(member) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            member.receiver,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        ),
+        ExpressionNode::Mutable(inner) => find_call_site_in_expression(
+            program,
+            machine,
+            state,
+            *inner,
+            current_statement_index,
+            target_statement_index,
+            target_call_ordinal,
+            current_ordinal,
+        ),
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
+                if let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                ) {
+                    return Some(call_site);
+                }
+            }
+            None
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => None,
+    }
+}
+
+fn call_site_argument_expressions<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    call_site: &CallSite<'program>,
+) -> &'program [ExpressionHandle] {
+    match call_site {
+        CallSite::Statement(call) => program.statement_table.expression_handles(call.arguments),
+        CallSite::Expression(call) => program.expression_table.expression_handles(call.arguments),
     }
 }
 
@@ -472,13 +856,50 @@ fn receiver_place_for_call(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
-    statement: &omega_typed_trees::statement::TableCall,
+    call_site: &CallSite<'_>,
 ) -> Option<omega_facts::PlaceHandle> {
-    if let Some(members) = statement_call_receiver_members(program, statement) {
-        if members
-            .first()
-            .is_some_and(|member| member.as_str() == "self")
-        {
+    match call_site {
+        CallSite::Statement(statement) => {
+            if let Some(members) = statement_call_receiver_members(program, statement) {
+                if members
+                    .first()
+                    .is_some_and(|member| member.as_str() == "self")
+                {
+                    let caller_state = find_state_in_machine(
+                        program,
+                        call.caller_machine_symbol,
+                        call.caller_state_symbol,
+                    )?;
+                    let self_parameter = program
+                        .state_parameters(caller_state)
+                        .iter()
+                        .find(|parameter| parameter.is_self)?;
+                    let place = facts.append_symbol_place(self_parameter.symbol);
+                    if members.len() > 1 && statement.receiver_symbol.is_valid() {
+                        facts.push_place_segment(
+                            place,
+                            omega_facts::PlaceSegment::Field {
+                                symbol: statement.receiver_symbol,
+                            },
+                        );
+                    }
+                    return Some(place);
+                }
+
+                if let Some(path) = statement_call_receiver_path(program, statement) {
+                    return Some(append_place_from_name_path(facts, &path));
+                }
+            }
+            statement
+                .receiver_symbol
+                .is_valid()
+                .then(|| facts.append_symbol_place(statement.receiver_symbol))
+        }
+        CallSite::Expression(statement) => {
+            if statement.receiver.is_valid() {
+                return Some(facts.append_place_from_expression(program, statement.receiver));
+            }
+
             let caller_state = find_state_in_machine(
                 program,
                 call.caller_machine_symbol,
@@ -488,26 +909,9 @@ fn receiver_place_for_call(
                 .state_parameters(caller_state)
                 .iter()
                 .find(|parameter| parameter.is_self)?;
-            let place = facts.append_symbol_place(self_parameter.symbol);
-            if members.len() > 1 && statement.receiver_symbol.is_valid() {
-                facts.push_place_segment(
-                    place,
-                    omega_facts::PlaceSegment::Field {
-                        symbol: statement.receiver_symbol,
-                    },
-                );
-            }
-            return Some(place);
-        }
-
-        if let Some(path) = statement_call_receiver_path(program, statement) {
-            return Some(append_place_from_name_path(facts, &path));
+            Some(facts.append_symbol_place(self_parameter.symbol))
         }
     }
-    statement
-        .receiver_symbol
-        .is_valid()
-        .then(|| facts.append_symbol_place(statement.receiver_symbol))
 }
 
 fn append_place_from_name_path(facts: &mut FactPlan, path: &NamePath) -> omega_facts::PlaceHandle {
@@ -1530,70 +1934,121 @@ fn build_flow_facts(
                 clone_flow_contexts(&mut semantic_context_refs, state_contexts);
 
             let mut state_calls = omega_core::arena::HandleSpan::empty();
-            for borrow_call in borrow.calls.span_or_empty(borrow_state.calls) {
-                let effect_call = effects_call(effects, state_effects, borrow_call);
-                let contract_call = proof_contract_call(
-                    proof,
-                    machine.symbol,
-                    state.symbol,
-                    borrow_call.statement_index,
-                    borrow_call.call_ordinal,
-                );
-                let entry_contexts =
-                    clone_flow_contexts(&mut semantic_context_refs, active_contexts);
-                let mut requires_contexts = omega_core::arena::HandleSpan::empty();
-                append_flow_contexts_for_points(
-                    semantic,
-                    &mut semantic_context_refs,
-                    &mut requires_contexts,
-                    &[ProgramPoint::CallRequires {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                        statement_index: borrow_call.statement_index,
-                        call_ordinal: borrow_call.call_ordinal,
-                    }],
-                );
-                let mut exit_contexts =
-                    clone_flow_contexts(&mut semantic_context_refs, active_contexts);
-                append_flow_contexts_for_points(
-                    semantic,
-                    &mut semantic_context_refs,
-                    &mut exit_contexts,
-                    &[ProgramPoint::CallEnsures {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                        statement_index: borrow_call.statement_index,
-                        call_ordinal: borrow_call.call_ordinal,
-                    }],
-                );
-                active_contexts = clone_flow_contexts(&mut semantic_context_refs, exit_contexts);
+            let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
+            let mut call_index = 0usize;
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                while let Some(borrow_call) = borrow_calls.get(call_index) {
+                    if borrow_call.statement_index != statement_index {
+                        break;
+                    }
+                    call_index += 1;
 
-                calls.append_to_span(
-                    &mut state_calls,
-                    FlowCallFact {
-                        statement_index: borrow_call.statement_index,
-                        call_ordinal: borrow_call.call_ordinal,
-                        receiver_symbol: borrow_call.receiver_symbol,
-                        target_symbol: borrow_call.target_symbol,
-                        has_receiver: borrow_call.has_receiver,
-                        accesses: borrow_call.accesses,
-                        entry_semantic_contexts: entry_contexts,
-                        requires_contexts,
-                        exit_semantic_contexts: exit_contexts,
-                        requires: contract_call
-                            .map(|call| call.requires)
-                            .unwrap_or_else(HandleSpan::empty),
-                        ensures: contract_call
-                            .map(|call| call.ensures)
-                            .unwrap_or_else(HandleSpan::empty),
-                        direct_effects: effect_call
-                            .map(|call| call.direct)
-                            .unwrap_or_else(omega_effects::EffectSet::empty),
-                        transitive_effects: effect_call
-                            .map(|call| call.transitive)
-                            .unwrap_or_else(omega_effects::EffectSet::empty),
-                    },
-                );
+                    let effect_call = effects_call(effects, state_effects, borrow_call);
+                    let contract_call = proof_contract_call(
+                        proof,
+                        machine.symbol,
+                        state.symbol,
+                        borrow_call.statement_index,
+                        borrow_call.call_ordinal,
+                    );
+                    let entry_contexts =
+                        clone_flow_contexts(&mut semantic_context_refs, active_contexts);
+                    let mut requires_contexts = omega_core::arena::HandleSpan::empty();
+                    append_flow_contexts_for_points(
+                        semantic,
+                        &mut semantic_context_refs,
+                        &mut requires_contexts,
+                        &[ProgramPoint::CallRequires {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            statement_index: borrow_call.statement_index,
+                            call_ordinal: borrow_call.call_ordinal,
+                        }],
+                    );
+                    let mutated_roots = call_mutated_roots(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        borrow,
+                        borrow_call,
+                    );
+                    let post_call_contexts =
+                        if call_may_mutate_contract_state(program, borrow, borrow_call) {
+                            let filtered_contexts = filter_contexts_after_root_mutations(
+                                program,
+                                semantic,
+                                &mut semantic_context_refs,
+                                active_contexts,
+                                &mutated_roots,
+                            );
+                            if filtered_contexts == active_contexts {
+                                omega_core::arena::HandleSpan::empty()
+                            } else {
+                                filtered_contexts
+                            }
+                        } else {
+                            clone_flow_contexts(&mut semantic_context_refs, active_contexts)
+                        };
+                    let mut exit_contexts =
+                        clone_flow_contexts(&mut semantic_context_refs, post_call_contexts);
+                    append_flow_contexts_for_points(
+                        semantic,
+                        &mut semantic_context_refs,
+                        &mut exit_contexts,
+                        &[ProgramPoint::CallEnsures {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            statement_index: borrow_call.statement_index,
+                            call_ordinal: borrow_call.call_ordinal,
+                        }],
+                    );
+                    active_contexts =
+                        clone_flow_contexts(&mut semantic_context_refs, exit_contexts);
+
+                    calls.append_to_span(
+                        &mut state_calls,
+                        FlowCallFact {
+                            statement_index: borrow_call.statement_index,
+                            call_ordinal: borrow_call.call_ordinal,
+                            receiver_symbol: borrow_call.receiver_symbol,
+                            target_symbol: borrow_call.target_symbol,
+                            has_receiver: borrow_call.has_receiver,
+                            accesses: borrow_call.accesses,
+                            entry_semantic_contexts: entry_contexts,
+                            requires_contexts,
+                            exit_semantic_contexts: exit_contexts,
+                            requires: contract_call
+                                .map(|call| call.requires)
+                                .unwrap_or_else(HandleSpan::empty),
+                            ensures: contract_call
+                                .map(|call| call.ensures)
+                                .unwrap_or_else(HandleSpan::empty),
+                            direct_effects: effect_call
+                                .map(|call| call.direct)
+                                .unwrap_or_else(omega_effects::EffectSet::empty),
+                            transitive_effects: effect_call
+                                .map(|call| call.transitive)
+                                .unwrap_or_else(omega_effects::EffectSet::empty),
+                        },
+                    );
+                }
+
+                if let Some(root_symbol) =
+                    statement_mutated_root_symbol(program, machine, statement)
+                {
+                    active_contexts = filter_contexts_after_root_mutations(
+                        program,
+                        semantic,
+                        &mut semantic_context_refs,
+                        active_contexts,
+                        &[root_symbol],
+                    );
+                }
             }
 
             let mut state_exits = omega_core::arena::HandleSpan::empty();
@@ -1670,6 +2125,213 @@ fn clone_flow_contexts(
     cloned
 }
 
+fn filter_contexts_after_root_mutations(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
+    source: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+    mutated_roots: &[SymbolHandle],
+) -> omega_core::arena::HandleSpan<FlowSemanticContextRef> {
+    if mutated_roots.is_empty() {
+        return source;
+    }
+
+    let mut filtered = omega_core::arena::HandleSpan::empty();
+    let mut removed_any = false;
+    let copied: Vec<_> = semantic_context_refs
+        .span_or_empty(source)
+        .iter()
+        .copied()
+        .collect();
+    for context_ref in copied {
+        let context = semantic.contexts.get(context_ref.context);
+        if context_survives_root_mutations(program, semantic, context, mutated_roots) {
+            semantic_context_refs.append_to_span(&mut filtered, context_ref);
+        } else {
+            removed_any = true;
+        }
+    }
+
+    if removed_any { filtered } else { source }
+}
+
+fn context_survives_root_mutations(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    context: &omega_facts::FactContext,
+    mutated_roots: &[SymbolHandle],
+) -> bool {
+    !semantic.context_view(context).facts().any(|fact| {
+        let FactPlace::Place(place) = fact.place else {
+            return false;
+        };
+        let place = semantic.places.get(place);
+        match place.root {
+            omega_facts::PlaceRoot::Symbol(symbol) if mutated_roots.contains(&symbol) => true,
+            omega_facts::PlaceRoot::Expression(expression) => {
+                expression_place_overlaps_mutated_roots(program, expression, mutated_roots)
+            }
+            _ => semantic
+                .place_segments
+                .span_or_empty(place.segments)
+                .iter()
+                .any(|segment| match segment {
+                    omega_facts::PlaceSegment::Field { symbol } => mutated_roots.contains(symbol),
+                    omega_facts::PlaceSegment::Index { .. } => false,
+                }),
+        }
+    })
+}
+
+fn expression_place_overlaps_mutated_roots(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    mutated_roots: &[SymbolHandle],
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            expression_place_overlaps_mutated_roots(program, *inner, mutated_roots)
+        }
+        ExpressionNode::Name(path) => {
+            first_valid_name_path_symbol(path, &program.expression_table)
+                .is_some_and(|symbol| mutated_roots.contains(&symbol))
+                || program
+                    .expression_table
+                    .name_path_member_symbols(path.member_symbols)
+                    .iter()
+                    .any(|symbol| mutated_roots.contains(symbol))
+        }
+        ExpressionNode::Member(member) => {
+            mutated_roots.contains(&member.member_symbol)
+                || expression_place_overlaps_mutated_roots(program, member.receiver, mutated_roots)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_place_overlaps_mutated_roots(program, indexed.collection, mutated_roots)
+        }
+        _ => false,
+    }
+}
+
+fn call_mutated_roots(
+    program: &omega_typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+) -> Vec<SymbolHandle> {
+    let mut roots = Vec::new();
+    for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
+        if access.kind == BorrowAccessKind::Mutable && !roots.contains(&access.root_symbol) {
+            roots.push(access.root_symbol);
+        }
+    }
+
+    if let Some(call_site) = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) && let Some(target_state) = find_state(program, borrow_call.target_symbol)
+    {
+        let mut argument_index = 0usize;
+        for parameter in program.state_parameters(target_state) {
+            if parameter.is_self {
+                continue;
+            }
+
+            let argument = call_site_argument_expressions(program, &call_site)
+                .get(argument_index)
+                .copied();
+            argument_index = argument_index.saturating_add(1);
+
+            if !parameter.is_mutable {
+                continue;
+            }
+
+            if let Some(argument) = argument
+                && let Some(root_symbol) = expression_root_symbol(
+                    argument,
+                    &program.expression_table,
+                    caller_machine_symbol,
+                )
+                && !roots.contains(&root_symbol)
+            {
+                roots.push(root_symbol);
+            }
+        }
+    }
+
+    if borrow_call.has_receiver
+        && borrow_call.receiver_symbol.is_valid()
+        && call_receiver_is_mutable(program, borrow, borrow_call)
+        && !roots.contains(&borrow_call.receiver_symbol)
+    {
+        roots.push(borrow_call.receiver_symbol);
+    }
+
+    roots
+}
+
+fn call_receiver_is_mutable(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+) -> bool {
+    let Some((target_machine_symbol, target_state_symbol)) =
+        contract_target_from_state_symbol(program, borrow_call.target_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = find_state_in_machine(program, target_machine_symbol, target_state_symbol)
+    else {
+        return false;
+    };
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.is_self && parameter.is_mutable)
+        || borrow_call.accesses.is_empty()
+            && borrow.states.iter().any(|(_, flow_state)| {
+                flow_state.machine_symbol == target_machine_symbol
+                    && flow_state.state_symbol == target_state_symbol
+                    && flow_state.mutable_parameter_count > 0
+            })
+}
+
+fn call_may_mutate_contract_state(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    borrow_call: &BorrowCallFact,
+) -> bool {
+    let Some((target_machine_symbol, target_state_symbol)) =
+        contract_target_from_state_symbol(program, borrow_call.target_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = find_state_in_machine(program, target_machine_symbol, target_state_symbol)
+    else {
+        return false;
+    };
+    let signature_mutability = program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.is_mutable);
+    let borrow_mutability = borrow.states.iter().any(|(_, flow_state)| {
+        flow_state.machine_symbol == target_machine_symbol
+            && flow_state.state_symbol == target_state_symbol
+            && flow_state.mutable_parameter_count > 0
+    });
+
+    signature_mutability
+        || borrow_mutability
+        || call_receiver_is_mutable(program, borrow, borrow_call)
+}
+
 fn append_flow_contexts_for_points(
     semantic: &FactPlan,
     semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
@@ -1680,6 +2342,19 @@ fn append_flow_contexts_for_points(
         for context in semantic.context_handles_at_point(*point) {
             semantic_context_refs.append_to_span(refs, FlowSemanticContextRef { context });
         }
+    }
+}
+
+fn statement_mutated_root_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    statement: &StatementNode,
+) -> Option<SymbolHandle> {
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            expression_root_symbol(assignment.target, &program.expression_table, machine.symbol)
+        }
+        _ => None,
     }
 }
 
@@ -2721,6 +3396,9 @@ fn expression_root_symbol(
         ExpressionNode::Indexed(indexed) => {
             expression_root_symbol(indexed.collection, expressions, machine_symbol)
         }
+        ExpressionNode::Mutable(inner) => {
+            expression_root_symbol(*inner, expressions, machine_symbol)
+        }
         ExpressionNode::Member(member) => match expressions.expression(member.receiver) {
             ExpressionNode::Name(path)
                 if path.members.count() == 1
@@ -2756,7 +3434,8 @@ fn first_valid_name_path_symbol(
 mod tests {
     use super::{
         build_borrow_facts, build_flow_facts, build_proof_facts, build_semantic_facts,
-        instantiate_call_contract_place,
+        call_mutated_roots, context_proves_requirement_place_domain,
+        instantiate_call_contract_place, lower_typed_trees,
     };
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
     use omega_checked_trees::machine::{Machine, TraitConformance};
@@ -2768,9 +3447,14 @@ mod tests {
     use omega_checked_trees::statement::{StatementNode, TableCall};
     use omega_checked_trees::trait_definition::TraitDefinition;
     use omega_checked_trees::types::TypeReferenceNode;
-    use omega_checked_trees::{ContractProofFactKind, ContractProofFactOwner};
+    use omega_checked_trees::{BorrowAccessKind, ContractProofFactKind, ContractProofFactOwner};
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
+    use omega_facts::{FactPayload, FactPlace};
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
     use std::sync::Arc;
 
     #[test]
@@ -3004,6 +3688,156 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn invalidates_proved_domain_membership_after_mutating_call() {
+        let source = r#"
+            data Player {
+                health: i32;
+            }
+
+            domain Player::Valid {
+                self.health >= 0;
+                self.health <= 100;
+            }
+
+            data Main {
+                player: Player;
+            }
+
+            machine Main::mark_valid(&mut self, player: &mut Player)
+            ensures
+                player in Player::Valid
+            {
+                player.health = 0;
+            }
+
+            machine Main::break_valid(&mut self, player: &mut Player) {
+                player.health = 200;
+            }
+
+            machine Main::heal(&mut self, player: &mut Player)
+            requires
+                player in Player::Valid
+            {
+                player.health = 10;
+            }
+
+            machine Main::main(&mut self) {
+                self.mark_valid(&mut self.player);
+                self.break_valid(&mut self.player);
+                self.heal(&mut self.player);
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let diagnostics =
+            lower_typed_trees(typed.clone()).expect_err("requires should fail after mutation");
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract for call heal from Main::main: player in Player::Valid")));
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+        let effects = omega_effects::infer_effects(&typed);
+        let borrow = build_borrow_facts(&typed);
+        let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+        let semantic = build_semantic_facts(&typed, &proof);
+        let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &effects);
+
+        let main_machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("main machine");
+        let main_state = typed
+            .machine_states(main_machine)
+            .iter()
+            .find(|state| state.name.as_str() == "main")
+            .expect("main state");
+        let caller_flow = flow
+            .states
+            .iter()
+            .find_map(|(_, state)| {
+                (state.machine_symbol == main_machine.symbol
+                    && state.state_symbol == main_state.symbol)
+                    .then_some(state)
+            })
+            .expect("main flow state");
+        let calls = flow.calls.span_or_empty(caller_flow.calls);
+        assert_eq!(calls.len(), 3);
+
+        let heal_call = &calls[2];
+        let (required_place, required_domain) = flow
+            .semantic_context_refs
+            .span_or_empty(heal_call.requires_contexts)
+            .iter()
+            .find_map(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                semantic
+                    .context_view(context)
+                    .facts()
+                    .find_map(|fact| match fact.payload {
+                        FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                            let FactPlace::Place(place) = fact.place else {
+                                return None;
+                            };
+                            Some((place, domain_symbol))
+                        }
+                        _ => None,
+                    })
+            })
+            .expect("heal requires domain membership");
+
+        let mark_exit_proves = flow
+            .semantic_context_refs
+            .span_or_empty(calls[0].exit_semantic_contexts)
+            .iter()
+            .any(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                context_proves_requirement_place_domain(
+                    &typed,
+                    &semantic,
+                    context,
+                    required_place,
+                    required_domain,
+                )
+            });
+        let break_entry_proves = flow
+            .semantic_context_refs
+            .span_or_empty(calls[1].entry_semantic_contexts)
+            .iter()
+            .any(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                context_proves_requirement_place_domain(
+                    &typed,
+                    &semantic,
+                    context,
+                    required_place,
+                    required_domain,
+                )
+            });
+        let heal_entry_proves = flow
+            .semantic_context_refs
+            .span_or_empty(calls[2].entry_semantic_contexts)
+            .iter()
+            .any(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                context_proves_requirement_place_domain(
+                    &typed,
+                    &semantic,
+                    context,
+                    required_place,
+                    required_domain,
+                )
+            });
+
+        assert!(mark_exit_proves);
+        assert!(break_entry_proves);
+        assert!(!heal_entry_proves);
     }
 
     #[test]
@@ -3629,5 +4463,481 @@ mod tests {
         assert_eq!(calls[1].statement_index, 0);
         assert_eq!(calls[1].call_ordinal, 1);
         assert_eq!(calls[1].target_symbol, inner_symbol);
+    }
+
+    #[test]
+    fn collects_mutable_attached_data_argument_access_roots() {
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+        let target_symbol = SymbolHandle::from_arena_index(3);
+        let player_symbol = SymbolHandle::from_arena_index(4);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let self_name = Expression::Name(NamePath::resolved(
+            vec![ProgramName::generated("self")],
+            machine_symbol,
+            machine_symbol,
+        ));
+        let player_member = Expression::Member(Box::new(
+            omega_checked_trees::expression::MemberExpression {
+                receiver: self_name,
+                member_symbol: player_symbol,
+                member: ProgramName::generated("player"),
+            },
+        ));
+        let player_argument = Expression::Mutable(Box::new(player_member));
+        let player_argument = program.expression_table.insert_tree(&player_argument);
+
+        let mut arguments = HandleSpan::empty();
+        program
+            .statement_table
+            .push_expression_handle(&mut arguments, player_argument);
+
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: ProgramName::generated("Main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut state = State {
+            symbol: state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Call(TableCall {
+                receiver_symbol: machine_symbol,
+                target_symbol,
+                receiver: Default::default(),
+                target: ProgramName::generated("heal"),
+                arguments,
+            }),
+        );
+        program.push_machine_state(&mut machine, state);
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: target_symbol,
+                name: ProgramName::generated("heal"),
+                parameters: Default::default(),
+                return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                statement_nodes: Default::default(),
+            },
+        );
+        program.push_machine(machine);
+
+        let facts = build_borrow_facts(&program);
+        let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
+        let call = facts.calls.span(state.calls).unwrap()[0].clone();
+        let accesses = facts.argument_accesses.span(call.accesses).unwrap();
+
+        assert_eq!(accesses.len(), 1);
+        assert_eq!(accesses[0].root_symbol, player_symbol);
+        assert_eq!(accesses[0].kind, BorrowAccessKind::Mutable);
+    }
+
+    #[test]
+    fn call_mutated_roots_include_mutable_attached_data_arguments() {
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+        let target_symbol = SymbolHandle::from_arena_index(3);
+        let player_symbol = SymbolHandle::from_arena_index(4);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let self_name = Expression::Name(NamePath::resolved(
+            vec![ProgramName::generated("self")],
+            machine_symbol,
+            machine_symbol,
+        ));
+        let player_member = Expression::Member(Box::new(
+            omega_checked_trees::expression::MemberExpression {
+                receiver: self_name,
+                member_symbol: player_symbol,
+                member: ProgramName::generated("player"),
+            },
+        ));
+        let player_argument = Expression::Mutable(Box::new(player_member));
+        let player_argument = program.expression_table.insert_tree(&player_argument);
+
+        let mut arguments = HandleSpan::empty();
+        program
+            .statement_table
+            .push_expression_handle(&mut arguments, player_argument);
+
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: ProgramName::generated("Main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut state = State {
+            symbol: state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Call(TableCall {
+                receiver_symbol: machine_symbol,
+                target_symbol,
+                receiver: Default::default(),
+                target: ProgramName::generated("heal"),
+                arguments,
+            }),
+        );
+        program.push_machine_state(&mut machine, state);
+        let mut target_state = State {
+            symbol: target_symbol,
+            name: ProgramName::generated("heal"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.push_state_parameter(
+            &mut target_state,
+            StateParameter {
+                symbol: SymbolHandle::from_arena_index(5),
+                name: ProgramName::generated("self"),
+                type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                is_const: false,
+                is_mutable: true,
+                is_self: true,
+            },
+        );
+        program.push_state_parameter(
+            &mut target_state,
+            StateParameter {
+                symbol: SymbolHandle::from_arena_index(6),
+                name: ProgramName::generated("player"),
+                type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                is_const: false,
+                is_mutable: true,
+                is_self: false,
+            },
+        );
+        program.push_machine_state(&mut machine, target_state);
+        program.push_machine(machine);
+
+        let facts = build_borrow_facts(&program);
+        let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
+        let call = facts.calls.span(state.calls).unwrap()[0].clone();
+        let roots = call_mutated_roots(&program, machine_symbol, state_symbol, &facts, &call);
+
+        assert_eq!(roots, vec![player_symbol]);
+    }
+
+    #[test]
+    fn instantiates_call_contract_places_for_attached_data_arguments() {
+        let caller_machine_symbol = SymbolHandle::from_arena_index(1);
+        let caller_state_symbol = SymbolHandle::from_arena_index(2);
+        let callee_machine_symbol = SymbolHandle::from_arena_index(3);
+        let callee_state_symbol = SymbolHandle::from_arena_index(4);
+        let caller_player_symbol = SymbolHandle::from_arena_index(5);
+        let callee_player_symbol = SymbolHandle::from_arena_index(6);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let player_fact_expression =
+            program
+                .expression_table
+                .insert(omega_typed_trees::expression::ExpressionNode::Name(
+                    omega_checked_trees::expression::TableNamePath {
+                        members: HandleSpan::empty(),
+                        member_symbols: HandleSpan::empty(),
+                        head_symbol: callee_player_symbol,
+                        symbol: callee_player_symbol,
+                    },
+                ));
+        let callee_fact =
+            program
+                .proof_facts
+                .append(omega_typed_trees::domain::ProofFact::Expression(
+                    player_fact_expression,
+                ));
+
+        let mut caller_arguments = HandleSpan::empty();
+        let self_name = Expression::Name(NamePath::resolved(
+            vec![ProgramName::generated("self")],
+            caller_machine_symbol,
+            caller_machine_symbol,
+        ));
+        let player_member = Expression::Member(Box::new(
+            omega_checked_trees::expression::MemberExpression {
+                receiver: self_name,
+                member_symbol: caller_player_symbol,
+                member: ProgramName::generated("player"),
+            },
+        ));
+        let player_argument = Expression::Mutable(Box::new(player_member));
+        let player_argument = program.expression_table.insert_tree(&player_argument);
+        program
+            .statement_table
+            .push_expression_handle(&mut caller_arguments, player_argument);
+
+        let mut caller_machine = Machine {
+            symbol: caller_machine_symbol,
+            name: ProgramName::generated("Main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut caller_state = State {
+            symbol: caller_state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.statement_table.push_statement(
+            &mut caller_state.statement_nodes,
+            StatementNode::Call(TableCall {
+                receiver_symbol: caller_machine_symbol,
+                target_symbol: callee_state_symbol,
+                receiver: Default::default(),
+                target: ProgramName::generated("heal"),
+                arguments: caller_arguments,
+            }),
+        );
+        program.push_machine_state(&mut caller_machine, caller_state);
+        program.push_machine(caller_machine);
+
+        let mut callee_machine = Machine {
+            symbol: callee_machine_symbol,
+            name: ProgramName::generated("Game"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut callee_state = State {
+            symbol: callee_state_symbol,
+            name: ProgramName::generated("heal"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.push_state_parameter(
+            &mut callee_state,
+            StateParameter {
+                symbol: callee_player_symbol,
+                name: ProgramName::generated("player"),
+                type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                is_const: false,
+                is_mutable: true,
+                is_self: false,
+            },
+        );
+        program.push_machine_state(&mut callee_machine, callee_state);
+        program.push_machine(callee_machine);
+
+        let call = omega_checked_trees::ContractCallFact {
+            caller_machine_symbol,
+            caller_state_symbol,
+            statement_index: 0,
+            call_ordinal: 0,
+            target_machine_symbol: callee_machine_symbol,
+            target_state_symbol: callee_state_symbol,
+            requires: HandleSpan::empty(),
+            ensures: HandleSpan::empty(),
+        };
+        let contract = omega_checked_trees::ContractProofFact {
+            kind: ContractProofFactKind::Requires,
+            owner: ContractProofFactOwner::MachineState {
+                machine_symbol: callee_machine_symbol,
+                state_symbol: callee_state_symbol,
+            },
+            fact: callee_fact,
+        };
+
+        let mut semantic = omega_facts::FactPlan::default();
+        let place = instantiate_call_contract_place(&program, &mut semantic, &call, &contract);
+        let omega_facts::FactPlace::Place(place_handle) = place else {
+            panic!("expected instantiated call place");
+        };
+        let place = semantic.places.get(place_handle);
+        let segments = semantic.place_segments.span_or_empty(place.segments);
+
+        assert_eq!(
+            place.root,
+            omega_facts::PlaceRoot::Symbol(caller_machine_symbol)
+        );
+        assert_eq!(segments.len(), 1);
+        assert_eq!(
+            segments[0],
+            omega_facts::PlaceSegment::Field {
+                symbol: caller_player_symbol
+            }
+        );
+    }
+
+    #[test]
+    fn instantiates_call_contract_places_for_expression_statement_calls() {
+        let caller_machine_symbol = SymbolHandle::from_arena_index(1);
+        let caller_state_symbol = SymbolHandle::from_arena_index(2);
+        let callee_machine_symbol = SymbolHandle::from_arena_index(3);
+        let callee_state_symbol = SymbolHandle::from_arena_index(4);
+        let caller_player_symbol = SymbolHandle::from_arena_index(5);
+        let callee_player_symbol = SymbolHandle::from_arena_index(6);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let player_fact_expression =
+            program
+                .expression_table
+                .insert(omega_typed_trees::expression::ExpressionNode::Name(
+                    omega_checked_trees::expression::TableNamePath {
+                        members: HandleSpan::empty(),
+                        member_symbols: HandleSpan::empty(),
+                        head_symbol: callee_player_symbol,
+                        symbol: callee_player_symbol,
+                    },
+                ));
+        let callee_fact =
+            program
+                .proof_facts
+                .append(omega_typed_trees::domain::ProofFact::Expression(
+                    player_fact_expression,
+                ));
+
+        let self_name = Expression::Name(NamePath::resolved(
+            vec![ProgramName::generated("self")],
+            caller_machine_symbol,
+            caller_machine_symbol,
+        ));
+        let player_member = Expression::Member(Box::new(
+            omega_checked_trees::expression::MemberExpression {
+                receiver: self_name,
+                member_symbol: caller_player_symbol,
+                member: ProgramName::generated("player"),
+            },
+        ));
+        let player_argument = Expression::Mutable(Box::new(player_member));
+        let call_expression = Expression::Call(Box::new(CallExpression {
+            receiver: Some(Box::new(Expression::Name(NamePath::resolved(
+                vec![ProgramName::generated("self")],
+                caller_machine_symbol,
+                caller_machine_symbol,
+            )))),
+            target_symbol: callee_state_symbol,
+            target: ProgramName::generated("heal"),
+            arguments: Arc::from(vec![player_argument].into_boxed_slice()),
+        }));
+        let call_expression = program.expression_table.insert_tree(&call_expression);
+
+        let mut caller_machine = Machine {
+            symbol: caller_machine_symbol,
+            name: ProgramName::generated("Main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut caller_state = State {
+            symbol: caller_state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.statement_table.push_statement(
+            &mut caller_state.statement_nodes,
+            StatementNode::Expression(call_expression),
+        );
+        program.push_machine_state(&mut caller_machine, caller_state);
+        program.push_machine(caller_machine);
+
+        let mut callee_machine = Machine {
+            symbol: callee_machine_symbol,
+            name: ProgramName::generated("Game"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut callee_state = State {
+            symbol: callee_state_symbol,
+            name: ProgramName::generated("heal"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        program.push_state_parameter(
+            &mut callee_state,
+            StateParameter {
+                symbol: callee_player_symbol,
+                name: ProgramName::generated("player"),
+                type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                is_const: false,
+                is_mutable: true,
+                is_self: false,
+            },
+        );
+        program.push_machine_state(&mut callee_machine, callee_state);
+        program.push_machine(callee_machine);
+
+        let call = omega_checked_trees::ContractCallFact {
+            caller_machine_symbol,
+            caller_state_symbol,
+            statement_index: 0,
+            call_ordinal: 0,
+            target_machine_symbol: callee_machine_symbol,
+            target_state_symbol: callee_state_symbol,
+            requires: HandleSpan::empty(),
+            ensures: HandleSpan::empty(),
+        };
+        let contract = omega_checked_trees::ContractProofFact {
+            kind: ContractProofFactKind::Requires,
+            owner: ContractProofFactOwner::MachineState {
+                machine_symbol: callee_machine_symbol,
+                state_symbol: callee_state_symbol,
+            },
+            fact: callee_fact,
+        };
+
+        let mut semantic = omega_facts::FactPlan::default();
+        let place = instantiate_call_contract_place(&program, &mut semantic, &call, &contract);
+        let omega_facts::FactPlace::Place(place_handle) = place else {
+            panic!("expected instantiated call place");
+        };
+        let place = semantic.places.get(place_handle);
+        let segments = semantic.place_segments.span_or_empty(place.segments);
+
+        assert_eq!(
+            place.root,
+            omega_facts::PlaceRoot::Symbol(caller_machine_symbol)
+        );
+        assert_eq!(segments.len(), 1);
+        assert_eq!(
+            segments[0],
+            omega_facts::PlaceSegment::Field {
+                symbol: caller_player_symbol
+            }
+        );
     }
 }

@@ -1,0 +1,1 @@
+cannot prove requires contract for call heal from Main::main: player in Player::Valid
