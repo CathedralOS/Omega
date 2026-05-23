@@ -3,7 +3,7 @@ mod symbols;
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_facts::FactPlan;
+use omega_facts::{FactPlan, ProgramPoint};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::domain::ProofFact;
@@ -354,7 +354,10 @@ fn validate_invariant_definitions(
 ) {
     for invariant in program.invariant_definitions() {
         let constraint_fact_count = fact_plan
-            .type_constraints_for_symbol(invariant.symbol)
+            .contexts_at_point(ProgramPoint::Definition {
+                symbol: invariant.symbol,
+            })
+            .flat_map(|context| context.type_constraints())
             .count();
 
         if constraint_fact_count != invariant.constraints.len() {
