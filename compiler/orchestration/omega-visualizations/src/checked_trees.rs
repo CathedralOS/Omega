@@ -288,6 +288,10 @@ fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) 
 fn semantic_place_label(program: &Program, place: omega_facts::FactPlace) -> String {
     match place {
         omega_facts::FactPlace::Unknown => "unknown".to_owned(),
+        omega_facts::FactPlace::Place(place) => {
+            let place = program.facts.semantic.places.get(place);
+            semantic_canonical_place_label(program, place)
+        }
         omega_facts::FactPlace::Symbol(symbol) => semantic_symbol_name(program, symbol),
         omega_facts::FactPlace::Expression(expression) => {
             program.expression_table.display_name(expression)
@@ -296,6 +300,40 @@ fn semantic_place_label(program: &Program, place: omega_facts::FactPlace) -> Str
             program.display_type_reference(type_reference)
         }
     }
+}
+
+fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place) -> String {
+    let mut label = match place.root {
+        omega_facts::PlaceRoot::Unknown => "unknown".to_owned(),
+        omega_facts::PlaceRoot::Symbol(symbol) => semantic_symbol_name(program, symbol),
+        omega_facts::PlaceRoot::Expression(expression) => {
+            program.expression_table.display_name(expression)
+        }
+        omega_facts::PlaceRoot::TypeReference(type_reference) => {
+            program.display_type_reference(type_reference)
+        }
+    };
+
+    for segment in program
+        .facts
+        .semantic
+        .place_segments
+        .span_or_empty(place.segments)
+    {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&semantic_symbol_name(program, *symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&program.expression_table.display_name(*expression));
+                label.push(']');
+            }
+        }
+    }
+
+    label
 }
 
 fn semantic_origin_label(program: &Program, origin: omega_facts::FactOrigin) -> String {
