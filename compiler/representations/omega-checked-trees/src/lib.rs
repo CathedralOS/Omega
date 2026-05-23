@@ -229,6 +229,24 @@ pub struct InvariantFacts {
     pub definitions: Arena<InvariantFact>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainDependencyPathFact {
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainDependencyFact {
+    pub domain_symbol: SymbolHandle,
+    pub dependencies: HandleSpan<DomainDependencyPathFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainFacts {
+    pub segments: Arena<omega_facts::PlaceSegment>,
+    pub dependency_paths: Arena<DomainDependencyPathFact>,
+    pub dependencies: Arena<DomainDependencyFact>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowSemanticContextRef {
     pub context: omega_facts::FactContextHandle,
@@ -288,6 +306,7 @@ pub struct CheckFacts {
     pub borrow: BorrowFacts,
     pub proof: ProofFacts,
     pub invariants: InvariantFacts,
+    pub domains: DomainFacts,
     pub effects: omega_effects::EffectPlan,
     pub flow: FlowFacts,
 }
