@@ -140,6 +140,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "bounded_max_call",
     "bounded_member_guard_transition",
     "boundary_trait_effects_host_call",
+    "call_requires_preserved_across_imported_disjoint_mutation",
     "call_requires_preserved_across_disjoint_mutation",
     "composite_field_guard_dispatch",
     "composite_range_guard_dispatch",

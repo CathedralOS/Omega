@@ -1,0 +1,44 @@
+data Player {
+    health: i32;
+    mana: i32;
+    stamina: i32;
+}
+
+domain Player::Valid {
+    self.health >= 0;
+    self.health <= 100;
+}
+
+domain Player::Ready {
+    self in Player::Valid;
+    self.mana >= 0;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::mark_ready(&mut self, player: &mut Player)
+ensures
+    player in Player::Ready
+{
+    player.health = 40;
+    player.mana = 5;
+}
+
+machine Main::spend_stamina(&mut self, player: &mut Player) {
+    player.stamina = 0;
+}
+
+machine Main::heal(&mut self, player: &mut Player)
+requires
+    player in Player::Ready
+{
+    player.health = 50;
+}
+
+machine Main::main(&mut self) {
+    self.mark_ready(&mut self.player);
+    self.spend_stamina(&mut self.player);
+    self.heal(&mut self.player);
+}
