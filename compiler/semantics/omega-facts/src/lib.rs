@@ -279,6 +279,22 @@ impl<'facts> FactContextView<'facts> {
         })
     }
 
+    pub fn proves_place_domain_membership(
+        self,
+        place: PlaceHandle,
+        domain_symbol: SymbolHandle,
+    ) -> bool {
+        self.facts().any(|fact| {
+            matches!(
+                fact.payload,
+                FactPayload::DomainMembership { domain_symbol: fact_domain, .. }
+                    | FactPayload::ContractDomainMembership { domain_symbol: fact_domain, .. }
+                    if self.plan.fact_place_equals(fact.place, place)
+                        && self.plan.domain_implies(fact_domain, domain_symbol)
+            )
+        })
+    }
+
     pub fn references_domain(self, domain_symbol: SymbolHandle) -> bool {
         self.domain_memberships()
             .any(|fact| self.plan.domain_implies(fact.domain_symbol, domain_symbol))
@@ -505,6 +521,16 @@ impl FactPlan {
             .any(|context| context.proves_domain_membership(value, domain_symbol))
     }
 
+    pub fn proves_place_domain_membership_at_point(
+        &self,
+        point: ProgramPoint,
+        place: PlaceHandle,
+        domain_symbol: SymbolHandle,
+    ) -> bool {
+        self.contexts_at_point(point)
+            .any(|context| context.proves_place_domain_membership(place, domain_symbol))
+    }
+
     pub fn symbol_references_domain(
         &self,
         symbol: SymbolHandle,
@@ -596,6 +622,21 @@ impl FactPlan {
                 }
                 _ => None,
             })
+    }
+
+    pub fn fact_place_equals(&self, fact_place: FactPlace, place: PlaceHandle) -> bool {
+        match fact_place {
+            FactPlace::Place(other) => self.places_equal(other, place),
+            _ => false,
+        }
+    }
+
+    pub fn places_equal(&self, left: PlaceHandle, right: PlaceHandle) -> bool {
+        let left_place = self.places.get(left);
+        let right_place = self.places.get(right);
+        left_place.root == right_place.root
+            && self.place_segments.span_or_empty(left_place.segments)
+                == self.place_segments.span_or_empty(right_place.segments)
     }
 }
 
@@ -952,6 +993,51 @@ mod tests {
             PlaceSegment::Field {
                 symbol: tail_symbol
             }
+        );
+    }
+
+    #[test]
+    fn proves_domain_membership_for_structurally_equal_places() {
+        let domain_symbol = SymbolHandle::from_arena_index(40);
+        let value_symbol = SymbolHandle::from_arena_index(41);
+        let field_symbol = SymbolHandle::from_arena_index(42);
+
+        let mut facts = FactPlan::default();
+        let left = facts.append_symbol_place(value_symbol);
+        facts.push_place_segment(
+            left,
+            PlaceSegment::Field {
+                symbol: field_symbol,
+            },
+        );
+
+        let right = facts.append_symbol_place(value_symbol);
+        facts.push_place_segment(
+            right,
+            PlaceSegment::Field {
+                symbol: field_symbol,
+            },
+        );
+
+        let fact = facts.append_fact(Fact {
+            place: FactPlace::Place(left),
+            point: ProgramPoint::Global,
+            origin: FactOrigin::DomainDefinition { domain_symbol },
+            payload: FactPayload::DomainMembership {
+                value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+                domain: HandleSpan::empty(),
+                domain_symbol,
+            },
+        });
+        let mut refs = HandleSpan::empty();
+        facts.append_ref(&mut refs, fact);
+        let context = facts.append_context(ProgramPoint::Global, refs);
+
+        assert!(facts.places_equal(left, right));
+        assert!(
+            facts
+                .context_view(facts.contexts.get(context))
+                .proves_place_domain_membership(right, domain_symbol)
         );
     }
 }
