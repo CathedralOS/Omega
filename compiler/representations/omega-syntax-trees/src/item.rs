@@ -137,6 +137,7 @@ pub struct CapabilityState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
+    pub facts: HandleSpan<DomainFact>,
     pub token_count: usize,
 }
 
@@ -144,6 +145,7 @@ impl Default for CapabilityContract {
     fn default() -> Self {
         Self {
             kind: CapabilityContractKind::default(),
+            facts: HandleSpan::empty(),
             token_count: 0,
         }
     }

@@ -210,6 +210,7 @@ pub struct StateSignatureSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SignatureContractSnapshot {
     pub kind: &'static str,
+    pub facts: Vec<DomainFactSnapshot>,
     pub token_count: usize,
 }
 
@@ -464,7 +465,7 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
         contracts: program
             .machine_contracts(machine)
             .iter()
-            .map(signature_contract_snapshot)
+            .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
         contains: program
             .machine_contained_objects(machine.contains)
@@ -574,12 +575,13 @@ fn state_signature_snapshot(
         contracts: program
             .signature_contracts(signature.contracts)
             .iter()
-            .map(signature_contract_snapshot)
+            .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
     }
 }
 
 fn signature_contract_snapshot(
+    program: &SymbolResolvedTrees,
     contract: &crate::signature::SignatureContract,
 ) -> SignatureContractSnapshot {
     SignatureContractSnapshot {
@@ -588,6 +590,7 @@ fn signature_contract_snapshot(
             crate::signature::SignatureContractKind::Ensures => "ensures",
             crate::signature::SignatureContractKind::Trusted => "trusted",
         },
+        facts: domain_fact_snapshots(program, contract.facts),
         token_count: contract.token_count,
     }
 }

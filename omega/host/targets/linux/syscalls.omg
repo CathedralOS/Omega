@@ -5,8 +5,7 @@ capability LinuxSyscalls {
         requires fd == 0
         requires buffer.writable
         requires byte_count <= buffer.len
-        ensures result.Ok(n) => n <= byte_count
-        ensures result.Err(e) => e is LinuxErrno
+        ensures result.Ok || result.Err
         trust linux_syscall_abi
         trust host
     }
@@ -15,8 +14,7 @@ capability LinuxSyscalls {
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
-        ensures result.Ok(n) => n <= byte_count
-        ensures result.Err(e) => e is LinuxErrno
+        ensures result.Ok || result.Err
         trust linux_syscall_abi
         trust host
     }

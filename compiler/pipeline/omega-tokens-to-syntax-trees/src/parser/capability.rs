@@ -1,4 +1,5 @@
 use crate::parser::input::{Input, ParseResult};
+use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::parse_state_signature;
 use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
@@ -84,7 +85,7 @@ fn parse_capability_state<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::LeftBrace) {
         input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         while !input.at_punctuation(PunctuationKind::RightBrace) {
-            let (contract, rest) = parse_capability_contract(input)?;
+            let (contract, rest) = parse_capability_contract(syntax_trees, input)?;
             let handle = syntax_trees.items.append_capability_contract(contract);
             if contract_count == 0 {
                 contract_start = handle;
@@ -101,7 +102,7 @@ fn parse_capability_state<'tokens, 'source>(
             || input.at_punctuation(PunctuationKind::RightBrace)
             || input.tokens.is_empty())
         {
-            let (contract, rest) = parse_capability_contract(input)?;
+            let (contract, rest) = parse_capability_contract(syntax_trees, input)?;
             let handle = syntax_trees.items.append_capability_contract(contract);
             if contract_count == 0 {
                 contract_start = handle;
@@ -129,14 +130,18 @@ fn parse_capability_state<'tokens, 'source>(
 }
 
 fn parse_capability_contract<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityContract> {
     if input.at_contextual("requires") {
         let input = input.take_contextual("requires")?;
-        let (token_count, input) = skip_contract_tokens(input)?;
+        let ((facts, token_count), input) =
+            parse_proof_facts_until(syntax_trees, input, capability_contract_terminator)?;
+        let input = take_optional_semicolon(input)?;
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                facts,
                 token_count,
             },
             input,
@@ -145,10 +150,13 @@ fn parse_capability_contract<'tokens, 'source>(
 
     if input.at_contextual("ensures") {
         let input = input.take_contextual("ensures")?;
-        let (token_count, input) = skip_contract_tokens(input)?;
+        let ((facts, token_count), input) =
+            parse_proof_facts_until(syntax_trees, input, capability_contract_terminator)?;
+        let input = take_optional_semicolon(input)?;
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Ensures,
+                facts,
                 token_count,
             },
             input,
@@ -162,9 +170,11 @@ fn parse_capability_contract<'tokens, 'source>(
             input.take_contextual("trusted")?
         };
         let (trust_level, input) = parse_trust_level(input)?;
+        let input = take_optional_semicolon(input)?;
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Trusted(trust_level),
+                facts: HandleSpan::empty(),
                 token_count: 1,
             },
             input,
@@ -174,24 +184,25 @@ fn parse_capability_contract<'tokens, 'source>(
     Err(input.error_here("expected capability contract"))
 }
 
-fn skip_contract_tokens<'tokens, 'source>(
-    mut input: Input<'tokens, 'source>,
-) -> Result<(usize, Input<'tokens, 'source>), crate::parse_error::ParseError> {
-    let mut count = 0usize;
-    while !(input.at_punctuation(PunctuationKind::Semicolon)
+fn take_optional_semicolon<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        input.take_punctuation(PunctuationKind::Semicolon, ";")
+    } else {
+        Ok(input)
+    }
+}
+
+fn capability_contract_terminator(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Semicolon)
         || input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::State)
         || input.at_keyword(KeywordKind::Entry)
-        || input.tokens.is_empty())
-    {
-        let (_, rest) = input.expect_token()?;
-        input = rest;
-        count += 1;
-    }
-    if input.at_punctuation(PunctuationKind::Semicolon) {
-        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    }
-    Ok((count, input))
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("trust")
+        || input.tokens.is_empty()
 }
 
 fn parse_trust_level<'tokens, 'source>(

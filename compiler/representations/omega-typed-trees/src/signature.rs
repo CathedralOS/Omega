@@ -52,6 +52,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
+    pub facts: omega_core::arena::HandleSpan<crate::domain::DomainFact>,
     pub token_count: usize,
 }
 

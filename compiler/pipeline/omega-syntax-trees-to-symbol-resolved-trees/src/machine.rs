@@ -15,7 +15,7 @@ pub(crate) fn lower_machine_into(
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
-    let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts);
+    let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
     let attached_data = machine.attached_data.as_ref().map(crate::name::lower_name);
 

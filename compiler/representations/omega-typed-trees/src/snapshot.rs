@@ -228,6 +228,7 @@ pub struct StateSignatureSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SignatureContractSnapshot {
     pub kind: &'static str,
+    pub facts: Vec<DomainFactSnapshot>,
     pub token_count: usize,
 }
 
@@ -486,7 +487,7 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
         contracts: program
             .machine_contracts(machine)
             .iter()
-            .map(signature_contract_snapshot)
+            .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
         contains: program
             .machine_contained_objects(machine)
@@ -586,12 +587,13 @@ fn state_signature_snapshot(
         contracts: program
             .state_signature_contracts(signature)
             .iter()
-            .map(signature_contract_snapshot)
+            .map(|contract| signature_contract_snapshot(program, contract))
             .collect(),
     }
 }
 
 fn signature_contract_snapshot(
+    program: &TypedTrees,
     contract: &crate::signature::SignatureContract,
 ) -> SignatureContractSnapshot {
     SignatureContractSnapshot {
@@ -600,8 +602,34 @@ fn signature_contract_snapshot(
             crate::signature::SignatureContractKind::Ensures => "ensures",
             crate::signature::SignatureContractKind::Trusted => "trusted",
         },
+        facts: contract_fact_snapshots(program, contract.facts),
         token_count: contract.token_count,
     }
+}
+
+fn contract_fact_snapshots(
+    program: &TypedTrees,
+    facts: omega_core::arena::HandleSpan<DomainFact>,
+) -> Vec<DomainFactSnapshot> {
+    program
+        .domain_facts
+        .span_or_empty(facts)
+        .iter()
+        .map(|fact| match fact {
+            DomainFact::Expression(expression) => DomainFactSnapshot::Expression {
+                value: expression_snapshot(program, *expression),
+            },
+            DomainFact::Membership(membership) => DomainFactSnapshot::Membership {
+                value: expression_snapshot(program, membership.value),
+                domain: program
+                    .domain_path_members(membership.domain)
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                domain_symbol: membership.domain_symbol.arena_index(),
+            },
+        })
+        .collect()
 }
 
 fn state_parameter_snapshot(

@@ -45,11 +45,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     CapabilityMember::State(state) => {
                         count_state_signature(syntax_trees, &state.signature, counts);
                         for contract in syntax_trees.items.capability_contracts(state.contracts) {
-                            if let CapabilityContractKind::Trusted(TrustLevel::Named(name)) =
-                                &contract.kind
-                            {
-                                count_identifier(name, counts);
-                            }
+                            count_contract(syntax_trees, contract, counts);
                         }
                     }
                 }
@@ -258,6 +254,9 @@ fn count_state_signature(
     {
         count_identifier(effect, counts);
     }
+    for contract in syntax_trees.items.capability_contracts(signature.contracts) {
+        count_contract(syntax_trees, contract, counts);
+    }
 }
 
 fn count_state_signature_node(
@@ -277,6 +276,43 @@ fn count_state_signature_node(
         .identifier_path_members(signature.effects)
     {
         count_identifier(effect, counts);
+    }
+    for contract in syntax_trees.items.capability_contracts(signature.contracts) {
+        count_contract(syntax_trees, contract, counts);
+    }
+}
+
+fn count_contract(
+    syntax_trees: &SyntaxTrees,
+    contract: &crate::item::CapabilityContract,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    if let CapabilityContractKind::Trusted(TrustLevel::Named(name)) = &contract.kind {
+        count_identifier(name, counts);
+    }
+    for fact in syntax_trees.items.domain_facts(contract.facts) {
+        count_domain_fact(syntax_trees, fact, counts);
+    }
+}
+
+fn count_domain_fact(
+    syntax_trees: &SyntaxTrees,
+    fact: &DomainFact,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    match fact {
+        DomainFact::Expression(expression) => {
+            count_expression_handle(syntax_trees, *expression, counts);
+        }
+        DomainFact::Membership(membership) => {
+            count_expression_handle(syntax_trees, membership.value, counts);
+            count_identifier_members(
+                syntax_trees
+                    .items
+                    .identifier_path_members(membership.domain),
+                counts,
+            );
+        }
     }
 }
 

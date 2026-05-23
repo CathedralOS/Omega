@@ -12,6 +12,7 @@ mod item;
 mod library;
 mod machine;
 mod platform;
+mod proof_fact;
 mod state;
 mod statement;
 mod target;
@@ -215,6 +216,8 @@ mod tests {
         ));
         assert!(contracts[0].token_count > 0);
         assert!(contracts[1].token_count > 0);
+        assert_eq!(parsed.items.domain_facts(contracts[0].facts).len(), 1);
+        assert_eq!(parsed.items.domain_facts(contracts[1].facts).len(), 1);
     }
 
     #[test]
@@ -248,6 +251,8 @@ mod tests {
         let effects = parsed.items.identifier_path_members(signature.effects);
 
         assert_eq!(contracts.len(), 2);
+        assert_eq!(parsed.items.domain_facts(contracts[0].facts).len(), 1);
+        assert_eq!(parsed.items.domain_facts(contracts[1].facts).len(), 1);
         assert_eq!(effects.len(), 1);
         assert_eq!(effects[0].as_str(), "filesystem_io");
     }

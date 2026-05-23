@@ -1,4 +1,5 @@
 use crate::parser::input::{Input, ParseResult};
+use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::parse_state_signature;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
@@ -136,10 +137,22 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
                 input = input.take_contextual("ensures")?;
                 CapabilityContractKind::Ensures
             };
-            let (token_count, rest) = skip_trait_contract_tokens(input)?;
+            let ((facts, token_count), rest) =
+                parse_proof_facts_until(syntax_trees, input, |input| {
+                    input.at_punctuation(PunctuationKind::Semicolon)
+                        || input.at_contextual("requires")
+                        || input.at_contextual("ensures")
+                        || input.at_contextual("effects")
+                        || input.at_contextual("where")
+                        || input.tokens.is_empty()
+                })?;
             let handle = syntax_trees
                 .items
-                .append_capability_contract(CapabilityContract { kind, token_count });
+                .append_capability_contract(CapabilityContract {
+                    kind,
+                    facts,
+                    token_count,
+                });
             if contract_count == 0 {
                 contract_start = handle;
             }
@@ -165,22 +178,4 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
         HandleSpan::from_parts(contract_start, contract_count)
     };
     Ok(((effects, contracts), input))
-}
-
-fn skip_trait_contract_tokens<'tokens, 'source>(
-    mut input: Input<'tokens, 'source>,
-) -> Result<(usize, Input<'tokens, 'source>), crate::parse_error::ParseError> {
-    let mut count = 0usize;
-    while !(input.at_punctuation(PunctuationKind::Semicolon)
-        || input.at_contextual("requires")
-        || input.at_contextual("ensures")
-        || input.at_contextual("effects")
-        || input.at_contextual("where")
-        || input.tokens.is_empty())
-    {
-        let (_, rest) = input.expect_token()?;
-        input = rest;
-        count += 1;
-    }
-    Ok((count, input))
 }

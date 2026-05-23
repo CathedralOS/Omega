@@ -38,6 +38,8 @@ pub struct DomainSurface {
 pub struct ContractSurface {
     pub owner: String,
     pub kind: ContractKindSurface,
+    pub fact_count: usize,
+    pub membership_fact_count: usize,
     pub token_count: usize,
 }
 
@@ -289,6 +291,13 @@ fn collect_contracts(
                 CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
                 CapabilityContractKind::Trusted(_) => ContractKindSurface::Trusted,
             },
+            fact_count: syntax_trees.items.domain_facts(contract.facts).len(),
+            membership_fact_count: syntax_trees
+                .items
+                .domain_facts(contract.facts)
+                .iter()
+                .filter(|fact| matches!(fact, DomainFact::Membership(_)))
+                .count(),
             token_count: contract.token_count,
         });
     }
@@ -562,12 +571,14 @@ mod tests {
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                facts: HandleSpan::empty(),
                 token_count: 3,
             });
         let ensures = syntax_trees
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Ensures,
+                facts: HandleSpan::empty(),
                 token_count: 3,
             });
 

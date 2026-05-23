@@ -134,6 +134,7 @@ pub enum CapabilityMemberSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CapabilityContractSnapshot {
     pub kind: CapabilityContractKindSnapshot,
+    pub facts: Vec<DomainFactSnapshot>,
     pub token_count: usize,
 }
 
@@ -588,11 +589,14 @@ fn snapshot_capability_contracts(
         .items
         .capability_contracts(contracts)
         .iter()
-        .map(snapshot_capability_contract)
+        .map(|contract| snapshot_capability_contract(syntax_trees, contract))
         .collect()
 }
 
-fn snapshot_capability_contract(contract: &CapabilityContract) -> CapabilityContractSnapshot {
+fn snapshot_capability_contract(
+    syntax_trees: &SyntaxTrees,
+    contract: &CapabilityContract,
+) -> CapabilityContractSnapshot {
     CapabilityContractSnapshot {
         kind: match &contract.kind {
             CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
@@ -601,6 +605,7 @@ fn snapshot_capability_contract(contract: &CapabilityContract) -> CapabilityCont
                 trust_level: snapshot_trust_level(level),
             },
         },
+        facts: snapshot_domain_facts(syntax_trees, contract.facts),
         token_count: contract.token_count,
     }
 }

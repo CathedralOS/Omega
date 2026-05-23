@@ -1,3 +1,4 @@
+use crate::domain::lower_domain_facts;
 use crate::program::Lowerer;
 use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference_handle;
@@ -84,7 +85,7 @@ fn lower_state_signature_parts(
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
     let effects = lower_signature_effects(lowerer, syntax_trees, effects);
-    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts);
+    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
     Ok(StateSignature {
         symbol: SymbolHandle::invalid(),
@@ -121,10 +122,11 @@ pub(crate) fn lower_signature_contracts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
-) -> HandleSpan<SignatureContract> {
+) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for contract in syntax_trees.items.capability_contracts(contracts) {
+        let facts = lower_domain_facts(lowerer, syntax_trees, contract.facts)?;
         lowerer
             .symbol_resolved_trees
             .tables
@@ -144,12 +146,13 @@ pub(crate) fn lower_signature_contracts(
                             SignatureContractKind::Trusted
                         }
                     },
+                    facts,
                     token_count: contract.token_count,
                 },
             );
     }
 
-    span
+    Ok(span)
 }
 
 fn lower_state_statements(

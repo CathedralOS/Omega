@@ -327,8 +327,10 @@ impl SyntaxTrees {
                         CapabilityContractKind::Trusted(TrustLevel::Named(name.clone()))
                     }
                 },
+                facts: self.copy_domain_fact_span(other, contract.facts),
                 token_count: contract.token_count,
-            });
+            })
+            .collect::<Vec<_>>();
         self.copy_span(contracts, |this, contract| {
             this.items.append_capability_contract(contract)
         })

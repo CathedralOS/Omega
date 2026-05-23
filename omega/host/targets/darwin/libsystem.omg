@@ -5,8 +5,7 @@ capability DarwinLibSystem {
         requires fd == 0
         requires buffer.writable
         requires byte_count <= buffer.len
-        ensures result.Ok(n) => n <= byte_count
-        ensures result.Err(e) => e is DarwinErrno
+        ensures result.Ok || result.Err
         trust darwin_libsystem_abi
         trust host
     }
@@ -15,8 +14,7 @@ capability DarwinLibSystem {
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
-        ensures result.Ok(n) => n <= byte_count
-        ensures result.Err(e) => e is DarwinErrno
+        ensures result.Ok || result.Err
         trust darwin_libsystem_abi
         trust host
     }

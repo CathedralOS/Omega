@@ -731,11 +731,19 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
 }
 
 fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
-    let domain_fact_spans = program
+    let mut domain_fact_spans = program
         .domain_definitions
         .iter()
         .map(|domain| domain.facts)
         .collect::<Vec<_>>();
+    domain_fact_spans.extend(
+        program
+            .tables
+            .declarations
+            .signature_contracts
+            .iter()
+            .map(|(_, contract)| contract.facts),
+    );
     let domain_path_members = &program.tables.declarations.domain_path_members;
     let domain_facts = &mut program.tables.declarations.domain_facts;
 

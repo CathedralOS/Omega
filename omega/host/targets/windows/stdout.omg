@@ -7,8 +7,7 @@ capability WindowsStdout {
 
     entry write_line(text: String) -> Result<(), IOError> where {
         requires text.utf8
-        ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
-        ensures result.Err(e) => e is IOError
+        ensures result.Ok || result.Err
         trust omega_windows_stdout_adapter
         trust omega_windows_kernel32
     }

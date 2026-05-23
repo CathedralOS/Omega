@@ -22,7 +22,7 @@ pub(crate) fn lower_domain_definition(
     })
 }
 
-fn lower_domain_facts(
+pub(crate) fn lower_domain_facts(
     lowerer: &mut Lowerer,
     facts: HandleSpan<resolved::domain::DomainFact>,
 ) -> Result<HandleSpan<typed::domain::DomainFact>, Diagnostic> {
