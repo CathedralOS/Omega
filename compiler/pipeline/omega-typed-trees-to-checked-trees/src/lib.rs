@@ -5,9 +5,9 @@ use omega_checked_trees::statement::{
 };
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
-    BorrowWritableRootFact, CheckFacts, ContractProofFact, ContractProofFactKind,
-    ContractProofFactOwner, InvariantFact, InvariantFacts, Program, ProofFactKind, ProofFacts,
-    ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractProofFact, ContractProofFactKind,
+    ContractProofFactOwner, ContractProofFactRef, InvariantFact, InvariantFacts, Program,
+    ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -21,9 +21,10 @@ pub fn lower_typed_trees(
     omega_proof::checker::check_proof_plan(&proof_plan)?;
     let effects = omega_effects::infer_effects(&program);
     omega_validation::validate_effect_plan(&program, &effects)?;
+    let borrow = build_borrow_facts(&program);
     let facts = CheckFacts {
-        borrow: build_borrow_facts(&program),
-        proof: build_proof_facts(&program, &proof_plan),
+        proof: build_proof_facts(&program, &proof_plan, &borrow),
+        borrow,
         invariants: build_invariant_facts(&program),
         effects,
     };
@@ -43,6 +44,7 @@ pub fn lower_typed_program(
 fn build_proof_facts(
     program: &omega_typed_trees::TypedTrees,
     proof_plan: &omega_proof::obligations::ProofPlan,
+    borrow: &BorrowFacts,
 ) -> ProofFacts {
     let mut obligations = omega_core::arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts =
@@ -124,10 +126,14 @@ fn build_proof_facts(
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts);
     }
+    let (contract_fact_refs, contract_calls) =
+        build_contract_call_facts(program, borrow, &contract_facts);
 
     ProofFacts {
         obligations,
         contract_facts,
+        contract_fact_refs,
+        contract_calls,
     }
 }
 
@@ -161,6 +167,130 @@ fn append_machine_contract_facts(
             });
         }
     }
+}
+
+fn build_contract_call_facts(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    contract_facts: &omega_core::arena::Arena<ContractProofFact>,
+) -> (
+    omega_core::arena::Arena<ContractProofFactRef>,
+    omega_core::arena::Arena<ContractCallFact>,
+) {
+    let mut fact_refs = omega_core::arena::Arena::with_capacity(contract_facts.len());
+    let mut calls = omega_core::arena::Arena::with_capacity(borrow.calls.len());
+
+    for state in borrow.states.iter().map(|(_, state)| state) {
+        for call in borrow.calls.span_or_empty(state.calls) {
+            let Some((target_machine_symbol, target_state_symbol)) =
+                contract_target_from_state_symbol(program, call.target_symbol)
+            else {
+                continue;
+            };
+
+            append_contract_call(
+                contract_facts,
+                &mut fact_refs,
+                &mut calls,
+                ContractCallSite {
+                    caller_machine_symbol: state.machine_symbol,
+                    caller_state_symbol: state.state_symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    target_machine_symbol,
+                    target_state_symbol,
+                },
+            );
+        }
+    }
+
+    (fact_refs, calls)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ContractCallSite {
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+    target_machine_symbol: SymbolHandle,
+    target_state_symbol: SymbolHandle,
+}
+
+fn append_contract_call(
+    contract_facts: &omega_core::arena::Arena<ContractProofFact>,
+    fact_refs: &mut omega_core::arena::Arena<ContractProofFactRef>,
+    calls: &mut omega_core::arena::Arena<ContractCallFact>,
+    site: ContractCallSite,
+) {
+    let requires = append_contract_fact_refs(
+        contract_facts,
+        fact_refs,
+        site.target_machine_symbol,
+        ContractProofFactKind::Requires,
+    );
+    let ensures = append_contract_fact_refs(
+        contract_facts,
+        fact_refs,
+        site.target_machine_symbol,
+        ContractProofFactKind::Ensures,
+    );
+
+    if requires.is_empty() && ensures.is_empty() {
+        return;
+    }
+
+    calls.append(ContractCallFact {
+        caller_machine_symbol: site.caller_machine_symbol,
+        caller_state_symbol: site.caller_state_symbol,
+        statement_index: site.statement_index,
+        call_ordinal: site.call_ordinal,
+        target_machine_symbol: site.target_machine_symbol,
+        target_state_symbol: site.target_state_symbol,
+        requires,
+        ensures,
+    });
+}
+
+fn append_contract_fact_refs(
+    contract_facts: &omega_core::arena::Arena<ContractProofFact>,
+    fact_refs: &mut omega_core::arena::Arena<ContractProofFactRef>,
+    machine_symbol: SymbolHandle,
+    kind: ContractProofFactKind,
+) -> HandleSpan<ContractProofFactRef> {
+    let mut span = HandleSpan::empty();
+
+    for (handle, fact) in contract_facts.iter() {
+        let ContractProofFactOwner::Machine {
+            machine_symbol: owner_symbol,
+        } = fact.owner
+        else {
+            continue;
+        };
+
+        if owner_symbol == machine_symbol && fact.kind == kind {
+            fact_refs.append_to_span(&mut span, ContractProofFactRef { fact: handle });
+        }
+    }
+
+    span
+}
+
+fn contract_target_from_state_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    if !target_state_symbol.is_valid() {
+        return None;
+    }
+
+    let target_machine = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == target_state_symbol)
+    })?;
+    Some((target_machine.symbol, target_state_symbol))
 }
 
 fn fact_handles(
@@ -1305,7 +1435,8 @@ mod tests {
         program.push_machine(machine);
 
         let proof_plan = omega_proof::obligations::build_proof_plan(&program);
-        let facts = build_proof_facts(&program, &proof_plan);
+        let borrow = build_borrow_facts(&program);
+        let facts = build_proof_facts(&program, &proof_plan, &borrow);
         let contract_fact = facts
             .contract_facts
             .iter()
@@ -1320,6 +1451,111 @@ mod tests {
             contract_fact.owner,
             ContractProofFactOwner::Machine { machine_symbol }
         );
+    }
+
+    #[test]
+    fn indexes_call_contract_facts_by_target_machine() {
+        let caller_machine_symbol = SymbolHandle::from_arena_index(5);
+        let caller_state_symbol = SymbolHandle::from_arena_index(6);
+        let target_machine_symbol = SymbolHandle::from_arena_index(7);
+        let target_state_symbol = SymbolHandle::from_arena_index(8);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let fact = program
+            .proof_facts
+            .append(omega_typed_trees::domain::ProofFact::Expression(expression));
+
+        let mut target_machine = Machine {
+            symbol: target_machine_symbol,
+            name: ProgramName::generated("Target"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_contract(
+            &mut target_machine,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: HandleSpan::from_parts(fact, 1),
+                token_count: 1,
+            },
+        );
+        program.push_machine_state(
+            &mut target_machine,
+            State {
+                symbol: target_state_symbol,
+                name: ProgramName::generated("run"),
+                parameters: Default::default(),
+                return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                statement_nodes: Default::default(),
+            },
+        );
+        program.push_machine(target_machine);
+
+        let mut caller_machine = Machine {
+            symbol: caller_machine_symbol,
+            name: ProgramName::generated("Caller"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut caller_state = State {
+            symbol: caller_state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        let mut receiver = HandleSpan::empty();
+        program
+            .statement_table
+            .push_name_path_member(&mut receiver, ProgramName::generated("target"));
+        program.statement_table.push_statement(
+            &mut caller_state.statement_nodes,
+            StatementNode::Call(TableCall {
+                receiver_symbol: target_machine_symbol,
+                target_symbol: target_state_symbol,
+                receiver,
+                target: ProgramName::generated("run"),
+                arguments: Default::default(),
+            }),
+        );
+        program.push_machine_state(&mut caller_machine, caller_state);
+        program.push_machine(caller_machine);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let borrow = build_borrow_facts(&program);
+        let facts = build_proof_facts(&program, &proof_plan, &borrow);
+        let contract_call = facts
+            .contract_calls
+            .iter()
+            .next()
+            .map(|(_, call)| call)
+            .expect("checked proof facts should index the call contract");
+        let requires = facts
+            .contract_fact_refs
+            .span_or_empty(contract_call.requires);
+
+        assert_eq!(facts.contract_calls.len(), 1);
+        assert_eq!(contract_call.caller_machine_symbol, caller_machine_symbol);
+        assert_eq!(contract_call.caller_state_symbol, caller_state_symbol);
+        assert_eq!(contract_call.statement_index, 0);
+        assert_eq!(contract_call.call_ordinal, 0);
+        assert_eq!(contract_call.target_machine_symbol, target_machine_symbol);
+        assert_eq!(contract_call.target_state_symbol, target_state_symbol);
+        assert_eq!(requires.len(), 1);
+        assert_eq!(facts.contract_facts.get(requires[0].fact).fact, fact);
     }
 
     #[test]

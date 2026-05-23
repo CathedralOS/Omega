@@ -122,6 +122,27 @@ fn checked_effects_report(program: &Program) -> String {
         report.push('\n');
     }
 
+    if !program.facts.proof.contract_calls.is_empty() {
+        report.push('\n');
+    }
+    for (_, call) in program.facts.proof.contract_calls.iter() {
+        report.push_str("call ");
+        report.push_str(&machine_name(program, call.caller_machine_symbol));
+        report.push_str("::");
+        report.push_str(&state_name(program, call.caller_state_symbol));
+        report.push(' ');
+        report.push_str(&call.statement_index.to_string());
+        report.push('.');
+        report.push_str(&call.call_ordinal.to_string());
+        report.push_str(" -> ");
+        report.push_str(&machine_name(program, call.target_machine_symbol));
+        report.push_str("::");
+        report.push_str(&state_name(program, call.target_state_symbol));
+        report.push('\n');
+        append_contract_fact_ref_list(program, &mut report, "requires", call.requires);
+        append_contract_fact_ref_list(program, &mut report, "ensures", call.ensures);
+    }
+
     report
 }
 
@@ -261,6 +282,32 @@ fn typed_proof_fact_label(
             )
         }
     }
+}
+
+fn append_contract_fact_ref_list(
+    program: &Program,
+    report: &mut String,
+    label: &str,
+    facts: omega_core::arena::HandleSpan<omega_checked_trees::ContractProofFactRef>,
+) {
+    report.push_str("  ");
+    report.push_str(label);
+    report.push_str(": ");
+
+    let fact_refs = program.facts.proof.contract_fact_refs.span_or_empty(facts);
+    if fact_refs.is_empty() {
+        report.push_str("<none>\n");
+        return;
+    }
+
+    for (index, fact_ref) in fact_refs.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        let fact = program.facts.proof.contract_facts.get(fact_ref.fact);
+        report.push_str(&typed_proof_fact_label(program, fact.fact));
+    }
+    report.push('\n');
 }
 
 fn format_effect_set(effects: EffectSet) -> String {
