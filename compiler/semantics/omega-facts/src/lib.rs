@@ -396,7 +396,7 @@ impl FactPlan {
                 self.push_place_segment(
                     place,
                     PlaceSegment::Field {
-                        symbol: member.member_symbol,
+                        symbol: effective_member_symbol(program, member.receiver, member),
                     },
                 );
                 place
@@ -637,6 +637,167 @@ impl FactPlan {
         left_place.root == right_place.root
             && self.place_segments.span_or_empty(left_place.segments)
                 == self.place_segments.span_or_empty(right_place.segments)
+    }
+}
+
+fn effective_member_symbol(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    member: &omega_typed_trees::expression::TableMemberExpression,
+) -> SymbolHandle {
+    if let Some(symbol) =
+        resolve_member_symbol_from_receiver(program, receiver, member.member.as_str())
+    {
+        return symbol;
+    }
+
+    if member.member_symbol.is_valid() {
+        return member.member_symbol;
+    }
+
+    SymbolHandle::invalid()
+}
+
+fn resolve_member_symbol_from_receiver(
+    program: &TypedTrees,
+    receiver: ExpressionHandle,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let type_symbol = expression_type_symbol(program, receiver)?;
+
+    if let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == type_symbol)
+    {
+        for member in program.data_members(data) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == member_name =>
+                {
+                    return Some(field.symbol);
+                }
+                omega_typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == member_name =>
+                {
+                    return Some(variant.symbol);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == type_symbol)
+    {
+        for owned in program.machine_owned_data(machine) {
+            if owned.name.as_str() == member_name {
+                return Some(owned.symbol);
+            }
+        }
+        for contained in program.machine_contained_objects(machine) {
+            if contained.name.as_str() == member_name {
+                return Some(contained.symbol);
+            }
+        }
+    }
+
+    None
+}
+
+fn expression_type_symbol(program: &TypedTrees, expression: ExpressionHandle) -> Option<SymbolHandle> {
+    if !expression.is_valid() {
+        return None;
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => expression_type_symbol(program, *inner),
+        ExpressionNode::Name(path) => {
+            let symbol = if path.head_symbol.is_valid() {
+                path.head_symbol
+            } else {
+                path.symbol
+            };
+            symbol_type_symbol(program, symbol)
+        }
+        ExpressionNode::Member(member) => {
+            let symbol = effective_member_symbol(program, member.receiver, member);
+            symbol_type_symbol(program, symbol)
+        }
+        _ => None,
+    }
+}
+
+fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            if let Some(attached_data) = machine.attached_data.as_deref() {
+                if let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == attached_data)
+                {
+                    return Some(data.symbol);
+                }
+            }
+        }
+        for state in program.machine_states(machine) {
+            for parameter in program.state_parameters(state) {
+                if parameter.symbol == symbol {
+                    return Some(type_reference_base_symbol(program, parameter.type_reference));
+                }
+            }
+        }
+        for owned in program.machine_owned_data(machine) {
+            if owned.symbol == symbol {
+                return Some(type_reference_base_symbol(program, owned.type_reference));
+            }
+        }
+        for contained in program.machine_contained_objects(machine) {
+            if contained.symbol == symbol {
+                return Some(contained.type_symbol);
+            }
+        }
+    }
+
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            if let omega_typed_trees::data::DataMember::Field(field) = member
+                && field.symbol == symbol
+            {
+                return Some(type_reference_base_symbol(program, field.type_reference));
+            }
+        }
+    }
+
+    None
+}
+
+fn type_reference_base_symbol(
+    program: &TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> SymbolHandle {
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_base_symbol(program, *referee)
+        }
+        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_base_symbol(program, *base_type)
+        }
+        omega_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+        | omega_typed_trees::types::TypeReferenceNode::Named {
+            symbol: base_symbol,
+            ..
+        } => *base_symbol,
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
     }
 }
 
