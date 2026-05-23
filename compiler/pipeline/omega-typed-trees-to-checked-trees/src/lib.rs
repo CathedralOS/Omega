@@ -29,7 +29,7 @@ pub fn lower_typed_trees(
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let invariants = build_invariant_facts(&program);
-    let semantic = build_semantic_facts(&program, &proof, &invariants);
+    let semantic = build_semantic_facts(&program, &proof);
     let facts = CheckFacts {
         semantic,
         proof,
@@ -44,145 +44,12 @@ pub fn lower_typed_trees(
     })
 }
 
-fn build_semantic_facts(
-    program: &omega_typed_trees::TypedTrees,
-    proof: &ProofFacts,
-    invariants: &InvariantFacts,
-) -> FactPlan {
-    let mut facts = FactPlan::with_capacity(
-        estimated_semantic_fact_capacity(program, proof, invariants),
-        estimated_semantic_context_capacity(program, proof),
-    );
-
-    append_domain_semantic_facts(program, &mut facts);
-    append_invariant_semantic_facts(program, invariants, &mut facts);
+fn build_semantic_facts(program: &omega_typed_trees::TypedTrees, proof: &ProofFacts) -> FactPlan {
+    let mut facts = omega_facts::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
     append_contract_semantic_facts(proof, &mut facts);
 
     facts
-}
-
-fn estimated_semantic_fact_capacity(
-    program: &omega_typed_trees::TypedTrees,
-    proof: &ProofFacts,
-    invariants: &InvariantFacts,
-) -> usize {
-    let domain_facts = program
-        .domain_definitions()
-        .iter()
-        .map(|domain| program.proof_facts(domain).len())
-        .sum::<usize>();
-    domain_facts
-        .saturating_add(
-            invariants
-                .definitions
-                .iter()
-                .map(|(_, invariant)| invariant.constraint_count)
-                .sum::<usize>(),
-        )
-        .saturating_add(proof.obligations.len())
-        .saturating_add(proof.contract_facts.len())
-}
-
-fn estimated_semantic_context_capacity(
-    program: &omega_typed_trees::TypedTrees,
-    proof: &ProofFacts,
-) -> usize {
-    program
-        .domain_definitions()
-        .len()
-        .saturating_add(program.invariant_definitions().len())
-        .saturating_add(proof.contract_facts.len())
-        .saturating_add(proof.contract_calls.len())
-        .saturating_add(proof.contract_exits.len())
-}
-
-fn append_domain_semantic_facts(program: &omega_typed_trees::TypedTrees, facts: &mut FactPlan) {
-    for domain in program.domain_definitions() {
-        let mut refs = HandleSpan::empty();
-        for fact_handle in fact_handles(domain.facts) {
-            let payload = match program.proof_facts.get(fact_handle) {
-                omega_typed_trees::domain::ProofFact::Expression(expression) => {
-                    FactPayload::BooleanExpression(*expression)
-                }
-                omega_typed_trees::domain::ProofFact::Membership(membership) => {
-                    FactPayload::DomainMembership {
-                        value: membership.value,
-                        domain_symbol: membership.domain_symbol,
-                    }
-                }
-            };
-            let fact = facts.append_fact(Fact {
-                place: FactPlace::Symbol(domain.symbol),
-                point: ProgramPoint::Definition {
-                    symbol: domain.symbol,
-                },
-                origin: FactOrigin::DomainDefinition {
-                    domain_symbol: domain.symbol,
-                },
-                payload,
-            });
-            facts.append_ref(&mut refs, fact);
-        }
-        facts.append_context(
-            ProgramPoint::Definition {
-                symbol: domain.symbol,
-            },
-            refs,
-        );
-        facts.append_symbol_set(domain.symbol, refs);
-    }
-}
-
-fn append_invariant_semantic_facts(
-    program: &omega_typed_trees::TypedTrees,
-    invariants: &InvariantFacts,
-    facts: &mut FactPlan,
-) {
-    for invariant in program.invariant_definitions() {
-        let mut refs = HandleSpan::empty();
-        for constraint in constraint_handles(invariant.constraints) {
-            let fact = facts.append_fact(Fact {
-                place: FactPlace::Symbol(invariant.symbol),
-                point: ProgramPoint::Definition {
-                    symbol: invariant.symbol,
-                },
-                origin: FactOrigin::InvariantDefinition {
-                    invariant_symbol: invariant.symbol,
-                },
-                payload: FactPayload::TypeConstraint { constraint },
-            });
-            facts.append_ref(&mut refs, fact);
-        }
-
-        if refs.is_empty() {
-            let constraint_count = invariants
-                .definitions
-                .iter()
-                .find(|(_, fact)| fact.symbol == invariant.symbol)
-                .map(|(_, fact)| fact.constraint_count)
-                .unwrap_or_default();
-            let fact = facts.append_fact(Fact {
-                place: FactPlace::Symbol(invariant.symbol),
-                point: ProgramPoint::Definition {
-                    symbol: invariant.symbol,
-                },
-                origin: FactOrigin::InvariantDefinition {
-                    invariant_symbol: invariant.symbol,
-                },
-                payload: FactPayload::InvariantDefinition { constraint_count },
-            });
-            facts.append_ref(&mut refs, fact);
-        }
-
-        facts.append_context(
-            ProgramPoint::Definition {
-                symbol: invariant.symbol,
-            },
-            refs,
-        );
-        facts.append_symbol_set(invariant.symbol, refs);
-    }
 }
 
 fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
@@ -973,21 +840,6 @@ fn fact_handles(
                 .checked_add(offset)
                 .expect("proof fact handle index overflow"),
             facts.start().generation(),
-        )
-    })
-}
-
-fn constraint_handles(
-    constraints: HandleSpan<omega_typed_trees::types::TypeConstraintNode>,
-) -> impl Iterator<Item = Handle<omega_typed_trees::types::TypeConstraintNode>> {
-    (0..constraints.count()).map(move |offset| {
-        Handle::from_parts(
-            constraints
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("type constraint handle index overflow"),
-            constraints.start().generation(),
         )
     })
 }
@@ -2071,9 +1923,7 @@ fn first_valid_name_path_symbol(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_borrow_facts, build_invariant_facts, build_proof_facts, build_semantic_facts,
-    };
+    use super::{build_borrow_facts, build_proof_facts, build_semantic_facts};
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
     use omega_checked_trees::machine::{Machine, TraitConformance};
     use omega_checked_trees::name::ProgramName;
@@ -2175,8 +2025,7 @@ mod tests {
         let proof_plan = omega_proof::obligations::build_proof_plan(&program);
         let borrow = build_borrow_facts(&program);
         let proof = build_proof_facts(&program, &proof_plan, &borrow);
-        let invariants = build_invariant_facts(&program);
-        let semantic = build_semantic_facts(&program, &proof, &invariants);
+        let semantic = build_semantic_facts(&program, &proof);
 
         assert_eq!(semantic.facts.len(), 1);
         assert_eq!(semantic.contexts.len(), 1);
