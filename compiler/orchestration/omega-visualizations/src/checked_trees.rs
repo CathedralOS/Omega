@@ -191,6 +191,9 @@ fn checked_effects_report(program: &Program) -> String {
     report.push_str("exits:    ");
     report.push_str(&program.facts.flow.exits.len().to_string());
     report.push('\n');
+    report.push_str("invalidations: ");
+    report.push_str(&program.facts.flow.invalidations.len().to_string());
+    report.push('\n');
     report.push_str("contexts: ");
     report.push_str(&program.facts.flow.semantic_context_refs.len().to_string());
     report.push_str("\n\n");
@@ -218,6 +221,9 @@ fn checked_effects_report(program: &Program) -> String {
         report.push_str("  entry contexts: ");
         append_flow_context_labels(program, &mut report, state_flow.entry_semantic_contexts);
         report.push('\n');
+        report.push_str("  invalidations: ");
+        append_flow_invalidation_summary(program, &mut report, state_flow.invalidations);
+        report.push('\n');
         report.push_str("  direct effects:  ");
         report.push_str(&format_effect_set(state_flow.direct_effects));
         report.push('\n');
@@ -241,6 +247,9 @@ fn checked_effects_report(program: &Program) -> String {
             report.push('\n');
             report.push_str("    exit contexts: ");
             append_flow_context_labels(program, &mut report, call_flow.exit_semantic_contexts);
+            report.push('\n');
+            report.push_str("    invalidations: ");
+            append_flow_invalidation_summary(program, &mut report, call_flow.invalidations);
             report.push('\n');
             report.push_str("    requires: ");
             append_contract_fact_ref_summary(program, &mut report, call_flow.requires);
@@ -480,7 +489,23 @@ fn semantic_place_label(program: &Program, place: omega_facts::FactPlace) -> Str
 }
 
 fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place) -> String {
-    let mut label = match place.root {
+    canonical_place_label_from_parts(
+        program,
+        place.root,
+        program
+            .facts
+            .semantic
+            .place_segments
+            .span_or_empty(place.segments),
+    )
+}
+
+fn canonical_place_label_from_parts(
+    program: &Program,
+    root: omega_facts::PlaceRoot,
+    segments: &[omega_facts::PlaceSegment],
+) -> String {
+    let mut label = match root {
         omega_facts::PlaceRoot::Unknown => "unknown".to_owned(),
         omega_facts::PlaceRoot::Symbol(symbol) => semantic_symbol_name(program, symbol),
         omega_facts::PlaceRoot::Expression(expression) => {
@@ -491,12 +516,7 @@ fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place)
         }
     };
 
-    for segment in program
-        .facts
-        .semantic
-        .place_segments
-        .span_or_empty(place.segments)
-    {
+    for segment in segments {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
@@ -511,6 +531,22 @@ fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place)
     }
 
     label
+}
+
+fn joined_place_label(
+    program: &Program,
+    semantic: &omega_facts::FactPlan,
+    place: &omega_facts::Place,
+    extra_segments: &[omega_facts::PlaceSegment],
+) -> String {
+    let mut segments: Vec<_> = semantic
+        .place_segments
+        .span_or_empty(place.segments)
+        .iter()
+        .copied()
+        .collect();
+    segments.extend(extra_segments.iter().copied());
+    canonical_place_label_from_parts(program, place.root, &segments)
 }
 
 fn append_dependency_path_label(
@@ -852,6 +888,25 @@ fn append_flow_context_labels(
     }
 }
 
+fn append_flow_invalidation_summary(
+    program: &Program,
+    report: &mut String,
+    invalidations: omega_core::arena::HandleSpan<omega_checked_trees::FlowInvalidationFact>,
+) {
+    let invalidations = program.facts.flow.invalidations.span_or_empty(invalidations);
+    if invalidations.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, invalidation) in invalidations.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        report.push_str(&flow_invalidation_label(program, invalidation));
+    }
+}
+
 fn append_contract_fact_ref_summary(
     program: &Program,
     report: &mut String,
@@ -908,6 +963,61 @@ fn format_effect_set(effects: EffectSet) -> String {
         effects.names().collect::<Vec<_>>().join(", "),
         effects.bits()
     )
+}
+
+fn flow_invalidation_label(
+    program: &Program,
+    invalidation: &omega_checked_trees::FlowInvalidationFact,
+) -> String {
+    let fact = program.facts.semantic.facts.get(invalidation.fact);
+    let mutated = canonical_place_label_from_parts(
+        program,
+        invalidation.mutated_root,
+        program
+            .facts
+            .flow
+            .invalidation_segments
+            .span_or_empty(invalidation.mutated_segments),
+    );
+    let dependency_segments = program
+        .facts
+        .flow
+        .invalidation_segments
+        .span_or_empty(invalidation.dependency_segments);
+    let invalidated = match fact.place {
+        omega_facts::FactPlace::Place(place) => joined_place_label(
+            program,
+            &program.facts.semantic,
+            program.facts.semantic.places.get(place),
+            dependency_segments,
+        ),
+        _ => semantic_place_label(program, fact.place),
+    };
+    format!(
+        "{} invalidated {} by mutating {}",
+        flow_invalidation_source_label(program, invalidation.source),
+        semantic_payload_label(program, fact.payload),
+        mutated
+    ) + &format!(" ({invalidated})")
+}
+
+fn flow_invalidation_source_label(
+    program: &Program,
+    source: omega_checked_trees::FlowInvalidationSource,
+) -> String {
+    match source {
+        omega_checked_trees::FlowInvalidationSource::Statement { statement_index } => {
+            format!("statement {statement_index}")
+        }
+        omega_checked_trees::FlowInvalidationSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => format!(
+            "call {statement_index}.{call_ordinal} -> {}",
+            state_label_from_symbol(program, target_symbol)
+        ),
+    }
 }
 
 fn symbol_label(symbol: SymbolHandle) -> String {

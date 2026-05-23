@@ -8,8 +8,9 @@ use omega_checked_trees::{
     BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowExitFact, FlowFacts,
-    FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, Program, ProofFactKind,
-    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef, FlowStateFact,
+    InvariantFact, InvariantFacts, Program, ProofFactKind, ProofFacts, ProofObligationFact,
+    ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -57,7 +58,6 @@ fn check_flow_call_contracts(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut state_mutation_summary_cache = StateMutationSummaryCache::default();
 
     for (_, state_flow) in facts.flow.states.iter() {
         for call_flow in facts.flow.calls.span_or_empty(state_flow.calls) {
@@ -66,7 +66,6 @@ fn check_flow_call_contracts(
                 facts,
                 state_flow,
                 call_flow,
-                &mut state_mutation_summary_cache,
                 &mut diagnostics,
             );
         }
@@ -84,7 +83,6 @@ fn check_call_requires(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    state_mutation_summaries: &mut StateMutationSummaryCache,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts = facts
@@ -142,7 +140,6 @@ fn check_call_requires(
                             call_flow,
                             place,
                             domain_symbol,
-                            state_mutation_summaries,
                         )
                     }
                     _ => None,
@@ -168,70 +165,87 @@ fn explain_domain_requirement_failure(
     call_flow: &FlowCallFact,
     required_place: omega_facts::PlaceHandle,
     required_domain: SymbolHandle,
-    state_mutation_summaries: &mut StateMutationSummaryCache,
 ) -> Option<String> {
-    let borrow_state = borrow_state_fact(
-        &facts.borrow,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    )?;
-    let required_fact_place = facts.semantic.places.get(required_place);
-    let required_segments = facts
-        .semantic
-        .place_segments
-        .span_or_empty(required_fact_place.segments);
-    let domain_dependency = facts.domains.dependency_fact(required_domain)?;
-
-    for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
-        if borrow_call.statement_index > call_flow.statement_index
-            || (borrow_call.statement_index == call_flow.statement_index
-                && borrow_call.call_ordinal >= call_flow.call_ordinal)
-        {
-            break;
-        }
-
-        if !call_may_mutate_contract_state(program, &facts.borrow, borrow_call) {
+    let mut detail = None;
+    for invalidation in facts
+        .flow
+        .invalidations
+        .span_or_empty(state_flow.invalidations)
+        .iter()
+    {
+        if !invalidation_precedes_call(invalidation.source, call_flow) {
             continue;
         }
 
-        let mutated_places = call_mutated_places(
-            program,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-            &facts.borrow,
-            borrow_call,
-            state_mutation_summaries,
-        );
-
-        for mutated_place in &mutated_places {
-            for dependency_segments in facts.domains.dependency_paths(domain_dependency) {
-                if canonical_place_overlaps_joined_segments(
-                    required_segments,
-                    dependency_segments,
-                    &mutated_place.segments,
-                ) && required_fact_place.root == mutated_place.root
-                {
-                    let invalidated = joined_place_label(
-                        program,
-                        &facts.semantic,
-                        required_fact_place,
-                        dependency_segments,
-                    );
-                    let mutated = canonical_place_label_from_parts(
-                        program,
-                        mutated_place.root,
-                        &mutated_place.segments,
-                    );
-                    return Some(format!(
-                        "invalidated by prior mutation of {mutated}; {invalidated} is part of {}",
-                        symbol_name(program, required_domain)
-                    ));
-                }
+        let fact = facts.semantic.facts.get(invalidation.fact);
+        let (fact_domain, fact_place) = match fact.payload {
+            FactPayload::DomainMembership { domain_symbol, .. }
+            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                let FactPlace::Place(place) = fact.place else {
+                    continue;
+                };
+                (domain_symbol, place)
             }
+            _ => continue,
+        };
+
+        if !facts.semantic.domain_implies(fact_domain, required_domain)
+            || !places_match_requirement(program, &facts.semantic, fact_place, required_place)
+        {
+            continue;
         }
+
+        let fact_place = facts.semantic.places.get(fact_place);
+        let dependency_segments = facts
+            .flow
+            .invalidation_segments
+            .span_or_empty(invalidation.dependency_segments);
+        let invalidated = joined_place_label(program, &facts.semantic, fact_place, dependency_segments);
+        let mutated = canonical_place_label_from_parts(
+            program,
+            invalidation.mutated_root,
+            facts.flow
+                .invalidation_segments
+                .span_or_empty(invalidation.mutated_segments),
+        );
+        detail = Some(format!(
+            "invalidated by prior mutation of {mutated}; {invalidated} is part of {}",
+            symbol_name(program, required_domain)
+        ));
     }
 
-    None
+    detail
+}
+
+fn invalidation_precedes_call(
+    source: FlowInvalidationSource,
+    call_flow: &FlowCallFact,
+) -> bool {
+    match source {
+        FlowInvalidationSource::Statement { statement_index } => {
+            statement_index < call_flow.statement_index
+        }
+        FlowInvalidationSource::Call {
+            statement_index,
+            call_ordinal,
+            ..
+        } => {
+            statement_index < call_flow.statement_index
+                || (statement_index == call_flow.statement_index
+                    && call_ordinal < call_flow.call_ordinal)
+        }
+    }
+}
+
+fn places_match_requirement(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    candidate: omega_facts::PlaceHandle,
+    required: omega_facts::PlaceHandle,
+) -> bool {
+    semantic.places_equal(candidate, required)
+        || canonical_place_label(program, semantic, semantic.places.get(candidate))
+            == canonical_place_label(program, semantic, semantic.places.get(required))
 }
 
 fn context_proves_requirement_place_domain(
@@ -2304,6 +2318,8 @@ fn build_flow_facts(
     let mut state_mutation_summary_cache = StateMutationSummaryCache::default();
     let mut semantic_context_refs =
         omega_core::arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2));
+    let mut invalidation_segments = omega_core::arena::Arena::default();
+    let mut invalidations = omega_core::arena::Arena::default();
     let mut calls = omega_core::arena::Arena::with_capacity(borrow.calls.len());
     let mut exits = omega_core::arena::Arena::with_capacity(proof.contract_exits.len());
     let mut states = omega_core::arena::Arena::with_capacity(borrow.states.len());
@@ -2334,6 +2350,7 @@ fn build_flow_facts(
             );
             let mut active_contexts =
                 clone_flow_contexts(&mut semantic_context_refs, state_contexts);
+            let state_invalidations_start = invalidations.len();
 
             let mut state_calls = omega_core::arena::HandleSpan::empty();
             let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
@@ -2380,22 +2397,33 @@ fn build_flow_facts(
                         borrow_call,
                         &mut state_mutation_summary_cache,
                     );
+                    let call_invalidations_start = invalidations.len();
                     let post_call_contexts =
                         if call_may_mutate_contract_state(program, borrow, borrow_call) {
                             if mutated_places.is_empty() {
                                 omega_core::arena::HandleSpan::empty()
                             } else {
                                 filter_contexts_after_place_mutations(
+                                    program,
                                     semantic,
                                     domains,
                                     &mut semantic_context_refs,
+                                    &mut invalidation_segments,
+                                    &mut invalidations,
                                     active_contexts,
                                     &mutated_places,
+                                    FlowInvalidationSource::Call {
+                                        statement_index: borrow_call.statement_index,
+                                        call_ordinal: borrow_call.call_ordinal,
+                                        target_symbol: borrow_call.target_symbol,
+                                    },
                                 )
                             }
                         } else {
                             clone_flow_contexts(&mut semantic_context_refs, active_contexts)
                         };
+                    let call_invalidations =
+                        appended_span_since(&invalidations, call_invalidations_start);
                     let mut exit_contexts =
                         clone_flow_contexts(&mut semantic_context_refs, post_call_contexts);
                     append_flow_contexts_for_points(
@@ -2424,6 +2452,7 @@ fn build_flow_facts(
                             entry_semantic_contexts: entry_contexts,
                             requires_contexts,
                             exit_semantic_contexts: exit_contexts,
+                            invalidations: call_invalidations,
                             requires: contract_call
                                 .map(|call| call.requires)
                                 .unwrap_or_else(HandleSpan::empty),
@@ -2444,11 +2473,15 @@ fn build_flow_facts(
                     statement_mutated_place(program, machine, statement)
                 {
                     active_contexts = filter_contexts_after_place_mutations(
+                        program,
                         semantic,
                         domains,
                         &mut semantic_context_refs,
+                        &mut invalidation_segments,
+                        &mut invalidations,
                         active_contexts,
                         &[place],
+                        FlowInvalidationSource::Statement { statement_index },
                     );
                 }
             }
@@ -2491,6 +2524,7 @@ fn build_flow_facts(
                 writable_roots: borrow_state.writable_roots,
                 mutable_parameter_count: borrow_state.mutable_parameter_count,
                 entry_semantic_contexts: state_contexts,
+                invalidations: appended_span_since(&invalidations, state_invalidations_start),
                 calls: state_calls,
                 exits: state_exits,
                 direct_effects: state_effects
@@ -2505,6 +2539,8 @@ fn build_flow_facts(
 
     FlowFacts {
         semantic_context_refs,
+        invalidation_segments,
+        invalidations,
         calls,
         exits,
         states,
@@ -2527,12 +2563,47 @@ fn clone_flow_contexts(
     cloned
 }
 
+fn appended_span_since<T: Clone + Default + PartialEq + Eq>(
+    arena: &omega_core::arena::Arena<T>,
+    start_len: usize,
+) -> omega_core::arena::HandleSpan<T> {
+    let appended = arena.len().saturating_sub(start_len);
+    if appended == 0 {
+        omega_core::arena::HandleSpan::empty()
+    } else {
+        omega_core::arena::HandleSpan::from_parts(
+            Handle::from_arena_index(
+                start_len
+                    .checked_add(1)
+                    .and_then(|index| index.try_into().ok())
+                    .unwrap(),
+            ),
+            appended.try_into().unwrap(),
+        )
+    }
+}
+
+fn append_place_segments(
+    segments_arena: &mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    segments: &[omega_facts::PlaceSegment],
+) -> omega_core::arena::HandleSpan<omega_facts::PlaceSegment> {
+    let start_len = segments_arena.len();
+    for segment in segments {
+        segments_arena.append(*segment);
+    }
+    appended_span_since(segments_arena, start_len)
+}
+
 fn filter_contexts_after_place_mutations(
+    program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
     domain_dependencies: &DomainFacts,
     semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
+    invalidation_segments: &mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    invalidations: &mut omega_core::arena::Arena<FlowInvalidationFact>,
     source: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
     mutated_places: &[CanonicalPlace],
+    invalidation_source: FlowInvalidationSource,
 ) -> omega_core::arena::HandleSpan<FlowSemanticContextRef> {
     if mutated_places.is_empty() {
         return source;
@@ -2547,43 +2618,47 @@ fn filter_contexts_after_place_mutations(
         .collect();
     for context_ref in copied {
         let context = semantic.contexts.get(context_ref.context);
-        if context_survives_place_mutations(
-            semantic,
-            domain_dependencies,
-            context,
-            mutated_places,
-        ) {
-            semantic_context_refs.append_to_span(&mut filtered, context_ref);
-        } else {
+        let mut invalidated_any = false;
+        for fact_ref in semantic.refs.span_or_empty(context.facts) {
+            let fact = semantic.facts.get(fact_ref.fact);
+            let FactPlace::Place(place) = fact.place else {
+                continue;
+            };
+            let Some((mutated_place, dependency_segments)) = matching_mutation_for_fact_place(
+                program,
+                semantic,
+                domain_dependencies,
+                fact,
+                place,
+                mutated_places,
+            ) else {
+                continue;
+            };
+
+            invalidated_any = true;
             removed_any = true;
+            invalidations.append(FlowInvalidationFact {
+                source: invalidation_source,
+                context: context_ref.context,
+                fact: fact_ref.fact,
+                mutated_root: mutated_place.root,
+                mutated_segments: append_place_segments(
+                    invalidation_segments,
+                    &mutated_place.segments,
+                ),
+                dependency_segments: append_place_segments(
+                    invalidation_segments,
+                    dependency_segments,
+                ),
+            });
+        }
+
+        if !invalidated_any {
+            semantic_context_refs.append_to_span(&mut filtered, context_ref);
         }
     }
 
     if removed_any { filtered } else { source }
-}
-
-fn context_survives_place_mutations(
-    semantic: &FactPlan,
-    domain_dependencies: &DomainFacts,
-    context: &omega_facts::FactContext,
-    mutated_places: &[CanonicalPlace],
-) -> bool {
-    !semantic.context_view(context).facts().any(|fact| {
-        let FactPlace::Place(place) = fact.place else {
-            return false;
-        };
-        mutated_places
-            .iter()
-            .any(|mutated_place| {
-                canonical_place_overlaps_fact_place(
-                    semantic,
-                    domain_dependencies,
-                    fact,
-                    place,
-                    mutated_place,
-                )
-            })
-    })
 }
 
 #[derive(Debug, Clone, Default)]
@@ -2612,6 +2687,12 @@ struct StateMutationSummary {
 struct CanonicalPlace {
     root: omega_facts::PlaceRoot,
     segments: Vec<omega_facts::PlaceSegment>,
+}
+
+impl CanonicalPlace {
+    fn extend_segments(&mut self, segments: &[omega_facts::PlaceSegment]) {
+        self.segments.extend(segments.iter().copied());
+    }
 }
 
 fn canonical_place_from_expression(
@@ -2665,6 +2746,26 @@ fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<CanonicalPlace> {
         root: omega_facts::PlaceRoot::Symbol(symbol),
         segments: Vec::new(),
     })
+}
+
+fn canonical_place_from_semantic_place(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    place: &omega_facts::Place,
+) -> Option<CanonicalPlace> {
+    let mut canonical = match place.root {
+        omega_facts::PlaceRoot::Unknown => return None,
+        omega_facts::PlaceRoot::Symbol(symbol) => canonical_place_from_symbol(symbol)?,
+        omega_facts::PlaceRoot::Expression(expression) => {
+            canonical_place_from_expression(program, expression)?
+        }
+        omega_facts::PlaceRoot::TypeReference(type_reference) => CanonicalPlace {
+            root: omega_facts::PlaceRoot::TypeReference(type_reference),
+            segments: Vec::new(),
+        },
+    };
+    canonical.extend_segments(semantic.place_segments.span_or_empty(place.segments));
+    Some(canonical)
 }
 
 fn effective_member_symbol(
@@ -2869,39 +2970,54 @@ fn canonical_place_overlaps_joined_segments(
     })
 }
 
-fn canonical_place_overlaps_fact_place(
+fn matching_mutation_for_fact_place<'a, 'b>(
+    program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
-    domain_dependencies: &DomainFacts,
+    domain_dependencies: &'a DomainFacts,
     fact: &Fact,
     fact_place: omega_facts::PlaceHandle,
-    mutated_place: &CanonicalPlace,
-) -> bool {
+    mutated_places: &'b [CanonicalPlace],
+) -> Option<(&'b CanonicalPlace, &'a [omega_facts::PlaceSegment])> {
     let place = semantic.places.get(fact_place);
-    let fact_segments = semantic.place_segments.span_or_empty(place.segments);
-    if let Some(overlaps) = domain_membership_alias_overlaps(
-        domain_dependencies,
-        fact,
-        place,
-        fact_segments,
-        mutated_place,
-    ) {
-        return overlaps;
+    let fact_canonical_place = canonical_place_from_semantic_place(program, semantic, place)?;
+
+    for mutated_place in mutated_places {
+        let is_domain_membership = matches!(
+            fact.payload,
+            FactPayload::DomainMembership { .. } | FactPayload::ContractDomainMembership { .. }
+        );
+        if let Some(dependency_segments) = domain_membership_matching_dependency(
+            domain_dependencies,
+            fact,
+            &fact_canonical_place,
+            mutated_place,
+        ) {
+            return Some((mutated_place, dependency_segments));
+        }
+
+        if is_domain_membership {
+            continue;
+        }
+
+        if fact_canonical_place.root == mutated_place.root
+            && canonical_place_overlaps_segments(
+                &fact_canonical_place.segments,
+                &mutated_place.segments,
+            )
+        {
+            return Some((mutated_place, &[]));
+        }
     }
 
-    if place.root != mutated_place.root {
-        return false;
-    }
-
-    canonical_place_overlaps_segments(fact_segments, &mutated_place.segments)
+    None
 }
 
-fn domain_membership_alias_overlaps(
-    domain_dependencies: &DomainFacts,
+fn domain_membership_matching_dependency<'a>(
+    domain_dependencies: &'a DomainFacts,
     fact: &Fact,
-    fact_place: &omega_facts::Place,
-    fact_segments: &[omega_facts::PlaceSegment],
+    fact_place: &CanonicalPlace,
     mutated_place: &CanonicalPlace,
-) -> Option<bool> {
+) -> Option<&'a [omega_facts::PlaceSegment]> {
     let domain_symbol = match fact.payload {
         FactPayload::DomainMembership { domain_symbol, .. }
         | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
@@ -2909,34 +3025,28 @@ fn domain_membership_alias_overlaps(
     };
 
     if fact_place.root != mutated_place.root {
-        return Some(false);
+        return None;
     }
 
     let Some(domain_dependency) = domain_dependencies.dependency_fact(domain_symbol) else {
-        return Some(canonical_place_overlaps_segments(
-            fact_segments,
-            &mutated_place.segments,
-        ));
+        return canonical_place_overlaps_segments(&fact_place.segments, &mutated_place.segments)
+            .then_some(&[]);
     };
 
     if domain_dependency.dependencies.is_empty() {
-        return Some(canonical_place_overlaps_segments(
-            fact_segments,
-            &mutated_place.segments,
-        ));
+        return canonical_place_overlaps_segments(&fact_place.segments, &mutated_place.segments)
+            .then_some(&[]);
     }
 
-    Some(
-        domain_dependencies
-            .dependency_paths(domain_dependency)
-            .any(|dependency_segments| {
-                canonical_place_overlaps_joined_segments(
-                    fact_segments,
-                    dependency_segments,
-                    &mutated_place.segments,
-                )
-            }),
-    )
+    domain_dependencies
+        .dependency_paths(domain_dependency)
+        .find(|dependency_segments| {
+            canonical_place_overlaps_joined_segments(
+                &fact_place.segments,
+                dependency_segments,
+                &mutated_place.segments,
+            )
+        })
 }
 
 fn domain_dependency_segments<'cache>(
@@ -5082,6 +5192,8 @@ mod tests {
             .expect("main flow state");
         let calls = flow.calls.span_or_empty(caller_flow.calls);
         assert_eq!(calls.len(), 3);
+        assert_eq!(flow.invalidations.span_or_empty(caller_flow.invalidations).len(), 1);
+        assert_eq!(flow.invalidations.span_or_empty(calls[1].invalidations).len(), 1);
 
         let heal_call = &calls[2];
         let (required_place, required_domain) = flow
@@ -5243,6 +5355,8 @@ mod tests {
             })
             .expect("main flow state");
         let calls = flow.calls.span_or_empty(caller_flow.calls);
+        assert_eq!(flow.invalidations.span_or_empty(caller_flow.invalidations).len(), 1);
+        assert_eq!(flow.invalidations.span_or_empty(calls[1].invalidations).len(), 1);
         let heal_call = &calls[2];
         let (required_place, required_domain) = flow
             .semantic_context_refs
@@ -5372,6 +5486,7 @@ mod tests {
             })
             .expect("main flow state");
         let calls = flow.calls.span_or_empty(caller_flow.calls);
+        assert!(flow.invalidations.span_or_empty(calls[1].invalidations).is_empty());
         let heal_call = &calls[2];
         let (required_place, required_domain) = flow
             .semantic_context_refs
