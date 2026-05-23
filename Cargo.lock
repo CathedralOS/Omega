@@ -843,6 +843,7 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-source-files-to-tokens",
  "omega-symbol-resolved-trees-to-typed-trees",
  "omega-syntax-trees-to-symbol-resolved-trees",

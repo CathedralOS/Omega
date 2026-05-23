@@ -256,6 +256,7 @@ fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) 
         }
         omega_facts::FactPayload::DomainMembership {
             value,
+            domain: _,
             domain_symbol,
         } => format!(
             "{} in {}",

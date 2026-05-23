@@ -3,6 +3,7 @@ mod symbols;
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
+use omega_facts::{FactPayload, FactPlan};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::domain::ProofFact;
@@ -22,9 +23,10 @@ use std::fmt;
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = ProgramSymbols::build(program, &mut diagnostics);
+    let fact_plan = omega_facts::build_definition_fact_plan(program);
 
-    validate_domain_definitions(program, &symbols, &mut diagnostics);
-    validate_invariant_definitions(program, &mut diagnostics);
+    validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
+    validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
@@ -345,24 +347,23 @@ fn symbol_label(symbol: SymbolHandle) -> String {
     }
 }
 
-fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_invariant_definitions(
+    program: &TypedTrees,
+    fact_plan: &FactPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for invariant in program.invariant_definitions() {
-        let Some(constraints) = program
-            .type_reference_table
-            .constraint_span(invariant.constraints)
-        else {
+        let constraint_fact_count = fact_plan
+            .facts_for_symbol(invariant.symbol)
+            .filter(|fact| matches!(fact.payload, FactPayload::TypeConstraint { .. }))
+            .count();
+
+        if constraint_fact_count != invariant.constraints.len() {
             diagnostics.push(Diagnostic::error(format!(
                 "invariant `{}` references invalid constraint storage",
                 invariant.name
             )));
             continue;
-        };
-
-        for constraint in constraints {
-            match constraint {
-                TypeConstraintNode::Named(_) => {}
-                TypeConstraintNode::Range { .. } => {}
-            }
         }
     }
 }
@@ -370,6 +371,7 @@ fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Di
 fn validate_domain_definitions(
     program: &TypedTrees,
     symbols: &ProgramSymbols<'_>,
+    fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for domain in program.domain_definitions() {
@@ -383,16 +385,56 @@ fn validate_domain_definitions(
                 generic_depth: 0,
             },
         );
-        validate_proof_facts(
+        validate_domain_fact_payloads(
             program,
-            program.proof_facts(domain),
+            fact_plan,
+            domain.symbol,
             diagnostics,
             ProofFactOwner::Domain(domain.name.as_str()),
         );
-        validate_domain_membership_targets(program, domain, diagnostics);
+        validate_domain_membership_targets(program, fact_plan, domain, diagnostics);
     }
 
-    validate_domain_membership_cycles(program, diagnostics);
+    validate_domain_membership_cycles(program, fact_plan, diagnostics);
+}
+
+fn validate_domain_fact_payloads(
+    program: &TypedTrees,
+    fact_plan: &FactPlan,
+    symbol: SymbolHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: ProofFactOwner<'_>,
+) {
+    for fact in fact_plan.facts_for_symbol(symbol) {
+        match fact.payload {
+            FactPayload::BooleanExpression(expression) => {
+                if !is_boolean_fact_expression(program, expression) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} proof fact `{}` is not boolean-shaped",
+                        program.expression_table.display_name(expression)
+                    )));
+                }
+            }
+            FactPayload::DomainMembership {
+                domain,
+                domain_symbol,
+                ..
+            } => {
+                if domain_symbol.is_valid() {
+                    continue;
+                }
+
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown domain `{}`",
+                    domain_path_label(program, domain)
+                )));
+            }
+            FactPayload::TypeConstraint { .. }
+            | FactPayload::ProofObligation { .. }
+            | FactPayload::Contract { .. }
+            | FactPayload::InvariantDefinition { .. } => {}
+        }
+    }
 }
 
 fn validate_proof_facts(
@@ -476,10 +518,11 @@ fn domain_path_label(
 
 fn validate_domain_membership_targets(
     program: &TypedTrees,
+    fact_plan: &FactPlan,
     domain: &omega_typed_trees::domain::DomainDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for membership in proof_memberships(program, domain.facts) {
+    for membership in domain_membership_facts(fact_plan, domain.symbol) {
         let Some(referenced_domain) =
             domain_definition_by_symbol(program, membership.domain_symbol)
         else {
@@ -500,12 +543,17 @@ fn validate_domain_membership_targets(
     }
 }
 
-fn validate_domain_membership_cycles(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_domain_membership_cycles(
+    program: &TypedTrees,
+    fact_plan: &FactPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let mut reported = Vec::new();
     for domain in program.domain_definitions() {
         let mut path = Vec::new();
         validate_domain_membership_cycle_from(
             program,
+            fact_plan,
             domain.symbol,
             &mut path,
             &mut reported,
@@ -516,6 +564,7 @@ fn validate_domain_membership_cycles(program: &TypedTrees, diagnostics: &mut Vec
 
 fn validate_domain_membership_cycle_from(
     program: &TypedTrees,
+    fact_plan: &FactPlan,
     domain_symbol: SymbolHandle,
     path: &mut Vec<SymbolHandle>,
     reported: &mut Vec<SymbolHandle>,
@@ -546,9 +595,10 @@ fn validate_domain_membership_cycle_from(
     };
 
     path.push(domain_symbol);
-    for membership in proof_memberships(program, domain.facts) {
+    for membership in domain_membership_facts(fact_plan, domain.symbol) {
         validate_domain_membership_cycle_from(
             program,
+            fact_plan,
             membership.domain_symbol,
             path,
             reported,
@@ -558,17 +608,22 @@ fn validate_domain_membership_cycle_from(
     path.pop();
 }
 
-fn proof_memberships(
-    program: &TypedTrees,
-    facts: omega_core::arena::HandleSpan<ProofFact>,
-) -> impl Iterator<Item = &omega_typed_trees::domain::ProofMembershipFact> {
-    program
-        .proof_facts
-        .span_or_empty(facts)
-        .iter()
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(_) => None,
-            ProofFact::Membership(membership) => Some(membership),
+#[derive(Debug, Clone, Copy)]
+struct DomainMembershipFact {
+    domain_symbol: SymbolHandle,
+}
+
+fn domain_membership_facts(
+    fact_plan: &FactPlan,
+    symbol: SymbolHandle,
+) -> impl Iterator<Item = DomainMembershipFact> + '_ {
+    fact_plan
+        .facts_for_symbol(symbol)
+        .filter_map(|fact| match fact.payload {
+            FactPayload::DomainMembership { domain_symbol, .. } => {
+                Some(DomainMembershipFact { domain_symbol })
+            }
+            _ => None,
         })
 }
 
