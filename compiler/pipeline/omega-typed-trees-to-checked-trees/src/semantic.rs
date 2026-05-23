@@ -1,5 +1,5 @@
 use super::*;
-use crate::borrow::{
+use crate::lookup::{
     call_receiver_parts, machine_by_symbol, receiver_can_dispatch_to_machine,
     resolve_state_call_target, statement_call_can_dispatch_to_machine,
     statement_call_receiver_members, statement_call_receiver_path,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::borrow::{
+use crate::lookup::{
     expression_root_symbol, first_valid_name_path_symbol, machine_by_symbol,
     machine_symbol_from_type_reference_handle, statement_call_receiver_path,
 };
