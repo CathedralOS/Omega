@@ -121,6 +121,10 @@ pub enum ContractProofFactOwner {
     Machine {
         machine_symbol: SymbolHandle,
     },
+    MachineState {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
     StateSignature {
         owner_symbol: SymbolHandle,
         state_symbol: SymbolHandle,

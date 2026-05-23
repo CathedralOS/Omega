@@ -271,6 +271,14 @@ fn contract_fact_owner(program: &Program, fact: &omega_checked_trees::ContractPr
         omega_checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
             format!("machine {}", machine_name(program, machine_symbol))
         }
+        omega_checked_trees::ContractProofFactOwner::MachineState {
+            machine_symbol,
+            state_symbol,
+        } => format!(
+            "machine state {}::{}",
+            machine_name(program, machine_symbol),
+            state_name(program, state_symbol)
+        ),
         omega_checked_trees::ContractProofFactOwner::StateSignature {
             owner_symbol,
             state_symbol,
