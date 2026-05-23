@@ -1,0 +1,1 @@
+domain `Player::Weird` proof fact `1 + 2` is not boolean-shaped

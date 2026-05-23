@@ -1,0 +1,30 @@
+data Player {
+    health: i32;
+}
+
+domain Player::Valid {
+    self.health >= 0;
+}
+
+domain Player::Alive {
+    self in Player::Valid;
+    self.health > 0;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Player::heal(&mut self)
+requires
+    self in Player::Valid
+ensures
+    self in Player::Alive
+{
+    self.health = 10;
+}
+
+machine Main::main(&mut self) {
+    self.player.health = 0;
+    self.player.heal();
+}
