@@ -14,6 +14,7 @@ omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" }
 omega-layout = { path = "../omega-layout" }
 omega-object = { path = "../object/omega-object" }
 omega-platform-interface = { path = "../omega-platform-interface" }

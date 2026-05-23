@@ -220,10 +220,8 @@ mod tests {
                 machine read_line(out_line: &mut String);
             }
 
-            machine Game {
-                pub entry(&mut self) {
-                    self.console.read_line(&mut self.input);
-                }
+            machine Game::entry(&mut self) {
+                self.console.read_line(&mut self.input);
             }
 
             data Main { game: Game; }

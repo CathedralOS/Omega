@@ -1,4 +1,5 @@
 use crate::RelocationPlanningInput;
+use omega_calling_conventions::HostOperationKey;
 use omega_instruction_selection as architecture;
 use omega_object::{
     ObjectSymbolHandle, RelocationKind, RelocationPlan, RelocationRecord,
@@ -11,6 +12,7 @@ pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
     function_symbol_handle: ObjectSymbolHandle,
     selected_instruction_index: u32,
+    operation_key: Option<HostOperationKey>,
     operands: omega_core::arena::HandleSpan<omega_target_operations::InstructionOperand>,
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
@@ -19,9 +21,7 @@ pub(super) fn collect_data_address_relocations(
         return;
     };
 
-    let mut operand_text_offset = selected_text_offset;
-
-    for operand in operands {
+    for (operand_index, operand) in operands.iter().enumerate() {
         match &operand.kind {
             InstructionOperandKind::DataAddress { data } => {
                 if !data.is_valid() {
@@ -36,7 +36,13 @@ pub(super) fn collect_data_address_relocations(
                     relocation_plan,
                     function_symbol_handle,
                     selected_instruction_index,
-                    operand_text_offset,
+                    data_address_relocation_offset(
+                        input,
+                        operation_key,
+                        operands,
+                        selected_text_offset,
+                        operand_index,
+                    ),
                     symbol,
                 );
             }
@@ -49,16 +55,43 @@ pub(super) fn collect_data_address_relocations(
                     relocation_plan,
                     function_symbol_handle,
                     selected_instruction_index,
-                    operand_text_offset,
+                    data_address_relocation_offset(
+                        input,
+                        operation_key,
+                        operands,
+                        selected_text_offset,
+                        operand_index,
+                    ),
                     symbol,
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
             }
         }
-
-        operand_text_offset += architecture::operand_width(input.target.architecture, operand);
     }
+}
+
+fn data_address_relocation_offset(
+    input: RelocationPlanningInput<'_>,
+    operation_key: Option<HostOperationKey>,
+    operands: &[omega_target_operations::InstructionOperand],
+    selected_text_offset: usize,
+    operand_index: usize,
+) -> usize {
+    if input.target.architecture == Architecture::X86_64
+        && let Some(operation_key) = operation_key
+        && let Some(site) =
+            omega_isa_x86_64::host_call_data_relocation_site(operation_key, operands, operand_index)
+    {
+        return selected_text_offset + site.byte_offset;
+    }
+
+    selected_text_offset
+        + operands
+            .iter()
+            .take(operand_index)
+            .map(|operand| architecture::operand_width(input.target.architecture, operand))
+            .sum::<usize>()
 }
 
 pub(super) fn insert_data_address_relocations(

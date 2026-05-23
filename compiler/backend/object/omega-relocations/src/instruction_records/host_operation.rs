@@ -30,6 +30,7 @@ pub(super) fn collect_host_operation_relocation(
         selected_instruction_index: context.selected_instruction_index,
         text_offset: external_call_relocation_offset(
             context.input.target.architecture,
+            *operation_key,
             context.selected_text_offset,
             context
                 .input
