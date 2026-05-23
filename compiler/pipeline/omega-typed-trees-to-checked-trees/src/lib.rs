@@ -11,6 +11,7 @@ use omega_checked_trees::{
     Program, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
+use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{
     ContractFactKind as SemanticContractFactKind, Fact, FactOrigin, FactPayload, FactPlace,
@@ -39,10 +40,119 @@ pub fn lower_typed_trees(
         effects,
         flow,
     };
+    check_flow_call_contracts(&program, &facts)?;
 
     Ok(Program {
         typed: program,
         facts,
+    })
+}
+
+fn check_flow_call_contracts(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+
+    for (_, state_flow) in facts.flow.states.iter() {
+        for call_flow in facts.flow.calls.span_or_empty(state_flow.calls) {
+            check_call_requires(program, facts, state_flow, call_flow, &mut diagnostics);
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn check_call_requires(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let entry_contexts = facts
+        .flow
+        .semantic_context_refs
+        .span_or_empty(call_flow.entry_semantic_contexts);
+    for requires_context in facts
+        .flow
+        .semantic_context_refs
+        .span_or_empty(call_flow.requires_contexts)
+    {
+        let context = facts.semantic.contexts.get(requires_context.context);
+        for fact in facts.semantic.context_view(context).facts() {
+            let satisfied = match fact.payload {
+                FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                    let place = match fact.place {
+                        FactPlace::Place(place) => place,
+                        _ => {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "cannot interpret requires contract for call {} from {}",
+                                call_target_label(program, call_flow.target_symbol),
+                                machine_name(program, state_flow.machine_symbol)
+                            )));
+                            continue;
+                        }
+                    };
+                    entry_contexts.iter().any(|entry_context| {
+                        let context = facts.semantic.contexts.get(entry_context.context);
+                        context_proves_requirement_place_domain(
+                            program,
+                            &facts.semantic,
+                            context,
+                            place,
+                            domain_symbol,
+                        )
+                    })
+                }
+                FactPayload::ContractBooleanExpression { expression, .. } => matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Boolean(true)
+                ),
+                _ => true,
+            };
+
+            if !satisfied {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove requires contract for call {} from {}: {}",
+                    call_target_label(program, call_flow.target_symbol),
+                    machine_name(program, state_flow.machine_symbol),
+                    semantic_fact_requirement_label(program, &facts.semantic, fact)
+                )));
+            }
+        }
+    }
+}
+
+fn context_proves_requirement_place_domain(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    context: &omega_facts::FactContext,
+    required_place: omega_facts::PlaceHandle,
+    required_domain: SymbolHandle,
+) -> bool {
+    let required_label =
+        canonical_place_label(program, semantic, semantic.places.get(required_place));
+    semantic.context_view(context).facts().any(|fact| {
+        let (fact_domain, fact_place) = match fact.payload {
+            FactPayload::DomainMembership { domain_symbol, .. }
+            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                let FactPlace::Place(place) = fact.place else {
+                    return false;
+                };
+                (domain_symbol, place)
+            }
+            _ => return false,
+        };
+
+        semantic.domain_implies(fact_domain, required_domain)
+            && (semantic.places_equal(fact_place, required_place)
+                || canonical_place_label(program, semantic, semantic.places.get(fact_place))
+                    == required_label)
     })
 }
 
@@ -275,11 +385,13 @@ fn call_contract_place_substitution(
     let mut argument_index = 0usize;
 
     for parameter in program.state_parameters(target_state) {
+        let parameter_matches = parameter.symbol == parameter_symbol
+            || symbol_name(program, parameter_symbol) == parameter.name.as_str();
         let substitution_place = if parameter.is_self {
-            if parameter.symbol != parameter_symbol || !statement.receiver_symbol.is_valid() {
+            if !parameter_matches {
                 continue;
             }
-            Some(facts.append_symbol_place(statement.receiver_symbol))
+            receiver_place_for_call(program, facts, call, statement)
         } else {
             let argument = program
                 .statement_table
@@ -287,12 +399,27 @@ fn call_contract_place_substitution(
                 .get(argument_index)
                 .copied();
             argument_index = argument_index.saturating_add(1);
-            if parameter.symbol != parameter_symbol {
+            if !parameter_matches {
                 continue;
             }
             argument.map(|expression| facts.append_place_from_expression(program, expression))
         }?;
 
+        let place = *facts.places.get(substitution_place);
+        let segments = facts
+            .place_segments
+            .span_or_empty(place.segments)
+            .iter()
+            .copied()
+            .collect();
+        return Some(ContractPlaceSubstitution {
+            root: place.root,
+            segments,
+        });
+    }
+
+    if symbol_name(program, parameter_symbol) == "self" {
+        let substitution_place = receiver_place_for_call(program, facts, call, statement)?;
         let place = *facts.places.get(substitution_place);
         let segments = facts
             .place_segments
@@ -341,6 +468,58 @@ fn call_statement<'program>(
     }
 }
 
+fn receiver_place_for_call(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    statement: &omega_typed_trees::statement::TableCall,
+) -> Option<omega_facts::PlaceHandle> {
+    if let Some(members) = statement_call_receiver_members(program, statement) {
+        if members
+            .first()
+            .is_some_and(|member| member.as_str() == "self")
+        {
+            let caller_state = find_state_in_machine(
+                program,
+                call.caller_machine_symbol,
+                call.caller_state_symbol,
+            )?;
+            let self_parameter = program
+                .state_parameters(caller_state)
+                .iter()
+                .find(|parameter| parameter.is_self)?;
+            let place = facts.append_symbol_place(self_parameter.symbol);
+            if members.len() > 1 && statement.receiver_symbol.is_valid() {
+                facts.push_place_segment(
+                    place,
+                    omega_facts::PlaceSegment::Field {
+                        symbol: statement.receiver_symbol,
+                    },
+                );
+            }
+            return Some(place);
+        }
+
+        if let Some(path) = statement_call_receiver_path(program, statement) {
+            return Some(append_place_from_name_path(facts, &path));
+        }
+    }
+    statement
+        .receiver_symbol
+        .is_valid()
+        .then(|| facts.append_symbol_place(statement.receiver_symbol))
+}
+
+fn append_place_from_name_path(facts: &mut FactPlan, path: &NamePath) -> omega_facts::PlaceHandle {
+    let place = facts.append_symbol_place(path.head_symbol());
+    for symbol in path.member_symbols().iter().skip(1) {
+        if symbol.is_valid() {
+            facts.push_place_segment(place, omega_facts::PlaceSegment::Field { symbol: *symbol });
+        }
+    }
+    place
+}
+
 fn find_state_in_machine<'program>(
     program: &'program omega_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
@@ -366,6 +545,145 @@ fn find_state<'program>(
             .iter()
             .find(|state| state.symbol == state_symbol)
     })
+}
+
+fn semantic_fact_requirement_label(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    fact: &Fact,
+) -> String {
+    match fact.payload {
+        FactPayload::ContractDomainMembership {
+            domain_symbol,
+            value,
+            ..
+        } => format!(
+            "{} in {}",
+            requirement_place_label(program, semantic, fact.place)
+                .unwrap_or_else(|| program.expression_table.display_name(value)),
+            symbol_name(program, domain_symbol)
+        ),
+        FactPayload::ContractBooleanExpression { expression, .. } => {
+            program.expression_table.display_name(expression)
+        }
+        _ => "unsupported contract fact".to_owned(),
+    }
+}
+
+fn requirement_place_label(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    place: FactPlace,
+) -> Option<String> {
+    let FactPlace::Place(place) = place else {
+        return None;
+    };
+    Some(canonical_place_label(
+        program,
+        semantic,
+        semantic.places.get(place),
+    ))
+}
+
+fn canonical_place_label(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    place: &omega_facts::Place,
+) -> String {
+    let mut label = match place.root {
+        omega_facts::PlaceRoot::Unknown => "unknown".to_owned(),
+        omega_facts::PlaceRoot::Symbol(symbol) => symbol_name(program, symbol),
+        omega_facts::PlaceRoot::Expression(expression) => {
+            program.expression_table.display_name(expression)
+        }
+        omega_facts::PlaceRoot::TypeReference(type_reference) => {
+            program.display_type_reference(type_reference)
+        }
+    };
+    for segment in semantic.place_segments.span_or_empty(place.segments) {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&symbol_name(program, *symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&program.expression_table.display_name(*expression));
+                label.push(']');
+            }
+        }
+    }
+    label
+}
+
+fn machine_name(program: &omega_typed_trees::TypedTrees, machine_symbol: SymbolHandle) -> String {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .map(|machine| machine.name.to_string())
+        .unwrap_or_else(|| format!("machine#{}", machine_symbol.arena_index()))
+}
+
+fn call_target_label(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+) -> String {
+    find_state(program, state_symbol)
+        .map(|state| state.name.to_string())
+        .unwrap_or_else(|| format!("state#{}", state_symbol.arena_index()))
+}
+
+fn symbol_name(program: &omega_typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            return machine.name.to_string();
+        }
+        for state in program.machine_states(machine) {
+            if state.symbol == symbol {
+                return state.name.to_string();
+            }
+            for parameter in program.state_parameters(state) {
+                if parameter.symbol == symbol {
+                    return parameter.name.to_string();
+                }
+            }
+        }
+        for data in program.machine_owned_data(machine) {
+            if data.symbol == symbol {
+                return data.name.to_string();
+            }
+        }
+    }
+    for data in program.data_definitions() {
+        if data.symbol == symbol {
+            return data.name.to_string();
+        }
+        for member in program.data_members(data) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return field.name.to_string();
+                }
+                omega_typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == symbol =>
+                {
+                    return variant.name.to_string();
+                }
+                _ => {}
+            }
+        }
+    }
+    for domain in program.domain_definitions() {
+        if domain.symbol == symbol {
+            return domain.name.to_string();
+        }
+    }
+    for invariant in program.invariant_definitions() {
+        if invariant.symbol == symbol {
+            return invariant.name.to_string();
+        }
+    }
+    format!("symbol#{}", symbol.arena_index())
 }
 
 fn proof_obligation_point(obligation: &ProofObligationFact) -> ProgramPoint {

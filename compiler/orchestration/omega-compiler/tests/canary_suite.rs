@@ -36,16 +36,16 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "control flow should show propagated contract call summaries"
     );
     assert!(
-        checked_trees.contains("requires contract self in Player::Valid"),
+        checked_trees.contains("requires contract player in Player::Valid"),
         "checked semantic facts should expose requires as a domain-membership fact"
     );
     assert!(
-        checked_trees.contains("ensures contract self in Player::Alive"),
+        checked_trees.contains("ensures contract player in Player::Alive"),
         "checked semantic facts should expose ensures as a domain-membership fact"
     );
     assert!(
-        checked_trees.contains("place: self"),
-        "checked semantic facts should retain a readable place for self membership"
+        checked_trees.contains("place: player"),
+        "checked semantic facts should retain a readable caller place for propagated membership"
     );
     assert!(
         checked_trees.contains("Flow Environments"),
@@ -191,6 +191,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "call_requires_unproven",
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
     "borrow_mut_literal",

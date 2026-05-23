@@ -15,13 +15,6 @@ data Main {
     player: Player;
 }
 
-machine Main::mark_valid(&mut self, player: &mut Player)
-ensures
-    player in Player::Valid
-{
-    player.health = 0;
-}
-
 machine Main::heal(&mut self, player: &mut Player)
 requires
     player in Player::Valid
@@ -32,6 +25,5 @@ ensures
 }
 
 machine Main::main(&mut self) {
-    self.mark_valid(&mut self.player);
     self.heal(&mut self.player);
 }
