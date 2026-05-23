@@ -55,7 +55,7 @@ fn build_semantic_facts(program: &omega_typed_trees::TypedTrees, proof: &ProofFa
 fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
     for (_, obligation) in proof.obligations.iter() {
         let point = proof_obligation_point(obligation);
-        let fact = facts.append_fact(Fact {
+        facts.append_fact_context(Fact {
             place: FactPlace::Unknown,
             point,
             origin: FactOrigin::ProofObligation,
@@ -63,9 +63,6 @@ fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPl
                 kind: semantic_proof_obligation_kind(obligation.kind.clone()),
             },
         });
-        let mut refs = HandleSpan::empty();
-        facts.append_ref(&mut refs, fact);
-        facts.append_context(point, refs);
     }
 }
 
@@ -74,7 +71,7 @@ fn append_contract_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
 
     for (contract_handle, contract) in proof.contract_facts.iter() {
         let point = contract_fact_point(contract);
-        let fact = facts.append_fact(Fact {
+        let fact = facts.append_fact_context(Fact {
             place: contract_fact_place(contract),
             point,
             origin: contract_fact_origin(contract),
@@ -89,10 +86,6 @@ fn append_contract_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {
             semantic_handles.push(None);
         }
         semantic_handles[contract_index] = Some(fact);
-
-        let mut refs = HandleSpan::empty();
-        facts.append_ref(&mut refs, fact);
-        facts.append_context(point, refs);
     }
 
     for (_, call) in proof.contract_calls.iter() {

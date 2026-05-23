@@ -234,6 +234,15 @@ impl FactPlan {
         self.facts.append(fact)
     }
 
+    pub fn append_fact_context(&mut self, fact: Fact) -> FactHandle {
+        let point = fact.point;
+        let fact = self.append_fact(fact);
+        let mut refs = HandleSpan::empty();
+        self.append_ref(&mut refs, fact);
+        self.append_context(point, refs);
+        fact
+    }
+
     pub fn append_ref(&mut self, refs: &mut HandleSpan<FactRef>, fact: FactHandle) {
         self.refs.append_to_span(refs, FactRef { fact });
     }
