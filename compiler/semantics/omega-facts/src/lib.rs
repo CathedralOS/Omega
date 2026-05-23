@@ -468,6 +468,16 @@ impl FactPlan {
             .map(move |(_, context)| self.context_view(context))
     }
 
+    pub fn context_handles_at_point(
+        &self,
+        point: ProgramPoint,
+    ) -> impl Iterator<Item = FactContextHandle> + '_ {
+        self.contexts
+            .iter()
+            .filter(move |(_, context)| context.point == point)
+            .map(|(handle, _)| handle)
+    }
+
     pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
         self.contexts_at_point(point)
             .flat_map(|context| context.facts())

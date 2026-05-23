@@ -229,6 +229,56 @@ pub struct InvariantFacts {
     pub definitions: Arena<InvariantFact>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowSemanticContextRef {
+    pub context: omega_facts::FactContextHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowCallFact {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub receiver_symbol: SymbolHandle,
+    pub target_symbol: SymbolHandle,
+    pub has_receiver: bool,
+    pub accesses: HandleSpan<BorrowArgumentAccessFact>,
+    pub semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub requires: HandleSpan<ContractProofFactRef>,
+    pub ensures: HandleSpan<ContractProofFactRef>,
+    pub direct_effects: omega_effects::EffectSet,
+    pub transitive_effects: omega_effects::EffectSet,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowExitFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub ensures: HandleSpan<ContractProofFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowStateFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub writable_roots: HandleSpan<BorrowWritableRootFact>,
+    pub mutable_parameter_count: usize,
+    pub semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub calls: HandleSpan<FlowCallFact>,
+    pub exits: HandleSpan<FlowExitFact>,
+    pub direct_effects: omega_effects::EffectSet,
+    pub transitive_effects: omega_effects::EffectSet,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowFacts {
+    pub semantic_context_refs: Arena<FlowSemanticContextRef>,
+    pub calls: Arena<FlowCallFact>,
+    pub exits: Arena<FlowExitFact>,
+    pub states: Arena<FlowStateFact>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
     pub semantic: omega_facts::FactPlan,
@@ -236,6 +286,7 @@ pub struct CheckFacts {
     pub proof: ProofFacts,
     pub invariants: InvariantFacts,
     pub effects: omega_effects::EffectPlan,
+    pub flow: FlowFacts,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
