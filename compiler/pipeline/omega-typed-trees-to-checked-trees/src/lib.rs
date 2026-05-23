@@ -94,18 +94,68 @@ fn append_contract_semantic_facts(
     }
 
     for (_, call) in proof.contract_calls.iter() {
-        let mut refs = HandleSpan::empty();
-        append_semantic_contract_refs(proof, facts, &semantic_handles, call.requires, &mut refs);
-        append_semantic_contract_refs(proof, facts, &semantic_handles, call.ensures, &mut refs);
-        facts.append_context(
-            ProgramPoint::Call {
+        let mut combined_ref_values = Vec::new();
+        let mut requires = HandleSpan::empty();
+        append_call_semantic_contract_refs(
+            program,
+            proof,
+            facts,
+            call,
+            call.requires,
+            FactOrigin::CallRequires,
+            ProgramPoint::CallRequires {
                 machine_symbol: call.caller_machine_symbol,
                 state_symbol: call.caller_state_symbol,
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
             },
-            refs,
+            &mut requires,
         );
+        combined_ref_values.extend(facts.refs.span_or_empty(requires).iter().copied());
+        if !requires.is_empty() {
+            facts.append_context(
+                ProgramPoint::CallRequires {
+                    machine_symbol: call.caller_machine_symbol,
+                    state_symbol: call.caller_state_symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                },
+                requires,
+            );
+        }
+
+        let mut ensures = HandleSpan::empty();
+        append_call_semantic_contract_refs(
+            program,
+            proof,
+            facts,
+            call,
+            call.ensures,
+            FactOrigin::CallEnsures,
+            ProgramPoint::CallEnsures {
+                machine_symbol: call.caller_machine_symbol,
+                state_symbol: call.caller_state_symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+            },
+            &mut ensures,
+        );
+        combined_ref_values.extend(facts.refs.span_or_empty(ensures).iter().copied());
+        if !ensures.is_empty() {
+            facts.append_context(
+                ProgramPoint::CallEnsures {
+                    machine_symbol: call.caller_machine_symbol,
+                    state_symbol: call.caller_state_symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                },
+                ensures,
+            );
+        }
+        let mut refs = HandleSpan::empty();
+        for fact_ref in combined_ref_values {
+            facts.refs.append_to_span(&mut refs, fact_ref);
+        }
         facts.append_symbol_set(call.target_machine_symbol, refs);
     }
 
@@ -124,6 +174,30 @@ fn append_contract_semantic_facts(
     }
 }
 
+fn append_call_semantic_contract_refs(
+    program: &omega_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    source_refs: HandleSpan<ContractProofFactRef>,
+    origin: FactOrigin,
+    point: ProgramPoint,
+    refs: &mut HandleSpan<FactRef>,
+) {
+    for source_ref in proof.contract_fact_refs.span_or_empty(source_refs) {
+        let contract = proof.contract_facts.get(source_ref.fact);
+        let place = instantiate_call_contract_place(program, facts, call, contract);
+        let payload = semantic_contract_payload(program, contract);
+        let fact = facts.append_fact(Fact {
+            place,
+            point,
+            origin,
+            payload,
+        });
+        facts.append_ref(refs, fact);
+    }
+}
+
 fn append_semantic_contract_refs(
     proof: &ProofFacts,
     facts: &mut FactPlan,
@@ -139,6 +213,159 @@ fn append_semantic_contract_refs(
         };
         facts.append_ref(refs, *fact);
     }
+}
+
+fn instantiate_call_contract_place(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    contract: &ContractProofFact,
+) -> FactPlace {
+    let original_place = contract_fact_place(program, facts, contract);
+    let FactPlace::Place(original_place_handle) = original_place else {
+        return original_place;
+    };
+
+    let Some(substitution) =
+        call_contract_place_substitution(program, facts, call, original_place_handle)
+    else {
+        return original_place;
+    };
+
+    let original_place = *facts.places.get(original_place_handle);
+    let original_segments: Vec<_> = facts
+        .place_segments
+        .span_or_empty(original_place.segments)
+        .iter()
+        .copied()
+        .collect();
+
+    let mut segments = substitution.segments;
+    segments.extend(original_segments);
+    FactPlace::Place(append_place_with_segments(
+        facts,
+        substitution.root,
+        &segments,
+    ))
+}
+
+#[derive(Debug, Clone)]
+struct ContractPlaceSubstitution {
+    root: omega_facts::PlaceRoot,
+    segments: Vec<omega_facts::PlaceSegment>,
+}
+
+fn call_contract_place_substitution(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    original_place_handle: omega_facts::PlaceHandle,
+) -> Option<ContractPlaceSubstitution> {
+    let original_place = *facts.places.get(original_place_handle);
+    let omega_facts::PlaceRoot::Symbol(parameter_symbol) = original_place.root else {
+        return None;
+    };
+    let statement = call_statement(
+        program,
+        call.caller_machine_symbol,
+        call.caller_state_symbol,
+        call.statement_index,
+    )?;
+    let target_state = find_state(program, call.target_state_symbol)?;
+    let mut argument_index = 0usize;
+
+    for parameter in program.state_parameters(target_state) {
+        let substitution_place = if parameter.is_self {
+            if parameter.symbol != parameter_symbol || !statement.receiver_symbol.is_valid() {
+                continue;
+            }
+            Some(facts.append_symbol_place(statement.receiver_symbol))
+        } else {
+            let argument = program
+                .statement_table
+                .expression_handles(statement.arguments)
+                .get(argument_index)
+                .copied();
+            argument_index = argument_index.saturating_add(1);
+            if parameter.symbol != parameter_symbol {
+                continue;
+            }
+            argument.map(|expression| facts.append_place_from_expression(program, expression))
+        }?;
+
+        let place = *facts.places.get(substitution_place);
+        let segments = facts
+            .place_segments
+            .span_or_empty(place.segments)
+            .iter()
+            .copied()
+            .collect();
+        return Some(ContractPlaceSubstitution {
+            root: place.root,
+            segments,
+        });
+    }
+
+    None
+}
+
+fn append_place_with_segments(
+    facts: &mut FactPlan,
+    root: omega_facts::PlaceRoot,
+    segments: &[omega_facts::PlaceSegment],
+) -> omega_facts::PlaceHandle {
+    let place = facts.append_place(omega_facts::Place {
+        root,
+        segments: HandleSpan::empty(),
+    });
+    for segment in segments {
+        facts.push_place_segment(place, *segment);
+    }
+    place
+}
+
+fn call_statement<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+) -> Option<&'program omega_typed_trees::statement::TableCall> {
+    let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
+    match program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    {
+        StatementNode::Call(call) => Some(call),
+        _ => None,
+    }
+}
+
+fn find_state_in_machine<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Option<&'program omega_typed_trees::state::State> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+}
+
+fn find_state<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+) -> Option<&'program omega_typed_trees::state::State> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+    })
 }
 
 fn proof_obligation_point(obligation: &ProofObligationFact) -> ProgramPoint {
@@ -981,6 +1208,8 @@ fn build_flow_facts(
                     },
                 ],
             );
+            let mut active_contexts =
+                clone_flow_contexts(&mut semantic_context_refs, state_contexts);
 
             let mut state_calls = omega_core::arena::HandleSpan::empty();
             for borrow_call in borrow.calls.span_or_empty(borrow_state.calls) {
@@ -992,28 +1221,34 @@ fn build_flow_facts(
                     borrow_call.statement_index,
                     borrow_call.call_ordinal,
                 );
-                let mut call_contexts = omega_core::arena::HandleSpan::empty();
+                let entry_contexts =
+                    clone_flow_contexts(&mut semantic_context_refs, active_contexts);
+                let mut requires_contexts = omega_core::arena::HandleSpan::empty();
                 append_flow_contexts_for_points(
                     semantic,
                     &mut semantic_context_refs,
-                    &mut call_contexts,
-                    &[
-                        ProgramPoint::Global,
-                        ProgramPoint::Machine {
-                            machine_symbol: machine.symbol,
-                        },
-                        ProgramPoint::State {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                        },
-                        ProgramPoint::Call {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                            statement_index: borrow_call.statement_index,
-                            call_ordinal: borrow_call.call_ordinal,
-                        },
-                    ],
+                    &mut requires_contexts,
+                    &[ProgramPoint::CallRequires {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index: borrow_call.statement_index,
+                        call_ordinal: borrow_call.call_ordinal,
+                    }],
                 );
+                let mut exit_contexts =
+                    clone_flow_contexts(&mut semantic_context_refs, active_contexts);
+                append_flow_contexts_for_points(
+                    semantic,
+                    &mut semantic_context_refs,
+                    &mut exit_contexts,
+                    &[ProgramPoint::CallEnsures {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index: borrow_call.statement_index,
+                        call_ordinal: borrow_call.call_ordinal,
+                    }],
+                );
+                active_contexts = clone_flow_contexts(&mut semantic_context_refs, exit_contexts);
 
                 calls.append_to_span(
                     &mut state_calls,
@@ -1024,7 +1259,9 @@ fn build_flow_facts(
                         target_symbol: borrow_call.target_symbol,
                         has_receiver: borrow_call.has_receiver,
                         accesses: borrow_call.accesses,
-                        semantic_contexts: call_contexts,
+                        entry_semantic_contexts: entry_contexts,
+                        requires_contexts,
+                        exit_semantic_contexts: exit_contexts,
                         requires: contract_call
                             .map(|call| call.requires)
                             .unwrap_or_else(HandleSpan::empty),
@@ -1046,26 +1283,18 @@ fn build_flow_facts(
                 (exit.machine_symbol == machine.symbol && exit.state_symbol == state.symbol)
                     .then_some(exit)
             }) {
-                let mut exit_contexts = omega_core::arena::HandleSpan::empty();
+                let entry_exit_contexts =
+                    clone_flow_contexts(&mut semantic_context_refs, active_contexts);
+                let mut ensures_contexts = omega_core::arena::HandleSpan::empty();
                 append_flow_contexts_for_points(
                     semantic,
                     &mut semantic_context_refs,
-                    &mut exit_contexts,
-                    &[
-                        ProgramPoint::Global,
-                        ProgramPoint::Machine {
-                            machine_symbol: machine.symbol,
-                        },
-                        ProgramPoint::State {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                        },
-                        ProgramPoint::Exit {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                            statement_index: contract_exit.statement_index,
-                        },
-                    ],
+                    &mut ensures_contexts,
+                    &[ProgramPoint::Exit {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index: contract_exit.statement_index,
+                    }],
                 );
 
                 exits.append_to_span(
@@ -1074,7 +1303,8 @@ fn build_flow_facts(
                         machine_symbol: machine.symbol,
                         state_symbol: state.symbol,
                         statement_index: contract_exit.statement_index,
-                        semantic_contexts: exit_contexts,
+                        entry_semantic_contexts: entry_exit_contexts,
+                        ensures_contexts,
                         ensures: contract_exit.ensures,
                     },
                 );
@@ -1085,7 +1315,7 @@ fn build_flow_facts(
                 state_symbol: state.symbol,
                 writable_roots: borrow_state.writable_roots,
                 mutable_parameter_count: borrow_state.mutable_parameter_count,
-                semantic_contexts: state_contexts,
+                entry_semantic_contexts: state_contexts,
                 calls: state_calls,
                 exits: state_exits,
                 direct_effects: state_effects
@@ -1104,6 +1334,22 @@ fn build_flow_facts(
         exits,
         states,
     }
+}
+
+fn clone_flow_contexts(
+    semantic_context_refs: &mut omega_core::arena::Arena<FlowSemanticContextRef>,
+    source: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+) -> omega_core::arena::HandleSpan<FlowSemanticContextRef> {
+    let mut cloned = omega_core::arena::HandleSpan::empty();
+    let copied: Vec<_> = semantic_context_refs
+        .span_or_empty(source)
+        .iter()
+        .copied()
+        .collect();
+    for context_ref in copied {
+        semantic_context_refs.append_to_span(&mut cloned, context_ref);
+    }
+    cloned
 }
 
 fn append_flow_contexts_for_points(
@@ -2190,7 +2436,10 @@ fn first_valid_name_path_symbol(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_borrow_facts, build_flow_facts, build_proof_facts, build_semantic_facts};
+    use super::{
+        build_borrow_facts, build_flow_facts, build_proof_facts, build_semantic_facts,
+        instantiate_call_contract_place,
+    };
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
     use omega_checked_trees::machine::{Machine, TraitConformance};
     use omega_checked_trees::name::ProgramName;
@@ -2420,20 +2669,172 @@ mod tests {
                     .then_some(state)
             })
             .expect("caller flow state");
-        assert!(caller_flow.semantic_contexts.is_empty());
+        assert!(caller_flow.entry_semantic_contexts.is_empty());
         assert_eq!(flow.calls.span_or_empty(caller_flow.calls).len(), 1);
 
         let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
         assert_eq!(call_flow.statement_index, 0);
         assert_eq!(call_flow.call_ordinal, 0);
         assert_eq!(call_flow.target_symbol, callee_state_symbol);
-        assert!(!call_flow.semantic_contexts.is_empty());
+        assert!(call_flow.entry_semantic_contexts.is_empty());
+        assert!(!call_flow.requires_contexts.is_empty());
+        assert!(call_flow.exit_semantic_contexts.is_empty());
         assert_eq!(
             proof
                 .contract_fact_refs
                 .span_or_empty(call_flow.requires)
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn instantiates_call_contract_places_onto_caller_arguments() {
+        let caller_machine_symbol = SymbolHandle::from_arena_index(1);
+        let caller_state_symbol = SymbolHandle::from_arena_index(2);
+        let callee_machine_symbol = SymbolHandle::from_arena_index(3);
+        let callee_state_symbol = SymbolHandle::from_arena_index(4);
+        let caller_argument_symbol = SymbolHandle::from_arena_index(5);
+        let callee_parameter_symbol = SymbolHandle::from_arena_index(6);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let caller_argument_expression =
+            program
+                .expression_table
+                .insert(omega_typed_trees::expression::ExpressionNode::Name(
+                    omega_typed_trees::expression::TableNamePath {
+                        members: HandleSpan::empty(),
+                        member_symbols: HandleSpan::empty(),
+                        head_symbol: caller_argument_symbol,
+                        symbol: caller_argument_symbol,
+                    },
+                ));
+        let callee_parameter_expression =
+            program
+                .expression_table
+                .insert(omega_typed_trees::expression::ExpressionNode::Name(
+                    omega_typed_trees::expression::TableNamePath {
+                        members: HandleSpan::empty(),
+                        member_symbols: HandleSpan::empty(),
+                        head_symbol: callee_parameter_symbol,
+                        symbol: callee_parameter_symbol,
+                    },
+                ));
+        let callee_fact =
+            program
+                .proof_facts
+                .append(omega_typed_trees::domain::ProofFact::Expression(
+                    callee_parameter_expression,
+                ));
+
+        let mut caller_arguments = HandleSpan::empty();
+        program
+            .statement_table
+            .push_expression_handle(&mut caller_arguments, caller_argument_expression);
+        let caller_statement = program
+            .statement_table
+            .insert(StatementNode::Call(TableCall {
+                receiver_symbol: SymbolHandle::invalid(),
+                target_symbol: callee_state_symbol,
+                receiver: HandleSpan::empty(),
+                target: ProgramName::generated("run"),
+                arguments: caller_arguments,
+            }));
+
+        let mut caller_state = State {
+            symbol: caller_state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: HandleSpan::empty(),
+            return_type: Default::default(),
+            statement_nodes: HandleSpan::from_parts(caller_statement, 1),
+        };
+        program.push_state_parameter(
+            &mut caller_state,
+            StateParameter {
+                symbol: caller_argument_symbol,
+                name: ProgramName::generated("value"),
+                type_reference: Default::default(),
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+
+        let mut caller_machine = Machine {
+            symbol: caller_machine_symbol,
+            name: ProgramName::generated("Caller"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_state(&mut caller_machine, caller_state);
+        program.push_machine(caller_machine);
+
+        let mut callee_state = State {
+            symbol: callee_state_symbol,
+            name: ProgramName::generated("run"),
+            parameters: HandleSpan::empty(),
+            return_type: Default::default(),
+            statement_nodes: HandleSpan::empty(),
+        };
+        program.push_state_parameter(
+            &mut callee_state,
+            StateParameter {
+                symbol: callee_parameter_symbol,
+                name: ProgramName::generated("amount"),
+                type_reference: Default::default(),
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
+
+        let mut callee_machine = Machine {
+            symbol: callee_machine_symbol,
+            name: ProgramName::generated("Worker"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_state(&mut callee_machine, callee_state);
+        program.push_machine(callee_machine);
+
+        let call = omega_checked_trees::ContractCallFact {
+            caller_machine_symbol,
+            caller_state_symbol,
+            statement_index: 0,
+            call_ordinal: 0,
+            target_machine_symbol: callee_machine_symbol,
+            target_state_symbol: callee_state_symbol,
+            requires: HandleSpan::empty(),
+            ensures: HandleSpan::empty(),
+        };
+        let contract = omega_checked_trees::ContractProofFact {
+            kind: ContractProofFactKind::Requires,
+            owner: ContractProofFactOwner::MachineState {
+                machine_symbol: callee_machine_symbol,
+                state_symbol: callee_state_symbol,
+            },
+            fact: callee_fact,
+        };
+
+        let mut semantic = omega_facts::FactPlan::default();
+        let place = instantiate_call_contract_place(&program, &mut semantic, &call, &contract);
+        let omega_facts::FactPlace::Place(place_handle) = place else {
+            panic!("expected instantiated call place");
+        };
+
+        assert_eq!(
+            semantic.places.get(place_handle).root,
+            omega_facts::PlaceRoot::Symbol(caller_argument_symbol)
         );
     }
 
