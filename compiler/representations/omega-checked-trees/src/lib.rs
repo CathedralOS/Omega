@@ -121,6 +121,10 @@ pub enum ContractProofFactOwner {
     Machine {
         machine_symbol: SymbolHandle,
     },
+    StateSignature {
+        owner_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

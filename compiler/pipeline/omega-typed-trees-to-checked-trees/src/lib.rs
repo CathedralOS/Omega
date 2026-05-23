@@ -127,6 +127,22 @@ fn build_proof_facts(
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts);
     }
+    for trait_definition in program.traits() {
+        append_state_signature_contract_facts(
+            program,
+            trait_definition.symbol,
+            program.trait_machine_signatures(trait_definition),
+            &mut contract_facts,
+        );
+    }
+    for platform in program.platforms() {
+        append_state_signature_contract_facts(
+            program,
+            platform.symbol,
+            program.platform_state_signatures(platform),
+            &mut contract_facts,
+        );
+    }
     let (mut contract_fact_refs, contract_calls) =
         build_contract_call_facts(program, borrow, &contract_facts);
     let contract_exits =
@@ -152,6 +168,32 @@ fn estimated_contract_fact_capacity(program: &omega_typed_trees::TypedTrees) -> 
                 .map(|contract| contract.facts.len())
                 .sum::<usize>()
         })
+        .chain(program.traits().iter().map(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .map(|signature| {
+                    program
+                        .state_signature_contracts(signature)
+                        .iter()
+                        .map(|contract| contract.facts.len())
+                        .sum::<usize>()
+                })
+                .sum::<usize>()
+        }))
+        .chain(program.platforms().iter().map(|platform| {
+            program
+                .platform_state_signatures(platform)
+                .iter()
+                .map(|signature| {
+                    program
+                        .state_signature_contracts(signature)
+                        .iter()
+                        .map(|contract| contract.facts.len())
+                        .sum::<usize>()
+                })
+                .sum::<usize>()
+        }))
         .sum()
 }
 
@@ -169,6 +211,28 @@ fn append_machine_contract_facts(
                 },
                 fact,
             });
+        }
+    }
+}
+
+fn append_state_signature_contract_facts(
+    program: &omega_typed_trees::TypedTrees,
+    owner_symbol: SymbolHandle,
+    signatures: &[omega_typed_trees::signature::StateSignature],
+    contract_facts: &mut omega_core::arena::Arena<ContractProofFact>,
+) {
+    for signature in signatures {
+        for contract in program.state_signature_contracts(signature) {
+            for fact in fact_handles(contract.facts) {
+                contract_facts.append(ContractProofFact {
+                    kind: contract_fact_kind(contract.kind),
+                    owner: ContractProofFactOwner::StateSignature {
+                        owner_symbol,
+                        state_symbol: signature.symbol,
+                    },
+                    fact,
+                });
+            }
         }
     }
 }
@@ -1434,10 +1498,11 @@ mod tests {
     use omega_checked_trees::machine::Machine;
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::signature::{
-        SignatureContract, SignatureContractKind, StateParameter,
+        SignatureContract, SignatureContractKind, StateParameter, StateSignature,
     };
     use omega_checked_trees::state::State;
     use omega_checked_trees::statement::{StatementNode, TableCall};
+    use omega_checked_trees::trait_definition::TraitDefinition;
     use omega_checked_trees::types::TypeReferenceNode;
     use omega_checked_trees::{ContractProofFactKind, ContractProofFactOwner};
     use omega_core::arena::HandleSpan;
@@ -1492,6 +1557,67 @@ mod tests {
         assert_eq!(
             contract_fact.owner,
             ContractProofFactOwner::Machine { machine_symbol }
+        );
+    }
+
+    #[test]
+    fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
+        let trait_symbol = SymbolHandle::from_arena_index(5);
+        let signature_symbol = SymbolHandle::from_arena_index(6);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let fact = program
+            .proof_facts
+            .append(omega_typed_trees::domain::ProofFact::Expression(expression));
+
+        let mut trait_definition = TraitDefinition {
+            symbol: trait_symbol,
+            is_boundary: true,
+            name: ProgramName::generated("Console"),
+            requires: Default::default(),
+            machines: Default::default(),
+        };
+        let mut signature = StateSignature {
+            symbol: signature_symbol,
+            name: ProgramName::generated("write_line"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            effects: Default::default(),
+            contracts: Default::default(),
+        };
+        program.push_state_signature_contract(
+            &mut signature,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: HandleSpan::from_parts(fact, 1),
+                token_count: 1,
+            },
+        );
+        program.push_trait_machine_signature(&mut trait_definition, signature);
+        program.push_trait_definition(trait_definition);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let borrow = build_borrow_facts(&program);
+        let facts = build_proof_facts(&program, &proof_plan, &borrow);
+        let contract_fact = facts
+            .contract_facts
+            .iter()
+            .next()
+            .map(|(_, fact)| fact)
+            .expect("checked proof facts should include the trait signature contract");
+
+        assert_eq!(facts.contract_facts.len(), 1);
+        assert_eq!(contract_fact.kind, ContractProofFactKind::Requires);
+        assert_eq!(contract_fact.fact, fact);
+        assert_eq!(
+            contract_fact.owner,
+            ContractProofFactOwner::StateSignature {
+                owner_symbol: trait_symbol,
+                state_symbol: signature_symbol,
+            }
         );
     }
 
