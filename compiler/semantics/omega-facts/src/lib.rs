@@ -236,6 +236,20 @@ impl<'facts> FactContextView<'facts> {
         })
     }
 
+    pub fn proves_domain_membership(
+        self,
+        value: ExpressionHandle,
+        domain_symbol: SymbolHandle,
+    ) -> bool {
+        self.domain_memberships()
+            .any(|fact| fact.value == value && fact.domain_symbol == domain_symbol)
+    }
+
+    pub fn references_domain(self, domain_symbol: SymbolHandle) -> bool {
+        self.domain_memberships()
+            .any(|fact| fact.domain_symbol == domain_symbol)
+    }
+
     pub fn type_constraints(self) -> impl Iterator<Item = TypeConstraintFact> + 'facts {
         self.facts().filter_map(|fact| match fact.payload {
             FactPayload::TypeConstraint { constraint } => Some(TypeConstraintFact { constraint }),
@@ -372,6 +386,25 @@ impl FactPlan {
     pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
         self.contexts_at_point(point)
             .flat_map(|context| context.facts())
+    }
+
+    pub fn proves_domain_membership_at_point(
+        &self,
+        point: ProgramPoint,
+        value: ExpressionHandle,
+        domain_symbol: SymbolHandle,
+    ) -> bool {
+        self.contexts_at_point(point)
+            .any(|context| context.proves_domain_membership(value, domain_symbol))
+    }
+
+    pub fn symbol_references_domain(
+        &self,
+        symbol: SymbolHandle,
+        domain_symbol: SymbolHandle,
+    ) -> bool {
+        self.domain_memberships_for_symbol(symbol)
+            .any(|fact| fact.domain_symbol == domain_symbol)
     }
 
     pub fn boolean_facts_for_symbol(
@@ -548,7 +581,7 @@ mod tests {
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::TypedTrees;
-    use omega_typed_trees::domain::{DomainDefinition, ProofFact};
+    use omega_typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
     use omega_typed_trees::expression::ExpressionNode;
     use omega_typed_trees::invariant::InvariantDefinition;
     use omega_typed_trees::name::ProgramName;
@@ -566,12 +599,20 @@ mod tests {
         let fact = program
             .proof_facts
             .append(ProofFact::Expression(expression));
+        let membership = program
+            .proof_facts
+            .append(ProofFact::Membership(ProofMembershipFact {
+                value: expression,
+                domain: HandleSpan::empty(),
+                domain_symbol,
+            }));
+        assert_eq!(membership.arena_index(), fact.arena_index() + 1);
         program.push_domain_definition(DomainDefinition {
             symbol: domain_symbol,
             name: ProgramName::generated("Player::Alive"),
             target_type: TypeReferenceHandle::invalid(),
-            facts: HandleSpan::from_parts(fact, 1),
-            body_token_count: 1,
+            facts: HandleSpan::from_parts(fact, 2),
+            body_token_count: 2,
         });
 
         let constraint = program
@@ -586,10 +627,11 @@ mod tests {
         let facts = build_definition_fact_plan(&program);
 
         assert_eq!(facts.places.len(), 2);
-        assert_eq!(facts.facts.len(), 2);
+        assert_eq!(facts.facts.len(), 3);
         assert_eq!(facts.contexts.len(), 2);
         assert_eq!(facts.symbol_sets.len(), 2);
         assert_eq!(facts.boolean_facts_for_symbol(domain_symbol).count(), 1);
+        assert!(facts.symbol_references_domain(domain_symbol, domain_symbol));
         assert_eq!(
             facts.type_constraints_for_symbol(invariant_symbol).count(),
             1
@@ -600,7 +642,7 @@ mod tests {
                     symbol: domain_symbol,
                 })
                 .count(),
-            1
+            2
         );
         let domain_context = facts
             .contexts_at_point(super::ProgramPoint::Definition {
@@ -609,6 +651,7 @@ mod tests {
             .next()
             .expect("domain context");
         assert_eq!(domain_context.boolean_facts().count(), 1);
+        assert!(domain_context.proves_domain_membership(expression, domain_symbol));
 
         let invariant_context = facts
             .contexts_at_point(super::ProgramPoint::Definition {
