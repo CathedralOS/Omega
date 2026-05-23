@@ -1,4 +1,8 @@
 use super::*;
+use crate::borrow::{
+    expression_root_symbol, first_valid_name_path_symbol, machine_by_symbol,
+    machine_symbol_from_type_reference_handle, statement_call_receiver_path,
+};
 
 pub(crate) fn build_domain_facts(
     program: &omega_typed_trees::TypedTrees,
