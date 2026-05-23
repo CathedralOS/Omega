@@ -126,6 +126,7 @@ fn build_proof_facts(
 
     for machine in program.machines() {
         append_machine_contract_facts(program, machine, &mut contract_facts);
+        append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
     }
     for trait_definition in program.traits() {
         append_state_signature_contract_facts(
@@ -194,6 +195,12 @@ fn estimated_contract_fact_capacity(program: &omega_typed_trees::TypedTrees) -> 
                 })
                 .sum::<usize>()
         }))
+        .chain(
+            program
+                .machines()
+                .iter()
+                .map(|machine| estimated_inherited_trait_contract_fact_capacity(program, machine)),
+        )
         .sum()
 }
 
@@ -235,6 +242,191 @@ fn append_state_signature_contract_facts(
             }
         }
     }
+}
+
+fn append_inherited_trait_contract_facts(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    contract_facts: &mut omega_core::arena::Arena<ContractProofFact>,
+) {
+    let mut visited_traits = Vec::new();
+    for conformance in program.machine_trait_conformances(machine) {
+        let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
+            continue;
+        };
+        append_trait_contract_facts_for_machine(
+            program,
+            machine,
+            trait_definition,
+            contract_facts,
+            &mut visited_traits,
+        );
+    }
+}
+
+fn append_trait_contract_facts_for_machine(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    contract_facts: &mut omega_core::arena::Arena<ContractProofFact>,
+    visited_traits: &mut Vec<SymbolHandle>,
+) {
+    if visited_traits
+        .iter()
+        .any(|symbol| *symbol == trait_definition.symbol)
+    {
+        return;
+    }
+
+    visited_traits.push(trait_definition.symbol);
+
+    for signature in program.trait_machine_signatures(trait_definition) {
+        let Some((target_machine_symbol, target_state_symbol)) =
+            trait_requirement_state_symbols(program, machine, signature)
+        else {
+            continue;
+        };
+
+        for contract in program.state_signature_contracts(signature) {
+            for fact in fact_handles(contract.facts) {
+                contract_facts.append(ContractProofFact {
+                    kind: contract_fact_kind(contract.kind),
+                    owner: ContractProofFactOwner::MachineState {
+                        machine_symbol: target_machine_symbol,
+                        state_symbol: target_state_symbol,
+                    },
+                    fact,
+                });
+            }
+        }
+    }
+
+    for requirement in program.trait_requirements(trait_definition) {
+        let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol) else {
+            continue;
+        };
+        append_trait_contract_facts_for_machine(
+            program,
+            machine,
+            required_trait,
+            contract_facts,
+            visited_traits,
+        );
+    }
+
+    visited_traits.pop();
+}
+
+fn estimated_inherited_trait_contract_fact_capacity(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> usize {
+    let mut visited_traits = Vec::new();
+    program
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter_map(|conformance| trait_definition_by_symbol(program, conformance.symbol))
+        .map(|trait_definition| {
+            estimated_trait_contract_fact_capacity_for_machine(
+                program,
+                machine,
+                trait_definition,
+                &mut visited_traits,
+            )
+        })
+        .sum()
+}
+
+fn estimated_trait_contract_fact_capacity_for_machine(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    visited_traits: &mut Vec<SymbolHandle>,
+) -> usize {
+    if visited_traits
+        .iter()
+        .any(|symbol| *symbol == trait_definition.symbol)
+    {
+        return 0;
+    }
+
+    visited_traits.push(trait_definition.symbol);
+
+    let direct = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .filter(|signature| trait_requirement_state_symbols(program, machine, signature).is_some())
+        .map(|signature| {
+            program
+                .state_signature_contracts(signature)
+                .iter()
+                .map(|contract| contract.facts.len())
+                .sum::<usize>()
+        })
+        .sum::<usize>();
+    let inherited = program
+        .trait_requirements(trait_definition)
+        .iter()
+        .filter_map(|requirement| trait_definition_by_symbol(program, requirement.symbol))
+        .map(|required_trait| {
+            estimated_trait_contract_fact_capacity_for_machine(
+                program,
+                machine,
+                required_trait,
+                visited_traits,
+            )
+        })
+        .sum::<usize>();
+
+    visited_traits.pop();
+    direct.saturating_add(inherited)
+}
+
+fn trait_requirement_state_symbols(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    requirement: &omega_typed_trees::signature::StateSignature,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    trait_conformance_candidate_machines(program, machine)
+        .into_iter()
+        .find_map(|candidate| {
+            program
+                .machine_states(candidate)
+                .iter()
+                .find(|state| state.name == requirement.name)
+                .map(|state| (candidate.symbol, state.symbol))
+        })
+}
+
+fn trait_conformance_candidate_machines<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    machine: &'program omega_typed_trees::machine::Machine,
+) -> Vec<&'program omega_typed_trees::machine::Machine> {
+    let Some(attached_data) = machine.attached_data.as_ref() else {
+        return vec![machine];
+    };
+
+    let mut candidates = Vec::new();
+    candidates.push(machine);
+    candidates.extend(program.machines().iter().filter(|candidate| {
+        !std::ptr::eq(*candidate, machine)
+            && candidate.attached_data.as_ref() == Some(attached_data)
+    }));
+    candidates
+}
+
+fn trait_definition_by_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::trait_definition::TraitDefinition> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    program
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == symbol)
 }
 
 fn build_contract_call_facts(
@@ -295,12 +487,14 @@ fn append_contract_call(
         contract_facts,
         fact_refs,
         site.target_machine_symbol,
+        Some(site.target_state_symbol),
         ContractProofFactKind::Requires,
     );
     let ensures = append_contract_fact_refs(
         contract_facts,
         fact_refs,
         site.target_machine_symbol,
+        Some(site.target_state_symbol),
         ContractProofFactKind::Ensures,
     );
 
@@ -339,6 +533,7 @@ fn build_contract_exit_facts(
                 contract_facts,
                 fact_refs,
                 machine.symbol,
+                Some(state.symbol),
                 ContractProofFactKind::Ensures,
             );
 
@@ -362,19 +557,29 @@ fn append_contract_fact_refs(
     contract_facts: &omega_core::arena::Arena<ContractProofFact>,
     fact_refs: &mut omega_core::arena::Arena<ContractProofFactRef>,
     machine_symbol: SymbolHandle,
+    state_symbol: Option<SymbolHandle>,
     kind: ContractProofFactKind,
 ) -> HandleSpan<ContractProofFactRef> {
     let mut span = HandleSpan::empty();
 
     for (handle, fact) in contract_facts.iter() {
-        let ContractProofFactOwner::Machine {
-            machine_symbol: owner_symbol,
-        } = fact.owner
-        else {
-            continue;
+        let owner_matches = match fact.owner {
+            ContractProofFactOwner::Machine {
+                machine_symbol: owner_symbol,
+            } => owner_symbol == machine_symbol,
+            ContractProofFactOwner::MachineState {
+                machine_symbol: owner_machine_symbol,
+                state_symbol: owner_state_symbol,
+            } => {
+                owner_machine_symbol == machine_symbol
+                    && state_symbol.is_some_and(|state_symbol| state_symbol == owner_state_symbol)
+            }
+            ContractProofFactOwner::Unknown | ContractProofFactOwner::StateSignature { .. } => {
+                false
+            }
         };
 
-        if owner_symbol == machine_symbol && fact.kind == kind {
+        if owner_matches && fact.kind == kind {
             fact_refs.append_to_span(&mut span, ContractProofFactRef { fact: handle });
         }
     }
@@ -1495,7 +1700,7 @@ fn first_valid_name_path_symbol(
 mod tests {
     use super::{build_borrow_facts, build_proof_facts};
     use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
-    use omega_checked_trees::machine::Machine;
+    use omega_checked_trees::machine::{Machine, TraitConformance};
     use omega_checked_trees::name::ProgramName;
     use omega_checked_trees::signature::{
         SignatureContract, SignatureContractKind, StateParameter, StateSignature,
@@ -1724,6 +1929,141 @@ mod tests {
         assert_eq!(contract_call.target_state_symbol, target_state_symbol);
         assert_eq!(requires.len(), 1);
         assert_eq!(facts.contract_facts.get(requires[0].fact).fact, fact);
+    }
+
+    #[test]
+    fn indexes_inherited_trait_contracts_by_concrete_call_target() {
+        let trait_symbol = SymbolHandle::from_arena_index(5);
+        let signature_symbol = SymbolHandle::from_arena_index(6);
+        let target_machine_symbol = SymbolHandle::from_arena_index(7);
+        let target_state_symbol = SymbolHandle::from_arena_index(8);
+        let caller_machine_symbol = SymbolHandle::from_arena_index(9);
+        let caller_state_symbol = SymbolHandle::from_arena_index(10);
+
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let expression = program
+            .expression_table
+            .insert(omega_typed_trees::expression::ExpressionNode::Boolean(true));
+        let fact = program
+            .proof_facts
+            .append(omega_typed_trees::domain::ProofFact::Expression(expression));
+
+        let mut trait_definition = TraitDefinition {
+            symbol: trait_symbol,
+            is_boundary: true,
+            name: ProgramName::generated("Drawable"),
+            requires: Default::default(),
+            machines: Default::default(),
+        };
+        let mut signature = StateSignature {
+            symbol: signature_symbol,
+            name: ProgramName::generated("draw"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            effects: Default::default(),
+            contracts: Default::default(),
+        };
+        program.push_state_signature_contract(
+            &mut signature,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: HandleSpan::from_parts(fact, 1),
+                token_count: 1,
+            },
+        );
+        program.push_trait_machine_signature(&mut trait_definition, signature);
+        program.push_trait_definition(trait_definition);
+
+        let mut target_machine = Machine {
+            symbol: target_machine_symbol,
+            name: ProgramName::generated("Sprite"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        program.push_machine_trait_conformance(
+            &mut target_machine,
+            TraitConformance {
+                symbol: trait_symbol,
+                name: ProgramName::generated("Drawable"),
+            },
+        );
+        program.push_machine_state(
+            &mut target_machine,
+            State {
+                symbol: target_state_symbol,
+                name: ProgramName::generated("draw"),
+                parameters: Default::default(),
+                return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+                statement_nodes: Default::default(),
+            },
+        );
+        program.push_machine(target_machine);
+
+        let mut caller_machine = Machine {
+            symbol: caller_machine_symbol,
+            name: ProgramName::generated("Main"),
+            attached_data: None,
+            contains: Default::default(),
+            owned_data: Default::default(),
+            satisfies: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+            states: Default::default(),
+        };
+        let mut caller_state = State {
+            symbol: caller_state_symbol,
+            name: ProgramName::generated("main"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        };
+        let mut receiver = HandleSpan::empty();
+        program
+            .statement_table
+            .push_name_path_member(&mut receiver, ProgramName::generated("sprite"));
+        program.statement_table.push_statement(
+            &mut caller_state.statement_nodes,
+            StatementNode::Call(TableCall {
+                receiver_symbol: target_machine_symbol,
+                target_symbol: target_state_symbol,
+                receiver,
+                target: ProgramName::generated("draw"),
+                arguments: Default::default(),
+            }),
+        );
+        program.push_machine_state(&mut caller_machine, caller_state);
+        program.push_machine(caller_machine);
+
+        let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+        let borrow = build_borrow_facts(&program);
+        let facts = build_proof_facts(&program, &proof_plan, &borrow);
+        let contract_call = facts
+            .contract_calls
+            .iter()
+            .next()
+            .map(|(_, call)| call)
+            .expect("checked proof facts should index inherited trait contracts");
+        let requires = facts
+            .contract_fact_refs
+            .span_or_empty(contract_call.requires);
+
+        assert_eq!(facts.contract_calls.len(), 1);
+        assert_eq!(requires.len(), 1);
+        let inherited_fact = facts.contract_facts.get(requires[0].fact);
+        assert_eq!(inherited_fact.kind, ContractProofFactKind::Requires);
+        assert_eq!(inherited_fact.fact, fact);
+        assert_eq!(
+            inherited_fact.owner,
+            ContractProofFactOwner::MachineState {
+                machine_symbol: target_machine_symbol,
+                state_symbol: target_state_symbol,
+            }
+        );
     }
 
     #[test]
