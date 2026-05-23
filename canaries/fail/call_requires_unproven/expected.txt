@@ -1,1 +1,1 @@
-cannot prove requires contract for call heal from Main::main: player in Player::Valid
+cannot prove requires contract for call heal from Main::main: Main::main.player in Player::Valid
