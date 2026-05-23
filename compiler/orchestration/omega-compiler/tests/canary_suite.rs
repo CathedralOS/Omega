@@ -3,6 +3,41 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[test]
+fn contract_canary_visualizes_flow_contract_summaries() {
+    let canary = repo_root()
+        .join("canaries/pass")
+        .join("contracts_domain_membership_surface");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-contract-canary-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("contract canary should compile with visual artifacts");
+
+    let state_graph = fs::read_to_string(build_dir.join("06_state_graph.html"))
+        .expect("state graph visualization should be written");
+    let control_flow = fs::read_to_string(build_dir.join("07_control_flow.html"))
+        .expect("control flow visualization should be written");
+
+    assert!(
+        state_graph.contains("contract call #1.0 requires 1 ensures 1"),
+        "state graph should show propagated contract call summaries"
+    );
+    assert!(
+        control_flow.contains("contract call #1.0 requires 1 ensures 1"),
+        "control flow should show propagated contract call summaries"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn pass_canaries_compile() {
     for canary_name in ACTIVE_PASS_CANARIES {
         let canary = repo_root().join("canaries/pass").join(canary_name);
