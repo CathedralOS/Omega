@@ -57,10 +57,18 @@ fn check_flow_call_contracts(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut state_mutation_summary_cache = StateMutationSummaryCache::default();
 
     for (_, state_flow) in facts.flow.states.iter() {
         for call_flow in facts.flow.calls.span_or_empty(state_flow.calls) {
-            check_call_requires(program, facts, state_flow, call_flow, &mut diagnostics);
+            check_call_requires(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                &mut state_mutation_summary_cache,
+                &mut diagnostics,
+            );
         }
     }
 
@@ -76,6 +84,7 @@ fn check_call_requires(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
+    state_mutation_summaries: &mut StateMutationSummaryCache,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let entry_contexts = facts
@@ -121,15 +130,108 @@ fn check_call_requires(
             };
 
             if !satisfied {
+                let detail = match fact.payload {
+                    FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                        let FactPlace::Place(place) = fact.place else {
+                            unreachable!("contract domain membership already handled above")
+                        };
+                        explain_domain_requirement_failure(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            place,
+                            domain_symbol,
+                            state_mutation_summaries,
+                        )
+                    }
+                    _ => None,
+                };
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove requires contract for call {} from {}: {}",
+                    "cannot prove requires contract for call {} from {}: {}{}",
                     call_target_label(program, call_flow.target_symbol),
                     machine_name(program, state_flow.machine_symbol),
-                    semantic_fact_requirement_label(program, &facts.semantic, fact)
+                    semantic_fact_requirement_label(program, &facts.semantic, fact),
+                    detail
+                        .map(|message| format!(" ({message})"))
+                        .unwrap_or_default()
                 )));
             }
         }
     }
+}
+
+fn explain_domain_requirement_failure(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    required_place: omega_facts::PlaceHandle,
+    required_domain: SymbolHandle,
+    state_mutation_summaries: &mut StateMutationSummaryCache,
+) -> Option<String> {
+    let borrow_state = borrow_state_fact(
+        &facts.borrow,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    )?;
+    let required_fact_place = facts.semantic.places.get(required_place);
+    let required_segments = facts
+        .semantic
+        .place_segments
+        .span_or_empty(required_fact_place.segments);
+    let domain_dependency = facts.domains.dependency_fact(required_domain)?;
+
+    for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
+        if borrow_call.statement_index > call_flow.statement_index
+            || (borrow_call.statement_index == call_flow.statement_index
+                && borrow_call.call_ordinal >= call_flow.call_ordinal)
+        {
+            break;
+        }
+
+        if !call_may_mutate_contract_state(program, &facts.borrow, borrow_call) {
+            continue;
+        }
+
+        let mutated_places = call_mutated_places(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            &facts.borrow,
+            borrow_call,
+            state_mutation_summaries,
+        );
+
+        for mutated_place in &mutated_places {
+            for dependency_segments in facts.domains.dependency_paths(domain_dependency) {
+                if canonical_place_overlaps_joined_segments(
+                    required_segments,
+                    dependency_segments,
+                    &mutated_place.segments,
+                ) && required_fact_place.root == mutated_place.root
+                {
+                    let invalidated = joined_place_label(
+                        program,
+                        &facts.semantic,
+                        required_fact_place,
+                        dependency_segments,
+                    );
+                    let mutated = canonical_place_label_from_parts(
+                        program,
+                        mutated_place.root,
+                        &mutated_place.segments,
+                    );
+                    return Some(format!(
+                        "invalidated by prior mutation of {mutated}; {invalidated} is part of {}",
+                        symbol_name(program, required_domain)
+                    ));
+                }
+            }
+        }
+    }
+
+    None
 }
 
 fn context_proves_requirement_place_domain(
@@ -1224,7 +1326,35 @@ fn canonical_place_label(
     semantic: &FactPlan,
     place: &omega_facts::Place,
 ) -> String {
-    let mut label = match place.root {
+    canonical_place_label_from_parts(
+        program,
+        place.root,
+        semantic.place_segments.span_or_empty(place.segments),
+    )
+}
+
+fn joined_place_label(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    place: &omega_facts::Place,
+    extra_segments: &[omega_facts::PlaceSegment],
+) -> String {
+    let mut segments: Vec<_> = semantic
+        .place_segments
+        .span_or_empty(place.segments)
+        .iter()
+        .copied()
+        .collect();
+    segments.extend(extra_segments.iter().copied());
+    canonical_place_label_from_parts(program, place.root, &segments)
+}
+
+fn canonical_place_label_from_parts(
+    program: &omega_typed_trees::TypedTrees,
+    root: omega_facts::PlaceRoot,
+    segments: &[omega_facts::PlaceSegment],
+) -> String {
+    let mut label = match root {
         omega_facts::PlaceRoot::Unknown => "unknown".to_owned(),
         omega_facts::PlaceRoot::Symbol(symbol) => symbol_name(program, symbol),
         omega_facts::PlaceRoot::Expression(expression) => {
@@ -1234,7 +1364,7 @@ fn canonical_place_label(
             program.display_type_reference(type_reference)
         }
     };
-    for segment in semantic.place_segments.span_or_empty(place.segments) {
+    for segment in segments {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
@@ -2782,11 +2912,7 @@ fn domain_membership_alias_overlaps(
         return Some(false);
     }
 
-    let Some(domain_dependency) = domain_dependencies
-        .dependencies
-        .iter()
-        .find_map(|(_, fact)| (fact.domain_symbol == domain_symbol).then_some(fact))
-    else {
+    let Some(domain_dependency) = domain_dependencies.dependency_fact(domain_symbol) else {
         return Some(canonical_place_overlaps_segments(
             fact_segments,
             &mutated_place.segments,
@@ -2802,17 +2928,13 @@ fn domain_membership_alias_overlaps(
 
     Some(
         domain_dependencies
-            .dependency_paths
-            .span_or_empty(domain_dependency.dependencies)
-            .iter()
-            .any(|path| {
-                let dependency_segments =
-                    domain_dependencies.segments.span_or_empty(path.segments);
-        canonical_place_overlaps_joined_segments(
-            fact_segments,
-            dependency_segments,
-            &mutated_place.segments,
-        )
+            .dependency_paths(domain_dependency)
+            .any(|dependency_segments| {
+                canonical_place_overlaps_joined_segments(
+                    fact_segments,
+                    dependency_segments,
+                    &mutated_place.segments,
+                )
             }),
     )
 }
@@ -5032,6 +5154,9 @@ mod tests {
             diagnostic
                 .message
                 .contains("cannot prove requires contract for call heal from Main::main")
+                && diagnostic
+                    .message
+                    .contains("invalidated by prior mutation of Main::main.player.health")
         }));
 
         assert!(mark_exit_proves);
@@ -5161,6 +5286,9 @@ mod tests {
             diagnostic
                 .message
                 .contains("cannot prove requires contract for call heal from Main::main")
+                && diagnostic
+                    .message
+                    .contains("invalidated by prior mutation of Main::main.player.health")
         }));
     }
 
