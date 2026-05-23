@@ -106,7 +106,7 @@ pub struct ProofObligationFact {
     pub owner: ProofObligationOwner,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ContractProofFactKind {
     #[default]
     Requires,
@@ -114,7 +114,7 @@ pub enum ContractProofFactKind {
     Trusted,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ContractProofFactOwner {
     #[default]
     Unknown,
@@ -123,11 +123,28 @@ pub enum ContractProofFactOwner {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ContractProofFact {
     pub kind: ContractProofFactKind,
     pub owner: ContractProofFactOwner,
     pub fact: Handle<omega_typed_trees::domain::ProofFact>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ContractProofFactRef {
+    pub fact: Handle<ContractProofFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContractCallFact {
+    pub caller_machine_symbol: SymbolHandle,
+    pub caller_state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_machine_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub requires: HandleSpan<ContractProofFactRef>,
+    pub ensures: HandleSpan<ContractProofFactRef>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -179,6 +196,8 @@ impl Default for ProofObligationFact {
 pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
     pub contract_facts: Arena<ContractProofFact>,
+    pub contract_fact_refs: Arena<ContractProofFactRef>,
+    pub contract_calls: Arena<ContractCallFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
