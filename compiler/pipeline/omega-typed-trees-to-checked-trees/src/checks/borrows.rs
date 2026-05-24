@@ -55,7 +55,7 @@ fn check_call_borrows(
     let active_loans: Vec<_> = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
-        .map(|loan| facts.borrow.loans.get(loan))
+        .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();
 
     for (index, access) in accesses.iter().enumerate() {
@@ -80,12 +80,17 @@ fn check_call_borrows(
             }
         }
 
-        for loan in &active_loans {
+        for (loan_handle, loan) in &active_loans {
             if facts.borrow.access_overlaps_loan(access, loan) {
+                let detail =
+                    active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
                 diagnostics.push(Diagnostic::error(format!(
-                    "state `{target_name}` receives `{}` while local borrow `{}` is still active",
+                    "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
                     borrow_access_label(program, &facts.borrow, access),
                     symbol_name(program, loan.owner_symbol),
+                    detail
+                        .map(|detail| format!(" ({detail})"))
+                        .unwrap_or_default(),
                 )));
             }
         }
@@ -180,4 +185,36 @@ fn mutable_argument_root_name(
         | omega_checked_trees::expression::ExpressionNode::String(_)
         | omega_checked_trees::expression::ExpressionNode::StructLiteral(_) => None,
     }
+}
+
+fn active_loan_detail(
+    state_flow: &FlowStateFact,
+    facts: &CheckFacts,
+    loan: omega_core::arena::Handle<omega_checked_trees::BorrowLoanFact>,
+    statement_index: usize,
+) -> Option<String> {
+    facts.flow
+        .borrow_weakenings
+        .span_or_empty(state_flow.borrow_weakenings)
+        .iter()
+        .find(|weakening| weakening.loan == loan)
+        .and_then(|weakening| match (weakening.reason, weakening.source) {
+            (
+                omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                omega_checked_trees::FlowInvalidationSource::Statement {
+                    statement_index: weakening_statement,
+                },
+            ) if weakening_statement > statement_index => Some(format!(
+                "it expires at statement {} after last use",
+                weakening_statement
+            )),
+            (
+                omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                omega_checked_trees::FlowInvalidationSource::Statement { .. },
+            )
+            | (
+                omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                omega_checked_trees::FlowInvalidationSource::Call { .. },
+            ) => None,
+        })
 }
