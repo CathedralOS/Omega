@@ -202,6 +202,7 @@ dependencies = [
 name = "omega-backend-report"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
  "omega-artifacts",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
