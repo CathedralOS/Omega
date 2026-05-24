@@ -9,6 +9,7 @@ name = "omega_backend_report"
 path = "src/lib.rs"
 
 [dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-artifacts = { path = "../../orchestration/omega-artifacts" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }

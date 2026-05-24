@@ -211,6 +211,7 @@ pub(super) fn write_backend_report(
             state_storage: &plan.state_storage,
             state_values: &plan.state_values,
             data: &plan.data,
+            abstract_operations: &plan.abstract_operations,
             target_operations: &plan.target_operations,
             assigned_target_operations: &plan.assigned_target_operations,
             control_flow: &plan.control_flow,

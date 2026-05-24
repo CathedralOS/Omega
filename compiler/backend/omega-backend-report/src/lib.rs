@@ -5,6 +5,7 @@ mod identity;
 mod object;
 mod stats;
 
+use omega_abstract_operations::AbstractOperationPlan;
 use omega_artifacts::BackendSurfaceReport;
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
@@ -56,6 +57,7 @@ pub struct BackendReportInput<'plan> {
     pub state_storage: &'plan StateStoragePlan,
     pub state_values: &'plan StateValuePlan,
     pub data: &'plan TargetDataPlan,
+    pub abstract_operations: &'plan AbstractOperationPlan,
     pub target_operations: &'plan InstructionPlan,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub control_flow: &'plan ControlFlowPlan,

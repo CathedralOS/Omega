@@ -24,6 +24,21 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     }
     output.push('\n');
 
+    output.push_str("## Abstract Operations\n");
+    output.push_str(&format!(
+        "functions: {}\n",
+        backend_plan.abstract_operations.functions.len()
+    ));
+    output.push_str(&format!(
+        "instructions: {}\n",
+        backend_plan.abstract_operations.instructions.len()
+    ));
+    output.push_str(&format!(
+        "operands: {}\n",
+        backend_plan.abstract_operations.operands.len()
+    ));
+    output.push('\n');
+
     output.push_str("## Instruction Selection\n");
     output.push_str(&format!(
         "functions: {}\n",
