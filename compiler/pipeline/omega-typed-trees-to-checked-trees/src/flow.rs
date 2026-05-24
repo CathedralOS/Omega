@@ -11,7 +11,7 @@ use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
     append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
     clone_constraint_refs, clone_flow_contexts, effects_call, effects_machine, effects_state,
-    proof_contract_call,
+    project_constraint_refs_to_active_contexts, proof_contract_call,
 };
 use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::build_domain_facts;

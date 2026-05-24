@@ -96,3 +96,35 @@ pub(crate) fn append_semantic_constraints_for_points(
         }
     }
 }
+
+pub(crate) fn project_constraint_refs_to_active_contexts(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    source: omega_core::arena::HandleSpan<FlowConstraintRef>,
+    active_contexts: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+    semantic_context_refs: &omega_core::arena::Arena<FlowSemanticContextRef>,
+) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
+    let active_context_handles: Vec<_> = semantic_context_refs
+        .span_or_empty(active_contexts)
+        .iter()
+        .map(|context_ref| context_ref.context)
+        .collect();
+    let mut projected = omega_core::arena::HandleSpan::empty();
+    let copied: Vec<_> = constraint_refs.span_or_empty(source).iter().copied().collect();
+
+    for constraint_ref in copied {
+        let keep = match constraint_ref.kind {
+            FlowConstraintKind::SemanticContext { context } => {
+                active_context_handles.contains(&context)
+            }
+            FlowConstraintKind::Unknown
+            | FlowConstraintKind::BorrowState { .. }
+            | FlowConstraintKind::BorrowCall { .. } => true,
+        };
+
+        if keep {
+            constraint_refs.append_to_span(&mut projected, constraint_ref);
+        }
+    }
+
+    projected
+}

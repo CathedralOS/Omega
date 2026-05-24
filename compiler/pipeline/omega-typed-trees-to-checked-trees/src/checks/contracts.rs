@@ -34,16 +34,10 @@ fn check_call_requires(
     call_flow: &FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let entry_contexts = facts
-        .flow
-        .semantic_context_refs
-        .span_or_empty(call_flow.entry_semantic_contexts);
-    for requires_context in facts
-        .flow
-        .semantic_context_refs
-        .span_or_empty(call_flow.requires_contexts)
+    let entry_contexts = semantic_contexts_from_constraints(facts, call_flow.entry_constraints);
+    for requires_context in semantic_contexts_from_constraints(facts, call_flow.requires_constraints)
     {
-        let context = facts.semantic.contexts.get(requires_context.context);
+        let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
             let satisfied = match fact.payload {
                 FactPayload::ContractDomainMembership { domain_symbol, .. } => {
@@ -59,7 +53,7 @@ fn check_call_requires(
                         }
                     };
                     entry_contexts.iter().any(|entry_context| {
-                        let context = facts.semantic.contexts.get(entry_context.context);
+                        let context = facts.semantic.contexts.get(*entry_context);
                         context_proves_requirement_place_domain(
                             program,
                             &facts.semantic,
@@ -105,6 +99,23 @@ fn check_call_requires(
             }
         }
     }
+}
+
+fn semantic_contexts_from_constraints(
+    facts: &CheckFacts,
+    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
+) -> Vec<omega_facts::FactContextHandle> {
+    facts.flow
+        .constraint_refs
+        .span_or_empty(constraints)
+        .iter()
+        .filter_map(|constraint| match constraint.kind {
+            omega_checked_trees::FlowConstraintKind::SemanticContext { context } => Some(context),
+            omega_checked_trees::FlowConstraintKind::Unknown
+            | omega_checked_trees::FlowConstraintKind::BorrowState { .. }
+            | omega_checked_trees::FlowConstraintKind::BorrowCall { .. } => None,
+        })
+        .collect()
 }
 
 fn explain_domain_requirement_failure(
