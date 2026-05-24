@@ -198,23 +198,40 @@ fn active_loan_detail(
         .span_or_empty(state_flow.borrow_weakenings)
         .iter()
         .find(|weakening| weakening.loan == loan)
-        .and_then(|weakening| match (weakening.reason, weakening.source) {
+        .and_then(|weakening| {
+            let loan = facts.borrow.loans.get(loan);
+            match (weakening.reason, weakening.source) {
             (
                 omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
                 omega_checked_trees::FlowInvalidationSource::Statement {
                     statement_index: weakening_statement,
                 },
             ) if weakening_statement > statement_index => Some(format!(
-                "it expires at statement {} after last use",
-                weakening_statement
+                "its last use is at statement {}",
+                loan.last_use_statement_index
+            )),
+            (
+                omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                omega_checked_trees::FlowInvalidationSource::Statement { .. },
+            ) if loan.last_use_statement_index > statement_index => Some(format!(
+                "its last use is at statement {} and it is released at state exit",
+                loan.last_use_statement_index
             )),
             (
                 omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
                 omega_checked_trees::FlowInvalidationSource::Statement { .. },
             )
             | (
+                omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                omega_checked_trees::FlowInvalidationSource::Statement { .. },
+            )
+            | (
                 omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
                 omega_checked_trees::FlowInvalidationSource::Call { .. },
+            )
+            | (
+                omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                omega_checked_trees::FlowInvalidationSource::Call { .. },
             ) => None,
-        })
+        }})
 }

@@ -230,6 +230,9 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
         report.push_str("  entry constraints: ");
         append_flow_constraint_labels(program, &mut report, state_flow.entry_constraints);
         report.push('\n');
+        report.push_str("  active borrow loans: ");
+        append_flow_borrow_loan_summary(program, &mut report, state_flow.entry_constraints);
+        report.push('\n');
         report.push_str("  invalidations: ");
         append_flow_invalidation_summary(program, &mut report, state_flow.invalidations);
         report.push('\n');
@@ -256,6 +259,12 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
             report.push('\n');
             report.push_str("    entry constraints: ");
             append_flow_constraint_labels(program, &mut report, call_flow.entry_constraints);
+            report.push('\n');
+            report.push_str("    active borrow loans: ");
+            append_flow_borrow_loan_summary(program, &mut report, call_flow.entry_constraints);
+            report.push('\n');
+            report.push_str("    borrow accesses: ");
+            append_flow_borrow_access_summary(program, &mut report, call_flow.entry_constraints);
             report.push('\n');
             report.push_str("    requires contexts: ");
             append_flow_context_labels(program, &mut report, call_flow.requires_contexts);
@@ -1030,6 +1039,46 @@ fn append_flow_invalidation_summary(
     }
 }
 
+fn append_flow_borrow_loan_summary(
+    program: &CheckedTrees,
+    report: &mut String,
+    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
+) {
+    let loans: Vec<_> = program.facts.flow.borrow_loan_constraints(constraints).collect();
+    if loans.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, loan_handle) in loans.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        let loan = program.facts.borrow.loans.get(*loan_handle);
+        report.push_str(&borrow_loan_label(program, loan));
+    }
+}
+
+fn append_flow_borrow_access_summary(
+    program: &CheckedTrees,
+    report: &mut String,
+    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
+) {
+    let accesses: Vec<_> = program.facts.flow.borrow_access_constraints(constraints).collect();
+    if accesses.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, access_handle) in accesses.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        let access = program.facts.borrow.argument_accesses.get(*access_handle);
+        report.push_str(&borrow_access_fact_label(program, access));
+    }
+}
+
 fn append_flow_borrow_weakening_summary(
     program: &CheckedTrees,
     report: &mut String,
@@ -1151,6 +1200,50 @@ fn flow_borrow_weakening_label(
     let mut label = String::new();
     label.push_str(&flow_invalidation_source_label(program, weakening.source));
     label.push_str(" expired local borrow ");
+    label.push_str(&borrow_loan_label(program, loan));
+    match weakening.reason {
+        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
+            label.push_str(" (after last use)");
+        }
+        omega_checked_trees::FlowBorrowWeakeningReason::StateExit => {
+            label.push_str(" (released at state exit)");
+        }
+    }
+    label
+}
+
+fn borrow_access_fact_label(
+    program: &CheckedTrees,
+    access: &omega_checked_trees::BorrowArgumentAccessFact,
+) -> String {
+    let mut label = String::new();
+    label.push_str(&symbol_label(access.root_symbol));
+    for segment in program.facts.borrow.access_segments(access) {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&symbol_label(*symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&expression.arena_index().to_string());
+                label.push(']');
+            }
+        }
+    }
+    label.push_str(": ");
+    label.push_str(match access.kind {
+        omega_checked_trees::BorrowAccessKind::Read => "read",
+        omega_checked_trees::BorrowAccessKind::Mutable => "mutable",
+    });
+    label
+}
+
+fn borrow_loan_label(
+    program: &CheckedTrees,
+    loan: &omega_checked_trees::BorrowLoanFact,
+) -> String {
+    let mut label = String::new();
     label.push_str(&symbol_label(loan.owner_symbol));
     label.push_str(" -> ");
     label.push_str(&symbol_label(loan.root_symbol));
@@ -1165,11 +1258,6 @@ fn flow_borrow_weakening_label(
                 label.push_str(&expression.arena_index().to_string());
                 label.push(']');
             }
-        }
-    }
-    match weakening.reason {
-        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
-            label.push_str(" (after last use)");
         }
     }
     label

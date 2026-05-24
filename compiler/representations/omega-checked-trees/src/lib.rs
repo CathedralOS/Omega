@@ -386,6 +386,7 @@ pub struct FlowInvalidationFact {
 pub enum FlowBorrowWeakeningReason {
     #[default]
     LastUseExpired,
+    StateExit,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
