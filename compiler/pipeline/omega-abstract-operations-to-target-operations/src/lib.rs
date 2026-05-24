@@ -1,21 +1,42 @@
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_operations::{RuntimeTextReadSource, TargetOperationPlan};
+use omega_target_operations::{
+    RuntimeTextReadSource, TargetOperation, TargetOperationFunction, TargetOperationPlan,
+};
 
 pub fn build_target_operation_plan(
     target: NativeTarget,
     host_abi: &HostAbiPlan,
     abstract_operations: &AbstractOperationPlan,
 ) -> TargetOperationPlan {
-    let mut target_operations = TargetOperationPlan {
+    let mut target_operations = TargetOperationPlan::with_capacity(
         target,
-        functions: abstract_operations.functions.clone(),
-        instructions: abstract_operations.instructions.clone(),
-        operands: abstract_operations.operands.clone(),
-        runtime_value_operands: abstract_operations.runtime_value_operands.clone(),
-        host_bindings: omega_core::arena::Arena::new(),
-    };
+        abstract_operations.functions.len(),
+        abstract_operations.instructions.len(),
+        abstract_operations.operands.len(),
+        abstract_operations.runtime_value_operands.len(),
+    );
+
+    target_operations.operands = abstract_operations.operands.clone();
+    target_operations.runtime_value_operands = abstract_operations.runtime_value_operands.clone();
+
+    for (_, instruction) in abstract_operations.instructions.iter() {
+        target_operations
+            .instructions
+            .insert(TargetOperation::from(instruction));
+    }
+
+    for (_, function) in abstract_operations.functions.iter() {
+        target_operations
+            .functions
+            .insert(TargetOperationFunction {
+                symbol: std::sync::Arc::clone(&function.symbol),
+                source_key: function.source_key,
+                instructions: remap_instruction_span(function.instructions),
+            });
+    }
 
     for (_, instruction) in abstract_operations.instructions.iter() {
         let omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine {
@@ -40,4 +61,17 @@ pub fn build_target_operation_plan(
     }
 
     target_operations
+}
+
+fn remap_instruction_span(
+    span: omega_core::arena::HandleSpan<omega_abstract_operations::AbstractOperation>,
+) -> HandleSpan<TargetOperation> {
+    if span.is_empty() {
+        return HandleSpan::empty();
+    }
+
+    HandleSpan::from_parts(
+        Handle::from_parts(span.start().arena_index(), span.start().generation()),
+        span.count(),
+    )
 }
