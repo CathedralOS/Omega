@@ -1,4 +1,4 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_control_flow::ControlFlowPlan;
 use omega_layout::LayoutPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStorageContext {
-    pub program: Arc<Program>,
+    pub program: Arc<CheckedTrees>,
     pub control_flow: Arc<ControlFlowPlan>,
     pub layouts: Arc<LayoutPlan>,
     pub runtime_bodies: Arc<RuntimeDispatchBodyPlan>,
@@ -20,7 +20,7 @@ pub struct RuntimeStorageContext {
 
 impl RuntimeStorageContext {
     pub fn new(
-        program: Arc<Program>,
+        program: Arc<CheckedTrees>,
         control_flow: Arc<ControlFlowPlan>,
         layouts: Arc<LayoutPlan>,
         runtime_bodies: Arc<RuntimeDispatchBodyPlan>,

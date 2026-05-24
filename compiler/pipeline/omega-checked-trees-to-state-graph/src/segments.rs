@@ -1,7 +1,7 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{
     StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
@@ -16,7 +16,7 @@ use omega_state_graph::{
 #[derive(Debug, Clone)]
 pub(super) struct StateSegment {
     pub key: StateKey,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub parameters: HandleSpan<StateParameterNode>,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<SegmentTransition>,
@@ -51,7 +51,7 @@ impl Default for SegmentTransition {
 pub(super) fn split_state_segments(
     machine: &Machine,
     state: &State,
-    program: &Program,
+    program: &CheckedTrees,
     state_graph: &mut StateGraph,
     segment_transitions: &mut Arena<SegmentTransition>,
     segments: &mut Vec<StateSegment>,
@@ -222,13 +222,13 @@ pub(super) fn segment_has_unconditional_transition(
         })
 }
 
-fn segment_name(state_name: &ProgramName, _segment_index: usize) -> ProgramName {
+fn segment_name(state_name: &Identifier, _segment_index: usize) -> Identifier {
     state_name.clone()
 }
 
 fn state_parameters_for_segment(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     state: &State,
     segment_index: usize,
 ) -> HandleSpan<StateParameterNode> {
@@ -249,7 +249,7 @@ fn state_parameters_for_segment(
                 name: parameter.name.clone(),
                 type_reference: parameter.type_reference,
                 type_symbol: program.type_reference_symbol(parameter.type_reference),
-                type_name: ProgramName::generated(
+                type_name: Identifier::generated(
                     program.display_type_reference(parameter.type_reference),
                 ),
                 is_mutable_reference: matches!(
@@ -268,7 +268,7 @@ fn state_parameters_for_segment(
     parameters
 }
 
-fn operation_kind(program: &Program, table_statement: &StatementNode) -> OperationKind {
+fn operation_kind(program: &CheckedTrees, table_statement: &StatementNode) -> OperationKind {
     match table_statement {
         StatementNode::Assignment(assignment) if is_static_assignment(program, *assignment) => {
             OperationKind::StaticAssignment
@@ -295,12 +295,12 @@ fn operation_kind(program: &Program, table_statement: &StatementNode) -> Operati
     }
 }
 
-fn statement_call_receiver_name(program: &Program, call: &TableCall) -> ProgramName {
+fn statement_call_receiver_name(program: &CheckedTrees, call: &TableCall) -> Identifier {
     let receiver = program.statement_table.name_path_members(call.receiver);
     receiver
         .last()
         .cloned()
-        .unwrap_or_else(|| ProgramName::generated_static("self"))
+        .unwrap_or_else(|| Identifier::generated_static("self"))
 }
 
 fn operation_expression_refs(
@@ -354,7 +354,7 @@ pub(super) fn copy_statement_expression_span(
     )
 }
 
-fn is_static_assignment(program: &Program, assignment: TableAssignment) -> bool {
+fn is_static_assignment(program: &CheckedTrees, assignment: TableAssignment) -> bool {
     let target_is_place = matches!(
         program.expression_table.expression(assignment.target),
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_)
@@ -384,7 +384,7 @@ pub(super) fn table_transition_guard_expression(transition: TableTransition) -> 
     }
 }
 
-fn is_constant_integer_assignment(program: &Program, assignment: TableAssignment) -> bool {
+fn is_constant_integer_assignment(program: &CheckedTrees, assignment: TableAssignment) -> bool {
     matches!(
         program.expression_table.expression(assignment.target),
         ExpressionNode::Name(path) if program.expression_table.name_path_members(path.members).len() == 1
@@ -395,7 +395,7 @@ fn is_constant_integer_assignment(program: &Program, assignment: TableAssignment
 }
 
 fn branch_call_target<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     current_machine: &'program Machine,
     call: &'program TableCall,
     visiting: &mut VisitingStatesBuffer,
@@ -458,7 +458,7 @@ impl VisitingStatesBuffer {
 }
 
 fn branch_call_target_with_visited<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     current_machine: &'program Machine,
     call: &'program TableCall,
     visiting: &mut VisitingStatesBuffer,
@@ -524,9 +524,9 @@ fn branch_call_target_with_visited<'program>(
 }
 
 fn type_reference_name_handle(
-    program: &Program,
+    program: &CheckedTrees,
     type_reference: omega_checked_trees::types::TypeReferenceHandle,
-) -> omega_checked_trees::name::ProgramName {
+) -> omega_checked_trees::name::Identifier {
     match program.type_reference_table.type_reference(type_reference) {
         omega_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             type_reference_name_handle(program, *referee)
@@ -545,13 +545,13 @@ fn type_reference_name_handle(
         }
         omega_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.clone(),
         omega_checked_trees::types::TypeReferenceNode::Unit => {
-            omega_checked_trees::name::ProgramName::default()
+            omega_checked_trees::name::Identifier::default()
         }
     }
 }
 
 fn state_has_branching_flow(
-    program: &Program,
+    program: &CheckedTrees,
     current_machine: &Machine,
     state: &State,
     visiting: &mut VisitingStatesBuffer,

@@ -161,7 +161,7 @@ fn lower_transition_target(
 fn lower_statement_path_members(
     lowerer: &mut Lowerer,
     path: HandleSpan<resolved::name::DiagnosticName>,
-) -> HandleSpan<typed::name::ProgramName> {
+) -> HandleSpan<typed::name::Identifier> {
     let mut lowered_path = HandleSpan::empty();
 
     for member in lowerer

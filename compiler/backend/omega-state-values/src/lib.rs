@@ -9,7 +9,7 @@ pub use simplify::{
 };
 
 use collection::build_machine_state_value_plan;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -34,7 +34,7 @@ impl StateValuePlanningContext {
 }
 
 pub fn build_state_value_plan(
-    program: &Program,
+    program: &CheckedTrees,
     context: StateValuePlanningContext,
 ) -> StateValuePlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -47,7 +47,7 @@ pub fn build_state_value_plan(
 }
 
 pub fn build_state_value_plan_owned(
-    program: Program,
+    program: CheckedTrees,
     context: StateValuePlanningContext,
 ) -> StateValuePlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -56,7 +56,7 @@ pub fn build_state_value_plan_owned(
 }
 
 pub fn build_state_value_plan_with_workers(
-    program: Arc<Program>,
+    program: Arc<CheckedTrees>,
     context: Arc<StateValuePlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateValuePlan {

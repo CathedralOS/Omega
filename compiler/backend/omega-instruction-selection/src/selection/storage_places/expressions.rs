@@ -2,7 +2,7 @@ use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, IndexedExpression,
     MemberExpression, NamePath,
 };
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
 
 pub(in crate::selection) fn normalized_storage_expression(
@@ -48,7 +48,7 @@ pub(in crate::selection) fn indexed_expression_path(
         _ => return None,
     };
     let last_segment = path.last()?.clone();
-    path.replace_last_preserving_symbol(ProgramName::generated(format!(
+    path.replace_last_preserving_symbol(Identifier::generated(format!(
         "{last_segment}[{index}]"
     )))?;
     Some(path)
@@ -79,7 +79,7 @@ impl<'table> StorageNamePath<'table> {
         storage_path_len(self.table, self.expression).unwrap_or(0)
     }
 
-    pub(in crate::selection) fn member(&self, index: usize) -> Option<&ProgramName> {
+    pub(in crate::selection) fn member(&self, index: usize) -> Option<&Identifier> {
         storage_path_member(self.table, self.expression, index)
     }
 
@@ -125,7 +125,7 @@ fn storage_path_member(
     table: &ExpressionTable,
     expression: ExpressionHandle,
     index: usize,
-) -> Option<&ProgramName> {
+) -> Option<&Identifier> {
     match table.expression(expression) {
         ExpressionNode::Mutable(target) => storage_path_member(table, *target, index),
         ExpressionNode::Indexed(indexed) => storage_path_member(table, indexed.collection, index),
@@ -205,7 +205,7 @@ fn storage_path_member_index(
 }
 
 fn borrowed_member_symbol(
-    members: &[ProgramName],
+    members: &[Identifier],
     member_symbols: &[SymbolHandle],
     head_symbol: SymbolHandle,
     final_symbol: SymbolHandle,
@@ -243,7 +243,7 @@ pub(in crate::selection) struct StoragePathSuffixIter<'path, 'table> {
 }
 
 impl<'path, 'table> Iterator for StoragePathSuffixIter<'path, 'table> {
-    type Item = (&'path ProgramName, SymbolHandle, Option<usize>);
+    type Item = (&'path Identifier, SymbolHandle, Option<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let member = self.path.member(self.index)?;

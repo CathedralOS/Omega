@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
@@ -28,7 +28,7 @@ pub enum Expression {
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
     expression_handles: Arena<ExpressionHandle>,
-    name_path_members: Arena<ProgramName>,
+    name_path_members: Arena<Identifier>,
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
 }
@@ -178,24 +178,24 @@ impl ExpressionTable {
 
     pub fn push_name_path_member(
         &mut self,
-        span: &mut HandleSpan<ProgramName>,
-        member: ProgramName,
+        span: &mut HandleSpan<Identifier>,
+        member: Identifier,
     ) {
         self.name_path_members.append_to_span(span, member);
     }
 
-    pub fn reserve_name_path_members(&mut self, count: u32) -> HandleSpan<ProgramName> {
+    pub fn reserve_name_path_members(&mut self, count: u32) -> HandleSpan<Identifier> {
         self.name_path_members.insert_many(
-            std::iter::repeat_with(ProgramName::default)
+            std::iter::repeat_with(Identifier::default)
                 .take(usize::try_from(count).expect("name path member span count overflow")),
         )
     }
 
     pub fn set_name_path_member_at_offset(
         &mut self,
-        members: HandleSpan<ProgramName>,
+        members: HandleSpan<Identifier>,
         offset: u32,
-        member: ProgramName,
+        member: Identifier,
     ) {
         *self.name_path_members.get_mut(Handle::from_parts(
             members
@@ -359,7 +359,7 @@ impl ExpressionTable {
         copied
     }
 
-    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
+    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<Identifier> {
         let mut members = HandleSpan::empty();
 
         for member in path.members() {
@@ -384,8 +384,8 @@ impl ExpressionTable {
     fn copy_name_path_members(
         &mut self,
         source: &ExpressionTable,
-        members: HandleSpan<ProgramName>,
-    ) -> HandleSpan<ProgramName> {
+        members: HandleSpan<Identifier>,
+    ) -> HandleSpan<Identifier> {
         let mut copied = HandleSpan::empty();
 
         for member in source.name_path_members(members) {
@@ -413,8 +413,8 @@ impl ExpressionTable {
 
     fn copy_own_name_path_members(
         &mut self,
-        members: HandleSpan<ProgramName>,
-    ) -> HandleSpan<ProgramName> {
+        members: HandleSpan<Identifier>,
+    ) -> HandleSpan<Identifier> {
         let mut copied = HandleSpan::empty();
 
         for offset in 0..members.count() {
@@ -442,9 +442,9 @@ impl ExpressionTable {
 
     fn copy_own_name_path_members_with_index_suffix(
         &mut self,
-        members: HandleSpan<ProgramName>,
+        members: HandleSpan<Identifier>,
         index: i64,
-    ) -> HandleSpan<ProgramName> {
+    ) -> HandleSpan<Identifier> {
         if members.is_empty() {
             return HandleSpan::empty();
         }
@@ -455,7 +455,7 @@ impl ExpressionTable {
         for offset in 0..members.count() {
             let member = self.name_path_member_at_offset(members, offset);
             let member = if offset == last_offset {
-                ProgramName::generated(format!("{member}[{index}]"))
+                Identifier::generated(format!("{member}[{index}]"))
             } else {
                 member.clone()
             };
@@ -479,9 +479,9 @@ impl ExpressionTable {
 
     fn name_path_member_at_offset(
         &self,
-        members: HandleSpan<ProgramName>,
+        members: HandleSpan<Identifier>,
         offset: u32,
-    ) -> &ProgramName {
+    ) -> &Identifier {
         self.name_path_members.get(Handle::from_parts(
             members
                 .start()
@@ -689,7 +689,7 @@ impl ExpressionTable {
         self.struct_fields.span_or_empty(span)
     }
 
-    pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
+    pub fn name_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.name_path_members.span_or_empty(span)
     }
 
@@ -699,9 +699,9 @@ impl ExpressionTable {
 
     pub fn copy_name_path_members_with_suffix(
         &mut self,
-        members: HandleSpan<ProgramName>,
-        suffix: ProgramName,
-    ) -> HandleSpan<ProgramName> {
+        members: HandleSpan<Identifier>,
+        suffix: Identifier,
+    ) -> HandleSpan<Identifier> {
         let copied = self.reserve_name_path_members(
             members
                 .count()
@@ -721,10 +721,10 @@ impl ExpressionTable {
 
     pub fn copy_name_path_members_with_member_suffix(
         &mut self,
-        members: HandleSpan<ProgramName>,
-        suffix_members: HandleSpan<ProgramName>,
+        members: HandleSpan<Identifier>,
+        suffix_members: HandleSpan<Identifier>,
         suffix_start_offset: u32,
-    ) -> HandleSpan<ProgramName> {
+    ) -> HandleSpan<Identifier> {
         let suffix_count = suffix_members.count().saturating_sub(suffix_start_offset);
         let copied = self.reserve_name_path_members(
             members
@@ -805,7 +805,7 @@ impl ExpressionTable {
     pub fn insert_copy_with_member_suffix(
         &mut self,
         expression: ExpressionHandle,
-        suffix_members: HandleSpan<ProgramName>,
+        suffix_members: HandleSpan<Identifier>,
         suffix_member_symbols: HandleSpan<SymbolHandle>,
         suffix_start_offset: u32,
     ) -> ExpressionHandle {
@@ -876,7 +876,7 @@ impl ExpressionTable {
     fn insert_member_suffix_chain(
         &mut self,
         expression: ExpressionHandle,
-        suffix_members: HandleSpan<ProgramName>,
+        suffix_members: HandleSpan<Identifier>,
         suffix_member_symbols: HandleSpan<SymbolHandle>,
         suffix_start_offset: u32,
     ) -> ExpressionHandle {
@@ -1195,7 +1195,7 @@ impl ExpressionTable {
     pub fn to_tree_with_place_suffix(
         &self,
         expression: ExpressionHandle,
-        suffix: &[ProgramName],
+        suffix: &[Identifier],
     ) -> Expression {
         if suffix.is_empty() {
             return self.to_tree(expression);
@@ -1252,7 +1252,7 @@ impl ExpressionTable {
             _ => return None,
         };
         let last_segment = path.last()?.clone();
-        path.replace_last_preserving_symbol(ProgramName::generated(format!(
+        path.replace_last_preserving_symbol(Identifier::generated(format!(
             "{last_segment}[{index}]"
         )))?;
         Some(path)
@@ -1316,7 +1316,7 @@ pub struct TableBinaryExpression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
-    pub target_type: HandleSpan<ProgramName>,
+    pub target_type: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1329,21 +1329,21 @@ pub struct TableIndexedExpression {
 pub struct MemberExpression {
     pub receiver: Expression,
     pub member_symbol: SymbolHandle,
-    pub member: ProgramName,
+    pub member: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
-    pub member: ProgramName,
+    pub member: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
     pub receiver: Option<Box<Expression>>,
     pub target_symbol: SymbolHandle,
-    pub target: ProgramName,
+    pub target: Identifier,
     pub arguments: Arc<[Expression]>,
 }
 
@@ -1351,13 +1351,13 @@ pub struct CallExpression {
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
-    pub target: ProgramName,
+    pub target: Identifier,
     pub arguments: HandleSpan<ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
-    pub members: HandleSpan<ProgramName>,
+    pub members: HandleSpan<Identifier>,
     pub member_symbols: HandleSpan<SymbolHandle>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
@@ -1365,14 +1365,14 @@ pub struct TableNamePath {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
-    pub type_name: ProgramName,
+    pub type_name: Identifier,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
 impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
-            type_name: ProgramName::default(),
+            type_name: Identifier::default(),
             fields: HandleSpan::empty(),
         }
     }
@@ -1380,14 +1380,14 @@ impl Default for TableStructLiteral {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteralField {
-    pub name: ProgramName,
+    pub name: Identifier,
     pub value: ExpressionHandle,
 }
 
 impl Default for TableStructLiteralField {
     fn default() -> Self {
         Self {
-            name: ProgramName::default(),
+            name: Identifier::default(),
             value: ExpressionHandle::invalid(),
         }
     }
@@ -1401,14 +1401,14 @@ impl Default for Expression {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePath {
-    members: Arc<[ProgramName]>,
+    members: Arc<[Identifier]>,
     member_symbols: Arc<[SymbolHandle]>,
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
 }
 
 impl NamePath {
-    pub fn unresolved(members: Vec<ProgramName>) -> Self {
+    pub fn unresolved(members: Vec<Identifier>) -> Self {
         let member_symbols = vec![SymbolHandle::invalid(); members.len()];
         Self {
             members: Arc::from(members.into_boxed_slice()),
@@ -1418,12 +1418,12 @@ impl NamePath {
         }
     }
 
-    pub fn unresolved_from_iter(members: impl IntoIterator<Item = ProgramName>) -> Self {
+    pub fn unresolved_from_iter(members: impl IntoIterator<Item = Identifier>) -> Self {
         Self::unresolved(members.into_iter().collect())
     }
 
     pub fn resolved(
-        members: Vec<ProgramName>,
+        members: Vec<Identifier>,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
@@ -1443,7 +1443,7 @@ impl NamePath {
     }
 
     pub fn resolved_with_member_symbols(
-        members: Vec<ProgramName>,
+        members: Vec<Identifier>,
         mut member_symbols: Vec<SymbolHandle>,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
@@ -1466,14 +1466,14 @@ impl NamePath {
     }
 
     pub fn resolved_from_iter(
-        members: impl IntoIterator<Item = ProgramName>,
+        members: impl IntoIterator<Item = Identifier>,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
         Self::resolved(members.into_iter().collect(), head_symbol, symbol)
     }
 
-    pub fn members(&self) -> &[ProgramName] {
+    pub fn members(&self) -> &[Identifier] {
         &self.members
     }
 
@@ -1496,15 +1496,15 @@ impl NamePath {
         self.members.is_empty()
     }
 
-    pub fn first(&self) -> Option<&ProgramName> {
+    pub fn first(&self) -> Option<&Identifier> {
         self.members.first()
     }
 
-    pub fn last(&self) -> Option<&ProgramName> {
+    pub fn last(&self) -> Option<&Identifier> {
         self.members.last()
     }
 
-    pub fn last_mut(&mut self) -> Option<&mut ProgramName> {
+    pub fn last_mut(&mut self) -> Option<&mut Identifier> {
         self.symbol = SymbolHandle::invalid();
         if let Some(last_symbol) = Arc::make_mut(&mut self.member_symbols).last_mut() {
             *last_symbol = SymbolHandle::invalid();
@@ -1512,13 +1512,13 @@ impl NamePath {
         Arc::make_mut(&mut self.members).last_mut()
     }
 
-    pub fn replace_last_preserving_symbol(&mut self, member: ProgramName) -> Option<()> {
+    pub fn replace_last_preserving_symbol(&mut self, member: Identifier) -> Option<()> {
         let last = Arc::make_mut(&mut self.members).last_mut()?;
         *last = member;
         Some(())
     }
 
-    pub fn push(&mut self, member: ProgramName) {
+    pub fn push(&mut self, member: Identifier) {
         let mut members = self.members.iter().cloned().collect::<Vec<_>>();
         members.push(member);
         self.members = Arc::from(members.into_boxed_slice());
@@ -1529,7 +1529,7 @@ impl NamePath {
         self.symbol = SymbolHandle::invalid();
     }
 
-    pub fn push_resolved(&mut self, member: ProgramName, symbol: SymbolHandle) {
+    pub fn push_resolved(&mut self, member: Identifier, symbol: SymbolHandle) {
         let mut members = self.members.iter().cloned().collect::<Vec<_>>();
         members.push(member);
         self.members = Arc::from(members.into_boxed_slice());
@@ -1540,7 +1540,7 @@ impl NamePath {
         self.symbol = symbol;
     }
 
-    pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
+    pub fn extend_from_slice(&mut self, members: &[Identifier]) {
         let mut path = self.members.iter().cloned().collect::<Vec<_>>();
         path.extend_from_slice(members);
         self.members = Arc::from(path.into_boxed_slice());
@@ -1573,7 +1573,7 @@ impl NamePath {
 }
 
 impl Deref for NamePath {
-    type Target = [ProgramName];
+    type Target = [Identifier];
 
     fn deref(&self) -> &Self::Target {
         self.members()
@@ -1581,8 +1581,8 @@ impl Deref for NamePath {
 }
 
 impl<'path> IntoIterator for &'path NamePath {
-    type Item = &'path ProgramName;
-    type IntoIter = std::slice::Iter<'path, ProgramName>;
+    type Item = &'path Identifier;
+    type IntoIter = std::slice::Iter<'path, Identifier>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.members.iter()
@@ -1657,13 +1657,13 @@ pub struct IndexedExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteral {
-    pub type_name: ProgramName,
+    pub type_name: Identifier,
     pub fields: Arc<[StructLiteralField]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteralField {
-    pub name: ProgramName,
+    pub name: Identifier,
     pub value: Expression,
 }
 
@@ -1729,7 +1729,7 @@ impl ExpressionNode {
     }
 }
 
-pub fn display_name_path(path: &[ProgramName], separator: &str) -> String {
+pub fn display_name_path(path: &[Identifier], separator: &str) -> String {
     let byte_count = path.iter().map(|name| name.as_str().len()).sum::<usize>()
         + separator.len().saturating_mul(path.len().saturating_sub(1));
     let mut display_name = String::with_capacity(byte_count);
@@ -1892,7 +1892,7 @@ mod tests {
         BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable, NamePath,
         StructLiteral, StructLiteralField, TableBinaryExpression, TableNamePath,
     };
-    use crate::name::ProgramName;
+    use crate::name::Identifier;
     use omega_core::symbols::SymbolHandle;
     use std::sync::Arc;
 
@@ -1928,8 +1928,8 @@ mod tests {
     fn expression_table_stores_name_paths_as_member_spans() {
         let expression = Expression::Name(NamePath::resolved(
             vec![
-                ProgramName::generated("player"),
-                ProgramName::generated("inventory"),
+                Identifier::generated("player"),
+                Identifier::generated("inventory"),
             ],
             SymbolHandle::from_arena_index(1),
             SymbolHandle::from_arena_index(2),
@@ -1952,26 +1952,26 @@ mod tests {
         let room_symbol = SymbolHandle::from_arena_index(3);
         let field_symbol = SymbolHandle::from_arena_index(4);
         let expression = Expression::StructLiteral(StructLiteral {
-            type_name: ProgramName::generated("Room"),
+            type_name: Identifier::generated("Room"),
             fields: Arc::from(
                 vec![
                     StructLiteralField {
-                        name: ProgramName::generated("name"),
+                        name: Identifier::generated("name"),
                         value: Expression::String(Arc::from("Hall")),
                     },
                     StructLiteralField {
-                        name: ProgramName::generated("open"),
+                        name: Identifier::generated("open"),
                         value: Expression::Binary(Box::new(BinaryExpression {
                             left: Expression::Name(NamePath::resolved(
-                                vec![ProgramName::generated("room")],
+                                vec![Identifier::generated("room")],
                                 room_symbol,
                                 room_symbol,
                             )),
                             operator: BinaryOperator::Equal,
                             right: Expression::Name(NamePath::resolved(
                                 vec![
-                                    ProgramName::generated("room"),
-                                    ProgramName::generated("field"),
+                                    Identifier::generated("room"),
+                                    Identifier::generated("field"),
                                 ],
                                 room_symbol,
                                 field_symbol,

@@ -9,7 +9,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
     let machine_symbol = SymbolHandle::from_arena_index(5);
 
     let item_argument = Expression::Mutable(Box::new(Expression::Name(NamePath::resolved(
-        vec![ProgramName::generated("item")],
+        vec![Identifier::generated("item")],
         item_symbol,
         item_symbol,
     ))));
@@ -17,7 +17,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
     let nested_call = Expression::Call(Box::new(CallExpression {
         receiver: None,
         target_symbol: inner_symbol,
-        target: ProgramName::generated("inner"),
+        target: Identifier::generated("inner"),
         arguments: Arc::from(vec![item_argument].into_boxed_slice()),
     }));
 
@@ -30,7 +30,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         .push_expression_handle(&mut outer_arguments, nested_call);
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Game"),
+        name: Identifier::generated("Game"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -41,7 +41,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
     };
     let mut entry_state = State {
         symbol: entry_symbol,
-        name: ProgramName::generated("entry"),
+        name: Identifier::generated("entry"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -52,7 +52,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: outer_symbol,
             receiver: Default::default(),
-            target: ProgramName::generated("outer"),
+            target: Identifier::generated("outer"),
             arguments: outer_arguments,
         }),
     );
@@ -60,7 +60,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         &mut entry_state,
         StateParameter {
             symbol: item_symbol,
-            name: ProgramName::generated("item"),
+            name: Identifier::generated("item"),
             type_reference: unit_type,
             is_const: false,
             is_mutable: true,
@@ -72,7 +72,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         &mut machine,
         State {
             symbol: outer_symbol,
-            name: ProgramName::generated("outer"),
+            name: Identifier::generated("outer"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
@@ -82,7 +82,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         &mut machine,
         State {
             symbol: inner_symbol,
-            name: ProgramName::generated("inner"),
+            name: Identifier::generated("inner"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),

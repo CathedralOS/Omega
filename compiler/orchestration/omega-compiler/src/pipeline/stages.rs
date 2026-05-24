@@ -10,7 +10,7 @@ use crate::pipeline::stage::{
     TARGET_OPERATIONS_TO_MACHINE_PROGRAM, TOKENS_TO_SYNTAX_TREES, TYPED_TREES_TO_CHECKED_TREES,
 };
 use crate::pipeline::timing::CompileTimings;
-use omega_checked_trees::Program as CheckedProgram;
+use omega_checked_trees::CheckedTrees as CheckedProgram;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};

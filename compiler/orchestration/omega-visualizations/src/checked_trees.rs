@@ -1,19 +1,19 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_core::symbols::SymbolHandle;
 use omega_effects::EffectSet;
 
-pub fn checked_trees_html(program: &Program) -> String {
+pub fn checked_trees_html(program: &CheckedTrees) -> String {
     crate::phase_diagram::text_report_html("checked_trees", &checked_effects_report(program))
 }
 
-pub fn capability_manifest_html(program: &Program) -> String {
+pub fn capability_manifest_html(program: &CheckedTrees) -> String {
     crate::phase_diagram::text_report_html(
         "capability_manifest",
         &capability_manifest_text(program),
     )
 }
 
-pub fn capability_manifest_json(program: &Program) -> String {
+pub fn capability_manifest_json(program: &CheckedTrees) -> String {
     let manifest = entry_capability_manifest(program);
     let effect_names = manifest.effects.names().collect::<Vec<_>>();
 
@@ -36,7 +36,7 @@ pub fn capability_manifest_json(program: &Program) -> String {
     json
 }
 
-fn checked_effects_report(program: &Program) -> String {
+fn checked_effects_report(program: &CheckedTrees) -> String {
     let mut report = String::new();
     report.push_str("Checked Facts\n");
     report.push_str("=============\n\n");
@@ -358,7 +358,7 @@ fn checked_effects_report(program: &Program) -> String {
     report
 }
 
-fn semantic_point_label(program: &Program, point: omega_facts::ProgramPoint) -> String {
+fn semantic_point_label(program: &CheckedTrees, point: omega_facts::ProgramPoint) -> String {
     match point {
         omega_facts::ProgramPoint::Global => "global".to_owned(),
         omega_facts::ProgramPoint::Definition { symbol } => {
@@ -426,14 +426,14 @@ fn semantic_point_label(program: &Program, point: omega_facts::ProgramPoint) -> 
     }
 }
 
-fn semantic_fact_label(program: &Program, fact: &omega_facts::Fact) -> String {
+fn semantic_fact_label(program: &CheckedTrees, fact: &omega_facts::Fact) -> String {
     let origin = semantic_origin_label(program, fact.origin);
     let payload = semantic_payload_label(program, fact.payload);
     let place = semantic_place_label(program, fact.place);
     format!("{payload} | place: {place} | origin: {origin}")
 }
 
-fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) -> String {
+fn semantic_payload_label(program: &CheckedTrees, payload: omega_facts::FactPayload) -> String {
     match payload {
         omega_facts::FactPayload::BooleanExpression(expression) => {
             program.expression_table.display_name(expression)
@@ -492,7 +492,7 @@ fn semantic_payload_label(program: &Program, payload: omega_facts::FactPayload) 
     }
 }
 
-fn semantic_place_label(program: &Program, place: omega_facts::FactPlace) -> String {
+fn semantic_place_label(program: &CheckedTrees, place: omega_facts::FactPlace) -> String {
     match place {
         omega_facts::FactPlace::Unknown => "unknown".to_owned(),
         omega_facts::FactPlace::Place(place) => {
@@ -509,7 +509,7 @@ fn semantic_place_label(program: &Program, place: omega_facts::FactPlace) -> Str
     }
 }
 
-fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place) -> String {
+fn semantic_canonical_place_label(program: &CheckedTrees, place: &omega_facts::Place) -> String {
     canonical_place_label_from_parts(
         program,
         place.root,
@@ -522,7 +522,7 @@ fn semantic_canonical_place_label(program: &Program, place: &omega_facts::Place)
 }
 
 fn canonical_place_label_from_parts(
-    program: &Program,
+    program: &CheckedTrees,
     root: omega_facts::PlaceRoot,
     segments: &[omega_facts::PlaceSegment],
 ) -> String {
@@ -555,7 +555,7 @@ fn canonical_place_label_from_parts(
 }
 
 fn joined_place_label(
-    program: &Program,
+    program: &CheckedTrees,
     semantic: &omega_facts::FactPlan,
     place: &omega_facts::Place,
     extra_segments: &[omega_facts::PlaceSegment],
@@ -571,7 +571,7 @@ fn joined_place_label(
 }
 
 fn append_dependency_path_label(
-    program: &Program,
+    program: &CheckedTrees,
     report: &mut String,
     segments: &[omega_facts::PlaceSegment],
 ) {
@@ -591,7 +591,7 @@ fn append_dependency_path_label(
     }
 }
 
-fn semantic_origin_label(program: &Program, origin: omega_facts::FactOrigin) -> String {
+fn semantic_origin_label(program: &CheckedTrees, origin: omega_facts::FactOrigin) -> String {
     match origin {
         omega_facts::FactOrigin::Unknown => "unknown".to_owned(),
         omega_facts::FactOrigin::DomainDefinition { domain_symbol } => {
@@ -644,7 +644,7 @@ fn semantic_proof_obligation_kind(kind: omega_facts::ProofObligationKind) -> &'s
     }
 }
 
-fn semantic_symbol_name(program: &Program, symbol: SymbolHandle) -> String {
+fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     if let Some(machine) = program
         .machines()
         .iter()
@@ -683,7 +683,7 @@ fn semantic_symbol_name(program: &Program, symbol: SymbolHandle) -> String {
     symbol_label(symbol)
 }
 
-fn capability_manifest_text(program: &Program) -> String {
+fn capability_manifest_text(program: &CheckedTrees) -> String {
     let manifest = entry_capability_manifest(program);
     let mut report = String::new();
 
@@ -709,7 +709,7 @@ struct EntryCapabilityManifest {
     effects: EffectSet,
 }
 
-fn entry_capability_manifest(program: &Program) -> EntryCapabilityManifest {
+fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest {
     let Some((machine_symbol, machine_name, state_name)) = entry_machine(program) else {
         return EntryCapabilityManifest {
             entry_machine: "<missing>".to_owned(),
@@ -734,13 +734,13 @@ fn entry_capability_manifest(program: &Program) -> EntryCapabilityManifest {
     }
 }
 
-fn entry_machine(program: &Program) -> Option<(SymbolHandle, String, String)> {
+fn entry_machine(program: &CheckedTrees) -> Option<(SymbolHandle, String, String)> {
     entry_machine_with_state(program, "Main::main", "main")
         .or_else(|| entry_machine_with_state(program, "main", "entry"))
 }
 
 fn entry_machine_with_state(
-    program: &Program,
+    program: &CheckedTrees,
     machine_name: &str,
     state_name: &str,
 ) -> Option<(SymbolHandle, String, String)> {
@@ -761,7 +761,7 @@ fn entry_machine_with_state(
         })
 }
 
-fn machine_name(program: &Program, symbol: SymbolHandle) -> String {
+fn machine_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     program
         .machines()
         .iter()
@@ -770,7 +770,7 @@ fn machine_name(program: &Program, symbol: SymbolHandle) -> String {
         .unwrap_or_else(|| symbol_label(symbol))
 }
 
-fn state_name(program: &Program, symbol: SymbolHandle) -> String {
+fn state_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     program
         .machines()
         .iter()
@@ -788,7 +788,7 @@ fn contract_fact_kind(fact: &omega_checked_trees::ContractProofFact) -> &'static
     }
 }
 
-fn contract_fact_owner(program: &Program, fact: &omega_checked_trees::ContractProofFact) -> String {
+fn contract_fact_owner(program: &CheckedTrees, fact: &omega_checked_trees::ContractProofFact) -> String {
     match fact.owner {
         omega_checked_trees::ContractProofFactOwner::Unknown => "unknown".to_owned(),
         omega_checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
@@ -813,7 +813,7 @@ fn contract_fact_owner(program: &Program, fact: &omega_checked_trees::ContractPr
     }
 }
 
-fn signature_owner_name(program: &Program, symbol: SymbolHandle) -> String {
+fn signature_owner_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     program
         .traits()
         .iter()
@@ -829,7 +829,7 @@ fn signature_owner_name(program: &Program, symbol: SymbolHandle) -> String {
         .unwrap_or_else(|| symbol_label(symbol))
 }
 
-fn state_signature_name(program: &Program, symbol: SymbolHandle) -> String {
+fn state_signature_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     program
         .traits()
         .iter()
@@ -848,7 +848,7 @@ fn state_signature_name(program: &Program, symbol: SymbolHandle) -> String {
 }
 
 fn typed_proof_fact_label(
-    program: &Program,
+    program: &CheckedTrees,
     fact: omega_core::arena::Handle<omega_typed_trees::domain::ProofFact>,
 ) -> String {
     match program.proof_facts.get(fact) {
@@ -871,7 +871,7 @@ fn typed_proof_fact_label(
     }
 }
 
-fn state_label_from_symbol(program: &Program, symbol: SymbolHandle) -> String {
+fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     program
         .machines()
         .iter()
@@ -886,7 +886,7 @@ fn state_label_from_symbol(program: &Program, symbol: SymbolHandle) -> String {
 }
 
 fn append_flow_context_labels(
-    program: &Program,
+    program: &CheckedTrees,
     report: &mut String,
     contexts: omega_core::arena::HandleSpan<omega_checked_trees::FlowSemanticContextRef>,
 ) {
@@ -910,7 +910,7 @@ fn append_flow_context_labels(
 }
 
 fn append_flow_constraint_labels(
-    program: &Program,
+    program: &CheckedTrees,
     report: &mut String,
     constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
 ) {
@@ -1006,7 +1006,7 @@ fn append_flow_constraint_labels(
 }
 
 fn append_flow_invalidation_summary(
-    program: &Program,
+    program: &CheckedTrees,
     report: &mut String,
     invalidations: omega_core::arena::HandleSpan<omega_checked_trees::FlowInvalidationFact>,
 ) {
@@ -1025,7 +1025,7 @@ fn append_flow_invalidation_summary(
 }
 
 fn append_contract_fact_ref_summary(
-    program: &Program,
+    program: &CheckedTrees,
     report: &mut String,
     facts: omega_core::arena::HandleSpan<omega_checked_trees::ContractProofFactRef>,
 ) {
@@ -1045,7 +1045,7 @@ fn append_contract_fact_ref_summary(
 }
 
 fn append_contract_fact_ref_list(
-    program: &Program,
+    program: &CheckedTrees,
     report: &mut String,
     label: &str,
     facts: omega_core::arena::HandleSpan<omega_checked_trees::ContractProofFactRef>,
@@ -1083,7 +1083,7 @@ fn format_effect_set(effects: EffectSet) -> String {
 }
 
 fn flow_invalidation_label(
-    program: &Program,
+    program: &CheckedTrees,
     invalidation: &omega_checked_trees::FlowInvalidationFact,
 ) -> String {
     let fact = program.facts.semantic.facts.get(invalidation.fact);
@@ -1119,7 +1119,7 @@ fn flow_invalidation_label(
 }
 
 fn flow_invalidation_source_label(
-    program: &Program,
+    program: &CheckedTrees,
     source: omega_checked_trees::FlowInvalidationSource,
 ) -> String {
     match source {

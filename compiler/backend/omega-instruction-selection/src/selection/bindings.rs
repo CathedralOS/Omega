@@ -2,7 +2,7 @@ use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableIndexedExpression, TableNamePath,
 };
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -17,7 +17,7 @@ use omega_runtime_branching::{
 pub(super) struct RuntimeAliasBinding {
     pub(super) source_key: StateKey,
     pub(super) parameter_symbol: SymbolHandle,
-    pub(super) parameter_name: ProgramName,
+    pub(super) parameter_name: Identifier,
     pub(super) expression_source_key: StateKey,
     pub(super) expression: ExpressionHandle,
 }
@@ -1059,7 +1059,7 @@ fn symbol_matches_table_path(symbol: SymbolHandle, path: &TableNamePath) -> bool
     symbol.is_valid() && path.head_symbol.is_valid() && symbol == path.head_symbol
 }
 
-pub(super) fn append_place_suffix(expression: &Expression, suffix: &[ProgramName]) -> Expression {
+pub(super) fn append_place_suffix(expression: &Expression, suffix: &[Identifier]) -> Expression {
     if suffix.is_empty() {
         return expression.clone();
     }

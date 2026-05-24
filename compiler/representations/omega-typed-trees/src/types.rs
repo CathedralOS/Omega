@@ -1,7 +1,7 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
-use crate::name::ProgramName;
+use crate::name::Identifier;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
@@ -329,12 +329,12 @@ pub enum TypeReferenceNode {
     },
     Generic {
         base_symbol: SymbolHandle,
-        base_name: ProgramName,
+        base_name: Identifier,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named {
         symbol: SymbolHandle,
-        name: ProgramName,
+        name: Identifier,
     },
     Unit,
 }
@@ -498,7 +498,7 @@ impl TypeReferenceNode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraintNode {
-    Named(ProgramName),
+    Named(Identifier),
     Range {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
@@ -536,7 +536,7 @@ impl TypeConstraintNode {
 
 impl Default for TypeConstraintNode {
     fn default() -> Self {
-        Self::Named(ProgramName::default())
+        Self::Named(Identifier::default())
     }
 }
 
@@ -628,7 +628,7 @@ where
 mod tests {
     use super::{PrimitiveType, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
     use crate::expression::{ExpressionNode, ExpressionTable};
-    use crate::name::ProgramName;
+    use crate::name::Identifier;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -636,11 +636,11 @@ mod tests {
         let mut types = TypeReferenceTable::new();
         let usize_reference = types.insert(TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::generated("usize"),
+            name: Identifier::generated("usize"),
         });
         let u8_reference = types.insert(TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::generated("u8"),
+            name: Identifier::generated("u8"),
         });
         let fixed_array_reference = types.insert(TypeReferenceNode::FixedArray {
             element_type: u8_reference,
@@ -650,7 +650,7 @@ mod tests {
             types.insert_type_reference_handles([usize_reference, fixed_array_reference]);
         let root = types.insert(TypeReferenceNode::Generic {
             base_symbol: SymbolHandle::invalid(),
-            base_name: ProgramName::generated("Result"),
+            base_name: Identifier::generated("Result"),
             arguments,
         });
 
@@ -671,7 +671,7 @@ mod tests {
         let mut types = TypeReferenceTable::new();
         let base_type = types.insert(TypeReferenceNode::Named {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::generated("i32"),
+            name: Identifier::generated("i32"),
         });
         let constraints =
             types.insert_constraints([TypeConstraintNode::Range { minimum, maximum }]);
@@ -709,7 +709,7 @@ mod tests {
         let mut source_types = TypeReferenceTable::new();
         let u8_reference = source_types.insert(TypeReferenceNode::Named {
             symbol: SymbolHandle::from_arena_index(11),
-            name: ProgramName::generated("u8"),
+            name: Identifier::generated("u8"),
         });
         let fixed_array_reference = source_types.insert(TypeReferenceNode::FixedArray {
             element_type: u8_reference,

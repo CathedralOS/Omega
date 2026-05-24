@@ -1,4 +1,4 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 
@@ -14,7 +14,7 @@ pub(super) struct BackendEntryPoint {
 }
 
 pub(super) fn resolve_backend_entry_point(
-    program: &Program,
+    program: &CheckedTrees,
 ) -> Result<BackendEntryPoint, Diagnostic> {
     if let Some(entry_point) = find_entry_point(program, ENTRY_MACHINE_NAME, ENTRY_STATE_NAME) {
         return Ok(entry_point);
@@ -32,7 +32,7 @@ pub(super) fn resolve_backend_entry_point(
 }
 
 fn find_entry_point(
-    program: &Program,
+    program: &CheckedTrees,
     machine_name: &str,
     state_name: &str,
 ) -> Option<BackendEntryPoint> {
@@ -48,7 +48,7 @@ fn find_entry_point(
 }
 
 fn find_root_child_by_name_and_kind(
-    program: &Program,
+    program: &CheckedTrees,
     name: &str,
     kind: SymbolKind,
 ) -> Option<SymbolHandle> {
@@ -56,7 +56,7 @@ fn find_root_child_by_name_and_kind(
 }
 
 fn find_child_by_name_and_kind(
-    program: &Program,
+    program: &CheckedTrees,
     parent: SymbolHandle,
     name: &str,
     kind: SymbolKind,

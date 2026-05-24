@@ -1,5 +1,5 @@
 use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
@@ -10,14 +10,14 @@ const INLINE_BRANCH_PARAMETER_BINDING_COUNT: usize = 8;
 pub(crate) struct RuntimeBranchAlias {
     pub(super) source_key: StateKey,
     pub(super) parameter_symbol: SymbolHandle,
-    pub(super) parameter_name: ProgramName,
+    pub(super) parameter_name: Identifier,
     pub(super) expression: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct BranchParameterBinding {
     pub(crate) parameter_symbol: SymbolHandle,
-    pub(crate) parameter_name: ProgramName,
+    pub(crate) parameter_name: Identifier,
     pub(crate) expression: ExpressionHandle,
 }
 

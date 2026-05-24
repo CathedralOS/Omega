@@ -1,5 +1,5 @@
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -188,7 +188,7 @@ pub enum StateCallRole {
 pub struct StateCallArgument {
     pub index: usize,
     pub parameter_symbol: SymbolHandle,
-    pub parameter_name: ProgramName,
+    pub parameter_name: Identifier,
     pub expression: ExpressionHandle,
     pub kind: StateCallArgumentKind,
     pub required: bool,
@@ -199,7 +199,7 @@ impl Default for StateCallArgument {
         Self {
             index: 0,
             parameter_symbol: SymbolHandle::invalid(),
-            parameter_name: ProgramName::default(),
+            parameter_name: Identifier::default(),
             expression: ExpressionHandle::invalid(),
             kind: StateCallArgumentKind::Value,
             required: false,

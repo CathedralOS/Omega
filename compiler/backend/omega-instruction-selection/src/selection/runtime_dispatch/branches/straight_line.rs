@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
@@ -833,7 +833,7 @@ fn select_runtime_straight_line_inline_state_call(
     );
 }
 
-fn state_names(input: &InstructionSelectionInput<'_>, key: StateKey) -> (ProgramName, ProgramName) {
+fn state_names(input: &InstructionSelectionInput<'_>, key: StateKey) -> (Identifier, Identifier) {
     input.control_flow.state_names_by_key_cloned(key)
 }
 
@@ -1421,6 +1421,6 @@ fn leaf_local_initializer_handle(
     })
 }
 
-fn source_machine_name(input: &InstructionSelectionInput<'_>, key: StateKey) -> ProgramName {
+fn source_machine_name(input: &InstructionSelectionInput<'_>, key: StateKey) -> Identifier {
     input.control_flow.state_machine_name_by_key_cloned(key)
 }

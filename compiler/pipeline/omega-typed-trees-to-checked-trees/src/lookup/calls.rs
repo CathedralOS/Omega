@@ -29,7 +29,7 @@ pub(crate) fn statement_call_can_dispatch_to_machine(
 pub(crate) fn statement_call_receiver_members<'a>(
     program: &'a omega_typed_trees::TypedTrees,
     call: &TableCall,
-) -> Option<&'a [ProgramName]> {
+) -> Option<&'a [Identifier]> {
     (!call.receiver.is_empty()).then(|| program.statement_table.name_path_members(call.receiver))
 }
 
@@ -87,8 +87,8 @@ pub(crate) fn resolve_state_call_target(
     state: &omega_typed_trees::state::State,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-    receiver: Option<&[ProgramName]>,
-    _target_state: &ProgramName,
+    receiver: Option<&[Identifier]>,
+    _target_state: &Identifier,
 ) -> SymbolHandle {
     if receiver.is_none() || receiver_symbol == machine.symbol {
         return resolve_state_symbol_in_machine(program, machine, target_symbol);
@@ -145,7 +145,7 @@ pub(crate) fn receiver_can_dispatch_to_machine(
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     receiver_symbol: SymbolHandle,
-    receiver: Option<&[ProgramName]>,
+    receiver: Option<&[Identifier]>,
 ) -> bool {
     if receiver.is_none() || receiver_symbol == machine.symbol {
         return true;

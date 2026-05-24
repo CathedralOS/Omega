@@ -1,5 +1,5 @@
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -11,7 +11,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
     pub expressions: ExpressionTable,
-    pub invariant_names: Arena<ProgramName>,
+    pub invariant_names: Arena<Identifier>,
     pub frame_slots: Arena<RuntimeFrameSlot>,
     pub writes: Arena<RuntimeStorageWrite>,
 }
@@ -133,11 +133,11 @@ pub struct RuntimeFrameSlot {
     pub statement_index: usize,
     pub kind: RuntimeFrameSlotKind,
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_symbol: SymbolHandle,
     pub type_name: Arc<str>,
     pub type_descriptor: TypeLayoutDescriptor,
-    pub invariant_names: HandleSpan<ProgramName>,
+    pub invariant_names: HandleSpan<Identifier>,
     pub byte_offset: usize,
     pub byte_size: usize,
     pub alignment: usize,

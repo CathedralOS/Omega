@@ -76,6 +76,6 @@ fn semantic_contract_payload(
 
 pub fn lower_typed_program(
     program: omega_typed_trees::TypedTrees,
-) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<CheckedTrees, Vec<omega_core::diagnostics::Diagnostic>> {
     lower_typed_trees(program)
 }

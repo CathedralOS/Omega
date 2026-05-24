@@ -1,4 +1,4 @@
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ pub enum TypeLayoutDescriptor {
     },
     Named {
         symbol: SymbolHandle,
-        name: ProgramName,
+        name: Identifier,
     },
     Unit,
 }
@@ -100,7 +100,7 @@ impl TypeLayoutDescriptor {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldLayout {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub offset: usize,
     pub type_symbol: SymbolHandle,
     pub type_name: Arc<str>,
@@ -112,7 +112,7 @@ impl Default for FieldLayout {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             offset: 0,
             type_symbol: SymbolHandle::invalid(),
             type_name: Arc::from(""),
@@ -125,14 +125,14 @@ impl Default for FieldLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantLayout {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
 }
 
 impl Default for VariantLayout {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
         }
     }
 }
@@ -154,7 +154,7 @@ impl Default for DataShape {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataLayout {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub shape: DataShape,
     pub layout: TypeLayout,
 }
@@ -163,7 +163,7 @@ impl Default for DataLayout {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             shape: DataShape::default(),
             layout: TypeLayout::default(),
         }
@@ -173,8 +173,8 @@ impl Default for DataLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineLayout {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
-    pub attached_data: Option<ProgramName>,
+    pub name: Identifier,
+    pub attached_data: Option<Identifier>,
     pub fields: HandleSpan<FieldLayout>,
     pub layout: TypeLayout,
 }
@@ -183,7 +183,7 @@ impl Default for MachineLayout {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             attached_data: None,
             fields: HandleSpan::empty(),
             layout: TypeLayout::default(),

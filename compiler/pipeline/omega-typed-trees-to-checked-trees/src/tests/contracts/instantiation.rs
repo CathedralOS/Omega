@@ -49,13 +49,13 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: callee_state_symbol,
             receiver: HandleSpan::empty(),
-            target: ProgramName::generated("run"),
+            target: Identifier::generated("run"),
             arguments: caller_arguments,
         }));
 
     let mut caller_state = State {
         symbol: caller_state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: HandleSpan::empty(),
         return_type: Default::default(),
         statement_nodes: HandleSpan::from_parts(caller_statement, 1),
@@ -64,7 +64,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         &mut caller_state,
         StateParameter {
             symbol: caller_argument_symbol,
-            name: ProgramName::generated("value"),
+            name: Identifier::generated("value"),
             type_reference: Default::default(),
             is_const: false,
             is_mutable: false,
@@ -74,7 +74,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
 
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,
-        name: ProgramName::generated("Caller"),
+        name: Identifier::generated("Caller"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -88,7 +88,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
 
     let mut callee_state = State {
         symbol: callee_state_symbol,
-        name: ProgramName::generated("run"),
+        name: Identifier::generated("run"),
         parameters: HandleSpan::empty(),
         return_type: Default::default(),
         statement_nodes: HandleSpan::empty(),
@@ -97,7 +97,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         &mut callee_state,
         StateParameter {
             symbol: callee_parameter_symbol,
-            name: ProgramName::generated("amount"),
+            name: Identifier::generated("amount"),
             type_reference: Default::default(),
             is_const: false,
             is_mutable: false,
@@ -107,7 +107,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
 
     let mut callee_machine = Machine {
         symbol: callee_machine_symbol,
-        name: ProgramName::generated("Worker"),
+        name: Identifier::generated("Worker"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -180,7 +180,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
 
     let mut caller_arguments = HandleSpan::empty();
     let self_name = Expression::Name(NamePath::resolved(
-        vec![ProgramName::generated("self")],
+        vec![Identifier::generated("self")],
         caller_machine_symbol,
         caller_machine_symbol,
     ));
@@ -188,7 +188,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         omega_checked_trees::expression::MemberExpression {
             receiver: self_name,
             member_symbol: caller_player_symbol,
-            member: ProgramName::generated("player"),
+            member: Identifier::generated("player"),
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));
@@ -199,7 +199,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
 
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,
-        name: ProgramName::generated("Main"),
+        name: Identifier::generated("Main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -210,7 +210,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
     };
     let mut caller_state = State {
         symbol: caller_state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -221,7 +221,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             receiver_symbol: caller_machine_symbol,
             target_symbol: callee_state_symbol,
             receiver: Default::default(),
-            target: ProgramName::generated("heal"),
+            target: Identifier::generated("heal"),
             arguments: caller_arguments,
         }),
     );
@@ -230,7 +230,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
 
     let mut callee_machine = Machine {
         symbol: callee_machine_symbol,
-        name: ProgramName::generated("Game"),
+        name: Identifier::generated("Game"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -241,7 +241,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
     };
     let mut callee_state = State {
         symbol: callee_state_symbol,
-        name: ProgramName::generated("heal"),
+        name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -250,7 +250,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         &mut callee_state,
         StateParameter {
             symbol: callee_player_symbol,
-            name: ProgramName::generated("player"),
+            name: Identifier::generated("player"),
             type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
@@ -329,7 +329,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
             ));
 
     let self_name = Expression::Name(NamePath::resolved(
-        vec![ProgramName::generated("self")],
+        vec![Identifier::generated("self")],
         caller_machine_symbol,
         caller_machine_symbol,
     ));
@@ -337,25 +337,25 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         omega_checked_trees::expression::MemberExpression {
             receiver: self_name,
             member_symbol: caller_player_symbol,
-            member: ProgramName::generated("player"),
+            member: Identifier::generated("player"),
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));
     let call_expression = Expression::Call(Box::new(CallExpression {
         receiver: Some(Box::new(Expression::Name(NamePath::resolved(
-            vec![ProgramName::generated("self")],
+            vec![Identifier::generated("self")],
             caller_machine_symbol,
             caller_machine_symbol,
         )))),
         target_symbol: callee_state_symbol,
-        target: ProgramName::generated("heal"),
+        target: Identifier::generated("heal"),
         arguments: Arc::from(vec![player_argument].into_boxed_slice()),
     }));
     let call_expression = program.expression_table.insert_tree(&call_expression);
 
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,
-        name: ProgramName::generated("Main"),
+        name: Identifier::generated("Main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -366,7 +366,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
     };
     let mut caller_state = State {
         symbol: caller_state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -380,7 +380,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
 
     let mut callee_machine = Machine {
         symbol: callee_machine_symbol,
-        name: ProgramName::generated("Game"),
+        name: Identifier::generated("Game"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -391,7 +391,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
     };
     let mut callee_state = State {
         symbol: callee_state_symbol,
-        name: ProgramName::generated("heal"),
+        name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -400,7 +400,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         &mut callee_state,
         StateParameter {
             symbol: callee_player_symbol,
-            name: ProgramName::generated("player"),
+            name: Identifier::generated("player"),
             type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,

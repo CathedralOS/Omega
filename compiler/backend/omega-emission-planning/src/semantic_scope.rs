@@ -1,5 +1,5 @@
 use crate::EmissionPlanningInput;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCall;
@@ -66,8 +66,8 @@ pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKe
 }
 
 pub(super) fn invariant_suffix(
-    invariant_names: &Arena<ProgramName>,
-    names: HandleSpan<ProgramName>,
+    invariant_names: &Arena<Identifier>,
+    names: HandleSpan<Identifier>,
 ) -> String {
     match invariant_names.span_or_empty(names) {
         [] => String::new(),

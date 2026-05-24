@@ -9,7 +9,7 @@ use omega_typed_trees::trait_definition::TraitDefinition;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug)]
-pub struct ProgramSymbols<'program> {
+pub struct TopLevelSymbols<'program> {
     data_definitions: Vec<DataDefinitionSymbol<'program>>,
     machines: Vec<MachineSymbol<'program>>,
     platforms: Vec<PlatformSymbol<'program>>,
@@ -50,7 +50,7 @@ struct TypeSymbol<'program> {
     symbol: SymbolHandle,
 }
 
-impl<'program> ProgramSymbols<'program> {
+impl<'program> TopLevelSymbols<'program> {
     pub fn build(program: &'program TypedTrees, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let data_definition_count = program.data_definitions().len();
         let machine_count = program.machines().len();

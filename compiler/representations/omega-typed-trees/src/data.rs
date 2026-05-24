@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -6,7 +6,7 @@ use omega_core::symbols::SymbolHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub members: HandleSpan<DataMember>,
 }
@@ -15,7 +15,7 @@ impl Default for DataDefinition {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             type_parameters: HandleSpan::empty(),
             members: HandleSpan::empty(),
         }
@@ -66,14 +66,14 @@ impl Default for DataMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
 }
 
 impl Default for TypeParameter {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
         }
     }
 }
@@ -81,7 +81,7 @@ impl Default for TypeParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
 }
 
@@ -89,7 +89,7 @@ impl Default for DataField {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             type_reference: TypeReferenceHandle::invalid(),
         }
     }
@@ -98,14 +98,14 @@ impl Default for DataField {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
 }
 
 impl Default for DataVariant {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
         }
     }
 }

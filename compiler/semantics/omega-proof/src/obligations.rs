@@ -5,7 +5,7 @@ use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral,
 };
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::name::Identifier;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
@@ -62,7 +62,7 @@ impl<'program> ProofPlan<'program> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofConstraint {
-    Named(ProgramName),
+    Named(Identifier),
     IntegerRange {
         minimum: i64,
         maximum: i64,
@@ -75,7 +75,7 @@ pub enum ProofConstraint {
 
 impl Default for ProofConstraint {
     fn default() -> Self {
-        Self::Named(ProgramName::default())
+        Self::Named(Identifier::default())
     }
 }
 
@@ -222,23 +222,23 @@ pub enum ProofObligationOwner {
     Unknown,
     MachineOwnedData {
         machine_symbol: SymbolHandle,
-        machine: ProgramName,
+        machine: Identifier,
         data_symbol: SymbolHandle,
-        data: ProgramName,
+        data: Identifier,
     },
     StateParameter {
         machine_symbol: SymbolHandle,
-        machine: ProgramName,
+        machine: Identifier,
         state_symbol: SymbolHandle,
-        state: ProgramName,
+        state: Identifier,
         parameter_symbol: SymbolHandle,
-        parameter: ProgramName,
+        parameter: Identifier,
     },
     StateReturn {
         machine_symbol: SymbolHandle,
-        machine: ProgramName,
+        machine: Identifier,
         state_symbol: SymbolHandle,
-        state: ProgramName,
+        state: Identifier,
     },
 }
 
@@ -278,18 +278,18 @@ pub struct BoundedValueObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuardedTransitionObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: ProgramName,
+    pub machine: Identifier,
     pub state_symbol: SymbolHandle,
-    pub state: ProgramName,
+    pub state: Identifier,
     pub guard: TransitionGuardNode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedAssignmentObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: ProgramName,
+    pub machine: Identifier,
     pub state_symbol: SymbolHandle,
-    pub state: ProgramName,
+    pub state: Identifier,
     pub state_guard: Option<TransitionGuardNode>,
     pub target: ExpressionHandle,
     pub value: ExpressionHandle,
@@ -301,14 +301,14 @@ pub struct BoundedAssignmentObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedCallArgumentObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: ProgramName,
+    pub machine: Identifier,
     pub state_symbol: SymbolHandle,
-    pub state: ProgramName,
-    pub receiver: Option<ProgramName>,
+    pub state: Identifier,
+    pub receiver: Option<Identifier>,
     pub target_symbol: SymbolHandle,
-    pub target: ProgramName,
+    pub target: Identifier,
     pub parameter_symbol: SymbolHandle,
-    pub parameter: ProgramName,
+    pub parameter: Identifier,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
@@ -326,9 +326,9 @@ pub struct BoundedInitializerObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedStateReturnObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: ProgramName,
+    pub machine: Identifier,
     pub state_symbol: SymbolHandle,
-    pub state: ProgramName,
+    pub state: Identifier,
     pub value: ExpressionHandle,
     pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
@@ -338,11 +338,11 @@ pub struct BoundedStateReturnObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedTransitionArgumentObligation {
     pub machine_symbol: SymbolHandle,
-    pub machine: ProgramName,
+    pub machine: Identifier,
     pub state_symbol: SymbolHandle,
-    pub state: ProgramName,
+    pub state: Identifier,
     pub parameter_symbol: SymbolHandle,
-    pub parameter: ProgramName,
+    pub parameter: Identifier,
     pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
@@ -810,7 +810,7 @@ fn call_target_parameters<'program>(
     state_by_symbol(program, target_symbol).map(|state| program.state_parameters(state))
 }
 
-fn display_name_path(path: &[ProgramName]) -> ProgramName {
+fn display_name_path(path: &[Identifier]) -> Identifier {
     let mut display = String::new();
 
     for member in path {
@@ -820,7 +820,7 @@ fn display_name_path(path: &[ProgramName]) -> ProgramName {
         display.push_str(member.as_str());
     }
 
-    ProgramName::generated(display)
+    Identifier::generated(display)
 }
 
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
@@ -1174,7 +1174,7 @@ fn collect_constraints_in_state(
 fn local_data_by_name<'program>(
     program: &'program TypedTrees,
     state: &State,
-    name: &ProgramName,
+    name: &Identifier,
 ) -> Option<&'program TableLocalData> {
     program
         .statement_table
@@ -1189,7 +1189,7 @@ fn local_data_by_name<'program>(
         })
 }
 
-fn primitive_constraints(name: &ProgramName) -> ConstraintBuffer {
+fn primitive_constraints(name: &Identifier) -> ConstraintBuffer {
     let mut constraints = match name.as_str() {
         "u32" => {
             let mut constraints = ConstraintBuffer::new();
@@ -1267,7 +1267,7 @@ fn data_field_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     member_symbol: SymbolHandle,
-    member_name: &ProgramName,
+    member_name: &Identifier,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -1299,7 +1299,7 @@ fn data_field_type_reference(
 fn data_definition_by_symbol_or_name<'program>(
     program: &'program TypedTrees,
     symbol: SymbolHandle,
-    name: &ProgramName,
+    name: &Identifier,
 ) -> Option<&'program omega_typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|data_definition| {
         (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
@@ -1310,7 +1310,7 @@ fn data_field_in_definition(
     program: &TypedTrees,
     data_definition: &omega_typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
-    member_name: &ProgramName,
+    member_name: &Identifier,
 ) -> Option<TypeReferenceHandle> {
     program
         .data_members(data_definition)
@@ -1328,7 +1328,7 @@ fn data_field_in_definition(
 
 fn integer_literal_constraints(value: i64) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
-    constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+    constraints.push(ProofConstraint::Named(Identifier::generated_static(
         "exact",
     )));
     constraints.push(ProofConstraint::IntegerRange {
@@ -1337,13 +1337,13 @@ fn integer_literal_constraints(value: i64) -> ConstraintBuffer {
     });
 
     if value >= 0 {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "non_negative",
         )));
     }
 
     if value > 0 {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "positive",
         )));
     }
@@ -1358,7 +1358,7 @@ fn float_literal_constraints(value: FloatLiteral) -> ConstraintBuffer {
     }
 
     let mut constraints = ConstraintBuffer::new();
-    constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+    constraints.push(ProofConstraint::Named(Identifier::generated_static(
         "finite",
     )));
     constraints.push(ProofConstraint::FloatRange {
@@ -1387,7 +1387,7 @@ fn derived_binary_constraints(
                 | BinaryOperator::Subtract
         )
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "exact",
         )));
     }
@@ -1403,7 +1403,7 @@ fn derived_binary_constraints(
                 | BinaryOperator::Subtract
         )
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "wrapping",
         )));
     }
@@ -1418,12 +1418,12 @@ fn derived_binary_constraints(
             maximum: range.maximum,
         });
         if range.minimum >= 0 {
-            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "non_negative",
             )));
         }
         if range.minimum > 0 {
-            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "positive",
             )));
         }
@@ -1434,7 +1434,7 @@ fn derived_binary_constraints(
         float_range_from_constraints(right_constraints),
     ) && let Some(range) = float_binary_range(operator, left_range, right_range)
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "finite",
         )));
         constraints.push(ProofConstraint::FloatRange {
@@ -1452,7 +1452,7 @@ fn derived_real_from_constraints(argument_constraints: &ConstraintBuffer) -> Con
     };
 
     let mut constraints = ConstraintBuffer::new();
-    constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+    constraints.push(ProofConstraint::Named(Identifier::generated_static(
         "finite",
     )));
     constraints.push(ProofConstraint::FloatRange {
@@ -1494,7 +1494,7 @@ fn derived_extrema_call_constraints(
     if integer_constraints_are_exact(&left_constraints)
         && integer_constraints_are_exact(&right_constraints)
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "exact",
         )));
     }
@@ -1556,7 +1556,7 @@ fn derived_range_call_constraints(
 
     let upper_constraints = expression_constraints(program, machine, state, *exclusive_max);
     let mut constraints = ConstraintBuffer::new();
-    constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+    constraints.push(ProofConstraint::Named(Identifier::generated_static(
         "exact",
     )));
 
@@ -1642,19 +1642,19 @@ fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {
         )
     }) && !has_named_constraint(constraints, "exact")
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "exact",
         )));
     }
 
     if let Some(range) = integer_range_from_constraints(constraints) {
         if range.minimum >= 0 && !has_named_constraint(constraints, "non_negative") {
-            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "non_negative",
             )));
         }
         if range.minimum > 0 && !has_named_constraint(constraints, "positive") {
-            constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+            constraints.push(ProofConstraint::Named(Identifier::generated_static(
                 "positive",
             )));
         }
@@ -1663,7 +1663,7 @@ fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {
     if float_range_from_constraints(constraints).is_some()
         && !has_named_constraint(constraints, "finite")
     {
-        constraints.push(ProofConstraint::Named(ProgramName::generated_static(
+        constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "finite",
         )));
     }

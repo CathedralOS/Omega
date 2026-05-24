@@ -1,6 +1,6 @@
 use crate::StateGuardOperandStorage;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -269,7 +269,7 @@ impl<'table> NormalizedGuardNamePath<'table> {
         self.len() == 0
     }
 
-    fn member(&self, index: usize) -> Option<&ProgramName> {
+    fn member(&self, index: usize) -> Option<&Identifier> {
         guard_path_member(self.table, self.expression, index)
     }
 
@@ -315,7 +315,7 @@ fn guard_path_member(
     table: &ExpressionTable,
     expression: ExpressionHandle,
     index: usize,
-) -> Option<&ProgramName> {
+) -> Option<&Identifier> {
     match table.expression(expression) {
         ExpressionNode::Mutable(target) => guard_path_member(table, *target, index),
         ExpressionNode::Indexed(indexed) => guard_path_member(table, indexed.collection, index),
@@ -395,7 +395,7 @@ fn guard_path_member_index(
 }
 
 fn borrowed_member_symbol(
-    members: &[ProgramName],
+    members: &[Identifier],
     member_symbols: &[SymbolHandle],
     head_symbol: SymbolHandle,
     final_symbol: SymbolHandle,
@@ -437,7 +437,7 @@ struct GuardPathSuffixIter<'path, 'table> {
 }
 
 impl<'path, 'table> Iterator for GuardPathSuffixIter<'path, 'table> {
-    type Item = (&'path ProgramName, SymbolHandle, Option<usize>);
+    type Item = (&'path Identifier, SymbolHandle, Option<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let member = self.path.member(self.index)?;
@@ -611,7 +611,7 @@ fn field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
-    field_name: &ProgramName,
+    field_name: &Identifier,
 ) -> Option<&'plan FieldLayout> {
     let fields = layouts.fields.span(fields)?;
     fields

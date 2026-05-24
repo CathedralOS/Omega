@@ -143,7 +143,7 @@ pub(super) fn write_typed_snapshot(
 
 pub(super) fn write_checked_snapshot(
     options: &CompileOptions,
-    checked: &omega_checked_trees::Program,
+    checked: &omega_checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
         options,

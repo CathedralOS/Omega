@@ -1,4 +1,4 @@
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BackendStringStorage {
@@ -44,7 +44,7 @@ impl BackendStringStorage {
         count_string(&mut self.report_strings, &mut self.report_bytes, value);
     }
 
-    pub(in crate::identity) fn count_program_name_identity(&mut self, name: &ProgramName) {
+    pub(in crate::identity) fn count_program_name_identity(&mut self, name: &Identifier) {
         if !name.as_str().is_empty() {
             self.count_identity(name.as_str());
         }

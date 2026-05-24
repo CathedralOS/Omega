@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::signature::StateSignature;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -7,7 +7,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
 }
@@ -17,7 +17,7 @@ impl Default for TraitDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             is_boundary: false,
-            name: ProgramName::default(),
+            name: Identifier::default(),
             requires: HandleSpan::empty(),
             machines: HandleSpan::empty(),
         }
@@ -27,14 +27,14 @@ impl Default for TraitDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
 }
 
 impl Default for TraitRequirement {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
         }
     }
 }

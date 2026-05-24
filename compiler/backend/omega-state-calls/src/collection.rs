@@ -1,6 +1,6 @@
 use crate::StateCallPlanningContext;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::{
     ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, StateKey,
     TransitionExpressionRefs,
@@ -603,7 +603,7 @@ fn resolve_state_call_target(
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     has_receiver: bool,
-    target_state: &ProgramName,
+    target_state: &Identifier,
 ) -> Option<ResolvedStateCall> {
     if !has_receiver || receiver_symbol == machine.symbol {
         if let Some(key) =
@@ -718,7 +718,7 @@ fn resolve_attached_machine_state_key(
 
 fn resolve_attached_data_state_key(
     control_flow: &ControlFlowPlan,
-    attached_data: &ProgramName,
+    attached_data: &Identifier,
     target_symbol: SymbolHandle,
 ) -> Option<StateKey> {
     if !target_symbol.is_valid() {
@@ -745,7 +745,7 @@ fn resolve_state_key_in_machine(
     control_flow: &ControlFlowPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    state_name: &ProgramName,
+    state_name: &Identifier,
 ) -> Option<StateKey> {
     if state_symbol.is_valid()
         && let Some(key) = control_flow.state_key_by_symbols(machine_symbol, state_symbol)

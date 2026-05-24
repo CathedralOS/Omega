@@ -1,4 +1,4 @@
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
@@ -6,7 +6,7 @@ use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDes
 pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: &[ProgramName],
+    suffix: &[Identifier],
     mut suffix_symbol: impl FnMut(usize) -> SymbolHandle,
 ) -> Option<(usize, TypeLayout)> {
     resolve_nested_field_layout(
@@ -22,7 +22,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
 pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle, Option<usize>)>,
+    suffix: impl IntoIterator<Item = (&'suffix Identifier, SymbolHandle, Option<usize>)>,
 ) -> Option<(usize, TypeLayout)> {
     resolve_nested_field_layout(layouts, root_field, suffix)
 }
@@ -59,7 +59,7 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
 pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
     layouts: &'layout LayoutPlan,
     cursor: NestedFieldLayoutCursor<'layout>,
-    field_name: &ProgramName,
+    field_name: &Identifier,
     field_symbol: SymbolHandle,
     field_index: Option<usize>,
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
@@ -99,7 +99,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
 fn resolve_nested_field_layout<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: impl IntoIterator<Item = (&'suffix ProgramName, SymbolHandle, Option<usize>)>,
+    suffix: impl IntoIterator<Item = (&'suffix Identifier, SymbolHandle, Option<usize>)>,
 ) -> Option<(usize, TypeLayout)> {
     let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
 
@@ -135,7 +135,7 @@ fn field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
-    field_name: &ProgramName,
+    field_name: &Identifier,
 ) -> Option<&'plan FieldLayout> {
     let fields = layouts.fields.span(fields)?;
     fields

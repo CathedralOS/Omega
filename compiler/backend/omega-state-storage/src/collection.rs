@@ -1,10 +1,10 @@
 use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_checked_trees::machine::Machine;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_control_flow::StateKey;
@@ -15,7 +15,7 @@ use omega_state_values::simplify_state_expression;
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(
-    program: &Program,
+    program: &CheckedTrees,
     context: StateStoragePlanningContext,
 ) -> StateStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -28,7 +28,7 @@ pub fn build_state_storage_plan(
 }
 
 pub fn build_state_storage_plan_owned(
-    program: Program,
+    program: CheckedTrees,
     context: StateStoragePlanningContext,
 ) -> StateStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -37,7 +37,7 @@ pub fn build_state_storage_plan_owned(
 }
 
 pub fn build_state_storage_plan_with_workers(
-    program: Arc<Program>,
+    program: Arc<CheckedTrees>,
     context: Arc<StateStoragePlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateStoragePlan {
@@ -122,7 +122,7 @@ pub fn build_state_storage_plan_with_workers(
 }
 
 fn build_machine_state_storage_plan(
-    program: &Program,
+    program: &CheckedTrees,
     context: &StateStoragePlanningContext,
     machine: &Machine,
 ) -> StateStoragePlan {
@@ -236,7 +236,7 @@ fn build_machine_state_storage_plan(
     plan
 }
 
-fn estimated_machine_storage_capacity(program: &Program, machine: &Machine) -> (usize, usize) {
+fn estimated_machine_storage_capacity(program: &CheckedTrees, machine: &Machine) -> (usize, usize) {
     program
         .machine_states(machine)
         .iter()
@@ -259,7 +259,7 @@ fn estimated_machine_storage_capacity(program: &Program, machine: &Machine) -> (
 }
 
 fn state_has_initialized_locals_before(
-    program: &Program,
+    program: &CheckedTrees,
     state: &omega_checked_trees::state::State,
     statement_index: usize,
 ) -> bool {
@@ -333,20 +333,20 @@ fn assignment_target_head_symbol(
 }
 
 fn append_type_reference_invariant_names(
-    program: &Program,
+    program: &CheckedTrees,
     type_reference: TypeReferenceHandle,
-    names: &mut Arena<ProgramName>,
-) -> HandleSpan<ProgramName> {
+    names: &mut Arena<Identifier>,
+) -> HandleSpan<Identifier> {
     let mut span = HandleSpan::empty();
     collect_type_reference_invariant_names(program, type_reference, names, &mut span);
     span
 }
 
 fn collect_type_reference_invariant_names(
-    program: &Program,
+    program: &CheckedTrees,
     type_reference: TypeReferenceHandle,
-    names: &mut Arena<ProgramName>,
-    span: &mut HandleSpan<ProgramName>,
+    names: &mut Arena<Identifier>,
+    span: &mut HandleSpan<Identifier>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {

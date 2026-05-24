@@ -142,7 +142,7 @@ fn lower_type_reference_handle_from_table_with_context(
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {
                 symbol: *symbol,
-                name: typed::name::ProgramName::generated_static("Self"),
+                name: typed::name::Identifier::generated_static("Self"),
             })),
         resolved::types::TypeReferenceNode::Unit => Ok(typed_trees
             .type_reference_table
@@ -238,7 +238,7 @@ fn lower_type_reference_handle_with_context(
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {
                 symbol: *symbol,
-                name: typed::name::ProgramName::generated_static("Self"),
+                name: typed::name::Identifier::generated_static("Self"),
             })),
         resolved::types::TypeReference::Unit => Ok(typed_trees
             .type_reference_table

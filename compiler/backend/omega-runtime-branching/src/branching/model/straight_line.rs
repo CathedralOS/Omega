@@ -1,5 +1,5 @@
 use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -51,7 +51,7 @@ impl Default for RuntimeStraightLineBranchExpansion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchBinding {
     pub parameter_symbol: SymbolHandle,
-    pub parameter_name: ProgramName,
+    pub parameter_name: Identifier,
     pub expression: ExpressionHandle,
     pub kind: RuntimeStraightLineBranchBindingKind,
 }
@@ -60,7 +60,7 @@ impl Default for RuntimeStraightLineBranchBinding {
     fn default() -> Self {
         Self {
             parameter_symbol: SymbolHandle::invalid(),
-            parameter_name: ProgramName::default(),
+            parameter_name: Identifier::default(),
             expression: ExpressionHandle::invalid(),
             kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
         }

@@ -3,7 +3,7 @@ use crate::RuntimeTransitionTarget;
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::name::Identifier;
 
 impl RuntimeFlowBuilder<'_> {
     pub(super) fn visit_target(
@@ -62,7 +62,7 @@ impl RuntimeFlowBuilder<'_> {
         &self,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
-        state_name: &ProgramName,
+        state_name: &Identifier,
     ) -> Option<StateKey> {
         self.resolve_state_in_machine(machine_symbol, state_symbol, state_name)
             .or_else(|| {
@@ -76,9 +76,9 @@ impl RuntimeFlowBuilder<'_> {
         &self,
         machine_symbol: SymbolHandle,
         receiver_symbol: SymbolHandle,
-        receiver_name: &ProgramName,
+        receiver_name: &Identifier,
         state_symbol: SymbolHandle,
-        state_name: &ProgramName,
+        state_name: &Identifier,
     ) -> Option<StateKey> {
         let machine = self.control_flow.machine_by_symbol(machine_symbol)?;
         let contained = self
@@ -98,9 +98,9 @@ impl RuntimeFlowBuilder<'_> {
 
     fn resolve_attached_data_state(
         &self,
-        attached_data: &ProgramName,
+        attached_data: &Identifier,
         state_symbol: SymbolHandle,
-        state_name: &ProgramName,
+        state_name: &Identifier,
     ) -> Option<StateKey> {
         self.control_flow
             .machines
@@ -117,7 +117,7 @@ impl RuntimeFlowBuilder<'_> {
         &self,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
-        state_name: &ProgramName,
+        state_name: &Identifier,
     ) -> Option<StateKey> {
         if state_symbol.is_valid()
             && let Some(key) = self

@@ -1,4 +1,4 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTableCapacity};
 use omega_checked_trees::machine::Machine;
 use omega_core::arena::{Arena, HandleSpan};
@@ -20,20 +20,20 @@ mod transitions;
 use crate::segments::{segment_has_unconditional_transition, split_state_segments};
 use crate::transitions::plan_transition;
 
-pub fn build_state_graph(program: &Program) -> Result<StateGraph, Diagnostic> {
+pub fn build_state_graph(program: &CheckedTrees) -> Result<StateGraph, Diagnostic> {
     let workers = WorkerPool::with_available_parallelism();
 
     build_state_graph_with_workers(Arc::new(program.clone()), workers.handle())
 }
 
-pub fn build_state_graph_owned(program: Program) -> Result<StateGraph, Diagnostic> {
+pub fn build_state_graph_owned(program: CheckedTrees) -> Result<StateGraph, Diagnostic> {
     let workers = WorkerPool::with_available_parallelism();
 
     build_state_graph_with_workers(Arc::new(program), workers.handle())
 }
 
 pub fn build_state_graph_with_workers(
-    program: Arc<Program>,
+    program: Arc<CheckedTrees>,
     workers: WorkerPoolHandle,
 ) -> Result<StateGraph, Diagnostic> {
     if program.machines().is_empty() {
@@ -119,7 +119,7 @@ struct StateGraphCapacity {
 }
 
 impl StateGraphCapacity {
-    fn for_program(program: &Program) -> Self {
+    fn for_program(program: &CheckedTrees) -> Self {
         let mut capacity = Self {
             expressions: ExpressionTableCapacity::default(),
             machines: program.machines().len(),
@@ -152,7 +152,7 @@ impl StateGraphCapacity {
         capacity
     }
 
-    fn for_machine(program: &Program, machine: &Machine) -> Self {
+    fn for_machine(program: &CheckedTrees, machine: &Machine) -> Self {
         let state_capacity = estimated_machine_segment_capacity(program, machine);
         let statement_capacity = machine_statement_count(program, machine);
         let state_parameter_capacity = program
@@ -205,7 +205,7 @@ impl StateGraphCapacity {
     }
 }
 
-fn machine_expression_capacity(program: &Program, machine: &Machine) -> ExpressionTableCapacity {
+fn machine_expression_capacity(program: &CheckedTrees, machine: &Machine) -> ExpressionTableCapacity {
     program
         .machine_states(machine)
         .iter()
@@ -220,7 +220,7 @@ fn machine_expression_capacity(program: &Program, machine: &Machine) -> Expressi
 }
 
 fn statement_expression_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     statement: &omega_checked_trees::statement::StatementNode,
 ) -> ExpressionTableCapacity {
     match statement {
@@ -254,7 +254,7 @@ fn statement_expression_capacity(
 }
 
 fn expression_span_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     expressions: HandleSpan<ExpressionHandle>,
 ) -> ExpressionTableCapacity {
     let handles = program.statement_table.expression_handles(expressions);
@@ -269,7 +269,7 @@ fn expression_span_capacity(
 }
 
 fn transition_guard_expression_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     guard: omega_checked_trees::statement::TransitionGuardNode,
 ) -> ExpressionTableCapacity {
     match guard {
@@ -283,7 +283,7 @@ fn transition_guard_expression_capacity(
 }
 
 fn transition_target_expression_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     target: omega_checked_trees::statement::TransitionTargetHandle,
 ) -> ExpressionTableCapacity {
     if !target.is_valid() {
@@ -305,7 +305,7 @@ fn transition_target_expression_capacity(
 }
 
 fn copied_expression_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     expression: ExpressionHandle,
 ) -> ExpressionTableCapacity {
     if !expression.is_valid() {
@@ -372,7 +372,7 @@ fn copied_expression_capacity(
 }
 
 fn expression_table_span_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     expressions: HandleSpan<ExpressionHandle>,
 ) -> ExpressionTableCapacity {
     let handles = program.expression_table.expression_handles(expressions);
@@ -390,7 +390,7 @@ fn span_count<T>(span: HandleSpan<T>) -> usize {
     usize::try_from(span.count()).expect("handle span count overflow")
 }
 
-fn machine_statement_count(program: &Program, machine: &Machine) -> usize {
+fn machine_statement_count(program: &CheckedTrees, machine: &Machine) -> usize {
     program
         .machine_states(machine)
         .iter()
@@ -403,7 +403,7 @@ fn machine_statement_count(program: &Program, machine: &Machine) -> usize {
         .sum()
 }
 
-fn machine_contract_call_count(program: &Program, machine: &Machine) -> usize {
+fn machine_contract_call_count(program: &CheckedTrees, machine: &Machine) -> usize {
     program
         .facts
         .proof
@@ -413,7 +413,7 @@ fn machine_contract_call_count(program: &Program, machine: &Machine) -> usize {
         .count()
 }
 
-fn machine_contract_exit_count(program: &Program, machine: &Machine) -> usize {
+fn machine_contract_exit_count(program: &CheckedTrees, machine: &Machine) -> usize {
     program
         .facts
         .proof
@@ -423,7 +423,7 @@ fn machine_contract_exit_count(program: &Program, machine: &Machine) -> usize {
         .count()
 }
 
-fn machine_contract_fact_ref_count(program: &Program, machine: &Machine) -> usize {
+fn machine_contract_fact_ref_count(program: &CheckedTrees, machine: &Machine) -> usize {
     let call_refs = program
         .facts
         .proof
@@ -869,7 +869,7 @@ fn append_remapped_transitions(
 
 fn build_machine_graph(
     machine: &Machine,
-    program: &Program,
+    program: &CheckedTrees,
     state_graph: &mut StateGraph,
 ) -> Result<MachineGraph, Diagnostic> {
     let machine_symbol = machine.symbol;
@@ -912,7 +912,7 @@ fn build_machine_graph(
 
 fn machine_owned_data(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
 ) -> HandleSpan<MachineOwnedDataGraph> {
     state_graph
@@ -930,7 +930,7 @@ fn machine_owned_data(
 }
 
 fn machine_effect_bits(
-    program: &Program,
+    program: &CheckedTrees,
     machine_symbol: omega_core::symbols::SymbolHandle,
 ) -> (omega_effects::EffectBits, omega_effects::EffectBits) {
     program
@@ -944,7 +944,7 @@ fn machine_effect_bits(
 }
 
 fn state_effect_bits(
-    program: &Program,
+    program: &CheckedTrees,
     state_symbol: omega_core::symbols::SymbolHandle,
 ) -> (omega_effects::EffectBits, omega_effects::EffectBits) {
     program
@@ -958,7 +958,7 @@ fn state_effect_bits(
         .unwrap_or_default()
 }
 
-fn estimated_machine_segment_capacity(program: &Program, machine: &Machine) -> usize {
+fn estimated_machine_segment_capacity(program: &CheckedTrees, machine: &Machine) -> usize {
     program
         .machine_states(machine)
         .iter()
@@ -974,7 +974,7 @@ fn estimated_machine_segment_capacity(program: &Program, machine: &Machine) -> u
 
 fn machine_contains(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
 ) -> HandleSpan<ContainedGraph> {
     let mut contains = HandleSpan::empty();
@@ -1041,9 +1041,9 @@ fn machine_contains(
 }
 
 fn type_reference_name_handle(
-    program: &Program,
+    program: &CheckedTrees,
     type_reference: omega_checked_trees::types::TypeReferenceHandle,
-) -> omega_checked_trees::name::ProgramName {
+) -> omega_checked_trees::name::Identifier {
     match program.type_reference_table.type_reference(type_reference) {
         omega_checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
             type_reference_name_handle(program, *referee)
@@ -1062,14 +1062,14 @@ fn type_reference_name_handle(
         }
         omega_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.clone(),
         omega_checked_trees::types::TypeReferenceNode::Unit => {
-            omega_checked_trees::name::ProgramName::default()
+            omega_checked_trees::name::Identifier::default()
         }
     }
 }
 
 fn append_machine_states(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     segments: &[crate::segments::StateSegment],
     segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
@@ -1108,7 +1108,7 @@ fn append_machine_states(
 
 fn state_contract_summary(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     segment: &crate::segments::StateSegment,
     segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
 ) -> StateContractSummary {
@@ -1200,7 +1200,7 @@ fn segment_contains_statement_index(
 
 fn append_state_contract_fact_refs(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     refs: HandleSpan<omega_checked_trees::ContractProofFactRef>,
 ) -> HandleSpan<StateContractFactRef> {
     let mut fact_refs = HandleSpan::empty();
@@ -1231,7 +1231,7 @@ fn append_state_contract_fact_refs(
 
 fn state_borrow_summary(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     key: StateKey,
 ) -> StateBorrowSummary {
     let Some(state_borrow) = program
@@ -1321,7 +1321,7 @@ fn state_borrow_summary(
 
 fn append_segment_transitions(
     state_graph: &mut StateGraph,
-    program: &Program,
+    program: &CheckedTrees,
     segment: &crate::segments::StateSegment,
     segments: &[crate::segments::StateSegment],
     segment_transitions: &omega_core::arena::Arena<crate::segments::SegmentTransition>,
