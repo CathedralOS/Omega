@@ -8,6 +8,7 @@ pub use operands::*;
 pub use selection::build_instruction_plan;
 pub use widths::*;
 
+use omega_abstract_operations::TargetDataPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
@@ -23,7 +24,6 @@ use omega_state_graph::RuntimeFlowPlan;
 use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
-use omega_target_operations::TargetDataPlan;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -9,6 +9,7 @@ name = "omega_instruction_selection"
 path = "src/lib.rs"
 
 [dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }

@@ -478,6 +478,7 @@ dependencies = [
 name = "omega-instruction-selection"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
  "omega-calling-conventions",
  "omega-checked-trees",
  "omega-control-flow",
