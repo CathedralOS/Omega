@@ -1,5 +1,4 @@
 use omega_abstract_operations::{AbstractOperationPlan, TargetDataPlan};
-use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
@@ -23,7 +22,6 @@ pub struct AbstractOperationLoweringInput<'plan> {
     pub entry_key: StateKey,
     pub entry_symbol: Arc<str>,
     pub program: &'plan CheckedTrees,
-    pub host_abi: &'plan HostAbiPlan,
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,
@@ -47,7 +45,6 @@ impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSe
             entry_key: input.entry_key,
             entry_symbol: Arc::clone(&input.entry_symbol),
             program: input.program,
-            host_abi: input.host_abi,
             control_flow: input.control_flow,
             host_calls: input.host_calls,
             state_calls: input.state_calls,

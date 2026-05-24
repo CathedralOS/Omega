@@ -2,6 +2,7 @@ use crate::host_calls::static_values::{StaticValue, StaticValues, resolve_static
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
 use omega_calling_conventions::{
     HostAbiPlan, HostOperationKey, PlatformCallLowering, PlatformCallLoweringHandle,
+    host_operation_fixed_leading_immediate,
 };
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -148,8 +149,14 @@ pub(crate) fn find_platform_call_lowering<'abi>(
         .map(|(handle, lowering)| (handle, lowering))
 }
 
-pub(crate) fn host_operation(operation_key: HostOperationKey) -> LoweredHostOperation {
-    LoweredHostOperation { operation_key }
+pub(crate) fn host_operation(
+    host_abi: &HostAbiPlan,
+    operation_key: HostOperationKey,
+) -> LoweredHostOperation {
+    LoweredHostOperation {
+        operation_key,
+        fixed_leading_immediate: host_operation_fixed_leading_immediate(host_abi, operation_key),
+    }
 }
 
 pub(crate) fn lower_host_call_arguments(

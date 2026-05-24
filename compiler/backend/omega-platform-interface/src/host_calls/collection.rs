@@ -112,7 +112,7 @@ fn collect_call_host_lowering(
             plan.operations.insert_many(
                 operations
                     .iter()
-                    .map(|operation| host_operation(operation.key)),
+                    .map(|operation| host_operation(host_abi, operation.key)),
             )
         })
         .unwrap_or_else(HandleSpan::empty);

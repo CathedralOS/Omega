@@ -56,7 +56,7 @@ pub(super) fn select_host_call(
             host_call,
             dispatch_index,
             alias_context,
-            operation.operation_key,
+            operation,
             operands,
         );
 
@@ -90,7 +90,7 @@ pub(super) fn select_host_call(
                 host_call,
                 dispatch_index,
                 alias_context,
-                get_std_handle.operation_key,
+                get_std_handle,
                 operands,
             );
             selected_instructions.push(SelectedInstruction {
