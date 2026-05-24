@@ -131,3 +131,20 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
 
     projected
 }
+
+pub(crate) fn filter_constraint_refs(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    source: omega_core::arena::HandleSpan<FlowConstraintRef>,
+    mut keep: impl FnMut(FlowConstraintRef) -> bool,
+) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
+    let mut filtered = omega_core::arena::HandleSpan::empty();
+    let copied: Vec<_> = constraint_refs.span_or_empty(source).iter().copied().collect();
+
+    for constraint_ref in copied {
+        if keep(constraint_ref) {
+            constraint_refs.append_to_span(&mut filtered, constraint_ref);
+        }
+    }
+
+    filtered
+}

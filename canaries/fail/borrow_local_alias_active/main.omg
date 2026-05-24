@@ -5,8 +5,13 @@ data Main {
 machine Main::main(&mut self) {
     let alias: &mut i32 = &mut self.value;
     self.use_value(&mut self.value);
+    self.write_alias(alias);
 }
 
 machine Main::use_value(&mut self, value: &mut i32) {
     value = 1;
+}
+
+machine Main::write_alias(&mut self, value: &mut i32) {
+    value = 2;
 }

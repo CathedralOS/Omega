@@ -216,6 +216,13 @@ fn append_state_call_facts(
         .iter()
         .enumerate()
     {
+        *active_constraints = filter_expired_borrow_loans(
+            &mut ctx.constraint_refs,
+            *active_constraints,
+            borrow,
+            statement_index,
+        );
+
         while let Some(borrow_call) = borrow_calls.get(call_index) {
             if borrow_call.statement_index != statement_index {
                 break;
@@ -284,6 +291,25 @@ fn append_state_call_facts(
     }
 
     state_calls
+}
+
+fn filter_expired_borrow_loans(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    source: omega_core::arena::HandleSpan<FlowConstraintRef>,
+    borrow: &BorrowFacts,
+    statement_index: usize,
+) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
+    common::filter_constraint_refs(constraint_refs, source, |constraint_ref| match constraint_ref.kind {
+        FlowConstraintKind::BorrowLoan { loan } => {
+            borrow.loans.get(loan).last_use_statement_index >= statement_index
+        }
+        FlowConstraintKind::Unknown
+        | FlowConstraintKind::SemanticContext { .. }
+        | FlowConstraintKind::BorrowState { .. }
+        | FlowConstraintKind::BorrowCall { .. }
+        | FlowConstraintKind::BorrowWritableRoot { .. }
+        | FlowConstraintKind::BorrowAccess { .. } => true,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

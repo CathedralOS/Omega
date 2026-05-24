@@ -178,9 +178,12 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
         machine Main::main(&mut self) {
             let alias: &mut i32 = &mut self.value;
             self.use_value(&mut self.value);
+            self.write_alias(alias);
         }
 
         machine Main::use_value(&mut self, value: &mut i32) {}
+
+        machine Main::write_alias(&mut self, value: &mut i32) {}
     "#;
 
     let tokens = omega_source_files_to_tokens::Lexer::new(source)
@@ -228,9 +231,12 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
         machine Main::main(&mut self) {
             let alias: &mut [Exit] = self.room.exits.as_mut_slice();
             self.use_exit(&mut self.room.exits[0]);
+            self.write_alias(alias);
         }
 
         machine Main::use_exit(&mut self, exit: &mut Exit) {}
+
+        machine Main::write_alias(&mut self, exits: &mut [Exit]) {}
     "#;
 
     let tokens = omega_source_files_to_tokens::Lexer::new(source)
@@ -264,4 +270,58 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     assert_eq!(loans.len(), 1);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
+}
+
+#[test]
+fn drops_local_borrow_loans_after_last_use() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut i32 = &mut self.value;
+            self.write_alias(alias);
+            self.use_value(&mut self.value);
+        }
+
+        machine Main::write_alias(&mut self, value: &mut i32) {}
+
+        machine Main::use_value(&mut self, value: &mut i32) {}
+    "#;
+
+    let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed =
+        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+
+    let loan = borrow.loans.iter().next().map(|(_, loan)| loan).expect("loan");
+    assert_eq!(loan.statement_index, 0);
+    assert_eq!(loan.last_use_statement_index, 1);
+
+    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
+    let call_flows = flow.calls.span_or_empty(state_flow.calls);
+    assert_eq!(call_flows.len(), 2);
+
+    let first_call_loans: Vec<_> = flow
+        .borrow_loan_constraints(call_flows[0].entry_constraints)
+        .collect();
+    assert_eq!(first_call_loans.len(), 1);
+
+    let second_call_loans: Vec<_> = flow
+        .borrow_loan_constraints(call_flows[1].entry_constraints)
+        .collect();
+    assert!(second_call_loans.is_empty());
 }
