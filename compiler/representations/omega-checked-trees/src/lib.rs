@@ -283,6 +283,12 @@ pub enum FlowConstraintKind {
     BorrowCall {
         call: Handle<BorrowCallFact>,
     },
+    BorrowWritableRoot {
+        root: Handle<BorrowWritableRootFact>,
+    },
+    BorrowAccess {
+        access: Handle<BorrowArgumentAccessFact>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -395,7 +401,9 @@ impl FlowFacts {
                 FlowConstraintKind::SemanticContext { context } => Some(context),
                 FlowConstraintKind::Unknown
                 | FlowConstraintKind::BorrowState { .. }
-                | FlowConstraintKind::BorrowCall { .. } => None,
+                | FlowConstraintKind::BorrowCall { .. }
+                | FlowConstraintKind::BorrowWritableRoot { .. }
+                | FlowConstraintKind::BorrowAccess { .. } => None,
             })
     }
 
@@ -409,7 +417,9 @@ impl FlowFacts {
                 FlowConstraintKind::BorrowState { state } => Some(state),
                 FlowConstraintKind::Unknown
                 | FlowConstraintKind::SemanticContext { .. }
-                | FlowConstraintKind::BorrowCall { .. } => None,
+                | FlowConstraintKind::BorrowCall { .. }
+                | FlowConstraintKind::BorrowWritableRoot { .. }
+                | FlowConstraintKind::BorrowAccess { .. } => None,
             })
     }
 
@@ -423,7 +433,41 @@ impl FlowFacts {
                 FlowConstraintKind::BorrowCall { call } => Some(call),
                 FlowConstraintKind::Unknown
                 | FlowConstraintKind::SemanticContext { .. }
-                | FlowConstraintKind::BorrowState { .. } => None,
+                | FlowConstraintKind::BorrowState { .. }
+                | FlowConstraintKind::BorrowWritableRoot { .. }
+                | FlowConstraintKind::BorrowAccess { .. } => None,
+            })
+    }
+
+    pub fn borrow_writable_root_constraints<'a>(
+        &'a self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowWritableRootFact>> + 'a {
+        self.constraints(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::BorrowWritableRoot { root } => Some(root),
+                FlowConstraintKind::Unknown
+                | FlowConstraintKind::SemanticContext { .. }
+                | FlowConstraintKind::BorrowState { .. }
+                | FlowConstraintKind::BorrowCall { .. }
+                | FlowConstraintKind::BorrowAccess { .. } => None,
+            })
+    }
+
+    pub fn borrow_access_constraints<'a>(
+        &'a self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowArgumentAccessFact>> + 'a {
+        self.constraints(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::BorrowAccess { access } => Some(access),
+                FlowConstraintKind::Unknown
+                | FlowConstraintKind::SemanticContext { .. }
+                | FlowConstraintKind::BorrowState { .. }
+                | FlowConstraintKind::BorrowCall { .. }
+                | FlowConstraintKind::BorrowWritableRoot { .. } => None,
             })
     }
 }

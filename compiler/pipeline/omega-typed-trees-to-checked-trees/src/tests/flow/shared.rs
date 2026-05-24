@@ -120,6 +120,11 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
             .collect::<Vec<_>>(),
         vec![caller_borrow_state]
     );
+    assert_eq!(
+        flow.borrow_writable_root_constraints(caller_flow.entry_constraints)
+            .collect::<Vec<_>>(),
+        Vec::<omega_core::arena::Handle<omega_checked_trees::BorrowWritableRootFact>>::new()
+    );
     assert_eq!(flow.calls.span_or_empty(caller_flow.calls).len(), 1);
 
     let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
@@ -136,6 +141,16 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         flow.borrow_call_constraints(call_flow.entry_constraints)
             .collect::<Vec<_>>(),
         vec![caller_borrow_call]
+    );
+    assert_eq!(
+        flow.borrow_access_constraints(call_flow.entry_constraints)
+            .collect::<Vec<_>>()
+            .len(),
+        borrow
+            .calls
+            .get(caller_borrow_call)
+            .accesses
+            .count() as usize
     );
     assert!(!call_flow.requires_contexts.is_empty());
     assert_eq!(

@@ -134,6 +134,11 @@ fn build_state_flow_fact(
             state: borrow_state_handle,
         },
     );
+    append_contiguous_borrow_root_constraints(
+        &mut ctx.constraint_refs,
+        &mut state_constraints,
+        borrow_state.writable_roots,
+    );
     let mut active_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, state_contexts);
     let mut active_constraints =
         clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
@@ -296,6 +301,11 @@ fn build_call_flow_fact(
             },
         );
     }
+    append_contiguous_borrow_access_constraints(
+        &mut ctx.constraint_refs,
+        &mut entry_constraints,
+        borrow_call.accesses,
+    );
     let mut requires_contexts = omega_core::arena::HandleSpan::empty();
     let mut requires_constraints = omega_core::arena::HandleSpan::empty();
     append_flow_contexts_for_points(
@@ -413,6 +423,54 @@ fn build_call_flow_fact(
         transitive_effects: effect_call
             .map(|call| call.transitive)
             .unwrap_or_else(omega_effects::EffectSet::empty),
+    }
+}
+
+fn append_contiguous_borrow_root_constraints(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    refs: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
+    roots: omega_core::arena::HandleSpan<BorrowWritableRootFact>,
+) {
+    let start = roots.start();
+    if !start.is_valid() {
+        return;
+    }
+
+    for offset in 0..roots.count() {
+        append_constraint_ref(
+            constraint_refs,
+            refs,
+            FlowConstraintKind::BorrowWritableRoot {
+                root: Handle::from_parts(
+                    start.arena_index() + offset,
+                    start.generation(),
+                ),
+            },
+        );
+    }
+}
+
+fn append_contiguous_borrow_access_constraints(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    refs: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
+    accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+) {
+    let start = accesses.start();
+    if !start.is_valid() {
+        return;
+    }
+
+    for offset in 0..accesses.count() {
+        append_constraint_ref(
+            constraint_refs,
+            refs,
+            FlowConstraintKind::BorrowAccess {
+                access: Handle::from_parts(
+                    start.arena_index() + offset,
+                    start.generation(),
+                ),
+            },
+        );
     }
 }
 
