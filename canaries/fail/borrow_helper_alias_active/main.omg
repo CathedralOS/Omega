@@ -1,0 +1,20 @@
+data Exit {
+    destination: i32;
+}
+
+data Room {
+    exits: [Exit; 1];
+}
+
+data Main {
+    room: Room;
+}
+
+machine Main::main(&mut self) {
+    let alias: &mut [Exit] = self.room.exits.as_mut_slice();
+    self.use_exit(&mut self.room.exits[0]);
+}
+
+machine Main::use_exit(&mut self, exit: &mut Exit) {
+    exit = Exit { destination: 1 };
+}

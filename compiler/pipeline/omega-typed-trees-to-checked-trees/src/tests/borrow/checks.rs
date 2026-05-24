@@ -246,3 +246,59 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         .join("\n");
     assert!(combined.contains("local borrow `alias` is still active"));
 }
+
+#[test]
+fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
+    let source = r#"
+        data Exit {
+            destination: i32;
+        }
+
+        data Room {
+            exits: [Exit; 1];
+        }
+
+        data Main {
+            room: Room;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut [Exit] = self.room.exits.as_mut_slice();
+            self.use_exit(&mut self.room.exits[0]);
+        }
+
+        machine Main::use_exit(&mut self, exit: &mut Exit) {
+            exit = Exit { destination: 1 };
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("helper-returned local alias should block direct mutable borrow");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(combined.contains("local borrow `alias` is still active"));
+}
