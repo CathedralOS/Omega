@@ -2,7 +2,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_object::{ObjectPlan, RelocationPlan, object_symbol_handle_by_name};
+use omega_object_file::{ObjectPlan, RelocationPlan, object_symbol_handle_by_name};
 use omega_target::NativeTarget;
 use omega_target_operations::{FunctionInstructionPlan, InstructionPlan, TargetDataPlan};
 

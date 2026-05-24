@@ -10,7 +10,7 @@ use super::offsets::{
 };
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
-use omega_object::{ObjectSymbolHandle, RelocationPlan};
+use omega_object_file::{ObjectSymbolHandle, RelocationPlan};
 use omega_target::Architecture;
 use omega_target_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,

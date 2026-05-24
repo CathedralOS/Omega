@@ -16,7 +16,7 @@ omega-layout = { path = "../../backend/omega-layout" }
 omega-assigned-target-operations = { path = "../omega-assigned-target-operations" }
 omega-machine-bytes = { path = "../omega-machine-bytes" }
 omega-machine-instructions = { path = "../omega-machine-instructions" }
-omega-object = { path = "../../backend/object/omega-object" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }

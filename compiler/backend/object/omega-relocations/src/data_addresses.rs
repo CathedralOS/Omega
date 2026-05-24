@@ -1,7 +1,7 @@
 use crate::RelocationPlanningInput;
 use omega_calling_conventions::HostOperationKey;
 use omega_instruction_selection as architecture;
-use omega_object::{
+use omega_object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationPlan, RelocationRecord,
     object_symbol_handle_by_name, storage_region_symbol_name,
 };

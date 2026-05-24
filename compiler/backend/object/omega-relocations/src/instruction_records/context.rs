@@ -1,6 +1,6 @@
 use super::super::data_addresses::insert_data_address_relocations;
 use crate::RelocationPlanningInput;
-use omega_object::{
+use omega_object_file::{
     ObjectSymbolHandle, RelocationPlan, machine_storage_symbol_name, object_symbol_handle_by_name,
     storage_region_symbol_name,
 };

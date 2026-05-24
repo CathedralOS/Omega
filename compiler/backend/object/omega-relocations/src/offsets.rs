@@ -1,5 +1,5 @@
 use omega_calling_conventions::HostOperationKey;
-use omega_object::RelocationKind;
+use omega_object_file::RelocationKind;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperand;
 

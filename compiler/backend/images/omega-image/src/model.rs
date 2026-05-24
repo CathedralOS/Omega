@@ -1,5 +1,5 @@
 use omega_core::arena::{Arena, Handle};
-use omega_object::{RelocationKind, SymbolKind};
+use omega_object_file::{RelocationKind, SymbolKind};
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

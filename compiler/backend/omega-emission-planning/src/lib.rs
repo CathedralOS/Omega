@@ -6,7 +6,7 @@ use omega_image_emission::can_emit_executable_image;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
-use omega_object::{ObjectPlan, RelocationPlan};
+use omega_object_file::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::{HostCallPlan, UnsupportedHostCallReason};
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
@@ -147,7 +147,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
 
     EmissionPlan {
         image_format: input.target.object_format,
-        entry_symbol: omega_object::object_entry_symbol_name(input.object).to_owned(),
+        entry_symbol: omega_object_file::object_entry_symbol_name(input.object).to_owned(),
         sections: input.object.sections.len(),
         symbols: input.object.symbols.len(),
         host_bindings: input.host_abi.bindings.len(),

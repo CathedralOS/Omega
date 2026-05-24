@@ -1,6 +1,6 @@
 use crate::BackendReportInput;
 use omega_layout::{DataShape, FieldLayout};
-use omega_object::{
+use omega_object_file::{
     RelocationRecord, SectionPlan, SymbolPlan, object_symbol_name, section_name,
     symbol_section_name,
 };

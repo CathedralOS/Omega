@@ -6,7 +6,7 @@ use omega_core::arena::{Arena, Handle};
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
-use omega_object::{ObjectPlan, RelocationPlan, SymbolPlan};
+use omega_object_file::{ObjectPlan, RelocationPlan, SymbolPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;

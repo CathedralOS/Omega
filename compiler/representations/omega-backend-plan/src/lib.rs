@@ -6,7 +6,7 @@ use omega_layout::LayoutPlan;
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
-use omega_object::{ObjectPlan, RelocationPlan};
+use omega_object_file::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;

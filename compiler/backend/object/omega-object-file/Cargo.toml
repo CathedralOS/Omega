@@ -1,14 +1,14 @@
 [package]
-name = "omega-image"
+name = "omega-object-file"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_image"
+name = "omega_object_file"
 path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../../foundation/omega-core" }
-omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../omega-target" }
+omega-target-operations = { path = "../../../representations/omega-target-operations" }

@@ -16,7 +16,7 @@ use omega_checked_trees::CheckedTrees as CheckedProgram;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
-use omega_object::SectionKind;
+use omega_object_file::SectionKind;
 use omega_state_graph::StateGraph;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
@@ -42,8 +42,8 @@ pub(super) struct BackendPlanningSurface {
 pub(super) struct EmittedProgram {
     pub(super) target: NativeTarget,
     pub(super) planned_text_bytes: usize,
-    pub(super) object: omega_object::ObjectPlan,
-    pub(super) relocations: omega_object::RelocationPlan,
+    pub(super) object: omega_object_file::ObjectPlan,
+    pub(super) relocations: omega_object_file::RelocationPlan,
     pub(super) text_bytes: Vec<u8>,
     pub(super) data_bytes: Vec<u8>,
 }
@@ -258,7 +258,7 @@ pub(super) fn backend_plan_to_native_image_payload(
     })
 }
 
-fn object_text_size(object: &omega_object::ObjectPlan) -> usize {
+fn object_text_size(object: &omega_object_file::ObjectPlan) -> usize {
     object
         .sections
         .iter()

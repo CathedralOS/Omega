@@ -15,7 +15,7 @@ pub(in crate::identity) fn count_object_strings(
     storage: &mut BackendStringStorage,
 ) {
     for (_, section) in backend_plan.object.sections.iter() {
-        storage.count_generated_symbol(&omega_object::section_name(
+        storage.count_generated_symbol(&omega_object_file::section_name(
             backend_plan.object.target,
             section.kind,
         ));

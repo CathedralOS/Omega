@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     EmittedImageOutput, FinalImage, FinalImageInput, emitted_direct_executable_output,
 };
-use omega_object::{ObjectPlan, RelocationPlan};
+use omega_object_file::{ObjectPlan, RelocationPlan};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 pub struct ExecutableImageInput<'a> {

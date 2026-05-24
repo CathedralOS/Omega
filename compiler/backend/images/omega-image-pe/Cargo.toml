@@ -11,4 +11,4 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../../foundation/omega-core" }
 omega-image = { path = "../omega-image" }
-omega-object = { path = "../../object/omega-object" }
+omega-object-file = { path = "../../object/omega-object-file" }

@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_image_emission::{
     ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image,
 };
-use omega_object::{ObjectContainerInput, emit_omega_object_container};
+use omega_object_file::{ObjectContainerInput, emit_omega_object_container};
 
 pub(super) fn write_output(
     options: &CompileOptions,
