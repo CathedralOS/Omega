@@ -70,8 +70,7 @@ fn machine_instruction_width(
         } => {
             let operands = input
                 .assigned_target_operations
-                .operands
-                .span(*operands)
+                .instruction_operands(*operands)
                 .unwrap_or(&[]);
             match host_binding_mechanism(input, *operation_key) {
                 Some(HostBindingMechanism::Syscall { number, .. }) => {

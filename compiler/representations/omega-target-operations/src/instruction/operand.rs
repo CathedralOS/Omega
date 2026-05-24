@@ -14,6 +14,16 @@ impl Default for TargetInstructionOperand {
     }
 }
 
+pub trait InstructionOperandLike {
+    fn instruction_operand_kind(&self) -> &InstructionOperandKind;
+}
+
+impl InstructionOperandLike for TargetInstructionOperand {
+    fn instruction_operand_kind(&self) -> &InstructionOperandKind {
+        &self.kind
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetInstructionOperandKind {
     DataAddress {

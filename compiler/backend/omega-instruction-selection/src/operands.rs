@@ -1,16 +1,19 @@
 use omega_isa_aarch64::{Aarch64CallOperand, aarch64};
 use omega_target::Architecture;
-use omega_target_operations::{InstructionOperand, InstructionOperandKind};
+use omega_target_operations::{InstructionOperandKind, InstructionOperandLike};
 
-pub fn operand_width(architecture: Architecture, operand: &InstructionOperand) -> usize {
+pub fn operand_width(
+    architecture: Architecture,
+    operand: &impl InstructionOperandLike,
+) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::operand_width(&aarch64_call_operand(operand)),
         Architecture::X86_64 => x86_64_operand_width(operand),
     }
 }
 
-pub(crate) fn aarch64_call_operand(operand: &InstructionOperand) -> Aarch64CallOperand {
-    match &operand.kind {
+pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aarch64CallOperand {
+    match operand.instruction_operand_kind() {
         InstructionOperandKind::DataAddress { .. } => Aarch64CallOperand::DataAddress,
         InstructionOperandKind::RuntimeStringPointer { byte_offset, .. } => {
             Aarch64CallOperand::RuntimeStringPointer {
@@ -29,6 +32,6 @@ pub(crate) fn aarch64_call_operand(operand: &InstructionOperand) -> Aarch64CallO
     }
 }
 
-fn x86_64_operand_width(_operand: &InstructionOperand) -> usize {
+fn x86_64_operand_width(_operand: &impl InstructionOperandLike) -> usize {
     8
 }

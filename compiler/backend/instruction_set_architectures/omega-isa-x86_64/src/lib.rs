@@ -1,8 +1,8 @@
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
-    InstructionOperand, InstructionOperandKind, RuntimeValueOperand, RuntimeValueOperandHandle,
-    RuntimeValueOperandSource, StateGuardOperator,
+    InstructionOperandKind, RuntimeValueOperand, RuntimeValueOperandHandle,
+    InstructionOperandLike, RuntimeValueOperandSource, StateGuardOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,18 +99,18 @@ pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<Vec
     Ok(bytes)
 }
 
-pub fn host_call_sequence_width(
+pub fn host_call_sequence_width<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> usize {
     encode_host_call_sequence(operation_key, operands)
         .map(|bytes| bytes.len())
         .unwrap_or(0)
 }
 
-pub fn host_call_data_relocation_site(
+pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
     operand_index: usize,
 ) -> Option<X86_64RelocationSite> {
     host_call_relocation_sites(operation_key, operands)
@@ -121,18 +121,18 @@ pub fn host_call_data_relocation_site(
         })
 }
 
-pub fn host_call_external_relocation_site(
+pub fn host_call_external_relocation_site<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> Option<X86_64RelocationSite> {
     host_call_relocation_sites(operation_key, operands)
         .into_iter()
         .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
 }
 
-pub fn encode_host_call_sequence(
+pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match (operation_key.capability, operation_key.operation) {
         (HostCapability::Stdin | HostCapability::Stdout, HostOperation::GetStdHandle) => {
@@ -153,7 +153,7 @@ pub fn encode_host_call_sequence(
     }
 }
 
-fn encode_get_std_handle(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diagnostic> {
+fn encode_get_std_handle<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
     let handle_kind = immediate_i32(operands, 0, "GetStdHandle handle kind")?;
     let mut bytes = Vec::with_capacity(18);
     bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
@@ -164,9 +164,9 @@ fn encode_get_std_handle(operands: &[InstructionOperand]) -> Result<Vec<u8>, Dia
     Ok(bytes)
 }
 
-fn encode_file_operation(
+fn encode_file_operation<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     let (pointer_index, length_index) = file_pointer_and_length_indices(operands)?;
     if operands.len() <= length_index {
@@ -198,18 +198,18 @@ fn encode_file_operation(
     Ok(bytes)
 }
 
-fn append_file_pointer_operand(
+fn append_file_pointer_operand<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
-    operand: &InstructionOperand,
+    operand: &T,
 ) -> Result<(), Diagnostic> {
-    match operand.kind {
+    match operand.instruction_operand_kind() {
         InstructionOperandKind::DataAddress { .. } => {
             append_mov_rdx_imm64(bytes, 0);
             Ok(())
         }
         InstructionOperandKind::RuntimeStringPointer { byte_offset, .. } => {
             append_mov_r10_imm64(bytes, 0);
-            append_load_rdx_from_r10(bytes, byte_offset)?;
+            append_load_rdx_from_r10(bytes, *byte_offset)?;
             Ok(())
         }
         _ => Err(Diagnostic::error(
@@ -218,13 +218,13 @@ fn append_file_pointer_operand(
     }
 }
 
-fn append_file_length_operand(
+fn append_file_length_operand<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
-    operand: &InstructionOperand,
+    operand: &T,
 ) -> Result<(), Diagnostic> {
-    match operand.kind {
+    match operand.instruction_operand_kind() {
         InstructionOperandKind::ByteLength(value) => {
-            let value = u32::try_from(value).map_err(|_| {
+            let value = u32::try_from(*value).map_err(|_| {
                 Diagnostic::error(format!(
                     "cannot encode X86_64 file operation: byte length {value} does not fit u32"
                 ))
@@ -244,7 +244,7 @@ fn append_file_length_operand(
     }
 }
 
-fn encode_exit_process(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diagnostic> {
+fn encode_exit_process<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
     let exit_code = immediate_i32(operands, 0, "ExitProcess exit code")?;
     let mut bytes = Vec::with_capacity(18);
     bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
@@ -255,9 +255,9 @@ fn encode_exit_process(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diagn
     Ok(bytes)
 }
 
-fn host_call_relocation_sites(
+fn host_call_relocation_sites<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> Vec<X86_64RelocationSite> {
     match (operation_key.capability, operation_key.operation) {
         (HostCapability::Stdin | HostCapability::Stdout, HostOperation::GetStdHandle)
@@ -279,7 +279,9 @@ fn host_call_relocation_sites(
             let mut cursor = if pointer_index == 1 { 9 } else { 7 };
 
             if matches!(
-                operands.get(pointer_index).map(|operand| &operand.kind),
+                operands
+                    .get(pointer_index)
+                    .map(InstructionOperandLike::instruction_operand_kind),
                 Some(
                     InstructionOperandKind::DataAddress { .. }
                         | InstructionOperandKind::RuntimeStringPointer { .. }
@@ -300,7 +302,9 @@ fn host_call_relocation_sites(
             }
 
             if matches!(
-                operands.get(length_index).map(|operand| &operand.kind),
+                operands
+                    .get(length_index)
+                    .map(InstructionOperandLike::instruction_operand_kind),
                 Some(InstructionOperandKind::RuntimeStringLength { .. })
             ) {
                 sites.push(X86_64RelocationSite {
@@ -325,10 +329,13 @@ fn host_call_relocation_sites(
     }
 }
 
-fn file_pointer_and_length_indices(
-    operands: &[InstructionOperand],
+fn file_pointer_and_length_indices<T: InstructionOperandLike>(
+    operands: &[T],
 ) -> Result<(usize, usize), Diagnostic> {
-    match operands.first().map(|operand| &operand.kind) {
+    match operands
+        .first()
+        .map(InstructionOperandLike::instruction_operand_kind)
+    {
         Some(InstructionOperandKind::ImmediateInteger(_)) => Ok((1, 2)),
         Some(
             InstructionOperandKind::DataAddress { .. }
@@ -340,16 +347,16 @@ fn file_pointer_and_length_indices(
     }
 }
 
-fn file_pointer_operand_width(operand: Option<&InstructionOperand>) -> usize {
-    match operand.map(|operand| &operand.kind) {
+fn file_pointer_operand_width<T: InstructionOperandLike>(operand: Option<&T>) -> usize {
+    match operand.map(InstructionOperandLike::instruction_operand_kind) {
         Some(InstructionOperandKind::DataAddress { .. }) => 10,
         Some(InstructionOperandKind::RuntimeStringPointer { .. }) => 17,
         _ => 0,
     }
 }
 
-fn file_length_operand_width(operand: Option<&InstructionOperand>) -> usize {
-    match operand.map(|operand| &operand.kind) {
+fn file_length_operand_width<T: InstructionOperandLike>(operand: Option<&T>) -> usize {
+    match operand.map(InstructionOperandLike::instruction_operand_kind) {
         Some(InstructionOperandKind::ByteLength(_)) => 6,
         Some(InstructionOperandKind::RuntimeStringLength { .. }) => 17,
         _ => 0,
@@ -977,8 +984,8 @@ fn store_width(byte_size: usize) -> usize {
     }
 }
 
-fn immediate_i32(
-    operands: &[InstructionOperand],
+fn immediate_i32<T: InstructionOperandLike>(
+    operands: &[T],
     index: usize,
     label: &str,
 ) -> Result<i32, Diagnostic> {
@@ -987,12 +994,12 @@ fn immediate_i32(
             "cannot encode X86_64 host call: missing {label}"
         )));
     };
-    let InstructionOperandKind::ImmediateInteger(value) = operand.kind else {
+    let InstructionOperandKind::ImmediateInteger(value) = operand.instruction_operand_kind() else {
         return Err(Diagnostic::error(format!(
             "cannot encode X86_64 host call: {label} is not an immediate integer"
         )));
     };
-    i32::try_from(value).map_err(|_| {
+    i32::try_from(*value).map_err(|_| {
         Diagnostic::error(format!(
             "cannot encode X86_64 host call: {label} value {value} does not fit i32"
         ))

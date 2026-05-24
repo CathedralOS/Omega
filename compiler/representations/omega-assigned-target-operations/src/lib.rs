@@ -8,7 +8,19 @@ pub use omega_target_operations::{
     StateGuardOperator, TargetHostBinding,
 };
 
-pub type AssignedInstructionOperand = omega_target_operations::TargetInstructionOperand;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedInstructionOperand {
+    pub kind: AssignedInstructionOperandKind,
+}
+
+impl Default for AssignedInstructionOperand {
+    fn default() -> Self {
+        Self {
+            kind: AssignedInstructionOperandKind::ImmediateInteger(0),
+        }
+    }
+}
+
 pub type AssignedInstructionOperandKind = omega_target_operations::TargetInstructionOperandKind;
 pub type InstructionOperand = AssignedInstructionOperand;
 pub type InstructionOperandKind = AssignedInstructionOperandKind;
@@ -188,6 +200,22 @@ impl AssignedTargetOperationPlan {
             .map(|(_, binding)| binding)
     }
 
+    pub fn instruction_operand(
+        &self,
+        handle: Handle<omega_target_operations::TargetInstructionOperand>,
+    ) -> Option<&AssignedInstructionOperand> {
+        let handle = assigned_instruction_handle(handle);
+        self.operands.is_valid(handle).then(|| self.operands.get(handle))
+    }
+
+    pub fn instruction_operands(
+        &self,
+        span: HandleSpan<omega_target_operations::TargetInstructionOperand>,
+    ) -> Option<&[AssignedInstructionOperand]> {
+        let span = assigned_instruction_span(span);
+        self.operands.span(span)
+    }
+
     pub fn runtime_value_home_handle(
         &self,
         handle: RuntimeValueOperandHandle,
@@ -234,6 +262,12 @@ impl AssignedTargetOperationPlan {
     }
 }
 
+impl omega_target_operations::InstructionOperandLike for AssignedInstructionOperand {
+    fn instruction_operand_kind(&self) -> &omega_target_operations::InstructionOperandKind {
+        &self.kind
+    }
+}
+
 impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperationPlan {
     fn runtime_value_operand(
         &self,
@@ -249,6 +283,22 @@ fn assigned_value_handle(
     handle: RuntimeValueOperandHandle,
 ) -> Handle<AssignedValueOperand> {
     Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn assigned_instruction_handle(
+    handle: Handle<omega_target_operations::TargetInstructionOperand>,
+) -> Handle<AssignedInstructionOperand> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn assigned_instruction_span(
+    span: HandleSpan<omega_target_operations::TargetInstructionOperand>,
+) -> HandleSpan<AssignedInstructionOperand> {
+    if span.is_empty() {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(assigned_instruction_handle(span.start()), span.count())
+    }
 }
 
 fn target_value_handle(
@@ -306,7 +356,15 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             target: plan.target,
             functions,
             instructions,
-            operands: plan.operands,
+            operands: {
+                let mut operands = Arena::with_capacity(plan.operands.len());
+                for (_, operand) in plan.operands.iter() {
+                    operands.insert(AssignedInstructionOperand {
+                        kind: operand.kind.clone(),
+                    });
+                }
+                operands
+            },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
         }
@@ -342,7 +400,15 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             target: plan.target,
             functions,
             instructions,
-            operands: plan.operands,
+            operands: {
+                let mut operands = Arena::with_capacity(plan.operands.len());
+                for (_, operand) in plan.operands.iter() {
+                    operands.insert(omega_target_operations::TargetInstructionOperand {
+                        kind: operand.kind.clone(),
+                    });
+                }
+                operands
+            },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
         }

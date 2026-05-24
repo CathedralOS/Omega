@@ -4,12 +4,12 @@ use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_target_operations::InstructionOperand;
+use omega_target_operations::InstructionOperandLike;
 
-pub fn encode_host_call_sequence(
+pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_host_call_sequence_from_operands(
@@ -19,9 +19,9 @@ pub fn encode_host_call_sequence(
     }
 }
 
-pub fn encode_syscall_sequence(
+pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
-    operands: &[InstructionOperand],
+    operands: &[T],
     syscall_number: u32,
     number_register: u8,
     supervisor_call: u16,

@@ -4,15 +4,15 @@ use omega_calling_conventions::HostOperationKey;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_target_operations::InstructionOperand;
 use omega_target_operations::{
-    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
+    InstructionOperandLike, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    StateGuardOperator,
 };
 
-pub fn host_call_sequence_width(
+pub fn host_call_sequence_width<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::host_call_sequence_width_from_operands(
@@ -22,9 +22,9 @@ pub fn host_call_sequence_width(
     }
 }
 
-pub fn syscall_sequence_width(
+pub fn syscall_sequence_width<T: InstructionOperandLike>(
     architecture: Architecture,
-    operands: &[InstructionOperand],
+    operands: &[T],
     syscall_number: u32,
 ) -> usize {
     match architecture {
