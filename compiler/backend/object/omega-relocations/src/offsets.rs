@@ -2,13 +2,13 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
 use omega_object_file::RelocationKind;
 use omega_target::Architecture;
-use omega_target_operations::InstructionOperand;
+use omega_target_operations::InstructionOperandLike;
 
-pub(super) fn external_call_relocation_offset(
+pub(super) fn external_call_relocation_offset<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,
     selected_text_offset: usize,
-    operands: &[InstructionOperand],
+    operands: &[T],
 ) -> usize {
     if architecture == Architecture::X86_64
         && let Some(site) =

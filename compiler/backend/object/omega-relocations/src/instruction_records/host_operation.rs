@@ -34,9 +34,8 @@ pub(super) fn collect_host_operation_relocation(
             context.selected_text_offset,
             context
                 .input
-                .instructions
-                .operands
-                .span(*operands)
+                .assigned_target_operations
+                .instruction_operands(*operands)
                 .unwrap_or(&[]),
         ),
         byte_width: external_call_relocation_width(context.input.target.architecture),

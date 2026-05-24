@@ -87,7 +87,7 @@ pub(super) fn collect_instruction_relocations(
             collect_runtime_value_operand_relocations(&mut context, base_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 input.target.architecture,
-                &input.instructions.runtime_value_operands,
+                input.assigned_target_operations,
                 *left,
             );
             collect_runtime_value_operand_relocations(
@@ -124,7 +124,7 @@ pub(super) fn collect_instruction_relocations(
             collect_runtime_value_operand_relocations(&mut context, left_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 input.target.architecture,
-                &input.instructions.runtime_value_operands,
+                input.assigned_target_operations,
                 *left,
             );
             collect_runtime_value_operand_relocations(
@@ -149,7 +149,7 @@ pub(super) fn collect_instruction_relocations(
             collect_runtime_value_operand_relocations(&mut context, left_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 input.target.architecture,
-                &input.instructions.runtime_value_operands,
+                input.assigned_target_operations,
                 *left,
             );
             collect_runtime_value_operand_relocations(
@@ -181,7 +181,7 @@ pub(super) fn collect_instruction_relocations(
             collect_runtime_value_operand_relocations(&mut context, left_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 input.target.architecture,
-                &input.instructions.runtime_value_operands,
+                input.assigned_target_operations,
                 *left,
             );
             collect_runtime_value_operand_relocations(
@@ -282,12 +282,11 @@ fn collect_runtime_value_operand_relocations(
     operand_text_offset: usize,
     operand: RuntimeValueOperandHandle,
 ) {
-    match context
-        .input
-        .instructions
-        .runtime_value_operands
-        .get(operand)
-    {
+    let Some(operand) = context.input.assigned_target_operations.runtime_value_operand(operand) else {
+        return;
+    };
+
+    match &operand.kind {
         RuntimeValueOperand::Immediate(_) => {}
         RuntimeValueOperand::Storage { region, .. } => {
             let symbol = context.storage_region_symbol_handle(*region);
@@ -301,7 +300,7 @@ fn collect_runtime_value_operand_relocations(
             collect_runtime_value_operand_relocations(context, operand_text_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(
                 context.input.target.architecture,
-                &context.input.instructions.runtime_value_operands,
+                context.input.assigned_target_operations,
                 *left,
             );
             collect_runtime_value_operand_relocations(
