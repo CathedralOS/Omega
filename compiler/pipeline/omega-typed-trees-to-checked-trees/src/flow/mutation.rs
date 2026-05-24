@@ -64,7 +64,12 @@ pub(crate) fn call_mutated_places(
             }
 
             if let Some(argument) = argument
-                && let Some(place) = canonical_place_from_expression(program, argument)
+                && let Some(place) = canonical_place_from_expression_in_state(
+                    program,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    argument,
+                )
                 && !places.contains(&place)
             {
                 places.push(place);
@@ -90,16 +95,22 @@ pub(crate) fn call_mutated_places(
 
 pub(crate) fn statement_mutated_place(
     program: &omega_typed_trees::TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     statement: &StatementNode,
 ) -> Option<CanonicalPlace> {
     match statement {
-        StatementNode::Assignment(assignment) => {
-            canonical_place_from_expression(program, assignment.target).or_else(|| {
-                expression_root_symbol(assignment.target, &program.expression_table, machine.symbol)
-                    .and_then(canonical_place_from_symbol)
-            })
-        }
+        StatementNode::Assignment(assignment) => canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            assignment.target,
+        )
+        .or_else(|| {
+            expression_root_symbol(assignment.target, &program.expression_table, machine_symbol)
+                .and_then(canonical_place_from_symbol)
+        }),
         _ => None,
     }
 }
