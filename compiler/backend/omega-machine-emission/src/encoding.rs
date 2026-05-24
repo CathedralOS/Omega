@@ -18,7 +18,7 @@ pub(super) fn encode_machine_instruction_bytes(
             operation_key,
             operands,
         } => {
-            let Some(operands) = input.instructions.operands.span(*operands) else {
+            let Some(operands) = input.assigned_target_operations.operands.span(*operands) else {
                 return Err(Diagnostic::error(
                     "cannot encode host operation: missing operand span",
                 ));

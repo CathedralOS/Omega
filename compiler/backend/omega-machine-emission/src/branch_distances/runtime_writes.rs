@@ -179,10 +179,10 @@ fn selected_instruction_site<'plan>(
     instruction: &LaidOutMachineInstruction,
 ) -> Option<SelectedInstructionSite> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
-    if !input.instructions.instructions.is_valid(handle) {
+    if !input.assigned_target_operations.instructions.is_valid(handle) {
         return None;
     }
-    let selected = input.instructions.instructions.get(handle);
+    let selected = input.assigned_target_operations.instructions.get(handle);
     Some(SelectedInstructionSite {
         source_key: selected.source_key,
     })
