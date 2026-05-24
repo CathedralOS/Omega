@@ -267,3 +267,82 @@ fn collects_helper_returned_mutable_local_borrow_loans() {
     assert_eq!(loans.len(), 1);
     assert_eq!(facts.loan_segments(&loans[0]).len(), 1);
 }
+
+#[test]
+fn collects_unresolved_local_argument_access_roots() {
+    let machine_symbol = SymbolHandle::from_arena_index(21);
+    let state_symbol = SymbolHandle::from_arena_index(22);
+    let target_symbol = SymbolHandle::from_arena_index(23);
+    let local_symbol = SymbolHandle::from_arena_index(24);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let local_name = Expression::Name(NamePath::unresolved(vec![Identifier::generated("value")]));
+    let local_argument = program
+        .expression_table
+        .insert_tree(&Expression::Mutable(Box::new(local_name)));
+
+    let mut arguments = HandleSpan::empty();
+    program
+        .statement_table
+        .push_expression_handle(&mut arguments, local_argument);
+
+    let mut machine = Machine {
+        symbol: machine_symbol,
+        name: Identifier::generated("Main"),
+        attached_data: None,
+        contains: Default::default(),
+        owned_data: Default::default(),
+        satisfies: Default::default(),
+        effects: Default::default(),
+        contracts: Default::default(),
+        states: Default::default(),
+    };
+    let mut state = State {
+        symbol: state_symbol,
+        name: Identifier::generated("main"),
+        parameters: Default::default(),
+        return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+        statement_nodes: Default::default(),
+    };
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::LocalData(omega_typed_trees::statement::TableLocalData {
+            symbol: local_symbol,
+            name: Identifier::generated("value"),
+            type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        }),
+    );
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::Call(TableCall {
+            receiver_symbol: machine_symbol,
+            target_symbol,
+            receiver: Default::default(),
+            target: Identifier::generated("heal"),
+            arguments,
+        }),
+    );
+    program.push_machine_state(&mut machine, state);
+    program.push_machine_state(
+        &mut machine,
+        State {
+            symbol: target_symbol,
+            name: Identifier::generated("heal"),
+            parameters: Default::default(),
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
+            statement_nodes: Default::default(),
+        },
+    );
+    program.push_machine(machine);
+
+    let facts = build_borrow_facts(&program);
+    let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
+    let call = facts.calls.span(state.calls).unwrap()[0].clone();
+    let accesses = facts.argument_accesses.span(call.accesses).unwrap();
+
+    assert_eq!(accesses.len(), 1);
+    assert_eq!(accesses[0].root_symbol, local_symbol);
+    assert!(facts.access_segments.span_or_empty(accesses[0].segments).is_empty());
+    assert_eq!(accesses[0].kind, BorrowAccessKind::Mutable);
+}

@@ -92,6 +92,8 @@ pub(super) fn collect_expression_borrow_calls(
                         access_segments,
                         argument_accesses,
                         program.expression_table.expression_handles(call.arguments),
+                        state.symbol,
+                        statement_index,
                         machine.symbol,
                     ),
                 );

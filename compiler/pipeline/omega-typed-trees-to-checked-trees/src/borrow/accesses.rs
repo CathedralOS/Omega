@@ -7,6 +7,8 @@ pub(crate) fn collect_call_argument_accesses(
     access_segments: &mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     arguments: &[ExpressionHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     machine_symbol: SymbolHandle,
 ) -> omega_core::arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = omega_core::arena::HandleSpan::empty();
@@ -18,6 +20,8 @@ pub(crate) fn collect_call_argument_accesses(
             access_segments,
             argument_accesses,
             &mut accesses,
+            state_symbol,
+            statement_index,
             machine_symbol,
         );
     }
@@ -31,13 +35,19 @@ fn collect_argument_accesses(
     access_segments: &mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     machine_symbol: SymbolHandle,
 ) {
     match program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner_expression) => {
-            if let Some(access_place) =
-                borrow_access_place(program, *inner_expression, machine_symbol)
-            {
+            if let Some(access_place) = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                *inner_expression,
+                machine_symbol,
+            ) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -54,6 +64,8 @@ fn collect_argument_accesses(
             access_segments,
             argument_accesses,
             accesses,
+            state_symbol,
+            statement_index,
             machine_symbol,
         ),
     }
@@ -65,6 +77,8 @@ fn collect_read_accesses(
     access_segments: &mut omega_core::arena::Arena<omega_facts::PlaceSegment>,
     argument_accesses: &mut omega_core::arena::Arena<BorrowArgumentAccessFact>,
     accesses: &mut omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     machine_symbol: SymbolHandle,
 ) {
     match program.expression_table.expression(expression) {
@@ -76,6 +90,8 @@ fn collect_read_accesses(
                     access_segments,
                     argument_accesses,
                     accesses,
+                    state_symbol,
+                    statement_index,
                     machine_symbol,
                 );
             }
@@ -87,6 +103,8 @@ fn collect_read_accesses(
                 access_segments,
                 argument_accesses,
                 accesses,
+                state_symbol,
+                statement_index,
                 machine_symbol,
             );
             collect_read_accesses(
@@ -95,6 +113,8 @@ fn collect_read_accesses(
                 access_segments,
                 argument_accesses,
                 accesses,
+                state_symbol,
+                statement_index,
                 machine_symbol,
             );
         }
@@ -106,6 +126,8 @@ fn collect_read_accesses(
                     access_segments,
                     argument_accesses,
                     accesses,
+                    state_symbol,
+                    statement_index,
                     machine_symbol,
                 );
             }
@@ -117,6 +139,8 @@ fn collect_read_accesses(
                     access_segments,
                     argument_accesses,
                     accesses,
+                    state_symbol,
+                    statement_index,
                     machine_symbol,
                 );
             }
@@ -127,12 +151,18 @@ fn collect_read_accesses(
             access_segments,
             argument_accesses,
             accesses,
+            state_symbol,
+            statement_index,
             machine_symbol,
         ),
         ExpressionNode::Indexed(indexed) => {
-            if let Some(access_place) =
-                borrow_access_place(program, expression, machine_symbol)
-            {
+            if let Some(access_place) = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+                machine_symbol,
+            ) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -149,13 +179,19 @@ fn collect_read_accesses(
                 access_segments,
                 argument_accesses,
                 accesses,
+                state_symbol,
+                statement_index,
                 machine_symbol,
             );
         }
         ExpressionNode::Member(member) => {
-            if let Some(access_place) =
-                borrow_access_place(program, expression, machine_symbol)
-            {
+            if let Some(access_place) = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+                machine_symbol,
+            ) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -171,13 +207,20 @@ fn collect_read_accesses(
                     access_segments,
                     argument_accesses,
                     accesses,
+                    state_symbol,
+                    statement_index,
                     machine_symbol,
                 );
             }
         }
         ExpressionNode::Name(_) => {
-            if let Some(access_place) = borrow_access_place(program, expression, machine_symbol)
-            {
+            if let Some(access_place) = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+                machine_symbol,
+            ) {
                 argument_accesses.append_to_span(
                     accesses,
                     BorrowArgumentAccessFact {
@@ -194,6 +237,8 @@ fn collect_read_accesses(
             access_segments,
             argument_accesses,
             accesses,
+            state_symbol,
+            statement_index,
             machine_symbol,
         ),
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -204,6 +249,8 @@ fn collect_read_accesses(
                     access_segments,
                     argument_accesses,
                     accesses,
+                    state_symbol,
+                    statement_index,
                     machine_symbol,
                 );
             }
@@ -223,25 +270,43 @@ pub(crate) struct BorrowAccessPlace {
 
 pub(crate) fn borrow_access_place(
     program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     expression: ExpressionHandle,
     machine_symbol: SymbolHandle,
 ) -> Option<BorrowAccessPlace> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(indexed) => {
-            let mut place = borrow_access_place(program, indexed.collection, machine_symbol)?;
+            let mut place = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                indexed.collection,
+                machine_symbol,
+            )?;
             place.segments.push(omega_facts::PlaceSegment::Index {
                 expression: indexed.index,
             });
             Some(place)
         }
-        ExpressionNode::Mutable(inner) => {
-            borrow_access_place(program, *inner, machine_symbol)
-        }
+        ExpressionNode::Mutable(inner) => borrow_access_place(
+            program,
+            state_symbol,
+            statement_index,
+            *inner,
+            machine_symbol,
+        ),
         ExpressionNode::Member(member) => match program.expression_table.expression(member.receiver) {
             ExpressionNode::Name(path)
                 if path.members.count() == 1
-                    && path.symbol.is_valid()
-                    && path.symbol == machine_symbol =>
+                    && contextual_name_root_symbol(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        member.receiver,
+                        path,
+                    )
+                    .is_some_and(|symbol| symbol == machine_symbol) =>
             {
                 let member_symbol = effective_member_symbol(program, member.receiver, member);
                 Some(BorrowAccessPlace {
@@ -250,7 +315,13 @@ pub(crate) fn borrow_access_place(
                 })
             }
             _ => {
-                let mut place = borrow_access_place(program, member.receiver, machine_symbol)?;
+                let mut place = borrow_access_place(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    member.receiver,
+                    machine_symbol,
+                )?;
                 place.segments.push(omega_facts::PlaceSegment::Field {
                     symbol: effective_member_symbol(program, member.receiver, member),
                 });
@@ -258,7 +329,13 @@ pub(crate) fn borrow_access_place(
             }
         },
         ExpressionNode::Name(path) => {
-            let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
+            let root_symbol = contextual_name_root_symbol(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+                path,
+            )?;
             let member_symbols = program
                 .expression_table
                 .name_path_member_symbols(path.member_symbols);
@@ -266,7 +343,7 @@ pub(crate) fn borrow_access_place(
                 .iter()
                 .position(|member_symbol| *member_symbol == root_symbol)
                 .map(|index| index + 1)
-                .unwrap_or_default();
+                .unwrap_or(1);
             Some(BorrowAccessPlace {
                 root_symbol,
                 segments: member_symbols
@@ -287,4 +364,46 @@ pub(crate) fn borrow_access_place(
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_) => None,
     }
+}
+
+fn contextual_name_root_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    path: &omega_typed_trees::expression::TableNamePath,
+) -> Option<SymbolHandle> {
+    if let Some(symbol) = first_valid_name_path_symbol(path, &program.expression_table) {
+        return Some(symbol);
+    }
+
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let name = program.expression_table.display_name(expression);
+    if name == "self" {
+        return program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.is_self)
+            .map(|parameter| parameter.symbol);
+    }
+
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| !parameter.is_self && parameter.name.as_str() == name)
+    {
+        return Some(parameter.symbol);
+    }
+
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local_data) if local_data.name.as_str() == name => {
+                Some(local_data.symbol)
+            }
+            _ => None,
+        })
 }
