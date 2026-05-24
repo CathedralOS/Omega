@@ -39,6 +39,31 @@ pub(crate) fn resolve_place_member_symbol(
     let place = facts.places.get(place);
     let base_symbol = fact_place_type_symbol(program, facts, place)?;
 
+    if let Some(machine) = program.machines().iter().find(|machine| machine.symbol == base_symbol) {
+        if let Some(attached_data) = machine.attached_data.as_deref()
+            && let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == attached_data)
+        {
+            for member in program.data_members(data) {
+                match member {
+                    omega_typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == member_name =>
+                    {
+                        return Some(field.symbol);
+                    }
+                    omega_typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == member_name =>
+                    {
+                        return Some(variant.symbol);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     if let Some(data) = program
         .data_definitions()
         .iter()
