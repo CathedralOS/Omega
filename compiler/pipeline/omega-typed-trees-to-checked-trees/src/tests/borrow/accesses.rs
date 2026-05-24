@@ -230,3 +230,40 @@ fn collects_mutable_local_borrow_loans() {
     assert_eq!(loans.len(), 1);
     assert_eq!(facts.loan_segments(&loans[0]).len(), 0);
 }
+
+#[test]
+fn collects_helper_returned_mutable_local_borrow_loans() {
+    let source = r#"
+        data Exit {
+            destination: i32;
+        }
+
+        data Room {
+            exits: [Exit; 1];
+        }
+
+        data Main {
+            room: Room;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut [Exit] = self.room.exits.as_mut_slice();
+        }
+    "#;
+
+    let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed =
+        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+
+    let facts = build_borrow_facts(&typed);
+    let borrow_state = facts.states.iter().next().map(|(_, state)| state).unwrap();
+    let loans = facts.loans.span_or_empty(borrow_state.loans);
+    assert_eq!(loans.len(), 1);
+    assert_eq!(facts.loan_segments(&loans[0]).len(), 1);
+}

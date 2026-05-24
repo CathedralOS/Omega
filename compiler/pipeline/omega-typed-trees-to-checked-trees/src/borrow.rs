@@ -6,6 +6,7 @@ mod roots;
 use accesses::borrow_access_place;
 use calls::collect_statement_borrow_calls;
 use crate::lookup::machine_state_count;
+use crate::semantic_calls::find_state;
 use roots::{append_state_writable_roots, estimated_borrow_root_capacity, mutable_parameter_count};
 
 pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
@@ -98,28 +99,69 @@ fn statement_borrow_loan_place(
         return None;
     };
 
-    let omega_typed_trees::types::TypeReferenceNode::Reference {
-        is_mutable: true, ..
-    } = program
-        .type_reference_table
-        .type_reference(local_data.type_reference)
-    else {
+    if !is_mutable_reference_type(program, local_data.type_reference) {
         return None;
-    };
+    }
 
-    let omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) = program
-        .expression_table
-        .expression(local_data.initial_value)
-    else {
-        return None;
-    };
-
-    borrow_access_place(program, *inner_expression, machine_symbol)
+    match program.expression_table.expression(local_data.initial_value) {
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) => {
+            borrow_access_place(program, *inner_expression, machine_symbol)
+        }
+        omega_checked_trees::expression::ExpressionNode::Call(call) => {
+            helper_call_borrow_loan_place(program, machine_symbol, call)
+        }
+        _ => None,
+    }
 }
 
 fn local_borrow_owner_symbol(statement: &StatementNode) -> Option<SymbolHandle> {
     match statement {
         StatementNode::LocalData(local_data) => Some(local_data.symbol),
         _ => None,
+    }
+}
+
+fn helper_call_borrow_loan_place(
+    program: &omega_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    call: &omega_checked_trees::expression::TableCallExpression,
+) -> Option<accesses::BorrowAccessPlace> {
+    if !call.receiver.is_valid() {
+        return None;
+    }
+
+    if call.target.as_str() == "as_mut_slice" {
+        return borrow_access_place(program, call.receiver, machine_symbol);
+    }
+
+    let Some(target_state) = find_state(program, call.target_symbol) else {
+        return None;
+    };
+    let receiver_is_mutable = program
+        .state_parameters(target_state)
+        .iter()
+        .any(|parameter| parameter.is_self && parameter.is_mutable);
+
+    if !receiver_is_mutable || !is_mutable_reference_type(program, target_state.return_type) {
+        return None;
+    }
+
+    borrow_access_place(program, call.receiver, machine_symbol)
+}
+
+fn is_mutable_reference_type(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_typed_trees::types::TypeReferenceNode::Reference { is_mutable, .. } => *is_mutable,
+        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            is_mutable_reference_type(program, *base_type)
+        }
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Named { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Unit => false,
     }
 }

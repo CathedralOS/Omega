@@ -209,3 +209,59 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
 }
+
+#[test]
+fn carries_helper_returned_loans_into_later_call_constraints() {
+    let source = r#"
+        data Exit {
+            destination: i32;
+        }
+
+        data Room {
+            exits: [Exit; 1];
+        }
+
+        data Main {
+            room: Room;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut [Exit] = self.room.exits.as_mut_slice();
+            self.use_exit(&mut self.room.exits[0]);
+        }
+
+        machine Main::use_exit(&mut self, exit: &mut Exit) {}
+    "#;
+
+    let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed =
+        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+
+    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
+    let call_flow = flow
+        .calls
+        .span_or_empty(state_flow.calls)
+        .iter()
+        .find(|call| call.statement_index == 1)
+        .cloned()
+        .expect("later call should be present");
+    let loans: Vec<_> = flow
+        .borrow_loan_constraints(call_flow.entry_constraints)
+        .collect();
+    assert_eq!(loans.len(), 1);
+    let loan = borrow.loans.get(loans[0]);
+    assert!(loan.owner_symbol.is_valid());
+}
