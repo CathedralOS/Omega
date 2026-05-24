@@ -2,7 +2,6 @@ use super::{
     build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
     build_semantic_facts, lower_typed_trees,
 };
-use crate::checks::context_proves_requirement_place_domain;
 use crate::flow::{call_mutated_places, StateMutationSummaryCache};
 use crate::semantic::instantiate_call_contract_place;
 use omega_checked_trees::expression::{CallExpression, Expression, NamePath};

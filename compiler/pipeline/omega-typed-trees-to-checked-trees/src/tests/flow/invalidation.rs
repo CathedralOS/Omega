@@ -104,13 +104,13 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
         .iter()
         .any(|context_ref| {
             let context = semantic.contexts.get(context_ref.context);
-            context_proves_requirement_place_domain(
-                &typed,
-                &semantic,
-                context,
-                required_place,
-                required_domain,
-            )
+            semantic
+                .context_view(context)
+                .proves_place_domain_membership_in_program(
+                    &typed,
+                    required_place,
+                    required_domain,
+                )
         });
     let break_entry_proves = flow
         .semantic_context_refs
@@ -118,13 +118,13 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
         .iter()
         .any(|context_ref| {
             let context = semantic.contexts.get(context_ref.context);
-            context_proves_requirement_place_domain(
-                &typed,
-                &semantic,
-                context,
-                required_place,
-                required_domain,
-            )
+            semantic
+                .context_view(context)
+                .proves_place_domain_membership_in_program(
+                    &typed,
+                    required_place,
+                    required_domain,
+                )
         });
     let heal_entry_proves = flow
         .semantic_context_refs
@@ -132,13 +132,13 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
         .iter()
         .any(|context_ref| {
             let context = semantic.contexts.get(context_ref.context);
-            context_proves_requirement_place_domain(
-                &typed,
-                &semantic,
-                context,
-                required_place,
-                required_domain,
-            )
+            semantic
+                .context_view(context)
+                .proves_place_domain_membership_in_program(
+                    &typed,
+                    required_place,
+                    required_domain,
+                )
         });
 
     let diagnostics =
@@ -265,13 +265,13 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
         .iter()
         .any(|context_ref| {
             let context = semantic.contexts.get(context_ref.context);
-            context_proves_requirement_place_domain(
-                &typed,
-                &semantic,
-                context,
-                required_place,
-                required_domain,
-            )
+            semantic
+                .context_view(context)
+                .proves_place_domain_membership_in_program(
+                    &typed,
+                    required_place,
+                    required_domain,
+                )
         });
     assert!(!heal_entry_proves);
 
@@ -395,13 +395,13 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
         .iter()
         .any(|context_ref| {
             let context = semantic.contexts.get(context_ref.context);
-            context_proves_requirement_place_domain(
-                &typed,
-                &semantic,
-                context,
-                required_place,
-                required_domain,
-            )
+            semantic
+                .context_view(context)
+                .proves_place_domain_membership_in_program(
+                    &typed,
+                    required_place,
+                    required_domain,
+                )
         });
 
     assert!(heal_entry_proves);

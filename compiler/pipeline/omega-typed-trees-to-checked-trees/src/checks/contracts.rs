@@ -1,11 +1,11 @@
 use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_facts::{FactPayload, FactPlace, FactPlan};
+use omega_facts::{FactPayload, FactPlace};
 
 use crate::labels::{
-    call_target_label, canonical_place_label, canonical_place_label_from_parts, joined_place_label,
-    machine_name, semantic_fact_requirement_label, symbol_name,
+    call_target_label, canonical_place_label_from_parts, joined_place_label, machine_name,
+    semantic_fact_requirement_label, symbol_name,
 };
 
 pub(crate) fn check_flow_call_contracts(
@@ -65,13 +65,14 @@ fn check_call_requires(
                     };
                     entry_contexts.iter().any(|entry_context| {
                         let context = facts.semantic.contexts.get(*entry_context);
-                        context_proves_requirement_place_domain(
-                            program,
-                            &facts.semantic,
-                            context,
-                            place,
-                            domain_symbol,
-                        )
+                        facts
+                            .semantic
+                            .context_view(context)
+                            .proves_place_domain_membership_in_program(
+                                program,
+                                place,
+                                domain_symbol,
+                            )
                     })
                 }
                 FactPayload::ContractBooleanExpression { expression, .. } => matches!(
@@ -135,7 +136,7 @@ fn explain_domain_requirement_failure(
         };
 
         if !facts.semantic.domain_implies(fact_domain, required_domain)
-            || !places_match_requirement(program, &facts.semantic, fact_place, required_place)
+            || !facts.semantic.places_match(program, fact_place, required_place)
         {
             continue;
         }
@@ -161,43 +162,4 @@ fn explain_domain_requirement_failure(
     }
 
     detail
-}
-
-fn places_match_requirement(
-    program: &omega_typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    candidate: omega_facts::PlaceHandle,
-    required: omega_facts::PlaceHandle,
-) -> bool {
-    semantic.places_equal(candidate, required)
-        || canonical_place_label(program, semantic, semantic.places.get(candidate))
-            == canonical_place_label(program, semantic, semantic.places.get(required))
-}
-
-pub(crate) fn context_proves_requirement_place_domain(
-    program: &omega_typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    context: &omega_facts::FactContext,
-    required_place: omega_facts::PlaceHandle,
-    required_domain: SymbolHandle,
-) -> bool {
-    let required_label =
-        canonical_place_label(program, semantic, semantic.places.get(required_place));
-    semantic.context_view(context).facts().any(|fact| {
-        let (fact_domain, fact_place) = match fact.payload {
-            FactPayload::DomainMembership { domain_symbol, .. }
-            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
-                let FactPlace::Place(place) = fact.place else {
-                    return false;
-                };
-                (domain_symbol, place)
-            }
-            _ => return false,
-        };
-
-        semantic.domain_implies(fact_domain, required_domain)
-            && (semantic.places_equal(fact_place, required_place)
-                || canonical_place_label(program, semantic, semantic.places.get(fact_place))
-                    == required_label)
-    })
 }
