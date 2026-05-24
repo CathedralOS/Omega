@@ -1,0 +1,18 @@
+data Main {
+    value: i32;
+    flag: bool;
+}
+
+machine Main::inspect(flag: bool)
+requires
+    flag
+{
+}
+
+machine Main::main(&mut self)
+requires
+    self.value > 0
+{
+    self.flag = self.value > 0;
+    self.inspect(self.flag);
+}

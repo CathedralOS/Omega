@@ -285,10 +285,32 @@ impl<'facts> FactContextView<'facts> {
         program: &TypedTrees,
         expression: ExpressionHandle,
     ) -> bool {
+        self.proves_boolean_expression_for_place_in_program(program, expression, None)
+    }
+
+    pub fn proves_boolean_expression_for_place_in_program(
+        self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        place: Option<PlaceHandle>,
+    ) -> bool {
         let required_label = program.expression_table.display_name(expression);
-        self.boolean_facts().any(|fact| {
-            fact.expression == expression
-                || program.expression_table.display_name(fact.expression) == required_label
+        self.facts().any(|fact| {
+            let candidate_expression = match fact.payload {
+                FactPayload::BooleanExpression(candidate_expression)
+                | FactPayload::ContractBooleanExpression {
+                    expression: candidate_expression,
+                    ..
+                } => candidate_expression,
+                _ => return false,
+            };
+
+            candidate_expression == expression
+                || program.expression_table.display_name(candidate_expression) == required_label
+                || place.is_some_and(|required_place| {
+                    matches!(fact.place, FactPlace::Place(candidate_place)
+                        if self.plan.places_match(program, candidate_place, required_place))
+                })
         })
     }
 

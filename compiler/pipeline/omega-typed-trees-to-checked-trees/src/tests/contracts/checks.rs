@@ -164,6 +164,32 @@ fn accepts_exit_ensures_preserved_boolean_expression() {
 }
 
 #[test]
+fn accepts_requires_from_local_boolean_alias_transfer() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::inspect(flag: bool)
+        requires
+            flag
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.value > 0
+        {
+            let flag: bool = self.value > 0;
+            self.inspect(flag);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("boolean requires should be provable from a transferred local alias fact");
+}
+
+#[test]
 fn exit_ensures_requirement_label_resolves_attached_data_members() {
     let source = r#"
         data Player {
