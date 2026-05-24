@@ -7,7 +7,7 @@ use crate::host_calls::static_values::{
 };
 use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReason};
 use omega_calling_conventions::HostAbiPlan;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{StatementNode, TableCall};
@@ -17,7 +17,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
 
 pub(super) fn collect_machine_host_calls(
-    program: &Program,
+    program: &CheckedTrees,
     target: NativeTarget,
     host_abi: &HostAbiPlan,
     machine: &Machine,
@@ -31,7 +31,7 @@ pub(super) fn collect_machine_host_calls(
 }
 
 fn collect_state_host_calls(
-    program: &Program,
+    program: &CheckedTrees,
     target: NativeTarget,
     host_abi: &HostAbiPlan,
     machine: &Machine,
@@ -78,7 +78,7 @@ fn collect_state_host_calls(
 }
 
 fn collect_call_host_lowering(
-    program: &Program,
+    program: &CheckedTrees,
     target: NativeTarget,
     host_abi: &HostAbiPlan,
     machine: &Machine,

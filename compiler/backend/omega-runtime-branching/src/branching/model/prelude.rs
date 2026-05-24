@@ -1,5 +1,5 @@
 use omega_checked_trees::expression::ExpressionHandle;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -34,7 +34,7 @@ impl Default for RuntimeBranchPreludeExpansion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeBranchPreludeBinding {
     pub parameter_symbol: SymbolHandle,
-    pub parameter_name: ProgramName,
+    pub parameter_name: Identifier,
     pub expression: ExpressionHandle,
 }
 
@@ -42,7 +42,7 @@ impl Default for RuntimeBranchPreludeBinding {
     fn default() -> Self {
         Self {
             parameter_symbol: SymbolHandle::invalid(),
-            parameter_name: ProgramName::default(),
+            parameter_name: Identifier::default(),
             expression: ExpressionHandle::invalid(),
         }
     }

@@ -1,4 +1,4 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::statement::{TableCall, TransitionTargetHandle, TransitionTargetNode};
 use omega_core::diagnostics::Diagnostic;
@@ -15,7 +15,7 @@ pub(super) fn plan_transition(
     source_key: StateKey,
     segments: &[StateSegment],
     transition: &SegmentTransition,
-    program: &Program,
+    program: &CheckedTrees,
     state_graph: &mut StateGraph,
 ) -> Result<TransitionEdge, Diagnostic> {
     match transition {
@@ -113,7 +113,7 @@ pub(super) fn plan_transition(
 }
 
 fn branch_call_statement(
-    program: &Program,
+    program: &CheckedTrees,
     source_key: StateKey,
     statement_index: usize,
 ) -> Result<&TableCall, Diagnostic> {
@@ -143,7 +143,7 @@ fn branch_call_statement(
 
 fn table_transition_target_arguments(
     target: omega_checked_trees::statement::TransitionTargetHandle,
-    program: &Program,
+    program: &CheckedTrees,
     state_graph: &mut StateGraph,
 ) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
     if !target.is_valid() {
@@ -169,7 +169,7 @@ fn table_transition_target_arguments(
 
 fn table_transition_target_value(
     target: omega_checked_trees::statement::TransitionTargetHandle,
-    program: &Program,
+    program: &CheckedTrees,
     state_graph: &mut StateGraph,
 ) -> omega_checked_trees::expression::ExpressionHandle {
     if !target.is_valid() {
@@ -188,7 +188,7 @@ fn plan_transition_target(
     source_key: StateKey,
     segments: &[StateSegment],
     target: TransitionTargetHandle,
-    program: &Program,
+    program: &CheckedTrees,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     if !target.is_valid() {
         return Ok(PlannedTransitionTarget::Terminal);
@@ -261,7 +261,7 @@ fn plan_call_target(
     source_key: StateKey,
     segments: &[StateSegment],
     call: &TableCall,
-    program: &Program,
+    program: &CheckedTrees,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     let receiver = program.statement_table.name_path_members(call.receiver);
 
@@ -306,13 +306,13 @@ fn plan_call_target(
 
 fn is_local_transition_path(
     source_key: StateKey,
-    path: &[omega_checked_trees::name::ProgramName],
+    path: &[omega_checked_trees::name::Identifier],
     head_symbol: omega_core::symbols::SymbolHandle,
 ) -> bool {
     path.len() == 1 || path.len() == 2 && head_symbol == source_key.machine
 }
 
-fn display_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> String {
+fn display_transition_path(path: &[omega_checked_trees::name::Identifier]) -> String {
     let mut display = String::new();
 
     for member in path {
@@ -360,7 +360,7 @@ fn find_initial_segment_by_symbol(
 
 fn find_initial_segment_by_name<'segments>(
     segments: &'segments [StateSegment],
-    name: &omega_checked_trees::name::ProgramName,
+    name: &omega_checked_trees::name::Identifier,
 ) -> Option<(usize, &'segments StateSegment)> {
     segments
         .iter()

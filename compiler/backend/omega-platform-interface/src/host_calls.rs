@@ -1,5 +1,5 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_target::NativeTarget;
@@ -15,7 +15,7 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::StatementNode;
 
 pub fn build_host_call_plan(
-    program: &Program,
+    program: &CheckedTrees,
     target: NativeTarget,
     host_abi: &HostAbiPlan,
 ) -> Result<HostCallPlan, Diagnostic> {
@@ -30,7 +30,7 @@ pub fn build_host_call_plan(
 }
 
 pub fn build_host_call_plan_with_workers(
-    program: Arc<Program>,
+    program: Arc<CheckedTrees>,
     target: NativeTarget,
     host_abi: Arc<HostAbiPlan>,
     workers: WorkerPoolHandle,
@@ -79,7 +79,7 @@ struct HostCallPlanCapacity {
     argument_count: usize,
 }
 
-fn host_call_plan_capacity(program: &Program, host_abi: &HostAbiPlan) -> HostCallPlanCapacity {
+fn host_call_plan_capacity(program: &CheckedTrees, host_abi: &HostAbiPlan) -> HostCallPlanCapacity {
     program
         .machines()
         .iter()
@@ -94,7 +94,7 @@ fn host_call_plan_capacity(program: &Program, host_abi: &HostAbiPlan) -> HostCal
 }
 
 fn machine_host_call_plan_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     host_abi: &HostAbiPlan,
     machine: &Machine,
 ) -> HostCallPlanCapacity {

@@ -5,7 +5,7 @@ use super::nested_fields::{
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
 };
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, LayoutPlan};
 
@@ -97,7 +97,7 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path NamePath,
-) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName], usize)> {
+) -> Option<(usize, &'layout FieldLayout, &'path [Identifier], usize)> {
     root_machine_field_layout_from_parts(
         layouts,
         entry_machine,
@@ -112,10 +112,10 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
     layouts: &'layout LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
-    members: &'path [ProgramName],
+    members: &'path [Identifier],
     root_symbol: SymbolHandle,
     self_field_symbol: SymbolHandle,
-) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName], usize)> {
+) -> Option<(usize, &'layout FieldLayout, &'path [Identifier], usize)> {
     let [_root_name, suffix @ ..] = members else {
         return None;
     };
@@ -169,7 +169,7 @@ fn table_path_targets_source_machine(
 
 fn path_targets_source_machine(
     root_symbol: SymbolHandle,
-    root_name: Option<&ProgramName>,
+    root_name: Option<&Identifier>,
     source_machine: SymbolHandle,
 ) -> bool {
     root_symbol == source_machine || root_name.is_some_and(|name| name.as_str() == "self")
@@ -180,7 +180,7 @@ fn root_machine_field_layout<'plan>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
-    root_name: &ProgramName,
+    root_name: &Identifier,
 ) -> Option<(usize, &'plan FieldLayout)> {
     root_machine_field_layout_for_machine(
         layouts,
@@ -196,7 +196,7 @@ fn root_machine_field_layout_for_machine<'plan>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
-    root_name: &ProgramName,
+    root_name: &Identifier,
 ) -> Option<(usize, &'plan FieldLayout)> {
     root_machine_field_layout_in_machine(
         layouts,
@@ -215,7 +215,7 @@ fn root_machine_field_layout_in_machine<'plan>(
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
-    root_name: &ProgramName,
+    root_name: &Identifier,
 ) -> Option<(usize, &'plan FieldLayout)> {
     let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
@@ -232,7 +232,7 @@ fn root_machine_field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     entry_machine: SymbolHandle,
     root_symbol: SymbolHandle,
-    root_name: &ProgramName,
+    root_name: &Identifier,
 ) -> Option<(usize, &'plan FieldLayout)> {
     layouts
         .machine_layouts
@@ -254,7 +254,7 @@ fn machine_field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     entry_machine: SymbolHandle,
     field_symbol: SymbolHandle,
-    field_name: &ProgramName,
+    field_name: &Identifier,
 ) -> Option<(usize, &'plan FieldLayout)> {
     if field_symbol.is_valid()
         && let Some(layout) = layouts
@@ -293,7 +293,7 @@ fn field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     fields: omega_core::arena::HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
-    field_name: &ProgramName,
+    field_name: &Identifier,
 ) -> Option<&'plan FieldLayout> {
     let fields = layouts.fields.span(fields)?;
     fields

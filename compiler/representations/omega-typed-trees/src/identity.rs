@@ -1,6 +1,6 @@
 use crate::data::DataMember;
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
 use crate::typed_trees::TypedTrees;
 use crate::types::{
@@ -279,7 +279,7 @@ fn count_type_reference_node(
     }
 }
 
-fn count_declaration_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+fn count_declaration_name(name: &Identifier, counts: &mut IdentityStorageCounts) {
     counts.declaration_names += 1;
 
     if !name.as_str().is_empty() {
@@ -392,7 +392,7 @@ fn count_type_constraint(
     }
 }
 
-fn count_type_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+fn count_type_name(name: &Identifier, counts: &mut IdentityStorageCounts) {
     counts.type_names += 1;
 
     if !name.as_str().is_empty() {
@@ -400,7 +400,7 @@ fn count_type_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     }
 }
 
-fn count_expression_path_member(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+fn count_expression_path_member(name: &Identifier, counts: &mut IdentityStorageCounts) {
     counts.expression_path_members += 1;
 
     if !name.as_str().is_empty() {
@@ -408,7 +408,7 @@ fn count_expression_path_member(name: &ProgramName, counts: &mut IdentityStorage
     }
 }
 
-fn count_transition_path_member(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+fn count_transition_path_member(name: &Identifier, counts: &mut IdentityStorageCounts) {
     counts.transition_path_members += 1;
 
     if !name.as_str().is_empty() {
@@ -416,7 +416,7 @@ fn count_transition_path_member(name: &ProgramName, counts: &mut IdentityStorage
     }
 }
 
-fn count_call_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+fn count_call_name(name: &Identifier, counts: &mut IdentityStorageCounts) {
     counts.call_names += 1;
 
     if !name.as_str().is_empty() {
@@ -424,7 +424,7 @@ fn count_call_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     }
 }
 
-fn count_struct_literal_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+fn count_struct_literal_name(name: &Identifier, counts: &mut IdentityStorageCounts) {
     counts.struct_literal_names += 1;
 
     if !name.as_str().is_empty() {

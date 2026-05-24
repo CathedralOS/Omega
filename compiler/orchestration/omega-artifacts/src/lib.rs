@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use omega_checked_trees::{Program, machine::Machine, platform::Platform};
+use omega_checked_trees::{CheckedTrees, machine::Machine, platform::Platform};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -948,7 +948,7 @@ pub struct BackendPlatformSurface {
     pub states: usize,
 }
 
-pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
+pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceReport {
     let mut report = BackendSurfaceReport::default();
 
     for machine in program.machines() {
@@ -962,7 +962,7 @@ pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
     report
 }
 
-fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine: &Machine) {
+fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, machine: &Machine) {
     report.machines.insert(BackendMachineSurface {
         name: machine.name.to_string(),
         contained_objects: program.machine_contained_objects(machine).len(),
@@ -993,7 +993,7 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine
     }
 }
 
-fn collect_platform(report: &mut BackendSurfaceReport, program: &Program, platform: &Platform) {
+fn collect_platform(report: &mut BackendSurfaceReport, program: &CheckedTrees, platform: &Platform) {
     report.platforms.insert(BackendPlatformSurface {
         name: platform.name.to_string(),
         states: program.platform_state_signatures(platform).len(),
@@ -1064,9 +1064,9 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
-    use omega_checked_trees::Program;
+    use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::machine::Machine;
-    use omega_checked_trees::name::ProgramName;
+    use omega_checked_trees::name::Identifier;
     use omega_checked_trees::platform::Platform;
     use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
@@ -1077,17 +1077,17 @@ mod tests {
 
     #[test]
     fn collects_entry_machine_and_platforms() {
-        let mut program = Program::default();
+        let mut program = CheckedTrees::default();
         let mut platform = Platform {
             symbol: SymbolHandle::default(),
-            name: ProgramName::generated("Console"),
+            name: Identifier::generated("Console"),
             states: Default::default(),
         };
         program.typed.push_platform_state_signature(
             &mut platform,
             StateSignature {
                 symbol: SymbolHandle::default(),
-                name: ProgramName::generated("write_line"),
+                name: Identifier::generated("write_line"),
                 parameters: Default::default(),
                 return_type: None,
             },
@@ -1095,7 +1095,7 @@ mod tests {
         program.typed.push_platform(platform);
         let mut machine = Machine {
             symbol: SymbolHandle::default(),
-            name: ProgramName::generated("main"),
+            name: Identifier::generated("main"),
             attached_data: None,
             contains: Default::default(),
             owned_data: Default::default(),
@@ -1106,7 +1106,7 @@ mod tests {
             &mut machine,
             State {
                 symbol: SymbolHandle::default(),
-                name: ProgramName::generated("entry"),
+                name: Identifier::generated("entry"),
                 parameters: Default::default(),
                 return_type: None,
                 statements: Vec::new(),

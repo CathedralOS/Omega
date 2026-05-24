@@ -20,14 +20,14 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
 
     let callee_state = State {
         symbol: callee_state_symbol,
-        name: ProgramName::generated("run"),
+        name: Identifier::generated("run"),
         parameters: Default::default(),
         return_type: Default::default(),
         statement_nodes: Default::default(),
     };
     let mut callee_machine = Machine {
         symbol: callee_machine_symbol,
-        name: ProgramName::generated("Worker::run"),
+        name: Identifier::generated("Worker::run"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -52,21 +52,21 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     let call_statement = StatementNode::Call(TableCall {
         receiver: call_statement_receiver,
         receiver_symbol: caller_machine_symbol,
-        target: ProgramName::generated("run"),
+        target: Identifier::generated("run"),
         target_symbol: callee_state_symbol,
         arguments: call_arguments,
     });
     let caller_statement = program.statement_table.insert(call_statement);
     let caller_state = State {
         symbol: caller_state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: Default::default(),
         statement_nodes: HandleSpan::from_parts(caller_statement, 1),
     };
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,
-        name: ProgramName::generated("Main::main"),
+        name: Identifier::generated("Main::main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),

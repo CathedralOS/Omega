@@ -2,14 +2,14 @@ use super::classify::value_kind;
 use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTableCapacity};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 use omega_control_flow::StateKey;
 
 pub(super) fn build_machine_state_value_plan(
-    program: &Program,
+    program: &CheckedTrees,
     context: &StateValuePlanningContext,
     machine: &Machine,
 ) -> StateValuePlan {
@@ -118,7 +118,7 @@ pub(super) fn build_machine_state_value_plan(
     plan
 }
 
-fn estimated_machine_value_capacity(program: &Program, machine: &Machine) -> usize {
+fn estimated_machine_value_capacity(program: &CheckedTrees, machine: &Machine) -> usize {
     program
         .machine_states(machine)
         .iter()
@@ -133,7 +133,7 @@ fn estimated_machine_value_capacity(program: &Program, machine: &Machine) -> usi
         .sum()
 }
 
-fn estimated_statement_value_capacity(program: &Program, statement: &StatementNode) -> usize {
+fn estimated_statement_value_capacity(program: &CheckedTrees, statement: &StatementNode) -> usize {
     match statement {
         StatementNode::Assignment(_) => 2,
         StatementNode::Call(call) => program
@@ -156,7 +156,7 @@ fn estimated_statement_value_capacity(program: &Program, statement: &StatementNo
 }
 
 fn estimated_transition_target_value_capacity(
-    program: &Program,
+    program: &CheckedTrees,
     target: TransitionTargetHandle,
 ) -> usize {
     let TransitionTargetNode::Named { arguments, .. } =
@@ -170,7 +170,7 @@ fn estimated_transition_target_value_capacity(
 
 fn collect_transition_arguments(
     plan: &mut StateValuePlan,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     state: &omega_checked_trees::state::State,
     source_key: StateKey,
@@ -201,7 +201,7 @@ fn collect_transition_arguments(
 
 fn push_value(
     plan: &mut StateValuePlan,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     state: &omega_checked_trees::state::State,
     source_key: StateKey,
@@ -241,7 +241,7 @@ fn push_value(
 }
 
 fn state_has_initialized_locals_before(
-    program: &Program,
+    program: &CheckedTrees,
     state: &omega_checked_trees::state::State,
     statement_index: usize,
 ) -> bool {

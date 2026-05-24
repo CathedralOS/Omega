@@ -13,7 +13,7 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         .append(omega_typed_trees::domain::ProofFact::Expression(expression));
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Main::main"),
+        name: Identifier::generated("Main::main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -64,7 +64,7 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         .append(omega_typed_trees::domain::ProofFact::Expression(expression));
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Main::main"),
+        name: Identifier::generated("Main::main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -136,13 +136,13 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
     let mut trait_definition = TraitDefinition {
         symbol: trait_symbol,
         is_boundary: true,
-        name: ProgramName::generated("Console"),
+        name: Identifier::generated("Console"),
         requires: Default::default(),
         machines: Default::default(),
     };
     let mut signature = StateSignature {
         symbol: signature_symbol,
-        name: ProgramName::generated("write_line"),
+        name: Identifier::generated("write_line"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
@@ -198,7 +198,7 @@ fn indexes_call_contract_facts_by_target_machine() {
 
     let mut target_machine = Machine {
         symbol: target_machine_symbol,
-        name: ProgramName::generated("Target"),
+        name: Identifier::generated("Target"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -219,7 +219,7 @@ fn indexes_call_contract_facts_by_target_machine() {
         &mut target_machine,
         State {
             symbol: target_state_symbol,
-            name: ProgramName::generated("run"),
+            name: Identifier::generated("run"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
@@ -229,7 +229,7 @@ fn indexes_call_contract_facts_by_target_machine() {
 
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,
-        name: ProgramName::generated("Caller"),
+        name: Identifier::generated("Caller"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -240,7 +240,7 @@ fn indexes_call_contract_facts_by_target_machine() {
     };
     let mut caller_state = State {
         symbol: caller_state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -248,14 +248,14 @@ fn indexes_call_contract_facts_by_target_machine() {
     let mut receiver = HandleSpan::empty();
     program
         .statement_table
-        .push_name_path_member(&mut receiver, ProgramName::generated("target"));
+        .push_name_path_member(&mut receiver, Identifier::generated("target"));
     program.statement_table.push_statement(
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
             receiver_symbol: target_machine_symbol,
             target_symbol: target_state_symbol,
             receiver,
-            target: ProgramName::generated("run"),
+            target: Identifier::generated("run"),
             arguments: Default::default(),
         }),
     );
@@ -306,13 +306,13 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     let mut trait_definition = TraitDefinition {
         symbol: trait_symbol,
         is_boundary: true,
-        name: ProgramName::generated("Drawable"),
+        name: Identifier::generated("Drawable"),
         requires: Default::default(),
         machines: Default::default(),
     };
     let mut signature = StateSignature {
         symbol: signature_symbol,
-        name: ProgramName::generated("draw"),
+        name: Identifier::generated("draw"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
@@ -331,7 +331,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
 
     let mut target_machine = Machine {
         symbol: target_machine_symbol,
-        name: ProgramName::generated("Sprite"),
+        name: Identifier::generated("Sprite"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -344,14 +344,14 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         &mut target_machine,
         TraitConformance {
             symbol: trait_symbol,
-            name: ProgramName::generated("Drawable"),
+            name: Identifier::generated("Drawable"),
         },
     );
     program.push_machine_state(
         &mut target_machine,
         State {
             symbol: target_state_symbol,
-            name: ProgramName::generated("draw"),
+            name: Identifier::generated("draw"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
@@ -361,7 +361,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
 
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,
-        name: ProgramName::generated("Main"),
+        name: Identifier::generated("Main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -372,7 +372,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     };
     let mut caller_state = State {
         symbol: caller_state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -380,14 +380,14 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     let mut receiver = HandleSpan::empty();
     program
         .statement_table
-        .push_name_path_member(&mut receiver, ProgramName::generated("sprite"));
+        .push_name_path_member(&mut receiver, Identifier::generated("sprite"));
     program.statement_table.push_statement(
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
             receiver_symbol: target_machine_symbol,
             target_symbol: target_state_symbol,
             receiver,
-            target: ProgramName::generated("draw"),
+            target: Identifier::generated("draw"),
             arguments: Default::default(),
         }),
     );
@@ -441,7 +441,7 @@ fn indexes_terminal_state_contract_ensures() {
 
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Main::main"),
+        name: Identifier::generated("Main::main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -461,7 +461,7 @@ fn indexes_terminal_state_contract_ensures() {
 
     let mut state = State {
         symbol: state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),

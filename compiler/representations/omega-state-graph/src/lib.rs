@@ -3,7 +3,7 @@ mod runtime_flow;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
-use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::name::Identifier;
 use omega_typed_trees::types::TypeReferenceHandle;
 
 pub use runtime_flow::{
@@ -115,7 +115,7 @@ impl StateGraph {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
-    pub fn state_names_by_key(&self, key: StateKey) -> Option<(&ProgramName, &ProgramName)> {
+    pub fn state_names_by_key(&self, key: StateKey) -> Option<(&Identifier, &Identifier)> {
         let machine = self.machine_by_symbol(key.machine)?;
         let state = self
             .states
@@ -126,19 +126,19 @@ impl StateGraph {
         Some((&machine.name, &state.name))
     }
 
-    pub fn state_names_by_key_cloned(&self, key: StateKey) -> (ProgramName, ProgramName) {
+    pub fn state_names_by_key_cloned(&self, key: StateKey) -> (Identifier, Identifier) {
         self.state_names_by_key(key)
             .map(|(machine, state)| (machine.clone(), state.clone()))
             .unwrap_or_default()
     }
 
-    pub fn state_machine_name_by_key_cloned(&self, key: StateKey) -> ProgramName {
+    pub fn state_machine_name_by_key_cloned(&self, key: StateKey) -> Identifier {
         self.state_names_by_key(key)
             .map(|(machine, _)| machine.clone())
             .unwrap_or_default()
     }
 
-    pub fn state_name_by_key_cloned(&self, key: StateKey) -> ProgramName {
+    pub fn state_name_by_key_cloned(&self, key: StateKey) -> Identifier {
         self.state_names_by_key(key)
             .map(|(_, state)| state.clone())
             .unwrap_or_default()
@@ -161,8 +161,8 @@ impl StateKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineGraph {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
-    pub attached_data: Option<ProgramName>,
+    pub name: Identifier,
+    pub attached_data: Option<Identifier>,
     pub direct_effects: omega_effects::EffectBits,
     pub reached_effects: omega_effects::EffectBits,
     pub contains: HandleSpan<ContainedGraph>,
@@ -174,7 +174,7 @@ impl Default for MachineGraph {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             attached_data: None,
             direct_effects: 0,
             reached_effects: 0,
@@ -188,22 +188,22 @@ impl Default for MachineGraph {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ContainedGraph {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_symbol: SymbolHandle,
-    pub type_name: ProgramName,
+    pub type_name: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MachineOwnedDataGraph {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateNode {
     pub key: StateKey,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub index: usize,
     pub direct_effects: omega_effects::EffectBits,
     pub reached_effects: omega_effects::EffectBits,
@@ -218,7 +218,7 @@ impl Default for StateNode {
     fn default() -> Self {
         Self {
             key: StateKey::default(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             index: 0,
             direct_effects: 0,
             reached_effects: 0,
@@ -335,7 +335,7 @@ impl Default for ProofObligationFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InvariantFact {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub constraint_count: usize,
 }
 
@@ -387,10 +387,10 @@ pub struct StateBorrowSummary {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateParameterNode {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
     pub type_symbol: SymbolHandle,
-    pub type_name: ProgramName,
+    pub type_name: Identifier,
     pub is_mutable_reference: bool,
 }
 
@@ -408,8 +408,8 @@ pub enum OperationKind {
         receiver_symbol: SymbolHandle,
         target_symbol: SymbolHandle,
         has_receiver: bool,
-        receiver: ProgramName,
-        target: ProgramName,
+        receiver: Identifier,
+        target: Identifier,
     },
     ConstantIntegerAssignment,
     Expression,
@@ -464,13 +464,13 @@ pub enum PlannedTransitionTarget {
     State {
         index: usize,
         key: StateKey,
-        name: ProgramName,
+        name: Identifier,
     },
     Nested {
         receiver_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
-        receiver: ProgramName,
-        state: ProgramName,
+        receiver: Identifier,
+        state: Identifier,
     },
     SelfTarget,
     Terminal,

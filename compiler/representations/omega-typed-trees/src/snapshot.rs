@@ -4,7 +4,7 @@ use crate::domain::{DomainDefinition, ProofFact};
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
@@ -895,7 +895,7 @@ fn type_constraint_snapshot(
     }
 }
 
-fn path_snapshot(path: &[ProgramName]) -> Vec<String> {
+fn path_snapshot(path: &[Identifier]) -> Vec<String> {
     path.iter().map(ToString::to_string).collect()
 }
 

@@ -1,4 +1,4 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_target::NativeTarget;
@@ -14,7 +14,7 @@ mod timing;
 pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 
 pub fn build_backend_plan_from_control_flow_with_workers(
-    program: Arc<Program>,
+    program: Arc<CheckedTrees>,
     target: NativeTarget,
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,

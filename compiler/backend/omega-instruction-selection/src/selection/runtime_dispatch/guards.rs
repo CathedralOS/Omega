@@ -3,7 +3,7 @@ use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
     TableBinaryExpression,
 };
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::Arena;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
@@ -1390,13 +1390,13 @@ fn runtime_text_buffer_matches_table_expression(
 fn source_machine_name(
     input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
-) -> ProgramName {
+) -> Identifier {
     input.control_flow.state_machine_name_by_key_cloned(key)
 }
 
 fn source_state_name(
     input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
-) -> ProgramName {
+) -> Identifier {
     input.control_flow.state_name_by_key_cloned(key)
 }

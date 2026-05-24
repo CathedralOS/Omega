@@ -1,5 +1,5 @@
 use crate::place_keys::PlaceKey;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::{TableAssignment, TableCall};
@@ -140,7 +140,7 @@ impl Default for StaticValues {
 }
 
 pub(crate) fn initial_static_values(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     expressions: &mut ExpressionTable,
 ) -> StaticValues {
@@ -174,7 +174,7 @@ pub(crate) fn initial_static_values(
 
 pub(crate) fn apply_static_assignment(
     static_values: &mut StaticValues,
-    program: &Program,
+    program: &CheckedTrees,
     expressions: &mut ExpressionTable,
     assignment: TableAssignment,
 ) {
@@ -217,7 +217,7 @@ pub(crate) fn apply_static_assignment(
 
 pub(crate) fn apply_call_static_effects(
     static_values: &mut StaticValues,
-    program: &Program,
+    program: &CheckedTrees,
     call: &TableCall,
 ) {
     for argument in program.statement_table.expression_handles(call.arguments) {
@@ -234,7 +234,7 @@ pub(crate) fn apply_call_static_effects(
 }
 
 pub(crate) fn resolve_static_value_handle(
-    program: &Program,
+    program: &CheckedTrees,
     expressions: &mut ExpressionTable,
     expression: ExpressionHandle,
     static_values: &StaticValues,
@@ -258,7 +258,7 @@ pub(crate) fn resolve_static_value_handle(
     }
 }
 
-fn static_place_key_handle(program: &Program, expression: ExpressionHandle) -> Option<PlaceKey> {
+fn static_place_key_handle(program: &CheckedTrees, expression: ExpressionHandle) -> Option<PlaceKey> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path)
             if !program

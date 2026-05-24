@@ -1,4 +1,4 @@
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_control_flow::ControlFlowPlan;
 use omega_platform_interface::HostCallPlan;
 use omega_state_calls::StateCallPlan;
@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyContext {
-    pub program: Arc<Program>,
+    pub program: Arc<CheckedTrees>,
     pub control_flow: Arc<ControlFlowPlan>,
     pub host_calls: Arc<HostCallPlan>,
     pub state_dispatch: Arc<StateDispatchPlan>,
@@ -18,7 +18,7 @@ pub struct RuntimeDispatchBodyContext {
 
 impl RuntimeDispatchBodyContext {
     pub fn new(
-        program: Arc<Program>,
+        program: Arc<CheckedTrees>,
         control_flow: Arc<ControlFlowPlan>,
         host_calls: Arc<HostCallPlan>,
         state_dispatch: Arc<StateDispatchPlan>,

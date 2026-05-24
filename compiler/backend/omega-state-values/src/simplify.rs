@@ -1,5 +1,5 @@
 use crate::StateValueRole;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, ExpressionHandle, ExpressionNode,
     ExpressionTable, IndexedExpression, MemberExpression, NamePath, StructLiteral,
@@ -65,7 +65,7 @@ impl HelperStateStack {
 }
 
 pub fn simplify_expression(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     expression: &Expression,
 ) -> Expression {
@@ -74,7 +74,7 @@ pub fn simplify_expression(
 }
 
 pub fn simplify_state_expression(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -91,7 +91,7 @@ pub fn simplify_state_expression(
 }
 
 pub fn simplify_state_expression_for_role(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -166,7 +166,7 @@ fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
 }
 
 fn simple_local_bindings(
-    program: &Program,
+    program: &CheckedTrees,
     state: &State,
     statement_index: usize,
 ) -> Arena<Binding> {
@@ -268,7 +268,7 @@ fn simple_local_binding_value_from_table(
 }
 
 fn simplify_expression_with_bindings(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     expression: &Expression,
     bindings: &(impl BindingScope + ?Sized),
@@ -379,7 +379,7 @@ fn simplify_expression_with_bindings(
 }
 
 fn simplify_binary_expression(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     binary: &BinaryExpression,
     bindings: &(impl BindingScope + ?Sized),
@@ -421,7 +421,7 @@ fn simplify_binary_expression(
 }
 
 fn simplify_call_expression(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     call: &CallExpression,
     bindings: &(impl BindingScope + ?Sized),
@@ -483,7 +483,7 @@ fn simplify_call_expression(
 }
 
 fn simplify_guarded_helper_comparison(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     operator: omega_checked_trees::expression::BinaryOperator,
     left: &Expression,
@@ -522,7 +522,7 @@ fn simplify_guarded_helper_comparison(
 }
 
 fn simplify_helper_call_comparison(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     call: &CallExpression,
     expected: &Expression,
@@ -547,7 +547,7 @@ fn simplify_helper_call_comparison(
 }
 
 fn resolve_call_target_machine<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     current_machine: &'program Machine,
     receiver: Option<&Expression>,
     target_symbol: SymbolHandle,
@@ -591,7 +591,7 @@ fn resolve_call_target_machine<'program>(
 }
 
 fn machine_owning_state_symbol<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     state_symbol: SymbolHandle,
 ) -> Option<&'program Machine> {
     if !state_symbol.is_valid() {
@@ -619,7 +619,7 @@ fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
 }
 
 fn resolve_call_target_state<'machine>(
-    program: &'machine Program,
+    program: &'machine CheckedTrees,
     machine: &'machine Machine,
     call: &CallExpression,
 ) -> Option<&'machine omega_checked_trees::state::State> {
@@ -643,7 +643,7 @@ fn expression_is_self_reference(machine: &Machine, expression: &Expression) -> b
 
 fn helper_state_value(
     state: &State,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
 ) -> Option<Expression> {
@@ -661,7 +661,7 @@ fn helper_state_value(
 
 fn helper_state_match_condition(
     state: &State,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
@@ -678,7 +678,7 @@ fn helper_state_match_condition(
 
 fn helper_state_match_condition_with_stack(
     state: &State,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
@@ -725,7 +725,7 @@ fn helper_state_match_condition_with_stack(
 }
 
 fn expression_match_condition_with_stack(
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     expression: &Expression,
     expected: &Expression,
@@ -764,7 +764,7 @@ fn expression_match_condition_with_stack(
 
 fn helper_state_model(
     state: &State,
-    program: &Program,
+    program: &CheckedTrees,
     machine: &Machine,
     bindings: &(impl BindingScope + ?Sized),
 ) -> Option<HelperStateModel> {
@@ -878,7 +878,7 @@ fn helper_state_model(
 
 fn append_name_suffix(
     base: &Expression,
-    suffix: &[omega_checked_trees::name::ProgramName],
+    suffix: &[omega_checked_trees::name::Identifier],
 ) -> Expression {
     let mut expression = base.clone();
 
@@ -1406,12 +1406,12 @@ fn expression_path_segment_symbol(expression: &Expression, index: usize) -> Symb
 #[cfg(test)]
 mod tests {
     use super::simplify_expression;
-    use omega_checked_trees::Program;
+    use omega_checked_trees::CheckedTrees;
     use omega_checked_trees::expression::{
         BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
     };
     use omega_checked_trees::machine::Machine;
-    use omega_checked_trees::name::ProgramName;
+    use omega_checked_trees::name::Identifier;
     use omega_checked_trees::signature::StateParameter;
     use omega_checked_trees::state::State;
     use omega_checked_trees::statement::{
@@ -1451,7 +1451,7 @@ mod tests {
             satisfies: Default::default(),
             states: Default::default(),
         };
-        let mut program = Program::default();
+        let mut program = CheckedTrees::default();
         push_state_statements(
             &mut program,
             &mut helper,
@@ -1668,7 +1668,7 @@ mod tests {
             satisfies: Default::default(),
             states: Default::default(),
         };
-        let program = Program::default();
+        let program = CheckedTrees::default();
         let roll_symbol = SymbolHandle::from_arena_index(99);
 
         let expression = Expression::Binary(Box::new(BinaryExpression {
@@ -1694,7 +1694,7 @@ mod tests {
     enum TestStatement {
         LocalData {
             symbol: SymbolHandle,
-            name: ProgramName,
+            name: Identifier,
             type_reference: TypeReferenceNode,
             initial_value: Option<Expression>,
         },
@@ -1705,7 +1705,7 @@ mod tests {
     }
 
     fn push_state_statements<const N: usize>(
-        program: &mut Program,
+        program: &mut CheckedTrees,
         state: &mut State,
         statements: [TestStatement; N],
     ) {
@@ -1764,7 +1764,7 @@ mod tests {
         Expression::Name(NamePath::resolved(vec![name.into()], symbol, symbol))
     }
 
-    fn named_type_reference(program: &mut Program, name: &str) -> TypeReferenceHandle {
+    fn named_type_reference(program: &mut CheckedTrees, name: &str) -> TypeReferenceHandle {
         program
             .typed
             .type_reference_table
@@ -1782,7 +1782,7 @@ mod tests {
         Expression::Name(NamePath::resolved(
             segments
                 .iter()
-                .map(|segment| ProgramName::from(*segment))
+                .map(|segment| Identifier::from(*segment))
                 .collect(),
             head_symbol,
             symbol,

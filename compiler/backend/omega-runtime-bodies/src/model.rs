@@ -1,5 +1,5 @@
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
@@ -11,7 +11,7 @@ use omega_state_storage::{StateMutationKind, StateMutationLowering};
 pub struct RuntimeDispatchBodyPlan {
     pub bodies: Arena<RuntimeDispatchBody>,
     pub expressions: ExpressionTable,
-    pub invariant_names: Arena<ProgramName>,
+    pub invariant_names: Arena<Identifier>,
     pub operations: PagedArena<RuntimeDispatchBodyOperation>,
     pub type_references: TypeReferenceTable,
 }
@@ -75,10 +75,10 @@ pub enum RuntimeDispatchBodyOperationKind {
     },
     LocalStorage {
         symbol: SymbolHandle,
-        name: ProgramName,
+        name: Identifier,
         type_symbol: SymbolHandle,
         type_reference: TypeReferenceHandle,
-        invariant_names: HandleSpan<ProgramName>,
+        invariant_names: HandleSpan<Identifier>,
     },
     Mutation {
         mutation_kind: StateMutationKind,

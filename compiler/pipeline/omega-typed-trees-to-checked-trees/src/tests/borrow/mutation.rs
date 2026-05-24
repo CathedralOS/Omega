@@ -9,7 +9,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
 
     let mut program = omega_typed_trees::TypedTrees::default();
     let self_name = Expression::Name(NamePath::resolved(
-        vec![ProgramName::generated("self")],
+        vec![Identifier::generated("self")],
         machine_symbol,
         machine_symbol,
     ));
@@ -17,7 +17,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         omega_checked_trees::expression::MemberExpression {
             receiver: self_name,
             member_symbol: player_symbol,
-            member: ProgramName::generated("player"),
+            member: Identifier::generated("player"),
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));
@@ -30,7 +30,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
 
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Main"),
+        name: Identifier::generated("Main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -41,7 +41,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
     };
     let mut state = State {
         symbol: state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -52,14 +52,14 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),
-            target: ProgramName::generated("heal"),
+            target: Identifier::generated("heal"),
             arguments,
         }),
     );
     program.push_machine_state(&mut machine, state);
     let mut target_state = State {
         symbol: target_symbol,
-        name: ProgramName::generated("heal"),
+        name: Identifier::generated("heal"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -68,7 +68,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         &mut target_state,
         StateParameter {
             symbol: SymbolHandle::from_arena_index(5),
-            name: ProgramName::generated("self"),
+            name: Identifier::generated("self"),
             type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,
@@ -79,7 +79,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         &mut target_state,
         StateParameter {
             symbol: SymbolHandle::from_arena_index(6),
-            name: ProgramName::generated("player"),
+            name: Identifier::generated("player"),
             type_reference: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: true,

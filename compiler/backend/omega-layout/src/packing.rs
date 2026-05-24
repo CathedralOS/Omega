@@ -1,5 +1,5 @@
 use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(super) struct PlannedField {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_symbol: SymbolHandle,
     pub type_name: Arc<str>,
     pub type_descriptor: TypeLayoutDescriptor,

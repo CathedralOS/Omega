@@ -4,7 +4,7 @@ use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
     TypeLayoutDescriptor, VariantLayout,
 };
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
@@ -16,7 +16,7 @@ use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_target::NativeTarget;
 
 pub fn build_layout_plan(
-    program: &Program,
+    program: &CheckedTrees,
     target: NativeTarget,
 ) -> Result<LayoutPlan, Diagnostic> {
     let mut builder = LayoutBuilder::new(program, target);
@@ -42,7 +42,7 @@ struct LayoutBuilder<'program> {
     machine_visiting: LayoutVisitStack,
     platform_definitions: &'program [Platform],
     trait_definitions: &'program [TraitDefinition],
-    program: &'program Program,
+    program: &'program CheckedTrees,
     target: NativeTarget,
     variants: Arena<VariantLayout>,
 }
@@ -98,7 +98,7 @@ impl LayoutVisitStack {
 }
 
 impl<'program> LayoutBuilder<'program> {
-    fn new(program: &'program Program, target: NativeTarget) -> Self {
+    fn new(program: &'program CheckedTrees, target: NativeTarget) -> Self {
         let data_definitions = program.data_definitions();
         let machine_definitions = program.machines();
         let field_capacity = data_definitions

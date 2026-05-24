@@ -12,7 +12,7 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
 };
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
@@ -504,6 +504,6 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
 fn state_names(
     input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
-) -> (ProgramName, ProgramName) {
+) -> (Identifier, Identifier) {
     input.control_flow.state_names_by_key_cloned(key)
 }

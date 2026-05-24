@@ -3,7 +3,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::name::Identifier;
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
 pub type FactHandle = Handle<Fact>;
@@ -144,7 +144,7 @@ pub enum FactPayload {
     BooleanExpression(ExpressionHandle),
     DomainMembership {
         value: ExpressionHandle,
-        domain: HandleSpan<ProgramName>,
+        domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
     },
     TypeConstraint {
@@ -166,7 +166,7 @@ pub enum FactPayload {
         kind: ContractFactKind,
         fact: Handle<ProofFact>,
         value: ExpressionHandle,
-        domain: HandleSpan<ProgramName>,
+        domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
     },
     InvariantDefinition {
@@ -213,7 +213,7 @@ pub struct BooleanFact {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DomainMembershipFact {
     pub value: ExpressionHandle,
-    pub domain: HandleSpan<ProgramName>,
+    pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
 }
 
@@ -955,7 +955,7 @@ mod tests {
         ExpressionNode, TableIndexedExpression, TableMemberExpression, TableNamePath,
     };
     use omega_typed_trees::invariant::InvariantDefinition;
-    use omega_typed_trees::name::ProgramName;
+    use omega_typed_trees::name::Identifier;
     use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
     #[test]
@@ -981,14 +981,14 @@ mod tests {
         assert_eq!(membership.arena_index(), fact.arena_index() + 1);
         program.push_domain_definition(DomainDefinition {
             symbol: alive_domain_symbol,
-            name: ProgramName::generated("Player::Alive"),
+            name: Identifier::generated("Player::Alive"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::from_parts(fact, 2),
             body_token_count: 2,
         });
         program.push_domain_definition(DomainDefinition {
             symbol: valid_domain_symbol,
-            name: ProgramName::generated("Player::Valid"),
+            name: Identifier::generated("Player::Valid"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
             body_token_count: 0,
@@ -996,10 +996,10 @@ mod tests {
 
         let constraint = program
             .type_reference_table
-            .insert_constraints([TypeConstraintNode::Named(ProgramName::generated("finite"))]);
+            .insert_constraints([TypeConstraintNode::Named(Identifier::generated("finite"))]);
         program.push_invariant_definition(InvariantDefinition {
             symbol: invariant_symbol,
-            name: ProgramName::generated("Finite"),
+            name: Identifier::generated("Finite"),
             constraints: constraint,
         });
 
@@ -1062,14 +1062,14 @@ mod tests {
             }));
         program.push_domain_definition(DomainDefinition {
             symbol: alive_domain_symbol,
-            name: ProgramName::generated("Player::Alive"),
+            name: Identifier::generated("Player::Alive"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::from_parts(membership, 1),
             body_token_count: 1,
         });
         program.push_domain_definition(DomainDefinition {
             symbol: valid_domain_symbol,
-            name: ProgramName::generated("Player::Valid"),
+            name: Identifier::generated("Player::Valid"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
             body_token_count: 0,
@@ -1132,7 +1132,7 @@ mod tests {
                 .insert(ExpressionNode::Member(TableMemberExpression {
                     receiver: indexed,
                     member_symbol: tail_symbol,
-                    member: ProgramName::generated("tail"),
+                    member: Identifier::generated("tail"),
                 }));
 
         let mut facts = FactPlan::default();

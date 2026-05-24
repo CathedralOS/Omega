@@ -3,7 +3,7 @@ use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
 use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -45,7 +45,7 @@ use omega_target_operations_to_machine_program::build_machine_program;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
-    program: Arc<Program>,
+    program: Arc<CheckedTrees>,
     target: NativeTarget,
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,

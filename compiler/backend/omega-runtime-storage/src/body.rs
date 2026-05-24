@@ -1,7 +1,7 @@
 use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
 use omega_checked_trees::expression::ExpressionTableCapacity;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::types::TypeReferenceHandle;
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::arena::HandleSpan;
@@ -285,11 +285,11 @@ fn append_local_slot(
     source_key: StateKey,
     statement_index: usize,
     symbol: SymbolHandle,
-    name: ProgramName,
+    name: Identifier,
     type_symbol: SymbolHandle,
     type_name: Arc<str>,
     type_descriptor: omega_layout::TypeLayoutDescriptor,
-    invariant_names: impl IntoIterator<Item = ProgramName>,
+    invariant_names: impl IntoIterator<Item = Identifier>,
     byte_size: usize,
     alignment: usize,
     next_frame_offset: &mut usize,
@@ -651,7 +651,7 @@ fn append_state_call_result_slot(
             target_key,
         },
         symbol: SymbolHandle::invalid(),
-        name: ProgramName::generated_static("__call_result"),
+        name: Identifier::generated_static("__call_result"),
         type_symbol,
         type_name: type_name.into(),
         type_descriptor: type_descriptor(&context.program.type_reference_table, return_type),

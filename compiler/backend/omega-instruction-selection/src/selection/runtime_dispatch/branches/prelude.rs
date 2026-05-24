@@ -7,7 +7,7 @@ use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
@@ -475,13 +475,13 @@ fn prelude_alias_bindings(
 fn state_names(
     input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
-) -> (ProgramName, ProgramName) {
+) -> (Identifier, Identifier) {
     input.control_flow.state_names_by_key_cloned(key)
 }
 
 fn source_machine_name(
     input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
-) -> ProgramName {
+) -> Identifier {
     input.control_flow.state_machine_name_by_key_cloned(key)
 }

@@ -15,7 +15,7 @@ pub struct TypedTrees {
     pub root_domains: HandleSpan<domain::DomainDefinition>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
-    pub domain_path_members: Arena<crate::name::ProgramName>,
+    pub domain_path_members: Arena<crate::name::Identifier>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub root_machines: HandleSpan<machine::Machine>,
@@ -32,7 +32,7 @@ pub struct TypedTrees {
     pub traits: Arena<trait_definition::TraitDefinition>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
-    pub signature_effects: Arena<crate::name::ProgramName>,
+    pub signature_effects: Arena<crate::name::Identifier>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
@@ -96,8 +96,8 @@ impl TypedTrees {
 
     pub fn domain_path_members(
         &self,
-        span: HandleSpan<crate::name::ProgramName>,
-    ) -> &[crate::name::ProgramName] {
+        span: HandleSpan<crate::name::Identifier>,
+    ) -> &[crate::name::Identifier] {
         self.domain_path_members.span_or_empty(span)
     }
 
@@ -246,13 +246,13 @@ impl TypedTrees {
     pub fn push_machine_effect(
         &mut self,
         machine: &mut machine::Machine,
-        effect: crate::name::ProgramName,
+        effect: crate::name::Identifier,
     ) {
         self.signature_effects
             .append_to_span(&mut machine.effects, effect);
     }
 
-    pub fn machine_effects(&self, machine: &machine::Machine) -> &[crate::name::ProgramName] {
+    pub fn machine_effects(&self, machine: &machine::Machine) -> &[crate::name::Identifier] {
         self.signature_effects.span_or_empty(machine.effects)
     }
 
@@ -318,7 +318,7 @@ impl TypedTrees {
     pub fn push_state_signature_effect(
         &mut self,
         signature: &mut signature::StateSignature,
-        effect: crate::name::ProgramName,
+        effect: crate::name::Identifier,
     ) {
         self.signature_effects
             .append_to_span(&mut signature.effects, effect);
@@ -327,7 +327,7 @@ impl TypedTrees {
     pub fn state_signature_effects(
         &self,
         signature: &signature::StateSignature,
-    ) -> &[crate::name::ProgramName] {
+    ) -> &[crate::name::Identifier] {
         self.signature_effects.span_or_empty(signature.effects)
     }
 

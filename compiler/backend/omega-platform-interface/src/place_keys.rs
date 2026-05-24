@@ -1,7 +1,7 @@
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
 };
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub struct PlaceKey {
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
-    members: Arc<[ProgramName]>,
+    members: Arc<[Identifier]>,
 }
 
 impl Default for PlaceKey {
@@ -69,7 +69,7 @@ impl PlaceKey {
         }
     }
 
-    pub fn append_member(&self, member: ProgramName) -> Self {
+    pub fn append_member(&self, member: Identifier) -> Self {
         let mut members = Vec::with_capacity(self.members.len() + 1);
         members.extend(self.members.iter().cloned());
         members.push(member);
@@ -81,7 +81,7 @@ impl PlaceKey {
         }
     }
 
-    pub fn from_symbol_name(symbol: SymbolHandle, name: ProgramName) -> Self {
+    pub fn from_symbol_name(symbol: SymbolHandle, name: Identifier) -> Self {
         Self {
             head_symbol: symbol,
             symbol,
@@ -146,6 +146,6 @@ impl PlaceKey {
     }
 
     fn append_generated_member(&self, member: String) -> Self {
-        self.append_member(ProgramName::generated(member))
+        self.append_member(Identifier::generated(member))
     }
 }

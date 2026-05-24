@@ -143,7 +143,7 @@ fn lower_name_path_members_into_table(
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::expression::ExpressionTable,
     members: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
-) -> omega_core::arena::HandleSpan<typed::name::ProgramName> {
+) -> omega_core::arena::HandleSpan<typed::name::Identifier> {
     let mut lowered = omega_core::arena::HandleSpan::empty();
 
     for member in source.name_path_members(members) {

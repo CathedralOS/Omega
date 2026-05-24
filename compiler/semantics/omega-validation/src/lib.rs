@@ -1,6 +1,6 @@
 mod symbols;
 
-use crate::symbols::{MachineSymbols, ProgramSymbols};
+use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_facts::{FactPlan, ProgramPoint};
@@ -9,7 +9,7 @@ use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::name::Identifier;
 use omega_typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
@@ -22,7 +22,7 @@ use std::fmt;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let symbols = ProgramSymbols::build(program, &mut diagnostics);
+    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = omega_facts::build_definition_fact_plan(program);
 
     validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
@@ -372,7 +372,7 @@ fn validate_invariant_definitions(
 
 fn validate_domain_definitions(
     program: &TypedTrees,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -494,7 +494,7 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
 
 fn domain_path_label(
     program: &TypedTrees,
-    domain: omega_core::arena::HandleSpan<ProgramName>,
+    domain: omega_core::arena::HandleSpan<Identifier>,
 ) -> String {
     let path = program.domain_path_members(domain);
     if path.is_empty() {
@@ -673,7 +673,7 @@ fn validate_state_statement_node(
     machine: &omega_typed_trees::machine::Machine,
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
@@ -784,7 +784,7 @@ fn validate_assignment_target_handle(
 
 fn validate_callable_state_signatures(
     program: &TypedTrees,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
@@ -849,7 +849,7 @@ struct StateSignatureView<'program> {
     name: &'program str,
     parameters: &'program [StateParameter],
     return_type: TypeReferenceHandle,
-    effects: &'program [ProgramName],
+    effects: &'program [Identifier],
     contracts: &'program [SignatureContract],
 }
 
@@ -1103,7 +1103,7 @@ impl fmt::Display for TypeReferenceOwner<'_> {
 fn validate_state_signature_types<'program>(
     signatures: impl Iterator<Item = StateSignatureView<'program>>,
     program: &TypedTrees,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: StateSignatureOwner<'program>,
 ) {
@@ -1280,7 +1280,7 @@ fn validate_state_parameter_names(
 
 fn validate_data_field_types(
     program: &TypedTrees,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for data_definition in program.data_definitions() {
@@ -1356,7 +1356,7 @@ fn data_member_name(member: &DataMember) -> &str {
 fn validate_type_reference_handle(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
 ) {
@@ -1959,7 +1959,7 @@ mod tests {
 fn validate_contained_types(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contained_object in program.machine_contained_objects(machine) {
@@ -1975,7 +1975,7 @@ fn validate_contained_types(
 fn validate_owned_data(
     program: &TypedTrees,
     machine: &Machine,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for owned_data in program.machine_owned_data(machine) {
@@ -2409,7 +2409,7 @@ fn validate_call_node(
     call: &TableCall,
     current_machine: &omega_typed_trees::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -2752,7 +2752,7 @@ fn validate_transition_target_node(
     program: &TypedTrees,
     target: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,
-    symbols: &ProgramSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

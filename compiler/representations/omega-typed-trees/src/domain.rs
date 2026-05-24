@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -6,7 +6,7 @@ use omega_core::symbols::SymbolHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub target_type: TypeReferenceHandle,
     pub facts: HandleSpan<ProofFact>,
     pub body_token_count: usize,
@@ -16,7 +16,7 @@ impl Default for DomainDefinition {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
             body_token_count: 0,
@@ -39,7 +39,7 @@ impl Default for ProofFact {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
-    pub domain: HandleSpan<ProgramName>,
+    pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
 }
 

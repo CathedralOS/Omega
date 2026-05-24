@@ -274,7 +274,7 @@ pub struct ProofFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InvariantFact {
     pub symbol: SymbolHandle,
-    pub name: name::ProgramName,
+    pub name: name::Identifier,
     pub constraint_count: usize,
 }
 
@@ -563,12 +563,12 @@ pub struct CheckFacts {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Program {
+pub struct CheckedTrees {
     pub typed: omega_typed_trees::TypedTrees,
     pub facts: CheckFacts,
 }
 
-impl std::ops::Deref for Program {
+impl std::ops::Deref for CheckedTrees {
     type Target = omega_typed_trees::TypedTrees;
 
     fn deref(&self) -> &Self::Target {
@@ -576,7 +576,7 @@ impl std::ops::Deref for Program {
     }
 }
 
-impl AsRef<omega_typed_trees::TypedTrees> for Program {
+impl AsRef<omega_typed_trees::TypedTrees> for CheckedTrees {
     fn as_ref(&self) -> &omega_typed_trees::TypedTrees {
         &self.typed
     }

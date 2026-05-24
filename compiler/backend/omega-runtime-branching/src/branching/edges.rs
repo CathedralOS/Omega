@@ -201,7 +201,7 @@ fn resolve_attached_machine_state_key(
 
 fn resolve_attached_data_state_key(
     context: &RuntimeBranchingContext,
-    attached_data: &omega_checked_trees::name::ProgramName,
+    attached_data: &omega_checked_trees::name::Identifier,
     target_symbol: omega_core::symbols::SymbolHandle,
 ) -> Option<StateKey> {
     if !target_symbol.is_valid() {

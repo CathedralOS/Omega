@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
@@ -9,7 +9,7 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 pub struct StatementTable {
     statements: Arena<StatementNode>,
     expression_handles: Arena<crate::expression::ExpressionHandle>,
-    name_path_members: Arena<ProgramName>,
+    name_path_members: Arena<Identifier>,
     transition_targets: Arena<TransitionTargetNode>,
 }
 
@@ -78,8 +78,8 @@ impl StatementTable {
 
     pub fn push_name_path_member(
         &mut self,
-        span: &mut HandleSpan<ProgramName>,
-        member: ProgramName,
+        span: &mut HandleSpan<Identifier>,
+        member: Identifier,
     ) {
         self.name_path_members.append_to_span(span, member);
     }
@@ -120,7 +120,7 @@ impl StatementTable {
         self.expression_handles.span_or_empty(span)
     }
 
-    pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
+    pub fn name_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.name_path_members.span_or_empty(span)
     }
 
@@ -168,8 +168,8 @@ pub struct TableAssignment {
 pub struct TableCall {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: HandleSpan<ProgramName>,
-    pub target: ProgramName,
+    pub receiver: HandleSpan<Identifier>,
+    pub target: Identifier,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
@@ -179,7 +179,7 @@ impl Default for TableCall {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
-            target: ProgramName::default(),
+            target: Identifier::default(),
             arguments: HandleSpan::empty(),
         }
     }
@@ -188,7 +188,7 @@ impl Default for TableCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableLocalData {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: crate::expression::ExpressionHandle,
 }
@@ -197,7 +197,7 @@ impl Default for TableLocalData {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
         }
@@ -246,7 +246,7 @@ impl Default for TransitionTargetNode {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
-    pub members: HandleSpan<ProgramName>,
+    pub members: HandleSpan<Identifier>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
@@ -255,7 +255,7 @@ pub struct TableNamePath {
 mod tests {
     use super::{StatementNode, StatementTable, TransitionTargetNode};
     use crate::expression::ExpressionTable;
-    use crate::name::ProgramName;
+    use crate::name::Identifier;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -269,7 +269,7 @@ mod tests {
         statements.push_expression_handle(&mut arguments, argument);
 
         let mut path = omega_core::arena::HandleSpan::empty();
-        statements.push_name_path_member(&mut path, ProgramName::generated("next"));
+        statements.push_name_path_member(&mut path, Identifier::generated("next"));
 
         let target = statements.insert_transition_target(TransitionTargetNode::Named {
             path: super::TableNamePath {

@@ -6,7 +6,7 @@ use super::lookups::{
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_checked_trees::expression::ExpressionTable;
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_checked_trees::types::TypeReferenceTable;
 use omega_control_flow::{OperationKind, StateKey};
@@ -20,7 +20,7 @@ pub(super) struct CollectedRuntimeDispatchBody {
     pub key: StateKey,
     pub dispatch_index: u32,
     pub expressions: ExpressionTable,
-    pub invariant_names: Arena<ProgramName>,
+    pub invariant_names: Arena<Identifier>,
     pub operations: Arena<RuntimeDispatchBodyOperation>,
     pub type_references: TypeReferenceTable,
 }
@@ -138,7 +138,7 @@ fn append_state_body_operations(
     state_key: StateKey,
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
-    invariant_names: &mut Arena<ProgramName>,
+    invariant_names: &mut Arena<Identifier>,
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {
@@ -292,7 +292,7 @@ fn append_state_call_body_operation(
     state_call: &StateCall,
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
-    invariant_names: &mut Arena<ProgramName>,
+    invariant_names: &mut Arena<Identifier>,
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {

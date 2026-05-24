@@ -3,7 +3,7 @@ use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
 use omega_calling_conventions::{
     HostAbiPlan, HostOperationKey, PlatformCallLowering, PlatformCallLoweringHandle,
 };
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::TableCall;
@@ -11,7 +11,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 pub(crate) fn platform_call_receiver_type<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     machine: &Machine,
     call: &TableCall,
 ) -> Option<&'program str> {
@@ -90,7 +90,7 @@ pub(crate) fn platform_call_receiver_type<'program>(
 }
 
 fn receiver_leaf_name<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     call: &TableCall,
 ) -> Option<&'program str> {
     program
@@ -100,7 +100,7 @@ fn receiver_leaf_name<'program>(
         .map(|name| name.as_str())
 }
 
-fn data_field_type_symbol(program: &Program, field_symbol: SymbolHandle) -> Option<SymbolHandle> {
+fn data_field_type_symbol(program: &CheckedTrees, field_symbol: SymbolHandle) -> Option<SymbolHandle> {
     program
         .data_definitions()
         .iter()
@@ -120,7 +120,7 @@ fn data_field_type_symbol(program: &Program, field_symbol: SymbolHandle) -> Opti
         })
 }
 
-fn receiver_surface_name(program: &Program, symbol: SymbolHandle) -> Option<&str> {
+fn receiver_surface_name(program: &CheckedTrees, symbol: SymbolHandle) -> Option<&str> {
     program
         .traits()
         .iter()
@@ -153,7 +153,7 @@ pub(crate) fn host_operation(operation_key: HostOperationKey) -> LoweredHostOper
 }
 
 pub(crate) fn lower_host_call_arguments(
-    program: &Program,
+    program: &CheckedTrees,
     call: &TableCall,
     static_values: &StaticValues,
     expressions: &mut ExpressionTable,
@@ -173,7 +173,7 @@ pub(crate) fn lower_host_call_arguments(
     argument_span
 }
 
-pub(crate) fn platform_call_name(program: &Program, call: &TableCall) -> String {
+pub(crate) fn platform_call_name(program: &CheckedTrees, call: &TableCall) -> String {
     let receiver = program.statement_table.name_path_members(call.receiver);
 
     if receiver.is_empty() {
@@ -210,7 +210,7 @@ fn lowering_matches(
 }
 
 fn lower_host_call_argument(
-    program: &Program,
+    program: &CheckedTrees,
     argument: ExpressionHandle,
     static_values: &StaticValues,
     expressions: &mut ExpressionTable,

@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{Expression, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
@@ -624,7 +624,7 @@ fn select_runtime_leaf_branch_mutation_writes(
 fn state_names(
     input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
-) -> (ProgramName, ProgramName) {
+) -> (Identifier, Identifier) {
     input.control_flow.state_names_by_key_cloned(key)
 }
 

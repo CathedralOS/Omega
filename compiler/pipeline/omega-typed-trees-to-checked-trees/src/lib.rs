@@ -4,7 +4,7 @@ mod labels;
 mod lookup;
 
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::{
     StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode,
 };
@@ -14,7 +14,7 @@ use omega_checked_trees::{
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
     FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
-    FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, Program, ProofFactKind,
+    FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, CheckedTrees, ProofFactKind,
     ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
@@ -26,7 +26,7 @@ use crate::labels::{semantic_contract_fact_kind, semantic_proof_obligation_kind,
 
 pub fn lower_typed_trees(
     program: omega_typed_trees::TypedTrees,
-) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<CheckedTrees, Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_program(&program)?;
 
     let proof_plan = omega_proof::obligations::build_proof_plan(&program);
@@ -50,7 +50,7 @@ pub fn lower_typed_trees(
     };
     checks::check_checked_facts(&program, &facts)?;
 
-    Ok(Program {
+    Ok(CheckedTrees {
         typed: program,
         facts,
     })

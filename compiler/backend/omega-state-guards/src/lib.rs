@@ -7,7 +7,7 @@ pub use model::{
     StateGuardPlan,
 };
 use normalize::normalize_guard_expression_into_table;
-use omega_checked_trees::Program;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
 };
@@ -81,7 +81,7 @@ impl StateGuardClauses {
 }
 
 pub fn build_state_guard_plan(
-    program: &Program,
+    program: &CheckedTrees,
     state_dispatch: &StateDispatchPlan,
     control_flow: &ControlFlowPlan,
     layouts: &LayoutPlan,
@@ -162,7 +162,7 @@ pub fn classify_transition_guard_expression(
 }
 
 fn build_state_guard(
-    program: &Program,
+    program: &CheckedTrees,
     source_expressions: &ExpressionTable,
     guard_expressions: &mut ExpressionTable,
     operand_arena: &mut Arena<StateGuardOperand>,
@@ -274,7 +274,7 @@ fn build_state_guard(
 }
 
 fn normalized_guard_expression(
-    program: &Program,
+    program: &CheckedTrees,
     source_machine: &Machine,
     source_expressions: &ExpressionTable,
     source_guard: ExpressionHandle,
@@ -366,7 +366,7 @@ fn positive_branch(operator: BinaryOperator, flag: bool) -> bool {
 }
 
 fn machine_by_symbol<'program>(
-    program: &'program Program,
+    program: &'program CheckedTrees,
     machine_symbol: SymbolHandle,
 ) -> Option<&'program Machine> {
     program

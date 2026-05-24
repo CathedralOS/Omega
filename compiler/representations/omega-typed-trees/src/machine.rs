@@ -1,5 +1,5 @@
 use crate::expression::ExpressionHandle;
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::signature::SignatureContract;
 use crate::state::State;
 use crate::types::TypeReferenceHandle;
@@ -9,12 +9,12 @@ use omega_core::symbols::SymbolHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
-    pub attached_data: Option<ProgramName>,
+    pub name: Identifier,
+    pub attached_data: Option<Identifier>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub effects: HandleSpan<ProgramName>,
+    pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<State>,
 }
@@ -23,7 +23,7 @@ impl Default for Machine {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             attached_data: None,
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
@@ -39,8 +39,8 @@ impl Default for Machine {
 pub struct ContainedObject {
     pub symbol: SymbolHandle,
     pub type_symbol: SymbolHandle,
-    pub name: ProgramName,
-    pub type_name: ProgramName,
+    pub name: Identifier,
+    pub type_name: Identifier,
 }
 
 impl Default for ContainedObject {
@@ -48,8 +48,8 @@ impl Default for ContainedObject {
         Self {
             symbol: SymbolHandle::invalid(),
             type_symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
-            type_name: ProgramName::default(),
+            name: Identifier::default(),
+            type_name: Identifier::default(),
         }
     }
 }
@@ -57,7 +57,7 @@ impl Default for ContainedObject {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
     pub initial_value: ExpressionHandle,
 }
@@ -65,14 +65,14 @@ pub struct OwnedData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
 }
 
 impl Default for TraitConformance {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
         }
     }
 }
@@ -81,7 +81,7 @@ impl Default for OwnedData {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             type_reference: TypeReferenceHandle::invalid(),
             initial_value: ExpressionHandle::invalid(),
         }

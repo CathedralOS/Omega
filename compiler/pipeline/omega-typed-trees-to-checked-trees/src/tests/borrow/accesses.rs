@@ -9,7 +9,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
 
     let mut program = omega_typed_trees::TypedTrees::default();
     let self_name = Expression::Name(NamePath::resolved(
-        vec![ProgramName::generated("self")],
+        vec![Identifier::generated("self")],
         machine_symbol,
         machine_symbol,
     ));
@@ -17,7 +17,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
         omega_checked_trees::expression::MemberExpression {
             receiver: self_name,
             member_symbol: player_symbol,
-            member: ProgramName::generated("player"),
+            member: Identifier::generated("player"),
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));
@@ -30,7 +30,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
 
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Main"),
+        name: Identifier::generated("Main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -41,7 +41,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
     };
     let mut state = State {
         symbol: state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -52,7 +52,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),
-            target: ProgramName::generated("heal"),
+            target: Identifier::generated("heal"),
             arguments,
         }),
     );
@@ -61,7 +61,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
         &mut machine,
         State {
             symbol: target_symbol,
-            name: ProgramName::generated("heal"),
+            name: Identifier::generated("heal"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
@@ -96,7 +96,7 @@ fn collects_disjoint_member_access_segments() {
 
     let mut program = omega_typed_trees::TypedTrees::default();
     let self_name = Expression::Name(NamePath::resolved(
-        vec![ProgramName::generated("self")],
+        vec![Identifier::generated("self")],
         machine_symbol,
         machine_symbol,
     ));
@@ -104,21 +104,21 @@ fn collects_disjoint_member_access_segments() {
         omega_checked_trees::expression::MemberExpression {
             receiver: self_name,
             member_symbol: player_symbol,
-            member: ProgramName::generated("player"),
+            member: Identifier::generated("player"),
         },
     ));
     let health_member = Expression::Member(Box::new(
         omega_checked_trees::expression::MemberExpression {
             receiver: player_member.clone(),
             member_symbol: health_symbol,
-            member: ProgramName::generated("health"),
+            member: Identifier::generated("health"),
         },
     ));
     let stamina_member = Expression::Member(Box::new(
         omega_checked_trees::expression::MemberExpression {
             receiver: player_member,
             member_symbol: stamina_symbol,
-            member: ProgramName::generated("stamina"),
+            member: Identifier::generated("stamina"),
         },
     ));
     let health_argument = program
@@ -136,7 +136,7 @@ fn collects_disjoint_member_access_segments() {
 
     let mut machine = Machine {
         symbol: machine_symbol,
-        name: ProgramName::generated("Main"),
+        name: Identifier::generated("Main"),
         attached_data: None,
         contains: Default::default(),
         owned_data: Default::default(),
@@ -147,7 +147,7 @@ fn collects_disjoint_member_access_segments() {
     };
     let mut state = State {
         symbol: state_symbol,
-        name: ProgramName::generated("main"),
+        name: Identifier::generated("main"),
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         statement_nodes: Default::default(),
@@ -158,7 +158,7 @@ fn collects_disjoint_member_access_segments() {
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),
-            target: ProgramName::generated("heal"),
+            target: Identifier::generated("heal"),
             arguments,
         }),
     );
@@ -167,7 +167,7 @@ fn collects_disjoint_member_access_segments() {
         &mut machine,
         State {
             symbol: target_symbol,
-            name: ProgramName::generated("heal"),
+            name: Identifier::generated("heal"),
             parameters: Default::default(),
             return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),

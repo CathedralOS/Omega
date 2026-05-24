@@ -7,7 +7,7 @@ use crate::flow::{call_mutated_places, StateMutationSummaryCache};
 use crate::semantic::instantiate_call_contract_place;
 use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
 use omega_checked_trees::machine::{Machine, TraitConformance};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::signature::{
     SignatureContract, SignatureContractKind, StateParameter, StateSignature,
 };

@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -6,10 +6,10 @@ use omega_core::symbols::SymbolHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
-    pub effects: HandleSpan<ProgramName>,
+    pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<SignatureContract>,
 }
 
@@ -17,7 +17,7 @@ impl Default for StateSignature {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
             effects: HandleSpan::empty(),
@@ -29,7 +29,7 @@ impl Default for StateSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
     pub is_const: bool,
     pub is_mutable: bool,
@@ -40,7 +40,7 @@ impl Default for StateParameter {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: Identifier::default(),
             type_reference: TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: false,

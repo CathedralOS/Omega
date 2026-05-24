@@ -1,6 +1,6 @@
 use crate::{StateCallArgumentKind, StateCallPlan};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
@@ -17,7 +17,7 @@ pub struct AliasBinding {
     pub statement_index: usize,
     pub callee_key: StateKey,
     pub parameter_symbol: SymbolHandle,
-    pub parameter_name: ProgramName,
+    pub parameter_name: Identifier,
     pub argument: ExpressionHandle,
     pub required: bool,
 }
@@ -29,7 +29,7 @@ impl Default for AliasBinding {
             statement_index: 0,
             callee_key: StateKey::default(),
             parameter_symbol: SymbolHandle::invalid(),
-            parameter_name: ProgramName::default(),
+            parameter_name: Identifier::default(),
             argument: ExpressionHandle::invalid(),
             required: false,
         }

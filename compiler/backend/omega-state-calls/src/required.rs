@@ -142,7 +142,7 @@ fn resolve_local_or_attached_state(
     context: &StateCallPlanningContext,
     machine: &MachineFlow,
     state_symbol: omega_core::symbols::SymbolHandle,
-    state_name: &omega_checked_trees::name::ProgramName,
+    state_name: &omega_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     resolve_state_in_machine(context, machine.symbol, state_symbol, state_name).or_else(|| {
         let attached_data = machine.attached_data.as_ref()?;
@@ -154,9 +154,9 @@ fn resolve_contained_attached_state(
     context: &StateCallPlanningContext,
     machine: &MachineFlow,
     receiver_symbol: omega_core::symbols::SymbolHandle,
-    receiver_name: &omega_checked_trees::name::ProgramName,
+    receiver_name: &omega_checked_trees::name::Identifier,
     state_symbol: omega_core::symbols::SymbolHandle,
-    state_name: &omega_checked_trees::name::ProgramName,
+    state_name: &omega_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     let contained = context
         .control_flow
@@ -174,9 +174,9 @@ fn resolve_contained_attached_state(
 
 fn resolve_attached_data_state(
     context: &StateCallPlanningContext,
-    attached_data: &omega_checked_trees::name::ProgramName,
+    attached_data: &omega_checked_trees::name::Identifier,
     state_symbol: omega_core::symbols::SymbolHandle,
-    state_name: &omega_checked_trees::name::ProgramName,
+    state_name: &omega_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     context
         .control_flow
@@ -194,7 +194,7 @@ fn resolve_state_in_machine(
     context: &StateCallPlanningContext,
     machine_symbol: omega_core::symbols::SymbolHandle,
     state_symbol: omega_core::symbols::SymbolHandle,
-    state_name: &omega_checked_trees::name::ProgramName,
+    state_name: &omega_checked_trees::name::Identifier,
 ) -> Option<StateKey> {
     if state_symbol.is_valid()
         && let Some(key) = context
