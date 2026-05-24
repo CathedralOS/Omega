@@ -110,28 +110,15 @@ fn machine_label(program: &CheckedTrees, machine: &Machine) -> String {
         .as_ref()
         .map(|name| name.as_str())
         .unwrap_or("<none>");
-    let state_count = program.machine_states(machine).len();
-    let checked_state_count = program
-        .facts
-        .flow
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == machine.symbol)
-        .count();
     let mut label = format!(
-        "machine {}\nattached data: {}\nstates: {}  checked states: {}\nmachine contracts: {}  trait satisfies: {}",
+        "machine {}\nattached data: {}\nmachine contracts: {}  trait satisfies: {}",
         machine.name.as_str(),
         attached_data,
-        state_count,
-        checked_state_count,
         machine.contracts.len(),
         machine.satisfies.len()
     );
     if let Some(effects) = machine_effects_for(program, machine.symbol) {
-        label.push_str("\ndirect effects: ");
-        label.push_str(&format_effect_set(effects.direct));
-        label.push_str("\nreached effects: ");
-        label.push_str(&format_effect_set(effects.transitive));
+        append_effect_lines(&mut label, effects.direct, effects.transitive);
     }
     label
 }
@@ -143,63 +130,35 @@ fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> Stri
     let writable_root_count = borrow_state
         .map(|borrow| borrow.writable_roots.len())
         .unwrap_or(0);
-    let borrow_call_count = borrow_state.map(|borrow| borrow.calls.len()).unwrap_or(0);
-
-    let (statement_count, call_count, exit_count, invalidation_count, activation_count, weakening_count, mutable_parameter_count, entry_context_count, entry_constraint_count, entry_loan_count, direct_effects, reached_effects) =
+    let (invalidation_count, mutable_parameter_count, direct_effects, reached_effects) =
         if let Some(flow) = flow_state {
             (
-                flow.statements.len(),
-                flow.calls.len(),
-                flow.exits.len(),
                 flow.invalidations.len(),
-                flow.borrow_activations.len(),
-                flow.borrow_weakenings.len(),
                 flow.mutable_parameter_count,
-                flow.entry_semantic_contexts.len(),
-                flow.entry_constraints.len(),
-                program.facts.flow.borrow_loan_constraints(flow.entry_constraints).count(),
                 flow.direct_effects,
                 flow.transitive_effects,
             )
         } else {
             (
                 0,
-                0,
-                0,
-                0,
-                0,
-                0,
                 borrow_state
                     .map(|borrow| borrow.mutable_parameter_count)
                     .unwrap_or(0),
-                0,
-                0,
-                0,
                 EffectSet::empty(),
                 EffectSet::empty(),
             )
         };
 
     let mut label = format!(
-        "{}::{} [checked]\nparams: {}  mutable params: {}\nflow: stmts {} calls {} exits {}\nborrow: roots {} calls {} entry loans {} act {} weak {}\nentry: ctx {} constraints {}\ninvalidations: {}\ndirect effects: {}\nreached effects: {}",
+        "{}::{} [checked]\nparams: {}  mutable params: {}\nborrow: roots {}\ninvalidations: {}",
         machine.name.as_str(),
         state.name.as_str(),
         program.state_parameters(state).len(),
         mutable_parameter_count,
-        statement_count,
-        call_count,
-        exit_count,
         writable_root_count,
-        borrow_call_count,
-        entry_loan_count,
-        activation_count,
-        weakening_count,
-        entry_context_count,
-        entry_constraint_count,
         invalidation_count,
-        format_effect_set(direct_effects),
-        format_effect_set(reached_effects),
     );
+    append_effect_lines(&mut label, direct_effects, reached_effects);
 
     if let Some(flow) = flow_state {
         append_loan_preview(&mut label, program, machine, state, flow.entry_constraints);
@@ -359,8 +318,8 @@ fn checked_call_label(
     call: &FlowCallFact,
 ) -> String {
     let access_text = borrow_access_summary(program, machine, state, call.accesses);
-    format!(
-        "call {}\nat #{}.{}\nentry: ctx {} constraints {} loans {}\ncontracts: requires {} ensures {}\nborrow: access {} invalidations {}\ndirect effects: {}\nreached effects: {}\n\ndouble-click to scope target",
+    let mut label = format!(
+        "call {}\nat #{}.{}\nentry: ctx {} constraints {} loans {}\ncontracts: requires {} ensures {}\nborrow: access {} invalidations {}",
         state_label_from_symbol(program, call.target_symbol),
         call.statement_index,
         call.call_ordinal,
@@ -371,9 +330,10 @@ fn checked_call_label(
         call.ensures.len(),
         access_text,
         call.invalidations.len(),
-        format_effect_set(call.direct_effects),
-        format_effect_set(call.transitive_effects),
-    )
+    );
+    append_effect_lines(&mut label, call.direct_effects, call.transitive_effects);
+    label.push_str("\n\ndouble-click to scope target");
+    label
 }
 
 fn borrow_access_summary(
@@ -643,6 +603,17 @@ fn format_effect_set(effects: EffectSet) -> String {
         effects.names().collect::<Vec<_>>().join(", "),
         effects.bits()
     )
+}
+
+fn append_effect_lines(label: &mut String, direct: EffectSet, reached: EffectSet) {
+    if !direct.is_empty() {
+        label.push_str("\ndirect effects: ");
+        label.push_str(&format_effect_set(direct));
+    }
+    if !reached.is_empty() {
+        label.push_str("\nreached effects: ");
+        label.push_str(&format_effect_set(reached));
+    }
 }
 
 fn effect_names_from_set(effects: EffectSet) -> Vec<String> {

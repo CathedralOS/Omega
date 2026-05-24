@@ -517,8 +517,8 @@ fn machine_label(
     program: &SymbolResolvedTrees,
     machine: &Machine,
     entry_state: Option<&State>,
-    states: &[&State],
-    root_symbols: &[SymbolHandle],
+    _states: &[&State],
+    _root_symbols: &[SymbolHandle],
 ) -> String {
     let attached_data = machine
         .attached_data
@@ -526,23 +526,11 @@ fn machine_label(
         .map(|name| name.as_str())
         .unwrap_or("<none>");
     let mut label = format!(
-        "machine {}\nsymbol: {}\nattached data: {}\nsatisfies: {}\ntargetable states: {}",
+        "machine {}\nsymbol: {}\nattached data: {}\nsatisfies: {}",
         machine.name.as_str(),
         symbol_label(machine.symbol),
         attached_data,
         machine.satisfies.len(),
-        entry_state
-            .map(|entry_state| {
-                states
-                    .iter()
-                    .filter(|state| {
-                        state.symbol != entry_state.symbol
-                            && root_symbol_for_state(program, states, root_symbols, state.symbol)
-                                == entry_state.symbol
-                    })
-                    .count()
-            })
-            .unwrap_or(0)
     );
     let effects = program.machine_effects(machine);
     if !effects.is_empty() {
@@ -781,11 +769,10 @@ fn append_state(
 
 fn state_label(program: &SymbolResolvedTrees, state: &State) -> String {
     let mut label = format!(
-        "state {}\nsymbol: {}\nparams: {}\nstatements: {}",
+        "state {}\nsymbol: {}\nparams: {}",
         state.name.as_str(),
         symbol_label(state.symbol),
-        state.parameters.len(),
-        state.statements.len()
+        state.parameters.len()
     );
 
     for (statement_index, statement) in program

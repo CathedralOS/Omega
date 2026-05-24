@@ -506,8 +506,8 @@ fn machine_label(
     effect_plan: &EffectPlan,
     machine: &Machine,
     entry_state: Option<&State>,
-    states: &[&State],
-    root_symbols: &[SymbolHandle],
+    _states: &[&State],
+    _root_symbols: &[SymbolHandle],
 ) -> String {
     let attached_data = machine
         .attached_data
@@ -515,29 +515,14 @@ fn machine_label(
         .map(|name| name.as_str())
         .unwrap_or("<none>");
     let mut label = format!(
-        "machine {}\nsymbol: {}\nattached data: {}\nsatisfies: {}\ntargetable states: {}",
+        "machine {}\nsymbol: {}\nattached data: {}\nsatisfies: {}",
         machine.name.as_str(),
         symbol_label(machine.symbol),
         attached_data,
         machine.satisfies.len(),
-        entry_state
-            .map(|entry_state| {
-                states
-                    .iter()
-                    .filter(|state| {
-                        state.symbol != entry_state.symbol
-                            && root_symbol_for_state(program, states, root_symbols, state.symbol)
-                                == entry_state.symbol
-                    })
-                    .count()
-            })
-            .unwrap_or(0)
     );
     if let Some(effects) = machine_effects_for(effect_plan, machine.symbol) {
-        label.push_str("\ndirect effects: ");
-        label.push_str(&format_effect_set(effects.direct));
-        label.push_str("\nreached effects: ");
-        label.push_str(&format_effect_set(effects.transitive));
+        append_effect_lines(&mut label, effects.direct, effects.transitive);
     }
     if machine.contracts.len() > 0 {
         label.push_str("\ncontracts: ");
@@ -786,17 +771,13 @@ fn append_state(
 
 fn state_label(program: &TypedTrees, effect_plan: &EffectPlan, state: &State) -> String {
     let mut label = format!(
-        "state {}\nsymbol: {}\nparams: {}\nstatements: {}",
+        "state {}\nsymbol: {}\nparams: {}",
         state.name.as_str(),
         symbol_label(state.symbol),
         state.parameters.len(),
-        state.statement_nodes.len()
     );
     if let Some(effects) = state_effects_for(effect_plan, state.symbol) {
-        label.push_str("\ndirect effects: ");
-        label.push_str(&format_effect_set(effects.direct));
-        label.push_str("\nreached effects: ");
-        label.push_str(&format_effect_set(effects.transitive));
+        append_effect_lines(&mut label, effects.direct, effects.transitive);
     }
 
     for (statement_index, statement) in program
@@ -1036,6 +1017,17 @@ fn format_effect_set(effects: EffectSet) -> String {
         effects.names().collect::<Vec<_>>().join(", "),
         effects.bits()
     )
+}
+
+fn append_effect_lines(label: &mut String, direct: EffectSet, reached: EffectSet) {
+    if !direct.is_empty() {
+        label.push_str("\ndirect effects: ");
+        label.push_str(&format_effect_set(direct));
+    }
+    if !reached.is_empty() {
+        label.push_str("\nreached effects: ");
+        label.push_str(&format_effect_set(reached));
+    }
 }
 
 fn effect_names_from_set(effects: EffectSet) -> Vec<String> {
