@@ -20,6 +20,7 @@ use omega_object_file::object_entry_symbol_name;
 use omega_object_file_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
+use omega_runtime_abi::build_runtime_abi_plan;
 use omega_runtime_bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
 };
@@ -282,8 +283,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     });
     backend_plan.abstract_operations =
         record_backend_phase(&mut phase_timings, "abstract operations", || {
+        let runtime_abi = build_runtime_abi_plan(backend_plan.target);
         build_abstract_operation_plan(&AbstractOperationLoweringInput {
             target: backend_plan.target,
+            runtime_abi: &runtime_abi,
             entry_key: backend_plan.entry_key,
             entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
             program: program.as_ref(),

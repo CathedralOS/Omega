@@ -5,6 +5,7 @@ use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
 use omega_layout::LayoutPlan;
 use omega_platform_interface::HostCallPlan;
+use omega_runtime_abi::RuntimeAbiPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
@@ -20,6 +21,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationLoweringInput<'plan> {
     pub target: NativeTarget,
+    pub runtime_abi: &'plan RuntimeAbiPlan,
     pub entry_key: StateKey,
     pub entry_symbol: Arc<str>,
     pub program: &'plan CheckedTrees,
@@ -44,6 +46,7 @@ impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSe
     fn from(input: &'plan AbstractOperationLoweringInput<'plan>) -> Self {
         Self {
             target: input.target,
+            runtime_abi: input.runtime_abi,
             entry_key: input.entry_key,
             entry_symbol: Arc::clone(&input.entry_symbol),
             program: input.program,

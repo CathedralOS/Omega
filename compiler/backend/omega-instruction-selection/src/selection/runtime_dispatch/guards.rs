@@ -624,7 +624,7 @@ fn runtime_text_storage_guard(
         source_key,
         &binary.right,
     );
-    let string_descriptor_size = input.target.pointer_size * 2;
+    let string_descriptor_size = input.runtime_abi.string_descriptor_size();
 
     if let Some(source_place) = left_place.clone()
         && right_buffer.buffer.is_valid()
@@ -696,7 +696,7 @@ fn runtime_text_storage_guard_in_table(
         expressions,
         binary.right,
     );
-    let string_descriptor_size = input.target.pointer_size * 2;
+    let string_descriptor_size = input.runtime_abi.string_descriptor_size();
 
     if let Some(source_place) = left_place.clone()
         && right_buffer.buffer.is_valid()

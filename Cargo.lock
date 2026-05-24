@@ -153,6 +153,7 @@ dependencies = [
  "omega-object-file-planning",
  "omega-platform-interface",
  "omega-relocations",
+ "omega-runtime-abi",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
@@ -333,6 +334,7 @@ dependencies = [
  "omega-instruction-selection",
  "omega-layout",
  "omega-platform-interface",
+ "omega-runtime-abi",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
@@ -488,6 +490,7 @@ dependencies = [
  "omega-layout",
  "omega-object-file",
  "omega-platform-interface",
+ "omega-runtime-abi",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
@@ -646,6 +649,13 @@ dependencies = [
  "omega-object-file",
  "omega-target",
  "omega-target-operations",
+]
+
+[[package]]
+name = "omega-runtime-abi"
+version = "0.1.0"
+dependencies = [
+ "omega-target",
 ]
 
 [[package]]

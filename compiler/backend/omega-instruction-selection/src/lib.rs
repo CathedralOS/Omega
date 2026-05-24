@@ -14,6 +14,7 @@ use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
 use omega_platform_interface::HostCallPlan;
+use omega_runtime_abi::RuntimeAbiPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
@@ -29,6 +30,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionSelectionInput<'plan> {
     pub target: NativeTarget,
+    pub runtime_abi: &'plan RuntimeAbiPlan,
     pub entry_key: StateKey,
     pub entry_symbol: Arc<str>,
     pub program: &'plan CheckedTrees,

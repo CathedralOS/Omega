@@ -31,6 +31,7 @@ members = [
     "compiler/representations/omega-machine-bytes",
     "compiler/representations/omega-backend-plan",
     "compiler/backend/omega-target",
+    "compiler/backend/omega-runtime-abi",
     "compiler/backend/omega-data-planning",
     "compiler/backend/omega-platform-interface",
     "compiler/backend/omega-state-calls",

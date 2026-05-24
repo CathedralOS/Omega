@@ -404,7 +404,7 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     let place =
         resolve_runtime_frame_root_place(input, dispatch_index, source_key, path.head_symbol())?;
     if place.region != RuntimeStorageRegion::RuntimeFrame
-        || place.byte_count != input.target.pointer_size
+        || place.byte_count != input.runtime_abi.pointer_size
     {
         return None;
     }
@@ -449,7 +449,7 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     let place =
         resolve_runtime_frame_root_place(input, dispatch_index, source_key, path.head_symbol())?;
     if place.region != RuntimeStorageRegion::RuntimeFrame
-        || place.byte_count != input.target.pointer_size
+        || place.byte_count != input.runtime_abi.pointer_size
     {
         return None;
     }
@@ -928,8 +928,8 @@ fn descriptor_layout(
     match descriptor {
         TypeLayoutDescriptor::Reference { .. } => {
             return TypeLayout {
-                size: input.target.pointer_size,
-                alignment: input.target.pointer_alignment,
+                size: input.runtime_abi.pointer_size,
+                alignment: input.runtime_abi.pointer_alignment,
             };
         }
         TypeLayoutDescriptor::Constrained { base_type } => {
@@ -947,8 +947,8 @@ fn descriptor_layout(
         }
         TypeLayoutDescriptor::Slice { .. } => {
             return TypeLayout {
-                size: input.target.pointer_size * 2,
-                alignment: input.target.pointer_alignment,
+                size: input.runtime_abi.string_descriptor_size(),
+                alignment: input.runtime_abi.pointer_alignment,
             };
         }
         TypeLayoutDescriptor::Named { symbol, name } => {
@@ -1007,15 +1007,15 @@ fn builtin_type_layout(
 ) -> Option<TypeLayout> {
     if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::UInt) {
         return Some(TypeLayout {
-            size: input.target.pointer_size,
-            alignment: input.target.pointer_alignment,
+            size: input.runtime_abi.pointer_size,
+            alignment: input.runtime_abi.pointer_alignment,
         });
     }
 
     if Some(type_symbol) == input.program.symbols.builtin_type_symbol(BuiltinType::Int) {
         return Some(TypeLayout {
-            size: input.target.pointer_size,
-            alignment: input.target.pointer_alignment,
+            size: input.runtime_abi.pointer_size,
+            alignment: input.runtime_abi.pointer_alignment,
         });
     }
 
@@ -1047,12 +1047,12 @@ fn primitive_layout(
             alignment: 8,
         },
         PrimitiveType::Usize => TypeLayout {
-            size: input.target.pointer_size,
-            alignment: input.target.pointer_alignment,
+            size: input.runtime_abi.pointer_size,
+            alignment: input.runtime_abi.pointer_alignment,
         },
         PrimitiveType::String => TypeLayout {
-            size: input.target.pointer_size * 2,
-            alignment: input.target.pointer_alignment,
+            size: input.runtime_abi.string_descriptor_size(),
+            alignment: input.runtime_abi.pointer_alignment,
         },
     }
 }
