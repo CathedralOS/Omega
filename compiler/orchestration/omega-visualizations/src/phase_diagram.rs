@@ -547,6 +547,11 @@ main { min-width: 0; min-height: 0; position: relative; }
 }
 .node text { fill: var(--text); font-size: 12px; pointer-events: none; }
 .node .subtitle { fill: var(--muted); font-size: 11px; }
+.node text tspan.token-number { fill: #f0c674; }
+.node text tspan.token-symbol { fill: #8fc7ff; }
+.node text tspan.token-borrow { fill: #79dfb4; font-weight: 600; }
+.node text tspan.token-keyword { fill: #c7d2e3; }
+.node text tspan.token-muted { fill: #91a3bb; }
 .node.dim { opacity: 0.16; }
 .edge.dim { opacity: 0.05; }
 .node.unrelated { opacity: 0.24; }
@@ -1276,7 +1281,7 @@ function drawNode(node) {
       y: 22 + index * 16,
       "class": index === 0 ? "" : "subtitle"
     });
-    text.textContent = fitLine(line, maxChars);
+    appendStyledLine(text, fitLine(line, maxChars));
     group.appendChild(text);
   });
   group.addEventListener("pointerdown", event => {
@@ -1319,6 +1324,43 @@ function drawNode(node) {
 
 function fitLine(line, max) {
   return line.length > max ? line.slice(0, max - 1) + "..." : line;
+}
+
+const LABEL_TOKEN_RE = /(active loan|borrow call|activation|weakening|borrow|contracts?|params|ops|transitions|direct effects|reached effects|attached data|states|contains|owned data|mutable params|created|last use)|(0x[0-9a-fA-F]+|#\d+(?:\.\d+)?|\b\d+\b)|((?:self|mut)\b)|([A-Za-z_][A-Za-z0-9_]*(?:(?:::[A-Za-z_][A-Za-z0-9_]*)|(?:\.[A-Za-z_][A-Za-z0-9_]*)|(?:\[[^\]]*\]))+)/g;
+
+function appendStyledLine(textNode, line) {
+  let lastIndex = 0;
+  LABEL_TOKEN_RE.lastIndex = 0;
+  for (const match of line.matchAll(LABEL_TOKEN_RE)) {
+    const index = match.index || 0;
+    if (index > lastIndex) {
+      textNode.appendChild(document.createTextNode(line.slice(lastIndex, index)));
+    }
+    const token = match[0];
+    let className = "";
+    if (match[1]) {
+      className = /borrow|loan|activation|weakening/.test(token)
+        ? "token-borrow"
+        : "token-keyword";
+    } else if (match[2]) {
+      className = "token-number";
+    } else if (match[3]) {
+      className = "token-muted";
+    } else if (match[4]) {
+      className = "token-symbol";
+    }
+    if (className) {
+      const span = el("tspan", { "class": className });
+      span.textContent = token;
+      textNode.appendChild(span);
+    } else {
+      textNode.appendChild(document.createTextNode(token));
+    }
+    lastIndex = index + token.length;
+  }
+  if (lastIndex < line.length) {
+    textNode.appendChild(document.createTextNode(line.slice(lastIndex)));
+  }
 }
 
 function activateNode(id) {
