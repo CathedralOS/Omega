@@ -52,7 +52,7 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
         report.push_str(&machine_name);
         report.push('\n');
         report.push_str("  symbol: ");
-        report.push_str(&symbol_label(machine_effects.symbol));
+        report.push_str(&symbol_label(program, machine_effects.symbol));
         report.push('\n');
         report.push_str("  direct:  ");
         report.push_str(&format_effect_set(machine_effects.direct));
@@ -72,7 +72,7 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
             report.push_str(&current_state_name);
             report.push('\n');
             report.push_str("    symbol: ");
-            report.push_str(&symbol_label(state_effects.symbol));
+            report.push_str(&symbol_label(program, state_effects.symbol));
             report.push('\n');
             report.push_str("    direct:  ");
             report.push_str(&format_effect_set(state_effects.direct));
@@ -856,7 +856,7 @@ fn machine_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
         .iter()
         .find(|machine| machine.symbol == symbol)
         .map(|machine| machine.name.as_str().to_owned())
-        .unwrap_or_else(|| symbol_label(symbol))
+        .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
 fn state_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
@@ -866,7 +866,7 @@ fn state_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
         .flat_map(|machine| program.machine_states(machine).iter())
         .find(|state| state.symbol == symbol)
         .map(|state| state.name.as_str().to_owned())
-        .unwrap_or_else(|| symbol_label(symbol))
+        .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
 fn contract_fact_kind(fact: &omega_checked_trees::ContractProofFact) -> &'static str {
@@ -915,7 +915,7 @@ fn signature_owner_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
                 .find(|platform| platform.symbol == symbol)
                 .map(|platform| platform.name.as_str().to_owned())
         })
-        .unwrap_or_else(|| symbol_label(symbol))
+        .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
 fn state_signature_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
@@ -933,7 +933,7 @@ fn state_signature_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
                 .find(|signature| signature.symbol == symbol)
                 .map(|signature| signature.name.as_str().to_owned())
         })
-        .unwrap_or_else(|| symbol_label(symbol))
+        .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
 fn typed_proof_fact_label(
@@ -971,7 +971,7 @@ fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> Stri
                 .find(|state| state.symbol == symbol)
                 .map(|state| format!("{}::{}", machine.name.as_str(), state.name.as_str()))
         })
-        .unwrap_or_else(|| symbol_label(symbol))
+        .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
 fn append_flow_context_labels(
@@ -1042,18 +1042,18 @@ fn append_flow_constraint_labels(
             omega_checked_trees::FlowConstraintKind::BorrowWritableRoot { root } => {
                 let root = program.facts.borrow.writable_roots.get(root);
                 report.push_str("borrow-root(");
-                report.push_str(&symbol_label(root.symbol));
+                report.push_str(&symbol_label(program, root.symbol));
                 report.push(')');
             }
             omega_checked_trees::FlowConstraintKind::BorrowAccess { access } => {
                 let access = program.facts.borrow.argument_accesses.get(access);
                 report.push_str("borrow-access(");
-                report.push_str(&symbol_label(access.root_symbol));
+                report.push_str(&symbol_label(program, access.root_symbol));
                 for segment in program.facts.borrow.access_segments(access) {
                     match segment {
                         omega_facts::PlaceSegment::Field { symbol } => {
                             report.push('.');
-                            report.push_str(&symbol_label(*symbol));
+                            report.push_str(&symbol_label(program, *symbol));
                         }
                         omega_facts::PlaceSegment::Index { expression } => {
                             report.push('[');
@@ -1072,14 +1072,14 @@ fn append_flow_constraint_labels(
             omega_checked_trees::FlowConstraintKind::BorrowLoan { loan } => {
                 let loan = program.facts.borrow.loans.get(loan);
                 report.push_str("borrow-loan(");
-                report.push_str(&symbol_label(loan.owner_symbol));
+                report.push_str(&symbol_label(program, loan.owner_symbol));
                 report.push_str(" -> ");
-                report.push_str(&symbol_label(loan.root_symbol));
+                report.push_str(&symbol_label(program, loan.root_symbol));
                 for segment in program.facts.borrow.loan_segments(loan) {
                     match segment {
                         omega_facts::PlaceSegment::Field { symbol } => {
                             report.push('.');
-                            report.push_str(&symbol_label(*symbol));
+                            report.push_str(&symbol_label(program, *symbol));
                         }
                         omega_facts::PlaceSegment::Index { expression } => {
                             report.push('[');
@@ -1325,12 +1325,12 @@ fn borrow_access_fact_label(
     access: &omega_checked_trees::BorrowArgumentAccessFact,
 ) -> String {
     let mut label = String::new();
-    label.push_str(&symbol_label(access.root_symbol));
+    label.push_str(&symbol_label(program, access.root_symbol));
     for segment in program.facts.borrow.access_segments(access) {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
-                label.push_str(&symbol_label(*symbol));
+                label.push_str(&symbol_label(program, *symbol));
             }
             omega_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
@@ -1352,14 +1352,14 @@ fn borrow_loan_label(
     loan: &omega_checked_trees::BorrowLoanFact,
 ) -> String {
     let mut label = String::new();
-    label.push_str(&symbol_label(loan.owner_symbol));
+    label.push_str(&symbol_label(program, loan.owner_symbol));
     label.push_str(" -> ");
-    label.push_str(&symbol_label(loan.root_symbol));
+    label.push_str(&symbol_label(program, loan.root_symbol));
     for segment in program.facts.borrow.loan_segments(loan) {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
-                label.push_str(&symbol_label(*symbol));
+                label.push_str(&symbol_label(program, *symbol));
             }
             omega_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
@@ -1395,9 +1395,14 @@ fn flow_invalidation_source_label(
     }
 }
 
-fn symbol_label(symbol: SymbolHandle) -> String {
+fn symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     if symbol.is_valid() {
-        format!("#{}", symbol.arena_index())
+        let name = semantic_symbol_name(program, symbol);
+        if name.is_empty() || name == "unknown" {
+            format!("#{}", symbol.arena_index())
+        } else {
+            format!("{name}[#{}]", symbol.arena_index())
+        }
     } else {
         "invalid".to_owned()
     }
