@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_calling_conventions::{HostCapability, HostOperation, PlatformCallData};
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, Handle};
+use omega_core::arena::Arena;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
@@ -101,7 +101,7 @@ fn collect_selected_runtime_text_buffer_host_blockers(
             if !data.is_valid() {
                 continue;
             }
-            let target_data = remap_target_data_handle(data);
+            let target_data = omega_target_operations::target_data_handle_from_abstract(data);
             let data_object = input.data.objects.get(target_data);
             if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
                 continue;
@@ -181,7 +181,7 @@ fn host_text_argument_has_planned_text_operands(
                 let InstructionOperandKind::DataAddress { data } = operand.kind else {
                     return false;
                 };
-                let target_data = remap_target_data_handle(data);
+                let target_data = omega_target_operations::target_data_handle_from_abstract(data);
                 let data_object = input.data.objects.get(target_data);
                 if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
                     return true;
@@ -340,19 +340,13 @@ fn selected_instruction_writes_runtime_text_buffer(
                         return false;
                     };
                     matches!(
-                        remap_target_data_handle(data),
+                        omega_target_operations::target_data_handle_from_abstract(data),
                         remapped if remapped == data_handle
                     )
                 })
         }
         _ => false,
     }
-}
-
-fn remap_target_data_handle(
-    data: omega_target_operations::AbstractDataObjectHandle,
-) -> TargetDataObjectHandle {
-    Handle::from_parts(data.arena_index(), data.generation())
 }
 
 fn host_text_argument_blocker_reason(
