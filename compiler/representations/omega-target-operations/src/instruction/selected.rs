@@ -819,13 +819,10 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::HostOperation { .. } => {
                 panic!("abstract host operation ordinals must be lowered in omega-abstract-operations-to-target-operations")
             }
-            omega_abstract_operations::AbstractOperationKind::SyntheticHostOperation {
-                operation_key,
-                operands,
-            } => Self::HostOperation {
-                operation_key: *operation_key,
-                operands: *operands,
-            },
+            omega_abstract_operations::AbstractOperationKind::PreparePlatformOutputHandle { .. }
+            | omega_abstract_operations::AbstractOperationKind::WritePlatformNewline { .. } => {
+                panic!("logical abstract host operations must be lowered in omega-abstract-operations-to-target-operations")
+            }
             omega_abstract_operations::AbstractOperationKind::LeaveFunction => Self::LeaveFunction,
         }
     }

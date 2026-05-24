@@ -5,7 +5,7 @@ pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, T
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
-    AbstractValueOperandHandle, FunctionInstructionPlan, HostOperationKey, InstructionOperand,
+    AbstractValueOperandHandle, FunctionInstructionPlan, InstructionOperand,
     InstructionOperandKind, RuntimeStorageRegion, RuntimeValueOperand,
     RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
 };
