@@ -135,25 +135,11 @@ fn call_argument_place(
     call: &ContractCallFact,
     expression: ExpressionHandle,
 ) -> Option<omega_facts::PlaceHandle> {
-    if let Some(place) = super::canonical_place_to_fact_place(program, facts, expression) {
-        return Some(place);
-    }
-
-    let caller_state = super::find_state(program, call.caller_state_symbol)?;
-    let expression_name = program.expression_table.display_name(expression);
-    for statement in program
-        .statement_table
-        .statements(caller_state.statement_nodes)
-        .iter()
-        .take(call.statement_index)
-    {
-        let StatementNode::LocalData(local_data) = statement else {
-            continue;
-        };
-        if local_data.name.as_str() == expression_name {
-            return Some(facts.append_symbol_place(local_data.symbol));
-        }
-    }
-
-    None
+    super::canonical_place_to_fact_place_in_state(
+        program,
+        facts,
+        call.caller_state_symbol,
+        call.statement_index,
+        expression,
+    )
 }

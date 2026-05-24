@@ -8,7 +8,8 @@ pub(crate) use comparison::{
     canonical_place_segments_equal,
 };
 pub(crate) use construction::{
-    canonical_place_from_expression, canonical_place_from_semantic_place,
+    canonical_place_from_expression, canonical_place_from_expression_in_state,
+    canonical_place_from_semantic_place,
     canonical_place_from_symbol,
 };
 pub(crate) use resolution::{

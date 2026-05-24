@@ -17,7 +17,8 @@ use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::build_domain_facts;
 pub(crate) use mutation::{call_mutated_places, statement_mutated_place, StateMutationSummaryCache};
 pub(crate) use place::{
-    canonical_place_from_expression, canonical_place_from_symbol,
+    canonical_place_from_expression, canonical_place_from_expression_in_state,
+    canonical_place_from_symbol,
     canonical_place_from_semantic_place, canonical_place_overlaps_joined_segments,
     canonical_place_overlaps_segments, canonical_place_segments_equal,
     effective_member_symbol, expression_type_symbol, symbol_type_symbol, CanonicalPlace,
