@@ -216,7 +216,7 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     assert_eq!(weakenings[0].loan, loans[0]);
     assert_eq!(
         weakenings[0].reason,
-        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+        omega_checked_trees::FlowBorrowWeakeningReason::StateExit
     );
     assert_eq!(
         weakenings[0].source,
@@ -286,7 +286,7 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     assert_eq!(weakenings[0].loan, loans[0]);
     assert_eq!(
         weakenings[0].reason,
-        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+        omega_checked_trees::FlowBorrowWeakeningReason::StateExit
     );
     assert_eq!(
         weakenings[0].source,

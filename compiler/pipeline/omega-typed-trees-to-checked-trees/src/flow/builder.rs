@@ -169,6 +169,7 @@ fn build_state_flow_fact(
         active_constraints,
         borrow,
         program.statement_table.statements(state.statement_nodes).len(),
+        FlowBorrowWeakeningReason::StateExit,
     );
     let state_exits = append_state_exit_facts(
         proof,
@@ -237,6 +238,7 @@ fn append_state_call_facts(
             *active_constraints,
             borrow,
             statement_index,
+            FlowBorrowWeakeningReason::LastUseExpired,
         );
 
         while let Some(borrow_call) = borrow_calls.get(call_index) {
@@ -315,6 +317,7 @@ fn filter_expired_borrow_loans(
     source: omega_core::arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     statement_index: usize,
+    reason: FlowBorrowWeakeningReason,
 ) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
     common::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
@@ -324,7 +327,7 @@ fn filter_expired_borrow_loans(
                     borrow_weakenings.append(FlowBorrowWeakeningFact {
                         source: FlowInvalidationSource::Statement { statement_index },
                         loan,
-                        reason: FlowBorrowWeakeningReason::LastUseExpired,
+                        reason,
                     });
                 }
                 keep
