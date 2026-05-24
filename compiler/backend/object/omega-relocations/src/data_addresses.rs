@@ -27,7 +27,7 @@ pub(super) fn collect_data_address_relocations(
                 if !data.is_valid() {
                     continue;
                 }
-                let data = omega_target_operations::target_data_handle_from_abstract(*data);
+                let data = *data;
                 let symbol = object_symbol_handle_by_name(
                     &input.object,
                     input.data.objects.get(data).symbol.as_ref(),

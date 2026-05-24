@@ -101,12 +101,11 @@ fn collect_selected_runtime_text_buffer_host_blockers(
             if !data.is_valid() {
                 continue;
             }
-            let target_data = omega_target_operations::target_data_handle_from_abstract(data);
-            let data_object = input.data.objects.get(target_data);
+            let data_object = input.data.objects.get(data);
             if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
                 continue;
             }
-            if runtime_text_buffer_has_selected_producer(input, target_data) {
+            if runtime_text_buffer_has_selected_producer(input, data) {
                 continue;
             }
 
@@ -181,13 +180,12 @@ fn host_text_argument_has_planned_text_operands(
                 let InstructionOperandKind::DataAddress { data } = operand.kind else {
                     return false;
                 };
-                let target_data = omega_target_operations::target_data_handle_from_abstract(data);
-                let data_object = input.data.objects.get(target_data);
+                let data_object = input.data.objects.get(data);
                 if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
                     return true;
                 }
 
-                runtime_text_buffer_has_selected_producer(input, target_data)
+                runtime_text_buffer_has_selected_producer(input, data)
             });
             let has_byte_length = operands
                 .iter()
@@ -340,7 +338,7 @@ fn selected_instruction_writes_runtime_text_buffer(
                         return false;
                     };
                     matches!(
-                        omega_target_operations::target_data_handle_from_abstract(data),
+                        data,
                         remapped if remapped == data_handle
                     )
                 })
