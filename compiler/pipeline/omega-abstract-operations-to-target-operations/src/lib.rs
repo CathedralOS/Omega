@@ -5,7 +5,8 @@ use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{
     InstructionOperand, InstructionOperandKind, RuntimeTextReadSource, TargetOperation,
-    TargetOperationFunction, TargetOperationKind, TargetOperationPlan,
+    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetValueOperand,
+    TargetValueOperandHandle,
 };
 
 pub fn build_target_operation_plan(
@@ -25,7 +26,11 @@ pub fn build_target_operation_plan(
     for (_, operand) in abstract_operations.operands.iter() {
         target_operations.operands.insert(translate_operand(operand));
     }
-    target_operations.runtime_value_operands = abstract_operations.runtime_value_operands.clone();
+    for (_, operand) in abstract_operations.runtime_value_operands.iter() {
+        target_operations
+            .runtime_value_operands
+            .insert(translate_runtime_value_operand(operand));
+    }
 
     for (_, instruction) in abstract_operations.instructions.iter() {
         target_operations
@@ -172,6 +177,56 @@ fn translate_operand_kind(
     }
 }
 
+fn translate_runtime_value_operand(
+    operand: &omega_abstract_operations::AbstractValueOperand,
+) -> TargetValueOperand {
+    match operand {
+        omega_abstract_operations::AbstractValueOperand::Immediate(value) => {
+            TargetValueOperand::Immediate(*value)
+        }
+        omega_abstract_operations::AbstractValueOperand::Storage {
+            region,
+            byte_offset,
+            byte_size,
+        } => TargetValueOperand::Storage {
+            region: *region,
+            byte_offset: *byte_offset,
+            byte_size: *byte_size,
+        },
+        omega_abstract_operations::AbstractValueOperand::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => TargetValueOperand::Pointee {
+            pointer_byte_offset: *pointer_byte_offset,
+            field_byte_offset: *field_byte_offset,
+            byte_size: *byte_size,
+        },
+        omega_abstract_operations::AbstractValueOperand::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => TargetValueOperand::FrameIndexed {
+            descriptor_offset: *descriptor_offset,
+            index_offset: *index_offset,
+            element_byte_size: *element_byte_size,
+            field_byte_offset: *field_byte_offset,
+            byte_size: *byte_size,
+        },
+        omega_abstract_operations::AbstractValueOperand::Binary {
+            left,
+            operator,
+            right,
+        } => TargetValueOperand::Binary {
+            left: remap_runtime_value_handle(*left),
+            operator: *operator,
+            right: remap_runtime_value_handle(*right),
+        },
+    }
+}
+
 fn resolve_host_operation_key(
     host_calls: &HostCallPlan,
     instruction: &omega_abstract_operations::AbstractOperation,
@@ -235,4 +290,10 @@ fn remap_operand_span(
         Handle::from_parts(span.start().arena_index(), span.start().generation()),
         span.count(),
     )
+}
+
+fn remap_runtime_value_handle(
+    handle: omega_abstract_operations::AbstractValueOperandHandle,
+) -> TargetValueOperandHandle {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }

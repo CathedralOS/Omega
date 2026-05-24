@@ -414,8 +414,8 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_size,
                 operator,
             } => Self::CompareRuntimeValues {
-                left: *left,
-                right: *right,
+                left: remap_runtime_value_handle(*left),
+                right: remap_runtime_value_handle(*right),
                 byte_size: *byte_size,
                 operator: *operator,
             },
@@ -605,9 +605,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_region: *target_region,
                 target_offset: *target_offset,
                 byte_size: *byte_size,
-                left: *left,
+                left: remap_runtime_value_handle(*left),
                 operator: *operator,
-                right: *right,
+                right: remap_runtime_value_handle(*right),
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeBinary {
                 pointer_byte_offset,
@@ -620,9 +620,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 pointer_byte_offset: *pointer_byte_offset,
                 field_byte_offset: *field_byte_offset,
                 byte_size: *byte_size,
-                left: *left,
+                left: remap_runtime_value_handle(*left),
                 operator: *operator,
-                right: *right,
+                right: remap_runtime_value_handle(*right),
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameIndexedInteger {
                 descriptor_offset,
@@ -654,9 +654,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,
                 byte_size: *byte_size,
-                left: *left,
+                left: remap_runtime_value_handle(*left),
                 operator: *operator,
-                right: *right,
+                right: remap_runtime_value_handle(*right),
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineString {
                 byte_offset,
@@ -833,4 +833,10 @@ fn remap_data_handle(
     handle: omega_abstract_operations::AbstractDataObjectHandle,
 ) -> TargetDataObjectHandle {
     target_data_handle_from_abstract(handle)
+}
+
+fn remap_runtime_value_handle(
+    handle: omega_abstract_operations::AbstractValueOperandHandle,
+) -> TargetValueOperandHandle {
+    omega_core::arena::Handle::from_parts(handle.arena_index(), handle.generation())
 }
