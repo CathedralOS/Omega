@@ -1,12 +1,17 @@
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Handle, HandleSpan};
+use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
-use omega_target_operations::{TargetOperation, TargetOperationFunction, TargetOperationPlan};
+use omega_target_operations::{
+    RuntimeTextReadSource, TargetOperation, TargetOperationFunction, TargetOperationKind,
+    TargetOperationPlan,
+};
 
 pub fn build_target_operation_plan(
     target: NativeTarget,
     host_abi: &HostAbiPlan,
+    host_calls: &HostCallPlan,
     abstract_operations: &AbstractOperationPlan,
 ) -> TargetOperationPlan {
     let mut target_operations = TargetOperationPlan::with_capacity(
@@ -23,7 +28,7 @@ pub fn build_target_operation_plan(
     for (_, instruction) in abstract_operations.instructions.iter() {
         target_operations
             .instructions
-            .insert(TargetOperation::from(instruction));
+            .insert(translate_instruction(host_calls, instruction));
     }
 
     for (_, function) in abstract_operations.functions.iter() {
@@ -44,8 +49,8 @@ pub fn build_target_operation_plan(
             continue;
         };
 
-        let omega_target_operations::TargetOperationKind::ReadRuntimeTextLine {
-            source: omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key },
+        let TargetOperationKind::ReadRuntimeTextLine {
+            source: RuntimeTextReadSource::HostOperation { operation_key },
             ..
         } = &target_operations
             .instructions
@@ -69,6 +74,77 @@ pub fn build_target_operation_plan(
     }
 
     target_operations
+}
+
+fn translate_instruction(
+    host_calls: &HostCallPlan,
+    instruction: &omega_abstract_operations::AbstractOperation,
+) -> TargetOperation {
+    TargetOperation {
+        kind: translate_instruction_kind(host_calls, instruction),
+        source_key: instruction.source_key,
+        source_statement: instruction.source_statement,
+    }
+}
+
+fn translate_instruction_kind(
+    host_calls: &HostCallPlan,
+    instruction: &omega_abstract_operations::AbstractOperation,
+) -> TargetOperationKind {
+    match &instruction.kind {
+        omega_abstract_operations::AbstractOperationKind::HostOperation {
+            operation_ordinal,
+            operands,
+        } => {
+            let operation_key =
+                resolve_host_operation_key(host_calls, instruction, *operation_ordinal);
+            TargetOperationKind::HostOperation {
+                operation_key,
+                operands: *operands,
+            }
+        }
+        omega_abstract_operations::AbstractOperationKind::SyntheticHostOperation {
+            operation_key,
+            operands,
+        } => TargetOperationKind::HostOperation {
+            operation_key: *operation_key,
+            operands: *operands,
+        },
+        kind => TargetOperationKind::from(kind),
+    }
+}
+
+fn resolve_host_operation_key(
+    host_calls: &HostCallPlan,
+    instruction: &omega_abstract_operations::AbstractOperation,
+    operation_ordinal: u16,
+) -> omega_calling_conventions::HostOperationKey {
+    let Some((_, host_call)) = host_calls.calls.iter().find(|(_, host_call)| {
+        host_call.source_key == instruction.source_key
+            && host_call.statement_index == instruction.source_statement
+    }) else {
+        panic!(
+            "missing host call for abstract host operation at {:?} statement {}",
+            instruction.source_key, instruction.source_statement
+        );
+    };
+
+    let Some(operations) = host_calls.operations.span(host_call.operations) else {
+        panic!(
+            "missing lowered host operations for abstract host operation at {:?} statement {}",
+            instruction.source_key, instruction.source_statement
+        );
+    };
+
+    let ordinal = usize::from(operation_ordinal);
+    let Some(operation) = operations.get(ordinal) else {
+        panic!(
+            "host operation ordinal {} out of range at {:?} statement {}",
+            operation_ordinal, instruction.source_key, instruction.source_statement
+        );
+    };
+
+    operation.operation_key
 }
 
 fn remap_instruction_handle(
