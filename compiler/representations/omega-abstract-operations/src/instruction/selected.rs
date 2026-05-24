@@ -1,4 +1,6 @@
-use crate::{InstructionOperand, StateGuardLowering, StateGuardOperator, TargetDataObjectHandle};
+use crate::{
+    AbstractDataObjectHandle, InstructionOperand, StateGuardLowering, StateGuardOperator,
+};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
@@ -99,11 +101,11 @@ pub enum AbstractOperationKind {
         has_storage: bool,
     },
     CompareRuntimeTextLiteral {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         literal: Arc<str>,
     },
     CompareRuntimeTextStorage {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         operator: StateGuardOperator,
@@ -130,16 +132,16 @@ pub enum AbstractOperationKind {
         operator: StateGuardOperator,
     },
     WriteRuntimeTextLiteral {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         literal: Arc<str>,
     },
     WriteRuntimeTextLiteralSegment {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         byte_offset: usize,
         literal: Arc<str>,
     },
     AppendRuntimeTextStoredSuffix {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         buffer_offset: usize,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
@@ -148,38 +150,38 @@ pub enum AbstractOperationKind {
         length_delta: usize,
     },
     MaterializeRuntimeTextBuffer {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     MaterializeRuntimeTextBufferToRuntimePointee {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
     MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         descriptor_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
     },
     AppendRuntimeTextStoredPlace {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextStoredPlaceToRuntimePointee {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
     AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         descriptor_offset: usize,
@@ -188,19 +190,19 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
     },
     AppendRuntimeTextLiteral {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         literal: Arc<str>,
     },
     AppendRuntimeTextLiteralToRuntimePointee {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
         literal: Arc<str>,
     },
     AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         descriptor_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
@@ -260,13 +262,13 @@ pub enum AbstractOperationKind {
     },
     WriteRuntimeMachineString {
         byte_offset: usize,
-        data: TargetDataObjectHandle,
+        data: AbstractDataObjectHandle,
         byte_length: usize,
     },
     WriteRuntimePointeeString {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
-        data: TargetDataObjectHandle,
+        data: AbstractDataObjectHandle,
         byte_length: usize,
     },
     WriteRuntimeFrameIndexedString {
@@ -274,7 +276,7 @@ pub enum AbstractOperationKind {
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
-        data: TargetDataObjectHandle,
+        data: AbstractDataObjectHandle,
         byte_length: usize,
     },
     WriteRuntimeStorageAddressToRuntimeFrame {
@@ -288,7 +290,7 @@ pub enum AbstractOperationKind {
         target_offset: usize,
     },
     ReadRuntimeTextLine {
-        buffer: TargetDataObjectHandle,
+        buffer: AbstractDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,

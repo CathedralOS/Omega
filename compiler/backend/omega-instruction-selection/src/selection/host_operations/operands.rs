@@ -9,7 +9,7 @@ use super::runtime_text::{
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_abstract_operations::{
-    InstructionOperand, InstructionOperandKind, TargetDataObject, TargetDataObjectHandle,
+    AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
 
 pub(super) fn select_host_operation_operands(
@@ -133,7 +133,7 @@ fn stdout_operands(
 fn find_data_object(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> TargetDataObjectHandle {
+) -> AbstractDataObjectHandle {
     input
         .data
         .objects
@@ -143,12 +143,12 @@ fn find_data_object(
                 && data_object.source_statement == host_call.statement_index
         })
         .map(|(handle, _)| handle)
-        .unwrap_or_else(TargetDataObjectHandle::invalid)
+        .unwrap_or_else(AbstractDataObjectHandle::invalid)
 }
 
 fn data_object_byte_count(
     input: &InstructionSelectionInput<'_>,
-    data_object: TargetDataObjectHandle,
+    data_object: AbstractDataObjectHandle,
 ) -> usize {
     input
         .data
@@ -159,8 +159,8 @@ fn data_object_byte_count(
 
 pub(super) fn data_object_handle(
     input: &InstructionSelectionInput<'_>,
-    target: &TargetDataObject,
-) -> TargetDataObjectHandle {
+    target: &AbstractDataObject,
+) -> AbstractDataObjectHandle {
     input
         .data
         .objects

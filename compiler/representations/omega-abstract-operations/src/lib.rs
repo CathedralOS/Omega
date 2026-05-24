@@ -1,7 +1,10 @@
 pub mod data;
 pub mod instruction;
 
-pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan};
+pub use data::{
+    AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,
+    TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan,
+};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
