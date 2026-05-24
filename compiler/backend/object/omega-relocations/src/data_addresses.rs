@@ -17,7 +17,7 @@ pub(super) fn collect_data_address_relocations(
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
 ) {
-    let Some(operands) = input.instructions.operands.span(operands) else {
+    let Some(operands) = input.assigned_target_operations.instruction_operands(operands) else {
         return;
     };
 
@@ -27,10 +27,9 @@ pub(super) fn collect_data_address_relocations(
                 if !data.is_valid() {
                     continue;
                 }
-                let data = *data;
                 let symbol = object_symbol_handle_by_name(
                     &input.object,
-                    input.data.objects.get(data).symbol.as_ref(),
+                    input.data.objects.get(*data).symbol.as_ref(),
                 );
                 insert_data_address_relocations(
                     input,
@@ -75,7 +74,7 @@ pub(super) fn collect_data_address_relocations(
 fn data_address_relocation_offset(
     input: RelocationPlanningInput<'_>,
     operation_key: Option<HostOperationKey>,
-    operands: &[omega_target_operations::InstructionOperand],
+    operands: &[omega_assigned_target_operations::InstructionOperand],
     selected_text_offset: usize,
     operand_index: usize,
 ) -> usize {

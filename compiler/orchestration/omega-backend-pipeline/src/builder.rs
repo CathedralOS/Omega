@@ -352,6 +352,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_relocation_plan(RelocationPlanningInput {
             target: backend_plan.target,
             instructions: &backend_plan.target_operations,
+            assigned_target_operations: &backend_plan.assigned_target_operations,
             encoded_machine: &backend_plan.encoded_machine,
             data: &backend_plan.data,
             object: &backend_plan.object,

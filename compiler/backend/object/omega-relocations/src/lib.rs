@@ -1,4 +1,5 @@
 use omega_calling_conventions::HostAbiPlan;
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_core::arena::{Arena, Handle};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::EncodedMachinePlan;
@@ -18,6 +19,7 @@ use lookups::selected_instruction_text_offset;
 pub struct RelocationPlanningInput<'plan> {
     pub target: NativeTarget,
     pub instructions: &'plan InstructionPlan,
+    pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub encoded_machine: &'plan EncodedMachinePlan,
     pub data: &'plan TargetDataPlan,
     pub object: &'plan ObjectPlan,

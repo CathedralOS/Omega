@@ -645,6 +645,7 @@ dependencies = [
 name = "omega-relocations"
 version = "0.1.0"
 dependencies = [
+ "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-core",
  "omega-instruction-selection",
