@@ -21,13 +21,11 @@ pub(crate) fn effective_member_symbol(
     SymbolHandle::invalid()
 }
 
-fn resolve_member_symbol_from_receiver(
+pub(crate) fn resolve_member_symbol_from_type_symbol(
     program: &omega_typed_trees::TypedTrees,
-    receiver: ExpressionHandle,
+    type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    let type_symbol = expression_type_symbol(program, receiver)?;
-
     if let Some(data) = program
         .data_definitions()
         .iter()
@@ -86,6 +84,15 @@ fn resolve_member_symbol_from_receiver(
     }
 
     None
+}
+
+fn resolve_member_symbol_from_receiver(
+    program: &omega_typed_trees::TypedTrees,
+    receiver: ExpressionHandle,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let type_symbol = expression_type_symbol(program, receiver)?;
+    resolve_member_symbol_from_type_symbol(program, type_symbol, member_name)
 }
 
 pub(crate) fn expression_type_symbol(

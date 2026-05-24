@@ -63,7 +63,7 @@ pub(crate) fn instantiate_call_contract_place(
     ))
 }
 pub(crate) use place_builders::{
-    append_place_from_name_path, append_place_segment, canonical_place_to_fact_place,
+    append_place_from_name_path, append_place_segment, canonical_place_to_fact_place_in_state,
     resolve_place_member_symbol,
 };
 pub(crate) use receiver::receiver_place_for_call;

@@ -489,106 +489,14 @@ fn contextual_expression_place(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<PlaceHandle> {
-    if let Some(place) = crate::semantic_places::canonical_place_to_fact_place(program, semantic, expression)
-    {
-        return Some(place);
-    }
-
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => contextual_expression_place(
-            program,
-            semantic,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            *inner,
-        ),
-        ExpressionNode::Name(path) => {
-            let name = program.expression_table.display_name(expression);
-            let state = crate::find_state(program, state_symbol)?;
-
-            if name == "self" {
-                let self_symbol = program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.is_self)
-                    .map(|parameter| parameter.symbol)?;
-                return Some(semantic.append_symbol_place(self_symbol));
-            }
-
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| !parameter.is_self && parameter.name.as_str() == name)
-            {
-                return Some(semantic.append_symbol_place(parameter.symbol));
-            }
-
-            for prior in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(statement_index)
-            {
-                let StatementNode::LocalData(local_data) = prior else {
-                    continue;
-                };
-                if local_data.name.as_str() == name {
-                    return Some(semantic.append_symbol_place(local_data.symbol));
-                }
-            }
-
-            let _ = path;
-            None
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = contextual_expression_place(
-                program,
-                semantic,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                member.receiver,
-            )?;
-            let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
-            let symbol = if symbol.is_valid() {
-                symbol
-            } else {
-                crate::semantic_places::resolve_place_member_symbol(
-                    program,
-                    semantic,
-                    receiver,
-                    member.member.as_str(),
-                )?
-            };
-            Some(crate::semantic_places::append_place_segment(
-                semantic,
-                receiver,
-                omega_facts::PlaceSegment::Field { symbol },
-            ))
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let collection = contextual_expression_place(
-                program,
-                semantic,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                indexed.collection,
-            )?;
-            Some(crate::semantic_places::append_place_segment(
-                semantic,
-                collection,
-                omega_facts::PlaceSegment::Index {
-                    expression: indexed.index,
-                },
-            ))
-        }
-        _ => {
-            let _ = machine_symbol;
-            None
-        }
-    }
+    let _ = machine_symbol;
+    crate::semantic_places::canonical_place_to_fact_place_in_state(
+        program,
+        semantic,
+        state_symbol,
+        statement_index,
+        expression,
+    )
 }
 
 fn filter_expired_borrow_loans(

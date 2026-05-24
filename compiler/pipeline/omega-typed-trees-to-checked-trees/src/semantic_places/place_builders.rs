@@ -1,12 +1,15 @@
 use super::*;
-use crate::flow::{canonical_place_from_expression, expression_type_symbol, symbol_type_symbol};
+use crate::flow::{canonical_place_from_expression_in_state, expression_type_symbol, symbol_type_symbol};
 
-pub(crate) fn canonical_place_to_fact_place(
+pub(crate) fn canonical_place_to_fact_place_in_state(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut FactPlan,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<omega_facts::PlaceHandle> {
-    let canonical = canonical_place_from_expression(program, expression)?;
+    let canonical =
+        canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)?;
     Some(append_place_with_segments(
         facts,
         canonical.root,
