@@ -2,8 +2,9 @@ use omega_checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStat
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_core::diagnostics::Diagnostic;
 
+use crate::flow::statement_mutated_place;
 use crate::labels::{borrow_access_label, call_target_label, symbol_name};
-use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
+use crate::semantic_calls::{call_site_argument_expressions, find_call_site, find_state_in_machine};
 
 pub(crate) fn check_flow_call_borrows(
     program: &omega_typed_trees::TypedTrees,
@@ -23,12 +24,63 @@ pub(crate) fn check_flow_call_borrows(
         for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
             check_call_borrows(program, facts, state_flow, borrow_call, &mut diagnostics);
         }
+
+        check_statement_borrows(program, facts, state_flow, &mut diagnostics);
     }
 
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn check_statement_borrows(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return;
+    };
+    let Some(state) = find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
+    else {
+        return;
+    };
+
+    for statement in facts.flow.statements.span_or_empty(state_flow.statements) {
+        let Some(statement_node) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement.statement_index)
+        else {
+            continue;
+        };
+        let Some(mutated_place) = statement_mutated_place(program, machine, statement_node) else {
+            continue;
+        };
+
+        for loan_handle in facts.flow.borrow_loan_constraints(statement.entry_constraints) {
+            let loan = facts.borrow.loans.get(loan_handle);
+            if canonical_place_overlaps_loan(&mutated_place, loan, &facts.borrow) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "statement {} mutates `{}` while local borrow `{}` is still active ({})",
+                    statement.statement_index,
+                    canonical_place_label(program, &mutated_place),
+                    symbol_name(program, loan.owner_symbol),
+                    active_loan_detail(state_flow, facts, loan_handle, statement.statement_index)
+                        .unwrap_or_else(|| format!(
+                            "borrowed at statement {}",
+                            loan.statement_index
+                        )),
+                )));
+            }
+        }
     }
 }
 
@@ -240,4 +292,64 @@ fn active_loan_detail(
                 ) => None,
             }
         })
+}
+
+fn canonical_place_overlaps_loan(
+    place: &crate::flow::CanonicalPlace,
+    loan: &omega_checked_trees::BorrowLoanFact,
+    borrow: &omega_checked_trees::BorrowFacts,
+) -> bool {
+    match place.root {
+        omega_facts::PlaceRoot::Symbol(symbol) => {
+            if symbol == loan.root_symbol {
+                return crate::flow::canonical_place_overlaps_segments(
+                    &place.segments,
+                    borrow.loan_segments(loan),
+                );
+            }
+
+            match place.segments.split_first() {
+                Some((omega_facts::PlaceSegment::Field { symbol: field_symbol }, remaining))
+                    if *field_symbol == loan.root_symbol =>
+                {
+                    crate::flow::canonical_place_overlaps_segments(
+                        remaining,
+                        borrow.loan_segments(loan),
+                    )
+                }
+                _ => false,
+            }
+        }
+        omega_facts::PlaceRoot::Unknown
+        | omega_facts::PlaceRoot::Expression(_)
+        | omega_facts::PlaceRoot::TypeReference(_) => false,
+    }
+}
+
+fn canonical_place_label(
+    program: &omega_typed_trees::TypedTrees,
+    place: &crate::flow::CanonicalPlace,
+) -> String {
+    let mut label = match place.root {
+        omega_facts::PlaceRoot::Unknown => "<unknown>".to_owned(),
+        omega_facts::PlaceRoot::Symbol(symbol) => symbol_name(program, symbol),
+        omega_facts::PlaceRoot::Expression(expression) => format!("expr#{}", expression.arena_index()),
+        omega_facts::PlaceRoot::TypeReference(type_reference) => {
+            format!("type#{}", type_reference.arena_index())
+        }
+    };
+    for segment in &place.segments {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&symbol_name(program, *symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&expression.arena_index().to_string());
+                label.push(']');
+            }
+        }
+    }
+    label
 }
