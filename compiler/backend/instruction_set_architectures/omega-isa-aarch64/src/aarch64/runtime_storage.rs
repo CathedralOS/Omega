@@ -1,7 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource,
-    StateGuardOperator,
+    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
 
 use super::primitives::{
@@ -793,128 +792,113 @@ fn append_runtime_value_operand(
     scratch_registers: &[u8],
     operand: RuntimeValueOperandHandle,
 ) -> Result<(), Diagnostic> {
-    match runtime_value_operands.runtime_value_operand(operand) {
-        RuntimeValueOperand::Immediate(value) => {
-            let value = u64::try_from(*value).map_err(|_| {
-                Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot materialize runtime immediate `{value}` yet"
-                ))
-            })?;
-            append_unsigned_immediate(bytes, destination_register, value);
-            Ok(())
-        }
-        RuntimeValueOperand::Storage {
-            byte_offset,
-            byte_size,
-            ..
-        } => {
-            bytes.extend(encode_adrp_placeholder(19));
-            bytes.extend(encode_add_page_offset_placeholder(19));
-            match byte_size {
-                1 | 4 => bytes.extend(encode_load_w_from_x(
-                    destination_register,
-                    19,
-                    *byte_offset,
-                    *byte_size,
-                )?),
-                8 => bytes.extend(encode_load_x_from_x(
-                    destination_register,
-                    19,
-                    *byte_offset,
-                )?),
-                _ => {
-                    return Err(Diagnostic::error(format!(
-                        "AArch64 MVP encoder cannot load runtime operand width `{byte_size}` yet"
-                    )));
-                }
+    if let Some(value) = runtime_value_operands.immediate_integer(operand) {
+        let value = u64::try_from(value).map_err(|_| {
+            Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot materialize runtime immediate `{value}` yet"
+            ))
+        })?;
+        append_unsigned_immediate(bytes, destination_register, value);
+        Ok(())
+    } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
+        bytes.extend(encode_adrp_placeholder(19));
+        bytes.extend(encode_add_page_offset_placeholder(19));
+        match byte_size {
+            1 | 4 => bytes.extend(encode_load_w_from_x(
+                destination_register,
+                19,
+                byte_offset,
+                byte_size,
+            )?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 19, byte_offset)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load runtime operand width `{byte_size}` yet"
+                )));
             }
-            Ok(())
         }
-        RuntimeValueOperand::Pointee {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-        } => {
-            bytes.extend(encode_adrp_placeholder(19));
-            bytes.extend(encode_add_page_offset_placeholder(19));
-            bytes.extend(encode_load_x_from_x(19, 19, *pointer_byte_offset)?);
-            if *field_byte_offset > 0 {
-                bytes.extend(encode_add_x_immediate(19, 19, *field_byte_offset)?);
-            }
-            match byte_size {
-                1 | 4 => bytes.extend(encode_load_w_from_x(
-                    destination_register,
-                    19,
-                    0,
-                    *byte_size,
-                )?),
-                8 => bytes.extend(encode_load_x_from_x(destination_register, 19, 0)?),
-                _ => {
-                    return Err(Diagnostic::error(format!(
-                        "AArch64 MVP encoder cannot load runtime pointee operand width `{byte_size}` yet"
-                    )));
-                }
-            }
-            Ok(())
+        Ok(())
+    } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
+        runtime_value_operands.pointee(operand)
+    {
+        bytes.extend(encode_adrp_placeholder(19));
+        bytes.extend(encode_add_page_offset_placeholder(19));
+        bytes.extend(encode_load_x_from_x(19, 19, pointer_byte_offset)?);
+        if field_byte_offset > 0 {
+            bytes.extend(encode_add_x_immediate(19, 19, field_byte_offset)?);
         }
-        RuntimeValueOperand::FrameIndexed {
+        match byte_size {
+            1 | 4 => bytes.extend(encode_load_w_from_x(
+                destination_register,
+                19,
+                0,
+                byte_size,
+            )?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 19, 0)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load runtime pointee operand width `{byte_size}` yet"
+                )));
+            }
+        }
+        Ok(())
+    } else if let Some((
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_indexed(operand)
+    {
+        append_runtime_frame_index_target_address(
+            bytes,
             descriptor_offset,
             index_offset,
             element_byte_size,
             field_byte_offset,
-            byte_size,
-        } => {
-            append_runtime_frame_index_target_address(
-                bytes,
-                *descriptor_offset,
-                *index_offset,
-                *element_byte_size,
-                *field_byte_offset,
-            )?;
-            match byte_size {
-                1 | 4 => bytes.extend(encode_load_w_from_x(
-                    destination_register,
-                    16,
-                    0,
-                    *byte_size,
-                )?),
-                8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
-                _ => {
-                    return Err(Diagnostic::error(format!(
-                        "AArch64 MVP encoder cannot load runtime indexed operand width `{byte_size}` yet"
-                    )));
-                }
-            }
-            Ok(())
-        }
-        RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            let Some((&rhs_register, remaining_scratch)) = scratch_registers.split_first() else {
-                return Err(Diagnostic::error(
-                    "AArch64 MVP encoder ran out of scratch registers for runtime arithmetic",
-                ));
-            };
-
-            append_runtime_value_operand(
-                runtime_value_operands,
-                bytes,
+        )?;
+        match byte_size {
+            1 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
-                scratch_registers,
-                *left,
-            )?;
-            append_runtime_value_operand(
-                runtime_value_operands,
-                bytes,
-                rhs_register,
-                remaining_scratch,
-                *right,
-            )?;
-            append_runtime_binary_operation(bytes, destination_register, *operator, rhs_register)?;
-            Ok(())
+                16,
+                0,
+                byte_size,
+            )?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load runtime indexed operand width `{byte_size}` yet"
+                )));
+            }
         }
+        Ok(())
+    } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        let Some((&rhs_register, remaining_scratch)) = scratch_registers.split_first() else {
+            return Err(Diagnostic::error(
+                "AArch64 MVP encoder ran out of scratch registers for runtime arithmetic",
+            ));
+        };
+
+        append_runtime_value_operand(
+            runtime_value_operands,
+            bytes,
+            destination_register,
+            scratch_registers,
+            left,
+        )?;
+        append_runtime_value_operand(
+            runtime_value_operands,
+            bytes,
+            rhs_register,
+            remaining_scratch,
+            right,
+        )?;
+        append_runtime_binary_operation(bytes, destination_register, operator, rhs_register)?;
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
+            "AArch64 runtime value operand is not implemented yet",
+        ))
     }
 }
 

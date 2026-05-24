@@ -35,6 +35,71 @@ pub type RuntimeValueOperand = TargetValueOperand;
 
 pub trait RuntimeValueOperandSource {
     fn runtime_value_operand(&self, handle: RuntimeValueOperandHandle) -> &RuntimeValueOperand;
+
+    fn immediate_integer(&self, handle: RuntimeValueOperandHandle) -> Option<i64> {
+        match self.runtime_value_operand(handle) {
+            RuntimeValueOperand::Immediate(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    fn storage(&self, handle: RuntimeValueOperandHandle) -> Option<(RuntimeStorageRegion, usize, usize)> {
+        match self.runtime_value_operand(handle) {
+            RuntimeValueOperand::Storage {
+                region,
+                byte_offset,
+                byte_size,
+            } => Some((*region, *byte_offset, *byte_size)),
+            _ => None,
+        }
+    }
+
+    fn pointee(&self, handle: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)> {
+        match self.runtime_value_operand(handle) {
+            RuntimeValueOperand::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+            } => Some((*pointer_byte_offset, *field_byte_offset, *byte_size)),
+            _ => None,
+        }
+    }
+
+    fn frame_indexed(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)> {
+        match self.runtime_value_operand(handle) {
+            RuntimeValueOperand::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Some((
+                *descriptor_offset,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *byte_size,
+            )),
+            _ => None,
+        }
+    }
+
+    fn binary(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeValueOperandHandle, StateGuardOperator, RuntimeValueOperandHandle)> {
+        match self.runtime_value_operand(handle) {
+            RuntimeValueOperand::Binary {
+                left,
+                operator,
+                right,
+            } => Some((*left, *operator, *right)),
+            _ => None,
+        }
+    }
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
