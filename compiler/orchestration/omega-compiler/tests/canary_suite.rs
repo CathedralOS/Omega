@@ -119,20 +119,20 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "control flow should show propagated contract call summaries"
     );
     assert!(
-        checked_trees.contains("requires contract player in Player::Valid"),
-        "checked semantic facts should expose requires as a domain-membership fact"
+        checked_trees.contains("call Main::heal::heal"),
+        "checked tree visualization should expose checked call nodes"
     );
     assert!(
-        checked_trees.contains("ensures contract player in Player::Alive"),
-        "checked semantic facts should expose ensures as a domain-membership fact"
+        checked_trees.contains("contracts: requires 1 ensures 1"),
+        "checked call nodes should summarize propagated contract counts"
     );
     assert!(
-        checked_trees.contains("place: self.player"),
-        "checked semantic facts should retain a readable caller place for propagated membership"
+        checked_trees.contains("borrow: access player: mutable invalidations 1"),
+        "checked call nodes should surface borrow access and invalidation detail"
     );
     assert!(
-        checked_trees.contains("Flow Environments"),
-        "checked tree visualization should expose the shared flow environment spine"
+        checked_trees.contains("Main::main::main [checked]"),
+        "checked tree visualization should now be a scoped graph view instead of a text report"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
