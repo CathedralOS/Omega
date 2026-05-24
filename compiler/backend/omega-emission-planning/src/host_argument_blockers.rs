@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_calling_conventions::{HostCapability, HostOperation, PlatformCallData};
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle};
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
@@ -101,11 +101,12 @@ fn collect_selected_runtime_text_buffer_host_blockers(
             if !data.is_valid() {
                 continue;
             }
-            let data_object = input.data.objects.get(data);
+            let target_data = remap_target_data_handle(data);
+            let data_object = input.data.objects.get(target_data);
             if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
                 continue;
             }
-            if runtime_text_buffer_has_selected_producer(input, data) {
+            if runtime_text_buffer_has_selected_producer(input, target_data) {
                 continue;
             }
 
@@ -180,12 +181,13 @@ fn host_text_argument_has_planned_text_operands(
                 let InstructionOperandKind::DataAddress { data } = operand.kind else {
                     return false;
                 };
-                let data_object = input.data.objects.get(data);
+                let target_data = remap_target_data_handle(data);
+                let data_object = input.data.objects.get(target_data);
                 if data_object.kind != TargetDataObjectKind::RuntimeTextBuffer {
                     return true;
                 }
 
-                runtime_text_buffer_has_selected_producer(input, data)
+                runtime_text_buffer_has_selected_producer(input, target_data)
             });
             let has_byte_length = operands
                 .iter()
@@ -334,14 +336,23 @@ fn selected_instruction_writes_runtime_text_buffer(
                 .unwrap_or(&[])
                 .iter()
                 .any(|operand| {
+                    let InstructionOperandKind::DataAddress { data } = operand.kind else {
+                        return false;
+                    };
                     matches!(
-                        operand.kind,
-                        InstructionOperandKind::DataAddress { data } if data == data_handle
+                        remap_target_data_handle(data),
+                        remapped if remapped == data_handle
                     )
                 })
         }
         _ => false,
     }
+}
+
+fn remap_target_data_handle(
+    data: omega_target_operations::AbstractDataObjectHandle,
+) -> TargetDataObjectHandle {
+    Handle::from_parts(data.arena_index(), data.generation())
 }
 
 fn host_text_argument_blocker_reason(

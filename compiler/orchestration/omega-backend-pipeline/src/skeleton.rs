@@ -1,4 +1,4 @@
-use omega_abstract_operations::AbstractOperationPlan;
+use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
@@ -46,6 +46,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         alias_flow: AliasFlowPlan::default(),
         state_storage: Arc::new(StateStoragePlan::default()),
         state_values: StateValuePlan::default(),
+        abstract_data: AbstractDataPlan::default(),
         data: TargetDataPlan::default(),
         abstract_operations: AbstractOperationPlan::default(),
         target_operations: TargetOperationPlan::default(),

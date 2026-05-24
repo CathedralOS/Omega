@@ -3,7 +3,7 @@ use crate::{
     StateGuardLowering, StateGuardOperator, TargetDataObjectHandle, TargetValueOperandHandle,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -365,7 +365,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 buffer,
                 literal,
             } => Self::CompareRuntimeTextLiteral {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 literal: literal.clone(),
             },
             omega_abstract_operations::AbstractOperationKind::CompareRuntimeTextStorage {
@@ -374,7 +374,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source_offset,
                 operator,
             } => Self::CompareRuntimeTextStorage {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 source_region: *source_region,
                 source_offset: *source_offset,
                 operator: *operator,
@@ -422,7 +422,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 buffer,
                 literal,
             } => Self::WriteRuntimeTextLiteral {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 literal: literal.clone(),
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeTextLiteralSegment {
@@ -430,7 +430,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_offset,
                 literal,
             } => Self::WriteRuntimeTextLiteralSegment {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 byte_offset: *byte_offset,
                 literal: literal.clone(),
             },
@@ -443,7 +443,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset,
                 length_delta,
             } => Self::AppendRuntimeTextStoredSuffix {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 buffer_offset: *buffer_offset,
                 source_region: *source_region,
                 source_offset: *source_offset,
@@ -456,7 +456,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_region,
                 target_offset,
             } => Self::MaterializeRuntimeTextBuffer {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 target_region: *target_region,
                 target_offset: *target_offset,
             },
@@ -465,7 +465,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 pointer_byte_offset,
                 field_byte_offset,
             } => Self::MaterializeRuntimeTextBufferToRuntimePointee {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 pointer_byte_offset: *pointer_byte_offset,
                 field_byte_offset: *field_byte_offset,
             },
@@ -476,7 +476,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 element_byte_size,
                 field_byte_offset,
             } => Self::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 descriptor_offset: *descriptor_offset,
                 index_offset: *index_offset,
                 element_byte_size: *element_byte_size,
@@ -489,7 +489,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_region,
                 target_offset,
             } => Self::AppendRuntimeTextStoredPlace {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 source_region: *source_region,
                 source_offset: *source_offset,
                 target_region: *target_region,
@@ -502,7 +502,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 pointer_byte_offset,
                 field_byte_offset,
             } => Self::AppendRuntimeTextStoredPlaceToRuntimePointee {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 source_region: *source_region,
                 source_offset: *source_offset,
                 pointer_byte_offset: *pointer_byte_offset,
@@ -517,7 +517,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 element_byte_size,
                 field_byte_offset,
             } => Self::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 source_region: *source_region,
                 source_offset: *source_offset,
                 descriptor_offset: *descriptor_offset,
@@ -531,7 +531,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset,
                 literal,
             } => Self::AppendRuntimeTextLiteral {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 target_region: *target_region,
                 target_offset: *target_offset,
                 literal: literal.clone(),
@@ -542,7 +542,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 field_byte_offset,
                 literal,
             } => Self::AppendRuntimeTextLiteralToRuntimePointee {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 pointer_byte_offset: *pointer_byte_offset,
                 field_byte_offset: *field_byte_offset,
                 literal: literal.clone(),
@@ -555,7 +555,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 field_byte_offset,
                 literal,
             } => Self::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 descriptor_offset: *descriptor_offset,
                 index_offset: *index_offset,
                 element_byte_size: *element_byte_size,
@@ -663,7 +663,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_length,
             } => Self::WriteRuntimeMachineString {
                 byte_offset: *byte_offset,
-                data: *data,
+                data: remap_data_handle(*data),
                 byte_length: *byte_length,
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeString {
@@ -674,7 +674,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             } => Self::WriteRuntimePointeeString {
                 pointer_byte_offset: *pointer_byte_offset,
                 field_byte_offset: *field_byte_offset,
-                data: *data,
+                data: remap_data_handle(*data),
                 byte_length: *byte_length,
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameIndexedString {
@@ -689,7 +689,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 index_offset: *index_offset,
                 element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,
-                data: *data,
+                data: remap_data_handle(*data),
                 byte_length: *byte_length,
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeStorageAddressToRuntimeFrame {
@@ -716,7 +716,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset,
                 byte_capacity,
             } => Self::ReadRuntimeTextLine {
-                buffer: *buffer,
+                buffer: remap_data_handle(*buffer),
                 target_region: *target_region,
                 target_offset: *target_offset,
                 byte_capacity: *byte_capacity,
@@ -826,4 +826,10 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::LeaveFunction => Self::LeaveFunction,
         }
     }
+}
+
+fn remap_data_handle(
+    handle: omega_abstract_operations::AbstractDataObjectHandle,
+) -> TargetDataObjectHandle {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }
