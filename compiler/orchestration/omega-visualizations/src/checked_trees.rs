@@ -960,6 +960,19 @@ fn append_flow_constraint_labels(
                 let access = program.facts.borrow.argument_accesses.get(access);
                 report.push_str("borrow-access(");
                 report.push_str(&symbol_label(access.root_symbol));
+                for segment in program.facts.borrow.access_segments(access) {
+                    match segment {
+                        omega_facts::PlaceSegment::Field { symbol } => {
+                            report.push('.');
+                            report.push_str(&symbol_label(*symbol));
+                        }
+                        omega_facts::PlaceSegment::Index { expression } => {
+                            report.push('[');
+                            report.push_str(&expression.arena_index().to_string());
+                            report.push(']');
+                        }
+                    }
+                }
                 report.push_str(", ");
                 report.push_str(match access.kind {
                     omega_checked_trees::BorrowAccessKind::Read => "read",
