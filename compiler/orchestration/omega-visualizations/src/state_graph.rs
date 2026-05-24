@@ -128,51 +128,36 @@ fn machine_index_from_key(key: StateKey) -> usize {
 fn machine_label(
     graph: &StateGraph,
     machine: &MachineGraph,
-    root_state: &StateNode,
-    states: &[&StateNode],
-    root_keys: &[StateKey],
+    _root_state: &StateNode,
+    _states: &[&StateNode],
+    _root_keys: &[StateKey],
 ) -> String {
-    let state_count = states
-        .iter()
-        .filter(|state| root_key_for_state(graph, states, root_keys, state.key) == root_state.key)
-        .count();
     let attached_data = machine
         .attached_data
         .as_ref()
         .map(|name| name.as_str())
         .unwrap_or("<none>");
-    format!(
-        "machine {}\nattached data: {}\nstates: {}\ncontains: {}\nowned data: {}\ndirect effects: {}\nreached effects: {}",
+    let mut label = format!(
+        "machine {}\nattached data: {}\nowned data: {}",
         machine.name.as_str(),
         attached_data,
-        state_count,
-        graph.machine_contains(machine).len(),
         graph.machine_owned_data(machine).len(),
-        format_effect_bits(machine.direct_effects),
-        format_effect_bits(machine.reached_effects)
-    )
+    );
+    append_effect_bit_lines(&mut label, machine.direct_effects, machine.reached_effects);
+    label
 }
 
 fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) -> String {
     let mut label = format!(
-        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ncontracts: calls {} exits {}\nborrow: roots {} calls {} loans {} act {} weak {}\ndirect effects: {}\nreached effects: {}",
+        "{}::{} [block {}]\nparams: {}  mutable params: {}\nborrow: roots {}",
         machine.name.as_str(),
         state.name.as_str(),
         state.key.segment_index,
         state.parameters.len(),
         state.borrow.mutable_parameter_count,
-        state.operations.len(),
-        state.transitions.len(),
-        state.contracts.calls.len(),
-        state.contracts.exits.len(),
         state.borrow.writable_roots.len(),
-        state.borrow.calls.len(),
-        state.borrow.active_loans.len(),
-        state.borrow.activations.len(),
-        state.borrow.weakenings.len(),
-        format_effect_bits(state.direct_effects),
-        format_effect_bits(state.reached_effects)
     );
+    append_effect_bit_lines(&mut label, state.direct_effects, state.reached_effects);
 
     for call in graph.contract_calls.span_or_empty(state.contracts.calls) {
         label.push('\n');
@@ -252,6 +237,21 @@ fn format_effect_bits(bits: omega_effects::EffectBits) -> String {
         effects.names().collect::<Vec<_>>().join(", "),
         effects.bits()
     )
+}
+
+fn append_effect_bit_lines(
+    label: &mut String,
+    direct: omega_effects::EffectBits,
+    reached: omega_effects::EffectBits,
+) {
+    if direct != 0 {
+        label.push_str("\ndirect effects: ");
+        label.push_str(&format_effect_bits(direct));
+    }
+    if reached != 0 {
+        label.push_str("\nreached effects: ");
+        label.push_str(&format_effect_bits(reached));
+    }
 }
 
 fn effect_names_from_bits(bits: omega_effects::EffectBits) -> Vec<String> {

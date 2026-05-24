@@ -205,12 +205,7 @@ fn append_state(
 }
 
 fn state_label(syntax: &SyntaxTrees, state: &StateNode) -> String {
-    let mut label = format!(
-        "state {}\nparams: {}\nstatements: {}",
-        state.name.as_str(),
-        state.parameters.len(),
-        state.statements.len()
-    );
+    let mut label = format!("state {}\nparams: {}", state.name.as_str(), state.parameters.len());
 
     for (statement_index, statement_handle) in syntax
         .items
@@ -415,12 +410,11 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .map(|name| name.as_str())
                 .unwrap_or("<none>");
             let mut label = format!(
-                "machine {}\nattached data: {}\nsatisfies: {}\ncontracts: {}\ntargetable states: {}",
+                "machine {}\nattached data: {}\nsatisfies: {}\ncontracts: {}",
                 value.name.as_str(),
                 attached_data,
                 value.satisfies.len(),
-                contract_summary(syntax, value.contracts),
-                state_handles.len().saturating_sub(1)
+                contract_summary(syntax, value.contracts)
             );
             let effects = syntax.items.identifier_path_members(value.effects);
             if !effects.is_empty() {
