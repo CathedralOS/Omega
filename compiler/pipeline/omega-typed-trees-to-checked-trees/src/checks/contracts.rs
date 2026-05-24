@@ -18,12 +18,54 @@ pub(crate) fn check_flow_call_contracts(
         for call_flow in facts.flow.calls.span_or_empty(state_flow.calls) {
             check_call_requires(program, facts, state_flow, call_flow, &mut diagnostics);
         }
+        for exit_flow in facts.flow.exits.span_or_empty(state_flow.exits) {
+            check_exit_ensures(program, facts, state_flow, exit_flow, &mut diagnostics);
+        }
     }
 
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn check_exit_ensures(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    exit_flow: &omega_checked_trees::FlowExitFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let entry_contexts: Vec<_> = facts
+        .flow
+        .semantic_context_refs
+        .span_or_empty(exit_flow.entry_semantic_contexts)
+        .iter()
+        .map(|context_ref| context_ref.context)
+        .collect();
+    for ensures_context in facts
+        .flow
+        .semantic_constraint_contexts(exit_flow.ensures_constraints)
+    {
+        let context = facts.semantic.contexts.get(ensures_context);
+        for fact in facts.semantic.context_view(context).facts() {
+            let satisfied = semantic_contexts_prove_contract_fact(
+                program,
+                &facts.semantic,
+                &entry_contexts,
+                fact,
+            );
+
+            if !satisfied {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove ensures contract for exit from {} at statement {}: {}",
+                    machine_name(program, state_flow.machine_symbol),
+                    exit_flow.statement_index,
+                    semantic_fact_requirement_label(program, &facts.semantic, fact),
+                )));
+            }
+        }
     }
 }
 
@@ -50,37 +92,8 @@ fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let satisfied = match fact.payload {
-                FactPayload::ContractDomainMembership { domain_symbol, .. } => {
-                    let place = match fact.place {
-                        FactPlace::Place(place) => place,
-                        _ => {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "cannot interpret requires contract for call {} from {}",
-                                call_target_label(program, call_flow.target_symbol),
-                                machine_name(program, state_flow.machine_symbol)
-                            )));
-                            continue;
-                        }
-                    };
-                    entry_contexts.iter().any(|entry_context| {
-                        let context = facts.semantic.contexts.get(*entry_context);
-                        facts
-                            .semantic
-                            .context_view(context)
-                            .proves_place_domain_membership_in_program(
-                                program,
-                                place,
-                                domain_symbol,
-                            )
-                    })
-                }
-                FactPayload::ContractBooleanExpression { expression, .. } => matches!(
-                    program.expression_table.expression(expression),
-                    omega_checked_trees::expression::ExpressionNode::Boolean(true)
-                ),
-                _ => true,
-            };
+            let satisfied =
+                semantic_contexts_prove_contract_fact(program, &facts.semantic, &entry_contexts, fact);
 
             if !satisfied {
                 let detail = match fact.payload {
@@ -110,6 +123,32 @@ fn check_call_requires(
                 )));
             }
         }
+    }
+}
+
+fn semantic_contexts_prove_contract_fact(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &omega_facts::FactPlan,
+    entry_contexts: &[omega_facts::FactContextHandle],
+    fact: &omega_facts::Fact,
+) -> bool {
+    match fact.payload {
+        FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+            let FactPlace::Place(place) = fact.place else {
+                return false;
+            };
+            entry_contexts.iter().any(|entry_context| {
+                let context = semantic.contexts.get(*entry_context);
+                semantic
+                    .context_view(context)
+                    .proves_place_domain_membership_in_program(program, place, domain_symbol)
+            })
+        }
+        FactPayload::ContractBooleanExpression { expression, .. } => matches!(
+            program.expression_table.expression(expression),
+            omega_checked_trees::expression::ExpressionNode::Boolean(true)
+        ),
+        _ => true,
     }
 }
 
