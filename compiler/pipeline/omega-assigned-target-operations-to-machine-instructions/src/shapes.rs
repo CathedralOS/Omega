@@ -400,8 +400,8 @@ fn ensure_runtime_value_homes(
         .into_iter()
         .flatten()
     {
-        let home_handle = runtime_value_home_handle(handle);
-        if !assigned_target_operations.runtime_value_homes.is_valid(home_handle) {
+        let home_handle = assigned_target_operations.runtime_value_home_handle(handle);
+        if !home_handle.is_valid() {
             return Err(Diagnostic::error(format!(
                 "missing assigned value home for {:?} in {:?} statement {}",
                 handle,
@@ -409,7 +409,9 @@ fn ensure_runtime_value_homes(
                 selected_instruction.source_statement
             )));
         }
-        let home = assigned_target_operations.runtime_value_homes.get(home_handle);
+        let home = assigned_target_operations
+            .runtime_value_home(handle)
+            .expect("validated assigned runtime value home should exist");
 
         if matches!(
             assigned_target_operations.runtime_value_operands.get(handle),
@@ -426,12 +428,6 @@ fn ensure_runtime_value_homes(
     }
 
     Ok(())
-}
-
-fn runtime_value_home_handle(
-    handle: omega_assigned_target_operations::RuntimeValueOperandHandle,
-) -> omega_assigned_target_operations::AssignedValueHomeHandle {
-    omega_core::arena::Handle::from_arena_index(handle.arena_index())
 }
 
 fn first_runtime_value_handle(

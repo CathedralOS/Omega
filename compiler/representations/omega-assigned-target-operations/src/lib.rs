@@ -113,6 +113,35 @@ impl AssignedTargetOperationPlan {
             runtime_value_homes: Arena::with_capacity(runtime_value_home_capacity),
         }
     }
+
+    pub fn host_binding(&self, operation_key: HostOperationKey) -> Option<&TargetHostBinding> {
+        self.host_bindings
+            .iter()
+            .find(|(_, binding)| binding.operation_key == operation_key)
+            .map(|(_, binding)| binding)
+    }
+
+    pub fn runtime_value_home_handle(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> AssignedValueHomeHandle {
+        let home_handle = Handle::from_arena_index(handle.arena_index());
+        if self.runtime_value_homes.is_valid(home_handle) {
+            home_handle
+        } else {
+            AssignedValueHomeHandle::invalid()
+        }
+    }
+
+    pub fn runtime_value_home(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<&AssignedValueHome> {
+        let home_handle = self.runtime_value_home_handle(handle);
+        self.runtime_value_homes
+            .is_valid(home_handle)
+            .then(|| self.runtime_value_homes.get(home_handle))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

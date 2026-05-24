@@ -2,7 +2,6 @@ use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
-use omega_core::arena::Handle;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
@@ -139,7 +138,7 @@ fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportI
 
     output.push_str("homes:\n");
     for (handle, home) in backend_plan.assigned_target_operations.runtime_value_homes.iter() {
-        let operand_handle = Handle::from_arena_index(handle.arena_index());
+        let operand_handle = omega_core::arena::Handle::from_arena_index(handle.arena_index());
         let operand = backend_plan
             .assigned_target_operations
             .runtime_value_operands

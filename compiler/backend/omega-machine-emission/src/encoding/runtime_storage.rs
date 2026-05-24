@@ -9,20 +9,13 @@ fn validate_runtime_value_home(
     input: MachineEmissionContext<'_>,
     operand: RuntimeValueOperandHandle,
 ) -> Result<(), Diagnostic> {
-    let home_handle = omega_core::arena::Handle::from_arena_index(operand.arena_index());
-    if !input
-        .assigned_target_operations
-        .runtime_value_homes
-        .is_valid(home_handle)
-    {
+    let Some(home) = input.assigned_target_operations.runtime_value_home(operand) else {
         return Err(Diagnostic::error(format!(
             "missing assigned runtime value home for operand #{} during machine emission",
             operand.arena_index()
         )));
-    }
-
-    let home = input.assigned_target_operations.runtime_value_homes.get(home_handle);
-    let runtime_value = input.instructions.runtime_value_operands.get(operand);
+    };
+    let runtime_value = input.assigned_target_operations.runtime_value_operands.get(operand);
     match runtime_value {
         omega_target_operations::RuntimeValueOperand::Immediate(_) => {
             if !matches!(
@@ -142,7 +135,7 @@ pub(super) fn encode_runtime_value_compare(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_value_compare(
         input.target.architecture,
-        &input.instructions.runtime_value_operands,
+        &input.assigned_target_operations.runtime_value_operands,
         left,
         right,
         byte_size,
@@ -197,7 +190,7 @@ pub(super) fn encode_runtime_storage_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_storage_binary_write(
         input.target.architecture,
-        &input.instructions.runtime_value_operands,
+        &input.assigned_target_operations.runtime_value_operands,
         target_offset,
         byte_size,
         left,
@@ -219,7 +212,7 @@ pub(super) fn encode_runtime_pointee_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_pointee_binary_write(
         input.target.architecture,
-        &input.instructions.runtime_value_operands,
+        &input.assigned_target_operations.runtime_value_operands,
         pointer_byte_offset,
         field_byte_offset,
         byte_size,
@@ -264,7 +257,7 @@ pub(super) fn encode_runtime_frame_indexed_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_frame_indexed_binary_write(
         input.target.architecture,
-        &input.instructions.runtime_value_operands,
+        &input.assigned_target_operations.runtime_value_operands,
         descriptor_offset,
         index_offset,
         element_byte_size,
