@@ -1,9 +1,77 @@
-use omega_checked_trees::CheckedTrees;
+use crate::phase_diagram::PhaseDiagramBuilder;
+use omega_checked_trees::{
+    BorrowAccessKind, BorrowArgumentAccessFact, BorrowLoanFact, CheckedTrees,
+    FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowCallFact,
+    FlowInvalidationSource, FlowStateFact,
+};
 use omega_core::symbols::SymbolHandle;
 use omega_effects::EffectSet;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::state::State;
+use omega_typed_trees::statement::{
+    StatementNode, TableTransition, TransitionTargetHandle, TransitionTargetNode,
+};
 
 pub fn checked_trees_html(program: &CheckedTrees) -> String {
-    crate::phase_diagram::text_report_html("checked_trees", &checked_effects_report(program))
+    let mut diagram = PhaseDiagramBuilder::new("checked_trees");
+    let mut machine_nodes = Vec::new();
+    let mut state_nodes = Vec::new();
+
+    for (machine_index, machine) in program.machines().iter().enumerate() {
+        let machine_id = diagram.node(
+            format!("machine_{machine_index}"),
+            machine_label(program, machine),
+            "machine",
+            machine_index + 1,
+        );
+        if let Some(effects) = machine_effects_for(program, machine.symbol) {
+            diagram.node_effects(&machine_id, effect_names_from_set(effects.transitive));
+        }
+        machine_nodes.push((machine.symbol, machine_id.clone()));
+
+        for state in program.machine_states(machine) {
+            let state_id = diagram.node(
+                format!("state_{machine_index}_{}", state.symbol.arena_index()),
+                state_label(program, machine, state),
+                "state_block",
+                machine_index + 1,
+            );
+            if let Some(flow_state) = flow_state_for(program, machine.symbol, state.symbol) {
+                diagram.node_effects(&state_id, effect_names_from_set(flow_state.transitive_effects));
+            }
+            diagram.containment_edge(&machine_id, &state_id);
+            state_nodes.push((state.symbol, state_id));
+        }
+    }
+
+    for (machine_index, machine) in program.machines().iter().enumerate() {
+        for state in program.machine_states(machine) {
+            let Some(source_id) = state_id_for_symbol(&state_nodes, state.symbol) else {
+                continue;
+            };
+
+            append_checked_call_nodes(
+                &mut diagram,
+                program,
+                machine_index,
+                machine,
+                state,
+                source_id,
+                &state_nodes,
+            );
+
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Transition(transition) = statement
+                    && let Some(target_id) =
+                        transition_target_id(program, program.machine_states(machine), &state_nodes, transition)
+                {
+                    diagram.edge(source_id, target_id, "transition_target");
+                }
+            }
+        }
+    }
+
+    diagram.finish()
 }
 
 pub fn capability_manifest_html(program: &CheckedTrees) -> String {
@@ -36,564 +104,308 @@ pub fn capability_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
-fn checked_effects_report(program: &CheckedTrees) -> String {
-    let mut report = String::new();
-    report.push_str("Checked Facts\n");
-    report.push_str("=============\n\n");
-    report.push_str("Effects\n");
-    report.push_str("-------\n");
-    report.push_str("Effects are stored as propagated bitsets on checked-tree facts.\n");
-    report.push_str("direct = declared or boundary effects at that node.\n");
-    report.push_str("reached = direct effects plus effects reached through calls.\n\n");
-
-    for machine_effects in program.facts.effects.machines() {
-        let machine_name = machine_name(program, machine_effects.symbol);
-        report.push_str("machine ");
-        report.push_str(&machine_name);
-        report.push('\n');
-        report.push_str("  symbol: ");
-        report.push_str(&symbol_label(program, machine_effects.symbol));
-        report.push('\n');
-        report.push_str("  direct:  ");
-        report.push_str(&format_effect_set(machine_effects.direct));
-        report.push('\n');
-        report.push_str("  reached: ");
-        report.push_str(&format_effect_set(machine_effects.transitive));
-        report.push('\n');
-
-        for state_effects in program
-            .facts
-            .effects
-            .states
-            .span_or_empty(machine_effects.states)
-        {
-            let current_state_name = state_name(program, state_effects.symbol);
-            report.push_str("  state ");
-            report.push_str(&current_state_name);
-            report.push('\n');
-            report.push_str("    symbol: ");
-            report.push_str(&symbol_label(program, state_effects.symbol));
-            report.push('\n');
-            report.push_str("    direct:  ");
-            report.push_str(&format_effect_set(state_effects.direct));
-            report.push('\n');
-            report.push_str("    reached: ");
-            report.push_str(&format_effect_set(state_effects.transitive));
-            report.push('\n');
-
-            for call_effects in program
-                .facts
-                .effects
-                .calls
-                .span_or_empty(state_effects.calls)
-            {
-                report.push_str("    call ");
-                report.push_str(&call_effects.statement_index.to_string());
-                report.push('.');
-                report.push_str(&call_effects.call_ordinal.to_string());
-                report.push_str(" -> ");
-                report.push_str(&state_name(program, call_effects.target_state_symbol));
-                report.push('\n');
-                report.push_str("      direct:  ");
-                report.push_str(&format_effect_set(call_effects.direct));
-                report.push('\n');
-                report.push_str("      reached: ");
-                report.push_str(&format_effect_set(call_effects.transitive));
-                report.push('\n');
-            }
-        }
-
-        report.push('\n');
-    }
-
-    report.push_str("Semantic Fact Spine\n");
-    report.push_str("-------------------\n");
-    report.push_str(
-        "Centralized fact storage: dense facts, dense refs, and context/symbol indexes.\n\n",
+fn machine_label(program: &CheckedTrees, machine: &Machine) -> String {
+    let attached_data = machine
+        .attached_data
+        .as_ref()
+        .map(|name| name.as_str())
+        .unwrap_or("<none>");
+    let state_count = program.machine_states(machine).len();
+    let checked_state_count = program
+        .facts
+        .flow
+        .states
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine.symbol)
+        .count();
+    let mut label = format!(
+        "machine {}\nattached data: {}\nstates: {}  checked states: {}\nmachine contracts: {}  trait satisfies: {}",
+        machine.name.as_str(),
+        attached_data,
+        state_count,
+        checked_state_count,
+        machine.contracts.len(),
+        machine.satisfies.len()
     );
-    report.push_str("facts:       ");
-    report.push_str(&program.facts.semantic.facts.len().to_string());
-    report.push('\n');
-    report.push_str("refs:        ");
-    report.push_str(&program.facts.semantic.refs.len().to_string());
-    report.push('\n');
-    report.push_str("contexts:    ");
-    report.push_str(&program.facts.semantic.contexts.len().to_string());
-    report.push('\n');
-    report.push_str("symbol sets: ");
-    report.push_str(&program.facts.semantic.symbol_sets.len().to_string());
-    report.push_str("\n\n");
-
-    for (_, context) in program.facts.semantic.contexts.iter() {
-        report.push_str("context ");
-        report.push_str(&semantic_point_label(program, context.point));
-        report.push('\n');
-        for fact_ref in program.facts.semantic.refs.span_or_empty(context.facts) {
-            let fact = program.facts.semantic.facts.get(fact_ref.fact);
-            report.push_str("  ");
-            report.push_str(&semantic_fact_label(program, fact));
-            report.push('\n');
-        }
+    if let Some(effects) = machine_effects_for(program, machine.symbol) {
+        label.push_str("\ndirect effects: ");
+        label.push_str(&format_effect_set(effects.direct));
+        label.push_str("\nreached effects: ");
+        label.push_str(&format_effect_set(effects.transitive));
     }
+    label
+}
 
-    if !program.facts.semantic.contexts.is_empty() {
-        report.push('\n');
-    }
+fn state_label(program: &CheckedTrees, machine: &Machine, state: &State) -> String {
+    let borrow_state = borrow_state_for(program, machine.symbol, state.symbol);
+    let flow_state = flow_state_for(program, machine.symbol, state.symbol);
 
-    report.push_str("Domain Dependencies\n");
-    report.push_str("-------------------\n");
-    report.push_str("Packed dependency paths for domain facts used by flow invalidation and future proof analysis.\n\n");
-    report.push_str("domains: ");
-    report.push_str(&program.facts.domains.dependencies.len().to_string());
-    report.push('\n');
-    report.push_str("paths:   ");
-    report.push_str(&program.facts.domains.dependency_paths.len().to_string());
-    report.push('\n');
-    report.push_str("segments:");
-    report.push(' ');
-    report.push_str(&program.facts.domains.segments.len().to_string());
-    report.push_str("\n\n");
+    let writable_root_count = borrow_state
+        .map(|borrow| borrow.writable_roots.len())
+        .unwrap_or(0);
+    let borrow_call_count = borrow_state.map(|borrow| borrow.calls.len()).unwrap_or(0);
 
-    for (_, dependency) in program.facts.domains.dependencies.iter() {
-        report.push_str("domain ");
-        report.push_str(&semantic_symbol_name(program, dependency.domain_symbol));
-        report.push('\n');
-        let mut path_count = 0usize;
-        for path in program.facts.domains.dependency_paths(dependency) {
-            path_count = path_count.saturating_add(1);
-            report.push_str("  path ");
-            report.push_str(&path_count.to_string());
-            report.push_str(": ");
-            if path.is_empty() {
-                report.push_str("<self>");
-            } else {
-                append_dependency_path_label(program, &mut report, path);
-            }
-            report.push('\n');
-        }
-    }
+    let (statement_count, call_count, exit_count, invalidation_count, activation_count, weakening_count, mutable_parameter_count, entry_context_count, entry_constraint_count, entry_loan_count, direct_effects, reached_effects) =
+        if let Some(flow) = flow_state {
+            (
+                flow.statements.len(),
+                flow.calls.len(),
+                flow.exits.len(),
+                flow.invalidations.len(),
+                flow.borrow_activations.len(),
+                flow.borrow_weakenings.len(),
+                flow.mutable_parameter_count,
+                flow.entry_semantic_contexts.len(),
+                flow.entry_constraints.len(),
+                program.facts.flow.borrow_loan_constraints(flow.entry_constraints).count(),
+                flow.direct_effects,
+                flow.transitive_effects,
+            )
+        } else {
+            (
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                borrow_state
+                    .map(|borrow| borrow.mutable_parameter_count)
+                    .unwrap_or(0),
+                0,
+                0,
+                0,
+                EffectSet::empty(),
+                EffectSet::empty(),
+            )
+        };
 
-    if !program.facts.domains.dependencies.is_empty() {
-        report.push('\n');
-    }
-
-    report.push_str("Flow Environments\n");
-    report.push_str("-----------------\n");
-    report.push_str(
-        "Shared state/call/exit snapshots tie borrow roots, semantic contexts, contracts, and effects together.\n\n",
+    let mut label = format!(
+        "{}::{} [checked]\nparams: {}  mutable params: {}\nflow: stmts {} calls {} exits {}\nborrow: roots {} calls {} entry loans {} act {} weak {}\nentry: ctx {} constraints {}\ninvalidations: {}\ndirect effects: {}\nreached effects: {}",
+        machine.name.as_str(),
+        state.name.as_str(),
+        program.state_parameters(state).len(),
+        mutable_parameter_count,
+        statement_count,
+        call_count,
+        exit_count,
+        writable_root_count,
+        borrow_call_count,
+        entry_loan_count,
+        activation_count,
+        weakening_count,
+        entry_context_count,
+        entry_constraint_count,
+        invalidation_count,
+        format_effect_set(direct_effects),
+        format_effect_set(reached_effects),
     );
-    report.push_str("states:   ");
-    report.push_str(&program.facts.flow.states.len().to_string());
-    report.push('\n');
-    report.push_str("calls:    ");
-    report.push_str(&program.facts.flow.calls.len().to_string());
-    report.push('\n');
-    report.push_str("statements: ");
-    report.push_str(&program.facts.flow.statements.len().to_string());
-    report.push('\n');
-    report.push_str("exits:    ");
-    report.push_str(&program.facts.flow.exits.len().to_string());
-    report.push('\n');
-    report.push_str("invalidations: ");
-    report.push_str(&program.facts.flow.invalidations.len().to_string());
-    report.push('\n');
-    report.push_str("borrow activations: ");
-    report.push_str(&program.facts.flow.borrow_activations.len().to_string());
-    report.push('\n');
-    report.push_str("borrow weakenings: ");
-    report.push_str(&program.facts.flow.borrow_weakenings.len().to_string());
-    report.push('\n');
-    report.push_str("contexts: ");
-    report.push_str(&program.facts.flow.semantic_context_refs.len().to_string());
-    report.push('\n');
-    report.push_str("constraints: ");
-    report.push_str(&program.facts.flow.constraint_refs.len().to_string());
-    report.push_str("\n\n");
 
-    for (_, state_flow) in program.facts.flow.states.iter() {
-        report.push_str("state ");
-        report.push_str(&machine_name(program, state_flow.machine_symbol));
-        report.push_str("::");
-        report.push_str(&state_name(program, state_flow.state_symbol));
-        report.push('\n');
-        report.push_str("  writable roots: ");
-        report.push_str(
-            &program
-                .facts
-                .borrow
-                .writable_roots
-                .span_or_empty(state_flow.writable_roots)
-                .len()
-                .to_string(),
-        );
-        report.push('\n');
-        report.push_str("  mutable params: ");
-        report.push_str(&state_flow.mutable_parameter_count.to_string());
-        report.push('\n');
-        report.push_str("  entry contexts: ");
-        append_flow_context_labels(program, &mut report, state_flow.entry_semantic_contexts);
-        report.push('\n');
-        report.push_str("  entry constraints: ");
-        append_flow_constraint_labels(program, &mut report, state_flow.entry_constraints);
-        report.push('\n');
-        report.push_str("  active borrow loans: ");
-        append_flow_borrow_loan_summary(program, &mut report, state_flow.entry_constraints);
-        report.push('\n');
-        report.push_str("  invalidations: ");
-        append_flow_invalidation_summary(program, &mut report, state_flow.invalidations);
-        report.push('\n');
-        report.push_str("  borrow activations: ");
-        append_flow_borrow_activation_summary(program, &mut report, state_flow.borrow_activations);
-        report.push('\n');
-        report.push_str("  borrow weakenings: ");
-        append_flow_borrow_weakening_summary(program, &mut report, state_flow.borrow_weakenings);
-        report.push('\n');
-        report.push_str("  statements: ");
-        report.push_str(
+    if let Some(flow) = flow_state {
+        append_loan_preview(&mut label, program, machine, state, flow.entry_constraints);
+        append_activation_preview(&mut label, program, machine, state, flow);
+        append_weakening_preview(&mut label, program, machine, state, flow);
+        append_statement_preview(&mut label, program, flow);
+        append_exit_preview(&mut label, program, flow);
+    }
+
+    label
+}
+
+fn append_loan_preview(
+    label: &mut String,
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
+) {
+    let loans = program
+        .facts
+        .flow
+        .borrow_loan_constraints(constraints)
+        .take(3)
+        .collect::<Vec<_>>();
+    for loan in loans {
+        label.push_str("\n  entry loan: ");
+        label.push_str(&borrow_loan_label(program, machine, state, program.facts.borrow.loans.get(loan)));
+    }
+}
+
+fn append_activation_preview(
+    label: &mut String,
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    flow: &FlowStateFact,
+) {
+    let activations = program
+        .facts
+        .flow
+        .borrow_activations
+        .span_or_empty(flow.borrow_activations);
+    for activation in activations.iter().take(3) {
+        label.push_str("\n  activation: ");
+        label.push_str(&borrow_activation_label(program, machine, state, activation));
+    }
+    if activations.len() > 3 {
+        label.push_str("\n  ... ");
+        label.push_str(&(activations.len() - 3).to_string());
+        label.push_str(" more activations");
+    }
+}
+
+fn append_weakening_preview(
+    label: &mut String,
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    flow: &FlowStateFact,
+) {
+    let weakenings = program
+        .facts
+        .flow
+        .borrow_weakenings
+        .span_or_empty(flow.borrow_weakenings);
+    for weakening in weakenings.iter().take(3) {
+        label.push_str("\n  weakening: ");
+        label.push_str(&borrow_weakening_label(program, machine, state, weakening));
+    }
+    if weakenings.len() > 3 {
+        label.push_str("\n  ... ");
+        label.push_str(&(weakenings.len() - 3).to_string());
+        label.push_str(" more weakenings");
+    }
+}
+
+fn append_statement_preview(label: &mut String, program: &CheckedTrees, flow: &FlowStateFact) {
+    let statements = program.facts.flow.statements.span_or_empty(flow.statements);
+    for statement in statements.iter().take(6) {
+        label.push_str("\n  stmt #");
+        label.push_str(&statement.statement_index.to_string());
+        label.push_str(": ctx ");
+        label.push_str(&statement.entry_semantic_contexts.len().to_string());
+        label.push_str(" loans ");
+        label.push_str(
             &program
                 .facts
                 .flow
-                .statements
-                .span_or_empty(state_flow.statements)
-                .len()
+                .borrow_loan_constraints(statement.entry_constraints)
+                .count()
                 .to_string(),
         );
-        report.push('\n');
-        report.push_str("  direct effects:  ");
-        report.push_str(&format_effect_set(state_flow.direct_effects));
-        report.push('\n');
-        report.push_str("  reached effects: ");
-        report.push_str(&format_effect_set(state_flow.transitive_effects));
-        report.push('\n');
-
-        for statement_flow in program
-            .facts
-            .flow
-            .statements
-            .span_or_empty(state_flow.statements)
-        {
-            report.push_str("  statement ");
-            report.push_str(&statement_flow.statement_index.to_string());
-            report.push('\n');
-            report.push_str("    entry contexts: ");
-            append_flow_context_labels(program, &mut report, statement_flow.entry_semantic_contexts);
-            report.push('\n');
-            report.push_str("    active borrow loans: ");
-            append_flow_borrow_loan_summary(program, &mut report, statement_flow.entry_constraints);
-            report.push('\n');
-        }
-
-        for call_flow in program.facts.flow.calls.span_or_empty(state_flow.calls) {
-            report.push_str("  call ");
-            report.push_str(&call_flow.statement_index.to_string());
-            report.push('.');
-            report.push_str(&call_flow.call_ordinal.to_string());
-            report.push_str(" -> ");
-            report.push_str(&state_label_from_symbol(program, call_flow.target_symbol));
-            report.push('\n');
-            report.push_str("    entry contexts: ");
-            append_flow_context_labels(program, &mut report, call_flow.entry_semantic_contexts);
-            report.push('\n');
-            report.push_str("    entry constraints: ");
-            append_flow_constraint_labels(program, &mut report, call_flow.entry_constraints);
-            report.push('\n');
-            report.push_str("    active borrow loans: ");
-            append_flow_borrow_loan_summary(program, &mut report, call_flow.entry_constraints);
-            report.push('\n');
-            report.push_str("    borrow accesses: ");
-            append_flow_borrow_access_summary(program, &mut report, call_flow.entry_constraints);
-            report.push('\n');
-            report.push_str("    requires contexts: ");
-            append_flow_context_labels(program, &mut report, call_flow.requires_contexts);
-            report.push('\n');
-            report.push_str("    requires constraints: ");
-            append_flow_constraint_labels(program, &mut report, call_flow.requires_constraints);
-            report.push('\n');
-            report.push_str("    exit contexts: ");
-            append_flow_context_labels(program, &mut report, call_flow.exit_semantic_contexts);
-            report.push('\n');
-            report.push_str("    exit constraints: ");
-            append_flow_constraint_labels(program, &mut report, call_flow.exit_constraints);
-            report.push('\n');
-            report.push_str("    invalidations: ");
-            append_flow_invalidation_summary(program, &mut report, call_flow.invalidations);
-            report.push('\n');
-            report.push_str("    requires: ");
-            append_contract_fact_ref_summary(program, &mut report, call_flow.requires);
-            report.push('\n');
-            report.push_str("    ensures: ");
-            append_contract_fact_ref_summary(program, &mut report, call_flow.ensures);
-            report.push('\n');
-            report.push_str("    direct effects:  ");
-            report.push_str(&format_effect_set(call_flow.direct_effects));
-            report.push('\n');
-            report.push_str("    reached effects: ");
-            report.push_str(&format_effect_set(call_flow.transitive_effects));
-            report.push('\n');
-        }
-
-        for exit_flow in program.facts.flow.exits.span_or_empty(state_flow.exits) {
-            report.push_str("  exit ");
-            report.push_str(&exit_flow.statement_index.to_string());
-            report.push('\n');
-            report.push_str("    entry contexts: ");
-            append_flow_context_labels(program, &mut report, exit_flow.entry_semantic_contexts);
-            report.push('\n');
-            report.push_str("    entry constraints: ");
-            append_flow_constraint_labels(program, &mut report, exit_flow.entry_constraints);
-            report.push('\n');
-            report.push_str("    ensures contexts: ");
-            append_flow_context_labels(program, &mut report, exit_flow.ensures_contexts);
-            report.push('\n');
-            report.push_str("    ensures constraints: ");
-            append_flow_constraint_labels(program, &mut report, exit_flow.ensures_constraints);
-            report.push('\n');
-            report.push_str("    ensures: ");
-            append_contract_fact_ref_summary(program, &mut report, exit_flow.ensures);
-            report.push('\n');
-        }
-
-        report.push('\n');
     }
-
-    report.push_str("Contract Facts\n");
-    report.push_str("--------------\n");
-    report.push_str("Contracts are stored as checked-tree proof facts pointing into typed proof fact arenas.\n\n");
-
-    for (_, fact) in program.facts.proof.contract_facts.iter() {
-        report.push_str("contract fact ");
-        report.push_str(&contract_fact_kind(fact));
-        report.push('\n');
-        report.push_str("  owner: ");
-        report.push_str(&contract_fact_owner(program, fact));
-        report.push('\n');
-        report.push_str("  fact:  ");
-        report.push_str(&typed_proof_fact_label(program, fact.fact));
-        report.push('\n');
-    }
-
-    if !program.facts.proof.contract_calls.is_empty() {
-        report.push('\n');
-    }
-    for (_, call) in program.facts.proof.contract_calls.iter() {
-        report.push_str("call ");
-        report.push_str(&machine_name(program, call.caller_machine_symbol));
-        report.push_str("::");
-        report.push_str(&state_name(program, call.caller_state_symbol));
-        report.push(' ');
-        report.push_str(&call.statement_index.to_string());
-        report.push('.');
-        report.push_str(&call.call_ordinal.to_string());
-        report.push_str(" -> ");
-        report.push_str(&machine_name(program, call.target_machine_symbol));
-        report.push_str("::");
-        report.push_str(&state_name(program, call.target_state_symbol));
-        report.push('\n');
-        append_contract_fact_ref_list(program, &mut report, "requires", call.requires);
-        append_contract_fact_ref_list(program, &mut report, "ensures", call.ensures);
-    }
-
-    if !program.facts.proof.contract_exits.is_empty() {
-        report.push('\n');
-    }
-    for (_, exit) in program.facts.proof.contract_exits.iter() {
-        report.push_str("exit ");
-        report.push_str(&machine_name(program, exit.machine_symbol));
-        report.push_str("::");
-        report.push_str(&state_name(program, exit.state_symbol));
-        report.push(' ');
-        report.push_str(&exit.statement_index.to_string());
-        report.push('\n');
-        append_contract_fact_ref_list(program, &mut report, "ensures", exit.ensures);
-    }
-
-    report
-}
-
-fn semantic_point_label(program: &CheckedTrees, point: omega_facts::ProgramPoint) -> String {
-    match point {
-        omega_facts::ProgramPoint::Global => "global".to_owned(),
-        omega_facts::ProgramPoint::Definition { symbol } => {
-            format!("definition {}", semantic_symbol_name(program, symbol))
-        }
-        omega_facts::ProgramPoint::Machine { machine_symbol } => {
-            format!("machine {}", machine_name(program, machine_symbol))
-        }
-        omega_facts::ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        } => format!(
-            "state {}::{}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
-        omega_facts::ProgramPoint::Statement {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-        } => format!(
-            "statement {}::{} {statement_index}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
-        omega_facts::ProgramPoint::Call {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            call_ordinal,
-        } => format!(
-            "call {}::{} {statement_index}.{call_ordinal}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
-        omega_facts::ProgramPoint::CallRequires {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            call_ordinal,
-        } => format!(
-            "call requires {}::{} {statement_index}.{call_ordinal}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
-        omega_facts::ProgramPoint::CallEnsures {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            call_ordinal,
-        } => format!(
-            "call ensures {}::{} {statement_index}.{call_ordinal}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
-        omega_facts::ProgramPoint::Exit {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-        } => format!(
-            "exit {}::{} {statement_index}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
+    if statements.len() > 6 {
+        label.push_str("\n  ... ");
+        label.push_str(&(statements.len() - 6).to_string());
+        label.push_str(" more statements");
     }
 }
 
-fn semantic_fact_label(program: &CheckedTrees, fact: &omega_facts::Fact) -> String {
-    let origin = semantic_origin_label(program, fact.origin);
-    let payload = semantic_payload_label(program, fact.payload);
-    let place = semantic_place_label(program, fact.place);
-    format!("{payload} | place: {place} | origin: {origin}")
-}
-
-fn semantic_payload_label(program: &CheckedTrees, payload: omega_facts::FactPayload) -> String {
-    match payload {
-        omega_facts::FactPayload::BooleanExpression(expression) => {
-            program.expression_table.display_name(expression)
-        }
-        omega_facts::FactPayload::ContractBooleanExpression {
-            kind,
-            fact,
-            expression,
-        } => format!(
-            "{} contract {} ({})",
-            semantic_contract_kind(kind),
-            program.expression_table.display_name(expression),
-            typed_proof_fact_label(program, fact)
-        ),
-        omega_facts::FactPayload::DomainMembership {
-            value,
-            domain: _,
-            domain_symbol,
-        } => format!(
-            "{} in {}",
-            program.expression_table.display_name(value),
-            semantic_symbol_name(program, domain_symbol)
-        ),
-        omega_facts::FactPayload::ContractDomainMembership {
-            kind,
-            fact,
-            value,
-            domain: _,
-            domain_symbol,
-        } => format!(
-            "{} contract {} in {} ({})",
-            semantic_contract_kind(kind),
-            program.expression_table.display_name(value),
-            semantic_symbol_name(program, domain_symbol),
-            typed_proof_fact_label(program, fact)
-        ),
-        omega_facts::FactPayload::TypeConstraint { constraint } => program
-            .type_reference_table
-            .constraints(omega_core::arena::HandleSpan::from_parts(constraint, 1))
-            .first()
-            .map(|constraint| constraint.display_name(&program.expression_table))
-            .unwrap_or_else(|| "<missing constraint>".to_owned()),
-        omega_facts::FactPayload::ProofObligation { kind } => {
-            format!("proof obligation {}", semantic_proof_obligation_kind(kind))
-        }
-        omega_facts::FactPayload::Contract { kind, fact } => {
-            format!(
-                "{} contract {}",
-                semantic_contract_kind(kind),
-                typed_proof_fact_label(program, fact)
-            )
-        }
-        omega_facts::FactPayload::InvariantDefinition { constraint_count } => {
-            format!("invariant definition ({constraint_count} constraints)")
-        }
+fn append_exit_preview(label: &mut String, program: &CheckedTrees, flow: &FlowStateFact) {
+    let exits = program.facts.flow.exits.span_or_empty(flow.exits);
+    for exit in exits.iter().take(3) {
+        label.push_str("\n  exit #");
+        label.push_str(&exit.statement_index.to_string());
+        label.push_str(": ensures ");
+        label.push_str(&exit.ensures.len().to_string());
+        label.push_str(" ctx ");
+        label.push_str(&exit.ensures_contexts.len().to_string());
     }
 }
 
-fn semantic_place_label(program: &CheckedTrees, place: omega_facts::FactPlace) -> String {
-    match place {
-        omega_facts::FactPlace::Unknown => "unknown".to_owned(),
-        omega_facts::FactPlace::Place(place) => {
-            let place = program.facts.semantic.places.get(place);
-            semantic_canonical_place_label(program, place)
-        }
-        omega_facts::FactPlace::Symbol(symbol) => semantic_symbol_name(program, symbol),
-        omega_facts::FactPlace::Expression(expression) => {
-            program.expression_table.display_name(expression)
-        }
-        omega_facts::FactPlace::TypeReference(type_reference) => {
-            program.display_type_reference(type_reference)
-        }
+fn append_checked_call_nodes(
+    diagram: &mut PhaseDiagramBuilder,
+    program: &CheckedTrees,
+    machine_index: usize,
+    machine: &Machine,
+    state: &State,
+    source_id: &str,
+    state_nodes: &[(SymbolHandle, String)],
+) {
+    let Some(flow_state) = flow_state_for(program, machine.symbol, state.symbol) else {
+        return;
+    };
+
+    for call in program.facts.flow.calls.span_or_empty(flow_state.calls) {
+        let label = checked_call_label(program, machine, state, call);
+        let call_id = format!(
+            "checked_call_{}_{}_{}_{}",
+            machine_index,
+            state.symbol.arena_index(),
+            call.statement_index,
+            call.call_ordinal
+        );
+
+        let rendered_id = if let Some(target_id) = state_id_for_symbol(state_nodes, call.target_symbol) {
+            if target_id == source_id {
+                diagram.node(call_id, label, "external_call", machine_index + 1)
+            } else {
+                diagram.scoped_node(call_id, label, "external_call", machine_index + 1, target_id)
+            }
+        } else {
+            diagram.node(call_id, label, "external_call", machine_index + 1)
+        };
+
+        diagram.node_effects(&rendered_id, effect_names_from_set(call.transitive_effects));
+        diagram.edge(source_id, &rendered_id, "call");
+        diagram.containment_edge(source_id, &rendered_id);
     }
 }
 
-fn semantic_canonical_place_label(program: &CheckedTrees, place: &omega_facts::Place) -> String {
-    canonical_place_label_from_parts(
-        program,
-        place.root,
-        program
-            .facts
-            .semantic
-            .place_segments
-            .span_or_empty(place.segments),
+fn checked_call_label(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &FlowCallFact,
+) -> String {
+    let access_text = borrow_access_summary(program, machine, state, call.accesses);
+    format!(
+        "call {}\nat #{}.{}\nentry: ctx {} constraints {} loans {}\ncontracts: requires {} ensures {}\nborrow: access {} invalidations {}\ndirect effects: {}\nreached effects: {}\n\ndouble-click to scope target",
+        state_label_from_symbol(program, call.target_symbol),
+        call.statement_index,
+        call.call_ordinal,
+        call.entry_semantic_contexts.len(),
+        call.entry_constraints.len(),
+        program.facts.flow.borrow_loan_constraints(call.entry_constraints).count(),
+        call.requires.len(),
+        call.ensures.len(),
+        access_text,
+        call.invalidations.len(),
+        format_effect_set(call.direct_effects),
+        format_effect_set(call.transitive_effects),
     )
 }
 
-fn canonical_place_label_from_parts(
+fn borrow_access_summary(
     program: &CheckedTrees,
-    root: omega_facts::PlaceRoot,
-    segments: &[omega_facts::PlaceSegment],
+    machine: &Machine,
+    state: &State,
+    accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) -> String {
-    let mut label = match root {
-        omega_facts::PlaceRoot::Unknown => "unknown".to_owned(),
-        omega_facts::PlaceRoot::Symbol(symbol) => semantic_symbol_name(program, symbol),
-        omega_facts::PlaceRoot::Expression(expression) => {
-            program.expression_table.display_name(expression)
-        }
-        omega_facts::PlaceRoot::TypeReference(type_reference) => {
-            program.display_type_reference(type_reference)
-        }
-    };
+    let access_facts = program.facts.borrow.argument_accesses.span_or_empty(accesses);
+    if access_facts.is_empty() {
+        return "<none>".to_owned();
+    }
 
-    for segment in segments {
+    access_facts
+        .iter()
+        .map(|access| borrow_access_label(program, machine, state, access))
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn borrow_access_label(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    access: &BorrowArgumentAccessFact,
+) -> String {
+    let mut label = symbol_name_for_state(program, machine, state, access.root_symbol);
+    for segment in program.facts.borrow.access_segments.span_or_empty(access.segments) {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
-                label.push_str(&semantic_symbol_name(program, *symbol));
+                label.push_str(&symbol_name_for_state(program, machine, state, *symbol));
             }
             omega_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
@@ -602,174 +414,239 @@ fn canonical_place_label_from_parts(
             }
         }
     }
-
+    label.push_str(": ");
+    label.push_str(match access.kind {
+        BorrowAccessKind::Read => "read",
+        BorrowAccessKind::Mutable => "mutable",
+    });
     label
 }
 
-fn joined_place_label(
+fn borrow_loan_label(
     program: &CheckedTrees,
-    semantic: &omega_facts::FactPlan,
-    place: &omega_facts::Place,
-    extra_segments: &[omega_facts::PlaceSegment],
+    machine: &Machine,
+    state: &State,
+    loan: &BorrowLoanFact,
 ) -> String {
-    let mut segments: Vec<_> = semantic
-        .place_segments
-        .span_or_empty(place.segments)
-        .iter()
-        .copied()
-        .collect();
-    segments.extend(extra_segments.iter().copied());
-    canonical_place_label_from_parts(program, place.root, &segments)
-}
-
-fn append_dependency_path_label(
-    program: &CheckedTrees,
-    report: &mut String,
-    segments: &[omega_facts::PlaceSegment],
-) {
-    report.push_str("self");
-    for segment in segments {
+    let mut place = symbol_name_for_state(program, machine, state, loan.root_symbol);
+    for segment in program.facts.borrow.access_segments.span_or_empty(loan.segments) {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
-                report.push('.');
-                report.push_str(&semantic_symbol_name(program, *symbol));
+                place.push('.');
+                place.push_str(&symbol_name_for_state(program, machine, state, *symbol));
             }
             omega_facts::PlaceSegment::Index { expression } => {
-                report.push('[');
-                report.push_str(&program.expression_table.display_name(*expression));
-                report.push(']');
+                place.push('[');
+                place.push_str(&program.expression_table.display_name(*expression));
+                place.push(']');
             }
         }
     }
+
+    format!(
+        "{} -> {} [created {}, last use {}]",
+        symbol_name_for_state(program, machine, state, loan.owner_symbol),
+        place,
+        loan.statement_index,
+        loan.last_use_statement_index
+    )
 }
 
-fn semantic_origin_label(program: &CheckedTrees, origin: omega_facts::FactOrigin) -> String {
-    match origin {
-        omega_facts::FactOrigin::Unknown => "unknown".to_owned(),
-        omega_facts::FactOrigin::DomainDefinition { domain_symbol } => {
-            format!("domain {}", semantic_symbol_name(program, domain_symbol))
-        }
-        omega_facts::FactOrigin::InvariantDefinition { invariant_symbol } => {
-            format!(
-                "invariant {}",
-                semantic_symbol_name(program, invariant_symbol)
-            )
-        }
-        omega_facts::FactOrigin::TypeReference => "type reference".to_owned(),
-        omega_facts::FactOrigin::ProofObligation => "proof obligation".to_owned(),
-        omega_facts::FactOrigin::MachineContract { machine_symbol } => {
-            format!("machine contract {}", machine_name(program, machine_symbol))
-        }
-        omega_facts::FactOrigin::StateSignatureContract {
-            owner_symbol,
-            state_symbol,
-        } => format!(
-            "signature contract {}::{}",
-            signature_owner_name(program, owner_symbol),
-            state_signature_name(program, state_symbol)
+fn borrow_activation_label(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    activation: &FlowBorrowActivationFact,
+) -> String {
+    format!(
+        "{} -> {}",
+        borrow_event_source_label(program, activation.source),
+        borrow_loan_label(
+            program,
+            machine,
+            state,
+            program.facts.borrow.loans.get(activation.loan),
         ),
-        omega_facts::FactOrigin::CallRequires => "call requires".to_owned(),
-        omega_facts::FactOrigin::CallEnsures => "call ensures".to_owned(),
-        omega_facts::FactOrigin::ExitEnsures => "exit ensures".to_owned(),
-        omega_facts::FactOrigin::StatementTransfer => "statement transfer".to_owned(),
+    )
+}
+
+fn borrow_weakening_label(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    weakening: &FlowBorrowWeakeningFact,
+) -> String {
+    format!(
+        "{} -> {} ({})",
+        borrow_event_source_label(program, weakening.source),
+        borrow_loan_label(
+            program,
+            machine,
+            state,
+            program.facts.borrow.loans.get(weakening.loan),
+        ),
+        borrow_weakening_reason_label(weakening.reason),
+    )
+}
+
+fn borrow_event_source_label(program: &CheckedTrees, source: FlowInvalidationSource) -> String {
+    match source {
+        FlowInvalidationSource::Statement { statement_index } => {
+            format!("statement {statement_index}")
+        }
+        FlowInvalidationSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => format!(
+            "call #{}.{} -> {}",
+            statement_index,
+            call_ordinal,
+            state_label_from_symbol(program, target_symbol)
+        ),
     }
 }
 
-fn semantic_contract_kind(kind: omega_facts::ContractFactKind) -> &'static str {
-    match kind {
-        omega_facts::ContractFactKind::Requires => "requires",
-        omega_facts::ContractFactKind::Ensures => "ensures",
-        omega_facts::ContractFactKind::Trusted => "trusted",
+fn borrow_weakening_reason_label(reason: FlowBorrowWeakeningReason) -> &'static str {
+    match reason {
+        FlowBorrowWeakeningReason::LastUseExpired => "after last use",
+        FlowBorrowWeakeningReason::StateExit => "at state exit",
+        FlowBorrowWeakeningReason::LocalReassigned => "after local reassignment",
     }
 }
 
-fn semantic_proof_obligation_kind(kind: omega_facts::ProofObligationKind) -> &'static str {
-    match kind {
-        omega_facts::ProofObligationKind::BoundedAssignment => "bounded assignment",
-        omega_facts::ProofObligationKind::BoundedCallArgument => "bounded call argument",
-        omega_facts::ProofObligationKind::BoundedInitializer => "bounded initializer",
-        omega_facts::ProofObligationKind::BoundedStateReturn => "bounded state return",
-        omega_facts::ProofObligationKind::BoundedValue => "bounded value",
-        omega_facts::ProofObligationKind::BoundedTransitionArgument => {
-            "bounded transition argument"
-        }
-        omega_facts::ProofObligationKind::GuardedTransition => "guarded transition",
+fn symbol_name_for_state(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    symbol: SymbolHandle,
+) -> String {
+    if symbol == machine.symbol {
+        return "self".to_owned();
+    }
+
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+    {
+        return parameter.name.as_str().to_owned();
+    }
+
+    if let Some(owned) = program
+        .machine_owned_data(machine)
+        .iter()
+        .find(|owned| owned.symbol == symbol)
+    {
+        return owned.name.as_str().to_owned();
+    }
+
+    if let Some(contained) = program
+        .machine_contained_objects(machine)
+        .iter()
+        .find(|contained| contained.symbol == symbol)
+    {
+        return contained.name.as_str().to_owned();
+    }
+
+    semantic_symbol_name(program, symbol)
+}
+
+fn flow_state_for(
+    program: &CheckedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Option<&FlowStateFact> {
+    program
+        .facts
+        .flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+                .then_some(state)
+        })
+}
+
+fn borrow_state_for(
+    program: &CheckedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Option<&omega_checked_trees::StateBorrowFact> {
+    program
+        .facts
+        .borrow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+                .then_some(state)
+        })
+}
+
+fn machine_effects_for(
+    program: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Option<&omega_effects::MachineEffects> {
+    program
+        .facts
+        .effects
+        .machines()
+        .iter()
+        .find(|effects| effects.symbol == symbol)
+}
+
+fn state_id_for_symbol(state_nodes: &[(SymbolHandle, String)], symbol: SymbolHandle) -> Option<&str> {
+    state_nodes
+        .iter()
+        .find(|(candidate, _)| *candidate == symbol)
+        .map(|(_, id)| id.as_str())
+}
+
+fn transition_target_id<'states>(
+    program: &CheckedTrees,
+    states: &'states [State],
+    state_nodes: &'states [(SymbolHandle, String)],
+    transition: &TableTransition,
+) -> Option<&'states str> {
+    transition_target_symbol_in_states(program, states, transition.target)
+        .and_then(|symbol| state_id_for_symbol(state_nodes, symbol))
+}
+
+fn transition_target_symbol_in_states(
+    program: &CheckedTrees,
+    states: &[State],
+    target: TransitionTargetHandle,
+) -> Option<SymbolHandle> {
+    if !target.is_valid() {
+        return None;
+    }
+
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, .. } => states
+            .iter()
+            .find(|state| state.symbol == path.symbol)
+            .map(|state| state.symbol),
+        TransitionTargetNode::Value(_)
+        | TransitionTargetNode::SelfTarget
+        | TransitionTargetNode::Terminal => None,
     }
 }
 
-fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
-    for machine in program.machines() {
-        if machine.symbol == symbol {
-            return machine.name.as_str().to_owned();
-        }
-        for state in program.machine_states(machine) {
-            if state.symbol == symbol {
-                return state.name.as_str().to_owned();
-            }
-            for parameter in program.state_parameters(state) {
-                if parameter.symbol == symbol {
-                    return parameter.name.as_str().to_owned();
-                }
-            }
-        }
-        for owned in program.machine_owned_data(machine) {
-            if owned.symbol == symbol {
-                return owned.name.as_str().to_owned();
-            }
-        }
-        for contained in program.machine_contained_objects(machine) {
-            if contained.symbol == symbol {
-                return contained.name.as_str().to_owned();
-            }
-        }
+fn format_effect_set(effects: EffectSet) -> String {
+    if effects.is_empty() {
+        return "<none> [0x0000000000000000]".to_owned();
     }
-    for data in program.data_definitions() {
-        if data.symbol == symbol {
-            return data.name.as_str().to_owned();
-        }
-        for member in program.data_members(data) {
-            match member {
-                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return field.name.as_str().to_owned();
-                }
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == symbol =>
-                {
-                    return variant.name.as_str().to_owned();
-                }
-                _ => {}
-            }
-        }
-    }
-    if let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == symbol)
-    {
-        return domain.name.to_string();
-    }
-    if let Some(invariant) = program
-        .invariant_definitions()
-        .iter()
-        .find(|invariant| invariant.symbol == symbol)
-    {
-        return invariant.name.to_string();
-    }
-    if let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|trait_definition| trait_definition.symbol == symbol)
-    {
-        return trait_definition.name.as_str().to_owned();
-    }
-    if let Some(platform) = program
-        .platforms()
-        .iter()
-        .find(|platform| platform.symbol == symbol)
-    {
-        return platform.name.as_str().to_owned();
-    }
-    program.symbols.name(symbol).to_string()
+
+    format!(
+        "{} [0x{:016x}]",
+        effects.names().collect::<Vec<_>>().join(", "),
+        effects.bits()
+    )
+}
+
+fn effect_names_from_set(effects: EffectSet) -> Vec<String> {
+    effects.names().map(str::to_owned).collect()
 }
 
 fn capability_manifest_text(program: &CheckedTrees) -> String {
@@ -850,114 +727,79 @@ fn entry_machine_with_state(
         })
 }
 
-fn machine_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-        .map(|machine| machine.name.as_str().to_owned())
-        .unwrap_or_else(|| symbol_label(program, symbol))
-}
-
-fn state_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
-    program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine).iter())
-        .find(|state| state.symbol == symbol)
-        .map(|state| state.name.as_str().to_owned())
-        .unwrap_or_else(|| symbol_label(program, symbol))
-}
-
-fn contract_fact_kind(fact: &omega_checked_trees::ContractProofFact) -> &'static str {
-    match fact.kind {
-        omega_checked_trees::ContractProofFactKind::Requires => "requires",
-        omega_checked_trees::ContractProofFactKind::Ensures => "ensures",
-        omega_checked_trees::ContractProofFactKind::Trusted => "trusted",
-    }
-}
-
-fn contract_fact_owner(program: &CheckedTrees, fact: &omega_checked_trees::ContractProofFact) -> String {
-    match fact.owner {
-        omega_checked_trees::ContractProofFactOwner::Unknown => "unknown".to_owned(),
-        omega_checked_trees::ContractProofFactOwner::Machine { machine_symbol } => {
-            format!("machine {}", machine_name(program, machine_symbol))
+fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            return machine.name.as_str().to_owned();
         }
-        omega_checked_trees::ContractProofFactOwner::MachineState {
-            machine_symbol,
-            state_symbol,
-        } => format!(
-            "machine state {}::{}",
-            machine_name(program, machine_symbol),
-            state_name(program, state_symbol)
-        ),
-        omega_checked_trees::ContractProofFactOwner::StateSignature {
-            owner_symbol,
-            state_symbol,
-        } => format!(
-            "signature {}::{}",
-            signature_owner_name(program, owner_symbol),
-            state_signature_name(program, state_symbol)
-        ),
+        for state in program.machine_states(machine) {
+            if state.symbol == symbol {
+                return state.name.as_str().to_owned();
+            }
+            for parameter in program.state_parameters(state) {
+                if parameter.symbol == symbol {
+                    return parameter.name.as_str().to_owned();
+                }
+            }
+        }
+        for owned in program.machine_owned_data(machine) {
+            if owned.symbol == symbol {
+                return owned.name.as_str().to_owned();
+            }
+        }
+        for contained in program.machine_contained_objects(machine) {
+            if contained.symbol == symbol {
+                return contained.name.as_str().to_owned();
+            }
+        }
     }
-}
-
-fn signature_owner_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
-    program
+    for data in program.data_definitions() {
+        if data.symbol == symbol {
+            return data.name.as_str().to_owned();
+        }
+        for member in program.data_members(data) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return field.name.as_str().to_owned();
+                }
+                omega_typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == symbol =>
+                {
+                    return variant.name.as_str().to_owned();
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == symbol)
+    {
+        return domain.name.to_string();
+    }
+    if let Some(invariant) = program
+        .invariant_definitions()
+        .iter()
+        .find(|invariant| invariant.symbol == symbol)
+    {
+        return invariant.name.to_string();
+    }
+    if let Some(trait_definition) = program
         .traits()
         .iter()
         .find(|trait_definition| trait_definition.symbol == symbol)
-        .map(|trait_definition| trait_definition.name.as_str().to_owned())
-        .or_else(|| {
-            program
-                .platforms()
-                .iter()
-                .find(|platform| platform.symbol == symbol)
-                .map(|platform| platform.name.as_str().to_owned())
-        })
-        .unwrap_or_else(|| symbol_label(program, symbol))
-}
-
-fn state_signature_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
-    program
-        .traits()
-        .iter()
-        .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition))
-        .find(|signature| signature.symbol == symbol)
-        .map(|signature| signature.name.as_str().to_owned())
-        .or_else(|| {
-            program
-                .platforms()
-                .iter()
-                .flat_map(|platform| program.platform_state_signatures(platform))
-                .find(|signature| signature.symbol == symbol)
-                .map(|signature| signature.name.as_str().to_owned())
-        })
-        .unwrap_or_else(|| symbol_label(program, symbol))
-}
-
-fn typed_proof_fact_label(
-    program: &CheckedTrees,
-    fact: omega_core::arena::Handle<omega_typed_trees::domain::ProofFact>,
-) -> String {
-    match program.proof_facts.get(fact) {
-        omega_typed_trees::domain::ProofFact::Expression(expression) => {
-            program.expression_table.display_name(*expression)
-        }
-        omega_typed_trees::domain::ProofFact::Membership(membership) => {
-            let domain = program
-                .domain_path_members(membership.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
-            format!(
-                "{} in {}",
-                program.expression_table.display_name(membership.value),
-                domain
-            )
-        }
+    {
+        return trait_definition.name.as_str().to_owned();
     }
+    if let Some(platform) = program
+        .platforms()
+        .iter()
+        .find(|platform| platform.symbol == symbol)
+    {
+        return platform.name.as_str().to_owned();
+    }
+    program.symbols.name(symbol).to_string()
 }
 
 fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> String {
@@ -974,435 +816,9 @@ fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> Stri
         .unwrap_or_else(|| symbol_label(program, symbol))
 }
 
-fn append_flow_context_labels(
-    program: &CheckedTrees,
-    report: &mut String,
-    contexts: omega_core::arena::HandleSpan<omega_checked_trees::FlowSemanticContextRef>,
-) {
-    let contexts = program
-        .facts
-        .flow
-        .semantic_context_refs
-        .span_or_empty(contexts);
-    if contexts.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, context_ref) in contexts.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        let context = program.facts.semantic.contexts.get(context_ref.context);
-        report.push_str(&semantic_point_label(program, context.point));
-    }
-}
-
-fn append_flow_constraint_labels(
-    program: &CheckedTrees,
-    report: &mut String,
-    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
-) {
-    let constraints = program.facts.flow.constraints(constraints);
-    if constraints.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, constraint_ref) in constraints.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        match constraint_ref.kind {
-            omega_checked_trees::FlowConstraintKind::Unknown => report.push_str("unknown"),
-            omega_checked_trees::FlowConstraintKind::SemanticContext { context } => {
-                let context = program.facts.semantic.contexts.get(context);
-                report.push_str("semantic(");
-                report.push_str(&semantic_point_label(program, context.point));
-                report.push(')');
-            }
-            omega_checked_trees::FlowConstraintKind::BorrowState { state } => {
-                let state = program.facts.borrow.states.get(state);
-                report.push_str("borrow-state(");
-                report.push_str(&machine_name(program, state.machine_symbol));
-                report.push_str("::");
-                report.push_str(&state_name(program, state.state_symbol));
-                report.push(')');
-            }
-            omega_checked_trees::FlowConstraintKind::BorrowCall { call } => {
-                let call = program.facts.borrow.calls.get(call);
-                report.push_str("borrow-call(");
-                report.push_str(&call.statement_index.to_string());
-                report.push('.');
-                report.push_str(&call.call_ordinal.to_string());
-                report.push_str(" -> ");
-                report.push_str(&state_label_from_symbol(program, call.target_symbol));
-                report.push(')');
-            }
-            omega_checked_trees::FlowConstraintKind::BorrowWritableRoot { root } => {
-                let root = program.facts.borrow.writable_roots.get(root);
-                report.push_str("borrow-root(");
-                report.push_str(&symbol_label(program, root.symbol));
-                report.push(')');
-            }
-            omega_checked_trees::FlowConstraintKind::BorrowAccess { access } => {
-                let access = program.facts.borrow.argument_accesses.get(access);
-                report.push_str("borrow-access(");
-                report.push_str(&symbol_label(program, access.root_symbol));
-                for segment in program.facts.borrow.access_segments(access) {
-                    match segment {
-                        omega_facts::PlaceSegment::Field { symbol } => {
-                            report.push('.');
-                            report.push_str(&symbol_label(program, *symbol));
-                        }
-                        omega_facts::PlaceSegment::Index { expression } => {
-                            report.push('[');
-                            report.push_str(&expression.arena_index().to_string());
-                            report.push(']');
-                        }
-                    }
-                }
-                report.push_str(", ");
-                report.push_str(match access.kind {
-                    omega_checked_trees::BorrowAccessKind::Read => "read",
-                    omega_checked_trees::BorrowAccessKind::Mutable => "mutable",
-                });
-                report.push(')');
-            }
-            omega_checked_trees::FlowConstraintKind::BorrowLoan { loan } => {
-                let loan = program.facts.borrow.loans.get(loan);
-                report.push_str("borrow-loan(");
-                report.push_str(&symbol_label(program, loan.owner_symbol));
-                report.push_str(" -> ");
-                report.push_str(&symbol_label(program, loan.root_symbol));
-                for segment in program.facts.borrow.loan_segments(loan) {
-                    match segment {
-                        omega_facts::PlaceSegment::Field { symbol } => {
-                            report.push('.');
-                            report.push_str(&symbol_label(program, *symbol));
-                        }
-                        omega_facts::PlaceSegment::Index { expression } => {
-                            report.push('[');
-                            report.push_str(&expression.arena_index().to_string());
-                            report.push(']');
-                        }
-                    }
-                }
-                report.push(')');
-            }
-        }
-    }
-}
-
-fn append_flow_invalidation_summary(
-    program: &CheckedTrees,
-    report: &mut String,
-    invalidations: omega_core::arena::HandleSpan<omega_checked_trees::FlowInvalidationFact>,
-) {
-    let invalidations = program.facts.flow.invalidations.span_or_empty(invalidations);
-    if invalidations.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, invalidation) in invalidations.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        report.push_str(&flow_invalidation_label(program, invalidation));
-    }
-}
-
-fn append_flow_borrow_loan_summary(
-    program: &CheckedTrees,
-    report: &mut String,
-    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
-) {
-    let loans: Vec<_> = program.facts.flow.borrow_loan_constraints(constraints).collect();
-    if loans.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, loan_handle) in loans.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        let loan = program.facts.borrow.loans.get(*loan_handle);
-        report.push_str(&borrow_loan_label(program, loan));
-    }
-}
-
-fn append_flow_borrow_activation_summary(
-    program: &CheckedTrees,
-    report: &mut String,
-    activations: omega_core::arena::HandleSpan<omega_checked_trees::FlowBorrowActivationFact>,
-) {
-    let activations = program.facts.flow.borrow_activations.span_or_empty(activations);
-    if activations.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, activation) in activations.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        report.push_str(&flow_borrow_activation_label(program, activation));
-    }
-}
-
-fn append_flow_borrow_access_summary(
-    program: &CheckedTrees,
-    report: &mut String,
-    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
-) {
-    let accesses: Vec<_> = program.facts.flow.borrow_access_constraints(constraints).collect();
-    if accesses.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, access_handle) in accesses.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        let access = program.facts.borrow.argument_accesses.get(*access_handle);
-        report.push_str(&borrow_access_fact_label(program, access));
-    }
-}
-
-fn append_flow_borrow_weakening_summary(
-    program: &CheckedTrees,
-    report: &mut String,
-    weakenings: omega_core::arena::HandleSpan<omega_checked_trees::FlowBorrowWeakeningFact>,
-) {
-    let weakenings = program.facts.flow.borrow_weakenings.span_or_empty(weakenings);
-    if weakenings.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, weakening) in weakenings.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        report.push_str(&flow_borrow_weakening_label(program, weakening));
-    }
-}
-
-fn append_contract_fact_ref_summary(
-    program: &CheckedTrees,
-    report: &mut String,
-    facts: omega_core::arena::HandleSpan<omega_checked_trees::ContractProofFactRef>,
-) {
-    let fact_refs = program.facts.proof.contract_fact_refs.span_or_empty(facts);
-    if fact_refs.is_empty() {
-        report.push_str("<none>");
-        return;
-    }
-
-    for (index, fact_ref) in fact_refs.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        let fact = program.facts.proof.contract_facts.get(fact_ref.fact);
-        report.push_str(&typed_proof_fact_label(program, fact.fact));
-    }
-}
-
-fn append_contract_fact_ref_list(
-    program: &CheckedTrees,
-    report: &mut String,
-    label: &str,
-    facts: omega_core::arena::HandleSpan<omega_checked_trees::ContractProofFactRef>,
-) {
-    report.push_str("  ");
-    report.push_str(label);
-    report.push_str(": ");
-
-    let fact_refs = program.facts.proof.contract_fact_refs.span_or_empty(facts);
-    if fact_refs.is_empty() {
-        report.push_str("<none>\n");
-        return;
-    }
-
-    for (index, fact_ref) in fact_refs.iter().enumerate() {
-        if index > 0 {
-            report.push_str(" | ");
-        }
-        let fact = program.facts.proof.contract_facts.get(fact_ref.fact);
-        report.push_str(&typed_proof_fact_label(program, fact.fact));
-    }
-    report.push('\n');
-}
-
-fn format_effect_set(effects: EffectSet) -> String {
-    if effects.is_empty() {
-        return "<none> [0x0000000000000000]".to_owned();
-    }
-
-    format!(
-        "{} [0x{:016x}]",
-        effects.names().collect::<Vec<_>>().join(", "),
-        effects.bits()
-    )
-}
-
-fn flow_invalidation_label(
-    program: &CheckedTrees,
-    invalidation: &omega_checked_trees::FlowInvalidationFact,
-) -> String {
-    let fact = program.facts.semantic.facts.get(invalidation.fact);
-    let mutated = canonical_place_label_from_parts(
-        program,
-        invalidation.mutated_root,
-        program
-            .facts
-            .flow
-            .invalidation_segments
-            .span_or_empty(invalidation.mutated_segments),
-    );
-    let dependency_segments = program
-        .facts
-        .flow
-        .invalidation_segments
-        .span_or_empty(invalidation.dependency_segments);
-    let invalidated = match fact.place {
-        omega_facts::FactPlace::Place(place) => joined_place_label(
-            program,
-            &program.facts.semantic,
-            program.facts.semantic.places.get(place),
-            dependency_segments,
-        ),
-        _ => semantic_place_label(program, fact.place),
-    };
-    format!(
-        "{} invalidated {} by mutating {}",
-        flow_invalidation_source_label(program, invalidation.source),
-        semantic_payload_label(program, fact.payload),
-        mutated
-    ) + &format!(" ({invalidated})")
-}
-
-fn flow_borrow_activation_label(
-    program: &CheckedTrees,
-    activation: &omega_checked_trees::FlowBorrowActivationFact,
-) -> String {
-    let loan = program.facts.borrow.loans.get(activation.loan);
-    format!(
-        "{} activated local borrow {}",
-        flow_invalidation_source_label(program, activation.source),
-        borrow_loan_label(program, loan),
-    )
-}
-
-fn flow_borrow_weakening_label(
-    program: &CheckedTrees,
-    weakening: &omega_checked_trees::FlowBorrowWeakeningFact,
-) -> String {
-    let loan = program.facts.borrow.loans.get(weakening.loan);
-    let mut label = String::new();
-    label.push_str(&flow_invalidation_source_label(program, weakening.source));
-    label.push_str(" expired local borrow ");
-    label.push_str(&borrow_loan_label(program, loan));
-    match weakening.reason {
-        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
-            label.push_str(" (after last use)");
-        }
-        omega_checked_trees::FlowBorrowWeakeningReason::StateExit => {
-            label.push_str(" (released at state exit)");
-        }
-        omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
-            label.push_str(" (released after local reassignment)");
-        }
-    }
-    label
-}
-
-fn borrow_access_fact_label(
-    program: &CheckedTrees,
-    access: &omega_checked_trees::BorrowArgumentAccessFact,
-) -> String {
-    let mut label = String::new();
-    label.push_str(&symbol_label(program, access.root_symbol));
-    for segment in program.facts.borrow.access_segments(access) {
-        match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
-                label.push('.');
-                label.push_str(&symbol_label(program, *symbol));
-            }
-            omega_facts::PlaceSegment::Index { expression } => {
-                label.push('[');
-                label.push_str(&expression.arena_index().to_string());
-                label.push(']');
-            }
-        }
-    }
-    label.push_str(": ");
-    label.push_str(match access.kind {
-        omega_checked_trees::BorrowAccessKind::Read => "read",
-        omega_checked_trees::BorrowAccessKind::Mutable => "mutable",
-    });
-    label
-}
-
-fn borrow_loan_label(
-    program: &CheckedTrees,
-    loan: &omega_checked_trees::BorrowLoanFact,
-) -> String {
-    let mut label = String::new();
-    label.push_str(&symbol_label(program, loan.owner_symbol));
-    label.push_str(" -> ");
-    label.push_str(&symbol_label(program, loan.root_symbol));
-    for segment in program.facts.borrow.loan_segments(loan) {
-        match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
-                label.push('.');
-                label.push_str(&symbol_label(program, *symbol));
-            }
-            omega_facts::PlaceSegment::Index { expression } => {
-                label.push('[');
-                label.push_str(&expression.arena_index().to_string());
-                label.push(']');
-            }
-        }
-    }
-    label.push_str(" [created ");
-    label.push_str(&loan.statement_index.to_string());
-    label.push_str(", last use ");
-    label.push_str(&loan.last_use_statement_index.to_string());
-    label.push(']');
-    label
-}
-
-fn flow_invalidation_source_label(
-    program: &CheckedTrees,
-    source: omega_checked_trees::FlowInvalidationSource,
-) -> String {
-    match source {
-        omega_checked_trees::FlowInvalidationSource::Statement { statement_index } => {
-            format!("statement {statement_index}")
-        }
-        omega_checked_trees::FlowInvalidationSource::Call {
-            statement_index,
-            call_ordinal,
-            target_symbol,
-        } => format!(
-            "call {statement_index}.{call_ordinal} -> {}",
-            state_label_from_symbol(program, target_symbol)
-        ),
-    }
-}
-
 fn symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     if symbol.is_valid() {
-        let name = semantic_symbol_name(program, symbol);
-        if name.is_empty() || name == "unknown" {
-            format!("#{}", symbol.arena_index())
-        } else {
-            format!("{name}[#{}]", symbol.arena_index())
-        }
+        format!("{} (#{})", program.symbols.name(symbol), symbol.arena_index())
     } else {
         "invalid".to_owned()
     }
@@ -1417,8 +833,11 @@ fn push_json_string(output: &mut String, value: &str) {
             '\n' => output.push_str("\\n"),
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
-            ch if ch.is_control() => output.push_str(&format!("\\u{:04x}", ch as u32)),
-            ch => output.push(ch),
+            c if c.is_control() => {
+                use std::fmt::Write;
+                let _ = write!(output, "\\u{:04x}", c as u32);
+            }
+            c => output.push(c),
         }
     }
     output.push('"');
