@@ -22,7 +22,9 @@ use omega_instruction_selection::{
     runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
     runtime_value_compare_width, syscall_sequence_width,
 };
-use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
+use omega_assigned_target_operations::{
+    RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 
 #[derive(Debug, Clone)]
@@ -302,9 +304,7 @@ fn machine_instruction_width(
             source,
             ..
         } => {
-            let omega_target_operations::RuntimeTextReadSource::HostOperation {
-                operation_key,
-            } = source;
+            let RuntimeTextReadSource::HostOperation { operation_key } = source;
             let Some(binding) = input.assigned_target_operations.host_binding(*operation_key) else {
                 return Err(Diagnostic::error(format!(
                     "missing host binding for runtime text read operation {}.{}",

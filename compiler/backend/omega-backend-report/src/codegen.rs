@@ -2,6 +2,7 @@ use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
+use omega_assigned_target_operations::{RuntimeTextReadSource, RuntimeValueOperand};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
@@ -695,12 +696,12 @@ fn selected_instruction_name(
 
 fn runtime_text_read_source_name(
     backend_plan: &BackendReportInput<'_>,
-    source: &omega_target_operations::RuntimeTextReadSource,
+    source: &RuntimeTextReadSource,
 ) -> String {
     match source {
-        omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key } => {
+        RuntimeTextReadSource::HostOperation { operation_key } => {
             match backend_plan
-                .target_operations
+                .assigned_target_operations
                 .host_binding(*operation_key)
                 .map(|binding| &binding.mechanism)
             {
@@ -735,12 +736,12 @@ fn runtime_value_operand_name(
     operand: RuntimeValueOperandHandle,
 ) -> String {
     match backend_plan
-        .target_operations
+        .assigned_target_operations
         .runtime_value_operands
         .get(operand)
     {
-        omega_target_operations::RuntimeValueOperand::Immediate(value) => value.to_string(),
-        omega_target_operations::RuntimeValueOperand::Storage {
+        RuntimeValueOperand::Immediate(value) => value.to_string(),
+        RuntimeValueOperand::Storage {
             region,
             byte_offset,
             byte_size,
@@ -748,7 +749,7 @@ fn runtime_value_operand_name(
             let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
             format!("{symbol}@{byte_offset}/{}", byte_size)
         }
-        omega_target_operations::RuntimeValueOperand::Pointee {
+        RuntimeValueOperand::Pointee {
             pointer_byte_offset,
             field_byte_offset,
             byte_size,
@@ -756,7 +757,7 @@ fn runtime_value_operand_name(
             "*frame@{pointer_byte_offset}+{field_byte_offset}/{}",
             byte_size
         ),
-        omega_target_operations::RuntimeValueOperand::FrameIndexed {
+        RuntimeValueOperand::FrameIndexed {
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -765,7 +766,7 @@ fn runtime_value_operand_name(
         } => format!(
             "frame_indexed(descriptor@{descriptor_offset}, index@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
-        omega_target_operations::RuntimeValueOperand::Binary {
+        RuntimeValueOperand::Binary {
             left,
             operator,
             right,
@@ -779,7 +780,7 @@ fn runtime_value_operand_name(
 
 fn assigned_value_home_name(
     home: omega_assigned_target_operations::AssignedValueHomeKind,
-    operand: &omega_target_operations::RuntimeValueOperand,
+    operand: &RuntimeValueOperand,
 ) -> String {
     match home {
         omega_assigned_target_operations::AssignedValueHomeKind::Immediate => {
@@ -817,7 +818,7 @@ fn assigned_value_home_name(
             name,
         } => {
             let source = match operand {
-                omega_target_operations::RuntimeValueOperand::Binary { .. } => "binary temp",
+                RuntimeValueOperand::Binary { .. } => "binary temp",
                 _ => "temp",
             };
             format!("{bank:?} register {} ({source})", assigned_register_name(name))

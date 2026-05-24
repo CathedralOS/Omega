@@ -4,12 +4,31 @@ use omega_target::NativeTarget;
 use std::sync::Arc;
 
 pub use omega_target_operations::{
-    HostOperationKey, InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
-    RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetHostBinding,
-    TargetOperation, TargetOperationFunction, TargetOperationKind, TargetOperationPlan,
-    TargetValueOperand, TargetValueOperandHandle,
+    HostOperationKey, RuntimeStorageRegion, RuntimeTextReadSource, StateGuardLowering,
+    StateGuardOperator, TargetHostBinding,
 };
+
+pub type AssignedInstructionOperand = omega_target_operations::TargetInstructionOperand;
+pub type AssignedInstructionOperandKind = omega_target_operations::TargetInstructionOperandKind;
+pub type InstructionOperand = AssignedInstructionOperand;
+pub type InstructionOperandKind = AssignedInstructionOperandKind;
+
+pub type AssignedValueOperand = omega_target_operations::TargetValueOperand;
+pub type AssignedValueOperandHandle = Handle<AssignedValueOperand>;
+pub type RuntimeValueOperand = AssignedValueOperand;
+pub type RuntimeValueOperandHandle = AssignedValueOperandHandle;
+pub type TargetValueOperand = AssignedValueOperand;
+pub type TargetValueOperandHandle = AssignedValueOperandHandle;
+
+pub type AssignedOperation = omega_target_operations::TargetOperation;
+pub type AssignedOperationKind = omega_target_operations::TargetOperationKind;
+pub type AssignedOperationFunction = omega_target_operations::TargetOperationFunction;
+pub type SelectedInstruction = AssignedOperation;
+pub type SelectedInstructionKind = AssignedOperationKind;
+pub type TargetOperation = AssignedOperation;
+pub type TargetOperationKind = AssignedOperationKind;
+pub type TargetOperationFunction = AssignedOperationFunction;
+pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
 
 pub type AssignedValueHomeHandle = Handle<AssignedValueHome>;
 
@@ -80,9 +99,9 @@ pub struct AssignedValueHome {
 pub struct AssignedTargetOperationPlan {
     pub target: NativeTarget,
     pub functions: Arena<AssignedTargetOperationFunction>,
-    pub instructions: Arena<TargetOperation>,
-    pub operands: Arena<InstructionOperand>,
-    pub runtime_value_operands: Arena<TargetValueOperand>,
+    pub instructions: Arena<AssignedOperation>,
+    pub operands: Arena<AssignedInstructionOperand>,
+    pub runtime_value_operands: Arena<AssignedValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
     pub runtime_value_homes: Arena<AssignedValueHome>,
 }
@@ -148,7 +167,7 @@ impl AssignedTargetOperationPlan {
 pub struct AssignedTargetOperationFunction {
     pub symbol: Arc<str>,
     pub source_key: StateKey,
-    pub instructions: HandleSpan<TargetOperation>,
+    pub instructions: HandleSpan<AssignedOperation>,
 }
 
 impl Default for AssignedTargetOperationFunction {
