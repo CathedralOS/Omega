@@ -194,6 +194,9 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
     report.push_str("invalidations: ");
     report.push_str(&program.facts.flow.invalidations.len().to_string());
     report.push('\n');
+    report.push_str("borrow weakenings: ");
+    report.push_str(&program.facts.flow.borrow_weakenings.len().to_string());
+    report.push('\n');
     report.push_str("contexts: ");
     report.push_str(&program.facts.flow.semantic_context_refs.len().to_string());
     report.push('\n');
@@ -229,6 +232,9 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
         report.push('\n');
         report.push_str("  invalidations: ");
         append_flow_invalidation_summary(program, &mut report, state_flow.invalidations);
+        report.push('\n');
+        report.push_str("  borrow weakenings: ");
+        append_flow_borrow_weakening_summary(program, &mut report, state_flow.borrow_weakenings);
         report.push('\n');
         report.push_str("  direct effects:  ");
         report.push_str(&format_effect_set(state_flow.direct_effects));
@@ -1024,6 +1030,25 @@ fn append_flow_invalidation_summary(
     }
 }
 
+fn append_flow_borrow_weakening_summary(
+    program: &CheckedTrees,
+    report: &mut String,
+    weakenings: omega_core::arena::HandleSpan<omega_checked_trees::FlowBorrowWeakeningFact>,
+) {
+    let weakenings = program.facts.flow.borrow_weakenings.span_or_empty(weakenings);
+    if weakenings.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, weakening) in weakenings.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        report.push_str(&flow_borrow_weakening_label(program, weakening));
+    }
+}
+
 fn append_contract_fact_ref_summary(
     program: &CheckedTrees,
     report: &mut String,
@@ -1116,6 +1141,38 @@ fn flow_invalidation_label(
         semantic_payload_label(program, fact.payload),
         mutated
     ) + &format!(" ({invalidated})")
+}
+
+fn flow_borrow_weakening_label(
+    program: &CheckedTrees,
+    weakening: &omega_checked_trees::FlowBorrowWeakeningFact,
+) -> String {
+    let loan = program.facts.borrow.loans.get(weakening.loan);
+    let mut label = String::new();
+    label.push_str(&flow_invalidation_source_label(program, weakening.source));
+    label.push_str(" expired local borrow ");
+    label.push_str(&symbol_label(loan.owner_symbol));
+    label.push_str(" -> ");
+    label.push_str(&symbol_label(loan.root_symbol));
+    for segment in program.facts.borrow.loan_segments(loan) {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&symbol_label(*symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&expression.arena_index().to_string());
+                label.push(']');
+            }
+        }
+    }
+    match weakening.reason {
+        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
+            label.push_str(" (after last use)");
+        }
+    }
+    label
 }
 
 fn flow_invalidation_source_label(

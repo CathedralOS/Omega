@@ -382,6 +382,19 @@ pub struct FlowInvalidationFact {
     pub dependency_segments: HandleSpan<omega_facts::PlaceSegment>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowBorrowWeakeningReason {
+    #[default]
+    LastUseExpired,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBorrowWeakeningFact {
+    pub source: FlowInvalidationSource,
+    pub loan: Handle<BorrowLoanFact>,
+    pub reason: FlowBorrowWeakeningReason,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowCallFact {
     pub statement_index: usize,
@@ -424,6 +437,7 @@ pub struct FlowStateFact {
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
+    pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
     pub direct_effects: omega_effects::EffectSet,
@@ -436,6 +450,7 @@ pub struct FlowFacts {
     pub constraint_refs: Arena<FlowConstraintRef>,
     pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
     pub invalidations: Arena<FlowInvalidationFact>,
+    pub borrow_weakenings: Arena<FlowBorrowWeakeningFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
     pub states: Arena<FlowStateFact>,

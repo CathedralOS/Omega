@@ -38,6 +38,7 @@ struct FlowBuildContext {
     constraint_refs: omega_core::arena::Arena<FlowConstraintRef>,
     invalidation_segments: omega_core::arena::Arena<omega_facts::PlaceSegment>,
     invalidations: omega_core::arena::Arena<FlowInvalidationFact>,
+    borrow_weakenings: omega_core::arena::Arena<FlowBorrowWeakeningFact>,
     calls: omega_core::arena::Arena<FlowCallFact>,
     exits: omega_core::arena::Arena<FlowExitFact>,
     states: omega_core::arena::Arena<FlowStateFact>,
@@ -58,6 +59,7 @@ impl FlowBuildContext {
             ),
             invalidation_segments: omega_core::arena::Arena::default(),
             invalidations: omega_core::arena::Arena::default(),
+            borrow_weakenings: omega_core::arena::Arena::default(),
             calls: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
             exits: omega_core::arena::Arena::with_capacity(proof.contract_exits.len()),
             states: omega_core::arena::Arena::with_capacity(borrow.states.len()),
@@ -70,6 +72,7 @@ impl FlowBuildContext {
             constraint_refs: self.constraint_refs,
             invalidation_segments: self.invalidation_segments,
             invalidations: self.invalidations,
+            borrow_weakenings: self.borrow_weakenings,
             calls: self.calls,
             exits: self.exits,
             states: self.states,
@@ -144,6 +147,7 @@ fn build_state_flow_fact(
     let mut active_constraints =
         clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
     let state_invalidations_start = ctx.invalidations.len();
+    let state_borrow_weakenings_start = ctx.borrow_weakenings.len();
     let state_calls = append_state_call_facts(
         program,
         borrow,
@@ -177,6 +181,10 @@ fn build_state_flow_fact(
         entry_semantic_contexts: state_contexts,
         entry_constraints: state_constraints,
         invalidations: appended_span_since(&ctx.invalidations, state_invalidations_start),
+        borrow_weakenings: appended_span_since(
+            &ctx.borrow_weakenings,
+            state_borrow_weakenings_start,
+        ),
         calls: state_calls,
         exits: state_exits,
         direct_effects: state_effects
@@ -217,6 +225,7 @@ fn append_state_call_facts(
         .enumerate()
     {
         *active_constraints = filter_expired_borrow_loans(
+            &mut ctx.borrow_weakenings,
             &mut ctx.constraint_refs,
             *active_constraints,
             borrow,
@@ -294,21 +303,32 @@ fn append_state_call_facts(
 }
 
 fn filter_expired_borrow_loans(
+    borrow_weakenings: &mut omega_core::arena::Arena<FlowBorrowWeakeningFact>,
     constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
     source: omega_core::arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
     statement_index: usize,
 ) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
-    common::filter_constraint_refs(constraint_refs, source, |constraint_ref| match constraint_ref.kind {
-        FlowConstraintKind::BorrowLoan { loan } => {
-            borrow.loans.get(loan).last_use_statement_index >= statement_index
+    common::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
+        match constraint_ref.kind {
+            FlowConstraintKind::BorrowLoan { loan } => {
+                let keep = borrow.loans.get(loan).last_use_statement_index >= statement_index;
+                if !keep {
+                    borrow_weakenings.append(FlowBorrowWeakeningFact {
+                        source: FlowInvalidationSource::Statement { statement_index },
+                        loan,
+                        reason: FlowBorrowWeakeningReason::LastUseExpired,
+                    });
+                }
+                keep
+            }
+            FlowConstraintKind::Unknown
+            | FlowConstraintKind::SemanticContext { .. }
+            | FlowConstraintKind::BorrowState { .. }
+            | FlowConstraintKind::BorrowCall { .. }
+            | FlowConstraintKind::BorrowWritableRoot { .. }
+            | FlowConstraintKind::BorrowAccess { .. } => true,
         }
-        FlowConstraintKind::Unknown
-        | FlowConstraintKind::SemanticContext { .. }
-        | FlowConstraintKind::BorrowState { .. }
-        | FlowConstraintKind::BorrowCall { .. }
-        | FlowConstraintKind::BorrowWritableRoot { .. }
-        | FlowConstraintKind::BorrowAccess { .. } => true,
     })
 }
 

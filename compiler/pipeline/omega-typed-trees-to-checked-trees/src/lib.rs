@@ -14,6 +14,7 @@ use omega_checked_trees::{
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
     FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
+    FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
     FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, CheckedTrees, ProofFactKind,
     ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
