@@ -108,12 +108,12 @@ fn emit_function_bytes(
                         "; operands: left={:?}, right={:?}",
                         emission_context
                             .assigned_target_operations
-                            .runtime_value_operands
-                            .get(*left),
+                            .runtime_value_operand(*left)
+                            .expect("assigned left runtime value operand should exist"),
                         emission_context
                             .assigned_target_operations
-                            .runtime_value_operands
-                            .get(*right),
+                            .runtime_value_operand(*right)
+                            .expect("assigned right runtime value operand should exist"),
                     )
                 }
                 _ => String::new(),

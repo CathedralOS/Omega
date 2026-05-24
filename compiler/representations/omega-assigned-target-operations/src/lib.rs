@@ -13,11 +13,11 @@ pub type AssignedInstructionOperandKind = omega_target_operations::TargetInstruc
 pub type InstructionOperand = AssignedInstructionOperand;
 pub type InstructionOperandKind = AssignedInstructionOperandKind;
 
-pub type AssignedValueOperand = omega_target_operations::TargetValueOperand;
-pub type AssignedValueOperandHandle = Handle<AssignedValueOperand>;
-pub type RuntimeValueOperand = AssignedValueOperand;
+pub type AssignedValueOperandKind = omega_target_operations::TargetValueOperand;
+pub type AssignedValueOperandHandle = omega_target_operations::TargetValueOperandHandle;
+pub type RuntimeValueOperand = AssignedValueOperandKind;
 pub type RuntimeValueOperandHandle = AssignedValueOperandHandle;
-pub type TargetValueOperand = AssignedValueOperand;
+pub type TargetValueOperand = AssignedValueOperandKind;
 pub type TargetValueOperandHandle = AssignedValueOperandHandle;
 
 pub type AssignedOperationKind = omega_target_operations::TargetOperationKind;
@@ -25,7 +25,7 @@ pub type SelectedInstructionKind = AssignedOperationKind;
 pub type TargetOperationKind = AssignedOperationKind;
 pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
 
-pub type AssignedValueHomeHandle = Handle<AssignedValueHome>;
+pub type AssignedValueHomeHandle = AssignedValueOperandHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AssignedRegisterBank {
@@ -85,11 +85,6 @@ impl Default for AssignedValueHomeKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct AssignedValueHome {
-    pub kind: AssignedValueHomeKind,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedOperation {
     pub kind: AssignedOperationKind,
@@ -106,6 +101,21 @@ impl Default for AssignedOperation {
             kind: AssignedOperationKind::EnterFunction,
             source_key: StateKey::default(),
             source_statement: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedValueOperand {
+    pub kind: AssignedValueOperandKind,
+    pub home: AssignedValueHomeKind,
+}
+
+impl Default for AssignedValueOperand {
+    fn default() -> Self {
+        Self {
+            kind: AssignedValueOperandKind::Immediate(0),
+            home: AssignedValueHomeKind::Immediate,
         }
     }
 }
@@ -143,13 +153,13 @@ pub struct AssignedTargetOperationPlan {
     pub instructions: Arena<AssignedOperation>,
     pub operands: Arena<AssignedInstructionOperand>,
     pub runtime_value_operands: Arena<AssignedValueOperand>,
+    pub target_runtime_value_operands: Arena<omega_target_operations::TargetValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
-    pub runtime_value_homes: Arena<AssignedValueHome>,
 }
 
 impl Default for AssignedTargetOperationPlan {
     fn default() -> Self {
-        Self::with_capacity(NativeTarget::host(), 0, 0, 0, 0, 0, 0)
+        Self::with_capacity(NativeTarget::host(), 0, 0, 0, 0, 0)
     }
 }
 
@@ -161,7 +171,6 @@ impl AssignedTargetOperationPlan {
         operand_capacity: usize,
         runtime_value_operand_capacity: usize,
         host_binding_capacity: usize,
-        runtime_value_home_capacity: usize,
     ) -> Self {
         Self {
             target,
@@ -169,8 +178,8 @@ impl AssignedTargetOperationPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
+            target_runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::with_capacity(host_binding_capacity),
-            runtime_value_homes: Arena::with_capacity(runtime_value_home_capacity),
         }
     }
 
@@ -185,9 +194,11 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> AssignedValueHomeHandle {
-        let home_handle = Handle::from_arena_index(handle.arena_index());
-        if self.runtime_value_homes.is_valid(home_handle) {
-            home_handle
+        if assigned_value_handle(handle)
+            .is_valid()
+            && self.runtime_value_operands.is_valid(assigned_value_handle(handle))
+        {
+            handle
         } else {
             AssignedValueHomeHandle::invalid()
         }
@@ -196,28 +207,45 @@ impl AssignedTargetOperationPlan {
     pub fn runtime_value_home(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<&AssignedValueHome> {
-        let home_handle = self.runtime_value_home_handle(handle);
-        self.runtime_value_homes
-            .is_valid(home_handle)
-            .then(|| self.runtime_value_homes.get(home_handle))
+    ) -> Option<AssignedValueHomeKind> {
+        self.runtime_value_operand(handle).map(|operand| operand.home)
+    }
+
+    pub fn runtime_value_operand(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<&AssignedValueOperand> {
+        let handle = assigned_value_handle(handle);
+        self.runtime_value_operands
+            .is_valid(handle)
+            .then(|| self.runtime_value_operands.get(handle))
     }
 
     pub fn runtime_values_with_homes(
         &self,
-    ) -> impl Iterator<Item = (RuntimeValueOperandHandle, &AssignedValueOperand, &AssignedValueHome)> + '_
-    {
-        self.runtime_value_operands.iter().filter_map(|(handle, operand)| {
-            self.runtime_value_home(handle)
-                .map(|home| (handle, operand, home))
-        })
+    ) -> impl Iterator<Item = (RuntimeValueOperandHandle, &AssignedValueOperand)> + '_ {
+        self.runtime_value_operands
+            .iter()
+            .map(|(handle, operand)| (target_value_handle(handle), operand))
     }
 
     pub fn scratch_home_count(&self) -> usize {
         self.runtime_values_with_homes()
-            .filter(|(_, _, home)| matches!(home.kind, AssignedValueHomeKind::ScratchRegister { .. }))
+            .filter(|(_, operand)| matches!(operand.home, AssignedValueHomeKind::ScratchRegister { .. }))
             .count()
     }
+}
+
+fn assigned_value_handle(
+    handle: RuntimeValueOperandHandle,
+) -> Handle<AssignedValueOperand> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn target_value_handle(
+    handle: Handle<AssignedValueOperand>,
+) -> RuntimeValueOperandHandle {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,14 +285,25 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             });
         }
 
+        let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
+        let mut target_runtime_value_operands =
+            Arena::with_capacity(plan.runtime_value_operands.len());
+        for (_, operand) in plan.runtime_value_operands.iter() {
+            target_runtime_value_operands.insert(operand.clone());
+            runtime_value_operands.insert(AssignedValueOperand {
+                kind: operand.clone(),
+                home: AssignedValueHomeKind::Immediate,
+            });
+        }
+
         Self {
             target: plan.target,
             functions,
             instructions,
             operands: plan.operands,
-            runtime_value_operands: plan.runtime_value_operands,
+            runtime_value_operands,
+            target_runtime_value_operands,
             host_bindings: plan.host_bindings,
-            runtime_value_homes: Arena::new(),
         }
     }
 }
@@ -294,7 +333,7 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             functions,
             instructions,
             operands: plan.operands,
-            runtime_value_operands: plan.runtime_value_operands,
+            runtime_value_operands: plan.target_runtime_value_operands,
             host_bindings: plan.host_bindings,
         }
     }
