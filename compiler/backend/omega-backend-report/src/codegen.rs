@@ -787,14 +787,30 @@ fn assigned_value_home_name(
         ),
         omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister {
             bank,
-            slot,
+            name,
         } => {
             let source = match operand {
                 omega_target_operations::RuntimeValueOperand::Binary { .. } => "binary temp",
                 _ => "temp",
             };
-            format!("{bank:?} register r{slot} ({source})")
+            format!("{bank:?} register {} ({source})", assigned_register_name(name))
         }
+    }
+}
+
+fn assigned_register_name(name: omega_assigned_target_operations::AssignedRegisterName) -> String {
+    match name {
+        omega_assigned_target_operations::AssignedRegisterName::Aarch64X(register) => {
+            format!("x{register}")
+        }
+        omega_assigned_target_operations::AssignedRegisterName::X86_64(register) => match register {
+            omega_assigned_target_operations::X86_64AssignedRegister::R10 => "r10".to_owned(),
+            omega_assigned_target_operations::X86_64AssignedRegister::R11 => "r11".to_owned(),
+            omega_assigned_target_operations::X86_64AssignedRegister::R12 => "r12".to_owned(),
+            omega_assigned_target_operations::X86_64AssignedRegister::R13 => "r13".to_owned(),
+            omega_assigned_target_operations::X86_64AssignedRegister::R14 => "r14".to_owned(),
+            omega_assigned_target_operations::X86_64AssignedRegister::R15 => "r15".to_owned(),
+        },
     }
 }
 
