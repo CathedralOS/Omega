@@ -377,6 +377,57 @@ pub struct FlowFacts {
     pub states: Arena<FlowStateFact>,
 }
 
+impl FlowFacts {
+    pub fn constraints(
+        &self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> &[FlowConstraintRef] {
+        self.constraint_refs.span_or_empty(constraints)
+    }
+
+    pub fn semantic_constraint_contexts<'a>(
+        &'a self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = omega_facts::FactContextHandle> + 'a {
+        self.constraints(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::SemanticContext { context } => Some(context),
+                FlowConstraintKind::Unknown
+                | FlowConstraintKind::BorrowState { .. }
+                | FlowConstraintKind::BorrowCall { .. } => None,
+            })
+    }
+
+    pub fn borrow_state_constraints<'a>(
+        &'a self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<StateBorrowFact>> + 'a {
+        self.constraints(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::BorrowState { state } => Some(state),
+                FlowConstraintKind::Unknown
+                | FlowConstraintKind::SemanticContext { .. }
+                | FlowConstraintKind::BorrowCall { .. } => None,
+            })
+    }
+
+    pub fn borrow_call_constraints<'a>(
+        &'a self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowCallFact>> + 'a {
+        self.constraints(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::BorrowCall { call } => Some(call),
+                FlowConstraintKind::Unknown
+                | FlowConstraintKind::SemanticContext { .. }
+                | FlowConstraintKind::BorrowState { .. } => None,
+            })
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
     pub semantic: omega_facts::FactPlan,

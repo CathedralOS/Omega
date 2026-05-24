@@ -34,8 +34,13 @@ fn check_call_requires(
     call_flow: &FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let entry_contexts = semantic_contexts_from_constraints(facts, call_flow.entry_constraints);
-    for requires_context in semantic_contexts_from_constraints(facts, call_flow.requires_constraints)
+    let entry_contexts: Vec<_> = facts
+        .flow
+        .semantic_constraint_contexts(call_flow.entry_constraints)
+        .collect();
+    for requires_context in facts
+        .flow
+        .semantic_constraint_contexts(call_flow.requires_constraints)
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
@@ -99,23 +104,6 @@ fn check_call_requires(
             }
         }
     }
-}
-
-fn semantic_contexts_from_constraints(
-    facts: &CheckFacts,
-    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
-) -> Vec<omega_facts::FactContextHandle> {
-    facts.flow
-        .constraint_refs
-        .span_or_empty(constraints)
-        .iter()
-        .filter_map(|constraint| match constraint.kind {
-            omega_checked_trees::FlowConstraintKind::SemanticContext { context } => Some(context),
-            omega_checked_trees::FlowConstraintKind::Unknown
-            | omega_checked_trees::FlowConstraintKind::BorrowState { .. }
-            | omega_checked_trees::FlowConstraintKind::BorrowCall { .. } => None,
-        })
-        .collect()
 }
 
 fn explain_domain_requirement_failure(

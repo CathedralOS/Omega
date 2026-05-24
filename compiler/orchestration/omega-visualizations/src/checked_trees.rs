@@ -914,7 +914,7 @@ fn append_flow_constraint_labels(
     report: &mut String,
     constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
 ) {
-    let constraints = program.facts.flow.constraint_refs.span_or_empty(constraints);
+    let constraints = program.facts.flow.constraints(constraints);
     if constraints.is_empty() {
         report.push_str("<none>");
         return;
