@@ -1,5 +1,5 @@
+use crate::AbstractDataObjectHandle;
 use crate::RuntimeStorageRegion;
-use crate::TargetDataObjectHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionOperand {
@@ -17,7 +17,7 @@ impl Default for InstructionOperand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionOperandKind {
     DataAddress {
-        data: TargetDataObjectHandle,
+        data: AbstractDataObjectHandle,
     },
     RuntimeStringPointer {
         region: RuntimeStorageRegion,

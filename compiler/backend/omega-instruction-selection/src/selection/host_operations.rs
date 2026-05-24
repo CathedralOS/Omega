@@ -6,7 +6,7 @@ use crate::selection::bindings::RuntimeAliasResolutionContext;
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey, PlatformCallData};
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
-use omega_abstract_operations::{TargetDataObject, TargetDataObjectKind};
+use omega_abstract_operations::{AbstractDataObject, AbstractDataObjectKind};
 
 use super::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
@@ -128,12 +128,12 @@ pub(super) fn select_host_call(
 
 fn newline_data_object<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
-) -> Option<&'plan TargetDataObject> {
+) -> Option<&'plan AbstractDataObject> {
     input
         .data
         .objects
         .iter()
-        .find(|(_, data_object)| data_object.kind == TargetDataObjectKind::HostNewline)
+        .find(|(_, data_object)| data_object.kind == AbstractDataObjectKind::HostNewline)
         .map(|(_, data_object)| data_object)
 }
 

@@ -1,4 +1,4 @@
-use omega_abstract_operations::{AbstractOperationPlan, TargetDataPlan};
+use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
@@ -35,7 +35,7 @@ pub struct AbstractOperationLoweringInput<'plan> {
     pub runtime_text: &'plan RuntimeTextPlan,
     pub state_guards: &'plan StateGuardPlan,
     pub layouts: &'plan LayoutPlan,
-    pub data: &'plan TargetDataPlan,
+    pub data: &'plan AbstractDataPlan,
 }
 
 impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSelectionInput<'plan> {

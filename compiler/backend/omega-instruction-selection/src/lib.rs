@@ -8,7 +8,7 @@ pub use operands::*;
 pub use selection::build_instruction_plan;
 pub use widths::*;
 
-use omega_abstract_operations::TargetDataPlan;
+use omega_abstract_operations::AbstractDataPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
@@ -44,5 +44,5 @@ pub struct InstructionSelectionInput<'plan> {
     pub runtime_text: &'plan RuntimeTextPlan,
     pub state_guards: &'plan StateGuardPlan,
     pub layouts: &'plan LayoutPlan,
-    pub data: &'plan TargetDataPlan,
+    pub data: &'plan AbstractDataPlan,
 }

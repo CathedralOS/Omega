@@ -5,12 +5,12 @@ use omega_runtime_text::RuntimeTextSource;
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_in_table, expression_place_eq_table_tree,
 };
-use omega_abstract_operations::{TargetDataObject, TargetDataObjectHandle};
+use omega_abstract_operations::{AbstractDataObject, AbstractDataObjectHandle};
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> TargetDataObjectHandle {
+) -> AbstractDataObjectHandle {
     let text_use = input
         .runtime_text
         .uses
@@ -22,7 +22,7 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         })
         .map(|(_, text_use)| text_use);
     let Some(text_use) = text_use else {
-        return TargetDataObjectHandle::invalid();
+        return AbstractDataObjectHandle::invalid();
     };
 
     let text_slot = input
@@ -38,7 +38,7 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         })
         .map(|(_, slot)| slot);
     let Some(text_slot) = text_slot else {
-        return TargetDataObjectHandle::invalid();
+        return AbstractDataObjectHandle::invalid();
     };
 
     let buffer = input
@@ -54,7 +54,7 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         })
         .map(|(_, buffer)| buffer);
     let Some(buffer) = buffer else {
-        return TargetDataObjectHandle::invalid();
+        return AbstractDataObjectHandle::invalid();
     };
 
     input
@@ -66,13 +66,13 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(handle, _)| handle)
-        .unwrap_or_else(TargetDataObjectHandle::invalid)
+        .unwrap_or_else(AbstractDataObjectHandle::invalid)
 }
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data_object<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
-) -> Option<&'plan TargetDataObject> {
+) -> Option<&'plan AbstractDataObject> {
     let handle = find_runtime_text_input_buffer_data(input, host_call);
     handle.is_valid().then(|| input.data.objects.get(handle))
 }
@@ -80,7 +80,7 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
 pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place(
     input: &InstructionSelectionInput<'_>,
     text_place: &Expression,
-) -> TargetDataObjectHandle {
+) -> AbstractDataObjectHandle {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
         (expression_place_eq_table_tree(
             &input.runtime_text.expressions,
@@ -94,7 +94,7 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place(
         .then_some(buffer)
     });
     let Some(buffer) = buffer else {
-        return TargetDataObjectHandle::invalid();
+        return AbstractDataObjectHandle::invalid();
     };
 
     input
@@ -106,14 +106,14 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(handle, _)| handle)
-        .unwrap_or_else(TargetDataObjectHandle::invalid)
+        .unwrap_or_else(AbstractDataObjectHandle::invalid)
 }
 
 pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place_in_table(
     input: &InstructionSelectionInput<'_>,
     text_place_expressions: &ExpressionTable,
     text_place: ExpressionHandle,
-) -> TargetDataObjectHandle {
+) -> AbstractDataObjectHandle {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
         (expression_place_eq_across_tables(
             &input.runtime_text.expressions,
@@ -129,7 +129,7 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place_in_tab
         .then_some(buffer)
     });
     let Some(buffer) = buffer else {
-        return TargetDataObjectHandle::invalid();
+        return AbstractDataObjectHandle::invalid();
     };
 
     input
@@ -141,5 +141,5 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place_in_tab
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(handle, _)| handle)
-        .unwrap_or_else(TargetDataObjectHandle::invalid)
+        .unwrap_or_else(AbstractDataObjectHandle::invalid)
 }
