@@ -129,8 +129,8 @@ dependencies = [
  "omega-machine-bytes",
  "omega-machine-emission",
  "omega-machine-instructions",
- "omega-object",
- "omega-object-planning",
+ "omega-object-file",
+ "omega-object-file-planning",
  "omega-platform-interface",
  "omega-relocations",
  "omega-runtime-bodies",
@@ -160,7 +160,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-instructions",
- "omega-object",
+ "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -190,7 +190,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-instructions",
- "omega-object",
+ "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -262,7 +262,7 @@ dependencies = [
  "omega-image",
  "omega-image-emission",
  "omega-layout",
- "omega-object",
+ "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -346,7 +346,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-instructions",
- "omega-object",
+ "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -385,7 +385,7 @@ name = "omega-image"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-object",
+ "omega-object-file",
  "omega-target",
 ]
 
@@ -406,7 +406,7 @@ dependencies = [
  "omega-image-elf",
  "omega-image-macho",
  "omega-image-pe",
- "omega-object",
+ "omega-object-file",
  "omega-target",
 ]
 
@@ -425,7 +425,7 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-image",
- "omega-object",
+ "omega-object-file",
 ]
 
 [[package]]
@@ -439,7 +439,7 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-layout",
- "omega-object",
+ "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -538,7 +538,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-object"
+name = "omega-object-file"
 version = "0.1.0"
 dependencies = [
  "omega-core",
@@ -547,7 +547,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-object-planning"
+name = "omega-object-file-planning"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
@@ -556,7 +556,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-program",
- "omega-object",
+ "omega-object-file",
  "omega-target",
  "omega-target-operations",
 ]
@@ -596,7 +596,7 @@ dependencies = [
  "omega-instruction-selection",
  "omega-isa-x86_64",
  "omega-machine-bytes",
- "omega-object",
+ "omega-object-file",
  "omega-target",
  "omega-target-operations",
 ]
