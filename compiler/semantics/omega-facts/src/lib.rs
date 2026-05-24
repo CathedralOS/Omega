@@ -290,8 +290,31 @@ impl<'facts> FactContextView<'facts> {
                 FactPayload::DomainMembership { domain_symbol: fact_domain, .. }
                     | FactPayload::ContractDomainMembership { domain_symbol: fact_domain, .. }
                     if self.plan.fact_place_equals(fact.place, place)
-                        && self.plan.domain_implies(fact_domain, domain_symbol)
+                && self.plan.domain_implies(fact_domain, domain_symbol)
             )
+        })
+    }
+
+    pub fn proves_place_domain_membership_in_program(
+        self,
+        program: &TypedTrees,
+        place: PlaceHandle,
+        domain_symbol: SymbolHandle,
+    ) -> bool {
+        self.facts().any(|fact| {
+            let (fact_domain, fact_place) = match fact.payload {
+                FactPayload::DomainMembership { domain_symbol, .. }
+                | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                    let FactPlace::Place(place) = fact.place else {
+                        return false;
+                    };
+                    (domain_symbol, place)
+                }
+                _ => return false,
+            };
+
+            self.plan.domain_implies(fact_domain, domain_symbol)
+                && self.plan.places_match(program, fact_place, place)
         })
     }
 
@@ -638,6 +661,17 @@ impl FactPlan {
             && self.place_segments.span_or_empty(left_place.segments)
                 == self.place_segments.span_or_empty(right_place.segments)
     }
+
+    pub fn places_match(
+        &self,
+        program: &TypedTrees,
+        left: PlaceHandle,
+        right: PlaceHandle,
+    ) -> bool {
+        self.places_equal(left, right)
+            || canonical_place_label(program, self, self.places.get(left))
+                == canonical_place_label(program, self, self.places.get(right))
+    }
 }
 
 fn effective_member_symbol(
@@ -705,6 +739,129 @@ fn resolve_member_symbol_from_receiver(
     }
 
     None
+}
+
+fn canonical_place_label(program: &TypedTrees, facts: &FactPlan, place: &Place) -> String {
+    canonical_place_label_from_parts(
+        program,
+        place.root,
+        facts.place_segments.span_or_empty(place.segments),
+    )
+}
+
+fn canonical_place_label_from_parts(
+    program: &TypedTrees,
+    root: PlaceRoot,
+    segments: &[PlaceSegment],
+) -> String {
+    let mut label = match root {
+        PlaceRoot::Unknown => "unknown".to_owned(),
+        PlaceRoot::Symbol(symbol) => symbol_label(program, symbol),
+        PlaceRoot::Expression(expression) => program.expression_table.display_name(expression),
+        PlaceRoot::TypeReference(type_reference) => program.display_type_reference(type_reference),
+    };
+
+    for segment in segments {
+        match segment {
+            PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&symbol_label(program, *symbol));
+            }
+            PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&program.expression_table.display_name(*expression));
+                label.push(']');
+            }
+        }
+    }
+
+    label
+}
+
+fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
+    for data in program.data_definitions() {
+        if data.symbol == symbol {
+            return data.name.as_str().to_owned();
+        }
+
+        for member in program.data_members(data) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return field.name.as_str().to_owned();
+                }
+                omega_typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
+                    return variant.name.as_str().to_owned();
+                }
+                omega_typed_trees::data::DataMember::Field(_)
+                | omega_typed_trees::data::DataMember::Variant(_) => {}
+            }
+        }
+    }
+
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            return machine.name.as_str().to_owned();
+        }
+        for contained_object in program.machine_contained_objects(machine) {
+            if contained_object.symbol == symbol || contained_object.type_symbol == symbol {
+                return contained_object.name.as_str().to_owned();
+            }
+        }
+        for owned_data in program.machine_owned_data(machine) {
+            if owned_data.symbol == symbol {
+                return owned_data.name.as_str().to_owned();
+            }
+        }
+        for state in program.machine_states(machine) {
+            if state.symbol == symbol {
+                return state.name.as_str().to_owned();
+            }
+            for parameter in program.state_parameters(state) {
+                if parameter.symbol == symbol {
+                    return parameter.name.as_str().to_owned();
+                }
+            }
+        }
+    }
+
+    for trait_definition in program.traits() {
+        if trait_definition.symbol == symbol {
+            return trait_definition.name.as_str().to_owned();
+        }
+        for requirement in program.trait_requirements(trait_definition) {
+            if requirement.symbol == symbol {
+                return requirement.name.as_str().to_owned();
+            }
+        }
+        for machine_signature in program.trait_machine_signatures(trait_definition) {
+            if machine_signature.symbol == symbol {
+                return machine_signature.name.as_str().to_owned();
+            }
+            for parameter in program.state_signature_parameters(machine_signature) {
+                if parameter.symbol == symbol {
+                    return parameter.name.as_str().to_owned();
+                }
+            }
+        }
+    }
+
+    for platform in program.platforms() {
+        if platform.symbol == symbol {
+            return platform.name.as_str().to_owned();
+        }
+        for state_signature in program.platform_state_signatures(platform) {
+            if state_signature.symbol == symbol {
+                return state_signature.name.as_str().to_owned();
+            }
+            for parameter in program.state_signature_parameters(state_signature) {
+                if parameter.symbol == symbol {
+                    return parameter.name.as_str().to_owned();
+                }
+            }
+        }
+    }
+
+    format!("symbol#{}", symbol.arena_index())
 }
 
 fn expression_type_symbol(program: &TypedTrees, expression: ExpressionHandle) -> Option<SymbolHandle> {
