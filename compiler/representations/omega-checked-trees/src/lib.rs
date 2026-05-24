@@ -390,6 +390,12 @@ pub enum FlowBorrowWeakeningReason {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBorrowActivationFact {
+    pub source: FlowInvalidationSource,
+    pub loan: Handle<BorrowLoanFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowBorrowWeakeningFact {
     pub source: FlowInvalidationSource,
     pub loan: Handle<BorrowLoanFact>,
@@ -445,6 +451,7 @@ pub struct FlowStateFact {
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
+    pub borrow_activations: HandleSpan<FlowBorrowActivationFact>,
     pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
     pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,
@@ -459,6 +466,7 @@ pub struct FlowFacts {
     pub constraint_refs: Arena<FlowConstraintRef>,
     pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
     pub invalidations: Arena<FlowInvalidationFact>,
+    pub borrow_activations: Arena<FlowBorrowActivationFact>,
     pub borrow_weakenings: Arena<FlowBorrowWeakeningFact>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,

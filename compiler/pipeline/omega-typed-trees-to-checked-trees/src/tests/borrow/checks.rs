@@ -365,3 +365,53 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     check_checked_facts(&typed, &facts)
         .expect("loan should end after alias last use");
 }
+
+#[test]
+fn rejects_direct_assignment_while_local_alias_is_active() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut i32 = &mut self.value;
+            self.value = 3;
+            self.write_alias(alias);
+        }
+
+        machine Main::write_alias(&mut self, value: &mut i32) {
+            value = 2;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("direct assignment should not overlap a live local alias");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(combined.contains("statement 1 mutates `Main::main.value` while local borrow `alias` is still active"));
+    assert!(combined.contains("borrowed at statement 0"));
+}

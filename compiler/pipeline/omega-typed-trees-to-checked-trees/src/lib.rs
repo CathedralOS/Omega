@@ -13,7 +13,7 @@ use omega_checked_trees::{
     BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
-    FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
+    FlowBorrowActivationFact, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
     FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
     FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts, CheckedTrees, ProofFactKind,
     ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,

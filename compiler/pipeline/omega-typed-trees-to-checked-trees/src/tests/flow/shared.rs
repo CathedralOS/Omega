@@ -142,6 +142,10 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
             .collect::<Vec<_>>(),
         vec![caller_borrow_state]
     );
+    assert!(flow
+        .borrow_activations
+        .span_or_empty(caller_flow.borrow_activations)
+        .is_empty());
     assert_eq!(call_flow.statement_index, 0);
     assert_eq!(call_flow.call_ordinal, 0);
     assert_eq!(call_flow.target_symbol, callee_state_symbol);
@@ -229,6 +233,11 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
         .borrow_loan_constraints(call_flow.entry_constraints)
         .collect();
     assert_eq!(loans.len(), 1);
+    let activations = flow
+        .borrow_activations
+        .span_or_empty(state_flow.borrow_activations);
+    assert_eq!(activations.len(), 1);
+    assert_eq!(activations[0].loan, loans[0]);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
     let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
@@ -305,6 +314,11 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
         .borrow_loan_constraints(call_flow.entry_constraints)
         .collect();
     assert_eq!(loans.len(), 1);
+    let activations = flow
+        .borrow_activations
+        .span_or_empty(state_flow.borrow_activations);
+    assert_eq!(activations.len(), 1);
+    assert_eq!(activations[0].loan, loans[0]);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
     let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);

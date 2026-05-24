@@ -38,6 +38,7 @@ struct FlowBuildContext {
     constraint_refs: omega_core::arena::Arena<FlowConstraintRef>,
     invalidation_segments: omega_core::arena::Arena<omega_facts::PlaceSegment>,
     invalidations: omega_core::arena::Arena<FlowInvalidationFact>,
+    borrow_activations: omega_core::arena::Arena<FlowBorrowActivationFact>,
     borrow_weakenings: omega_core::arena::Arena<FlowBorrowWeakeningFact>,
     statements: omega_core::arena::Arena<FlowStatementFact>,
     calls: omega_core::arena::Arena<FlowCallFact>,
@@ -60,6 +61,7 @@ impl FlowBuildContext {
             ),
             invalidation_segments: omega_core::arena::Arena::default(),
             invalidations: omega_core::arena::Arena::default(),
+            borrow_activations: omega_core::arena::Arena::default(),
             borrow_weakenings: omega_core::arena::Arena::default(),
             statements: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
             calls: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
@@ -74,6 +76,7 @@ impl FlowBuildContext {
             constraint_refs: self.constraint_refs,
             invalidation_segments: self.invalidation_segments,
             invalidations: self.invalidations,
+            borrow_activations: self.borrow_activations,
             borrow_weakenings: self.borrow_weakenings,
             statements: self.statements,
             calls: self.calls,
@@ -150,6 +153,7 @@ fn build_state_flow_fact(
     let mut active_constraints =
         clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
     let state_invalidations_start = ctx.invalidations.len();
+    let state_borrow_activations_start = ctx.borrow_activations.len();
     let state_borrow_weakenings_start = ctx.borrow_weakenings.len();
     let state_statements_start = ctx.statements.len();
     let state_calls = append_state_call_facts(
@@ -193,6 +197,10 @@ fn build_state_flow_fact(
         entry_semantic_contexts: state_contexts,
         entry_constraints: state_constraints,
         invalidations: appended_span_since(&ctx.invalidations, state_invalidations_start),
+        borrow_activations: appended_span_since(
+            &ctx.borrow_activations,
+            state_borrow_activations_start,
+        ),
         borrow_weakenings: appended_span_since(
             &ctx.borrow_weakenings,
             state_borrow_weakenings_start,
@@ -280,19 +288,25 @@ fn append_state_call_facts(
                 break;
             }
             loan_index += 1;
+            let loan_handle = Handle::from_parts(
+                borrow_state
+                    .loans
+                    .start()
+                    .arena_index()
+                    .saturating_add((loan_index - 1) as u32),
+                borrow_state.loans.start().generation(),
+            );
+
+            ctx.borrow_activations.append(FlowBorrowActivationFact {
+                source: FlowInvalidationSource::Statement { statement_index },
+                loan: loan_handle,
+            });
 
             append_constraint_ref(
                 &mut ctx.constraint_refs,
                 active_constraints,
                 FlowConstraintKind::BorrowLoan {
-                    loan: Handle::from_parts(
-                        borrow_state
-                            .loans
-                            .start()
-                            .arena_index()
-                            .saturating_add((loan_index - 1) as u32),
-                        borrow_state.loans.start().generation(),
-                    ),
+                    loan: loan_handle,
                 },
             );
         }

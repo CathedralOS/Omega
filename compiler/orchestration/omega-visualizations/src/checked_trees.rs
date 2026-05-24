@@ -197,6 +197,9 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
     report.push_str("invalidations: ");
     report.push_str(&program.facts.flow.invalidations.len().to_string());
     report.push('\n');
+    report.push_str("borrow activations: ");
+    report.push_str(&program.facts.flow.borrow_activations.len().to_string());
+    report.push('\n');
     report.push_str("borrow weakenings: ");
     report.push_str(&program.facts.flow.borrow_weakenings.len().to_string());
     report.push('\n');
@@ -238,6 +241,9 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
         report.push('\n');
         report.push_str("  invalidations: ");
         append_flow_invalidation_summary(program, &mut report, state_flow.invalidations);
+        report.push('\n');
+        report.push_str("  borrow activations: ");
+        append_flow_borrow_activation_summary(program, &mut report, state_flow.borrow_activations);
         report.push('\n');
         report.push_str("  borrow weakenings: ");
         append_flow_borrow_weakening_summary(program, &mut report, state_flow.borrow_weakenings);
@@ -1090,6 +1096,25 @@ fn append_flow_borrow_loan_summary(
     }
 }
 
+fn append_flow_borrow_activation_summary(
+    program: &CheckedTrees,
+    report: &mut String,
+    activations: omega_core::arena::HandleSpan<omega_checked_trees::FlowBorrowActivationFact>,
+) {
+    let activations = program.facts.flow.borrow_activations.span_or_empty(activations);
+    if activations.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, activation) in activations.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        report.push_str(&flow_borrow_activation_label(program, activation));
+    }
+}
+
 fn append_flow_borrow_access_summary(
     program: &CheckedTrees,
     report: &mut String,
@@ -1221,6 +1246,18 @@ fn flow_invalidation_label(
         semantic_payload_label(program, fact.payload),
         mutated
     ) + &format!(" ({invalidated})")
+}
+
+fn flow_borrow_activation_label(
+    program: &CheckedTrees,
+    activation: &omega_checked_trees::FlowBorrowActivationFact,
+) -> String {
+    let loan = program.facts.borrow.loans.get(activation.loan);
+    format!(
+        "{} activated local borrow {}",
+        flow_invalidation_source_label(program, activation.source),
+        borrow_loan_label(program, loan),
+    )
 }
 
 fn flow_borrow_weakening_label(
