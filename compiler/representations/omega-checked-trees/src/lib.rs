@@ -65,6 +65,7 @@ pub enum BorrowAccessKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowArgumentAccessFact {
     pub root_symbol: SymbolHandle,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
 }
 
@@ -81,6 +82,7 @@ pub struct BorrowCallFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowFacts {
     pub writable_roots: Arena<BorrowWritableRootFact>,
+    pub access_segments: Arena<omega_facts::PlaceSegment>,
     pub argument_accesses: Arena<BorrowArgumentAccessFact>,
     pub calls: Arena<BorrowCallFact>,
     pub states: Arena<StateBorrowFact>,

@@ -31,10 +31,12 @@ pub(crate) fn call_mutated_places(
     let mut places = Vec::new();
     for access in borrow.argument_accesses.span_or_empty(borrow_call.accesses) {
         if access.kind == BorrowAccessKind::Mutable
-            && let Some(place) = canonical_place_from_symbol(access.root_symbol)
-            && !places.contains(&place)
+            && let Some(mut place) = canonical_place_from_symbol(access.root_symbol)
         {
-            places.push(place);
+            place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
+            if !places.contains(&place) {
+                places.push(place);
+            }
         }
     }
 

@@ -3,6 +3,7 @@ use crate::{
     build_semantic_facts,
 };
 use crate::checks::check_checked_facts;
+use crate::flow::canonical_place_overlaps_segments;
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 use omega_source_files_to_tokens::Lexer;
 use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -116,4 +117,84 @@ fn accepts_mutable_local_named_place_arguments() {
     );
 
     check_checked_facts(&typed, &facts).expect("mutable local named place should pass borrow checks");
+}
+
+#[test]
+fn accepts_disjoint_member_borrow_arguments() {
+    let source = r#"
+        data Player {
+            health: i32;
+            stamina: i32;
+        }
+
+        data Main {
+            player: Player;
+        }
+
+        machine Main::main(&mut self) {
+            self.use_stats(&mut self.player.health, self.player.stamina);
+        }
+
+        machine Main::use_stats(&mut self, health: &mut i32, stamina: i32) {
+            health = stamina;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "main")
+        .expect("main state");
+    let borrow_state = facts
+        .borrow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
+                .then_some(state)
+        })
+        .expect("main borrow state");
+    let use_stats_call = facts.borrow.calls.span_or_empty(borrow_state.calls)[0].clone();
+    let accesses = facts.borrow.argument_accesses.span_or_empty(use_stats_call.accesses);
+    assert_eq!(accesses.len(), 2);
+    assert_eq!(accesses[0].root_symbol, accesses[1].root_symbol);
+    assert_ne!(
+        facts.borrow.access_segments.span_or_empty(accesses[0].segments),
+        facts.borrow.access_segments.span_or_empty(accesses[1].segments),
+    );
+    assert!(
+        !canonical_place_overlaps_segments(
+            facts.borrow.access_segments.span_or_empty(accesses[0].segments),
+            facts.borrow.access_segments.span_or_empty(accesses[1].segments),
+        )
+    );
+
+    check_checked_facts(&typed, &facts)
+        .expect("disjoint member borrows should not conflict");
 }

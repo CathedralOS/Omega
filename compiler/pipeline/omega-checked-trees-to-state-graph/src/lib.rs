@@ -54,6 +54,7 @@ pub fn build_state_graph_with_workers(
             0,
             0,
             0,
+            0,
         ));
     }
 
@@ -110,6 +111,7 @@ struct StateGraphCapacity {
     contract_calls: usize,
     contract_exits: usize,
     borrow_writable_roots: usize,
+    borrow_access_segments: usize,
     borrow_argument_accesses: usize,
     borrow_calls: usize,
     operations: usize,
@@ -131,6 +133,7 @@ impl StateGraphCapacity {
             contract_calls: program.facts.proof.contract_calls.len(),
             contract_exits: program.facts.proof.contract_exits.len(),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
+            borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
             borrow_calls: program.facts.borrow.calls.len(),
             operations: program.statement_table.statement_count(),
@@ -171,6 +174,7 @@ impl StateGraphCapacity {
             contract_calls: machine_contract_call_count(program, machine),
             contract_exits: machine_contract_exit_count(program, machine),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
+            borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
             borrow_calls: program.facts.borrow.calls.len(),
             operations: statement_capacity,
@@ -192,6 +196,7 @@ impl StateGraphCapacity {
             self.contract_calls,
             self.contract_exits,
             self.borrow_writable_roots,
+            self.borrow_access_segments,
             self.borrow_argument_accesses,
             self.borrow_calls,
             self.operations,
@@ -564,6 +569,7 @@ fn merge_machine_graph(target: &mut StateGraph, source: StateGraph, machine_grap
         contract_calls,
         contract_exits,
         borrow_writable_roots,
+        borrow_access_segments,
         borrow_argument_accesses,
         borrow_calls,
         operations,
@@ -579,6 +585,7 @@ fn merge_machine_graph(target: &mut StateGraph, source: StateGraph, machine_grap
         &contract_calls,
         &contract_exits,
         &borrow_writable_roots,
+        &borrow_access_segments,
         &borrow_argument_accesses,
         &borrow_calls,
         &operations,
@@ -614,6 +621,7 @@ fn append_remapped_states(
     source_contract_calls: &Arena<StateContractCall>,
     source_contract_exits: &Arena<StateContractExit>,
     source_borrow_writable_roots: &Arena<StateBorrowWritableRoot>,
+    source_borrow_access_segments: &Arena<omega_facts::PlaceSegment>,
     source_borrow_argument_accesses: &Arena<StateBorrowArgumentAccess>,
     source_borrow_calls: &Arena<StateBorrowCall>,
     source_operations: &Arena<Operation>,
@@ -651,6 +659,7 @@ fn append_remapped_states(
         let borrow = remap_state_borrow_summary(
             target,
             source_borrow_writable_roots,
+            source_borrow_access_segments,
             source_borrow_argument_accesses,
             source_borrow_calls,
             &state.borrow,
@@ -753,6 +762,7 @@ fn append_remapped_contract_exits(
 fn remap_state_borrow_summary(
     target: &mut StateGraph,
     source_writable_roots: &Arena<StateBorrowWritableRoot>,
+    source_access_segments: &Arena<omega_facts::PlaceSegment>,
     source_argument_accesses: &Arena<StateBorrowArgumentAccess>,
     source_calls: &Arena<StateBorrowCall>,
     borrow: &StateBorrowSummary,
@@ -764,8 +774,13 @@ fn remap_state_borrow_summary(
             .cloned(),
     );
 
-    let calls =
-        append_remapped_borrow_calls(target, source_argument_accesses, source_calls, borrow.calls);
+    let calls = append_remapped_borrow_calls(
+        target,
+        source_access_segments,
+        source_argument_accesses,
+        source_calls,
+        borrow.calls,
+    );
 
     StateBorrowSummary {
         writable_roots,
@@ -776,6 +791,7 @@ fn remap_state_borrow_summary(
 
 fn append_remapped_borrow_calls(
     target: &mut StateGraph,
+    source_access_segments: &Arena<omega_facts::PlaceSegment>,
     source_argument_accesses: &Arena<StateBorrowArgumentAccess>,
     source_calls: &Arena<StateBorrowCall>,
     calls: HandleSpan<StateBorrowCall>,
@@ -787,7 +803,16 @@ fn append_remapped_borrow_calls(
             source_argument_accesses
                 .span_or_empty(call.accesses)
                 .iter()
-                .cloned(),
+                .map(|access| StateBorrowArgumentAccess {
+                    root_symbol: access.root_symbol,
+                    segments: target.borrow_access_segments.insert_many(
+                        source_access_segments
+                            .span_or_empty(access.segments)
+                            .iter()
+                            .copied(),
+                    ),
+                    kind: access.kind.clone(),
+                }),
         );
 
         target.borrow_calls.append_to_span(
@@ -1256,6 +1281,15 @@ fn state_borrow_summary(
                 .iter()
                 .map(|access| StateBorrowArgumentAccess {
                     root_symbol: access.root_symbol,
+                    segments: state_graph.borrow_access_segments.insert_many(
+                        program
+                            .facts
+                            .borrow
+                            .access_segments
+                            .span_or_empty(access.segments)
+                            .iter()
+                            .copied(),
+                    ),
                     kind: match access.kind {
                         omega_checked_trees::BorrowAccessKind::Read => StateBorrowAccessKind::Read,
                         omega_checked_trees::BorrowAccessKind::Mutable => {

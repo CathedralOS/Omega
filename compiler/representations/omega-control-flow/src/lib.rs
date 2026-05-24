@@ -18,6 +18,7 @@ pub struct ControlFlowPlan {
     pub contract_calls: Arena<StateContractCall>,
     pub contract_exits: Arena<StateContractExit>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
+    pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub borrow_calls: Arena<StateBorrowCall>,
     pub operations: Arena<Operation>,
@@ -390,6 +391,7 @@ pub enum StateBorrowAccessKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowArgumentAccess {
     pub root_symbol: SymbolHandle,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
     pub kind: StateBorrowAccessKind,
 }
 

@@ -10,6 +10,8 @@ use roots::{append_state_writable_roots, estimated_borrow_root_capacity, mutable
 pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     let mut writable_roots =
         omega_core::arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
+    let mut access_segments =
+        omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut argument_accesses =
         omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut calls =
@@ -42,6 +44,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                     statement_index,
                     statement,
                     &mut call_ordinal,
+                    &mut access_segments,
                     &mut argument_accesses,
                     &mut calls,
                     &mut calls_span,
@@ -60,6 +63,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
 
     BorrowFacts {
         writable_roots,
+        access_segments,
         argument_accesses,
         calls,
         states,
