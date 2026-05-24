@@ -86,6 +86,25 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     let domains = build_domain_facts(&program, &semantic);
     let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &domains, &effects);
 
+    let caller_borrow_state = borrow
+        .states
+        .iter()
+        .find_map(|(handle, state)| {
+            (state.machine_symbol == caller_machine_symbol
+                && state.state_symbol == caller_state_symbol)
+                .then_some(handle)
+        })
+        .expect("caller borrow state");
+    let caller_borrow_call = borrow
+        .calls
+        .iter()
+        .find_map(|(handle, call)| {
+            (call.statement_index == 0
+                && call.call_ordinal == 0
+                && call.target_symbol == callee_state_symbol)
+                .then_some(handle)
+        })
+        .expect("caller borrow call");
     let caller_flow = flow
         .states
         .iter()
@@ -96,6 +115,11 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         })
         .expect("caller flow state");
     assert!(caller_flow.entry_semantic_contexts.is_empty());
+    assert_eq!(
+        flow.borrow_state_constraints(caller_flow.entry_constraints)
+            .collect::<Vec<_>>(),
+        vec![caller_borrow_state]
+    );
     assert_eq!(flow.calls.span_or_empty(caller_flow.calls).len(), 1);
 
     let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
@@ -103,7 +127,22 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     assert_eq!(call_flow.call_ordinal, 0);
     assert_eq!(call_flow.target_symbol, callee_state_symbol);
     assert!(call_flow.entry_semantic_contexts.is_empty());
+    assert_eq!(
+        flow.borrow_state_constraints(call_flow.entry_constraints)
+            .collect::<Vec<_>>(),
+        vec![caller_borrow_state]
+    );
+    assert_eq!(
+        flow.borrow_call_constraints(call_flow.entry_constraints)
+            .collect::<Vec<_>>(),
+        vec![caller_borrow_call]
+    );
     assert!(!call_flow.requires_contexts.is_empty());
+    assert_eq!(
+        flow.semantic_constraint_contexts(call_flow.requires_constraints)
+            .count(),
+        1
+    );
     assert!(call_flow.exit_semantic_contexts.is_empty());
     assert_eq!(
         proof
