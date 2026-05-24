@@ -1,0 +1,14 @@
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    let first: &mut i32 = &mut self.value;
+    let second: &mut i32 = &mut self.value;
+    self.write_alias(first);
+    self.write_alias(second);
+}
+
+machine Main::write_alias(&mut self, value: &mut i32) {
+    value = 2;
+}

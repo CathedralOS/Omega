@@ -128,6 +128,15 @@ impl BorrowFacts {
         access.root_symbol == loan.root_symbol
             && place_segments_overlap(self.access_segments(access), self.loan_segments(loan))
     }
+
+    pub fn loan_overlaps_loan(
+        &self,
+        left: &BorrowLoanFact,
+        right: &BorrowLoanFact,
+    ) -> bool {
+        left.root_symbol == right.root_symbol
+            && place_segments_overlap(self.loan_segments(left), self.loan_segments(right))
+    }
 }
 
 fn place_segments_overlap(

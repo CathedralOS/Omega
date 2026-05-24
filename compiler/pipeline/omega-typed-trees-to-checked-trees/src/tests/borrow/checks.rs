@@ -320,6 +320,58 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
 }
 
 #[test]
+fn rejects_local_borrow_creation_while_prior_alias_is_active() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let first: &mut i32 = &mut self.value;
+            let second: &mut i32 = &mut self.value;
+            self.write_alias(first);
+            self.write_alias(second);
+        }
+
+        machine Main::write_alias(&mut self, value: &mut i32) {
+            value = 2;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("second local borrow alias should be rejected while the first is live");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(combined.contains("creates local borrow `second` while local borrow `first` is still active"));
+    assert!(combined.contains("borrowed at statement 0"));
+    assert!(combined.contains("its last use is at statement 2"));
+}
+
+#[test]
 fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let source = r#"
         data Main {
