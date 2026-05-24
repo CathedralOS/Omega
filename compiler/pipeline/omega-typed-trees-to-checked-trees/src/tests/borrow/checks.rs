@@ -92,7 +92,7 @@ fn accepts_mutable_local_named_place_arguments() {
 
     assert_eq!(
         facts.borrow.argument_accesses.span_or_empty(copy_call.accesses).len(),
-        1
+        2
     );
     let call_site = find_call_site(
         &typed,

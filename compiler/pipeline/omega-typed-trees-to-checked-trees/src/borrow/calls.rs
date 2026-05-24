@@ -46,6 +46,8 @@ pub(crate) fn collect_statement_borrow_calls(
                         access_segments,
                         argument_accesses,
                         program.statement_table.expression_handles(call.arguments),
+                        state.symbol,
+                        statement_index,
                         machine.symbol,
                     ),
                 );
@@ -169,6 +171,8 @@ fn collect_transition_target_borrow_calls(
                         access_segments,
                         argument_accesses,
                         program.statement_table.expression_handles(*arguments),
+                        state.symbol,
+                        statement_index,
                         machine.symbol,
                     ),
                 },

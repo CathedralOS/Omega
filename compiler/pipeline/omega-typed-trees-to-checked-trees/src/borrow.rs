@@ -52,6 +52,8 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
             {
                 if let Some((owner_symbol, owner_name, place)) = statement_borrow_loan(
                     program,
+                    state,
+                    statement_index,
                     machine.symbol,
                     statement,
                 )
@@ -119,6 +121,8 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
 
 fn statement_borrow_loan(
     program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
 ) -> Option<(SymbolHandle, Identifier, accesses::BorrowAccessPlace)> {
@@ -130,10 +134,22 @@ fn statement_borrow_loan(
 
             let place = match program.expression_table.expression(local_data.initial_value) {
                 omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) => {
-                    borrow_access_place(program, *inner_expression, machine_symbol)
+                    borrow_access_place(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        *inner_expression,
+                        machine_symbol,
+                    )
                 }
                 omega_checked_trees::expression::ExpressionNode::Call(call) => {
-                    helper_call_borrow_loan_place(program, machine_symbol, call)
+                    helper_call_borrow_loan_place(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        machine_symbol,
+                        call,
+                    )
                 }
                 _ => None,
             }?;
@@ -149,6 +165,8 @@ fn statement_borrow_loan(
 
 fn helper_call_borrow_loan_place(
     program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     machine_symbol: SymbolHandle,
     call: &omega_checked_trees::expression::TableCallExpression,
 ) -> Option<accesses::BorrowAccessPlace> {
@@ -157,7 +175,13 @@ fn helper_call_borrow_loan_place(
     }
 
     if call.target.as_str() == "as_mut_slice" {
-        return borrow_access_place(program, call.receiver, machine_symbol);
+        return borrow_access_place(
+            program,
+            state_symbol,
+            statement_index,
+            call.receiver,
+            machine_symbol,
+        );
     }
 
     let Some(target_state) = find_state(program, call.target_symbol) else {
@@ -172,7 +196,13 @@ fn helper_call_borrow_loan_place(
         return None;
     }
 
-    borrow_access_place(program, call.receiver, machine_symbol)
+    borrow_access_place(
+        program,
+        state_symbol,
+        statement_index,
+        call.receiver,
+        machine_symbol,
+    )
 }
 
 fn is_mutable_reference_type(
