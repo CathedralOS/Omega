@@ -15,8 +15,8 @@ mod storage_places;
 use self::bindings::RuntimeAliasBuffer;
 use instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    FunctionInstructionPlan, InstructionOperand, RuntimeValueOperand, SelectedInstruction,
-    SelectedInstructionKind,
+    AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
+    InstructionOperand,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
 use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_body_instructions};
@@ -31,7 +31,7 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
         &mut instruction_plan.instructions,
     );
 
-    instruction_plan.functions.insert(FunctionInstructionPlan {
+    instruction_plan.functions.insert(AbstractFunctionPlan {
         symbol: input.entry_symbol.clone(),
         source_key: input.entry_key,
         instructions,
@@ -79,9 +79,9 @@ fn estimated_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
 fn select_entry_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
-    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-    instructions: &mut Arena<SelectedInstruction>,
-) -> omega_core::arena::HandleSpan<SelectedInstruction> {
+    runtime_value_operands: &mut Arena<AbstractValueOperand>,
+    instructions: &mut Arena<AbstractOperation>,
+) -> omega_core::arena::HandleSpan<AbstractOperation> {
     let mut selected_instructions = SelectedInstructionSink::new(instructions);
 
     selected_instructions.push(entry_instruction(input));
@@ -124,17 +124,17 @@ fn select_entry_instructions(
     selected_instructions.finish()
 }
 
-fn entry_instruction(input: &InstructionSelectionInput<'_>) -> SelectedInstruction {
-    SelectedInstruction {
-        kind: SelectedInstructionKind::EnterFunction,
+fn entry_instruction(input: &InstructionSelectionInput<'_>) -> AbstractOperation {
+    AbstractOperation {
+        kind: AbstractOperationKind::EnterFunction,
         source_key: input.entry_key,
         source_statement: 0,
     }
 }
 
-fn exit_instruction(input: &InstructionSelectionInput<'_>) -> SelectedInstruction {
-    SelectedInstruction {
-        kind: SelectedInstructionKind::LeaveFunction,
+fn exit_instruction(input: &InstructionSelectionInput<'_>) -> AbstractOperation {
+    AbstractOperation {
+        kind: AbstractOperationKind::LeaveFunction,
         source_key: input.entry_key,
         source_statement: 0,
     }

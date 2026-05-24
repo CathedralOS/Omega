@@ -4,16 +4,19 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
 
-pub type RuntimeValueOperandHandle = Handle<RuntimeValueOperand>;
+pub type AbstractValueOperandHandle = Handle<AbstractValueOperand>;
+pub type RuntimeValueOperandHandle = AbstractValueOperandHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionInstructionPlan {
+pub struct AbstractFunctionPlan {
     pub symbol: Arc<str>,
     pub source_key: StateKey,
-    pub instructions: HandleSpan<SelectedInstruction>,
+    pub instructions: HandleSpan<AbstractOperation>,
 }
 
-impl Default for FunctionInstructionPlan {
+pub type FunctionInstructionPlan = AbstractFunctionPlan;
+
+impl Default for AbstractFunctionPlan {
     fn default() -> Self {
         Self {
             symbol: Arc::from(""),
@@ -24,16 +27,18 @@ impl Default for FunctionInstructionPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedInstruction {
-    pub kind: SelectedInstructionKind,
+pub struct AbstractOperation {
+    pub kind: AbstractOperationKind,
     pub source_key: StateKey,
     pub source_statement: usize,
 }
 
-impl Default for SelectedInstruction {
+pub type SelectedInstruction = AbstractOperation;
+
+impl Default for AbstractOperation {
     fn default() -> Self {
         Self {
-            kind: SelectedInstructionKind::EnterFunction,
+            kind: AbstractOperationKind::EnterFunction,
             source_key: StateKey::default(),
             source_statement: 0,
         }
@@ -41,7 +46,7 @@ impl Default for SelectedInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeValueOperand {
+pub enum AbstractValueOperand {
     Immediate(i64),
     Storage {
         region: RuntimeStorageRegion,
@@ -61,20 +66,22 @@ pub enum RuntimeValueOperand {
         byte_size: usize,
     },
     Binary {
-        left: RuntimeValueOperandHandle,
+        left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperandHandle,
+        right: AbstractValueOperandHandle,
     },
 }
 
-impl Default for RuntimeValueOperand {
+pub type RuntimeValueOperand = AbstractValueOperand;
+
+impl Default for AbstractValueOperand {
     fn default() -> Self {
         Self::Immediate(0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SelectedInstructionKind {
+pub enum AbstractOperationKind {
     EnterFunction,
     EnterDispatchLoop {
         entry_dispatch_index: u32,
@@ -118,8 +125,8 @@ pub enum SelectedInstructionKind {
         operator: StateGuardOperator,
     },
     CompareRuntimeValues {
-        left: RuntimeValueOperandHandle,
-        right: RuntimeValueOperandHandle,
+        left: AbstractValueOperandHandle,
+        right: AbstractValueOperandHandle,
         byte_size: usize,
         operator: StateGuardOperator,
     },
@@ -222,17 +229,17 @@ pub enum SelectedInstructionKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
-        left: RuntimeValueOperandHandle,
+        left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperandHandle,
+        right: AbstractValueOperandHandle,
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
         byte_size: usize,
-        left: RuntimeValueOperandHandle,
+        left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperandHandle,
+        right: AbstractValueOperandHandle,
     },
     WriteRuntimeFrameIndexedInteger {
         descriptor_offset: usize,
@@ -248,9 +255,9 @@ pub enum SelectedInstructionKind {
         element_byte_size: usize,
         field_byte_offset: usize,
         byte_size: usize,
-        left: RuntimeValueOperandHandle,
+        left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
-        right: RuntimeValueOperandHandle,
+        right: AbstractValueOperandHandle,
     },
     WriteRuntimeMachineString {
         byte_offset: usize,
@@ -344,6 +351,8 @@ pub enum SelectedInstructionKind {
     },
     LeaveFunction,
 }
+
+pub type SelectedInstructionKind = AbstractOperationKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTextReadSource {
