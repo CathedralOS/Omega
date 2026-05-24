@@ -97,6 +97,8 @@ name = "omega-abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-calling-conventions",
+ "omega-core",
  "omega-target",
  "omega-target-operations",
 ]
@@ -892,6 +894,7 @@ name = "omega-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-calling-conventions",
  "omega-core",
  "omega-target",
 ]

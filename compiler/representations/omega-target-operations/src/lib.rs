@@ -6,7 +6,7 @@ pub use omega_abstract_operations::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
     InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand,
-    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind, TargetOperation,
-    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetValueOperand,
-    TargetValueOperandHandle,
+    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind, TargetHostBinding,
+    TargetOperation, TargetOperationFunction, TargetOperationKind, TargetOperationPlan,
+    TargetValueOperand, TargetValueOperandHandle,
 };
