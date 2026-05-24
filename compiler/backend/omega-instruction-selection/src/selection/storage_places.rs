@@ -9,7 +9,7 @@ pub(super) use machine_owned::{resolve_machine_owned_place, resolve_machine_owne
 pub(super) use model::{
     RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget, RuntimeStoragePlace,
 };
-use omega_target_operations::RuntimeStorageRegion;
+use omega_abstract_operations::RuntimeStorageRegion;
 pub(super) use static_values::{
     enum_variant_value, enum_variant_value_in_table, static_integer_value,
     static_integer_value_in_table,

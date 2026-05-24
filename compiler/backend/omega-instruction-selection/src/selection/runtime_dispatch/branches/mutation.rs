@@ -6,7 +6,7 @@ use omega_checked_trees::expression::{
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::{BuiltinFunction, SymbolHandle};
-use omega_target_operations::{
+use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
     StateGuardOperator,
 };
@@ -238,7 +238,7 @@ pub(crate) fn select_runtime_resolved_mutation_write(
             operation_machine,
             operation_state,
             resolved_value,
-        ) && source_place.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {

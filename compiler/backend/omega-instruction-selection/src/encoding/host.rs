@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_target_operations::InstructionOperand;
+use omega_abstract_operations::InstructionOperand;
 
 pub fn encode_host_call_sequence(
     architecture: Architecture,

@@ -5,8 +5,8 @@ use crate::selection::storage_places::{
 };
 use omega_checked_trees::expression::Expression;
 use omega_control_flow::StateKey;
-use omega_target_operations::TargetDataObjectHandle;
-use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_abstract_operations::TargetDataObjectHandle;
+use omega_abstract_operations::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_string_descriptor_write(

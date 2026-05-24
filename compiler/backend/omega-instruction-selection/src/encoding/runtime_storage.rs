@@ -3,7 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
+use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
 pub fn encode_runtime_storage_compare_bytes(
     architecture: Architecture,

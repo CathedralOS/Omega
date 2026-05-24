@@ -5,7 +5,7 @@ use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
-use omega_target_operations::TargetDataObjectHandle;
+use omega_abstract_operations::TargetDataObjectHandle;
 use std::sync::Arc;
 
 pub(in crate::selection) struct RuntimeTextLiteralWrite {

@@ -7,8 +7,8 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
 };
-use omega_target_operations::RuntimeStorageRegion;
-use omega_target_operations::SelectedInstructionKind;
+use omega_abstract_operations::RuntimeStorageRegion;
+use omega_abstract_operations::SelectedInstructionKind;
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     input: &InstructionSelectionInput<'_>,

@@ -16,7 +16,7 @@ use omega_runtime_branching::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperationKind,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
-use omega_target_operations::{InstructionOperand, RuntimeValueOperand};
+use omega_abstract_operations::{InstructionOperand, RuntimeValueOperand};
 
 use super::super::super::lookups::{host_call_for_statement, state_call_for_statement};
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
@@ -32,7 +32,7 @@ use super::straight_line::{
     StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
     select_runtime_straight_line_nested_branch_expansions_for_operation,
 };
-use omega_target_operations::SelectedInstruction;
+use omega_abstract_operations::SelectedInstruction;
 
 #[derive(Default)]
 pub(in crate::selection::runtime_dispatch) struct BranchPreludeSelectionScratch {
@@ -180,7 +180,7 @@ fn select_runtime_branch_prelude(
                         )
                     },
                     &mut |kind| {
-                        selected_instructions.push(omega_target_operations::SelectedInstruction {
+                        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
                             kind,
                             source_key: operation.source_key,
                             source_statement: operation.statement_index,

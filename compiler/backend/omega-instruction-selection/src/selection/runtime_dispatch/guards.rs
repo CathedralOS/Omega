@@ -18,7 +18,7 @@ use super::super::storage_places::{
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_table_tree,
 };
-use omega_target_operations::{
+use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
 use std::sync::Arc;

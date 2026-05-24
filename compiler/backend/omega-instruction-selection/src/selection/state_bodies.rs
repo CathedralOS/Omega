@@ -21,7 +21,7 @@ use super::runtime_dispatch::{
     select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
 use omega_state_calls::StateCall;
-use omega_target_operations::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
+use omega_abstract_operations::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
 
 const INLINE_STATE_BODY_VISIT_COUNT: usize = 16;
 

@@ -28,7 +28,7 @@ use super::mutation::{
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopAction;
-use omega_target_operations::{
+use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 
@@ -178,8 +178,8 @@ fn select_runtime_leaf_branch_expansion(
     } else if !guards_were_empty {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::EvaluateDispatchGuard {
-                guard_lowering: omega_target_operations::StateGuardLowering::NoOp,
-                operator: omega_target_operations::StateGuardOperator::Equal,
+                guard_lowering: omega_abstract_operations::StateGuardLowering::NoOp,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
                 storage_region: RuntimeStorageRegion::Machine,
                 byte_offset: 0,
                 byte_size: 0,
