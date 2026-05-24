@@ -418,6 +418,13 @@ pub struct FlowCallFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowStatementFact {
+    pub statement_index: usize,
+    pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowExitFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -439,6 +446,7 @@ pub struct FlowStateFact {
     pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
+    pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
     pub direct_effects: omega_effects::EffectSet,
@@ -452,6 +460,7 @@ pub struct FlowFacts {
     pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
     pub invalidations: Arena<FlowInvalidationFact>,
     pub borrow_weakenings: Arena<FlowBorrowWeakeningFact>,
+    pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
     pub states: Arena<FlowStateFact>,

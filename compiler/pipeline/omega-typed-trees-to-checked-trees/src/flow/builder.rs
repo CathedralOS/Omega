@@ -39,6 +39,7 @@ struct FlowBuildContext {
     invalidation_segments: omega_core::arena::Arena<omega_facts::PlaceSegment>,
     invalidations: omega_core::arena::Arena<FlowInvalidationFact>,
     borrow_weakenings: omega_core::arena::Arena<FlowBorrowWeakeningFact>,
+    statements: omega_core::arena::Arena<FlowStatementFact>,
     calls: omega_core::arena::Arena<FlowCallFact>,
     exits: omega_core::arena::Arena<FlowExitFact>,
     states: omega_core::arena::Arena<FlowStateFact>,
@@ -60,6 +61,7 @@ impl FlowBuildContext {
             invalidation_segments: omega_core::arena::Arena::default(),
             invalidations: omega_core::arena::Arena::default(),
             borrow_weakenings: omega_core::arena::Arena::default(),
+            statements: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
             calls: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
             exits: omega_core::arena::Arena::with_capacity(proof.contract_exits.len()),
             states: omega_core::arena::Arena::with_capacity(borrow.states.len()),
@@ -73,6 +75,7 @@ impl FlowBuildContext {
             invalidation_segments: self.invalidation_segments,
             invalidations: self.invalidations,
             borrow_weakenings: self.borrow_weakenings,
+            statements: self.statements,
             calls: self.calls,
             exits: self.exits,
             states: self.states,
@@ -148,6 +151,7 @@ fn build_state_flow_fact(
         clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
     let state_invalidations_start = ctx.invalidations.len();
     let state_borrow_weakenings_start = ctx.borrow_weakenings.len();
+    let state_statements_start = ctx.statements.len();
     let state_calls = append_state_call_facts(
         program,
         borrow,
@@ -193,6 +197,7 @@ fn build_state_flow_fact(
             &ctx.borrow_weakenings,
             state_borrow_weakenings_start,
         ),
+        statements: appended_span_since(&ctx.statements, state_statements_start),
         calls: state_calls,
         exits: state_exits,
         direct_effects: state_effects
@@ -240,6 +245,11 @@ fn append_state_call_facts(
             statement_index,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
+        ctx.statements.append(FlowStatementFact {
+            statement_index,
+            entry_semantic_contexts: *active_contexts,
+            entry_constraints: *active_constraints,
+        });
 
         while let Some(borrow_call) = borrow_calls.get(call_index) {
             if borrow_call.statement_index != statement_index {

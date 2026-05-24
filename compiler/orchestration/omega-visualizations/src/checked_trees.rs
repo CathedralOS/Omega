@@ -188,6 +188,9 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
     report.push_str("calls:    ");
     report.push_str(&program.facts.flow.calls.len().to_string());
     report.push('\n');
+    report.push_str("statements: ");
+    report.push_str(&program.facts.flow.statements.len().to_string());
+    report.push('\n');
     report.push_str("exits:    ");
     report.push_str(&program.facts.flow.exits.len().to_string());
     report.push('\n');
@@ -239,12 +242,40 @@ fn checked_effects_report(program: &CheckedTrees) -> String {
         report.push_str("  borrow weakenings: ");
         append_flow_borrow_weakening_summary(program, &mut report, state_flow.borrow_weakenings);
         report.push('\n');
+        report.push_str("  statements: ");
+        report.push_str(
+            &program
+                .facts
+                .flow
+                .statements
+                .span_or_empty(state_flow.statements)
+                .len()
+                .to_string(),
+        );
+        report.push('\n');
         report.push_str("  direct effects:  ");
         report.push_str(&format_effect_set(state_flow.direct_effects));
         report.push('\n');
         report.push_str("  reached effects: ");
         report.push_str(&format_effect_set(state_flow.transitive_effects));
         report.push('\n');
+
+        for statement_flow in program
+            .facts
+            .flow
+            .statements
+            .span_or_empty(state_flow.statements)
+        {
+            report.push_str("  statement ");
+            report.push_str(&statement_flow.statement_index.to_string());
+            report.push('\n');
+            report.push_str("    entry contexts: ");
+            append_flow_context_labels(program, &mut report, statement_flow.entry_semantic_contexts);
+            report.push('\n');
+            report.push_str("    active borrow loans: ");
+            append_flow_borrow_loan_summary(program, &mut report, statement_flow.entry_constraints);
+            report.push('\n');
+        }
 
         for call_flow in program.facts.flow.calls.span_or_empty(state_flow.calls) {
             report.push_str("  call ");
