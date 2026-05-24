@@ -39,7 +39,7 @@ pub fn build_assigned_target_operations(
         assigned_target_operations
             .operands
             .insert(omega_assigned_target_operations::AssignedInstructionOperand {
-                kind: operand.kind.clone(),
+                kind: operand.kind.clone().into(),
             });
     }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
