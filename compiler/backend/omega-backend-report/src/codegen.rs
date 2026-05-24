@@ -854,12 +854,7 @@ fn selected_instruction_operands_name(
         .iter()
         .map(|operand| match &operand.kind {
             InstructionOperandKind::DataAddress { data } => {
-                let symbol = backend_plan
-                    .data
-                    .objects
-                    .get(omega_target_operations::target_data_handle_from_abstract(*data))
-                    .symbol
-                    .as_ref();
+                let symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
                 format!("addr {symbol}")
             }
             InstructionOperandKind::RuntimeStringPointer {

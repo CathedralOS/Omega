@@ -4,8 +4,8 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    RuntimeTextReadSource, TargetOperation, TargetOperationFunction, TargetOperationKind,
-    TargetOperationPlan,
+    InstructionOperand, InstructionOperandKind, RuntimeTextReadSource, TargetOperation,
+    TargetOperationFunction, TargetOperationKind, TargetOperationPlan,
 };
 
 pub fn build_target_operation_plan(
@@ -22,7 +22,9 @@ pub fn build_target_operation_plan(
         abstract_operations.runtime_value_operands.len(),
     );
 
-    target_operations.operands = abstract_operations.operands.clone();
+    for (_, operand) in abstract_operations.operands.iter() {
+        target_operations.operands.insert(translate_operand(operand));
+    }
     target_operations.runtime_value_operands = abstract_operations.runtime_value_operands.clone();
 
     for (_, instruction) in abstract_operations.instructions.iter() {
@@ -100,7 +102,7 @@ fn translate_instruction_kind(
                 resolve_host_operation_key(host_calls, instruction, *operation_ordinal);
             TargetOperationKind::HostOperation {
                 operation_key,
-                operands: *operands,
+                operands: remap_operand_span(*operands),
             }
         }
         omega_abstract_operations::AbstractOperationKind::PreparePlatformOutputHandle {
@@ -110,7 +112,7 @@ fn translate_instruction_kind(
                 HostCapability::Stdout,
                 HostOperation::GetStdHandle,
             ),
-            operands: *operands,
+            operands: remap_operand_span(*operands),
         },
         omega_abstract_operations::AbstractOperationKind::WritePlatformNewline {
             use_file_api,
@@ -124,9 +126,49 @@ fn translate_instruction_kind(
                     HostOperation::Write
                 },
             ),
-            operands: *operands,
+            operands: remap_operand_span(*operands),
         },
         kind => TargetOperationKind::from(kind),
+    }
+}
+
+fn translate_operand(
+    operand: &omega_abstract_operations::InstructionOperand,
+) -> InstructionOperand {
+    InstructionOperand {
+        kind: translate_operand_kind(&operand.kind),
+    }
+}
+
+fn translate_operand_kind(
+    kind: &omega_abstract_operations::InstructionOperandKind,
+) -> InstructionOperandKind {
+    match kind {
+        omega_abstract_operations::InstructionOperandKind::DataAddress { data } => {
+            InstructionOperandKind::DataAddress {
+                data: omega_target_operations::target_data_handle_from_abstract(*data),
+            }
+        }
+        omega_abstract_operations::InstructionOperandKind::RuntimeStringPointer {
+            region,
+            byte_offset,
+        } => InstructionOperandKind::RuntimeStringPointer {
+            region: *region,
+            byte_offset: *byte_offset,
+        },
+        omega_abstract_operations::InstructionOperandKind::RuntimeStringLength {
+            region,
+            byte_offset,
+        } => InstructionOperandKind::RuntimeStringLength {
+            region: *region,
+            byte_offset: *byte_offset,
+        },
+        omega_abstract_operations::InstructionOperandKind::ImmediateInteger(value) => {
+            InstructionOperandKind::ImmediateInteger(*value)
+        }
+        omega_abstract_operations::InstructionOperandKind::ByteLength(value) => {
+            InstructionOperandKind::ByteLength(*value)
+        }
     }
 }
 
@@ -172,6 +214,19 @@ fn remap_instruction_handle(
 fn remap_instruction_span(
     span: omega_core::arena::HandleSpan<omega_abstract_operations::AbstractOperation>,
 ) -> HandleSpan<TargetOperation> {
+    if span.is_empty() {
+        return HandleSpan::empty();
+    }
+
+    HandleSpan::from_parts(
+        Handle::from_parts(span.start().arena_index(), span.start().generation()),
+        span.count(),
+    )
+}
+
+fn remap_operand_span(
+    span: omega_core::arena::HandleSpan<omega_abstract_operations::InstructionOperand>,
+) -> HandleSpan<omega_target_operations::TargetInstructionOperand> {
     if span.is_empty() {
         return HandleSpan::empty();
     }
