@@ -146,10 +146,7 @@ fn call_borrow_constraints<'a>(
         .map(|call| call.entry_constraints)
         .or_else(|| {
             facts.flow
-                .statements
-                .span_or_empty(state_flow.statements)
-                .iter()
-                .find(|statement| statement.statement_index == borrow_call.statement_index)
+                .state_statement(state_flow, borrow_call.statement_index)
                 .map(|statement| statement.entry_constraints)
         })
         .unwrap_or(state_flow.entry_constraints)

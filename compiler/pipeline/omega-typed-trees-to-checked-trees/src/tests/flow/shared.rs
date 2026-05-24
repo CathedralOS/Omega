@@ -132,6 +132,12 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     assert_eq!(statement_flows.len(), 1);
     assert_eq!(statement_flows[0].statement_index, 0);
     assert_eq!(
+        flow.state_statement(caller_flow, 0)
+            .expect("statement flow should be queryable")
+            .statement_index,
+        0
+    );
+    assert_eq!(
         flow.borrow_state_constraints(statement_flows[0].entry_constraints)
             .collect::<Vec<_>>(),
         vec![caller_borrow_state]
