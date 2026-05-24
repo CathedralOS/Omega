@@ -5,10 +5,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_target::NativeTarget;
-use omega_target_operations::{
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind,
-    TargetOperationPlan,
-};
+use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind};
 
 mod branch_distances;
 mod encoding;
@@ -21,7 +18,6 @@ use layout::layout_machine_instructions;
 #[derive(Debug)]
 pub struct MachineEmissionInput<'plan, 'machine> {
     pub target: NativeTarget,
-    pub target_operations: &'plan TargetOperationPlan,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub machine_instructions: &'machine MachineInstructionPlan,
     pub host_abi: &'plan HostAbiPlan,
@@ -43,7 +39,6 @@ pub fn emit_machine_bytes(
         emit_function_bytes(
             MachineEmissionContext {
                 target: input.target,
-                instructions: input.target_operations,
                 assigned_target_operations: input.assigned_target_operations,
                 host_abi: input.host_abi,
                 terminal_dispatch_index: input.terminal_dispatch_index,
@@ -110,11 +105,11 @@ fn emit_function_bytes(
                     format!(
                         "; operands: left={:?}, right={:?}",
                         emission_context
-                            .instructions
+                            .assigned_target_operations
                             .runtime_value_operands
                             .get(*left),
                         emission_context
-                            .instructions
+                            .assigned_target_operations
                             .runtime_value_operands
                             .get(*right),
                     )
@@ -412,7 +407,6 @@ fn insert_dispatch_state_write_bytes(
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct MachineEmissionContext<'plan> {
     pub target: NativeTarget,
-    pub instructions: &'plan TargetOperationPlan,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,

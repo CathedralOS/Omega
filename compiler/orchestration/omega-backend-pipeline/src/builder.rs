@@ -328,7 +328,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         record_backend_phase(&mut phase_timings, "machine emission", || {
             emit_machine_bytes(MachineEmissionInput {
                 target: backend_plan.target,
-                target_operations: &backend_plan.target_operations,
                 assigned_target_operations: &backend_plan.assigned_target_operations,
                 machine_instructions: &backend_plan.machine_instructions,
                 host_abi: &backend_plan.host_abi,

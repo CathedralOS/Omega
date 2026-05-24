@@ -66,7 +66,11 @@ fn machine_instruction_width(
             operation_key,
             operands,
         } => {
-            let operands = input.instructions.operands.span(*operands).unwrap_or(&[]);
+            let operands = input
+                .assigned_target_operations
+                .operands
+                .span(*operands)
+                .unwrap_or(&[]);
             match host_binding_mechanism(input, *operation_key) {
                 Some(HostBindingMechanism::Syscall { number, .. }) => {
                     syscall_sequence_width(input.target.architecture, operands, *number)
@@ -111,7 +115,7 @@ fn machine_instruction_width(
             ..
         } => runtime_value_compare_width(
             input.target.architecture,
-            &input.instructions.runtime_value_operands,
+            &input.assigned_target_operations.runtime_value_operands,
             *byte_size,
             *left,
             *right,
@@ -209,7 +213,7 @@ fn machine_instruction_width(
             ..
         } => runtime_storage_binary_write_width(
             input.target.architecture,
-            &input.instructions.runtime_value_operands,
+            &input.assigned_target_operations.runtime_value_operands,
             *byte_size,
             *left,
             *operator,
@@ -224,7 +228,7 @@ fn machine_instruction_width(
             ..
         } => runtime_pointee_binary_write_width(
             input.target.architecture,
-            &input.instructions.runtime_value_operands,
+            &input.assigned_target_operations.runtime_value_operands,
             *field_byte_offset,
             *byte_size,
             *left,
@@ -252,7 +256,7 @@ fn machine_instruction_width(
             ..
         } => runtime_frame_indexed_binary_write_width(
             input.target.architecture,
-            &input.instructions.runtime_value_operands,
+            &input.assigned_target_operations.runtime_value_operands,
             *element_byte_size,
             *field_byte_offset,
             *byte_size,
@@ -301,7 +305,7 @@ fn machine_instruction_width(
             let omega_target_operations::RuntimeTextReadSource::HostOperation {
                 operation_key,
             } = source;
-            let Some(binding) = input.instructions.host_binding(*operation_key) else {
+            let Some(binding) = input.assigned_target_operations.host_binding(*operation_key) else {
                 return Err(Diagnostic::error(format!(
                     "missing host binding for runtime text read operation {}.{}",
                     operation_key.capability_name(),

@@ -202,7 +202,7 @@ pub(super) fn encode_runtime_text_line_read(
     source: &RuntimeTextReadSource,
 ) -> Result<Vec<u8>, Diagnostic> {
     let RuntimeTextReadSource::HostOperation { operation_key } = source;
-    let Some(binding) = input.instructions.host_binding(*operation_key) else {
+    let Some(binding) = input.assigned_target_operations.host_binding(*operation_key) else {
         return Err(Diagnostic::error(format!(
             "missing host binding for runtime text read operation {}.{}",
             operation_key.capability_name(),
