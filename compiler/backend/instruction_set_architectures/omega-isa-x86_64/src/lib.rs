@@ -1,8 +1,8 @@
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
-    InstructionOperandLike, RuntimeValueOperand, RuntimeValueOperandHandle,
-    RuntimeValueOperandSource, StateGuardOperator,
+    InstructionOperandLike, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    StateGuardOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -542,20 +542,17 @@ pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
-    match runtime_value_operands.runtime_value_operand(operand) {
-        RuntimeValueOperand::Immediate(_) => 10,
-        RuntimeValueOperand::Storage { byte_size, .. } => 10 + load_width(*byte_size),
-        RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            runtime_value_operand_width(runtime_value_operands, *left)
-                + runtime_value_operand_width(runtime_value_operands, *right)
-                + runtime_binary_operation_width(*operator)
-                + 3
-        }
-        RuntimeValueOperand::Pointee { .. } | RuntimeValueOperand::FrameIndexed { .. } => 0,
+    if runtime_value_operands.immediate_integer(operand).is_some() {
+        10
+    } else if let Some((_, _, byte_size)) = runtime_value_operands.storage(operand) {
+        10 + load_width(byte_size)
+    } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        runtime_value_operand_width(runtime_value_operands, left)
+            + runtime_value_operand_width(runtime_value_operands, right)
+            + runtime_binary_operation_width(operator)
+            + 3
+    } else {
+        0
     }
 }
 
@@ -565,33 +562,22 @@ fn append_runtime_value_operand(
     destination: Reg64,
     operand: RuntimeValueOperandHandle,
 ) -> Result<(), Diagnostic> {
-    match runtime_value_operands.runtime_value_operand(operand) {
-        RuntimeValueOperand::Immediate(value) => {
-            append_mov_reg_imm64(bytes, destination, *value as u64);
-            Ok(())
-        }
-        RuntimeValueOperand::Storage {
-            byte_offset,
-            byte_size,
-            ..
-        } => {
-            append_mov_r15_imm64(bytes, 0);
-            append_load_reg_from_r15(bytes, destination, *byte_offset, *byte_size)
-        }
-        RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, *left)?;
-            append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R11, *right)?;
-            append_runtime_binary_operation(bytes, *operator)?;
-            append_mov_reg_reg(bytes, destination, Reg64::R10);
-            Ok(())
-        }
-        RuntimeValueOperand::Pointee { .. } | RuntimeValueOperand::FrameIndexed { .. } => Err(
+    if let Some(value) = runtime_value_operands.immediate_integer(operand) {
+        append_mov_reg_imm64(bytes, destination, value as u64);
+        Ok(())
+    } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
+        append_mov_r15_imm64(bytes, 0);
+        append_load_reg_from_r15(bytes, destination, byte_offset, byte_size)
+    } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, left)?;
+        append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R11, right)?;
+        append_runtime_binary_operation(bytes, operator)?;
+        append_mov_reg_reg(bytes, destination, Reg64::R10);
+        Ok(())
+    } else {
+        Err(
             Diagnostic::error("X86_64 runtime value operand is not implemented yet"),
-        ),
+        )
     }
 }
 

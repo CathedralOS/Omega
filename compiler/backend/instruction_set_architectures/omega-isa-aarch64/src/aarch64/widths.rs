@@ -1,8 +1,7 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
 use omega_target_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource,
-    StateGuardOperator,
+    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
@@ -398,32 +397,23 @@ pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
-    match runtime_value_operands.runtime_value_operand(operand) {
-        RuntimeValueOperand::Immediate(value) => immediate_width(*value),
-        RuntimeValueOperand::Storage { byte_size, .. } => 8 + runtime_load_data_width(*byte_size),
-        RuntimeValueOperand::Pointee {
-            field_byte_offset,
-            byte_size,
-            ..
-        } => 12 + add_constant_width(*field_byte_offset) + runtime_load_data_width(*byte_size),
-        RuntimeValueOperand::FrameIndexed {
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-            ..
-        } => {
-            runtime_frame_index_setup_width(*element_byte_size, *field_byte_offset)
-                + runtime_load_data_width(*byte_size)
-        }
-        RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            runtime_value_operand_width(runtime_value_operands, *left)
-                + runtime_value_operand_width(runtime_value_operands, *right)
-                + runtime_binary_operation_width(*operator)
-        }
+    if let Some(value) = runtime_value_operands.immediate_integer(operand) {
+        immediate_width(value)
+    } else if let Some((_, _, byte_size)) = runtime_value_operands.storage(operand) {
+        8 + runtime_load_data_width(byte_size)
+    } else if let Some((_, field_byte_offset, byte_size)) = runtime_value_operands.pointee(operand) {
+        12 + add_constant_width(field_byte_offset) + runtime_load_data_width(byte_size)
+    } else if let Some((_, _, element_byte_size, field_byte_offset, byte_size)) =
+        runtime_value_operands.frame_indexed(operand)
+    {
+        runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+            + runtime_load_data_width(byte_size)
+    } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        runtime_value_operand_width(runtime_value_operands, left)
+            + runtime_value_operand_width(runtime_value_operands, right)
+            + runtime_binary_operation_width(operator)
+    } else {
+        0
     }
 }
 
