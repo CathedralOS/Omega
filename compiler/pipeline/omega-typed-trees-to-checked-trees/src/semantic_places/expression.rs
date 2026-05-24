@@ -25,8 +25,17 @@ pub(crate) fn instantiate_call_contract_expression_place(
                 call,
                 member.receiver,
             )?;
+            let symbol = {
+                let symbol = effective_member_symbol(program, member.receiver, member);
+                if symbol.is_valid() {
+                    symbol
+                } else {
+                    super::resolve_place_member_symbol(program, facts, receiver, member.member.as_str())
+                        .unwrap_or_else(SymbolHandle::invalid)
+                }
+            };
             let segment = omega_facts::PlaceSegment::Field {
-                symbol: effective_member_symbol(program, member.receiver, member),
+                symbol,
             };
             Some(super::append_place_segment(facts, receiver, segment))
         }

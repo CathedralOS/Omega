@@ -697,12 +697,48 @@ fn semantic_proof_obligation_kind(kind: omega_facts::ProofObligationKind) -> &'s
 }
 
 fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
-        return machine.name.as_str().to_owned();
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            return machine.name.as_str().to_owned();
+        }
+        for state in program.machine_states(machine) {
+            if state.symbol == symbol {
+                return state.name.as_str().to_owned();
+            }
+            for parameter in program.state_parameters(state) {
+                if parameter.symbol == symbol {
+                    return parameter.name.as_str().to_owned();
+                }
+            }
+        }
+        for owned in program.machine_owned_data(machine) {
+            if owned.symbol == symbol {
+                return owned.name.as_str().to_owned();
+            }
+        }
+        for contained in program.machine_contained_objects(machine) {
+            if contained.symbol == symbol {
+                return contained.name.as_str().to_owned();
+            }
+        }
+    }
+    for data in program.data_definitions() {
+        if data.symbol == symbol {
+            return data.name.as_str().to_owned();
+        }
+        for member in program.data_members(data) {
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return field.name.as_str().to_owned();
+                }
+                omega_typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == symbol =>
+                {
+                    return variant.name.as_str().to_owned();
+                }
+                _ => {}
+            }
+        }
     }
     if let Some(domain) = program
         .domain_definitions()
@@ -732,7 +768,7 @@ fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
     {
         return platform.name.as_str().to_owned();
     }
-    symbol_label(symbol)
+    program.symbols.name(symbol).to_string()
 }
 
 fn capability_manifest_text(program: &CheckedTrees) -> String {

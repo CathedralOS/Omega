@@ -127,7 +127,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         "checked semantic facts should expose ensures as a domain-membership fact"
     );
     assert!(
-        checked_trees.contains("place: player"),
+        checked_trees.contains("place: self.player"),
         "checked semantic facts should retain a readable caller place for propagated membership"
     );
     assert!(
