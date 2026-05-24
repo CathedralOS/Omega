@@ -50,13 +50,12 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                 .iter()
                 .enumerate()
             {
-                if let Some(place) = statement_borrow_loan_place(
+                if let Some((owner_symbol, owner_name, place)) = statement_borrow_loan(
                     program,
                     machine.symbol,
                     statement,
                 )
                 {
-                    let owner_symbol = local_borrow_owner_symbol(statement).unwrap();
                     let handle = loans.append_to_span(
                         &mut loans_span,
                         omega_checked_trees::BorrowLoanFact {
@@ -70,7 +69,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                     state_loan_trackers.push(StateLoanTracker {
                         handle,
                         owner_symbol,
-                        owner_name: local_borrow_owner_name(statement).unwrap(),
+                        owner_name,
                     });
                 }
                 let mut call_ordinal = 0usize;
@@ -118,41 +117,33 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
     }
 }
 
-fn statement_borrow_loan_place(
+fn statement_borrow_loan(
     program: &omega_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
-) -> Option<accesses::BorrowAccessPlace> {
-    let StatementNode::LocalData(local_data) = statement else {
-        return None;
-    };
-
-    if !is_mutable_reference_type(program, local_data.type_reference) {
-        return None;
-    }
-
-    match program.expression_table.expression(local_data.initial_value) {
-        omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) => {
-            borrow_access_place(program, *inner_expression, machine_symbol)
-        }
-        omega_checked_trees::expression::ExpressionNode::Call(call) => {
-            helper_call_borrow_loan_place(program, machine_symbol, call)
-        }
-        _ => None,
-    }
-}
-
-fn local_borrow_owner_symbol(statement: &StatementNode) -> Option<SymbolHandle> {
+) -> Option<(SymbolHandle, Identifier, accesses::BorrowAccessPlace)> {
     match statement {
-        StatementNode::LocalData(local_data) => Some(local_data.symbol),
-        _ => None,
-    }
-}
+        StatementNode::LocalData(local_data) => {
+            if !is_mutable_reference_type(program, local_data.type_reference) {
+                return None;
+            }
 
-fn local_borrow_owner_name(statement: &StatementNode) -> Option<Identifier> {
-    match statement {
-        StatementNode::LocalData(local_data) => Some(local_data.name.clone()),
-        _ => None,
+            let place = match program.expression_table.expression(local_data.initial_value) {
+                omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) => {
+                    borrow_access_place(program, *inner_expression, machine_symbol)
+                }
+                omega_checked_trees::expression::ExpressionNode::Call(call) => {
+                    helper_call_borrow_loan_place(program, machine_symbol, call)
+                }
+                _ => None,
+            }?;
+
+            Some((local_data.symbol, local_data.name.clone(), place))
+        }
+        StatementNode::Assignment(_)
+        | StatementNode::Call(_)
+        | StatementNode::Expression(_)
+        | StatementNode::Transition(_) => None,
     }
 }
 
