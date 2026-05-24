@@ -211,7 +211,17 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     assert_eq!(loans.len(), 1);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
-    assert!(flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings).is_empty());
+    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    assert_eq!(weakenings.len(), 1);
+    assert_eq!(weakenings[0].loan, loans[0]);
+    assert_eq!(
+        weakenings[0].reason,
+        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+    );
+    assert_eq!(
+        weakenings[0].source,
+        omega_checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
+    );
 }
 
 #[test]
@@ -271,7 +281,17 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     assert_eq!(loans.len(), 1);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
-    assert!(flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings).is_empty());
+    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    assert_eq!(weakenings.len(), 1);
+    assert_eq!(weakenings[0].loan, loans[0]);
+    assert_eq!(
+        weakenings[0].reason,
+        omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+    );
+    assert_eq!(
+        weakenings[0].source,
+        omega_checked_trees::FlowInvalidationSource::Statement { statement_index: 3 }
+    );
 }
 
 #[test]

@@ -163,6 +163,13 @@ fn build_state_flow_fact(
         &mut active_constraints,
         borrow_state,
     );
+    active_constraints = filter_expired_borrow_loans(
+        &mut ctx.borrow_weakenings,
+        &mut ctx.constraint_refs,
+        active_constraints,
+        borrow,
+        program.statement_table.statements(state.statement_nodes).len(),
+    );
     let state_exits = append_state_exit_facts(
         proof,
         semantic,
