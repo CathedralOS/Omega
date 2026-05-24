@@ -4,19 +4,20 @@ pub mod instruction;
 pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
-    FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
-    RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
-    SelectedInstruction, SelectedInstructionKind,
+    AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
+    AbstractValueOperandHandle, FunctionInstructionPlan, HostOperationKey, InstructionOperand,
+    InstructionOperandKind, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand,
+    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
 };
 
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationPlan {
-    pub functions: Arena<FunctionInstructionPlan>,
-    pub instructions: Arena<SelectedInstruction>,
+    pub functions: Arena<AbstractFunctionPlan>,
+    pub instructions: Arena<AbstractOperation>,
     pub operands: Arena<InstructionOperand>,
-    pub runtime_value_operands: Arena<RuntimeValueOperand>,
+    pub runtime_value_operands: Arena<AbstractValueOperand>,
 }
 
 impl Default for AbstractOperationPlan {
