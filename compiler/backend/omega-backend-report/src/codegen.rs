@@ -68,19 +68,12 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     ));
     output.push_str(&format!(
         "runtime value homes: {}\n",
-        backend_plan.assigned_target_operations.runtime_value_homes.len()
+        backend_plan
+            .assigned_target_operations
+            .runtime_values_with_homes()
+            .count()
     ));
-    let scratch_home_count = backend_plan
-        .assigned_target_operations
-        .runtime_value_homes
-        .iter()
-        .filter(|(_, home)| {
-            matches!(
-                home.kind,
-                omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }
-            )
-        })
-        .count();
+    let scratch_home_count = backend_plan.assigned_target_operations.scratch_home_count();
     output.push_str(&format!("scratch homes: {}\n", scratch_home_count));
     write_assigned_value_homes(output, backend_plan);
     output.push('\n');
@@ -132,21 +125,24 @@ fn write_target_data_object(
 }
 
 fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportInput<'_>) {
-    if backend_plan.assigned_target_operations.runtime_value_homes.is_empty() {
+    if backend_plan
+        .assigned_target_operations
+        .runtime_values_with_homes()
+        .next()
+        .is_none()
+    {
         output.push_str("homes: none\n");
         return;
     }
 
     output.push_str("homes:\n");
-    for (handle, home) in backend_plan.assigned_target_operations.runtime_value_homes.iter() {
-        let operand_handle = omega_core::arena::Handle::from_arena_index(handle.arena_index());
-        let operand = backend_plan
-            .assigned_target_operations
-            .runtime_value_operands
-            .get(operand_handle);
+    for (operand_handle, operand, home) in backend_plan
+        .assigned_target_operations
+        .runtime_values_with_homes()
+    {
         output.push_str(&format!(
             "  - #{} {} => {}\n",
-            handle.arena_index(),
+            operand_handle.arena_index(),
             runtime_value_operand_name(backend_plan, operand_handle),
             assigned_value_home_name(home.kind, operand)
         ));
