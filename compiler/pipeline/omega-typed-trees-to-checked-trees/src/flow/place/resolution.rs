@@ -51,6 +51,28 @@ fn resolve_member_symbol_from_receiver(
     }
 
     if let Some(machine) = machine_by_symbol(program, type_symbol) {
+        if let Some(attached_data) = machine.attached_data.as_deref()
+            && let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == attached_data)
+        {
+            for member in program.data_members(data) {
+                match member {
+                    omega_typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == member_name =>
+                    {
+                        return Some(field.symbol);
+                    }
+                    omega_typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == member_name =>
+                    {
+                        return Some(variant.symbol);
+                    }
+                    _ => {}
+                }
+            }
+        }
         for owned in program.machine_owned_data(machine) {
             if owned.name.as_str() == member_name {
                 return Some(owned.symbol);
