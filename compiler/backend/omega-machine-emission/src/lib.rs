@@ -1,4 +1,5 @@
 use omega_calling_conventions::HostAbiPlan;
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
@@ -20,6 +21,7 @@ use layout::layout_machine_instructions;
 pub struct MachineEmissionInput<'plan, 'machine> {
     pub target: NativeTarget,
     pub target_operations: &'plan InstructionPlan,
+    pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub machine_instructions: &'machine MachineInstructionPlan,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,
@@ -41,6 +43,7 @@ pub fn emit_machine_bytes(
             MachineEmissionContext {
                 target: input.target,
                 instructions: input.target_operations,
+                assigned_target_operations: input.assigned_target_operations,
                 host_abi: input.host_abi,
                 terminal_dispatch_index: input.terminal_dispatch_index,
             },
@@ -415,6 +418,7 @@ fn insert_dispatch_state_write_bytes(
 pub(crate) struct MachineEmissionContext<'plan> {
     pub target: NativeTarget,
     pub instructions: &'plan InstructionPlan,
+    pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,
 }

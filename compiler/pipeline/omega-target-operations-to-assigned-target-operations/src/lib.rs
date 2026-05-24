@@ -42,10 +42,20 @@ pub fn build_assigned_target_operations(
                 region,
                 byte_offset,
                 byte_size,
-            } => AssignedValueHomeKind::RuntimeStorage {
-                region: *region,
-                byte_offset: *byte_offset,
-                byte_size: *byte_size,
+            } => match region {
+                omega_target_operations::RuntimeStorageRegion::Machine => {
+                    AssignedValueHomeKind::RuntimeStorage {
+                        region: *region,
+                        byte_offset: *byte_offset,
+                        byte_size: *byte_size,
+                    }
+                }
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+                    AssignedValueHomeKind::StackSlot {
+                        byte_offset: *byte_offset,
+                        byte_size: *byte_size,
+                    }
+                }
             },
             omega_target_operations::RuntimeValueOperand::Pointee {
                 pointer_byte_offset,

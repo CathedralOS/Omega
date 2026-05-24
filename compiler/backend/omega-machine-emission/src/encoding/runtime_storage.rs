@@ -5,6 +5,130 @@ use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_target_operations::{RuntimeValueOperandHandle, StateGuardOperator};
 
+fn validate_runtime_value_home(
+    input: MachineEmissionContext<'_>,
+    operand: RuntimeValueOperandHandle,
+) -> Result<(), Diagnostic> {
+    let home_handle = omega_core::arena::Handle::from_arena_index(operand.arena_index());
+    if !input
+        .assigned_target_operations
+        .runtime_value_homes
+        .is_valid(home_handle)
+    {
+        return Err(Diagnostic::error(format!(
+            "missing assigned runtime value home for operand #{} during machine emission",
+            operand.arena_index()
+        )));
+    }
+
+    let home = input.assigned_target_operations.runtime_value_homes.get(home_handle);
+    let runtime_value = input.instructions.runtime_value_operands.get(operand);
+    match runtime_value {
+        omega_target_operations::RuntimeValueOperand::Immediate(_) => {
+            if !matches!(
+                home.kind,
+                omega_assigned_target_operations::AssignedValueHomeKind::Immediate
+            ) {
+                return Err(Diagnostic::error(
+                    "immediate runtime value must keep an immediate assigned home",
+                ));
+            }
+        }
+        omega_target_operations::RuntimeValueOperand::Storage {
+            region,
+            byte_offset,
+            byte_size,
+        } => match region {
+            omega_target_operations::RuntimeStorageRegion::Machine => {
+                if !matches!(
+                    home.kind,
+                    omega_assigned_target_operations::AssignedValueHomeKind::RuntimeStorage {
+                        region: omega_target_operations::RuntimeStorageRegion::Machine,
+                        byte_offset: home_offset,
+                        byte_size: home_size,
+                    } if home_offset == *byte_offset && home_size == *byte_size
+                ) {
+                    return Err(Diagnostic::error(
+                        "machine runtime storage value must keep a matching runtime-storage home",
+                    ));
+                }
+            }
+            omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+                if !matches!(
+                    home.kind,
+                    omega_assigned_target_operations::AssignedValueHomeKind::StackSlot {
+                        byte_offset: home_offset,
+                        byte_size: home_size,
+                    } if home_offset == *byte_offset && home_size == *byte_size
+                ) {
+                    return Err(Diagnostic::error(
+                        "runtime-frame value must lower through a matching stack-slot home",
+                    ));
+                }
+            }
+        },
+        omega_target_operations::RuntimeValueOperand::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => {
+            if !matches!(
+                home.kind,
+                omega_assigned_target_operations::AssignedValueHomeKind::RuntimePointee {
+                    pointer_byte_offset: home_pointer,
+                    field_byte_offset: home_field,
+                    byte_size: home_size,
+                } if home_pointer == *pointer_byte_offset
+                    && home_field == *field_byte_offset
+                    && home_size == *byte_size
+            ) {
+                return Err(Diagnostic::error(
+                    "runtime pointee value must keep a matching pointee home",
+                ));
+            }
+        }
+        omega_target_operations::RuntimeValueOperand::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            if !matches!(
+                home.kind,
+                omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameIndexed {
+                    descriptor_offset: home_descriptor,
+                    index_offset: home_index,
+                    element_byte_size: home_element_size,
+                    field_byte_offset: home_field,
+                    byte_size: home_size,
+                } if home_descriptor == *descriptor_offset
+                    && home_index == *index_offset
+                    && home_element_size == *element_byte_size
+                    && home_field == *field_byte_offset
+                    && home_size == *byte_size
+            ) {
+                return Err(Diagnostic::error(
+                    "runtime frame-indexed value must keep a matching frame-indexed home",
+                ));
+            }
+        }
+        omega_target_operations::RuntimeValueOperand::Binary { .. } => {
+            if !matches!(
+                home.kind,
+                omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }
+                    | omega_assigned_target_operations::AssignedValueHomeKind::StackSlot { .. }
+            ) {
+                return Err(Diagnostic::error(
+                    "binary runtime value must lower through a scratch-register or stack-slot home",
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub(super) fn encode_runtime_value_compare(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
@@ -14,6 +138,8 @@ pub(super) fn encode_runtime_value_compare(
     byte_size: usize,
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_value_compare(
         input.target.architecture,
         &input.instructions.runtime_value_operands,
@@ -67,6 +193,8 @@ pub(super) fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_storage_binary_write(
         input.target.architecture,
         &input.instructions.runtime_value_operands,
@@ -87,6 +215,8 @@ pub(super) fn encode_runtime_pointee_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_pointee_binary_write(
         input.target.architecture,
         &input.instructions.runtime_value_operands,
@@ -130,6 +260,8 @@ pub(super) fn encode_runtime_frame_indexed_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_frame_indexed_binary_write(
         input.target.architecture,
         &input.instructions.runtime_value_operands,

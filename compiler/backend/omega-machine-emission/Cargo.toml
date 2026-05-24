@@ -9,6 +9,7 @@ name = "omega_machine_emission"
 path = "src/lib.rs"
 
 [dependencies]
+omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
