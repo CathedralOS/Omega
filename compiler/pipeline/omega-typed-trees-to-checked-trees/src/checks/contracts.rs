@@ -111,21 +111,13 @@ fn call_entry_constraints(
     call_flow: &FlowCallFact,
     facts: &CheckFacts,
 ) -> omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef> {
-    facts.flow
-        .state_call(
-            state_flow,
-            call_flow.statement_index,
-            call_flow.call_ordinal,
-            call_flow.target_symbol,
-            call_flow.receiver_symbol,
-        )
-        .map(|call| call.entry_constraints)
-        .or_else(|| {
-            facts.flow
-                .state_statement(state_flow, call_flow.statement_index)
-                .map(|statement| statement.entry_constraints)
-        })
-        .unwrap_or(state_flow.entry_constraints)
+    facts.flow.state_call_entry_constraints(
+        state_flow,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+        call_flow.target_symbol,
+        call_flow.receiver_symbol,
+    )
 }
 
 fn explain_domain_requirement_failure(

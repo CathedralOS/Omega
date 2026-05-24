@@ -185,21 +185,13 @@ fn call_borrow_constraints<'a>(
     state_flow: &'a FlowStateFact,
     facts: &'a CheckFacts,
 ) -> omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef> {
-    facts.flow
-        .state_call(
-            state_flow,
-            borrow_call.statement_index,
-            borrow_call.call_ordinal,
-            borrow_call.target_symbol,
-            borrow_call.receiver_symbol,
-        )
-        .map(|call| call.entry_constraints)
-        .or_else(|| {
-            facts.flow
-                .state_statement(state_flow, borrow_call.statement_index)
-                .map(|statement| statement.entry_constraints)
-        })
-        .unwrap_or(state_flow.entry_constraints)
+    facts.flow.state_call_entry_constraints(
+        state_flow,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+        borrow_call.target_symbol,
+        borrow_call.receiver_symbol,
+    )
 }
 
 fn mutable_argument_root_name(

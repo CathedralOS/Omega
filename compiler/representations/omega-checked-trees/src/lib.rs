@@ -613,6 +613,29 @@ impl FlowFacts {
                     && call.receiver_symbol == receiver_symbol
             })
     }
+
+    pub fn state_call_entry_constraints(
+        &self,
+        state: &FlowStateFact,
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+        receiver_symbol: SymbolHandle,
+    ) -> HandleSpan<FlowConstraintRef> {
+        self.state_call(
+            state,
+            statement_index,
+            call_ordinal,
+            target_symbol,
+            receiver_symbol,
+        )
+        .map(|call| call.entry_constraints)
+        .or_else(|| {
+            self.state_statement(state, statement_index)
+                .map(|statement| statement.entry_constraints)
+        })
+        .unwrap_or(state.entry_constraints)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
