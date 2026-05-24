@@ -1,6 +1,6 @@
 use super::*;
 use crate::lookup::{
-    first_valid_name_path_symbol, machine_by_symbol, machine_symbol_from_type_reference_handle,
+    first_valid_name_path_symbol, machine_by_symbol,
 };
 
 pub(crate) fn effective_member_symbol(
@@ -109,6 +109,7 @@ pub(crate) fn expression_type_symbol(
             let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             symbol_type_symbol(program, symbol)
         }
+        ExpressionNode::Indexed(indexed) => expression_type_symbol(program, indexed.collection),
         ExpressionNode::Member(member) => {
             let symbol = effective_member_symbol(program, member.receiver, member);
             symbol_type_symbol(program, symbol)
@@ -138,19 +139,20 @@ pub(crate) fn symbol_type_symbol(
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
                 if parameter.symbol == symbol {
-                    return Some(machine_symbol_from_type_reference_handle(
-                        program,
-                        parameter.type_reference,
-                    ));
+                    return Some(program.type_reference_table.type_symbol(parameter.type_reference));
+                }
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let omega_typed_trees::statement::StatementNode::LocalData(local_data) = statement
+                    && local_data.symbol == symbol
+                {
+                    return Some(program.type_reference_table.type_symbol(local_data.type_reference));
                 }
             }
         }
         for owned in program.machine_owned_data(machine) {
             if owned.symbol == symbol {
-                return Some(machine_symbol_from_type_reference_handle(
-                    program,
-                    owned.type_reference,
-                ));
+                return Some(program.type_reference_table.type_symbol(owned.type_reference));
             }
         }
         for contained in program.machine_contained_objects(machine) {
@@ -165,10 +167,7 @@ pub(crate) fn symbol_type_symbol(
             if let omega_typed_trees::data::DataMember::Field(field) = member
                 && field.symbol == symbol
             {
-                return Some(machine_symbol_from_type_reference_handle(
-                    program,
-                    field.type_reference,
-                ));
+                return Some(program.type_reference_table.type_symbol(field.type_reference));
             }
         }
     }
