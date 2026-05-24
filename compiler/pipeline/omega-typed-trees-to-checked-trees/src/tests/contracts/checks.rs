@@ -114,3 +114,50 @@ fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
+
+#[test]
+fn rejects_unproven_exit_ensures_boolean_expression() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) -> i32
+        ensures
+            self.value > 0
+        {
+            0
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "exit boolean ensures without a supporting flow fact should fail",
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove ensures contract for exit from Main::main at statement 0")
+            && diagnostic.message.contains("self.value > 0")
+    }));
+}
+
+#[test]
+fn accepts_exit_ensures_preserved_boolean_expression() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.value > 0
+        ensures
+            self.value > 0
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("exit boolean ensures should be provable from preserved entry facts");
+}
