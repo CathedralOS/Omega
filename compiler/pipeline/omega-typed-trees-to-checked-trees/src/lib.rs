@@ -15,7 +15,7 @@ use omega_checked_trees::{
     DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
     FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
     FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
-    FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, CheckedTrees, ProofFactKind,
+    FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts, CheckedTrees, ProofFactKind,
     ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};

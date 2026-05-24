@@ -128,6 +128,14 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     assert_eq!(flow.calls.span_or_empty(caller_flow.calls).len(), 1);
 
     let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
+    let statement_flows = flow.statements.span_or_empty(caller_flow.statements);
+    assert_eq!(statement_flows.len(), 1);
+    assert_eq!(statement_flows[0].statement_index, 0);
+    assert_eq!(
+        flow.borrow_state_constraints(statement_flows[0].entry_constraints)
+            .collect::<Vec<_>>(),
+        vec![caller_borrow_state]
+    );
     assert_eq!(call_flow.statement_index, 0);
     assert_eq!(call_flow.call_ordinal, 0);
     assert_eq!(call_flow.target_symbol, callee_state_symbol);
@@ -204,6 +212,12 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
 
     let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
+    let statement_flows = flow.statements.span_or_empty(state_flow.statements);
+    assert_eq!(statement_flows.len(), 3);
+    let statement_loans: Vec<_> = flow
+        .borrow_loan_constraints(statement_flows[1].entry_constraints)
+        .collect();
+    assert_eq!(statement_loans.len(), 1);
     let call_flow = flow.calls.span_or_empty(state_flow.calls)[0].clone();
     let loans: Vec<_> = flow
         .borrow_loan_constraints(call_flow.entry_constraints)
@@ -268,6 +282,12 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
 
     let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
+    let statement_flows = flow.statements.span_or_empty(state_flow.statements);
+    assert_eq!(statement_flows.len(), 3);
+    let statement_loans: Vec<_> = flow
+        .borrow_loan_constraints(statement_flows[1].entry_constraints)
+        .collect();
+    assert_eq!(statement_loans.len(), 1);
     let call_flow = flow
         .calls
         .span_or_empty(state_flow.calls)
