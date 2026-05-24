@@ -1,13 +1,24 @@
 use omega_assigned_target_operations::{
-    AssignedRegisterBank, AssignedRegisterName, AssignedTargetOperationPlan, AssignedValueHome,
-    AssignedValueHomeKind, X86_64AssignedRegister,
+    AssignedOperation, AssignedRegisterBank, AssignedRegisterName, AssignedTargetOperationPlan,
+    AssignedValueHome, AssignedValueHomeKind, X86_64AssignedRegister,
 };
+use omega_core::arena::{Handle, HandleSpan};
 use omega_target::Architecture;
 use omega_target_operations::TargetOperationPlan;
 
 pub fn build_assigned_target_operations(
     target_operations: &TargetOperationPlan,
 ) -> AssignedTargetOperationPlan {
+    let remap_instruction_span = |span: HandleSpan<omega_target_operations::TargetOperation>| {
+        if span.is_empty() {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(
+                Handle::from_parts(span.start().arena_index(), span.start().generation()),
+                span.count(),
+            )
+        }
+    };
     let mut assigned_target_operations = AssignedTargetOperationPlan::with_capacity(
         target_operations.target,
         target_operations.functions.len(),
@@ -24,14 +35,19 @@ pub fn build_assigned_target_operations(
             .insert(omega_assigned_target_operations::AssignedTargetOperationFunction {
                 symbol: std::sync::Arc::clone(&function.symbol),
                 source_key: function.source_key,
-                instructions: function.instructions,
+                instructions: remap_instruction_span(function.instructions),
             });
     }
 
-    assigned_target_operations.instructions = target_operations.instructions.clone();
+    for (_, instruction) in target_operations.instructions.iter() {
+        assigned_target_operations.instructions.insert(AssignedOperation {
+            kind: instruction.kind.clone(),
+            source_key: instruction.source_key,
+            source_statement: instruction.source_statement,
+        });
+    }
     assigned_target_operations.operands = target_operations.operands.clone();
-    assigned_target_operations.runtime_value_operands =
-        target_operations.runtime_value_operands.clone();
+    assigned_target_operations.runtime_value_operands = target_operations.runtime_value_operands.clone();
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
 
     let mut next_scratch_slot = 0u16;
