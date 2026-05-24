@@ -1,7 +1,7 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use crate::layout::LaidOutMachineInstruction;
-use omega_assigned_target_operations::{RuntimeValueOperandHandle, StateGuardOperator};
+use omega_assigned_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 
@@ -17,7 +17,7 @@ fn validate_runtime_value_home(
     };
     let runtime_value = input.assigned_target_operations.runtime_value_operands.get(operand);
     match runtime_value {
-        omega_target_operations::RuntimeValueOperand::Immediate(_) => {
+        RuntimeValueOperand::Immediate(_) => {
             if !matches!(
                 home.kind,
                 omega_assigned_target_operations::AssignedValueHomeKind::Immediate
@@ -27,7 +27,7 @@ fn validate_runtime_value_home(
                 ));
             }
         }
-        omega_target_operations::RuntimeValueOperand::Storage {
+        RuntimeValueOperand::Storage {
             region,
             byte_offset,
             byte_size,
@@ -60,7 +60,7 @@ fn validate_runtime_value_home(
                 }
             }
         },
-        omega_target_operations::RuntimeValueOperand::Pointee {
+        RuntimeValueOperand::Pointee {
             pointer_byte_offset,
             field_byte_offset,
             byte_size,
@@ -80,7 +80,7 @@ fn validate_runtime_value_home(
                 ));
             }
         }
-        omega_target_operations::RuntimeValueOperand::FrameIndexed {
+        RuntimeValueOperand::FrameIndexed {
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -106,7 +106,7 @@ fn validate_runtime_value_home(
                 ));
             }
         }
-        omega_target_operations::RuntimeValueOperand::Binary { .. } => {
+        RuntimeValueOperand::Binary { .. } => {
             if !matches!(
                 home.kind,
                 omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }
