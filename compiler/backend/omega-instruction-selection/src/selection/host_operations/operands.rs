@@ -1,8 +1,9 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
-use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
+use omega_calling_conventions::{
+    HostCapability, HostOperation, HostOperationKey, host_operation_fixed_leading_immediate,
+};
 use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind};
-use omega_target::ObjectFormat;
 
 use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
@@ -21,18 +22,17 @@ pub(super) fn select_host_operation_operands(
     operation_key: HostOperationKey,
     operands: &mut Arena<InstructionOperand>,
 ) -> HandleSpan<InstructionOperand> {
+    if let Some(value) = host_operation_fixed_leading_immediate(input.host_abi, operation_key) {
+        return operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
+            value,
+        ))]);
+    }
+
     match (
-        input.target.object_format,
         operation_key.capability,
         operation_key.operation,
     ) {
-        (ObjectFormat::Coff, HostCapability::Stdout, HostOperation::GetStdHandle) => {
-            operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(-11))])
-        }
-        (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => {
-            operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(-10))])
-        }
-        (_, HostCapability::Stdin, HostOperation::Read | HostOperation::ReadFile) => {
+        (HostCapability::Stdin, HostOperation::Read | HostOperation::ReadFile) => {
             let data_object_handle = find_data_object(input, host_call);
             if !data_object_handle.is_valid() {
                 return HandleSpan::empty();
@@ -56,7 +56,7 @@ pub(super) fn select_host_operation_operands(
                 operand(InstructionOperandKind::ByteLength(byte_count)),
             ])
         }
-        (_, HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
+        (HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
             if let Some(place) =
                 runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
             {
@@ -102,13 +102,11 @@ pub(super) fn select_host_operation_operands(
 
             HandleSpan::empty()
         }
-        (
-            _,
-            HostCapability::Process,
-            HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
-        ) => operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
-            exit_code(host_call, input),
-        ))]),
+        (HostCapability::Process, HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess) => {
+            operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
+                exit_code(host_call, input),
+            ))])
+        }
         _ => HandleSpan::empty(),
     }
 }

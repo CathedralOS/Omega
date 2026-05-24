@@ -235,3 +235,18 @@ fn host_operation(capability: &str, operation: &str) -> HostOperationReference {
         key: HostOperationKey::from_names(capability, operation),
     }
 }
+
+pub fn host_operation_fixed_leading_immediate(
+    plan: &HostAbiPlan,
+    operation_key: HostOperationKey,
+) -> Option<i64> {
+    match (
+        plan.target.object_format,
+        operation_key.capability,
+        operation_key.operation,
+    ) {
+        (ObjectFormat::Coff, HostCapability::Stdout, HostOperation::GetStdHandle) => Some(-11),
+        (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => Some(-10),
+        _ => None,
+    }
+}
