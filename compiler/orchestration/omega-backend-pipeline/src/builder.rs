@@ -281,6 +281,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             &backend_plan.runtime_text,
         )
     });
+    backend_plan.abstract_data = (&backend_plan.data).into();
     backend_plan.abstract_operations =
         record_backend_phase(&mut phase_timings, "abstract operations", || {
         let runtime_abi = build_runtime_abi_plan(backend_plan.target);
@@ -302,7 +303,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             runtime_text: &backend_plan.runtime_text,
             state_guards: &backend_plan.state_guards,
             layouts: &backend_plan.layouts,
-            data: &backend_plan.data,
+            data: &backend_plan.abstract_data,
         })
     });
     backend_plan.target_operations =

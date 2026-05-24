@@ -5,6 +5,7 @@ use omega_object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationPlan, RelocationRecord,
     object_symbol_handle_by_name, storage_region_symbol_name,
 };
+use omega_core::arena::Handle;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperandKind;
 
@@ -27,9 +28,10 @@ pub(super) fn collect_data_address_relocations(
                 if !data.is_valid() {
                     continue;
                 }
+                let data = remap_target_data_handle(*data);
                 let symbol = object_symbol_handle_by_name(
                     &input.object,
-                    input.data.objects.get(*data).symbol.as_ref(),
+                    input.data.objects.get(data).symbol.as_ref(),
                 );
                 insert_data_address_relocations(
                     input,
@@ -69,6 +71,12 @@ pub(super) fn collect_data_address_relocations(
             }
         }
     }
+}
+
+fn remap_target_data_handle(
+    data: omega_target_operations::AbstractDataObjectHandle,
+) -> omega_target_operations::TargetDataObjectHandle {
+    Handle::from_parts(data.arena_index(), data.generation())
 }
 
 fn data_address_relocation_offset(

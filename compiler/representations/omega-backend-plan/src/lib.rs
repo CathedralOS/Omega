@@ -1,4 +1,5 @@
 use omega_abstract_operations::AbstractOperationPlan;
+use omega_abstract_operations::AbstractDataPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
@@ -34,6 +35,7 @@ pub struct BackendPlan {
     pub alias_flow: AliasFlowPlan,
     pub state_storage: Arc<StateStoragePlan>,
     pub state_values: StateValuePlan,
+    pub abstract_data: AbstractDataPlan,
     pub data: TargetDataPlan,
     pub abstract_operations: AbstractOperationPlan,
     pub target_operations: InstructionPlan,

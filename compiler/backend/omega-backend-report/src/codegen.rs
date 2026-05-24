@@ -854,7 +854,12 @@ fn selected_instruction_operands_name(
         .iter()
         .map(|operand| match &operand.kind {
             InstructionOperandKind::DataAddress { data } => {
-                let symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
+                let symbol = backend_plan
+                    .data
+                    .objects
+                    .get(remap_target_data_handle(*data))
+                    .symbol
+                    .as_ref();
                 format!("addr {symbol}")
             }
             InstructionOperandKind::RuntimeStringPointer {
@@ -876,6 +881,12 @@ fn selected_instruction_operands_name(
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn remap_target_data_handle(
+    data: omega_abstract_operations::AbstractDataObjectHandle,
+) -> omega_target_operations::TargetDataObjectHandle {
+    omega_core::arena::Handle::from_parts(data.arena_index(), data.generation())
 }
 
 fn write_machine_function_code(
