@@ -196,6 +196,9 @@ fn checked_effects_report(program: &Program) -> String {
     report.push('\n');
     report.push_str("contexts: ");
     report.push_str(&program.facts.flow.semantic_context_refs.len().to_string());
+    report.push('\n');
+    report.push_str("constraints: ");
+    report.push_str(&program.facts.flow.constraint_refs.len().to_string());
     report.push_str("\n\n");
 
     for (_, state_flow) in program.facts.flow.states.iter() {
@@ -221,6 +224,9 @@ fn checked_effects_report(program: &Program) -> String {
         report.push_str("  entry contexts: ");
         append_flow_context_labels(program, &mut report, state_flow.entry_semantic_contexts);
         report.push('\n');
+        report.push_str("  entry constraints: ");
+        append_flow_constraint_labels(program, &mut report, state_flow.entry_constraints);
+        report.push('\n');
         report.push_str("  invalidations: ");
         append_flow_invalidation_summary(program, &mut report, state_flow.invalidations);
         report.push('\n');
@@ -242,11 +248,20 @@ fn checked_effects_report(program: &Program) -> String {
             report.push_str("    entry contexts: ");
             append_flow_context_labels(program, &mut report, call_flow.entry_semantic_contexts);
             report.push('\n');
+            report.push_str("    entry constraints: ");
+            append_flow_constraint_labels(program, &mut report, call_flow.entry_constraints);
+            report.push('\n');
             report.push_str("    requires contexts: ");
             append_flow_context_labels(program, &mut report, call_flow.requires_contexts);
             report.push('\n');
+            report.push_str("    requires constraints: ");
+            append_flow_constraint_labels(program, &mut report, call_flow.requires_constraints);
+            report.push('\n');
             report.push_str("    exit contexts: ");
             append_flow_context_labels(program, &mut report, call_flow.exit_semantic_contexts);
+            report.push('\n');
+            report.push_str("    exit constraints: ");
+            append_flow_constraint_labels(program, &mut report, call_flow.exit_constraints);
             report.push('\n');
             report.push_str("    invalidations: ");
             append_flow_invalidation_summary(program, &mut report, call_flow.invalidations);
@@ -272,8 +287,14 @@ fn checked_effects_report(program: &Program) -> String {
             report.push_str("    entry contexts: ");
             append_flow_context_labels(program, &mut report, exit_flow.entry_semantic_contexts);
             report.push('\n');
+            report.push_str("    entry constraints: ");
+            append_flow_constraint_labels(program, &mut report, exit_flow.entry_constraints);
+            report.push('\n');
             report.push_str("    ensures contexts: ");
             append_flow_context_labels(program, &mut report, exit_flow.ensures_contexts);
+            report.push('\n');
+            report.push_str("    ensures constraints: ");
+            append_flow_constraint_labels(program, &mut report, exit_flow.ensures_constraints);
             report.push('\n');
             report.push_str("    ensures: ");
             append_contract_fact_ref_summary(program, &mut report, exit_flow.ensures);
@@ -885,6 +906,51 @@ fn append_flow_context_labels(
         }
         let context = program.facts.semantic.contexts.get(context_ref.context);
         report.push_str(&semantic_point_label(program, context.point));
+    }
+}
+
+fn append_flow_constraint_labels(
+    program: &Program,
+    report: &mut String,
+    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
+) {
+    let constraints = program.facts.flow.constraint_refs.span_or_empty(constraints);
+    if constraints.is_empty() {
+        report.push_str("<none>");
+        return;
+    }
+
+    for (index, constraint_ref) in constraints.iter().enumerate() {
+        if index > 0 {
+            report.push_str(" | ");
+        }
+        match constraint_ref.kind {
+            omega_checked_trees::FlowConstraintKind::Unknown => report.push_str("unknown"),
+            omega_checked_trees::FlowConstraintKind::SemanticContext { context } => {
+                let context = program.facts.semantic.contexts.get(context);
+                report.push_str("semantic(");
+                report.push_str(&semantic_point_label(program, context.point));
+                report.push(')');
+            }
+            omega_checked_trees::FlowConstraintKind::BorrowState { state } => {
+                let state = program.facts.borrow.states.get(state);
+                report.push_str("borrow-state(");
+                report.push_str(&machine_name(program, state.machine_symbol));
+                report.push_str("::");
+                report.push_str(&state_name(program, state.state_symbol));
+                report.push(')');
+            }
+            omega_checked_trees::FlowConstraintKind::BorrowCall { call } => {
+                let call = program.facts.borrow.calls.get(call);
+                report.push_str("borrow-call(");
+                report.push_str(&call.statement_index.to_string());
+                report.push('.');
+                report.push_str(&call.call_ordinal.to_string());
+                report.push_str(" -> ");
+                report.push_str(&state_label_from_symbol(program, call.target_symbol));
+                report.push(')');
+            }
+        }
     }
 }
 

@@ -270,6 +270,26 @@ pub struct FlowSemanticContextRef {
     pub context: omega_facts::FactContextHandle,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowConstraintKind {
+    #[default]
+    Unknown,
+    SemanticContext {
+        context: omega_facts::FactContextHandle,
+    },
+    BorrowState {
+        state: Handle<StateBorrowFact>,
+    },
+    BorrowCall {
+        call: Handle<BorrowCallFact>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowConstraintRef {
+    pub kind: FlowConstraintKind,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlowInvalidationSource {
     Statement {
@@ -307,8 +327,11 @@ pub struct FlowCallFact {
     pub has_receiver: bool,
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub requires_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub requires_constraints: HandleSpan<FlowConstraintRef>,
     pub exit_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub exit_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
@@ -322,7 +345,9 @@ pub struct FlowExitFact {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub ensures_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub ensures_constraints: HandleSpan<FlowConstraintRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
 }
 
@@ -333,6 +358,7 @@ pub struct FlowStateFact {
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub entry_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
@@ -343,6 +369,7 @@ pub struct FlowStateFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowFacts {
     pub semantic_context_refs: Arena<FlowSemanticContextRef>,
+    pub constraint_refs: Arena<FlowConstraintRef>,
     pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
     pub invalidations: Arena<FlowInvalidationFact>,
     pub calls: Arena<FlowCallFact>,

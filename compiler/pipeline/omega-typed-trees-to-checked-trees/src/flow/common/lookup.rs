@@ -4,10 +4,10 @@ pub(crate) fn borrow_state_fact(
     borrow: &BorrowFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<&StateBorrowFact> {
-    borrow.states.iter().find_map(|(_, state)| {
+) -> Option<(Handle<StateBorrowFact>, &StateBorrowFact)> {
+    borrow.states.iter().find_map(|(handle, state)| {
         (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
+            .then_some((handle, state))
     })
 }
 

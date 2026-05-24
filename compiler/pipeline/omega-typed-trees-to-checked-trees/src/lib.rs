@@ -12,10 +12,10 @@ use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
-    DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowExitFact, FlowFacts,
-    FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef, FlowStateFact,
-    InvariantFact, InvariantFacts, Program, ProofFactKind, ProofFacts, ProofObligationFact,
-    ProofObligationOwner, StateBorrowFact,
+    DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
+    FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
+    FlowSemanticContextRef, FlowStateFact, InvariantFact, InvariantFacts, Program, ProofFactKind,
+    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;

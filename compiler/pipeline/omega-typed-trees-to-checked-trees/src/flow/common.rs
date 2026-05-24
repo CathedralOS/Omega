@@ -3,7 +3,8 @@ mod lookup;
 
 use super::*;
 pub(crate) use arenas::{
-    append_flow_contexts_for_points, append_place_segments, appended_span_since,
+    append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
+    append_semantic_constraints_for_points, appended_span_since, clone_constraint_refs,
     clone_flow_contexts,
 };
 pub(crate) use lookup::{

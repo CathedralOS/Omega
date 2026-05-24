@@ -35,6 +35,7 @@ pub(crate) fn build_flow_facts(
 struct FlowBuildContext {
     state_mutation_summary_cache: StateMutationSummaryCache,
     semantic_context_refs: omega_core::arena::Arena<FlowSemanticContextRef>,
+    constraint_refs: omega_core::arena::Arena<FlowConstraintRef>,
     invalidation_segments: omega_core::arena::Arena<omega_facts::PlaceSegment>,
     invalidations: omega_core::arena::Arena<FlowInvalidationFact>,
     calls: omega_core::arena::Arena<FlowCallFact>,
@@ -49,6 +50,11 @@ impl FlowBuildContext {
             semantic_context_refs: omega_core::arena::Arena::with_capacity(
                 semantic.contexts.len().saturating_mul(2),
             ),
+            constraint_refs: omega_core::arena::Arena::with_capacity(
+                semantic.contexts.len().saturating_mul(3)
+                    .saturating_add(borrow.states.len())
+                    .saturating_add(borrow.calls.len()),
+            ),
             invalidation_segments: omega_core::arena::Arena::default(),
             invalidations: omega_core::arena::Arena::default(),
             calls: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
@@ -60,6 +66,7 @@ impl FlowBuildContext {
     fn finish(self) -> FlowFacts {
         FlowFacts {
             semantic_context_refs: self.semantic_context_refs,
+            constraint_refs: self.constraint_refs,
             invalidation_segments: self.invalidation_segments,
             invalidations: self.invalidations,
             calls: self.calls,
@@ -81,12 +88,15 @@ fn build_state_flow_fact(
     state: &omega_typed_trees::state::State,
     machine_effects: Option<&omega_effects::MachineEffects>,
 ) {
-    let Some(borrow_state) = borrow_state_fact(borrow, machine.symbol, state.symbol) else {
+    let Some((borrow_state_handle, borrow_state)) =
+        borrow_state_fact(borrow, machine.symbol, state.symbol)
+    else {
         return;
     };
 
     let state_effects = effects_state(effects, machine_effects, state.symbol);
     let mut state_contexts = omega_core::arena::HandleSpan::empty();
+    let mut state_constraints = omega_core::arena::HandleSpan::empty();
     append_flow_contexts_for_points(
         semantic,
         &mut ctx.semantic_context_refs,
@@ -102,7 +112,31 @@ fn build_state_flow_fact(
             },
         ],
     );
+    append_semantic_constraints_for_points(
+        semantic,
+        &mut ctx.constraint_refs,
+        &mut state_constraints,
+        &[
+            ProgramPoint::Global,
+            ProgramPoint::Machine {
+                machine_symbol: machine.symbol,
+            },
+            ProgramPoint::State {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+            },
+        ],
+    );
+    append_constraint_ref(
+        &mut ctx.constraint_refs,
+        &mut state_constraints,
+        FlowConstraintKind::BorrowState {
+            state: borrow_state_handle,
+        },
+    );
     let mut active_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, state_contexts);
+    let mut active_constraints =
+        clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
     let state_invalidations_start = ctx.invalidations.len();
     let state_calls = append_state_call_facts(
         program,
@@ -116,6 +150,7 @@ fn build_state_flow_fact(
         state,
         state_effects,
         &mut active_contexts,
+        &mut active_constraints,
         borrow_state,
     );
     let state_exits = append_state_exit_facts(
@@ -125,6 +160,7 @@ fn build_state_flow_fact(
         machine.symbol,
         state.symbol,
         active_contexts,
+        active_constraints,
     );
 
     ctx.states.append(FlowStateFact {
@@ -133,6 +169,7 @@ fn build_state_flow_fact(
         writable_roots: borrow_state.writable_roots,
         mutable_parameter_count: borrow_state.mutable_parameter_count,
         entry_semantic_contexts: state_contexts,
+        entry_constraints: state_constraints,
         invalidations: appended_span_since(&ctx.invalidations, state_invalidations_start),
         calls: state_calls,
         exits: state_exits,
@@ -158,6 +195,7 @@ fn append_state_call_facts(
     state: &omega_typed_trees::state::State,
     state_effects: Option<&omega_effects::StateEffects>,
     active_contexts: &mut omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
     borrow_state: &StateBorrowFact,
 ) -> omega_core::arena::HandleSpan<FlowCallFact> {
     let mut state_calls = omega_core::arena::HandleSpan::empty();
@@ -188,6 +226,7 @@ fn append_state_call_facts(
                 state,
                 state_effects,
                 active_contexts,
+                active_constraints,
                 borrow_call,
             );
             ctx.calls.append_to_span(&mut state_calls, call_flow);
@@ -224,6 +263,7 @@ fn build_call_flow_fact(
     state: &omega_typed_trees::state::State,
     state_effects: Option<&omega_effects::StateEffects>,
     active_contexts: &mut omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> FlowCallFact {
     let effect_call = effects_call(effects, state_effects, borrow_call);
@@ -235,11 +275,38 @@ fn build_call_flow_fact(
         borrow_call.call_ordinal,
     );
     let entry_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, *active_contexts);
+    let mut entry_constraints = clone_constraint_refs(&mut ctx.constraint_refs, *active_constraints);
+    if let Some((borrow_call_handle, _)) = borrow.calls.iter().find(|(_, call)| {
+        call.statement_index == borrow_call.statement_index
+            && call.call_ordinal == borrow_call.call_ordinal
+            && call.target_symbol == borrow_call.target_symbol
+            && call.receiver_symbol == borrow_call.receiver_symbol
+    }) {
+        append_constraint_ref(
+            &mut ctx.constraint_refs,
+            &mut entry_constraints,
+            FlowConstraintKind::BorrowCall {
+                call: borrow_call_handle,
+            },
+        );
+    }
     let mut requires_contexts = omega_core::arena::HandleSpan::empty();
+    let mut requires_constraints = omega_core::arena::HandleSpan::empty();
     append_flow_contexts_for_points(
         semantic,
         &mut ctx.semantic_context_refs,
         &mut requires_contexts,
+        &[ProgramPoint::CallRequires {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            statement_index: borrow_call.statement_index,
+            call_ordinal: borrow_call.call_ordinal,
+        }],
+    );
+    append_semantic_constraints_for_points(
+        semantic,
+        &mut ctx.constraint_refs,
+        &mut requires_constraints,
         &[ProgramPoint::CallRequires {
             machine_symbol: machine.symbol,
             state_symbol: state.symbol,
@@ -281,6 +348,7 @@ fn build_call_flow_fact(
     };
     let call_invalidations = appended_span_since(&ctx.invalidations, call_invalidations_start);
     let mut exit_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, post_call_contexts);
+    let mut exit_constraints = clone_constraint_refs(&mut ctx.constraint_refs, *active_constraints);
     append_flow_contexts_for_points(
         semantic,
         &mut ctx.semantic_context_refs,
@@ -292,7 +360,19 @@ fn build_call_flow_fact(
             call_ordinal: borrow_call.call_ordinal,
         }],
     );
+    append_semantic_constraints_for_points(
+        semantic,
+        &mut ctx.constraint_refs,
+        &mut exit_constraints,
+        &[ProgramPoint::CallEnsures {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            statement_index: borrow_call.statement_index,
+            call_ordinal: borrow_call.call_ordinal,
+        }],
+    );
     *active_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, exit_contexts);
+    *active_constraints = clone_constraint_refs(&mut ctx.constraint_refs, exit_constraints);
 
     FlowCallFact {
         statement_index: borrow_call.statement_index,
@@ -302,8 +382,11 @@ fn build_call_flow_fact(
         has_receiver: borrow_call.has_receiver,
         accesses: borrow_call.accesses,
         entry_semantic_contexts: entry_contexts,
+        entry_constraints,
         requires_contexts,
+        requires_constraints,
         exit_semantic_contexts: exit_contexts,
+        exit_constraints,
         invalidations: call_invalidations,
         requires: contract_call
             .map(|call| call.requires)
@@ -327,6 +410,7 @@ fn append_state_exit_facts(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     active_contexts: omega_core::arena::HandleSpan<FlowSemanticContextRef>,
+    active_constraints: omega_core::arena::HandleSpan<FlowConstraintRef>,
 ) -> omega_core::arena::HandleSpan<FlowExitFact> {
     let mut state_exits = omega_core::arena::HandleSpan::empty();
 
@@ -335,11 +419,24 @@ fn append_state_exit_facts(
     }) {
         let entry_exit_contexts =
             clone_flow_contexts(&mut ctx.semantic_context_refs, active_contexts);
+        let entry_constraints =
+            clone_constraint_refs(&mut ctx.constraint_refs, active_constraints);
         let mut ensures_contexts = omega_core::arena::HandleSpan::empty();
+        let mut ensures_constraints = omega_core::arena::HandleSpan::empty();
         append_flow_contexts_for_points(
             semantic,
             &mut ctx.semantic_context_refs,
             &mut ensures_contexts,
+            &[ProgramPoint::Exit {
+                machine_symbol,
+                state_symbol,
+                statement_index: contract_exit.statement_index,
+            }],
+        );
+        append_semantic_constraints_for_points(
+            semantic,
+            &mut ctx.constraint_refs,
+            &mut ensures_constraints,
             &[ProgramPoint::Exit {
                 machine_symbol,
                 state_symbol,
@@ -354,7 +451,9 @@ fn append_state_exit_facts(
                 state_symbol,
                 statement_index: contract_exit.statement_index,
                 entry_semantic_contexts: entry_exit_contexts,
+                entry_constraints,
                 ensures_contexts,
+                ensures_constraints,
                 ensures: contract_exit.ensures,
             },
         );
