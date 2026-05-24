@@ -301,11 +301,24 @@ fn active_loan_detail(
                     loan.statement_index, loan.last_use_statement_index
                 )),
                 (
+                    omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
+                    omega_checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: weakening_statement,
+                    },
+                ) if weakening_statement > statement_index => Some(format!(
+                    "borrowed at statement {}; it is reassigned at statement {}",
+                    loan.statement_index, weakening_statement
+                )),
+                (
                     omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
                     omega_checked_trees::FlowInvalidationSource::Statement { .. },
                 )
                 | (
                     omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    omega_checked_trees::FlowInvalidationSource::Statement { .. },
+                )
+                | (
+                    omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
                     omega_checked_trees::FlowInvalidationSource::Statement { .. },
                 )
                 | (
@@ -314,6 +327,10 @@ fn active_loan_detail(
                 )
                 | (
                     omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    omega_checked_trees::FlowInvalidationSource::Call { .. },
+                )
+                | (
+                    omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned,
                     omega_checked_trees::FlowInvalidationSource::Call { .. },
                 ) => None,
             }

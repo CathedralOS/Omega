@@ -1313,6 +1313,9 @@ fn flow_borrow_weakening_label(
         omega_checked_trees::FlowBorrowWeakeningReason::StateExit => {
             label.push_str(" (released at state exit)");
         }
+        omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+            label.push_str(" (released after local reassignment)");
+        }
     }
     label
 }

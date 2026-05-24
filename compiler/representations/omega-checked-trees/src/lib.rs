@@ -396,6 +396,7 @@ pub enum FlowBorrowWeakeningReason {
     #[default]
     LastUseExpired,
     StateExit,
+    LocalReassigned,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

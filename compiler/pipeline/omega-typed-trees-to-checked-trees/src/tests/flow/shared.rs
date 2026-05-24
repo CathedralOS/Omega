@@ -394,3 +394,57 @@ fn drops_local_borrow_loans_after_last_use() {
         omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
     );
 }
+
+#[test]
+fn drops_local_borrow_loans_after_local_reassignment() {
+    let source = r#"
+        data Main {
+            value: i32;
+            other: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut i32 = &mut self.value;
+            alias = &mut self.other;
+            self.use_value(&mut self.value);
+        }
+
+        machine Main::use_value(&mut self, value: &mut i32) {}
+    "#;
+
+    let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed =
+        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+
+    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
+    let call_flows = flow.calls.span_or_empty(state_flow.calls);
+    assert_eq!(call_flows.len(), 1);
+    let call_loans: Vec<_> = flow
+        .borrow_loan_constraints(call_flows[0].entry_constraints)
+        .collect();
+    assert!(call_loans.is_empty());
+
+    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    assert_eq!(weakenings.len(), 1);
+    assert_eq!(
+        weakenings[0].reason,
+        omega_checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+    );
+    assert_eq!(
+        weakenings[0].source,
+        omega_checked_trees::FlowInvalidationSource::Statement { statement_index: 1 }
+    );
+}
