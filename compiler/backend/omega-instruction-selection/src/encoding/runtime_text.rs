@@ -1,8 +1,8 @@
+use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_abstract_operations::RuntimeTextReadSource;
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
@@ -249,17 +249,18 @@ pub fn encode_runtime_text_line_read(
     architecture: Architecture,
     target_offset: usize,
     byte_capacity: usize,
-    source: &RuntimeTextReadSource,
+    binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => match source {
-            RuntimeTextReadSource::Import { .. } => {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => {
                 aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
             }
-            RuntimeTextReadSource::Syscall {
+            HostBindingMechanism::Syscall {
                 number,
                 number_register,
                 supervisor_call,
+                ..
             } => aarch64::encode_runtime_text_line_read_syscall(
                 target_offset,
                 byte_capacity,

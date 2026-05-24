@@ -1,12 +1,12 @@
 use crate::aarch64_call_operand;
+use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
 use omega_core::arena::Arena;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_abstract_operations::{
-    InstructionOperand, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
-    StateGuardOperator,
+    InstructionOperand, RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator,
 };
 
 pub fn host_call_sequence_width(
@@ -456,14 +456,14 @@ pub fn runtime_pointee_address_to_runtime_frame_write_width(architecture: Archit
 pub fn runtime_text_line_read_width(
     architecture: Architecture,
     byte_capacity: usize,
-    source: &RuntimeTextReadSource,
+    binding: &HostBindingMechanism,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => match source {
-            RuntimeTextReadSource::Import { .. } => {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => {
                 aarch64::runtime_text_line_read_import_width(byte_capacity)
             }
-            RuntimeTextReadSource::Syscall { number, .. } => {
+            HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number)
             }
         },
@@ -473,14 +473,14 @@ pub fn runtime_text_line_read_width(
 
 pub fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
-    source: &RuntimeTextReadSource,
+    binding: &HostBindingMechanism,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => match source {
-            RuntimeTextReadSource::Import { .. } => {
+        Architecture::Aarch64 => match binding {
+            HostBindingMechanism::Import { .. } => {
                 aarch64::runtime_text_line_read_import_target_address_offset()
             }
-            RuntimeTextReadSource::Syscall { number, .. } => {
+            HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
             }
         },

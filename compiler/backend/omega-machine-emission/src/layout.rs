@@ -297,7 +297,19 @@ fn machine_instruction_width(
             byte_capacity,
             source,
             ..
-        } => runtime_text_line_read_width(input.target.architecture, *byte_capacity, source),
+        } => {
+            let omega_target_operations::RuntimeTextReadSource::HostOperation {
+                operation_key,
+            } = source;
+            let Some(binding) = host_binding_mechanism(input, *operation_key) else {
+                return Err(Diagnostic::error(format!(
+                    "missing host binding for runtime text read operation {}.{}",
+                    operation_key.capability_name(),
+                    operation_key.operation_name()
+                )));
+            };
+            runtime_text_line_read_width(input.target.architecture, *byte_capacity, binding)
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
             target_offset,

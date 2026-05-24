@@ -347,13 +347,8 @@ pub enum SelectedInstructionKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTextReadSource {
-    Import {
+    HostOperation {
         operation_key: HostOperationKey,
-    },
-    Syscall {
-        number: u32,
-        number_register: u8,
-        supervisor_call: u16,
     },
 }
 
