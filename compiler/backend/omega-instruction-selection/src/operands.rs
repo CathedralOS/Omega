@@ -1,6 +1,6 @@
 use omega_isa_aarch64::{Aarch64CallOperand, aarch64};
 use omega_target::Architecture;
-use omega_target_operations::{InstructionOperandKind, InstructionOperandLike};
+use omega_target_operations::InstructionOperandLike;
 
 pub fn operand_width(
     architecture: Architecture,
@@ -13,22 +13,18 @@ pub fn operand_width(
 }
 
 pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aarch64CallOperand {
-    match operand.instruction_operand_kind() {
-        InstructionOperandKind::DataAddress { .. } => Aarch64CallOperand::DataAddress,
-        InstructionOperandKind::RuntimeStringPointer { byte_offset, .. } => {
-            Aarch64CallOperand::RuntimeStringPointer {
-                byte_offset: *byte_offset,
-            }
-        }
-        InstructionOperandKind::RuntimeStringLength { byte_offset, .. } => {
-            Aarch64CallOperand::RuntimeStringLength {
-                byte_offset: *byte_offset,
-            }
-        }
-        InstructionOperandKind::ImmediateInteger(value) => {
-            Aarch64CallOperand::ImmediateInteger(*value)
-        }
-        InstructionOperandKind::ByteLength(value) => Aarch64CallOperand::ByteLength(*value),
+    if operand.data_address().is_some() {
+        Aarch64CallOperand::DataAddress
+    } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
+        Aarch64CallOperand::RuntimeStringPointer { byte_offset }
+    } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
+        Aarch64CallOperand::RuntimeStringLength { byte_offset }
+    } else if let Some(value) = operand.immediate_integer() {
+        Aarch64CallOperand::ImmediateInteger(value)
+    } else if let Some(value) = operand.byte_length() {
+        Aarch64CallOperand::ByteLength(value)
+    } else {
+        unreachable!("instruction operand kind should map to an AArch64 call operand")
     }
 }
 
