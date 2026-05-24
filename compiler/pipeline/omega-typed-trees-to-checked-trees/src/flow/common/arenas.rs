@@ -118,7 +118,9 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
             }
             FlowConstraintKind::Unknown
             | FlowConstraintKind::BorrowState { .. }
-            | FlowConstraintKind::BorrowCall { .. } => true,
+            | FlowConstraintKind::BorrowCall { .. }
+            | FlowConstraintKind::BorrowWritableRoot { .. }
+            | FlowConstraintKind::BorrowAccess { .. } => true,
         };
 
         if keep {

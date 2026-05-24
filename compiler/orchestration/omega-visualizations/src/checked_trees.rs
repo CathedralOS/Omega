@@ -950,6 +950,23 @@ fn append_flow_constraint_labels(
                 report.push_str(&state_label_from_symbol(program, call.target_symbol));
                 report.push(')');
             }
+            omega_checked_trees::FlowConstraintKind::BorrowWritableRoot { root } => {
+                let root = program.facts.borrow.writable_roots.get(root);
+                report.push_str("borrow-root(");
+                report.push_str(&symbol_label(root.symbol));
+                report.push(')');
+            }
+            omega_checked_trees::FlowConstraintKind::BorrowAccess { access } => {
+                let access = program.facts.borrow.argument_accesses.get(access);
+                report.push_str("borrow-access(");
+                report.push_str(&symbol_label(access.root_symbol));
+                report.push_str(", ");
+                report.push_str(match access.kind {
+                    omega_checked_trees::BorrowAccessKind::Read => "read",
+                    omega_checked_trees::BorrowAccessKind::Mutable => "mutable",
+                });
+                report.push(')');
+            }
         }
     }
 }
