@@ -6,7 +6,7 @@ pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
     AbstractValueOperandHandle, FunctionInstructionPlan, HostOperationKey, InstructionOperand,
-    InstructionOperandKind, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand,
+    InstructionOperandKind, RuntimeStorageRegion, RuntimeValueOperand,
     RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
 };
 

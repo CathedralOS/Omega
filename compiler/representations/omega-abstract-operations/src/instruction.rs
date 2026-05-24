@@ -5,7 +5,7 @@ pub use omega_calling_conventions::HostOperationKey;
 pub use operand::{InstructionOperand, InstructionOperandKind};
 pub use selected::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
-    AbstractValueOperandHandle, FunctionInstructionPlan, RuntimeStorageRegion,
-    RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
+    AbstractValueOperandHandle, FunctionInstructionPlan, RuntimeStorageRegion, RuntimeValueOperand,
+    RuntimeValueOperandHandle, SelectedInstruction,
     SelectedInstructionKind,
 };

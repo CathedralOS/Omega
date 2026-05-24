@@ -1,8 +1,8 @@
 use crate::{InstructionOperand, StateGuardLowering, StateGuardOperator, TargetDataObjectHandle};
-use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
+use omega_calling_conventions::HostOperationKey;
 
 pub type AbstractValueOperandHandle = Handle<AbstractValueOperand>;
 pub type RuntimeValueOperandHandle = AbstractValueOperandHandle;
@@ -293,7 +293,6 @@ pub enum AbstractOperationKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,
-        source: RuntimeTextReadSource,
     },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,
@@ -353,13 +352,6 @@ pub enum AbstractOperationKind {
 }
 
 pub type SelectedInstructionKind = AbstractOperationKind;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeTextReadSource {
-    HostOperation {
-        operation_key: HostOperationKey,
-    },
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuntimeStorageRegion {
