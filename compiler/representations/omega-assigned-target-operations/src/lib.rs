@@ -153,7 +153,7 @@ pub struct AssignedTargetOperationPlan {
     pub instructions: Arena<AssignedOperation>,
     pub operands: Arena<AssignedInstructionOperand>,
     pub runtime_value_operands: Arena<AssignedValueOperand>,
-    pub target_runtime_value_operands: Arena<omega_target_operations::TargetValueOperand>,
+    target_runtime_value_operands: Arena<omega_target_operations::TargetValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
 }
 
@@ -227,6 +227,19 @@ impl AssignedTargetOperationPlan {
         self.runtime_value_operands
             .iter()
             .map(|(handle, operand)| (target_value_handle(handle), operand))
+    }
+
+    pub fn target_runtime_value_operands(
+        &self,
+    ) -> &Arena<omega_target_operations::TargetValueOperand> {
+        &self.target_runtime_value_operands
+    }
+
+    pub fn set_target_runtime_value_operands(
+        &mut self,
+        operands: Arena<omega_target_operations::TargetValueOperand>,
+    ) {
+        self.target_runtime_value_operands = operands;
     }
 
     pub fn scratch_home_count(&self) -> usize {

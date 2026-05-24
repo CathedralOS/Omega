@@ -117,7 +117,7 @@ fn machine_instruction_width(
             ..
         } => runtime_value_compare_width(
             input.target.architecture,
-            &input.assigned_target_operations.target_runtime_value_operands,
+            input.assigned_target_operations.target_runtime_value_operands(),
             *byte_size,
             *left,
             *right,
@@ -215,7 +215,7 @@ fn machine_instruction_width(
             ..
         } => runtime_storage_binary_write_width(
             input.target.architecture,
-            &input.assigned_target_operations.target_runtime_value_operands,
+            input.assigned_target_operations.target_runtime_value_operands(),
             *byte_size,
             *left,
             *operator,
@@ -230,7 +230,7 @@ fn machine_instruction_width(
             ..
         } => runtime_pointee_binary_write_width(
             input.target.architecture,
-            &input.assigned_target_operations.target_runtime_value_operands,
+            input.assigned_target_operations.target_runtime_value_operands(),
             *field_byte_offset,
             *byte_size,
             *left,
@@ -258,7 +258,7 @@ fn machine_instruction_width(
             ..
         } => runtime_frame_indexed_binary_write_width(
             input.target.architecture,
-            &input.assigned_target_operations.target_runtime_value_operands,
+            input.assigned_target_operations.target_runtime_value_operands(),
             *element_byte_size,
             *field_byte_offset,
             *byte_size,
