@@ -230,6 +230,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "contracts_domain_membership_surface",
     "domain_import_valid",
     "entry_surface_receiver_paths",
+    "exit_ensures_preserved_from_entry",
     "mutable_output_host_call",
     "nested_machine_continuation",
     "runtime_alias_integer_write",
@@ -278,6 +279,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "call_requires_invalidated_by_mutation",
     "call_requires_unproven",
+    "exit_ensures_unproven",
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
     "borrow_helper_alias_active",

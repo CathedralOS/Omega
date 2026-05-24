@@ -1,0 +1,18 @@
+data Player {
+    health: i32;
+}
+
+domain Player::Alive {
+    self.health > 0;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::main(&mut self) -> i32
+ensures
+    self.player in Player::Alive
+{
+    0
+}

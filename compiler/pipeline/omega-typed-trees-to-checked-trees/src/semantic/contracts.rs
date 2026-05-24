@@ -11,12 +11,16 @@ pub(super) fn append_contract_semantic_facts(
         let point = contract_fact_point(contract);
         let place = contract_fact_place(program, facts, contract);
         let payload = semantic_contract_payload(program, contract);
-        let fact = facts.append_fact_context(Fact {
+        let fact = Fact {
             place,
             point,
             origin: contract_fact_origin(contract),
             payload,
-        });
+        };
+        let fact = match contract.kind {
+            ContractProofFactKind::Requires => facts.append_fact_context(fact),
+            ContractProofFactKind::Ensures | ContractProofFactKind::Trusted => facts.append_fact(fact),
+        };
         let contract_index = usize::try_from(contract_handle.arena_index())
             .expect("contract fact handle index overflow");
         while semantic_handles.len() <= contract_index {
