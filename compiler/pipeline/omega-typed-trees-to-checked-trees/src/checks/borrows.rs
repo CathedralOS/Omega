@@ -186,15 +186,13 @@ fn call_borrow_constraints<'a>(
     facts: &'a CheckFacts,
 ) -> omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef> {
     facts.flow
-        .calls
-        .span_or_empty(state_flow.calls)
-        .iter()
-        .find(|call| {
-            call.statement_index == borrow_call.statement_index
-                && call.call_ordinal == borrow_call.call_ordinal
-                && call.target_symbol == borrow_call.target_symbol
-                && call.receiver_symbol == borrow_call.receiver_symbol
-        })
+        .state_call(
+            state_flow,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+            borrow_call.target_symbol,
+            borrow_call.receiver_symbol,
+        )
         .map(|call| call.entry_constraints)
         .or_else(|| {
             facts.flow

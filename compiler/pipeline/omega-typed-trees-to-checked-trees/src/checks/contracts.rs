@@ -36,7 +36,7 @@ fn check_call_requires(
 ) {
     let entry_contexts: Vec<_> = facts
         .flow
-        .semantic_constraint_contexts(call_flow.entry_constraints)
+        .semantic_constraint_contexts(call_entry_constraints(state_flow, call_flow, facts))
         .collect();
     for requires_context in facts
         .flow
@@ -104,6 +104,28 @@ fn check_call_requires(
             }
         }
     }
+}
+
+fn call_entry_constraints(
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    facts: &CheckFacts,
+) -> omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef> {
+    facts.flow
+        .state_call(
+            state_flow,
+            call_flow.statement_index,
+            call_flow.call_ordinal,
+            call_flow.target_symbol,
+            call_flow.receiver_symbol,
+        )
+        .map(|call| call.entry_constraints)
+        .or_else(|| {
+            facts.flow
+                .state_statement(state_flow, call_flow.statement_index)
+                .map(|statement| statement.entry_constraints)
+        })
+        .unwrap_or(state_flow.entry_constraints)
 }
 
 fn explain_domain_requirement_failure(
