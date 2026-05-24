@@ -3,7 +3,7 @@ use crate::layout::LaidOutMachineInstruction;
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_program::MachineInstructionKind;
+use omega_machine_instructions::MachineInstructionKind;
 use omega_target::Architecture;
 
 pub(crate) fn byte_distances_to_next_runtime_machine_write_end(

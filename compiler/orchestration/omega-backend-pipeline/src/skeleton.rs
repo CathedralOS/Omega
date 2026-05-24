@@ -1,10 +1,11 @@
 use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::{Arena, Handle};
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_machine_program::MachineProgram;
+use omega_machine_instructions::MachineInstructionPlan;
 use omega_object::{ObjectPlan, RelocationPlan, SymbolPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -46,7 +47,8 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         state_storage: Arc::new(StateStoragePlan::default()),
         state_values: StateValuePlan::default(),
         data: TargetDataPlan::default(),
-        instructions: InstructionPlan::default(),
+        target_operations: InstructionPlan::default(),
+        assigned_target_operations: AssignedTargetOperationPlan::default(),
         control_flow: input.control_flow,
         runtime_flow: input.runtime_flow,
         state_dispatch: Arc::new(input.state_dispatch),
@@ -57,7 +59,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         runtime_storage: RuntimeStoragePlan::default(),
         runtime_text: RuntimeTextPlan::default(),
         layouts: Arc::new(input.layouts),
-        machine_program: MachineProgram::default(),
+        machine_instructions: MachineInstructionPlan::default(),
         encoded_machine: EncodedMachinePlan::default(),
         object: ObjectPlan {
             target: input.target,

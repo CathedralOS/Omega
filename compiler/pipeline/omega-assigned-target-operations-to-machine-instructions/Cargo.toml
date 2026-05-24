@@ -1,0 +1,16 @@
+[package]
+name = "omega-assigned-target-operations-to-machine-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_assigned_target_operations_to_machine_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-target-operations-to-machine-program = { path = "../omega-target-operations-to-machine-program" }

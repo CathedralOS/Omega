@@ -4,10 +4,12 @@ use crate::pipeline::frontend::{
 use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use crate::pipeline::stage::{
+    ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS,
     BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, CHECKED_TREES_TO_STATE_GRAPH,
     CONTROL_FLOW_TO_TARGET_OPERATIONS, SOURCE_FILES_TO_TOKENS, STATE_GRAPH_TO_CONTROL_FLOW,
     SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
-    TARGET_OPERATIONS_TO_MACHINE_PROGRAM, TOKENS_TO_SYNTAX_TREES, TYPED_TREES_TO_CHECKED_TREES,
+    TARGET_OPERATIONS_TO_ASSIGNED_TARGET_OPERATIONS, TOKENS_TO_SYNTAX_TREES,
+    TYPED_TREES_TO_CHECKED_TREES,
 };
 use crate::pipeline::timing::CompileTimings;
 use omega_checked_trees::CheckedTrees as CheckedProgram;
@@ -175,14 +177,20 @@ pub(super) fn control_flow_to_backend_plan(
     record_backend_phase_as_stage(
         timings,
         &plan,
-        "instructions",
+        "target operations",
         CONTROL_FLOW_TO_TARGET_OPERATIONS,
     )?;
     record_backend_phase_as_stage(
         timings,
         &plan,
-        "machine program",
-        TARGET_OPERATIONS_TO_MACHINE_PROGRAM,
+        "assigned target operations",
+        TARGET_OPERATIONS_TO_ASSIGNED_TARGET_OPERATIONS,
+    )?;
+    record_backend_phase_as_stage(
+        timings,
+        &plan,
+        "machine instructions",
+        ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS,
     )?;
 
     Ok(BackendPlanningSurface { plan })
@@ -198,7 +206,7 @@ fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::Emi
         state_storage: &plan.state_storage,
         state_values: &plan.state_values,
         data: &plan.data,
-        instructions: &plan.instructions,
+        instructions: &plan.target_operations,
         control_flow: &plan.control_flow,
         runtime_flow: &plan.runtime_flow,
         runtime_bodies: &plan.runtime_bodies,
@@ -208,7 +216,7 @@ fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::Emi
         runtime_text: &plan.runtime_text,
         state_guards: &plan.state_guards,
         layouts: &plan.layouts,
-        machine_program: &plan.machine_program,
+        machine_instructions: &plan.machine_instructions,
         encoded_machine: &plan.encoded_machine,
         object: &plan.object,
         relocations: &plan.relocations,

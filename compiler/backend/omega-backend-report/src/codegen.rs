@@ -2,7 +2,7 @@ use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
-use omega_machine_program::{MachineFunction, MachineInstruction};
+use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
@@ -26,29 +26,40 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     output.push_str("## Instruction Selection\n");
     output.push_str(&format!(
         "functions: {}\n",
-        backend_plan.instructions.functions.len()
+        backend_plan.target_operations.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        backend_plan.instructions.instructions.len()
+        backend_plan.target_operations.instructions.len()
     ));
     output.push_str(&format!(
         "operands: {}\n",
-        backend_plan.instructions.operands.len()
+        backend_plan.target_operations.operands.len()
     ));
-    for (_, function) in backend_plan.instructions.functions.iter() {
+    for (_, function) in backend_plan.target_operations.functions.iter() {
         write_function_instruction_plan(output, backend_plan, function);
     }
     output.push('\n');
 
-    output.push_str("## Machine Program\n");
+    output.push_str("## Assigned Target Operations\n");
     output.push_str(&format!(
         "functions: {}\n",
-        backend_plan.machine_program.functions.len()
+        backend_plan.assigned_target_operations.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        backend_plan.machine_program.instructions.len()
+        backend_plan.assigned_target_operations.instructions.len()
+    ));
+    output.push('\n');
+
+    output.push_str("## Machine Instructions\n");
+    output.push_str(&format!(
+        "functions: {}\n",
+        backend_plan.machine_instructions.functions.len()
+    ));
+    output.push_str(&format!(
+        "instructions: {}\n",
+        backend_plan.machine_instructions.instructions.len()
     ));
     output.push_str(&format!(
         "encoded bytes: {}\n",
@@ -58,7 +69,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
         "bytes: {}\n",
         backend_plan.encoded_machine.byte_count
     ));
-    for (_, function) in backend_plan.machine_program.functions.iter() {
+    for (_, function) in backend_plan.machine_instructions.functions.iter() {
         write_machine_function_code(output, backend_plan, function);
     }
     output.push('\n');
@@ -99,7 +110,7 @@ fn write_function_instruction_plan(
     ));
 
     match backend_plan
-        .instructions
+        .target_operations
         .instructions
         .span(function.instructions)
     {
@@ -661,7 +672,7 @@ fn runtime_value_operand_name(
     operand: RuntimeValueOperandHandle,
 ) -> String {
     match backend_plan
-        .instructions
+        .target_operations
         .runtime_value_operands
         .get(operand)
     {
@@ -707,7 +718,7 @@ fn selected_instruction_operands_name(
     backend_plan: &BackendReportInput<'_>,
     operands: omega_core::arena::HandleSpan<InstructionOperand>,
 ) -> String {
-    let Some(operands) = backend_plan.instructions.operands.span(operands) else {
+    let Some(operands) = backend_plan.target_operations.operands.span(operands) else {
         return "invalid operands".to_owned();
     };
 
@@ -742,13 +753,13 @@ fn selected_instruction_operands_name(
 fn write_machine_function_code(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    function: &MachineFunction,
+    function: &MachineInstructionFunction,
 ) {
     let function_symbol = machine_function_symbol(backend_plan, function);
     output.push_str(&format!("- function {}\n", function_symbol));
 
     match backend_plan
-        .machine_program
+        .machine_instructions
         .instructions
         .span(function.instructions)
     {
@@ -765,10 +776,10 @@ fn write_machine_function_code(
 
 fn machine_function_symbol(
     backend_plan: &BackendReportInput<'_>,
-    function: &MachineFunction,
+    function: &MachineInstructionFunction,
 ) -> String {
     backend_plan
-        .instructions
+        .target_operations
         .functions
         .iter()
         .find(|(_, instruction_function)| instruction_function.source_key == function.source_key)

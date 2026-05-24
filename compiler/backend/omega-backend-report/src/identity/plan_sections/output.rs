@@ -5,7 +5,7 @@ pub(in crate::identity) fn count_instruction_strings(
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    for (_, function) in backend_plan.instructions.functions.iter() {
+    for (_, function) in backend_plan.target_operations.functions.iter() {
         storage.count_generated_symbol(&function.symbol);
     }
 }
