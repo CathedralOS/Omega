@@ -5,8 +5,8 @@ use omega_core::arena::Arena;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 use omega_target_operations::InstructionOperand;
+use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
 
 pub fn host_call_sequence_width(
     architecture: Architecture,
