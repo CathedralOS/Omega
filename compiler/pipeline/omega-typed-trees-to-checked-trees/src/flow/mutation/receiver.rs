@@ -111,5 +111,14 @@ pub(super) fn canonical_receiver_place_for_call_site(
                 .find(|parameter| parameter.is_self)?;
             canonical_place_from_symbol(self_parameter.symbol)
         }
+        CallSite::TransitionNamed(_) => {
+            let caller_state =
+                find_state_in_machine(program, caller_machine_symbol, caller_state_symbol)?;
+            let self_parameter = program
+                .state_parameters(caller_state)
+                .iter()
+                .find(|parameter| parameter.is_self)?;
+            canonical_place_from_symbol(self_parameter.symbol)
+        }
     }
 }

@@ -145,7 +145,25 @@ fn collect_transition_target_borrow_calls(
     state_calls: &mut omega_core::arena::HandleSpan<BorrowCallFact>,
 ) {
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { arguments, .. } => {
+        TransitionTargetNode::Named { arguments, path } => {
+            calls.append_to_span(
+                state_calls,
+                BorrowCallFact {
+                    statement_index,
+                    call_ordinal: *call_ordinal,
+                    receiver_symbol: path.head_symbol,
+                    target_symbol: path.symbol,
+                    has_receiver: path.members.count() > 1,
+                    accesses: collect_call_argument_accesses(
+                        argument_accesses,
+                        &program.expression_table,
+                        program.statement_table.expression_handles(*arguments),
+                        machine.symbol,
+                    ),
+                },
+            );
+            *call_ordinal += 1;
+
             for argument in program.statement_table.expression_handles(*arguments) {
                 expression::collect_expression_borrow_calls(
                     program,

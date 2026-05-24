@@ -8,6 +8,7 @@ use traversal::find_call_site_in_statement;
 pub(crate) enum CallSite<'program> {
     Statement(&'program omega_typed_trees::statement::TableCall),
     Expression(&'program omega_typed_trees::expression::TableCallExpression),
+    TransitionNamed(omega_core::arena::HandleSpan<ExpressionHandle>),
 }
 
 pub(crate) fn find_call_site<'program>(

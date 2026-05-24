@@ -1,0 +1,119 @@
+use crate::{
+    build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
+    build_semantic_facts,
+};
+use crate::checks::check_checked_facts;
+use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
+use omega_source_files_to_tokens::Lexer;
+use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+#[test]
+fn accepts_mutable_local_named_place_arguments() {
+    let source = r#"
+        data Main {}
+
+        machine Main::main(&mut self, flag: bool, out: &mut u32) {
+            out = self.pick(flag);
+        }
+
+        machine Main::pick(&mut self, flag: bool) -> u32 {
+            let choice: bool;
+            self.copy(flag, &mut choice);
+            -> self.branch(choice) when choice;
+            -> 0;
+        }
+
+        machine Main::copy(&mut self, flag: bool, out: &mut bool) {
+            out = flag;
+        }
+
+        machine Main::branch(&mut self, flag: bool) -> u32 {
+            -> 1 when flag;
+            -> 2;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    let pick_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::pick")
+        .expect("pick machine");
+    let pick_state = typed
+        .machine_states(pick_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "pick")
+        .expect("pick state");
+    let borrow_state = facts
+        .borrow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == pick_machine.symbol && state.state_symbol == pick_state.symbol)
+                .then_some(state)
+        })
+        .expect("pick borrow state");
+    let state_calls = facts.borrow.calls.span_or_empty(borrow_state.calls);
+    assert_eq!(state_calls.len(), 2);
+    let copy_call = state_calls
+        .iter()
+        .find(|call| {
+            typed
+                .machines()
+                .iter()
+                .flat_map(|machine| typed.machine_states(machine).iter())
+                .find(|state| state.symbol == call.target_symbol)
+                .is_some_and(|state| state.name.as_str() == "copy")
+        })
+        .expect("copy borrow call");
+
+    assert_eq!(
+        facts.borrow.argument_accesses.span_or_empty(copy_call.accesses).len(),
+        1
+    );
+    let call_site = find_call_site(
+        &typed,
+        pick_machine.symbol,
+        pick_state.symbol,
+        copy_call.statement_index,
+        copy_call.call_ordinal,
+    )
+    .expect("copy call site");
+    assert_eq!(call_site_argument_expressions(&typed, &call_site).len(), 2);
+    assert_eq!(
+        call_site_argument_expressions(&typed, &call_site)
+            .iter()
+            .filter(|argument| {
+                matches!(
+                    typed.expression_table.expression(**argument),
+                    omega_checked_trees::expression::ExpressionNode::Mutable(_)
+                )
+            })
+            .count(),
+        1
+    );
+
+    check_checked_facts(&typed, &facts).expect("mutable local named place should pass borrow checks");
+}
