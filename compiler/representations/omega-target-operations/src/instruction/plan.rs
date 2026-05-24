@@ -1,8 +1,8 @@
-use crate::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
-use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
+use omega_abstract_operations::{
+    FunctionInstructionPlan, InstructionOperand, RuntimeValueOperand, SelectedInstruction,
+};
+use omega_core::arena::Arena;
 use omega_target::NativeTarget;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionPlan {
@@ -33,23 +33,6 @@ impl InstructionPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionInstructionPlan {
-    pub symbol: Arc<str>,
-    pub source_key: StateKey,
-    pub instructions: HandleSpan<SelectedInstruction>,
-}
-
-impl Default for FunctionInstructionPlan {
-    fn default() -> Self {
-        Self {
-            symbol: Arc::from(""),
-            source_key: StateKey::default(),
-            instructions: HandleSpan::empty(),
         }
     }
 }

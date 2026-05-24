@@ -1,11 +1,8 @@
-mod operand;
 mod plan;
-mod selected;
 
-pub use omega_calling_conventions::HostOperationKey;
-pub use operand::{InstructionOperand, InstructionOperandKind};
-pub use plan::{FunctionInstructionPlan, InstructionPlan};
-pub use selected::{
+pub use omega_abstract_operations::{
+    FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
     RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
     SelectedInstruction, SelectedInstructionKind,
 };
+pub use plan::InstructionPlan;

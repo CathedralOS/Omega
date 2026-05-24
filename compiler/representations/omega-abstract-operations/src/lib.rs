@@ -1,8 +1,15 @@
-use omega_core::arena::Arena;
+pub mod data;
+pub mod instruction;
 
-pub use omega_target_operations::{
-    FunctionInstructionPlan, InstructionOperand, RuntimeValueOperand, SelectedInstruction,
+pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan};
+pub use guard::{StateGuardLowering, StateGuardOperator};
+pub use instruction::{
+    FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
+    RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
+    SelectedInstruction, SelectedInstructionKind,
 };
+
+use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationPlan {
@@ -34,13 +41,33 @@ impl AbstractOperationPlan {
     }
 }
 
-impl From<omega_target_operations::InstructionPlan> for AbstractOperationPlan {
-    fn from(plan: omega_target_operations::InstructionPlan) -> Self {
-        Self {
-            functions: plan.functions,
-            instructions: plan.instructions,
-            operands: plan.operands,
-            runtime_value_operands: plan.runtime_value_operands,
-        }
+mod guard {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub enum StateGuardOperator {
+        #[default]
+        None,
+        Equal,
+        NotEqual,
+        Greater,
+        GreaterOrEqual,
+        Less,
+        LessOrEqual,
+        Add,
+        Subtract,
+        Multiply,
+        Modulo,
+        Max,
+        Min,
+        And,
+        Or,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub enum StateGuardLowering {
+        NoOp,
+        CompareStaticValue,
+        CompareRuntimeValue,
+        #[default]
+        NeedsRuntimeExpression,
     }
 }
