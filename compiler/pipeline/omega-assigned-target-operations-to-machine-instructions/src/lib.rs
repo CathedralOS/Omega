@@ -79,8 +79,8 @@ fn primary_home_handle(
     kind: &omega_assigned_target_operations::SelectedInstructionKind,
 ) -> omega_assigned_target_operations::AssignedValueHomeHandle {
     first_runtime_value_handle(kind)
-        .map(runtime_value_home_handle)
-        .filter(|handle| assigned_target_operations.runtime_value_homes.is_valid(*handle))
+        .map(|handle| assigned_target_operations.runtime_value_home_handle(handle))
+        .filter(|handle| handle.is_valid())
         .unwrap_or_else(omega_assigned_target_operations::AssignedValueHomeHandle::invalid)
 }
 
@@ -89,8 +89,8 @@ fn secondary_home_handle(
     kind: &omega_assigned_target_operations::SelectedInstructionKind,
 ) -> omega_assigned_target_operations::AssignedValueHomeHandle {
     second_runtime_value_handle(kind)
-        .map(runtime_value_home_handle)
-        .filter(|handle| assigned_target_operations.runtime_value_homes.is_valid(*handle))
+        .map(|handle| assigned_target_operations.runtime_value_home_handle(handle))
+        .filter(|handle| handle.is_valid())
         .unwrap_or_else(omega_assigned_target_operations::AssignedValueHomeHandle::invalid)
 }
 
@@ -116,10 +116,4 @@ fn second_runtime_value_handle(
         | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
         _ => None,
     }
-}
-
-fn runtime_value_home_handle(
-    handle: omega_assigned_target_operations::RuntimeValueOperandHandle,
-) -> omega_assigned_target_operations::AssignedValueHomeHandle {
-    omega_core::arena::Handle::from_arena_index(handle.arena_index())
 }
