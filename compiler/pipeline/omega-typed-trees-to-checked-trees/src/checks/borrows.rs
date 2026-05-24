@@ -41,13 +41,6 @@ fn check_statement_borrows(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
-        return;
-    };
     let Some(state) = find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return;
@@ -61,7 +54,13 @@ fn check_statement_borrows(
         else {
             continue;
         };
-        let Some(mutated_place) = statement_mutated_place(program, machine, statement_node) else {
+        let Some(mutated_place) = statement_mutated_place(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            statement.statement_index,
+            statement_node,
+        ) else {
             continue;
         };
 

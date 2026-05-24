@@ -312,7 +312,13 @@ fn append_state_call_facts(
             );
         }
 
-        if let Some(place) = statement_mutated_place(program, machine, statement) {
+        if let Some(place) = statement_mutated_place(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            statement,
+        ) {
             *active_contexts = filter_contexts_after_place_mutations(
                 program,
                 semantic,
