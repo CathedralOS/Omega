@@ -88,6 +88,35 @@ pub struct BorrowFacts {
     pub states: Arena<StateBorrowFact>,
 }
 
+impl BorrowFacts {
+    pub fn access_segments(
+        &self,
+        access: &BorrowArgumentAccessFact,
+    ) -> &[omega_facts::PlaceSegment] {
+        self.access_segments.span_or_empty(access.segments)
+    }
+
+    pub fn accesses_overlap(
+        &self,
+        left: &BorrowArgumentAccessFact,
+        right: &BorrowArgumentAccessFact,
+    ) -> bool {
+        left.root_symbol == right.root_symbol
+            && place_segments_overlap(self.access_segments(left), self.access_segments(right))
+    }
+}
+
+fn place_segments_overlap(
+    left: &[omega_facts::PlaceSegment],
+    right: &[omega_facts::PlaceSegment],
+) -> bool {
+    let shared_len = left.len().min(right.len());
+    left.iter()
+        .take(shared_len)
+        .zip(right.iter().take(shared_len))
+        .all(|(left_segment, right_segment)| left_segment == right_segment)
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ProofFactKind {
     #[default]

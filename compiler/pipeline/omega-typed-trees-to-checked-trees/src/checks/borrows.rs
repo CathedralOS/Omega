@@ -2,7 +2,6 @@ use omega_checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStat
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_core::diagnostics::Diagnostic;
 
-use crate::flow::canonical_place_overlaps_segments;
 use crate::labels::{call_target_label, symbol_name};
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 
@@ -59,12 +58,7 @@ fn check_call_borrows(
         }
 
         for other_access in accesses.iter().skip(index + 1) {
-            if access.root_symbol != other_access.root_symbol
-                || !canonical_place_overlaps_segments(
-                    facts.borrow.access_segments.span_or_empty(access.segments),
-                    facts.borrow.access_segments.span_or_empty(other_access.segments),
-                )
-            {
+            if !facts.borrow.accesses_overlap(access, other_access) {
                 continue;
             }
 
