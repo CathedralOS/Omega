@@ -2,7 +2,6 @@ use crate::MachineEmissionContext;
 use crate::branch_distances::{
     byte_distance_to_next_runtime_write_end, byte_distances_to_next_runtime_machine_write_end,
 };
-use crate::host_bindings::host_binding_mechanism;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
@@ -203,7 +202,7 @@ pub(super) fn encode_runtime_text_line_read(
     source: &RuntimeTextReadSource,
 ) -> Result<Vec<u8>, Diagnostic> {
     let RuntimeTextReadSource::HostOperation { operation_key } = source;
-    let Some(binding) = host_binding_mechanism(input, *operation_key) else {
+    let Some(binding) = input.instructions.host_binding(*operation_key) else {
         return Err(Diagnostic::error(format!(
             "missing host binding for runtime text read operation {}.{}",
             operation_key.capability_name(),
@@ -214,6 +213,6 @@ pub(super) fn encode_runtime_text_line_read(
         input.target.architecture,
         target_offset,
         byte_capacity,
-        binding,
+        &binding.mechanism,
     )
 }

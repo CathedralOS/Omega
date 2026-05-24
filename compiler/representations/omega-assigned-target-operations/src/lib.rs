@@ -6,9 +6,9 @@ use std::sync::Arc;
 pub use omega_target_operations::{
     HostOperationKey, InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
     RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperation,
-    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetValueOperand,
-    TargetValueOperandHandle,
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetHostBinding,
+    TargetOperation, TargetOperationFunction, TargetOperationKind, TargetOperationPlan,
+    TargetValueOperand, TargetValueOperandHandle,
 };
 
 pub type AssignedValueHomeHandle = Handle<AssignedValueHome>;
@@ -83,12 +83,13 @@ pub struct AssignedTargetOperationPlan {
     pub instructions: Arena<TargetOperation>,
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<TargetValueOperand>,
+    pub host_bindings: Arena<TargetHostBinding>,
     pub runtime_value_homes: Arena<AssignedValueHome>,
 }
 
 impl Default for AssignedTargetOperationPlan {
     fn default() -> Self {
-        Self::with_capacity(NativeTarget::host(), 0, 0, 0, 0, 0)
+        Self::with_capacity(NativeTarget::host(), 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -99,6 +100,7 @@ impl AssignedTargetOperationPlan {
         instruction_capacity: usize,
         operand_capacity: usize,
         runtime_value_operand_capacity: usize,
+        host_binding_capacity: usize,
         runtime_value_home_capacity: usize,
     ) -> Self {
         Self {
@@ -107,6 +109,7 @@ impl AssignedTargetOperationPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
+            host_bindings: Arena::with_capacity(host_binding_capacity),
             runtime_value_homes: Arena::with_capacity(runtime_value_home_capacity),
         }
     }
@@ -146,6 +149,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             instructions: plan.instructions,
             operands: plan.operands,
             runtime_value_operands: plan.runtime_value_operands,
+            host_bindings: plan.host_bindings,
             runtime_value_homes: Arena::new(),
         }
     }
@@ -168,6 +172,7 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             instructions: plan.instructions,
             operands: plan.operands,
             runtime_value_operands: plan.runtime_value_operands,
+            host_bindings: plan.host_bindings,
         }
     }
 }

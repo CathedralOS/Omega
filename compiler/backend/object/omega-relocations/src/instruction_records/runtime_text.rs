@@ -224,8 +224,7 @@ pub(super) fn collect_runtime_text_relocations(
             ..
         } => {
             let RuntimeTextReadSource::HostOperation { operation_key } = source;
-            let Some(binding) = super::super::lookups::find_host_binding(context.input, *operation_key)
-            else {
+            let Some(binding) = context.input.instructions.host_binding(*operation_key) else {
                 return;
             };
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
