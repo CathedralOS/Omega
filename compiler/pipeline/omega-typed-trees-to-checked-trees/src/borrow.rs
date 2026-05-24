@@ -3,6 +3,7 @@ mod accesses;
 mod calls;
 mod roots;
 
+use accesses::borrow_access_place;
 use calls::collect_statement_borrow_calls;
 use crate::lookup::machine_state_count;
 use roots::{append_state_writable_roots, estimated_borrow_root_capacity, mutable_parameter_count};
@@ -15,6 +16,8 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
     let mut argument_accesses =
         omega_core::arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut calls =
+        omega_core::arena::Arena::with_capacity(program.statement_table.statement_count());
+    let mut loans =
         omega_core::arena::Arena::with_capacity(program.statement_table.statement_count());
     let mut states = omega_core::arena::Arena::with_capacity(machine_state_count(program));
 
@@ -30,12 +33,26 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
             );
 
             let mut calls_span = omega_core::arena::HandleSpan::empty();
+            let mut loans_span = omega_core::arena::HandleSpan::empty();
             for (statement_index, statement) in program
                 .statement_table
                 .statements(state.statement_nodes)
                 .iter()
                 .enumerate()
             {
+                if let Some(place) = statement_borrow_loan_place(
+                    program,
+                    machine.symbol,
+                    statement,
+                )
+                {
+                    loans.append_to_span(&mut loans_span, omega_checked_trees::BorrowLoanFact {
+                        statement_index,
+                        owner_symbol: local_borrow_owner_symbol(statement).unwrap(),
+                        root_symbol: place.root_symbol,
+                        segments: access_segments.insert_many(place.segments),
+                    });
+                }
                 let mut call_ordinal = 0usize;
                 collect_statement_borrow_calls(
                     program,
@@ -57,6 +74,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                 writable_roots: writable_roots_span,
                 mutable_parameter_count: mutable_parameter_count(program, state),
                 calls: calls_span,
+                loans: loans_span,
             });
         }
     }
@@ -66,6 +84,42 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
         access_segments,
         argument_accesses,
         calls,
+        loans,
         states,
+    }
+}
+
+fn statement_borrow_loan_place(
+    program: &omega_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    statement: &StatementNode,
+) -> Option<accesses::BorrowAccessPlace> {
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+
+    let omega_typed_trees::types::TypeReferenceNode::Reference {
+        is_mutable: true, ..
+    } = program
+        .type_reference_table
+        .type_reference(local_data.type_reference)
+    else {
+        return None;
+    };
+
+    let omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) = program
+        .expression_table
+        .expression(local_data.initial_value)
+    else {
+        return None;
+    };
+
+    borrow_access_place(program, *inner_expression, machine_symbol)
+}
+
+fn local_borrow_owner_symbol(statement: &StatementNode) -> Option<SymbolHandle> {
+    match statement {
+        StatementNode::LocalData(local_data) => Some(local_data.symbol),
+        _ => None,
     }
 }

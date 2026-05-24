@@ -167,3 +167,45 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         1
     );
 }
+
+#[test]
+fn carries_local_borrow_loans_into_later_call_constraints() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut i32 = &mut self.value;
+            self.use_value(&mut self.value);
+        }
+
+        machine Main::use_value(&mut self, value: &mut i32) {}
+    "#;
+
+    let tokens = omega_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed =
+        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+
+    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
+    let call_flow = flow.calls.span_or_empty(state_flow.calls)[0].clone();
+    let loans: Vec<_> = flow
+        .borrow_loan_constraints(call_flow.entry_constraints)
+        .collect();
+    assert_eq!(loans.len(), 1);
+    let loan = borrow.loans.get(loans[0]);
+    assert!(loan.owner_symbol.is_valid());
+}

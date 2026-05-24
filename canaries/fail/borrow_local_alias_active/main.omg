@@ -1,0 +1,12 @@
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    let alias: &mut i32 = &mut self.value;
+    self.use_value(&mut self.value);
+}
+
+machine Main::use_value(&mut self, value: &mut i32) {
+    value = 1;
+}

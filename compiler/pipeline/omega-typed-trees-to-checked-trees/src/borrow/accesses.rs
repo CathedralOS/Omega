@@ -216,12 +216,12 @@ fn collect_read_accesses(
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct BorrowAccessPlace {
-    root_symbol: SymbolHandle,
-    segments: Vec<omega_facts::PlaceSegment>,
+pub(crate) struct BorrowAccessPlace {
+    pub(crate) root_symbol: SymbolHandle,
+    pub(crate) segments: Vec<omega_facts::PlaceSegment>,
 }
 
-fn borrow_access_place(
+pub(crate) fn borrow_access_place(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
     machine_symbol: SymbolHandle,

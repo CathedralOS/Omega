@@ -53,6 +53,7 @@ pub struct StateBorrowFact {
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
     pub calls: HandleSpan<BorrowCallFact>,
+    pub loans: HandleSpan<BorrowLoanFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -80,11 +81,20 @@ pub struct BorrowCallFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowLoanFact {
+    pub statement_index: usize,
+    pub owner_symbol: SymbolHandle,
+    pub root_symbol: SymbolHandle,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowFacts {
     pub writable_roots: Arena<BorrowWritableRootFact>,
     pub access_segments: Arena<omega_facts::PlaceSegment>,
     pub argument_accesses: Arena<BorrowArgumentAccessFact>,
     pub calls: Arena<BorrowCallFact>,
+    pub loans: Arena<BorrowLoanFact>,
     pub states: Arena<StateBorrowFact>,
 }
 
@@ -103,6 +113,19 @@ impl BorrowFacts {
     ) -> bool {
         left.root_symbol == right.root_symbol
             && place_segments_overlap(self.access_segments(left), self.access_segments(right))
+    }
+
+    pub fn loan_segments(&self, loan: &BorrowLoanFact) -> &[omega_facts::PlaceSegment] {
+        self.access_segments.span_or_empty(loan.segments)
+    }
+
+    pub fn access_overlaps_loan(
+        &self,
+        access: &BorrowArgumentAccessFact,
+        loan: &BorrowLoanFact,
+    ) -> bool {
+        access.root_symbol == loan.root_symbol
+            && place_segments_overlap(self.access_segments(access), self.loan_segments(loan))
     }
 }
 
@@ -320,6 +343,9 @@ pub enum FlowConstraintKind {
     BorrowAccess {
         access: Handle<BorrowArgumentAccessFact>,
     },
+    BorrowLoan {
+        loan: Handle<BorrowLoanFact>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -434,7 +460,8 @@ impl FlowFacts {
                 | FlowConstraintKind::BorrowState { .. }
                 | FlowConstraintKind::BorrowCall { .. }
                 | FlowConstraintKind::BorrowWritableRoot { .. }
-                | FlowConstraintKind::BorrowAccess { .. } => None,
+                | FlowConstraintKind::BorrowAccess { .. }
+                | FlowConstraintKind::BorrowLoan { .. } => None,
             })
     }
 
@@ -450,7 +477,8 @@ impl FlowFacts {
                 | FlowConstraintKind::SemanticContext { .. }
                 | FlowConstraintKind::BorrowCall { .. }
                 | FlowConstraintKind::BorrowWritableRoot { .. }
-                | FlowConstraintKind::BorrowAccess { .. } => None,
+                | FlowConstraintKind::BorrowAccess { .. }
+                | FlowConstraintKind::BorrowLoan { .. } => None,
             })
     }
 
@@ -466,7 +494,8 @@ impl FlowFacts {
                 | FlowConstraintKind::SemanticContext { .. }
                 | FlowConstraintKind::BorrowState { .. }
                 | FlowConstraintKind::BorrowWritableRoot { .. }
-                | FlowConstraintKind::BorrowAccess { .. } => None,
+                | FlowConstraintKind::BorrowAccess { .. }
+                | FlowConstraintKind::BorrowLoan { .. } => None,
             })
     }
 
@@ -482,7 +511,8 @@ impl FlowFacts {
                 | FlowConstraintKind::SemanticContext { .. }
                 | FlowConstraintKind::BorrowState { .. }
                 | FlowConstraintKind::BorrowCall { .. }
-                | FlowConstraintKind::BorrowAccess { .. } => None,
+                | FlowConstraintKind::BorrowAccess { .. }
+                | FlowConstraintKind::BorrowLoan { .. } => None,
             })
     }
 
@@ -498,7 +528,25 @@ impl FlowFacts {
                 | FlowConstraintKind::SemanticContext { .. }
                 | FlowConstraintKind::BorrowState { .. }
                 | FlowConstraintKind::BorrowCall { .. }
-                | FlowConstraintKind::BorrowWritableRoot { .. } => None,
+                | FlowConstraintKind::BorrowWritableRoot { .. }
+                | FlowConstraintKind::BorrowLoan { .. } => None,
+            })
+    }
+
+    pub fn borrow_loan_constraints<'a>(
+        &'a self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowLoanFact>> + 'a {
+        self.constraints(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::BorrowLoan { loan } => Some(loan),
+                FlowConstraintKind::Unknown
+                | FlowConstraintKind::SemanticContext { .. }
+                | FlowConstraintKind::BorrowState { .. }
+                | FlowConstraintKind::BorrowCall { .. }
+                | FlowConstraintKind::BorrowWritableRoot { .. }
+                | FlowConstraintKind::BorrowAccess { .. } => None,
             })
     }
 }
