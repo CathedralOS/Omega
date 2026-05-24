@@ -14,7 +14,7 @@ mod storage_places;
 
 use self::bindings::RuntimeAliasBuffer;
 use instruction_sink::SelectedInstructionSink;
-use omega_target_operations::{
+use omega_abstract_operations::{
     FunctionInstructionPlan, InstructionOperand, RuntimeValueOperand, SelectedInstruction,
     SelectedInstructionKind,
 };

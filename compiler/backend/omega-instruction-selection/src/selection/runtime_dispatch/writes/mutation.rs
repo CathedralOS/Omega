@@ -8,7 +8,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
-use omega_target_operations::{
+use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
     SelectedInstructionKind, StateGuardOperator,
 };
@@ -1047,7 +1047,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
             dispatch_index,
             target_source_key,
             resolved_target,
-        ) && source_place.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
             && source_place.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
@@ -1127,7 +1127,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
             source_machine,
             source_state,
             &resolved_value.expression,
-        ) && source_place.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {

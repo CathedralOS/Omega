@@ -36,7 +36,7 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
 use omega_state_calls::{StateCallArgument, StateCallLowering, StateCallRole};
 use omega_state_guards::StateGuardLowering;
-use omega_target_operations::{
+use omega_abstract_operations::{
     InstructionOperand, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
     SelectedInstructionKind, StateGuardOperator,
 };
@@ -100,7 +100,7 @@ fn select_runtime_straight_line_branch_expansion(
     let emitted_guard = !guards.is_empty();
     let guard_start = selected_instructions.len();
     for guard in guards {
-        selected_instructions.push(omega_target_operations::SelectedInstruction {
+        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
@@ -132,8 +132,8 @@ fn select_runtime_straight_line_branch_expansion(
             selected_instructions.pop();
         }
     } else if emitted_guard {
-        selected_instructions.push(omega_target_operations::SelectedInstruction {
-            kind: omega_target_operations::SelectedInstructionKind::EvaluateDispatchGuard {
+        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
+            kind: omega_abstract_operations::SelectedInstructionKind::EvaluateDispatchGuard {
                 guard_lowering: StateGuardLowering::NoOp,
                 operator: StateGuardOperator::Equal,
                 storage_region: RuntimeStorageRegion::Machine,
@@ -410,7 +410,7 @@ fn select_runtime_straight_line_branch_writes(
                         )
                     },
                     &mut |kind| {
-                        selected_instructions.push(omega_target_operations::SelectedInstruction {
+                        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
                             kind,
                             source_key: operation.source_key,
                             source_statement: operation.statement_index,
@@ -1004,7 +1004,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
                 )
             },
             &mut |kind| {
-                selected_instructions.push(omega_target_operations::SelectedInstruction {
+                selected_instructions.push(omega_abstract_operations::SelectedInstruction {
                     kind,
                     source_key: target_key,
                     source_statement: leaf_operation.statement_index,

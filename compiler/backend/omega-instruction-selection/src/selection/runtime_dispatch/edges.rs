@@ -14,7 +14,7 @@ use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoop
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_operations::{
+use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
     StateGuardLowering,
 };
@@ -253,12 +253,12 @@ fn guard_can_emit_directly(edge: &RuntimeDispatchLoopEdge) -> bool {
             edge.guard_has_storage
                 && matches!(
                     edge.guard_operator,
-                    omega_target_operations::StateGuardOperator::Equal
-                        | omega_target_operations::StateGuardOperator::NotEqual
-                        | omega_target_operations::StateGuardOperator::Greater
-                        | omega_target_operations::StateGuardOperator::GreaterOrEqual
-                        | omega_target_operations::StateGuardOperator::Less
-                        | omega_target_operations::StateGuardOperator::LessOrEqual
+                    omega_abstract_operations::StateGuardOperator::Equal
+                        | omega_abstract_operations::StateGuardOperator::NotEqual
+                        | omega_abstract_operations::StateGuardOperator::Greater
+                        | omega_abstract_operations::StateGuardOperator::GreaterOrEqual
+                        | omega_abstract_operations::StateGuardOperator::Less
+                        | omega_abstract_operations::StateGuardOperator::LessOrEqual
                 )
                 && matches!(edge.guard_byte_size, 1 | 4 | 8)
         }
@@ -267,12 +267,12 @@ fn guard_can_emit_directly(edge: &RuntimeDispatchLoopEdge) -> bool {
                 && edge.guard_has_right_storage
                 && matches!(
                     edge.guard_operator,
-                    omega_target_operations::StateGuardOperator::Equal
-                        | omega_target_operations::StateGuardOperator::NotEqual
-                        | omega_target_operations::StateGuardOperator::Greater
-                        | omega_target_operations::StateGuardOperator::GreaterOrEqual
-                        | omega_target_operations::StateGuardOperator::Less
-                        | omega_target_operations::StateGuardOperator::LessOrEqual
+                    omega_abstract_operations::StateGuardOperator::Equal
+                        | omega_abstract_operations::StateGuardOperator::NotEqual
+                        | omega_abstract_operations::StateGuardOperator::Greater
+                        | omega_abstract_operations::StateGuardOperator::GreaterOrEqual
+                        | omega_abstract_operations::StateGuardOperator::Less
+                        | omega_abstract_operations::StateGuardOperator::LessOrEqual
                 )
                 && matches!(edge.guard_byte_size, 1 | 4 | 8)
         }
@@ -335,7 +335,7 @@ fn select_runtime_dispatch_argument_materialization(
                 kind: SelectedInstructionKind::CopyRuntimeStorage {
                     source_region: place.region,
                     source_offset: place.byte_offset,
-                    target_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
                     target_offset: slot.byte_offset,
                     byte_count: slot.byte_size,
                 },
@@ -359,7 +359,7 @@ fn select_runtime_dispatch_argument_materialization(
                 kind: SelectedInstructionKind::CopyRuntimeStorage {
                     source_region: place.region,
                     source_offset: place.byte_offset,
-                    target_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
                     target_offset: slot.byte_offset,
                     byte_count: slot.byte_size,
                 },
@@ -378,7 +378,7 @@ fn select_runtime_dispatch_argument_materialization(
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
                 byte_offset: slot.byte_offset,
                 byte_size: slot.byte_size,
                 value,

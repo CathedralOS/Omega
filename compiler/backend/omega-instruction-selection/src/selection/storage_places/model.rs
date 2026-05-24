@@ -1,4 +1,4 @@
-use omega_target_operations::RuntimeStorageRegion;
+use omega_abstract_operations::RuntimeStorageRegion;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeStoragePlace {

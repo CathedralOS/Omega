@@ -11,7 +11,7 @@ use omega_calling_conventions::{
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
-use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_abstract_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,

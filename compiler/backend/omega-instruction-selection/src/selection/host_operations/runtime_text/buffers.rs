@@ -5,7 +5,7 @@ use omega_runtime_text::RuntimeTextSource;
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_in_table, expression_place_eq_table_tree,
 };
-use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
+use omega_abstract_operations::{TargetDataObject, TargetDataObjectHandle};
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data(
     input: &InstructionSelectionInput<'_>,

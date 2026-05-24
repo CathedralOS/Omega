@@ -24,7 +24,7 @@ use branches::{
     select_runtime_straight_line_branch_expansions_for_operation,
 };
 use edges::select_runtime_dispatch_edge;
-use omega_target_operations::{
+use omega_abstract_operations::{
     InstructionOperand, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 use operation_aliases::bind_runtime_operation_aliases;

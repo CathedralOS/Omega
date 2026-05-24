@@ -17,7 +17,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use omega_target_operations::{RuntimeValueOperand, SelectedInstruction};
+use omega_abstract_operations::{RuntimeValueOperand, SelectedInstruction};
 pub(crate) use static_values::RuntimeStaticValues;
 
 pub(in crate::selection) use mutation::{
