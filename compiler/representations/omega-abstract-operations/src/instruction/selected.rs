@@ -2,7 +2,6 @@ use crate::{InstructionOperand, StateGuardLowering, StateGuardOperator, TargetDa
 use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
-use omega_calling_conventions::HostOperationKey;
 
 pub type AbstractValueOperandHandle = Handle<AbstractValueOperand>;
 pub type RuntimeValueOperandHandle = AbstractValueOperandHandle;
@@ -348,8 +347,11 @@ pub enum AbstractOperationKind {
         operation_ordinal: u16,
         operands: HandleSpan<InstructionOperand>,
     },
-    SyntheticHostOperation {
-        operation_key: HostOperationKey,
+    PreparePlatformOutputHandle {
+        operands: HandleSpan<InstructionOperand>,
+    },
+    WritePlatformNewline {
+        use_file_api: bool,
         operands: HandleSpan<InstructionOperand>,
     },
     LeaveFunction,

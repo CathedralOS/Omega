@@ -1,10 +1,8 @@
 mod plan;
 mod selected;
 
-pub use omega_abstract_operations::{
-    HostOperationKey, InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
-};
-pub use omega_calling_conventions::{HostBinding, HostBindingMechanism};
+pub use omega_abstract_operations::{InstructionOperand, InstructionOperandKind, RuntimeStorageRegion};
+pub use omega_calling_conventions::{HostBinding, HostBindingMechanism, HostOperationKey};
 pub use plan::{InstructionPlan, TargetOperationPlan};
 pub use selected::{
     FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, TargetOperation,

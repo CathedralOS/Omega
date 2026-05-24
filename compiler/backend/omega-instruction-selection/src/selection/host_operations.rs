@@ -3,9 +3,7 @@ mod runtime_text;
 
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
-use omega_calling_conventions::{
-    HostCapability, HostOperation, HostOperationKey, PlatformCallData,
-};
+use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey, PlatformCallData};
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
 use omega_abstract_operations::{TargetDataObject, TargetDataObjectKind};
@@ -94,8 +92,7 @@ pub(super) fn select_host_call(
                 operands,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::SyntheticHostOperation {
-                    operation_key: get_std_handle.operation_key,
+                kind: SelectedInstructionKind::PreparePlatformOutputHandle {
                     operands: handle_operands,
                 },
                 source_key: host_call.source_key,
@@ -119,15 +116,8 @@ pub(super) fn select_host_call(
             ])
         };
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::SyntheticHostOperation {
-                operation_key: HostOperationKey::new(
-                    HostCapability::Stdout,
-                    if uses_write_file {
-                        HostOperation::WriteFile
-                    } else {
-                        HostOperation::Write
-                    },
-                ),
+            kind: SelectedInstructionKind::WritePlatformNewline {
+                use_file_api: uses_write_file,
                 operands: newline_operands,
             },
             source_key: host_call.source_key,

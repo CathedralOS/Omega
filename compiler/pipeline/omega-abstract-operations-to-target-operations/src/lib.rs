@@ -1,5 +1,5 @@
 use omega_abstract_operations::AbstractOperationPlan;
-use omega_calling_conventions::HostAbiPlan;
+use omega_calling_conventions::{HostAbiPlan, HostCapability, HostOperation, HostOperationKey};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
@@ -103,11 +103,27 @@ fn translate_instruction_kind(
                 operands: *operands,
             }
         }
-        omega_abstract_operations::AbstractOperationKind::SyntheticHostOperation {
-            operation_key,
+        omega_abstract_operations::AbstractOperationKind::PreparePlatformOutputHandle {
             operands,
         } => TargetOperationKind::HostOperation {
-            operation_key: *operation_key,
+            operation_key: HostOperationKey::new(
+                HostCapability::Stdout,
+                HostOperation::GetStdHandle,
+            ),
+            operands: *operands,
+        },
+        omega_abstract_operations::AbstractOperationKind::WritePlatformNewline {
+            use_file_api,
+            operands,
+        } => TargetOperationKind::HostOperation {
+            operation_key: HostOperationKey::new(
+                HostCapability::Stdout,
+                if *use_file_api {
+                    HostOperation::WriteFile
+                } else {
+                    HostOperation::Write
+                },
+            ),
             operands: *operands,
         },
         kind => TargetOperationKind::from(kind),
