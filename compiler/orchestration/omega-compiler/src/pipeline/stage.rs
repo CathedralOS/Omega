@@ -81,22 +81,29 @@ pub(super) const STATE_GRAPH_TO_CONTROL_FLOW: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-pub(super) const CONTROL_FLOW_TO_TARGET_OPERATIONS: StageMeta = StageMeta::new(
+pub(super) const CONTROL_FLOW_TO_ABSTRACT_OPERATIONS: StageMeta = StageMeta::new(
     "Stage 08",
     "ControlFlow",
+    "AbstractOperations",
+    TimingCategory::Pipeline,
+);
+
+pub(super) const ABSTRACT_OPERATIONS_TO_TARGET_OPERATIONS: StageMeta = StageMeta::new(
+    "Stage 09",
+    "AbstractOperations",
     "TargetOperations",
     TimingCategory::Pipeline,
 );
 
 pub(super) const TARGET_OPERATIONS_TO_ASSIGNED_TARGET_OPERATIONS: StageMeta = StageMeta::new(
-    "Stage 09",
+    "Stage 10",
     "TargetOperations",
     "AssignedTargetOperations",
     TimingCategory::Pipeline,
 );
 
 pub(super) const ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS: StageMeta = StageMeta::new(
-    "Stage 10",
+    "Stage 11",
     "AssignedTargetOperations",
     "MachineInstructions",
     TimingCategory::Pipeline,

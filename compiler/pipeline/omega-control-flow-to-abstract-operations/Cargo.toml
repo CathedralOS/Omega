@@ -1,0 +1,13 @@
+[package]
+name = "omega-control-flow-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_control_flow_to_abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
