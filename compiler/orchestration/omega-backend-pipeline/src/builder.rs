@@ -306,7 +306,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         })
     });
     backend_plan.target_operations = record_backend_phase(&mut phase_timings, "target operations", || {
-        build_target_operation_plan(backend_plan.target, &backend_plan.abstract_operations)
+        build_target_operation_plan(
+            backend_plan.target,
+            &backend_plan.host_abi,
+            &backend_plan.abstract_operations,
+        )
     });
     backend_plan.assigned_target_operations = record_backend_phase(
         &mut phase_timings,

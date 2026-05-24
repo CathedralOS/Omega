@@ -1,6 +1,7 @@
 use omega_abstract_operations::InstructionOperand;
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use super::{HostOperationKey, TargetHostBinding};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetOperationPlan {
@@ -9,6 +10,7 @@ pub struct TargetOperationPlan {
     pub instructions: Arena<super::TargetOperation>,
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<super::TargetValueOperand>,
+    pub host_bindings: Arena<TargetHostBinding>,
 }
 
 pub type InstructionPlan = TargetOperationPlan;
@@ -33,6 +35,14 @@ impl TargetOperationPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
+            host_bindings: Arena::new(),
         }
+    }
+
+    pub fn host_binding(&self, operation_key: HostOperationKey) -> Option<&TargetHostBinding> {
+        self.host_bindings
+            .iter()
+            .find(|(_, binding)| binding.operation_key == operation_key)
+            .map(|(_, binding)| binding)
     }
 }

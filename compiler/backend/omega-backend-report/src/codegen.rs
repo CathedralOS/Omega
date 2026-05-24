@@ -701,11 +701,9 @@ fn runtime_text_read_source_name(
     match source {
         omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key } => {
             match backend_plan
-                .host_abi
-                .bindings
-                .iter()
-                .find(|(_, binding)| binding.operation_key == *operation_key)
-                .map(|(_, binding)| &binding.mechanism)
+                .target_operations
+                .host_binding(*operation_key)
+                .map(|binding| &binding.mechanism)
             {
                 Some(omega_calling_conventions::HostBindingMechanism::Import {
                     symbol,

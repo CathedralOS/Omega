@@ -14,6 +14,7 @@ pub fn build_assigned_target_operations(
         target_operations.instructions.len(),
         target_operations.operands.len(),
         target_operations.runtime_value_operands.len(),
+        target_operations.host_bindings.len(),
         target_operations.runtime_value_operands.len(),
     );
 
@@ -31,6 +32,7 @@ pub fn build_assigned_target_operations(
     assigned_target_operations.operands = target_operations.operands.clone();
     assigned_target_operations.runtime_value_operands =
         target_operations.runtime_value_operands.clone();
+    assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
 
     let mut next_scratch_slot = 0u16;
     for (_, operand) in target_operations.runtime_value_operands.iter() {
