@@ -8,8 +8,9 @@ mod mutation;
 mod place;
 
 use common::{
-    append_flow_contexts_for_points, append_place_segments, appended_span_since,
-    borrow_state_fact, clone_flow_contexts, effects_call, effects_machine, effects_state,
+    append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
+    append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
+    clone_constraint_refs, clone_flow_contexts, effects_call, effects_machine, effects_state,
     proof_contract_call,
 };
 use domain::filter_contexts_after_place_mutations;

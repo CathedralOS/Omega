@@ -59,3 +59,40 @@ pub(crate) fn append_flow_contexts_for_points(
         }
     }
 }
+
+pub(crate) fn clone_constraint_refs(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    source: omega_core::arena::HandleSpan<FlowConstraintRef>,
+) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
+    let mut cloned = omega_core::arena::HandleSpan::empty();
+    let copied: Vec<_> = constraint_refs.span_or_empty(source).iter().copied().collect();
+    for constraint_ref in copied {
+        constraint_refs.append_to_span(&mut cloned, constraint_ref);
+    }
+    cloned
+}
+
+pub(crate) fn append_constraint_ref(
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    refs: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
+    kind: FlowConstraintKind,
+) {
+    constraint_refs.append_to_span(refs, FlowConstraintRef { kind });
+}
+
+pub(crate) fn append_semantic_constraints_for_points(
+    semantic: &FactPlan,
+    constraint_refs: &mut omega_core::arena::Arena<FlowConstraintRef>,
+    refs: &mut omega_core::arena::HandleSpan<FlowConstraintRef>,
+    points: &[ProgramPoint],
+) {
+    for point in points {
+        for context in semantic.context_handles_at_point(*point) {
+            append_constraint_ref(
+                constraint_refs,
+                refs,
+                FlowConstraintKind::SemanticContext { context },
+            );
+        }
+    }
+}
