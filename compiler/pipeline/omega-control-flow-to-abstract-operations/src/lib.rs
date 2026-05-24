@@ -15,12 +15,10 @@ use omega_state_calls::{AliasFlowPlan, StateCallPlan};
 use omega_state_graph::RuntimeFlowPlan;
 use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
-use omega_target::NativeTarget;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationLoweringInput<'plan> {
-    pub target: NativeTarget,
     pub runtime_abi: &'plan RuntimeAbiPlan,
     pub entry_key: StateKey,
     pub entry_symbol: Arc<str>,
@@ -45,7 +43,6 @@ pub struct AbstractOperationLoweringInput<'plan> {
 impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSelectionInput<'plan> {
     fn from(input: &'plan AbstractOperationLoweringInput<'plan>) -> Self {
         Self {
-            target: input.target,
             runtime_abi: input.runtime_abi,
             entry_key: input.entry_key,
             entry_symbol: Arc::clone(&input.entry_symbol),

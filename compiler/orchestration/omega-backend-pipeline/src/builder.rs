@@ -285,7 +285,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         record_backend_phase(&mut phase_timings, "abstract operations", || {
         let runtime_abi = build_runtime_abi_plan(backend_plan.target);
         build_abstract_operation_plan(&AbstractOperationLoweringInput {
-            target: backend_plan.target,
             runtime_abi: &runtime_abi,
             entry_key: backend_plan.entry_key,
             entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
