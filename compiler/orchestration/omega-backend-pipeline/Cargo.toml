@@ -18,7 +18,6 @@ omega-control-flow-to-abstract-operations = { path = "../../pipeline/omega-contr
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-data-planning = { path = "../../backend/omega-data-planning" }
-omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }

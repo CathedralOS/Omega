@@ -144,7 +144,6 @@ dependencies = [
  "omega-control-flow-to-abstract-operations",
  "omega-core",
  "omega-data-planning",
- "omega-instruction-selection",
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-emission",
@@ -327,7 +326,23 @@ name = "omega-control-flow-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-calling-conventions",
+ "omega-checked-trees",
+ "omega-control-flow",
  "omega-instruction-selection",
+ "omega-layout",
+ "omega-platform-interface",
+ "omega-runtime-bodies",
+ "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
+ "omega-runtime-storage",
+ "omega-runtime-text",
+ "omega-state-calls",
+ "omega-state-graph",
+ "omega-state-guards",
+ "omega-state-storage",
+ "omega-target",
+ "omega-target-operations",
 ]
 
 [[package]]
