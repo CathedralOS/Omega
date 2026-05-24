@@ -2,7 +2,9 @@ use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, MachineOwnedDataFlow, Operation,
     OperationExpressionRefs, OperationKind, PlannedTransitionTarget, ProofFactKind,
     ProofObligationFact, ProofObligationOwner, StateBorrowAccessKind, StateBorrowArgumentAccess,
-    StateBorrowCall, StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot,
+    StateBorrowActivation, StateBorrowCall, StateBorrowEventSource, StateBorrowLoan,
+    StateBorrowRootKind, StateBorrowSummary, StateBorrowWeakening, StateBorrowWeakeningReason,
+    StateBorrowWritableRoot,
     StateContractCall, StateContractExit, StateContractFactKind, StateContractFactRef,
     StateContractSummary, StateFlow, StateKey, StateParameterFlow, TransitionExpressionRefs,
     TransitionFlow,
@@ -34,6 +36,9 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
         borrow_access_segments: state_graph.borrow_access_segments.clone(),
         borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
         borrow_calls: remap_borrow_calls(state_graph),
+        borrow_loans: remap_borrow_loans(state_graph),
+        borrow_activations: remap_borrow_activations(state_graph),
+        borrow_weakenings: remap_borrow_weakenings(state_graph),
         operations: remap_operations(state_graph),
         transitions: remap_transitions(state_graph),
     })
@@ -58,6 +63,9 @@ pub fn build_control_flow_plan_owned(
         borrow_access_segments,
         borrow_argument_accesses,
         borrow_calls,
+        borrow_loans,
+        borrow_activations,
+        borrow_weakenings,
         operations,
         transitions,
     } = state_graph;
@@ -78,6 +86,9 @@ pub fn build_control_flow_plan_owned(
         borrow_access_segments,
         borrow_argument_accesses: borrow_argument_accesses.map(remap_borrow_argument_access_owned),
         borrow_calls: borrow_calls.map(remap_borrow_call_owned),
+        borrow_loans: borrow_loans.map(remap_borrow_loan_owned),
+        borrow_activations: borrow_activations.map(remap_borrow_activation_owned),
+        borrow_weakenings: borrow_weakenings.map(remap_borrow_weakening_owned),
         operations: operations.map(remap_operation_owned),
         transitions: transitions.map(remap_transition_owned),
     })
@@ -536,6 +547,36 @@ fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
     calls
 }
 
+fn remap_borrow_loans(state_graph: &StateGraph) -> Arena<StateBorrowLoan> {
+    let mut loans = Arena::with_capacity(state_graph.borrow_loans.len());
+
+    for (_, loan) in state_graph.borrow_loans.iter() {
+        loans.append(remap_borrow_loan(loan));
+    }
+
+    loans
+}
+
+fn remap_borrow_activations(state_graph: &StateGraph) -> Arena<StateBorrowActivation> {
+    let mut activations = Arena::with_capacity(state_graph.borrow_activations.len());
+
+    for (_, activation) in state_graph.borrow_activations.iter() {
+        activations.append(remap_borrow_activation(activation));
+    }
+
+    activations
+}
+
+fn remap_borrow_weakenings(state_graph: &StateGraph) -> Arena<StateBorrowWeakening> {
+    let mut weakenings = Arena::with_capacity(state_graph.borrow_weakenings.len());
+
+    for (_, weakening) in state_graph.borrow_weakenings.iter() {
+        weakenings.append(remap_borrow_weakening(weakening));
+    }
+
+    weakenings
+}
+
 fn remap_borrow_call_owned(call: omega_state_graph::StateBorrowCall) -> StateBorrowCall {
     StateBorrowCall {
         statement_index: call.statement_index,
@@ -547,11 +588,107 @@ fn remap_borrow_call_owned(call: omega_state_graph::StateBorrowCall) -> StateBor
     }
 }
 
+fn remap_borrow_loan(loan: &omega_state_graph::StateBorrowLoan) -> StateBorrowLoan {
+    StateBorrowLoan {
+        statement_index: loan.statement_index,
+        last_use_statement_index: loan.last_use_statement_index,
+        owner_symbol: loan.owner_symbol,
+        root_symbol: loan.root_symbol,
+        segments: loan.segments,
+    }
+}
+
+fn remap_borrow_loan_owned(loan: omega_state_graph::StateBorrowLoan) -> StateBorrowLoan {
+    StateBorrowLoan {
+        statement_index: loan.statement_index,
+        last_use_statement_index: loan.last_use_statement_index,
+        owner_symbol: loan.owner_symbol,
+        root_symbol: loan.root_symbol,
+        segments: loan.segments,
+    }
+}
+
+fn remap_borrow_event_source(
+    source: omega_state_graph::StateBorrowEventSource,
+) -> StateBorrowEventSource {
+    match source {
+        omega_state_graph::StateBorrowEventSource::Statement { statement_index } => {
+            StateBorrowEventSource::Statement { statement_index }
+        }
+        omega_state_graph::StateBorrowEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => StateBorrowEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        },
+    }
+}
+
+fn remap_borrow_activation(
+    activation: &omega_state_graph::StateBorrowActivation,
+) -> StateBorrowActivation {
+    StateBorrowActivation {
+        source: remap_borrow_event_source(activation.source),
+        loan: remap_borrow_loan_handle(activation.loan),
+    }
+}
+
+fn remap_borrow_activation_owned(
+    activation: omega_state_graph::StateBorrowActivation,
+) -> StateBorrowActivation {
+    StateBorrowActivation {
+        source: remap_borrow_event_source(activation.source),
+        loan: remap_borrow_loan_handle(activation.loan),
+    }
+}
+
+fn remap_borrow_weakening_reason(
+    reason: omega_state_graph::StateBorrowWeakeningReason,
+) -> StateBorrowWeakeningReason {
+    match reason {
+        omega_state_graph::StateBorrowWeakeningReason::LastUseExpired => {
+            StateBorrowWeakeningReason::LastUseExpired
+        }
+        omega_state_graph::StateBorrowWeakeningReason::StateExit => {
+            StateBorrowWeakeningReason::StateExit
+        }
+        omega_state_graph::StateBorrowWeakeningReason::LocalReassigned => {
+            StateBorrowWeakeningReason::LocalReassigned
+        }
+    }
+}
+
+fn remap_borrow_weakening(
+    weakening: &omega_state_graph::StateBorrowWeakening,
+) -> StateBorrowWeakening {
+    StateBorrowWeakening {
+        source: remap_borrow_event_source(weakening.source),
+        loan: remap_borrow_loan_handle(weakening.loan),
+        reason: remap_borrow_weakening_reason(weakening.reason),
+    }
+}
+
+fn remap_borrow_weakening_owned(
+    weakening: omega_state_graph::StateBorrowWeakening,
+) -> StateBorrowWeakening {
+    StateBorrowWeakening {
+        source: remap_borrow_event_source(weakening.source),
+        loan: remap_borrow_loan_handle(weakening.loan),
+        reason: remap_borrow_weakening_reason(weakening.reason),
+    }
+}
+
 fn remap_borrow_summary(summary: &omega_state_graph::StateBorrowSummary) -> StateBorrowSummary {
     StateBorrowSummary {
         writable_roots: remap_borrow_writable_root_span(summary.writable_roots),
         mutable_parameter_count: summary.mutable_parameter_count,
         calls: remap_borrow_call_span(summary.calls),
+        active_loans: remap_borrow_loan_span(summary.active_loans),
+        activations: remap_borrow_activation_span(summary.activations),
+        weakenings: remap_borrow_weakening_span(summary.weakenings),
     }
 }
 
@@ -823,6 +960,48 @@ fn remap_borrow_call_span(
 fn remap_borrow_call_handle(
     handle: Handle<omega_state_graph::StateBorrowCall>,
 ) -> Handle<StateBorrowCall> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_borrow_loan_span(
+    loans: HandleSpan<omega_state_graph::StateBorrowLoan>,
+) -> HandleSpan<StateBorrowLoan> {
+    HandleSpan::from_parts(remap_borrow_loan_handle(loans.start()), loans.count())
+}
+
+fn remap_borrow_loan_handle(
+    handle: Handle<omega_state_graph::StateBorrowLoan>,
+) -> Handle<StateBorrowLoan> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_borrow_activation_span(
+    activations: HandleSpan<omega_state_graph::StateBorrowActivation>,
+) -> HandleSpan<StateBorrowActivation> {
+    HandleSpan::from_parts(
+        remap_borrow_activation_handle(activations.start()),
+        activations.count(),
+    )
+}
+
+fn remap_borrow_activation_handle(
+    handle: Handle<omega_state_graph::StateBorrowActivation>,
+) -> Handle<StateBorrowActivation> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_borrow_weakening_span(
+    weakenings: HandleSpan<omega_state_graph::StateBorrowWeakening>,
+) -> HandleSpan<StateBorrowWeakening> {
+    HandleSpan::from_parts(
+        remap_borrow_weakening_handle(weakenings.start()),
+        weakenings.count(),
+    )
+}
+
+fn remap_borrow_weakening_handle(
+    handle: Handle<omega_state_graph::StateBorrowWeakening>,
+) -> Handle<StateBorrowWeakening> {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 

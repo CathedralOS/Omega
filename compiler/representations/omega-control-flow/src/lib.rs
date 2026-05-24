@@ -1,4 +1,4 @@
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::Identifier;
@@ -21,6 +21,9 @@ pub struct ControlFlowPlan {
     pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub borrow_calls: Arena<StateBorrowCall>,
+    pub borrow_loans: Arena<StateBorrowLoan>,
+    pub borrow_activations: Arena<StateBorrowActivation>,
+    pub borrow_weakenings: Arena<StateBorrowWeakening>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<TransitionFlow>,
 }
@@ -406,10 +409,61 @@ pub struct StateBorrowCall {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowLoan {
+    pub statement_index: usize,
+    pub last_use_statement_index: usize,
+    pub owner_symbol: SymbolHandle,
+    pub root_symbol: SymbolHandle,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateBorrowEventSource {
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+    },
+}
+
+impl Default for StateBorrowEventSource {
+    fn default() -> Self {
+        Self::Statement { statement_index: 0 }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowActivation {
+    pub source: StateBorrowEventSource,
+    pub loan: Handle<StateBorrowLoan>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StateBorrowWeakeningReason {
+    #[default]
+    LastUseExpired,
+    StateExit,
+    LocalReassigned,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowWeakening {
+    pub source: StateBorrowEventSource,
+    pub loan: Handle<StateBorrowLoan>,
+    pub reason: StateBorrowWeakeningReason,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowSummary {
     pub writable_roots: HandleSpan<StateBorrowWritableRoot>,
     pub mutable_parameter_count: usize,
     pub calls: HandleSpan<StateBorrowCall>,
+    pub active_loans: HandleSpan<StateBorrowLoan>,
+    pub activations: HandleSpan<StateBorrowActivation>,
+    pub weakenings: HandleSpan<StateBorrowWeakening>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

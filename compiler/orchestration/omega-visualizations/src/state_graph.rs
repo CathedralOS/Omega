@@ -2,8 +2,9 @@ use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::symbols::SymbolHandle;
 use omega_state_graph::{
     MachineGraph, Operation, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
-    StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateGraph, StateKey,
-    StateNode, TransitionEdge,
+    StateBorrowAccessKind, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
+    StateBorrowEventSource, StateBorrowLoan, StateBorrowWeakening, StateBorrowWeakeningReason,
+    StateGraph, StateKey, StateNode, TransitionEdge,
 };
 use omega_typed_trees::expression::ExpressionHandle;
 
@@ -154,7 +155,7 @@ fn machine_label(
 
 fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) -> String {
     let mut label = format!(
-        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ncontracts: calls {} exits {}\nborrow: roots {} calls {}\ndirect effects: {}\nreached effects: {}",
+        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ncontracts: calls {} exits {}\nborrow: roots {} calls {} loans {} act {} weak {}\ndirect effects: {}\nreached effects: {}",
         machine.name.as_str(),
         state.name.as_str(),
         state.key.segment_index,
@@ -166,6 +167,9 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         state.contracts.exits.len(),
         state.borrow.writable_roots.len(),
         state.borrow.calls.len(),
+        state.borrow.active_loans.len(),
+        state.borrow.activations.len(),
+        state.borrow.weakenings.len(),
         format_effect_bits(state.direct_effects),
         format_effect_bits(state.reached_effects)
     );
@@ -196,6 +200,30 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         label.push('\n');
         label.push_str("  ");
         label.push_str(&borrow_call_label(graph, machine, state, borrow_call));
+    }
+
+    for loan in graph.borrow_loans.span_or_empty(state.borrow.active_loans) {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&borrow_loan_label(graph, machine, state, loan));
+    }
+
+    for activation in graph
+        .borrow_activations
+        .span_or_empty(state.borrow.activations)
+    {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&borrow_activation_label(graph, machine, state, activation));
+    }
+
+    for weakening in graph
+        .borrow_weakenings
+        .span_or_empty(state.borrow.weakenings)
+    {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&borrow_weakening_label(graph, machine, state, weakening));
     }
 
     for operation in graph.operations.span_or_empty(state.operations) {
@@ -265,8 +293,69 @@ fn borrow_access_label(
     state: &StateNode,
     access: &StateBorrowArgumentAccess,
 ) -> String {
-    let mut label = symbol_name_for_state(graph, machine, state, access.root_symbol);
-    for segment in graph.borrow_access_segments.span_or_empty(access.segments) {
+    let mut label =
+        borrow_place_label(graph, machine, state, access.root_symbol, access.segments);
+    label.push_str(": ");
+    label.push_str(match access.kind {
+        StateBorrowAccessKind::Read => "read",
+        StateBorrowAccessKind::Mutable => "mutable",
+    });
+    label
+}
+
+fn borrow_loan_label(
+    graph: &StateGraph,
+    machine: &MachineGraph,
+    state: &StateNode,
+    loan: &StateBorrowLoan,
+) -> String {
+    format!(
+        "active loan {} -> {} [created {}, last use {}]",
+        symbol_name_for_state(graph, machine, state, loan.owner_symbol),
+        borrow_place_label(graph, machine, state, loan.root_symbol, loan.segments),
+        loan.statement_index,
+        loan.last_use_statement_index
+    )
+}
+
+fn borrow_activation_label(
+    graph: &StateGraph,
+    machine: &MachineGraph,
+    state: &StateNode,
+    activation: &StateBorrowActivation,
+) -> String {
+    let loan = graph.borrow_loans.get(activation.loan);
+    format!(
+        "activation {} -> {}",
+        borrow_event_source_label(graph, activation.source),
+        borrow_loan_label(graph, machine, state, loan)
+    )
+}
+
+fn borrow_weakening_label(
+    graph: &StateGraph,
+    machine: &MachineGraph,
+    state: &StateNode,
+    weakening: &StateBorrowWeakening,
+) -> String {
+    let loan = graph.borrow_loans.get(weakening.loan);
+    format!(
+        "weakening {} -> {} ({})",
+        borrow_event_source_label(graph, weakening.source),
+        borrow_loan_label(graph, machine, state, loan),
+        borrow_weakening_reason_label(weakening.reason)
+    )
+}
+
+fn borrow_place_label(
+    graph: &StateGraph,
+    machine: &MachineGraph,
+    state: &StateNode,
+    root_symbol: SymbolHandle,
+    segments: omega_core::arena::HandleSpan<omega_facts::PlaceSegment>,
+) -> String {
+    let mut label = symbol_name_for_state(graph, machine, state, root_symbol);
+    for segment in graph.borrow_access_segments.span_or_empty(segments) {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
@@ -279,12 +368,33 @@ fn borrow_access_label(
             }
         }
     }
-    label.push_str(": ");
-    label.push_str(match access.kind {
-        StateBorrowAccessKind::Read => "read",
-        StateBorrowAccessKind::Mutable => "mutable",
-    });
     label
+}
+
+fn borrow_event_source_label(graph: &StateGraph, source: StateBorrowEventSource) -> String {
+    match source {
+        StateBorrowEventSource::Statement { statement_index } => {
+            format!("statement {statement_index}")
+        }
+        StateBorrowEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => format!(
+            "call #{}.{} -> {}",
+            statement_index,
+            call_ordinal,
+            state_name_for_symbol(graph, target_symbol)
+        ),
+    }
+}
+
+fn borrow_weakening_reason_label(reason: StateBorrowWeakeningReason) -> &'static str {
+    match reason {
+        StateBorrowWeakeningReason::LastUseExpired => "after last use",
+        StateBorrowWeakeningReason::StateExit => "at state exit",
+        StateBorrowWeakeningReason::LocalReassigned => "after local reassignment",
+    }
 }
 
 fn symbol_name_for_state(
