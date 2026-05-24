@@ -161,6 +161,22 @@ impl AssignedTargetOperationPlan {
             .is_valid(home_handle)
             .then(|| self.runtime_value_homes.get(home_handle))
     }
+
+    pub fn runtime_values_with_homes(
+        &self,
+    ) -> impl Iterator<Item = (RuntimeValueOperandHandle, &AssignedValueOperand, &AssignedValueHome)> + '_
+    {
+        self.runtime_value_operands.iter().filter_map(|(handle, operand)| {
+            self.runtime_value_home(handle)
+                .map(|home| (handle, operand, home))
+        })
+    }
+
+    pub fn scratch_home_count(&self) -> usize {
+        self.runtime_values_with_homes()
+            .filter(|(_, _, home)| matches!(home.kind, AssignedValueHomeKind::ScratchRegister { .. }))
+            .count()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
