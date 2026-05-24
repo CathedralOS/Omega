@@ -147,7 +147,12 @@ fn semantic_contexts_prove_contract_fact(
         FactPayload::ContractBooleanExpression { expression, .. } => matches!(
             program.expression_table.expression(expression),
             omega_checked_trees::expression::ExpressionNode::Boolean(true)
-        ),
+        ) || entry_contexts.iter().any(|entry_context| {
+            let context = semantic.contexts.get(*entry_context);
+            semantic
+                .context_view(context)
+                .proves_boolean_expression_in_program(program, expression)
+        }),
         _ => true,
     }
 }

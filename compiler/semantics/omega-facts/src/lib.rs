@@ -279,6 +279,18 @@ impl<'facts> FactContextView<'facts> {
         })
     }
 
+    pub fn proves_boolean_expression_in_program(
+        self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let required_label = program.expression_table.display_name(expression);
+        self.boolean_facts().any(|fact| {
+            fact.expression == expression
+                || program.expression_table.display_name(fact.expression) == required_label
+        })
+    }
+
     pub fn proves_place_domain_membership(
         self,
         place: PlaceHandle,
