@@ -56,11 +56,69 @@ fn append_machine_instructions(
                 .arena_index()
                 .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
                 .expect("selected instruction overflow");
+            let selected_instruction_handle =
+                omega_core::arena::Handle::from_arena_index(selected_instruction_index);
 
             Ok(MachineInstruction {
                 selected_instruction_index,
-                kind: lower_machine_instruction_kind(&selected_instruction.kind)?,
+                kind: lower_machine_instruction_kind(
+                    assigned_target_operations,
+                    selected_instruction_handle,
+                    &selected_instruction.kind,
+                )?,
+                primary_home: primary_home_handle(assigned_target_operations, &selected_instruction.kind),
+                secondary_home: secondary_home_handle(assigned_target_operations, &selected_instruction.kind),
             })
         },
     ))
+}
+
+fn primary_home_handle(
+    assigned_target_operations: &AssignedTargetOperationPlan,
+    kind: &omega_assigned_target_operations::SelectedInstructionKind,
+) -> omega_assigned_target_operations::AssignedValueHomeHandle {
+    first_runtime_value_handle(kind)
+        .map(runtime_value_home_handle)
+        .filter(|handle| assigned_target_operations.runtime_value_homes.is_valid(*handle))
+        .unwrap_or_else(omega_assigned_target_operations::AssignedValueHomeHandle::invalid)
+}
+
+fn secondary_home_handle(
+    assigned_target_operations: &AssignedTargetOperationPlan,
+    kind: &omega_assigned_target_operations::SelectedInstructionKind,
+) -> omega_assigned_target_operations::AssignedValueHomeHandle {
+    second_runtime_value_handle(kind)
+        .map(runtime_value_home_handle)
+        .filter(|handle| assigned_target_operations.runtime_value_homes.is_valid(*handle))
+        .unwrap_or_else(omega_assigned_target_operations::AssignedValueHomeHandle::invalid)
+}
+
+fn first_runtime_value_handle(
+    kind: &omega_assigned_target_operations::SelectedInstructionKind,
+) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
+    match kind {
+        omega_assigned_target_operations::SelectedInstructionKind::CompareRuntimeValues { left, .. }
+        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeStorageBinary { left, .. }
+        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimePointeeBinary { left, .. }
+        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
+        _ => None,
+    }
+}
+
+fn second_runtime_value_handle(
+    kind: &omega_assigned_target_operations::SelectedInstructionKind,
+) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
+    match kind {
+        omega_assigned_target_operations::SelectedInstructionKind::CompareRuntimeValues { right, .. }
+        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeStorageBinary { right, .. }
+        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimePointeeBinary { right, .. }
+        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
+        _ => None,
+    }
+}
+
+fn runtime_value_home_handle(
+    handle: omega_assigned_target_operations::RuntimeValueOperandHandle,
+) -> omega_assigned_target_operations::AssignedValueHomeHandle {
+    omega_core::arena::Handle::from_arena_index(handle.arena_index())
 }

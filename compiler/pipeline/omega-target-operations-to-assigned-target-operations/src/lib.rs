@@ -1,7 +1,9 @@
 use omega_assigned_target_operations::{
-    AssignedRegisterBank, AssignedTargetOperationPlan, AssignedValueHome, AssignedValueHomeKind,
+    AssignedRegisterBank, AssignedRegisterName, AssignedTargetOperationPlan, AssignedValueHome,
+    AssignedValueHomeKind, X86_64AssignedRegister,
 };
 use omega_target_operations::InstructionPlan;
+use omega_target::Architecture;
 
 pub fn build_assigned_target_operations(
     target_operations: &InstructionPlan,
@@ -68,11 +70,11 @@ pub fn build_assigned_target_operations(
                 byte_size: *byte_size,
             },
             omega_target_operations::RuntimeValueOperand::Binary { .. } => {
-                let slot = next_scratch_slot;
+                let name = scratch_register_name(target_operations.target.architecture, next_scratch_slot);
                 next_scratch_slot = next_scratch_slot.saturating_add(1);
                 AssignedValueHomeKind::ScratchRegister {
                     bank: AssignedRegisterBank::GeneralPurpose,
-                    slot,
+                    name,
                 }
             }
         };
@@ -83,4 +85,21 @@ pub fn build_assigned_target_operations(
     }
 
     assigned_target_operations
+}
+
+fn scratch_register_name(architecture: Architecture, slot: u16) -> AssignedRegisterName {
+    match architecture {
+        Architecture::Aarch64 => {
+            let register = 19u8.saturating_add((slot % 9) as u8);
+            AssignedRegisterName::Aarch64X(register)
+        }
+        Architecture::X86_64 => AssignedRegisterName::X86_64(match slot % 6 {
+            0 => X86_64AssignedRegister::R10,
+            1 => X86_64AssignedRegister::R11,
+            2 => X86_64AssignedRegister::R12,
+            3 => X86_64AssignedRegister::R13,
+            4 => X86_64AssignedRegister::R14,
+            _ => X86_64AssignedRegister::R15,
+        }),
+    }
 }

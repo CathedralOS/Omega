@@ -18,6 +18,22 @@ pub enum AssignedRegisterBank {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64AssignedRegister {
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignedRegisterName {
+    Aarch64X(u8),
+    X86_64(X86_64AssignedRegister),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssignedValueHomeKind {
     Immediate,
     RuntimeStorage {
@@ -39,7 +55,7 @@ pub enum AssignedValueHomeKind {
     },
     ScratchRegister {
         bank: AssignedRegisterBank,
-        slot: u16,
+        name: AssignedRegisterName,
     },
 }
 

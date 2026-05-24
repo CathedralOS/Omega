@@ -510,6 +510,7 @@ dependencies = [
 name = "omega-machine-instructions"
 version = "0.1.0"
 dependencies = [
+ "omega-assigned-target-operations",
  "omega-control-flow",
  "omega-core",
  "omega-machine-program",
@@ -843,6 +844,7 @@ name = "omega-target-operations-to-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-assigned-target-operations",
+ "omega-target",
  "omega-target-operations",
 ]
 

@@ -1,8 +1,10 @@
+use omega_assigned_target_operations::AssignedValueHomeHandle;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
+use std::convert::Infallible;
 
-pub use omega_machine_program::{MachineInstruction, MachineInstructionKind};
+pub use omega_machine_program::MachineInstructionKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineInstructionPlan {
@@ -46,38 +48,75 @@ impl Default for MachineInstructionFunction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MachineInstruction {
+    pub selected_instruction_index: u32,
+    pub kind: MachineInstructionKind,
+    pub primary_home: AssignedValueHomeHandle,
+    pub secondary_home: AssignedValueHomeHandle,
+}
+
+impl Default for MachineInstruction {
+    fn default() -> Self {
+        Self {
+            selected_instruction_index: 0,
+            kind: MachineInstructionKind::NoOp,
+            primary_home: AssignedValueHomeHandle::invalid(),
+            secondary_home: AssignedValueHomeHandle::invalid(),
+        }
+    }
+}
+
 impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
     fn from(program: omega_machine_program::MachineProgram) -> Self {
-        let mut functions = Arena::with_capacity(program.functions.len());
+        let mut plan = Self::with_capacity(
+            program.target,
+            program.functions.len(),
+            program.instructions.len(),
+        );
         for (_, function) in program.functions.iter() {
-            functions.insert(MachineInstructionFunction {
+            let Some(function_instructions) = program.instructions.span(function.instructions) else {
+                continue;
+            };
+            let inserted = plan.instructions.try_insert_many(function_instructions.iter().map(
+                |instruction| Ok::<MachineInstruction, Infallible>(MachineInstruction {
+                        selected_instruction_index: instruction.selected_instruction_index,
+                        kind: instruction.kind,
+                        primary_home: AssignedValueHomeHandle::invalid(),
+                        secondary_home: AssignedValueHomeHandle::invalid(),
+                    }),
+            )).expect("machine instruction arena insertion should not fail");
+            plan.functions.insert(MachineInstructionFunction {
                 source_key: function.source_key,
-                instructions: function.instructions,
+                instructions: inserted,
             });
         }
-
-        Self {
-            target: program.target,
-            functions,
-            instructions: program.instructions,
-        }
+        plan
     }
 }
 
 impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
     fn from(plan: MachineInstructionPlan) -> Self {
-        let mut functions = Arena::with_capacity(plan.functions.len());
+        let mut program = omega_machine_program::MachineProgram::with_capacity(
+            plan.target,
+            plan.functions.len(),
+            plan.instructions.len(),
+        );
         for (_, function) in plan.functions.iter() {
-            functions.insert(omega_machine_program::MachineFunction {
+            let Some(function_instructions) = plan.instructions.span(function.instructions) else {
+                continue;
+            };
+            let inserted = program.instructions.try_insert_many(function_instructions.iter().map(
+                |instruction| Ok::<omega_machine_program::MachineInstruction, Infallible>(omega_machine_program::MachineInstruction {
+                        selected_instruction_index: instruction.selected_instruction_index,
+                        kind: instruction.kind,
+                    }),
+            )).expect("machine instruction arena insertion should not fail");
+            program.functions.insert(omega_machine_program::MachineFunction {
                 source_key: function.source_key,
-                instructions: function.instructions,
+                instructions: inserted,
             });
         }
-
-        Self {
-            target: plan.target,
-            functions,
-            instructions: plan.instructions,
-        }
+        program
     }
 }

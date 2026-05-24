@@ -4,14 +4,18 @@ mod runtime_storage;
 mod runtime_text;
 
 use omega_assigned_target_operations::{
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    AssignedValueHomeKind, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 use omega_core::diagnostics::Diagnostic;
+use omega_core::arena::Handle;
 use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn lower_machine_instruction_kind(
+    assigned_target_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,
+    selected_instruction_handle: Handle<omega_assigned_target_operations::SelectedInstruction>,
     kind: &SelectedInstructionKind,
 ) -> Result<MachineInstructionKind, Diagnostic> {
+    ensure_runtime_value_homes(assigned_target_operations, selected_instruction_handle, kind)?;
     Ok(match kind {
         SelectedInstructionKind::HostOperation { operation_key, .. } => {
             host::host_operation_kind(*operation_key)
@@ -384,4 +388,72 @@ pub(super) fn lower_machine_instruction_kind(
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall => MachineInstructionKind::NoOp,
     })
+}
+
+fn ensure_runtime_value_homes(
+    assigned_target_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,
+    selected_instruction_handle: Handle<omega_assigned_target_operations::SelectedInstruction>,
+    kind: &SelectedInstructionKind,
+) -> Result<(), Diagnostic> {
+    let selected_instruction = assigned_target_operations.instructions.get(selected_instruction_handle);
+    for handle in [first_runtime_value_handle(kind), second_runtime_value_handle(kind)]
+        .into_iter()
+        .flatten()
+    {
+        let home_handle = runtime_value_home_handle(handle);
+        if !assigned_target_operations.runtime_value_homes.is_valid(home_handle) {
+            return Err(Diagnostic::error(format!(
+                "missing assigned value home for {:?} in {:?} statement {}",
+                handle,
+                selected_instruction.source_key,
+                selected_instruction.source_statement
+            )));
+        }
+        let home = assigned_target_operations.runtime_value_homes.get(home_handle);
+
+        if matches!(
+            assigned_target_operations.runtime_value_operands.get(handle),
+            omega_assigned_target_operations::RuntimeValueOperand::Binary { .. }
+        ) && !matches!(home.kind, AssignedValueHomeKind::ScratchRegister { .. })
+        {
+            return Err(Diagnostic::error(format!(
+                "binary runtime value {:?} in {:?} statement {} must lower through a scratch register home",
+                handle,
+                selected_instruction.source_key,
+                selected_instruction.source_statement
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn runtime_value_home_handle(
+    handle: omega_assigned_target_operations::RuntimeValueOperandHandle,
+) -> omega_assigned_target_operations::AssignedValueHomeHandle {
+    omega_core::arena::Handle::from_arena_index(handle.arena_index())
+}
+
+fn first_runtime_value_handle(
+    kind: &SelectedInstructionKind,
+) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
+    match kind {
+        SelectedInstructionKind::CompareRuntimeValues { left, .. }
+        | SelectedInstructionKind::WriteRuntimeStorageBinary { left, .. }
+        | SelectedInstructionKind::WriteRuntimePointeeBinary { left, .. }
+        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
+        _ => None,
+    }
+}
+
+fn second_runtime_value_handle(
+    kind: &SelectedInstructionKind,
+) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
+    match kind {
+        SelectedInstructionKind::CompareRuntimeValues { right, .. }
+        | SelectedInstructionKind::WriteRuntimeStorageBinary { right, .. }
+        | SelectedInstructionKind::WriteRuntimePointeeBinary { right, .. }
+        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
+        _ => None,
+    }
 }
