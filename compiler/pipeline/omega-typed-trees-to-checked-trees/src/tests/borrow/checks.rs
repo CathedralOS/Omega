@@ -209,10 +209,15 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         machine Main::main(&mut self) {
             let alias: &mut i32 = &mut self.value;
             self.use_value(&mut self.value);
+            self.write_alias(alias);
         }
 
         machine Main::use_value(&mut self, value: &mut i32) {
             value = 1;
+        }
+
+        machine Main::write_alias(&mut self, value: &mut i32) {
+            value = 2;
         }
     "#;
 
@@ -265,10 +270,15 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
         machine Main::main(&mut self) {
             let alias: &mut [Exit] = self.room.exits.as_mut_slice();
             self.use_exit(&mut self.room.exits[0]);
+            self.write_alias(alias);
         }
 
         machine Main::use_exit(&mut self, exit: &mut Exit) {
             exit = Exit { destination: 1 };
+        }
+
+        machine Main::write_alias(&mut self, exits: &mut [Exit]) {
+            exits[0] = Exit { destination: 2 };
         }
     "#;
 
@@ -301,4 +311,51 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(combined.contains("local borrow `alias` is still active"));
+}
+
+#[test]
+fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut i32 = &mut self.value;
+            self.write_alias(alias);
+            self.use_value(&mut self.value);
+        }
+
+        machine Main::write_alias(&mut self, value: &mut i32) {
+            value = 1;
+        }
+
+        machine Main::use_value(&mut self, value: &mut i32) {
+            value = 2;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("loan should end after alias last use");
 }

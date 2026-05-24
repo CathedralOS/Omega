@@ -13,8 +13,13 @@ data Main {
 machine Main::main(&mut self) {
     let alias: &mut [Exit] = self.room.exits.as_mut_slice();
     self.use_exit(&mut self.room.exits[0]);
+    self.write_alias(alias);
 }
 
 machine Main::use_exit(&mut self, exit: &mut Exit) {
     exit = Exit { destination: 1 };
+}
+
+machine Main::write_alias(&mut self, exits: &mut [Exit]) {
+    exits[0] = Exit { destination: 2 };
 }
