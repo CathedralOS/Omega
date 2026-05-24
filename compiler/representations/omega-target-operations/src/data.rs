@@ -59,6 +59,12 @@ impl Default for TargetDataObject {
     }
 }
 
+pub fn target_data_handle_from_abstract(
+    handle: omega_abstract_operations::AbstractDataObjectHandle,
+) -> TargetDataObjectHandle {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
 impl From<&TargetDataPlan> for omega_abstract_operations::AbstractDataPlan {
     fn from(data: &TargetDataPlan) -> Self {
         let mut abstract_data =

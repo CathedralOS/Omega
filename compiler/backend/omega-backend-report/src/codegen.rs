@@ -857,7 +857,7 @@ fn selected_instruction_operands_name(
                 let symbol = backend_plan
                     .data
                     .objects
-                    .get(remap_target_data_handle(*data))
+                    .get(omega_target_operations::target_data_handle_from_abstract(*data))
                     .symbol
                     .as_ref();
                 format!("addr {symbol}")
@@ -883,11 +883,6 @@ fn selected_instruction_operands_name(
         .join(", ")
 }
 
-fn remap_target_data_handle(
-    data: omega_abstract_operations::AbstractDataObjectHandle,
-) -> omega_target_operations::TargetDataObjectHandle {
-    omega_core::arena::Handle::from_parts(data.arena_index(), data.generation())
-}
 
 fn write_machine_function_code(
     output: &mut String,

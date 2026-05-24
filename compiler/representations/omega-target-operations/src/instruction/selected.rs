@@ -1,9 +1,10 @@
 use crate::{
     HostOperationKey, InstructionOperand, RuntimeStorageRegion, RuntimeTextReadSource,
     StateGuardLowering, StateGuardOperator, TargetDataObjectHandle, TargetValueOperandHandle,
+    target_data_handle_from_abstract,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -831,5 +832,5 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
 fn remap_data_handle(
     handle: omega_abstract_operations::AbstractDataObjectHandle,
 ) -> TargetDataObjectHandle {
-    Handle::from_parts(handle.arena_index(), handle.generation())
+    target_data_handle_from_abstract(handle)
 }
