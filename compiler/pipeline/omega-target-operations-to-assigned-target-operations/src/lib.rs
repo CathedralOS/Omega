@@ -1,24 +1,14 @@
 use omega_assigned_target_operations::{
     AssignedOperation, AssignedRegisterBank, AssignedRegisterName, AssignedTargetOperationPlan,
     AssignedValueHome, AssignedValueHomeKind, X86_64AssignedRegister,
+    assigned_operation_span_from_target,
 };
-use omega_core::arena::{Handle, HandleSpan};
 use omega_target::Architecture;
 use omega_target_operations::TargetOperationPlan;
 
 pub fn build_assigned_target_operations(
     target_operations: &TargetOperationPlan,
 ) -> AssignedTargetOperationPlan {
-    let remap_instruction_span = |span: HandleSpan<omega_target_operations::TargetOperation>| {
-        if span.is_empty() {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(
-                Handle::from_parts(span.start().arena_index(), span.start().generation()),
-                span.count(),
-            )
-        }
-    };
     let mut assigned_target_operations = AssignedTargetOperationPlan::with_capacity(
         target_operations.target,
         target_operations.functions.len(),
@@ -35,7 +25,7 @@ pub fn build_assigned_target_operations(
             .insert(omega_assigned_target_operations::AssignedTargetOperationFunction {
                 symbol: std::sync::Arc::clone(&function.symbol),
                 source_key: function.source_key,
-                instructions: remap_instruction_span(function.instructions),
+                instructions: assigned_operation_span_from_target(function.instructions),
             });
     }
 

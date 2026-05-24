@@ -110,6 +110,32 @@ impl Default for AssignedOperation {
     }
 }
 
+pub fn assigned_operation_span_from_target(
+    span: HandleSpan<omega_target_operations::TargetOperation>,
+) -> HandleSpan<AssignedOperation> {
+    if span.is_empty() {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(
+            Handle::from_parts(span.start().arena_index(), span.start().generation()),
+            span.count(),
+        )
+    }
+}
+
+pub fn target_operation_span_from_assigned(
+    span: HandleSpan<AssignedOperation>,
+) -> HandleSpan<omega_target_operations::TargetOperation> {
+    if span.is_empty() {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(
+            Handle::from_parts(span.start().arena_index(), span.start().generation()),
+            span.count(),
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedTargetOperationPlan {
     pub target: NativeTarget,
@@ -213,22 +239,12 @@ impl Default for AssignedTargetOperationFunction {
 
 impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperationPlan {
     fn from(plan: omega_target_operations::TargetOperationPlan) -> Self {
-        let remap_instruction_span = |span: HandleSpan<omega_target_operations::TargetOperation>| {
-            if span.is_empty() {
-                HandleSpan::empty()
-            } else {
-                HandleSpan::from_parts(
-                    Handle::from_parts(span.start().arena_index(), span.start().generation()),
-                    span.count(),
-                )
-            }
-        };
         let mut functions = Arena::with_capacity(plan.functions.len());
         for (_, function) in plan.functions.iter() {
             functions.insert(AssignedTargetOperationFunction {
                 symbol: Arc::clone(&function.symbol),
                 source_key: function.source_key,
-                instructions: remap_instruction_span(function.instructions),
+                instructions: assigned_operation_span_from_target(function.instructions),
             });
         }
 
@@ -255,22 +271,12 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
 
 impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperationPlan {
     fn from(plan: AssignedTargetOperationPlan) -> Self {
-        let remap_instruction_span = |span: HandleSpan<AssignedOperation>| {
-            if span.is_empty() {
-                HandleSpan::empty()
-            } else {
-                HandleSpan::from_parts(
-                    Handle::from_parts(span.start().arena_index(), span.start().generation()),
-                    span.count(),
-                )
-            }
-        };
         let mut functions = Arena::with_capacity(plan.functions.len());
         for (_, function) in plan.functions.iter() {
             functions.insert(omega_target_operations::TargetOperationFunction {
                 symbol: Arc::clone(&function.symbol),
                 source_key: function.source_key,
-                instructions: remap_instruction_span(function.instructions),
+                instructions: target_operation_span_from_assigned(function.instructions),
             });
         }
 
