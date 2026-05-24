@@ -35,7 +35,13 @@ pub fn build_assigned_target_operations(
             source_statement: instruction.source_statement,
         });
     }
-    assigned_target_operations.operands = target_operations.operands.clone();
+    for (_, operand) in target_operations.operands.iter() {
+        assigned_target_operations
+            .operands
+            .insert(omega_assigned_target_operations::AssignedInstructionOperand {
+                kind: operand.kind.clone(),
+            });
+    }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
 
     let mut next_scratch_slot = 0u16;
