@@ -467,3 +467,47 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
     assert!(combined.contains("statement 1 mutates `Main::main.value` while local borrow `alias` is still active"));
     assert!(combined.contains("borrowed at statement 0"));
 }
+
+#[test]
+fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
+    let source = r#"
+        data Main {
+            value: i32;
+            other: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let alias: &mut i32 = &mut self.value;
+            alias = &mut self.other;
+            self.use_value(&mut self.value);
+        }
+
+        machine Main::use_value(&mut self, value: &mut i32) {
+            value = 1;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("reassigned local alias should no longer block later direct mutable borrow");
+}
