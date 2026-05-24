@@ -1,3 +1,6 @@
+use crate::RuntimeStorageRegion;
+use crate::TargetDataObjectHandle;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionOperand {
     pub kind: InstructionOperandKind,
@@ -27,5 +30,3 @@ pub enum InstructionOperandKind {
     ImmediateInteger(i64),
     ByteLength(usize),
 }
-use crate::RuntimeStorageRegion;
-use crate::TargetDataObjectHandle;

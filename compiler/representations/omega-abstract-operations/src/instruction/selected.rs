@@ -1,11 +1,27 @@
-use crate::{InstructionOperand, TargetDataObjectHandle};
-use crate::{StateGuardLowering, StateGuardOperator};
+use crate::{InstructionOperand, StateGuardLowering, StateGuardOperator, TargetDataObjectHandle};
 use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
 
 pub type RuntimeValueOperandHandle = Handle<RuntimeValueOperand>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionInstructionPlan {
+    pub symbol: Arc<str>,
+    pub source_key: StateKey,
+    pub instructions: HandleSpan<SelectedInstruction>,
+}
+
+impl Default for FunctionInstructionPlan {
+    fn default() -> Self {
+        Self {
+            symbol: Arc::from(""),
+            source_key: StateKey::default(),
+            instructions: HandleSpan::empty(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstruction {
