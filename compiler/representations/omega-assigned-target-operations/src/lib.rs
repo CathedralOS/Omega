@@ -153,7 +153,6 @@ pub struct AssignedTargetOperationPlan {
     pub instructions: Arena<AssignedOperation>,
     pub operands: Arena<AssignedInstructionOperand>,
     pub runtime_value_operands: Arena<AssignedValueOperand>,
-    target_runtime_value_operands: Arena<omega_target_operations::TargetValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
 }
 
@@ -178,7 +177,6 @@ impl AssignedTargetOperationPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
-            target_runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::with_capacity(host_binding_capacity),
         }
     }
@@ -229,23 +227,21 @@ impl AssignedTargetOperationPlan {
             .map(|(handle, operand)| (target_value_handle(handle), operand))
     }
 
-    pub fn target_runtime_value_operands(
-        &self,
-    ) -> &Arena<omega_target_operations::TargetValueOperand> {
-        &self.target_runtime_value_operands
-    }
-
-    pub fn set_target_runtime_value_operands(
-        &mut self,
-        operands: Arena<omega_target_operations::TargetValueOperand>,
-    ) {
-        self.target_runtime_value_operands = operands;
-    }
-
     pub fn scratch_home_count(&self) -> usize {
         self.runtime_values_with_homes()
             .filter(|(_, operand)| matches!(operand.home, AssignedValueHomeKind::ScratchRegister { .. }))
             .count()
+    }
+}
+
+impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperationPlan {
+    fn runtime_value_operand(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> &omega_target_operations::RuntimeValueOperand {
+        &AssignedTargetOperationPlan::runtime_value_operand(self, handle)
+            .expect("assigned runtime value operand should exist for target-runtime lookup")
+            .kind
     }
 }
 
@@ -299,10 +295,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
         }
 
         let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
-        let mut target_runtime_value_operands =
-            Arena::with_capacity(plan.runtime_value_operands.len());
         for (_, operand) in plan.runtime_value_operands.iter() {
-            target_runtime_value_operands.insert(operand.clone());
             runtime_value_operands.insert(AssignedValueOperand {
                 kind: operand.clone(),
                 home: AssignedValueHomeKind::Immediate,
@@ -315,7 +308,6 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             instructions,
             operands: plan.operands,
             runtime_value_operands,
-            target_runtime_value_operands,
             host_bindings: plan.host_bindings,
         }
     }
@@ -341,12 +333,17 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             });
         }
 
+        let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
+        for (_, operand) in plan.runtime_value_operands.iter() {
+            runtime_value_operands.insert(operand.kind.clone());
+        }
+
         Self {
             target: plan.target,
             functions,
             instructions,
             operands: plan.operands,
-            runtime_value_operands: plan.target_runtime_value_operands,
+            runtime_value_operands,
             host_bindings: plan.host_bindings,
         }
     }

@@ -1,5 +1,5 @@
 use crate::{RuntimeStorageRegion, StateGuardOperator};
-use omega_core::arena::Handle;
+use omega_core::arena::{Arena, Handle};
 
 pub type TargetValueOperandHandle = Handle<TargetValueOperand>;
 pub type RuntimeValueOperandHandle = TargetValueOperandHandle;
@@ -32,6 +32,16 @@ pub enum TargetValueOperand {
 }
 
 pub type RuntimeValueOperand = TargetValueOperand;
+
+pub trait RuntimeValueOperandSource {
+    fn runtime_value_operand(&self, handle: RuntimeValueOperandHandle) -> &RuntimeValueOperand;
+}
+
+impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
+    fn runtime_value_operand(&self, handle: RuntimeValueOperandHandle) -> &RuntimeValueOperand {
+        self.get(handle)
+    }
+}
 
 impl Default for TargetValueOperand {
     fn default() -> Self {
