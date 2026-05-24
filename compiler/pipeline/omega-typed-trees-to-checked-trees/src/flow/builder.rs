@@ -437,13 +437,23 @@ fn propagate_statement_transfers(
                     (source_place.is_some_and(|source_place| {
                         semantic.places_match(program, fact_place, source_place)
                     }) || fact_label == source_label)
-                        .then_some((domain, domain_symbol))
+                        .then_some(FactPayload::DomainMembership {
+                            value: ExpressionHandle::invalid(),
+                            domain,
+                            domain_symbol,
+                        })
+                }
+                FactPayload::BooleanExpression(expression)
+                | FactPayload::ContractBooleanExpression { expression, .. } => {
+                    (program.expression_table.display_name(expression) == source_label).then_some(
+                        FactPayload::BooleanExpression(expression),
+                    )
                 }
                 _ => None,
             })
             .collect();
 
-        for (domain, domain_symbol) in facts_to_transfer {
+        for payload in facts_to_transfer {
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(target_place),
                 point: ProgramPoint::Statement {
@@ -452,11 +462,7 @@ fn propagate_statement_transfers(
                     statement_index,
                 },
                 origin: FactOrigin::StatementTransfer,
-                payload: FactPayload::DomainMembership {
-                    value: ExpressionHandle::invalid(),
-                    domain,
-                    domain_symbol,
-                },
+                payload,
             });
             semantic.append_ref(&mut refs, fact);
         }

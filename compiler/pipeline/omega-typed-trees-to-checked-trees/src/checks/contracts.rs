@@ -149,9 +149,17 @@ fn semantic_contexts_prove_contract_fact(
             omega_checked_trees::expression::ExpressionNode::Boolean(true)
         ) || entry_contexts.iter().any(|entry_context| {
             let context = semantic.contexts.get(*entry_context);
-            semantic
-                .context_view(context)
-                .proves_boolean_expression_in_program(program, expression)
+            semantic.context_view(context).proves_boolean_expression_for_place_in_program(
+                program,
+                expression,
+                match fact.place {
+                    FactPlace::Place(place) => Some(place),
+                    FactPlace::Unknown
+                    | FactPlace::Symbol(_)
+                    | FactPlace::Expression(_)
+                    | FactPlace::TypeReference(_) => None,
+                },
+            )
         }),
         _ => true,
     }
