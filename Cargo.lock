@@ -210,6 +210,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-state-graph",
 ]
 
@@ -273,6 +274,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-typed-trees",
 ]
 
@@ -681,6 +683,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-effects",
+ "omega-facts",
  "omega-typed-trees",
 ]
 

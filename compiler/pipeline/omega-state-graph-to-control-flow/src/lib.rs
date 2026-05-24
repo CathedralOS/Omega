@@ -31,6 +31,7 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
         contract_calls: remap_contract_calls(state_graph),
         contract_exits: remap_contract_exits(state_graph),
         borrow_writable_roots: remap_borrow_writable_roots(state_graph),
+        borrow_access_segments: state_graph.borrow_access_segments.clone(),
         borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
         borrow_calls: remap_borrow_calls(state_graph),
         operations: remap_operations(state_graph),
@@ -54,6 +55,7 @@ pub fn build_control_flow_plan_owned(
         contract_calls,
         contract_exits,
         borrow_writable_roots,
+        borrow_access_segments,
         borrow_argument_accesses,
         borrow_calls,
         operations,
@@ -73,6 +75,7 @@ pub fn build_control_flow_plan_owned(
         contract_calls: contract_calls.map(remap_contract_call_owned),
         contract_exits: contract_exits.map(remap_contract_exit_owned),
         borrow_writable_roots: borrow_writable_roots.map(remap_borrow_writable_root_owned),
+        borrow_access_segments,
         borrow_argument_accesses: borrow_argument_accesses.map(remap_borrow_argument_access_owned),
         borrow_calls: borrow_calls.map(remap_borrow_call_owned),
         operations: operations.map(remap_operation_owned),
@@ -492,6 +495,7 @@ fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrow
     for (_, access) in state_graph.borrow_argument_accesses.iter() {
         accesses.append(StateBorrowArgumentAccess {
             root_symbol: access.root_symbol,
+            segments: access.segments,
             kind: match access.kind {
                 omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
                 omega_state_graph::StateBorrowAccessKind::Mutable => StateBorrowAccessKind::Mutable,
@@ -507,6 +511,7 @@ fn remap_borrow_argument_access_owned(
 ) -> StateBorrowArgumentAccess {
     StateBorrowArgumentAccess {
         root_symbol: access.root_symbol,
+        segments: access.segments,
         kind: match access.kind {
             omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
             omega_state_graph::StateBorrowAccessKind::Mutable => StateBorrowAccessKind::Mutable,

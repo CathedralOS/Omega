@@ -22,7 +22,7 @@ pub(crate) struct CanonicalPlace {
 }
 
 impl CanonicalPlace {
-    fn extend_segments(&mut self, segments: &[omega_facts::PlaceSegment]) {
+    pub(crate) fn extend_segments(&mut self, segments: &[omega_facts::PlaceSegment]) {
         self.segments.extend(segments.iter().copied());
     }
 }

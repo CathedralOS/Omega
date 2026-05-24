@@ -25,6 +25,7 @@ pub struct StateGraph {
     pub contract_calls: Arena<StateContractCall>,
     pub contract_exits: Arena<StateContractExit>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
+    pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub borrow_calls: Arena<StateBorrowCall>,
     pub operations: Arena<Operation>,
@@ -45,6 +46,7 @@ impl StateGraph {
         contract_call_capacity: usize,
         contract_exit_capacity: usize,
         borrow_writable_root_capacity: usize,
+        borrow_access_segment_capacity: usize,
         borrow_argument_access_capacity: usize,
         borrow_call_capacity: usize,
         operation_capacity: usize,
@@ -63,6 +65,7 @@ impl StateGraph {
             contract_calls: Arena::with_capacity(contract_call_capacity),
             contract_exits: Arena::with_capacity(contract_exit_capacity),
             borrow_writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
+            borrow_access_segments: Arena::with_capacity(borrow_access_segment_capacity),
             borrow_argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),
             borrow_calls: Arena::with_capacity(borrow_call_capacity),
             operations: Arena::with_capacity(operation_capacity),
@@ -360,6 +363,7 @@ pub enum StateBorrowAccessKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowArgumentAccess {
     pub root_symbol: SymbolHandle,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
     pub kind: StateBorrowAccessKind,
 }
 
