@@ -1,9 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
-use omega_calling_conventions::{
-    HostCapability, HostOperation, HostOperationKey, host_operation_fixed_leading_immediate,
-};
-use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind};
+use omega_calling_conventions::{HostCapability, HostOperation};
+use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
 
 use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
@@ -19,18 +17,18 @@ pub(super) fn select_host_operation_operands(
     host_call: &HostCall,
     dispatch_index: Option<u32>,
     alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
-    operation_key: HostOperationKey,
+    operation: &LoweredHostOperation,
     operands: &mut Arena<InstructionOperand>,
 ) -> HandleSpan<InstructionOperand> {
-    if let Some(value) = host_operation_fixed_leading_immediate(input.host_abi, operation_key) {
+    if let Some(value) = operation.fixed_leading_immediate {
         return operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
             value,
         ))]);
     }
 
     match (
-        operation_key.capability,
-        operation_key.operation,
+        operation.operation_key.capability,
+        operation.operation_key.operation,
     ) {
         (HostCapability::Stdin, HostOperation::Read | HostOperation::ReadFile) => {
             let data_object_handle = find_data_object(input, host_call);
@@ -39,7 +37,7 @@ pub(super) fn select_host_operation_operands(
             };
             let byte_count = data_object_byte_count(input, data_object_handle);
 
-            if operation_key.operation == HostOperation::Read {
+            if operation.operation_key.operation == HostOperation::Read {
                 return operands.insert_many([
                     operand(InstructionOperandKind::ImmediateInteger(0)),
                     operand(InstructionOperandKind::DataAddress {
@@ -62,7 +60,7 @@ pub(super) fn select_host_operation_operands(
             {
                 return stdout_operands(
                     operands,
-                    operation_key.operation,
+                    operation.operation_key.operation,
                     InstructionOperandKind::RuntimeStringPointer {
                         region: place.region,
                         byte_offset: place.byte_offset,
@@ -79,7 +77,7 @@ pub(super) fn select_host_operation_operands(
                 let byte_count = data_object_byte_count(input, direct_data_object);
                 return stdout_operands(
                     operands,
-                    operation_key.operation,
+                    operation.operation_key.operation,
                     InstructionOperandKind::DataAddress {
                         data: direct_data_object,
                     },
@@ -92,7 +90,7 @@ pub(super) fn select_host_operation_operands(
             {
                 return stdout_operands(
                     operands,
-                    operation_key.operation,
+                    operation.operation_key.operation,
                     InstructionOperandKind::DataAddress {
                         data: data_object_handle(input, data_object),
                     },

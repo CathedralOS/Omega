@@ -92,12 +92,14 @@ impl Default for HostCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredHostOperation {
     pub operation_key: HostOperationKey,
+    pub fixed_leading_immediate: Option<i64>,
 }
 
 impl Default for LoweredHostOperation {
     fn default() -> Self {
         Self {
             operation_key: HostOperationKey::default(),
+            fixed_leading_immediate: None,
         }
     }
 }
