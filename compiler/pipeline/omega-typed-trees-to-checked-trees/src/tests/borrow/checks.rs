@@ -250,6 +250,7 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(combined.contains("local borrow `alias` is still active"));
+    assert!(combined.contains("borrowed at statement 0"));
     assert!(combined.contains("its last use is at statement 2"));
     assert!(combined.contains("released at state exit"));
 }
@@ -313,6 +314,7 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(combined.contains("local borrow `alias` is still active"));
+    assert!(combined.contains("borrowed at statement 0"));
     assert!(combined.contains("its last use is at statement 2"));
     assert!(combined.contains("released at state exit"));
 }

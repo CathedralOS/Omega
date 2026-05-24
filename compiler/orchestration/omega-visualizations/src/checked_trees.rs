@@ -1291,6 +1291,11 @@ fn borrow_loan_label(
             }
         }
     }
+    label.push_str(" [created ");
+    label.push_str(&loan.statement_index.to_string());
+    label.push_str(", last use ");
+    label.push_str(&loan.last_use_statement_index.to_string());
+    label.push(']');
     label
 }
 

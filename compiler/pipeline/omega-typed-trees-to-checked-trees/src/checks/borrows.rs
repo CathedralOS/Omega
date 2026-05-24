@@ -144,6 +144,14 @@ fn call_borrow_constraints<'a>(
                 && call.receiver_symbol == borrow_call.receiver_symbol
         })
         .map(|call| call.entry_constraints)
+        .or_else(|| {
+            facts.flow
+                .statements
+                .span_or_empty(state_flow.statements)
+                .iter()
+                .find(|statement| statement.statement_index == borrow_call.statement_index)
+                .map(|statement| statement.entry_constraints)
+        })
         .unwrap_or(state_flow.entry_constraints)
 }
 
@@ -201,37 +209,38 @@ fn active_loan_detail(
         .and_then(|weakening| {
             let loan = facts.borrow.loans.get(loan);
             match (weakening.reason, weakening.source) {
-            (
-                omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
-                omega_checked_trees::FlowInvalidationSource::Statement {
-                    statement_index: weakening_statement,
-                },
-            ) if weakening_statement > statement_index => Some(format!(
-                "its last use is at statement {}",
-                loan.last_use_statement_index
-            )),
-            (
-                omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
-                omega_checked_trees::FlowInvalidationSource::Statement { .. },
-            ) if loan.last_use_statement_index > statement_index => Some(format!(
-                "its last use is at statement {} and it is released at state exit",
-                loan.last_use_statement_index
-            )),
-            (
-                omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
-                omega_checked_trees::FlowInvalidationSource::Statement { .. },
-            )
-            | (
-                omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
-                omega_checked_trees::FlowInvalidationSource::Statement { .. },
-            )
-            | (
-                omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
-                omega_checked_trees::FlowInvalidationSource::Call { .. },
-            )
-            | (
-                omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
-                omega_checked_trees::FlowInvalidationSource::Call { .. },
-            ) => None,
-        }})
+                (
+                    omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                    omega_checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: weakening_statement,
+                    },
+                ) if weakening_statement > statement_index => Some(format!(
+                    "borrowed at statement {}; its last use is at statement {}",
+                    loan.statement_index, loan.last_use_statement_index
+                )),
+                (
+                    omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    omega_checked_trees::FlowInvalidationSource::Statement { .. },
+                ) if loan.last_use_statement_index > statement_index => Some(format!(
+                    "borrowed at statement {}; its last use is at statement {} and it is released at state exit",
+                    loan.statement_index, loan.last_use_statement_index
+                )),
+                (
+                    omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                    omega_checked_trees::FlowInvalidationSource::Statement { .. },
+                )
+                | (
+                    omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    omega_checked_trees::FlowInvalidationSource::Statement { .. },
+                )
+                | (
+                    omega_checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                    omega_checked_trees::FlowInvalidationSource::Call { .. },
+                )
+                | (
+                    omega_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                    omega_checked_trees::FlowInvalidationSource::Call { .. },
+                ) => None,
+            }
+        })
 }
