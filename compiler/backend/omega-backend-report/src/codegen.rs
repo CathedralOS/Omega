@@ -2,6 +2,7 @@ use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
+use omega_core::arena::Handle;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
@@ -50,6 +51,23 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
         "instructions: {}\n",
         backend_plan.assigned_target_operations.instructions.len()
     ));
+    output.push_str(&format!(
+        "runtime value homes: {}\n",
+        backend_plan.assigned_target_operations.runtime_value_homes.len()
+    ));
+    let scratch_home_count = backend_plan
+        .assigned_target_operations
+        .runtime_value_homes
+        .iter()
+        .filter(|(_, home)| {
+            matches!(
+                home.kind,
+                omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }
+            )
+        })
+        .count();
+    output.push_str(&format!("scratch homes: {}\n", scratch_home_count));
+    write_assigned_value_homes(output, backend_plan);
     output.push('\n');
 
     output.push_str("## Machine Instructions\n");
@@ -96,6 +114,28 @@ fn write_target_data_object(
         source_name,
         data_object.source_statement
     ));
+}
+
+fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportInput<'_>) {
+    if backend_plan.assigned_target_operations.runtime_value_homes.is_empty() {
+        output.push_str("homes: none\n");
+        return;
+    }
+
+    output.push_str("homes:\n");
+    for (handle, home) in backend_plan.assigned_target_operations.runtime_value_homes.iter() {
+        let operand_handle = Handle::from_arena_index(handle.arena_index());
+        let operand = backend_plan
+            .assigned_target_operations
+            .runtime_value_operands
+            .get(operand_handle);
+        output.push_str(&format!(
+            "  - #{} {} => {}\n",
+            handle.arena_index(),
+            runtime_value_operand_name(backend_plan, operand_handle),
+            assigned_value_home_name(home.kind, operand)
+        ));
+    }
 }
 
 fn write_function_instruction_plan(
@@ -711,6 +751,50 @@ fn runtime_value_operand_name(
             runtime_value_operand_name(backend_plan, *left),
             runtime_value_operand_name(backend_plan, *right),
         ),
+    }
+}
+
+fn assigned_value_home_name(
+    home: omega_assigned_target_operations::AssignedValueHomeKind,
+    operand: &omega_target_operations::RuntimeValueOperand,
+) -> String {
+    match home {
+        omega_assigned_target_operations::AssignedValueHomeKind::Immediate => {
+            "immediate".to_owned()
+        }
+        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeStorage {
+            region,
+            byte_offset,
+            byte_size,
+        } => format!("storage {region:?}@{byte_offset}/{}", byte_size),
+        omega_assigned_target_operations::AssignedValueHomeKind::RuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "pointee frame@{pointer_byte_offset}+{field_byte_offset}/{}",
+            byte_size
+        ),
+        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "frame-indexed desc@{descriptor_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
+            byte_size
+        ),
+        omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister {
+            bank,
+            slot,
+        } => {
+            let source = match operand {
+                omega_target_operations::RuntimeValueOperand::Binary { .. } => "binary temp",
+                _ => "temp",
+            };
+            format!("{bank:?} register r{slot} ({source})")
+        }
     }
 }
 
