@@ -1,9 +1,9 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use crate::layout::LaidOutMachineInstruction;
+use omega_assigned_target_operations::{RuntimeValueOperandHandle, StateGuardOperator};
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_operations::{RuntimeValueOperandHandle, StateGuardOperator};
 
 fn validate_runtime_value_home(
     input: MachineEmissionContext<'_>,

@@ -3,9 +3,9 @@ use crate::branch_distances::{
     byte_distance_to_next_runtime_write_end, byte_distances_to_next_runtime_machine_write_end,
 };
 use crate::layout::LaidOutMachineInstruction;
+use omega_assigned_target_operations::RuntimeTextReadSource;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_operations::RuntimeTextReadSource;
 
 pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,
