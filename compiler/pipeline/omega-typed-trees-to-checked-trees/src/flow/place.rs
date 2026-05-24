@@ -13,7 +13,8 @@ pub(crate) use construction::{
     canonical_place_from_symbol,
 };
 pub(crate) use resolution::{
-    effective_member_symbol, expression_type_symbol, symbol_type_symbol,
+    effective_member_symbol, expression_type_symbol, resolve_member_symbol_from_type_symbol,
+    symbol_type_symbol,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

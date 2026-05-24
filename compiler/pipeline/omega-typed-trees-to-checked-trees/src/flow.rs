@@ -21,7 +21,8 @@ pub(crate) use place::{
     canonical_place_from_symbol,
     canonical_place_from_semantic_place, canonical_place_overlaps_joined_segments,
     canonical_place_overlaps_segments, canonical_place_segments_equal,
-    effective_member_symbol, expression_type_symbol, symbol_type_symbol, CanonicalPlace,
+    effective_member_symbol, expression_type_symbol, resolve_member_symbol_from_type_symbol,
+    symbol_type_symbol, CanonicalPlace,
 };
 use mutation::call_may_mutate_contract_state;
 pub(crate) use builder::build_flow_facts;
