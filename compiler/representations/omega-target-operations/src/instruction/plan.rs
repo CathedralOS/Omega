@@ -1,25 +1,25 @@
-use omega_abstract_operations::{
-    FunctionInstructionPlan, InstructionOperand, RuntimeValueOperand, SelectedInstruction,
-};
+use omega_abstract_operations::InstructionOperand;
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstructionPlan {
+pub struct TargetOperationPlan {
     pub target: NativeTarget,
-    pub functions: Arena<FunctionInstructionPlan>,
-    pub instructions: Arena<SelectedInstruction>,
+    pub functions: Arena<super::TargetOperationFunction>,
+    pub instructions: Arena<super::TargetOperation>,
     pub operands: Arena<InstructionOperand>,
-    pub runtime_value_operands: Arena<RuntimeValueOperand>,
+    pub runtime_value_operands: Arena<super::TargetValueOperand>,
 }
 
-impl Default for InstructionPlan {
+pub type InstructionPlan = TargetOperationPlan;
+
+impl Default for TargetOperationPlan {
     fn default() -> Self {
         Self::with_capacity(NativeTarget::host(), 0, 0, 0, 0)
     }
 }
 
-impl InstructionPlan {
+impl TargetOperationPlan {
     pub fn with_capacity(
         target: NativeTarget,
         function_capacity: usize,

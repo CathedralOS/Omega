@@ -36,7 +36,7 @@ use omega_state_schedule::{
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_operations::{InstructionPlan, TargetDataPlan};
+use omega_target_operations::{TargetDataPlan, TargetOperationPlan};
 
 use crate::host::host_call_display_name;
 
@@ -58,7 +58,7 @@ pub struct BackendReportInput<'plan> {
     pub state_values: &'plan StateValuePlan,
     pub data: &'plan TargetDataPlan,
     pub abstract_operations: &'plan AbstractOperationPlan,
-    pub target_operations: &'plan InstructionPlan,
+    pub target_operations: &'plan TargetOperationPlan,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub control_flow: &'plan ControlFlowPlan,
     pub runtime_flow: &'plan RuntimeFlowPlan,

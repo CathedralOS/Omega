@@ -21,8 +21,7 @@ use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_operations::InstructionPlan;
-use omega_target_operations::TargetDataPlan;
+use omega_target_operations::{TargetDataPlan, TargetOperationPlan};
 use std::sync::Arc;
 
 pub(super) struct BackendPlanSkeletonInput {
@@ -49,7 +48,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         state_values: StateValuePlan::default(),
         data: TargetDataPlan::default(),
         abstract_operations: AbstractOperationPlan::default(),
-        target_operations: InstructionPlan::default(),
+        target_operations: TargetOperationPlan::default(),
         assigned_target_operations: AssignedTargetOperationPlan::default(),
         control_flow: input.control_flow,
         runtime_flow: input.runtime_flow,
