@@ -1,6 +1,8 @@
-use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
+use omega_target_operations::{
+    RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    StateGuardOperator,
+};
 
 use super::primitives::{
     append_unsigned_immediate, append_unsigned_immediate_padded,
@@ -154,7 +156,7 @@ pub fn encode_runtime_storage_value_compare_bytes(
 }
 
 pub fn encode_runtime_value_compare(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
     byte_size: usize,
@@ -257,7 +259,7 @@ pub fn encode_runtime_pointee_integer_write(
 }
 
 pub fn encode_runtime_storage_binary_write(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
@@ -281,7 +283,7 @@ pub fn encode_runtime_storage_binary_write(
 }
 
 pub fn encode_runtime_pointee_binary_write(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -497,7 +499,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
 }
 
 pub fn encode_runtime_frame_indexed_binary_write(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
@@ -785,13 +787,13 @@ fn append_runtime_frame_index_target_address(
 }
 
 fn append_runtime_value_operand(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     bytes: &mut Vec<u8>,
     destination_register: u8,
     scratch_registers: &[u8],
     operand: RuntimeValueOperandHandle,
 ) -> Result<(), Diagnostic> {
-    match runtime_value_operands.get(operand) {
+    match runtime_value_operands.runtime_value_operand(operand) {
         RuntimeValueOperand::Immediate(value) => {
             let value = u64::try_from(*value).map_err(|_| {
                 Diagnostic::error(format!(

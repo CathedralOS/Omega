@@ -1,9 +1,10 @@
-use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
+use omega_target_operations::{
+    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
+};
 
 pub fn encode_runtime_storage_compare_bytes(
     architecture: Architecture,
@@ -47,7 +48,7 @@ pub fn encode_runtime_storage_value_compare_bytes(
 
 pub fn encode_runtime_value_compare(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
     byte_size: usize,
@@ -110,7 +111,7 @@ pub fn encode_runtime_pointee_integer_write(
 
 pub fn encode_runtime_storage_binary_write(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
@@ -139,7 +140,7 @@ pub fn encode_runtime_storage_binary_write(
 
 pub fn encode_runtime_pointee_binary_write(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -185,7 +186,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
 
 pub fn encode_runtime_frame_indexed_binary_write(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,

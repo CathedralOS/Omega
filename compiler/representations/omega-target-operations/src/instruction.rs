@@ -12,7 +12,8 @@ pub use selected::{
     TargetOperationFunction, TargetOperationKind,
 };
 pub use value::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, TargetValueOperand, TargetValueOperandHandle,
+    RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    TargetValueOperand, TargetValueOperandHandle,
 };
 pub type TargetHostBinding = HostBinding;
 

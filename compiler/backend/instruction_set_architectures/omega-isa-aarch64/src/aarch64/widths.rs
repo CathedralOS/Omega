@@ -1,7 +1,9 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
-use omega_core::arena::Arena;
-use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
+use omega_target_operations::{
+    RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    StateGuardOperator,
+};
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
     host_call_sequence_width_from_operands(operands.iter().copied())
@@ -80,7 +82,7 @@ pub fn runtime_storage_value_compare_width() -> usize {
 }
 
 pub fn runtime_value_compare_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
 ) -> usize {
@@ -180,7 +182,7 @@ pub fn runtime_pointee_integer_write_width(field_byte_offset: usize, byte_size: 
 }
 
 pub fn runtime_storage_binary_write_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
@@ -193,7 +195,7 @@ pub fn runtime_storage_binary_write_width(
 }
 
 pub fn runtime_pointee_binary_write_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
@@ -221,7 +223,7 @@ pub fn runtime_frame_indexed_integer_write_width(
 }
 
 pub fn runtime_frame_indexed_binary_write_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -393,10 +395,10 @@ fn runtime_storage_copy_data_width(
 }
 
 pub fn runtime_value_operand_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
-    match runtime_value_operands.get(operand) {
+    match runtime_value_operands.runtime_value_operand(operand) {
         RuntimeValueOperand::Immediate(value) => immediate_width(*value),
         RuntimeValueOperand::Storage { byte_size, .. } => 8 + runtime_load_data_width(*byte_size),
         RuntimeValueOperand::Pointee {

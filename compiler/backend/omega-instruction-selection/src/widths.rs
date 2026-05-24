@@ -1,12 +1,13 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
-use omega_core::arena::Arena;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperand;
-use omega_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
+use omega_target_operations::{
+    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
+};
 
 pub fn host_call_sequence_width(
     architecture: Architecture,
@@ -274,7 +275,7 @@ pub fn runtime_pointee_integer_write_width(
 
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
@@ -300,7 +301,7 @@ pub fn runtime_storage_binary_write_width(
 
 pub fn runtime_pointee_binary_write_width(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
@@ -332,7 +333,7 @@ pub fn runtime_pointee_operand_start_width(
 
 pub fn runtime_value_compare_width(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     _byte_size: usize,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
@@ -349,7 +350,7 @@ pub fn runtime_value_compare_width(
 
 pub fn runtime_value_operand_width(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
@@ -380,7 +381,7 @@ pub fn runtime_frame_indexed_integer_write_width(
 
 pub fn runtime_frame_indexed_binary_write_width(
     architecture: Architecture,
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,

@@ -1,9 +1,8 @@
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
-use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     InstructionOperand, InstructionOperandKind, RuntimeValueOperand, RuntimeValueOperandHandle,
-    StateGuardOperator,
+    RuntimeValueOperandSource, StateGuardOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -399,7 +398,7 @@ pub fn encode_runtime_text_literal_compare(
 }
 
 pub fn runtime_value_compare_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
 ) -> usize {
@@ -409,7 +408,7 @@ pub fn runtime_value_compare_width(
 }
 
 pub fn encode_runtime_value_compare(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
     byte_size: usize,
@@ -478,7 +477,7 @@ pub fn encode_runtime_storage_address_to_runtime_frame_write(
 }
 
 pub fn runtime_storage_binary_write_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
@@ -491,7 +490,7 @@ pub fn runtime_storage_binary_write_width(
 }
 
 pub fn encode_runtime_storage_binary_write(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
@@ -547,10 +546,10 @@ pub fn encode_runtime_storage_copy(
 }
 
 pub fn runtime_value_operand_width(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
 ) -> usize {
-    match runtime_value_operands.get(operand) {
+    match runtime_value_operands.runtime_value_operand(operand) {
         RuntimeValueOperand::Immediate(_) => 10,
         RuntimeValueOperand::Storage { byte_size, .. } => 10 + load_width(*byte_size),
         RuntimeValueOperand::Binary {
@@ -568,12 +567,12 @@ pub fn runtime_value_operand_width(
 }
 
 fn append_runtime_value_operand(
-    runtime_value_operands: &Arena<RuntimeValueOperand>,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     bytes: &mut Vec<u8>,
     destination: Reg64,
     operand: RuntimeValueOperandHandle,
 ) -> Result<(), Diagnostic> {
-    match runtime_value_operands.get(operand) {
+    match runtime_value_operands.runtime_value_operand(operand) {
         RuntimeValueOperand::Immediate(value) => {
             append_mov_reg_imm64(bytes, destination, *value as u64);
             Ok(())
