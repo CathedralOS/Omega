@@ -1,4 +1,5 @@
-use omega_machine_program::MachineInstructionKind;
+use omega_machine_instructions::MachineInstructionKind;
+
 pub(super) fn dispatch_loop_enter_kind(_entry_dispatch_index: u32) -> MachineInstructionKind {
     MachineInstructionKind::DispatchLoopEnter
 }
@@ -8,7 +9,7 @@ pub(super) fn dispatch_case_enter_kind(_dispatch_index: u32) -> MachineInstructi
 }
 
 pub(super) fn dispatch_guard_compare_static_kind(
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
     _byte_offset: usize,
     _byte_size: usize,
     _expected_value: i64,

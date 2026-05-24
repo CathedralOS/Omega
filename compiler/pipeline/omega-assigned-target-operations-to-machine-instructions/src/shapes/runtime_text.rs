@@ -1,4 +1,4 @@
-use omega_machine_program::MachineInstructionKind;
+use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn runtime_text_literal_compare_kind() -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralCompare
@@ -6,7 +6,7 @@ pub(super) fn runtime_text_literal_compare_kind() -> MachineInstructionKind {
 
 pub(super) fn runtime_text_storage_compare_kind(
     _source_offset: usize,
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextStorageCompare
 }

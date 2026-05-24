@@ -110,8 +110,6 @@ dependencies = [
  "omega-assigned-target-operations",
  "omega-core",
  "omega-machine-instructions",
- "omega-target-operations",
- "omega-target-operations-to-machine-program",
 ]
 
 [[package]]
@@ -852,9 +850,12 @@ dependencies = [
 name = "omega-target-operations-to-machine-program"
 version = "0.1.0"
 dependencies = [
+ "omega-assigned-target-operations-to-machine-instructions",
  "omega-core",
+ "omega-machine-instructions",
  "omega-machine-program",
  "omega-target-operations",
+ "omega-target-operations-to-assigned-target-operations",
 ]
 
 [[package]]

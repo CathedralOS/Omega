@@ -1,9 +1,10 @@
-use omega_machine_program::MachineInstructionKind;
+use omega_machine_instructions::MachineInstructionKind;
+
 pub(super) fn runtime_storage_compare_kind(
     _left_offset: usize,
     _right_offset: usize,
     _byte_size: usize,
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageCompare
 }
@@ -12,7 +13,7 @@ pub(super) fn runtime_storage_value_compare_kind(
     _byte_offset: usize,
     _byte_size: usize,
     _expected_value: i64,
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageValueCompare
 }
@@ -45,7 +46,7 @@ pub(super) fn runtime_pointee_integer_write_kind(
 pub(super) fn runtime_storage_binary_write_kind(
     _target_offset: usize,
     _byte_size: usize,
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageBinaryWrite
 }
@@ -54,7 +55,7 @@ pub(super) fn runtime_pointee_binary_write_kind(
     _pointer_byte_offset: usize,
     _field_byte_offset: usize,
     _byte_size: usize,
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimePointeeBinaryWrite
 }
@@ -76,7 +77,7 @@ pub(super) fn runtime_frame_indexed_binary_write_kind(
     _element_byte_size: usize,
     _field_byte_offset: usize,
     _byte_size: usize,
-    _operator: omega_target_operations::StateGuardOperator,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
 }

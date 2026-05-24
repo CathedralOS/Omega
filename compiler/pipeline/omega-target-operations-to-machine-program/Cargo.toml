@@ -9,6 +9,9 @@ name = "omega_target_operations_to_machine_program"
 path = "src/lib.rs"
 
 [dependencies]
+omega-assigned-target-operations-to-machine-instructions = { path = "../omega-assigned-target-operations-to-machine-instructions" }
 omega-core = { path = "../../foundation/omega-core" }
+omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
+omega-target-operations-to-assigned-target-operations = { path = "../omega-target-operations-to-assigned-target-operations" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }

@@ -3,9 +3,11 @@ mod host;
 mod runtime_storage;
 mod runtime_text;
 
+use omega_assigned_target_operations::{
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_program::MachineInstructionKind;
-use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
+use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn lower_machine_instruction_kind(
     kind: &SelectedInstructionKind,
@@ -41,6 +43,7 @@ pub(super) fn lower_machine_instruction_kind(
             *byte_size,
             *expected_value,
         ),
+        SelectedInstructionKind::EvaluateDispatchGuard { .. } => MachineInstructionKind::NoOp,
         SelectedInstructionKind::CompareRuntimeTextLiteral { .. } => {
             runtime_text::runtime_text_literal_compare_kind()
         }
@@ -287,6 +290,7 @@ pub(super) fn lower_machine_instruction_kind(
             pointer_byte_offset,
             field_byte_offset,
             target_offset,
+            ..
         } => runtime_storage::runtime_pointee_address_to_runtime_frame_write_kind(
             *pointer_byte_offset,
             *field_byte_offset,
@@ -302,9 +306,11 @@ pub(super) fn lower_machine_instruction_kind(
             target_offset,
             byte_count,
             ..
-        } => {
-            runtime_storage::runtime_storage_copy_kind(*source_offset, *target_offset, *byte_count)
-        }
+        } => runtime_storage::runtime_storage_copy_kind(
+            *source_offset,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
             source_offset,
             descriptor_offset,
@@ -328,6 +334,7 @@ pub(super) fn lower_machine_instruction_kind(
             field_byte_offset,
             target_offset,
             byte_count,
+            ..
         } => runtime_storage::runtime_storage_copy_from_runtime_frame_indexed_kind(
             *descriptor_offset,
             *index_offset,
@@ -343,6 +350,7 @@ pub(super) fn lower_machine_instruction_kind(
             field_byte_offset,
             target_offset,
             byte_count,
+            ..
         } => runtime_storage::runtime_storage_copy_from_runtime_frame_fixed_indexed_kind(
             *descriptor_offset,
             *element_index,
@@ -373,7 +381,6 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::LeaveDispatchCase => dispatch::dispatch_case_leave_kind(),
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),
         SelectedInstructionKind::EnterFunction
-        | SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall => MachineInstructionKind::NoOp,
     })
