@@ -1,11 +1,10 @@
-use events::event_runtime;
+use events::events;
 use player::player_state;
 use rooms::map;
 use rooms::room_lookup;
 use rooms::rooms;
 
 data RoomFormatter {
-    events: EventRuntime;
     lookup: RoomLookup;
 }
 
@@ -15,7 +14,9 @@ machine RoomFormatter::write_current_cell(
     cell: CellId,
     out_line: &mut String
 ) {
-    out_line = "Room Branch Room";
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    out_line = "Room " + room.label;
 }
 
 machine RoomFormatter::write_room_info(
@@ -24,7 +25,9 @@ machine RoomFormatter::write_room_info(
     cell: CellId,
     out_line: &mut String
 ) {
-    out_line = "A bottomless dark room near the dungeon heart.";
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    out_line = room.description;
 }
 
 machine RoomFormatter::write_room_event(
@@ -33,7 +36,51 @@ machine RoomFormatter::write_room_event(
     cell: CellId,
     out_line: &mut String
 ) {
-    out_line = "Something stirs here. Try look, use, or fight.";
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+
+    -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
+    -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
+    -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
+    -> describe_enemy(room.event.enemy.name, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
+    -> quiet_room(out_line);
+
+
+    state describe_fountain(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "A fountain of life glows here. Type use to drink.";
+    }
+
+    state describe_treasure(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "A treasure cache rests against the wall. Type use to claim it.";
+    }
+
+    state describe_gold(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Loose gold glitters in the dust. Type use to collect it.";
+    }
+
+    state describe_enemy(
+        &mut self,
+        enemy_name: String,
+        out_line: &mut String
+    ) {
+        out_line = enemy_name + " blocks the way. Type fight.";
+    }
+
+    state quiet_room(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "The room is quiet.";
+    }
 }
 
 machine RoomFormatter::write_adjacent_rooms(
@@ -42,22 +89,77 @@ machine RoomFormatter::write_adjacent_rooms(
     cell: CellId,
     out_line: &mut String
 ) {
-    -> north_path(out_line) when cell == CellId::R00;
-    -> south_path(out_line) when cell == CellId::R01;
+    let room: Room;
+    let exits: &[Exit];
+    self.lookup.find_room(level, cell, &mut room);
+    exits = room.exits.as_slice();
 
-
-    state north_path(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Paths: north. Commands: look | inventory | character | use | fight | quit";
+    transition room.exit_count {
+        0 -> no_paths(out_line)
+        1 -> one_path(exits[0], out_line)
+        2 -> two_paths(exits[0], exits[1], out_line)
+        3 -> three_paths(exits[0], exits[1], exits[2], out_line)
+        _ -> four_paths(exits[0], exits[1], exits[2], exits[3], out_line)
     }
 
-    state south_path(
+
+    state one_path(
         &mut self,
+        first: Exit,
         out_line: &mut String
     ) {
-        out_line = "Paths: south. Commands: look | inventory | character | use | fight | quit";
+        out_line = "Paths: " + first.command + ". Commands: look | inventory | character | use | fight | quit";
+    }
+
+    state two_paths(
+        &mut self,
+        first: Exit,
+        second: Exit,
+        out_line: &mut String
+    ) {
+        out_line =
+            "Paths: "
+            + first.command
+            + ", "
+            + second.command
+            + ". Commands: look | inventory | character | use | fight | quit";
+    }
+
+    state three_paths(
+        &mut self,
+        first: Exit,
+        second: Exit,
+        third: Exit,
+        out_line: &mut String
+    ) {
+        out_line =
+            "Paths: "
+            + first.command
+            + ", "
+            + second.command
+            + ", "
+            + third.command
+            + ". Commands: look | inventory | character | use | fight | quit";
+    }
+
+    state four_paths(
+        &mut self,
+        first: Exit,
+        second: Exit,
+        third: Exit,
+        fourth: Exit,
+        out_line: &mut String
+    ) {
+        out_line =
+            "Paths: "
+            + first.command
+            + ", "
+            + second.command
+            + ", "
+            + third.command
+            + ", "
+            + fourth.command
+            + ". Commands: look | inventory | character | use | fight | quit";
     }
 
     state no_paths(
@@ -73,8 +175,22 @@ machine RoomFormatter::write_inventory(
     player: Player,
     out_line: &mut String
 ) {
-    out_line = "Inventory: a few coins and useful gear.";
+    transition player.inventory.gold >= 20 {
+        true -> wealthy_inventory(out_line)
+        false -> inventory_items(player, out_line)
+    }
 
+
+    state inventory_items(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.inventory.item_count > 0 {
+            true -> stocked_inventory(out_line)
+            false -> light_inventory(out_line)
+        }
+    }
 
     state wealthy_inventory(
         &mut self,
@@ -103,8 +219,22 @@ machine RoomFormatter::write_character(
     player: Player,
     out_line: &mut String
 ) {
-    out_line = "Character: ready for trouble.";
+    transition player.health * 2 <= player.max_health {
+        true -> wounded_character(out_line)
+        false -> character_experience(player, out_line)
+    }
 
+
+    state character_experience(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.level >= 3 {
+            true -> seasoned_character(out_line)
+            false -> ready_character(out_line)
+        }
+    }
 
     state wounded_character(
         &mut self,
