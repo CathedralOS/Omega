@@ -506,6 +506,7 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target",
+ "omega-target-operations",
 ]
 
 [[package]]
