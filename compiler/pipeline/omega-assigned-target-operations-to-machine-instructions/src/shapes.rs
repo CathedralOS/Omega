@@ -414,9 +414,12 @@ fn ensure_runtime_value_homes(
             .expect("validated assigned runtime value home should exist");
 
         if matches!(
-            assigned_target_operations.runtime_value_operands.get(handle),
+            assigned_target_operations
+                .runtime_value_operand(handle)
+                .expect("validated assigned runtime value operand should exist")
+                .kind,
             omega_assigned_target_operations::RuntimeValueOperand::Binary { .. }
-        ) && !matches!(home.kind, AssignedValueHomeKind::ScratchRegister { .. })
+        ) && !matches!(home, AssignedValueHomeKind::ScratchRegister { .. })
         {
             return Err(Diagnostic::error(format!(
                 "binary runtime value {:?} in {:?} statement {} must lower through a scratch register home",

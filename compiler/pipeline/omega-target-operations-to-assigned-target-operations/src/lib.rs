@@ -1,6 +1,6 @@
 use omega_assigned_target_operations::{
     AssignedOperation, AssignedRegisterBank, AssignedRegisterName, AssignedTargetOperationPlan,
-    AssignedValueHome, AssignedValueHomeKind, X86_64AssignedRegister,
+    AssignedValueHomeKind, AssignedValueOperand, X86_64AssignedRegister,
     assigned_operation_span_from_target,
 };
 use omega_target::Architecture;
@@ -16,7 +16,6 @@ pub fn build_assigned_target_operations(
         target_operations.operands.len(),
         target_operations.runtime_value_operands.len(),
         target_operations.host_bindings.len(),
-        target_operations.runtime_value_operands.len(),
     );
 
     for (_, function) in target_operations.functions.iter() {
@@ -37,7 +36,7 @@ pub fn build_assigned_target_operations(
         });
     }
     assigned_target_operations.operands = target_operations.operands.clone();
-    assigned_target_operations.runtime_value_operands = target_operations.runtime_value_operands.clone();
+    assigned_target_operations.target_runtime_value_operands = target_operations.runtime_value_operands.clone();
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
 
     let mut next_scratch_slot = 0u16;
@@ -98,8 +97,11 @@ pub fn build_assigned_target_operations(
         };
 
         assigned_target_operations
-            .runtime_value_homes
-            .insert(AssignedValueHome { kind });
+            .runtime_value_operands
+            .insert(AssignedValueOperand {
+                kind: operand.clone(),
+                home: kind,
+            });
     }
 
     assigned_target_operations

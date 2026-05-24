@@ -15,11 +15,14 @@ fn validate_runtime_value_home(
             operand.arena_index()
         )));
     };
-    let runtime_value = input.assigned_target_operations.runtime_value_operands.get(operand);
-    match runtime_value {
+    let runtime_value = input
+        .assigned_target_operations
+        .runtime_value_operand(operand)
+        .expect("assigned runtime value operand should exist after home validation");
+    match &runtime_value.kind {
         RuntimeValueOperand::Immediate(_) => {
             if !matches!(
-                home.kind,
+                home,
                 omega_assigned_target_operations::AssignedValueHomeKind::Immediate
             ) {
                 return Err(Diagnostic::error(
@@ -34,7 +37,7 @@ fn validate_runtime_value_home(
         } => match region {
             omega_target_operations::RuntimeStorageRegion::Machine => {
                 if !matches!(
-                    home.kind,
+                    home,
                     omega_assigned_target_operations::AssignedValueHomeKind::RuntimeStorage {
                         region: omega_target_operations::RuntimeStorageRegion::Machine,
                         byte_offset: home_offset,
@@ -48,7 +51,7 @@ fn validate_runtime_value_home(
             }
             omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
                 if !matches!(
-                    home.kind,
+                    home,
                     omega_assigned_target_operations::AssignedValueHomeKind::StackSlot {
                         byte_offset: home_offset,
                         byte_size: home_size,
@@ -66,7 +69,7 @@ fn validate_runtime_value_home(
             byte_size,
         } => {
             if !matches!(
-                home.kind,
+                home,
                 omega_assigned_target_operations::AssignedValueHomeKind::RuntimePointee {
                     pointer_byte_offset: home_pointer,
                     field_byte_offset: home_field,
@@ -88,7 +91,7 @@ fn validate_runtime_value_home(
             byte_size,
         } => {
             if !matches!(
-                home.kind,
+                home,
                 omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameIndexed {
                     descriptor_offset: home_descriptor,
                     index_offset: home_index,
@@ -108,7 +111,7 @@ fn validate_runtime_value_home(
         }
         RuntimeValueOperand::Binary { .. } => {
             if !matches!(
-                home.kind,
+                home,
                 omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }
                     | omega_assigned_target_operations::AssignedValueHomeKind::StackSlot { .. }
             ) {
@@ -135,7 +138,7 @@ pub(super) fn encode_runtime_value_compare(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_value_compare(
         input.target.architecture,
-        &input.assigned_target_operations.runtime_value_operands,
+        &input.assigned_target_operations.target_runtime_value_operands,
         left,
         right,
         byte_size,
@@ -190,7 +193,7 @@ pub(super) fn encode_runtime_storage_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_storage_binary_write(
         input.target.architecture,
-        &input.assigned_target_operations.runtime_value_operands,
+        &input.assigned_target_operations.target_runtime_value_operands,
         target_offset,
         byte_size,
         left,
@@ -212,7 +215,7 @@ pub(super) fn encode_runtime_pointee_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_pointee_binary_write(
         input.target.architecture,
-        &input.assigned_target_operations.runtime_value_operands,
+        &input.assigned_target_operations.target_runtime_value_operands,
         pointer_byte_offset,
         field_byte_offset,
         byte_size,
@@ -257,7 +260,7 @@ pub(super) fn encode_runtime_frame_indexed_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_frame_indexed_binary_write(
         input.target.architecture,
-        &input.assigned_target_operations.runtime_value_operands,
+        &input.assigned_target_operations.target_runtime_value_operands,
         descriptor_offset,
         index_offset,
         element_byte_size,

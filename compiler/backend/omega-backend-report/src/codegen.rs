@@ -2,7 +2,7 @@ use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
-use omega_assigned_target_operations::{RuntimeTextReadSource, RuntimeValueOperand};
+use omega_assigned_target_operations::{AssignedValueOperand, RuntimeTextReadSource, RuntimeValueOperand};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
@@ -136,7 +136,7 @@ fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportI
     }
 
     output.push_str("homes:\n");
-    for (operand_handle, operand, home) in backend_plan
+    for (operand_handle, operand) in backend_plan
         .assigned_target_operations
         .runtime_values_with_homes()
     {
@@ -144,7 +144,7 @@ fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportI
             "  - #{} {} => {}\n",
             operand_handle.arena_index(),
             runtime_value_operand_name(backend_plan, operand_handle),
-            assigned_value_home_name(home.kind, operand)
+            assigned_value_home_name(operand)
         ));
     }
 }
@@ -731,10 +731,11 @@ fn runtime_value_operand_name(
     backend_plan: &BackendReportInput<'_>,
     operand: RuntimeValueOperandHandle,
 ) -> String {
-    match backend_plan
+    match &backend_plan
         .assigned_target_operations
-        .runtime_value_operands
-        .get(operand)
+        .runtime_value_operand(operand)
+        .expect("assigned runtime value operand should exist while reporting backend state")
+        .kind
     {
         RuntimeValueOperand::Immediate(value) => value.to_string(),
         RuntimeValueOperand::Storage {
@@ -774,11 +775,8 @@ fn runtime_value_operand_name(
     }
 }
 
-fn assigned_value_home_name(
-    home: omega_assigned_target_operations::AssignedValueHomeKind,
-    operand: &RuntimeValueOperand,
-) -> String {
-    match home {
+fn assigned_value_home_name(operand: &AssignedValueOperand) -> String {
+    match operand.home {
         omega_assigned_target_operations::AssignedValueHomeKind::Immediate => {
             "immediate".to_owned()
         }
@@ -813,7 +811,7 @@ fn assigned_value_home_name(
             bank,
             name,
         } => {
-            let source = match operand {
+            let source = match operand.kind {
                 RuntimeValueOperand::Binary { .. } => "binary temp",
                 _ => "temp",
             };
