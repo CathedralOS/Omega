@@ -137,6 +137,13 @@ fn find_call_site_in_transition_target<'program>(
 ) -> Option<CallSite<'program>> {
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Named { arguments, .. } => {
+            if current_statement_index == target_statement_index
+                && *current_ordinal == target_call_ordinal
+            {
+                return Some(CallSite::TransitionNamed(*arguments));
+            }
+            *current_ordinal = current_ordinal.saturating_add(1);
+
             for argument in program.statement_table.expression_handles(*arguments) {
                 if let Some(call_site) = find_call_site_in_expression(
                     program,

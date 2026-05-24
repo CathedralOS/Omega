@@ -137,13 +137,27 @@ fn collect_read_accesses(
                 machine_symbol,
             );
         }
-        ExpressionNode::Member(member) => collect_read_accesses(
-            member.receiver,
-            expressions,
-            argument_accesses,
-            accesses,
-            machine_symbol,
-        ),
+        ExpressionNode::Member(member) => {
+            if let Some(root_symbol) =
+                expression_root_symbol(expression, expressions, machine_symbol)
+            {
+                argument_accesses.append_to_span(
+                    accesses,
+                    BorrowArgumentAccessFact {
+                        root_symbol,
+                        kind: BorrowAccessKind::Read,
+                    },
+                );
+            } else {
+                collect_read_accesses(
+                    member.receiver,
+                    expressions,
+                    argument_accesses,
+                    accesses,
+                    machine_symbol,
+                );
+            }
+        }
         ExpressionNode::Name(path) => {
             if let Some(root_symbol) = first_valid_name_path_symbol(path, expressions) {
                 argument_accesses.append_to_span(

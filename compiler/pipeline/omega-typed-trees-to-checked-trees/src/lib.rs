@@ -48,7 +48,7 @@ pub fn lower_typed_trees(
         effects,
         flow,
     };
-    checks::check_flow_call_contracts(&program, &facts)?;
+    checks::check_checked_facts(&program, &facts)?;
 
     Ok(Program {
         typed: program,
