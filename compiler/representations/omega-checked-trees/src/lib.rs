@@ -575,6 +575,17 @@ impl FlowFacts {
                 | FlowConstraintKind::BorrowAccess { .. } => None,
             })
     }
+
+    pub fn state_statement(
+        &self,
+        state: &FlowStateFact,
+        statement_index: usize,
+    ) -> Option<&FlowStatementFact> {
+        self.statements
+            .span_or_empty(state.statements)
+            .iter()
+            .find(|statement| statement.statement_index == statement_index)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
