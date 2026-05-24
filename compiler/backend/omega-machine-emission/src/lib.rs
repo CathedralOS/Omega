@@ -1,6 +1,6 @@
 use omega_calling_conventions::HostAbiPlan;
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
@@ -94,21 +94,15 @@ fn emit_function_bytes(
             continue;
         }
 
-        let selected_handle =
-            Handle::from_arena_index(machine_instruction.selected_instruction_index);
-        let selected_instruction = emission_context
-            .instructions
-            .instructions
-            .get(selected_handle);
         let byte_span = insert_encoded_machine_instruction(
             &mut encoded_plan.bytes,
             emission_context,
             &laid_out_instructions,
             machine_instruction_index,
-            &selected_instruction.kind,
+            &machine_instruction.source_kind,
         )?;
         if byte_span.len() != laid_out_instruction.byte_width {
-            let operand_note = match &selected_instruction.kind {
+            let operand_note = match &machine_instruction.source_kind {
                 SelectedInstructionKind::WriteRuntimeStorageBinary { left, right, .. }
                 | SelectedInstructionKind::WriteRuntimePointeeBinary { left, right, .. }
                 | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, right, .. } => {
@@ -129,7 +123,7 @@ fn emit_function_bytes(
             return Err(Diagnostic::error(format!(
                 "encoded instruction width mismatch for selected #{} ({:?} from {:?}): layout planned {} byte(s), encoder emitted {} byte(s){}",
                 machine_instruction.selected_instruction_index,
-                selected_instruction.kind,
+                machine_instruction.source_kind,
                 machine_instruction.kind,
                 laid_out_instruction.byte_width,
                 byte_span.len(),

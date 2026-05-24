@@ -25,12 +25,13 @@ use omega_instruction_selection::{
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct LaidOutMachineInstruction {
     pub selected_instruction_index: u32,
     pub offset: usize,
     pub byte_width: usize,
     pub kind: MachineInstructionKind,
+    pub source_kind: SelectedInstructionKind,
 }
 
 pub(crate) fn layout_machine_instructions(
@@ -41,17 +42,14 @@ pub(crate) fn layout_machine_instructions(
     let mut offset = 0usize;
 
     for machine_instruction in machine_instructions {
-        let selected_handle = omega_core::arena::Handle::from_arena_index(
-            machine_instruction.selected_instruction_index,
-        );
-        let selected_instruction = input.instructions.instructions.get(selected_handle);
-        let byte_width = machine_instruction_width(input, &selected_instruction.kind)?;
+        let byte_width = machine_instruction_width(input, &machine_instruction.source_kind)?;
 
         laid_out.push(LaidOutMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             offset,
             byte_width,
             kind: machine_instruction.kind,
+            source_kind: machine_instruction.source_kind.clone(),
         });
         offset += byte_width;
     }

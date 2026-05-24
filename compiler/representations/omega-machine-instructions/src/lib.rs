@@ -2,6 +2,7 @@ use omega_assigned_target_operations::AssignedValueHomeHandle;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
+use omega_target_operations::SelectedInstructionKind;
 use std::convert::Infallible;
 
 pub use omega_machine_program::MachineInstructionKind;
@@ -48,9 +49,10 @@ impl Default for MachineInstructionFunction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineInstruction {
     pub selected_instruction_index: u32,
+    pub source_kind: SelectedInstructionKind,
     pub kind: MachineInstructionKind,
     pub primary_home: AssignedValueHomeHandle,
     pub secondary_home: AssignedValueHomeHandle,
@@ -60,6 +62,7 @@ impl Default for MachineInstruction {
     fn default() -> Self {
         Self {
             selected_instruction_index: 0,
+            source_kind: SelectedInstructionKind::EnterFunction,
             kind: MachineInstructionKind::NoOp,
             primary_home: AssignedValueHomeHandle::invalid(),
             secondary_home: AssignedValueHomeHandle::invalid(),
@@ -81,6 +84,7 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
             let inserted = plan.instructions.try_insert_many(function_instructions.iter().map(
                 |instruction| Ok::<MachineInstruction, Infallible>(MachineInstruction {
                         selected_instruction_index: instruction.selected_instruction_index,
+                        source_kind: SelectedInstructionKind::EnterFunction,
                         kind: instruction.kind,
                         primary_home: AssignedValueHomeHandle::invalid(),
                         secondary_home: AssignedValueHomeHandle::invalid(),

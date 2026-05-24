@@ -2,7 +2,6 @@ use omega_core::diagnostics::Diagnostic;
 
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
-use omega_core::arena::Handle;
 use omega_machine_instructions::MachineInstructionKind;
 use omega_target_operations::SelectedInstructionKind;
 
@@ -97,7 +96,7 @@ pub(crate) fn byte_distance_to_dispatch_loop_start(
 }
 
 pub(crate) fn byte_distance_to_dispatch_loop_leave(
-    emission_context: MachineEmissionContext<'_>,
+    _emission_context: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
@@ -107,17 +106,7 @@ pub(crate) fn byte_distance_to_dispatch_loop_leave(
     let Some(loop_leave) = machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| {
-            let selected_handle = Handle::from_arena_index(instruction.selected_instruction_index);
-            matches!(
-                emission_context
-                    .instructions
-                    .instructions
-                    .get(selected_handle)
-                    .kind,
-                SelectedInstructionKind::LeaveDispatchLoop
-            )
-        })
+        .find(|instruction| matches!(instruction.source_kind, SelectedInstructionKind::LeaveDispatchLoop))
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode dispatch termination at byte {}: missing dispatch loop leave",

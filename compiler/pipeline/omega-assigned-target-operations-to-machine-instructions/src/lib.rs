@@ -61,6 +61,7 @@ fn append_machine_instructions(
 
             Ok(MachineInstruction {
                 selected_instruction_index,
+                source_kind: selected_instruction.kind.clone(),
                 kind: lower_machine_instruction_kind(
                     assigned_target_operations,
                     selected_instruction_handle,
