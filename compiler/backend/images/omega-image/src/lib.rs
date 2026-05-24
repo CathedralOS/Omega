@@ -8,7 +8,7 @@ pub use model::{
     FinalImageSymbol, FinalImageSymbolHandle,
 };
 use omega_core::arena::{Arena, Handle};
-use omega_object::{
+use omega_object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind, SymbolSection,
 };
 use omega_target::NativeTarget;

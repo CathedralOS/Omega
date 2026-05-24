@@ -24,7 +24,7 @@ omega-backend-pipeline = { path = "../omega-backend-pipeline" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-artifacts = { path = "../omega-artifacts" }
-omega-object = { path = "../../backend/object/omega-object" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }

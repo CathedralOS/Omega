@@ -14,7 +14,7 @@ use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
-use omega_object::{ObjectPlan, RelocationPlan};
+use omega_object_file::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::{
@@ -102,7 +102,7 @@ pub fn backend_report_text(
         "entry: {}.{} as `{}`\n\n",
         backend_plan.entry_machine_name(),
         backend_plan.entry_state_name(),
-        omega_object::object_entry_symbol_name(backend_plan.object)
+        omega_object_file::object_entry_symbol_name(backend_plan.object)
     ));
 
     stats::write_backend_phase_timings(&mut output, backend_plan);

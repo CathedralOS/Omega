@@ -13,8 +13,8 @@ use omega_data_planning::build_target_data_plan;
 use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
-use omega_object::object_entry_symbol_name;
-use omega_object_planning::{ObjectPlanningInput, build_object_plan};
+use omega_object_file::object_entry_symbol_name;
+use omega_object_file_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_runtime_bodies::{

@@ -1,6 +1,6 @@
 use crate::{FinalImage, FinalImageLayout, final_image_symbol_address, final_image_symbol_name};
 use omega_core::diagnostics::Diagnostic;
-use omega_object::RelocationKind;
+use omega_object_file::RelocationKind;
 
 pub fn apply_x86_64_relocations(
     image: &mut FinalImage,

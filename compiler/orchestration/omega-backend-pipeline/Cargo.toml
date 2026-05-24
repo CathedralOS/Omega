@@ -21,8 +21,8 @@ omega-assigned-target-operations = { path = "../../representations/omega-assigne
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-machine-emission = { path = "../../backend/omega-machine-emission" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
-omega-object = { path = "../../backend/object/omega-object" }
-omega-object-planning = { path = "../../backend/object/omega-object-planning" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
+omega-object-file-planning = { path = "../../backend/object/omega-object-file-planning" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-relocations = { path = "../../backend/object/omega-relocations" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }

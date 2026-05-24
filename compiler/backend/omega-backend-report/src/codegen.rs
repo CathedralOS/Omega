@@ -4,7 +4,7 @@ use super::host::host_call_display_name;
 use crate::BackendReportInput;
 use omega_core::arena::Handle;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
-use omega_object::storage_region_symbol_name;
+use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle,

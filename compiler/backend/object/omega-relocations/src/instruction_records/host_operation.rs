@@ -4,7 +4,7 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use omega_calling_conventions::HostBindingMechanism;
-use omega_object::{RelocationRecord, object_symbol_handle_by_name};
+use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_host_operation_relocation(

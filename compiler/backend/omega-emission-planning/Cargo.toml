@@ -18,7 +18,7 @@ omega-image-emission = { path = "../images/omega-image-emission" }
 omega-layout = { path = "../omega-layout" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
-omega-object = { path = "../object/omega-object" }
+omega-object-file = { path = "../object/omega-object-file" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-runtime-branching = { path = "../omega-runtime-branching" }
