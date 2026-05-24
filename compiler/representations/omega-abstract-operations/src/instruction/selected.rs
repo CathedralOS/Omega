@@ -345,6 +345,10 @@ pub enum AbstractOperationKind {
     LeaveDispatchLoop,
     BeginPlatformCall,
     HostOperation {
+        operation_ordinal: u16,
+        operands: HandleSpan<InstructionOperand>,
+    },
+    SyntheticHostOperation {
         operation_key: HostOperationKey,
         operands: HandleSpan<InstructionOperand>,
     },

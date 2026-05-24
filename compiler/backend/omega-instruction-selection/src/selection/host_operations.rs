@@ -50,7 +50,7 @@ pub(super) fn select_host_call(
         return;
     };
 
-    for operation in operations {
+    for (operation_ordinal, operation) in operations.iter().enumerate() {
         let operation_operands = select_host_operation_operands(
             input,
             host_call,
@@ -62,7 +62,7 @@ pub(super) fn select_host_call(
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
-                operation_key: operation.operation_key,
+                operation_ordinal: operation_ordinal as u16,
                 operands: operation_operands,
             },
             source_key: host_call.source_key,
@@ -94,7 +94,7 @@ pub(super) fn select_host_call(
                 operands,
             );
             selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::HostOperation {
+                kind: SelectedInstructionKind::SyntheticHostOperation {
                     operation_key: get_std_handle.operation_key,
                     operands: handle_operands,
                 },
@@ -119,7 +119,7 @@ pub(super) fn select_host_call(
             ])
         };
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::HostOperation {
+            kind: SelectedInstructionKind::SyntheticHostOperation {
                 operation_key: HostOperationKey::new(
                     HostCapability::Stdout,
                     if uses_write_file {

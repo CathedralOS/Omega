@@ -99,6 +99,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
  "omega-core",
+ "omega-platform-interface",
  "omega-target",
  "omega-target-operations",
 ]
