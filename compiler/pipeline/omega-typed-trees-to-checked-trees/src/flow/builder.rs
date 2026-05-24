@@ -244,6 +244,12 @@ fn append_state_call_facts(
                 &[place],
                 FlowInvalidationSource::Statement { statement_index },
             );
+            *active_constraints = project_constraint_refs_to_active_contexts(
+                &mut ctx.constraint_refs,
+                *active_constraints,
+                *active_contexts,
+                &ctx.semantic_context_refs,
+            );
         }
     }
 
@@ -346,9 +352,16 @@ fn build_call_flow_fact(
     } else {
         clone_flow_contexts(&mut ctx.semantic_context_refs, *active_contexts)
     };
+    let post_call_constraints = project_constraint_refs_to_active_contexts(
+        &mut ctx.constraint_refs,
+        *active_constraints,
+        post_call_contexts,
+        &ctx.semantic_context_refs,
+    );
     let call_invalidations = appended_span_since(&ctx.invalidations, call_invalidations_start);
     let mut exit_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, post_call_contexts);
-    let mut exit_constraints = clone_constraint_refs(&mut ctx.constraint_refs, *active_constraints);
+    let mut exit_constraints =
+        clone_constraint_refs(&mut ctx.constraint_refs, post_call_constraints);
     append_flow_contexts_for_points(
         semantic,
         &mut ctx.semantic_context_refs,
