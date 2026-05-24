@@ -1,4 +1,4 @@
-use omega_checked_trees::{CheckFacts, FlowCallFact, FlowInvalidationSource, FlowStateFact};
+use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace, FactPlan};
@@ -121,16 +121,7 @@ fn explain_domain_requirement_failure(
     required_domain: SymbolHandle,
 ) -> Option<String> {
     let mut detail = None;
-    for invalidation in facts
-        .flow
-        .invalidations
-        .span_or_empty(state_flow.invalidations)
-        .iter()
-    {
-        if !invalidation_precedes_call(invalidation.source, call_flow) {
-            continue;
-        }
-
+    for invalidation in facts.flow.state_call_prior_invalidations(state_flow, call_flow) {
         let fact = facts.semantic.facts.get(invalidation.fact);
         let (fact_domain, fact_place) = match fact.payload {
             FactPayload::DomainMembership { domain_symbol, .. }
@@ -170,26 +161,6 @@ fn explain_domain_requirement_failure(
     }
 
     detail
-}
-
-fn invalidation_precedes_call(
-    source: FlowInvalidationSource,
-    call_flow: &FlowCallFact,
-) -> bool {
-    match source {
-        FlowInvalidationSource::Statement { statement_index } => {
-            statement_index < call_flow.statement_index
-        }
-        FlowInvalidationSource::Call {
-            statement_index,
-            call_ordinal,
-            ..
-        } => {
-            statement_index < call_flow.statement_index
-                || (statement_index == call_flow.statement_index
-                    && call_ordinal < call_flow.call_ordinal)
-        }
-    }
 }
 
 fn places_match_requirement(

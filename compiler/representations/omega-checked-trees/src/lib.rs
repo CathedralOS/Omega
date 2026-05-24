@@ -653,6 +653,30 @@ impl FlowFacts {
             receiver_symbol,
         ))
     }
+
+    pub fn state_call_prior_invalidations<'a>(
+        &'a self,
+        state: &'a FlowStateFact,
+        call: &'a FlowCallFact,
+    ) -> impl Iterator<Item = &'a FlowInvalidationFact> + 'a {
+        self.invalidations
+            .span_or_empty(state.invalidations)
+            .iter()
+            .filter(move |invalidation| match invalidation.source {
+                FlowInvalidationSource::Statement { statement_index } => {
+                    statement_index < call.statement_index
+                }
+                FlowInvalidationSource::Call {
+                    statement_index,
+                    call_ordinal,
+                    ..
+                } => {
+                    statement_index < call.statement_index
+                        || (statement_index == call.statement_index
+                            && call_ordinal < call.call_ordinal)
+                }
+            })
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
