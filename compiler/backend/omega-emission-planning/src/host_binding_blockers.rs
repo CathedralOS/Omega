@@ -1,4 +1,5 @@
 use crate::EmissionPlanningInput;
+use omega_calling_conventions::HostBindingMechanism;
 use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
@@ -20,9 +21,28 @@ pub(super) fn collect_host_binding_blockers(
         if !matches!(
             instruction.kind,
             SelectedInstructionKind::ReadRuntimeTextLine {
-                source: RuntimeTextReadSource::Syscall { .. },
+                source: RuntimeTextReadSource::HostOperation { .. },
                 ..
             }
+        ) {
+            continue;
+        }
+
+        let SelectedInstructionKind::ReadRuntimeTextLine {
+            source: RuntimeTextReadSource::HostOperation { operation_key },
+            ..
+        } = &instruction.kind
+        else {
+            continue;
+        };
+        if !matches!(
+            input
+                .host_abi
+                .bindings
+                .iter()
+                .find(|(_, binding)| binding.operation_key == *operation_key)
+                .map(|(_, binding)| &binding.mechanism),
+            Some(HostBindingMechanism::Syscall { .. })
         ) {
             continue;
         }

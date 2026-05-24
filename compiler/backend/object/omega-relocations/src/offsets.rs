@@ -1,3 +1,4 @@
+use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
 use omega_object_file::RelocationKind;
 use omega_target::Architecture;
@@ -212,9 +213,9 @@ fn unsigned_immediate_width(value: u64) -> usize {
 
 pub(super) fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
-    source: &omega_target_operations::RuntimeTextReadSource,
+    binding: &HostBindingMechanism,
 ) -> usize {
-    omega_instruction_selection::runtime_text_line_read_target_address_offset(architecture, source)
+    omega_instruction_selection::runtime_text_line_read_target_address_offset(architecture, binding)
 }
 
 pub(super) fn runtime_text_line_read_import_call_offset(

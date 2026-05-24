@@ -223,25 +223,22 @@ pub(super) fn collect_runtime_text_relocations(
             source,
             ..
         } => {
+            let RuntimeTextReadSource::HostOperation { operation_key } = source;
+            let Some(binding) = super::super::lookups::find_host_binding(context.input, *operation_key)
+            else {
+                return;
+            };
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
             let target_symbol = context.storage_region_symbol_handle(*target_region);
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_line_read_target_address_offset(
                     context.input.target.architecture,
-                    source,
+                    &binding.mechanism,
                 ),
                 target_symbol,
             );
-            if let RuntimeTextReadSource::Import { operation_key } = source {
-                let Some(binding) =
-                    super::super::lookups::find_host_binding(context.input, *operation_key)
-                else {
-                    return;
-                };
-                let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
-                    return;
-                };
+            if let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism {
                 context.relocation_plan.records.insert(RelocationRecord {
                     function_symbol_handle: context.function_symbol_handle,
                     selected_instruction_index: context.selected_instruction_index,

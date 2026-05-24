@@ -699,26 +699,37 @@ fn runtime_text_read_source_name(
     source: &omega_target_operations::RuntimeTextReadSource,
 ) -> String {
     match source {
-        omega_target_operations::RuntimeTextReadSource::Import { operation_key } => {
-            let symbol = backend_plan
+        omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key } => {
+            match backend_plan
                 .host_abi
                 .bindings
                 .iter()
                 .find(|(_, binding)| binding.operation_key == *operation_key)
-                .and_then(|(_, binding)| match &binding.mechanism {
-                    omega_calling_conventions::HostBindingMechanism::Import { symbol, .. } => {
-                        Some(symbol.as_ref())
-                    }
-                    omega_calling_conventions::HostBindingMechanism::Syscall { .. } => None,
-                })
-                .unwrap_or("unknown");
-            format!("import {symbol}")
+                .map(|(_, binding)| &binding.mechanism)
+            {
+                Some(omega_calling_conventions::HostBindingMechanism::Import {
+                    symbol,
+                    ..
+                }) => {
+                    format!("import {symbol}")
+                }
+                Some(omega_calling_conventions::HostBindingMechanism::Syscall {
+                    number,
+                    number_register,
+                    supervisor_call,
+                    ..
+                }) => {
+                    format!("syscall {number} via x{number_register}/svc #{supervisor_call}")
+                }
+                None => {
+                    format!(
+                        "unresolved host operation {}.{}",
+                        operation_key.capability_name(),
+                        operation_key.operation_name()
+                    )
+                }
+            }
         }
-        omega_target_operations::RuntimeTextReadSource::Syscall {
-            number,
-            number_register,
-            supervisor_call,
-        } => format!("syscall {number} via x{number_register}/svc #{supervisor_call}"),
     }
 }
 

@@ -1,4 +1,3 @@
-mod bindings;
 mod buffers;
 mod line_read;
 mod literals;

@@ -1,4 +1,3 @@
-use super::bindings::host_binding_mechanism;
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
     RuntimeAliasBuffer, RuntimeAliasResolutionContext, resolve_runtime_alias_binding_handle,
@@ -7,7 +6,7 @@ use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
 };
 use omega_calling_conventions::{
-    HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
+    HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
@@ -65,26 +64,11 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
 }
 
 fn runtime_text_read_source(
-    input: &InstructionSelectionInput<'_>,
+    _input: &InstructionSelectionInput<'_>,
 ) -> Option<RuntimeTextReadSource> {
-    match host_binding_mechanism(
-        input,
-        HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
-    )? {
-        HostBindingMechanism::Import { .. } => Some(RuntimeTextReadSource::Import {
-            operation_key: HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
-        }),
-        HostBindingMechanism::Syscall {
-            number,
-            number_register,
-            supervisor_call,
-            ..
-        } => Some(RuntimeTextReadSource::Syscall {
-            number: *number,
-            number_register: *number_register,
-            supervisor_call: *supervisor_call,
-        }),
-    }
+    Some(RuntimeTextReadSource::HostOperation {
+        operation_key: HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
+    })
 }
 
 pub(in crate::selection) fn runtime_string_descriptor_place(
