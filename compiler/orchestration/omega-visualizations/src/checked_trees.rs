@@ -980,6 +980,27 @@ fn append_flow_constraint_labels(
                 });
                 report.push(')');
             }
+            omega_checked_trees::FlowConstraintKind::BorrowLoan { loan } => {
+                let loan = program.facts.borrow.loans.get(loan);
+                report.push_str("borrow-loan(");
+                report.push_str(&symbol_label(loan.owner_symbol));
+                report.push_str(" -> ");
+                report.push_str(&symbol_label(loan.root_symbol));
+                for segment in program.facts.borrow.loan_segments(loan) {
+                    match segment {
+                        omega_facts::PlaceSegment::Field { symbol } => {
+                            report.push('.');
+                            report.push_str(&symbol_label(*symbol));
+                        }
+                        omega_facts::PlaceSegment::Index { expression } => {
+                            report.push('[');
+                            report.push_str(&expression.arena_index().to_string());
+                            report.push(']');
+                        }
+                    }
+                }
+                report.push(')');
+            }
         }
     }
 }

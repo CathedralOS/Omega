@@ -53,7 +53,8 @@ impl FlowBuildContext {
             constraint_refs: omega_core::arena::Arena::with_capacity(
                 semantic.contexts.len().saturating_mul(3)
                     .saturating_add(borrow.states.len())
-                    .saturating_add(borrow.calls.len()),
+                    .saturating_add(borrow.calls.len())
+                    .saturating_add(borrow.loans.len()),
             ),
             invalidation_segments: omega_core::arena::Arena::default(),
             invalidations: omega_core::arena::Arena::default(),
@@ -205,7 +206,9 @@ fn append_state_call_facts(
 ) -> omega_core::arena::HandleSpan<FlowCallFact> {
     let mut state_calls = omega_core::arena::HandleSpan::empty();
     let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
+    let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
     let mut call_index = 0usize;
+    let mut loan_index = 0usize;
 
     for (statement_index, statement) in program
         .statement_table
@@ -235,6 +238,28 @@ fn append_state_call_facts(
                 borrow_call,
             );
             ctx.calls.append_to_span(&mut state_calls, call_flow);
+        }
+
+        while let Some(loan) = borrow_loans.get(loan_index) {
+            if loan.statement_index != statement_index {
+                break;
+            }
+            loan_index += 1;
+
+            append_constraint_ref(
+                &mut ctx.constraint_refs,
+                active_constraints,
+                FlowConstraintKind::BorrowLoan {
+                    loan: Handle::from_parts(
+                        borrow_state
+                            .loans
+                            .start()
+                            .arena_index()
+                            .saturating_add((loan_index - 1) as u32),
+                        borrow_state.loans.start().generation(),
+                    ),
+                },
+            );
         }
 
         if let Some(place) = statement_mutated_place(program, machine, statement) {

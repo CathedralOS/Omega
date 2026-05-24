@@ -280,6 +280,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "call_requires_unproven",
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
+    "borrow_local_alias_active",
     "borrow_mut_and_read",
     "borrow_mut_literal",
     "bounded_guarded_increment_unproven",

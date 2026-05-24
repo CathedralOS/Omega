@@ -120,7 +120,8 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
             | FlowConstraintKind::BorrowState { .. }
             | FlowConstraintKind::BorrowCall { .. }
             | FlowConstraintKind::BorrowWritableRoot { .. }
-            | FlowConstraintKind::BorrowAccess { .. } => true,
+            | FlowConstraintKind::BorrowAccess { .. }
+            | FlowConstraintKind::BorrowLoan { .. } => true,
         };
 
         if keep {

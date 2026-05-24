@@ -40,9 +40,10 @@ fn check_call_borrows(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let target_name = call_target_label(program, borrow_call.target_symbol);
+    let entry_constraints = call_borrow_constraints(borrow_call, state_flow, facts);
     let writable_roots: Vec<_> = facts
         .flow
-        .borrow_writable_root_constraints(state_flow.entry_constraints)
+        .borrow_writable_root_constraints(entry_constraints)
         .map(|root| symbol_name(program, facts.borrow.writable_roots.get(root).symbol))
         .collect();
     let accesses: Vec<_> = facts
@@ -50,6 +51,11 @@ fn check_call_borrows(
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
+        .collect();
+    let active_loans: Vec<_> = facts
+        .flow
+        .borrow_loan_constraints(entry_constraints)
+        .map(|loan| facts.borrow.loans.get(loan))
         .collect();
 
     for (index, access) in accesses.iter().enumerate() {
@@ -71,6 +77,16 @@ fn check_call_borrows(
                     "state `{target_name}` receives `{}` as both mutable and read-only",
                     borrow_access_label(program, &facts.borrow, access),
                 ))),
+            }
+        }
+
+        for loan in &active_loans {
+            if facts.borrow.access_overlaps_loan(access, loan) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives `{}` while local borrow `{}` is still active",
+                    borrow_access_label(program, &facts.borrow, access),
+                    symbol_name(program, loan.owner_symbol),
+                )));
             }
         }
     }
@@ -105,6 +121,25 @@ fn check_call_borrows(
             )));
         }
     }
+}
+
+fn call_borrow_constraints<'a>(
+    borrow_call: &BorrowCallFact,
+    state_flow: &'a FlowStateFact,
+    facts: &'a CheckFacts,
+) -> omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef> {
+    facts.flow
+        .calls
+        .span_or_empty(state_flow.calls)
+        .iter()
+        .find(|call| {
+            call.statement_index == borrow_call.statement_index
+                && call.call_ordinal == borrow_call.call_ordinal
+                && call.target_symbol == borrow_call.target_symbol
+                && call.receiver_symbol == borrow_call.receiver_symbol
+        })
+        .map(|call| call.entry_constraints)
+        .unwrap_or(state_flow.entry_constraints)
 }
 
 fn mutable_argument_root_name(
