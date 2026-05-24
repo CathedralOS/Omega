@@ -30,7 +30,7 @@ pub fn build_assigned_target_operations(
 
     for (_, instruction) in target_operations.instructions.iter() {
         assigned_target_operations.instructions.insert(AssignedOperation {
-            kind: instruction.kind.clone(),
+            kind: instruction.kind.clone().into(),
             source_key: instruction.source_key,
             source_statement: instruction.source_statement,
         });
