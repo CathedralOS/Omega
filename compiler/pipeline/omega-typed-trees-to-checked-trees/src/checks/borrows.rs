@@ -45,6 +45,13 @@ fn check_statement_borrows(
     else {
         return;
     };
+    let Some(borrow_state) = facts.borrow.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == state_flow.machine_symbol
+            && state.state_symbol == state_flow.state_symbol)
+            .then_some(state)
+    }) else {
+        return;
+    };
 
     for statement in facts.flow.statements.span_or_empty(state_flow.statements) {
         let Some(statement_node) = program
@@ -54,6 +61,36 @@ fn check_statement_borrows(
         else {
             continue;
         };
+
+        for loan in facts
+            .borrow
+            .loans
+            .span_or_empty(borrow_state.loans)
+            .iter()
+            .filter(|loan| loan.statement_index == statement.statement_index)
+        {
+            for active_loan_handle in facts.flow.borrow_loan_constraints(statement.entry_constraints) {
+                let active_loan = facts.borrow.loans.get(active_loan_handle);
+                if !facts.borrow.loan_overlaps_loan(loan, active_loan) {
+                    continue;
+                }
+
+                diagnostics.push(Diagnostic::error(format!(
+                    "statement {} creates local borrow `{}` while local borrow `{}` is still active ({})",
+                    statement.statement_index,
+                    symbol_name(program, loan.owner_symbol),
+                    symbol_name(program, active_loan.owner_symbol),
+                    active_loan_detail(
+                        state_flow,
+                        facts,
+                        active_loan_handle,
+                        statement.statement_index,
+                    )
+                    .unwrap_or_else(|| format!("borrowed at statement {}", active_loan.statement_index)),
+                )));
+            }
+        }
+
         let Some(mutated_place) = statement_mutated_place(
             program,
             state_flow.machine_symbol,

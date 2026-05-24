@@ -286,6 +286,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow_duplicate_mut",
     "borrow_helper_alias_active",
     "borrow_local_alias_active",
+    "borrow_local_alias_reborrow_active",
     "borrow_mut_and_read",
     "borrow_mut_literal",
     "bounded_guarded_increment_unproven",
