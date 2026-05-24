@@ -138,7 +138,7 @@ pub(super) fn encode_runtime_value_compare(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_value_compare(
         input.target.architecture,
-        &input.assigned_target_operations.target_runtime_value_operands,
+        input.assigned_target_operations.target_runtime_value_operands(),
         left,
         right,
         byte_size,
@@ -193,7 +193,7 @@ pub(super) fn encode_runtime_storage_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_storage_binary_write(
         input.target.architecture,
-        &input.assigned_target_operations.target_runtime_value_operands,
+        input.assigned_target_operations.target_runtime_value_operands(),
         target_offset,
         byte_size,
         left,
@@ -215,7 +215,7 @@ pub(super) fn encode_runtime_pointee_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_pointee_binary_write(
         input.target.architecture,
-        &input.assigned_target_operations.target_runtime_value_operands,
+        input.assigned_target_operations.target_runtime_value_operands(),
         pointer_byte_offset,
         field_byte_offset,
         byte_size,
@@ -260,7 +260,7 @@ pub(super) fn encode_runtime_frame_indexed_binary_write(
     validate_runtime_value_home(input, right)?;
     architecture::encode_runtime_frame_indexed_binary_write(
         input.target.architecture,
-        &input.assigned_target_operations.target_runtime_value_operands,
+        input.assigned_target_operations.target_runtime_value_operands(),
         descriptor_offset,
         index_offset,
         element_byte_size,
