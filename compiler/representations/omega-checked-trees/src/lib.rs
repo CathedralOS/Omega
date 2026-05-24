@@ -636,6 +636,23 @@ impl FlowFacts {
         })
         .unwrap_or(state.entry_constraints)
     }
+
+    pub fn state_call_entry_semantic_contexts<'a>(
+        &'a self,
+        state: &FlowStateFact,
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+        receiver_symbol: SymbolHandle,
+    ) -> impl Iterator<Item = omega_facts::FactContextHandle> + 'a {
+        self.semantic_constraint_contexts(self.state_call_entry_constraints(
+            state,
+            statement_index,
+            call_ordinal,
+            target_symbol,
+            receiver_symbol,
+        ))
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
