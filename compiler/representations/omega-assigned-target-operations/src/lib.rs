@@ -6,7 +6,9 @@ use std::sync::Arc;
 pub use omega_target_operations::{
     HostOperationKey, InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
     RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperation,
+    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetValueOperand,
+    TargetValueOperandHandle,
 };
 
 pub type AssignedValueHomeHandle = Handle<AssignedValueHome>;
@@ -78,9 +80,9 @@ pub struct AssignedValueHome {
 pub struct AssignedTargetOperationPlan {
     pub target: NativeTarget,
     pub functions: Arena<AssignedTargetOperationFunction>,
-    pub instructions: Arena<SelectedInstruction>,
+    pub instructions: Arena<TargetOperation>,
     pub operands: Arena<InstructionOperand>,
-    pub runtime_value_operands: Arena<RuntimeValueOperand>,
+    pub runtime_value_operands: Arena<TargetValueOperand>,
     pub runtime_value_homes: Arena<AssignedValueHome>,
 }
 
@@ -114,7 +116,7 @@ impl AssignedTargetOperationPlan {
 pub struct AssignedTargetOperationFunction {
     pub symbol: Arc<str>,
     pub source_key: StateKey,
-    pub instructions: HandleSpan<SelectedInstruction>,
+    pub instructions: HandleSpan<TargetOperation>,
 }
 
 impl Default for AssignedTargetOperationFunction {
@@ -127,8 +129,8 @@ impl Default for AssignedTargetOperationFunction {
     }
 }
 
-impl From<omega_target_operations::InstructionPlan> for AssignedTargetOperationPlan {
-    fn from(plan: omega_target_operations::InstructionPlan) -> Self {
+impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperationPlan {
+    fn from(plan: omega_target_operations::TargetOperationPlan) -> Self {
         let mut functions = Arena::with_capacity(plan.functions.len());
         for (_, function) in plan.functions.iter() {
             functions.insert(AssignedTargetOperationFunction {
@@ -149,11 +151,11 @@ impl From<omega_target_operations::InstructionPlan> for AssignedTargetOperationP
     }
 }
 
-impl From<AssignedTargetOperationPlan> for omega_target_operations::InstructionPlan {
+impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperationPlan {
     fn from(plan: AssignedTargetOperationPlan) -> Self {
         let mut functions = Arena::with_capacity(plan.functions.len());
         for (_, function) in plan.functions.iter() {
-            functions.insert(omega_target_operations::FunctionInstructionPlan {
+            functions.insert(omega_target_operations::TargetOperationFunction {
                 symbol: Arc::clone(&function.symbol),
                 source_key: function.source_key,
                 instructions: function.instructions,

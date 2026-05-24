@@ -1,8 +1,18 @@
 mod plan;
 
 pub use omega_abstract_operations::{
-    FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
-    RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
-    SelectedInstruction, SelectedInstructionKind,
+    HostOperationKey, InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+    RuntimeTextReadSource,
 };
-pub use plan::InstructionPlan;
+pub use plan::{InstructionPlan, TargetOperationPlan};
+
+pub type TargetOperationFunction = omega_abstract_operations::AbstractFunctionPlan;
+pub type FunctionInstructionPlan = TargetOperationFunction;
+pub type TargetOperation = omega_abstract_operations::AbstractOperation;
+pub type SelectedInstruction = TargetOperation;
+pub type TargetOperationKind = omega_abstract_operations::AbstractOperationKind;
+pub type SelectedInstructionKind = TargetOperationKind;
+pub type TargetValueOperand = omega_abstract_operations::AbstractValueOperand;
+pub type RuntimeValueOperand = TargetValueOperand;
+pub type TargetValueOperandHandle = omega_abstract_operations::AbstractValueOperandHandle;
+pub type RuntimeValueOperandHandle = TargetValueOperandHandle;

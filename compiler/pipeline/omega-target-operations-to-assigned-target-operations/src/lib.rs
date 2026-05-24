@@ -2,11 +2,11 @@ use omega_assigned_target_operations::{
     AssignedRegisterBank, AssignedRegisterName, AssignedTargetOperationPlan, AssignedValueHome,
     AssignedValueHomeKind, X86_64AssignedRegister,
 };
-use omega_target_operations::InstructionPlan;
 use omega_target::Architecture;
+use omega_target_operations::TargetOperationPlan;
 
 pub fn build_assigned_target_operations(
-    target_operations: &InstructionPlan,
+    target_operations: &TargetOperationPlan,
 ) -> AssignedTargetOperationPlan {
     let mut assigned_target_operations = AssignedTargetOperationPlan::with_capacity(
         target_operations.target,
@@ -35,10 +35,10 @@ pub fn build_assigned_target_operations(
     let mut next_scratch_slot = 0u16;
     for (_, operand) in target_operations.runtime_value_operands.iter() {
         let kind = match operand {
-            omega_target_operations::RuntimeValueOperand::Immediate(_) => {
+            omega_target_operations::TargetValueOperand::Immediate(_) => {
                 AssignedValueHomeKind::Immediate
             }
-            omega_target_operations::RuntimeValueOperand::Storage {
+            omega_target_operations::TargetValueOperand::Storage {
                 region,
                 byte_offset,
                 byte_size,
@@ -57,7 +57,7 @@ pub fn build_assigned_target_operations(
                     }
                 }
             },
-            omega_target_operations::RuntimeValueOperand::Pointee {
+            omega_target_operations::TargetValueOperand::Pointee {
                 pointer_byte_offset,
                 field_byte_offset,
                 byte_size,
@@ -66,7 +66,7 @@ pub fn build_assigned_target_operations(
                 field_byte_offset: *field_byte_offset,
                 byte_size: *byte_size,
             },
-            omega_target_operations::RuntimeValueOperand::FrameIndexed {
+            omega_target_operations::TargetValueOperand::FrameIndexed {
                 descriptor_offset,
                 index_offset,
                 element_byte_size,
@@ -79,7 +79,7 @@ pub fn build_assigned_target_operations(
                 field_byte_offset: *field_byte_offset,
                 byte_size: *byte_size,
             },
-            omega_target_operations::RuntimeValueOperand::Binary { .. } => {
+            omega_target_operations::TargetValueOperand::Binary { .. } => {
                 let name = scratch_register_name(target_operations.target.architecture, next_scratch_slot);
                 next_scratch_slot = next_scratch_slot.saturating_add(1);
                 AssignedValueHomeKind::ScratchRegister {

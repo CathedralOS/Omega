@@ -6,7 +6,8 @@ use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    InstructionPlan, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind,
+    TargetOperationPlan,
 };
 
 mod branch_distances;
@@ -20,7 +21,7 @@ use layout::layout_machine_instructions;
 #[derive(Debug)]
 pub struct MachineEmissionInput<'plan, 'machine> {
     pub target: NativeTarget,
-    pub target_operations: &'plan InstructionPlan,
+    pub target_operations: &'plan TargetOperationPlan,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub machine_instructions: &'machine MachineInstructionPlan,
     pub host_abi: &'plan HostAbiPlan,
@@ -144,7 +145,7 @@ fn insert_encoded_machine_instruction(
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
     machine_instruction_index: usize,
-    kind: &SelectedInstructionKind,
+    kind: &TargetOperationKind,
 ) -> Result<HandleSpan<u8>, Diagnostic> {
     encoded_bytes.try_insert_many_with(|inserter| {
         if insert_fixed_machine_instruction_bytes(
@@ -175,7 +176,7 @@ fn insert_fixed_machine_instruction_bytes(
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
     machine_instruction_index: usize,
-    kind: &SelectedInstructionKind,
+    kind: &TargetOperationKind,
 ) -> Result<bool, Diagnostic> {
     match kind {
         SelectedInstructionKind::EnterFunction => {
@@ -411,7 +412,7 @@ fn insert_dispatch_state_write_bytes(
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct MachineEmissionContext<'plan> {
     pub target: NativeTarget,
-    pub instructions: &'plan InstructionPlan,
+    pub instructions: &'plan TargetOperationPlan,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,

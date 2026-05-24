@@ -7,8 +7,8 @@ use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction}
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
-    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle,
-    SelectedInstruction, SelectedInstructionKind, TargetDataObject,
+    InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle, TargetDataObject,
+    SelectedInstructionKind, TargetOperation, TargetOperationFunction, TargetOperationKind,
 };
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -39,7 +39,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     ));
     output.push('\n');
 
-    output.push_str("## Instruction Selection\n");
+    output.push_str("## Target Operations\n");
     output.push_str(&format!(
         "functions: {}\n",
         backend_plan.target_operations.functions.len()
@@ -156,7 +156,7 @@ fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportI
 fn write_function_instruction_plan(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    function: &FunctionInstructionPlan,
+    function: &TargetOperationFunction,
 ) {
     let source_name = backend_state_name(backend_plan, function.source_key);
     output.push_str(&format!(
@@ -183,7 +183,7 @@ fn write_function_instruction_plan(
 fn write_selected_instruction(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    instruction: &SelectedInstruction,
+    instruction: &TargetOperation,
 ) {
     output.push_str(&format!(
         "    - statement {}: {}\n",
@@ -194,18 +194,18 @@ fn write_selected_instruction(
 
 fn selected_instruction_name(
     backend_plan: &BackendReportInput<'_>,
-    instruction: &SelectedInstruction,
+    instruction: &TargetOperation,
 ) -> String {
     let kind = &instruction.kind;
     match kind {
-        SelectedInstructionKind::EnterFunction => "enter function".to_owned(),
-        SelectedInstructionKind::EnterDispatchLoop {
+        TargetOperationKind::EnterFunction => "enter function".to_owned(),
+        TargetOperationKind::EnterDispatchLoop {
             entry_dispatch_index,
             terminal_dispatch_index,
         } => format!(
             "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index}"
         ),
-        SelectedInstructionKind::EnterDispatchCase { dispatch_index } => {
+        TargetOperationKind::EnterDispatchCase { dispatch_index } => {
             let label = backend_plan
                 .runtime_dispatch_loop
                 .cases
