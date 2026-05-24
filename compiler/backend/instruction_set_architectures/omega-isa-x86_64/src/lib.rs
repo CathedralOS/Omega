@@ -1,8 +1,8 @@
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
-    InstructionOperandKind, RuntimeValueOperand, RuntimeValueOperandHandle,
-    InstructionOperandLike, RuntimeValueOperandSource, StateGuardOperator,
+    InstructionOperandLike, RuntimeValueOperand, RuntimeValueOperandHandle,
+    RuntimeValueOperandSource, StateGuardOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,19 +202,17 @@ fn append_file_pointer_operand<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operand: &T,
 ) -> Result<(), Diagnostic> {
-    match operand.instruction_operand_kind() {
-        InstructionOperandKind::DataAddress { .. } => {
-            append_mov_rdx_imm64(bytes, 0);
-            Ok(())
-        }
-        InstructionOperandKind::RuntimeStringPointer { byte_offset, .. } => {
-            append_mov_r10_imm64(bytes, 0);
-            append_load_rdx_from_r10(bytes, *byte_offset)?;
-            Ok(())
-        }
-        _ => Err(Diagnostic::error(
+    if operand.data_address().is_some() {
+        append_mov_rdx_imm64(bytes, 0);
+        Ok(())
+    } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
+        append_mov_r10_imm64(bytes, 0);
+        append_load_rdx_from_r10(bytes, byte_offset)?;
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
             "cannot encode X86_64 file operation: pointer operand is unsupported",
-        )),
+        ))
     }
 }
 
@@ -222,25 +220,23 @@ fn append_file_length_operand<T: InstructionOperandLike>(
     bytes: &mut Vec<u8>,
     operand: &T,
 ) -> Result<(), Diagnostic> {
-    match operand.instruction_operand_kind() {
-        InstructionOperandKind::ByteLength(value) => {
-            let value = u32::try_from(*value).map_err(|_| {
-                Diagnostic::error(format!(
-                    "cannot encode X86_64 file operation: byte length {value} does not fit u32"
-                ))
-            })?;
-            bytes.extend([0x41, 0xb8]); // mov r8d, imm32
-            bytes.extend(value.to_le_bytes());
-            Ok(())
-        }
-        InstructionOperandKind::RuntimeStringLength { byte_offset, .. } => {
-            append_mov_r10_imm64(bytes, 0);
-            append_load_r8_from_r10(bytes, byte_offset + 8)?;
-            Ok(())
-        }
-        _ => Err(Diagnostic::error(
+    if let Some(value) = operand.byte_length() {
+        let value = u32::try_from(value).map_err(|_| {
+            Diagnostic::error(format!(
+                "cannot encode X86_64 file operation: byte length {value} does not fit u32"
+            ))
+        })?;
+        bytes.extend([0x41, 0xb8]); // mov r8d, imm32
+        bytes.extend(value.to_le_bytes());
+        Ok(())
+    } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
+        append_mov_r10_imm64(bytes, 0);
+        append_load_r8_from_r10(bytes, byte_offset + 8)?;
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
             "cannot encode X86_64 file operation: length operand is unsupported",
-        )),
+        ))
     }
 }
 
@@ -278,15 +274,9 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             };
             let mut cursor = if pointer_index == 1 { 9 } else { 7 };
 
-            if matches!(
-                operands
-                    .get(pointer_index)
-                    .map(InstructionOperandLike::instruction_operand_kind),
-                Some(
-                    InstructionOperandKind::DataAddress { .. }
-                        | InstructionOperandKind::RuntimeStringPointer { .. }
-                )
-            ) {
+            if operands.get(pointer_index).is_some_and(|operand| {
+                operand.data_address().is_some() || operand.runtime_string_pointer().is_some()
+            }) {
                 sites.push(X86_64RelocationSite {
                     operand_index: Some(pointer_index),
                     byte_offset: cursor + 2,
@@ -301,12 +291,10 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
                 cursor += 3;
             }
 
-            if matches!(
-                operands
-                    .get(length_index)
-                    .map(InstructionOperandLike::instruction_operand_kind),
-                Some(InstructionOperandKind::RuntimeStringLength { .. })
-            ) {
+            if operands
+                .get(length_index)
+                .is_some_and(|operand| operand.runtime_string_length().is_some())
+            {
                 sites.push(X86_64RelocationSite {
                     operand_index: Some(length_index),
                     byte_offset: cursor + 2,
@@ -332,15 +320,13 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
 fn file_pointer_and_length_indices<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<(usize, usize), Diagnostic> {
-    match operands
-        .first()
-        .map(InstructionOperandLike::instruction_operand_kind)
-    {
-        Some(InstructionOperandKind::ImmediateInteger(_)) => Ok((1, 2)),
-        Some(
-            InstructionOperandKind::DataAddress { .. }
-            | InstructionOperandKind::RuntimeStringPointer { .. },
-        ) => Ok((0, 1)),
+    match operands.first() {
+        Some(operand) if operand.immediate_integer().is_some() => Ok((1, 2)),
+        Some(operand)
+            if operand.data_address().is_some() || operand.runtime_string_pointer().is_some() =>
+        {
+            Ok((0, 1))
+        }
         _ => Err(Diagnostic::error(
             "cannot encode X86_64 file operation: unsupported operand shape",
         )),
@@ -348,17 +334,17 @@ fn file_pointer_and_length_indices<T: InstructionOperandLike>(
 }
 
 fn file_pointer_operand_width<T: InstructionOperandLike>(operand: Option<&T>) -> usize {
-    match operand.map(InstructionOperandLike::instruction_operand_kind) {
-        Some(InstructionOperandKind::DataAddress { .. }) => 10,
-        Some(InstructionOperandKind::RuntimeStringPointer { .. }) => 17,
+    match operand {
+        Some(operand) if operand.data_address().is_some() => 10,
+        Some(operand) if operand.runtime_string_pointer().is_some() => 17,
         _ => 0,
     }
 }
 
 fn file_length_operand_width<T: InstructionOperandLike>(operand: Option<&T>) -> usize {
-    match operand.map(InstructionOperandLike::instruction_operand_kind) {
-        Some(InstructionOperandKind::ByteLength(_)) => 6,
-        Some(InstructionOperandKind::RuntimeStringLength { .. }) => 17,
+    match operand {
+        Some(operand) if operand.byte_length().is_some() => 6,
+        Some(operand) if operand.runtime_string_length().is_some() => 17,
         _ => 0,
     }
 }
@@ -994,12 +980,12 @@ fn immediate_i32<T: InstructionOperandLike>(
             "cannot encode X86_64 host call: missing {label}"
         )));
     };
-    let InstructionOperandKind::ImmediateInteger(value) = operand.instruction_operand_kind() else {
+    let Some(value) = operand.immediate_integer() else {
         return Err(Diagnostic::error(format!(
             "cannot encode X86_64 host call: {label} is not an immediate integer"
         )));
     };
-    i32::try_from(*value).map_err(|_| {
+    i32::try_from(value).map_err(|_| {
         Diagnostic::error(format!(
             "cannot encode X86_64 host call: {label} value {value} does not fit i32"
         ))

@@ -6,7 +6,7 @@ use omega_object_file::{
     object_symbol_handle_by_name, storage_region_symbol_name,
 };
 use omega_target::Architecture;
-use omega_target_operations::InstructionOperandKind;
+use omega_target_operations::InstructionOperandLike;
 
 pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
@@ -22,51 +22,53 @@ pub(super) fn collect_data_address_relocations(
     };
 
     for (operand_index, operand) in operands.iter().enumerate() {
-        match &operand.kind {
-            InstructionOperandKind::DataAddress { data } => {
-                if !data.is_valid() {
-                    continue;
-                }
-                let symbol = object_symbol_handle_by_name(
-                    &input.object,
-                    input.data.objects.get(*data).symbol.as_ref(),
-                );
-                insert_data_address_relocations(
+        if let Some(data) = operand.data_address() {
+            if !data.is_valid() {
+                continue;
+            }
+            let symbol = object_symbol_handle_by_name(
+                &input.object,
+                input.data.objects.get(data).symbol.as_ref(),
+            );
+            insert_data_address_relocations(
+                input,
+                relocation_plan,
+                function_symbol_handle,
+                selected_instruction_index,
+                data_address_relocation_offset(
                     input,
-                    relocation_plan,
-                    function_symbol_handle,
-                    selected_instruction_index,
-                    data_address_relocation_offset(
-                        input,
-                        operation_key,
-                        operands,
-                        selected_text_offset,
-                        operand_index,
-                    ),
-                    symbol,
-                );
-            }
-            InstructionOperandKind::RuntimeStringPointer { region, .. }
-            | InstructionOperandKind::RuntimeStringLength { region, .. } => {
-                let symbol_name = storage_region_symbol_name(*region, input.entry_machine_name);
-                let symbol = object_symbol_handle_by_name(&input.object, &symbol_name);
-                insert_data_address_relocations(
+                    operation_key,
+                    operands,
+                    selected_text_offset,
+                    operand_index,
+                ),
+                symbol,
+            );
+            continue;
+        }
+
+        let region = operand
+            .runtime_string_pointer()
+            .map(|(region, _)| region)
+            .or_else(|| operand.runtime_string_length().map(|(region, _)| region));
+
+        if let Some(region) = region {
+            let symbol_name = storage_region_symbol_name(region, input.entry_machine_name);
+            let symbol = object_symbol_handle_by_name(&input.object, &symbol_name);
+            insert_data_address_relocations(
+                input,
+                relocation_plan,
+                function_symbol_handle,
+                selected_instruction_index,
+                data_address_relocation_offset(
                     input,
-                    relocation_plan,
-                    function_symbol_handle,
-                    selected_instruction_index,
-                    data_address_relocation_offset(
-                        input,
-                        operation_key,
-                        operands,
-                        selected_text_offset,
-                        operand_index,
-                    ),
-                    symbol,
-                );
-            }
-            InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
-            }
+                    operation_key,
+                    operands,
+                    selected_text_offset,
+                    operand_index,
+                ),
+                symbol,
+            );
         }
     }
 }

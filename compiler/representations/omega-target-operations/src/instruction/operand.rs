@@ -15,12 +15,53 @@ impl Default for TargetInstructionOperand {
 }
 
 pub trait InstructionOperandLike {
-    fn instruction_operand_kind(&self) -> &InstructionOperandKind;
+    fn data_address(&self) -> Option<TargetDataObjectHandle>;
+    fn runtime_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)>;
+    fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)>;
+    fn immediate_integer(&self) -> Option<i64>;
+    fn byte_length(&self) -> Option<usize>;
 }
 
 impl InstructionOperandLike for TargetInstructionOperand {
-    fn instruction_operand_kind(&self) -> &InstructionOperandKind {
-        &self.kind
+    fn data_address(&self) -> Option<TargetDataObjectHandle> {
+        match self.kind {
+            InstructionOperandKind::DataAddress { data } => Some(data),
+            _ => None,
+        }
+    }
+
+    fn runtime_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeStringPointer {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeStringLength {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn immediate_integer(&self) -> Option<i64> {
+        match self.kind {
+            InstructionOperandKind::ImmediateInteger(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn byte_length(&self) -> Option<usize> {
+        match self.kind {
+            InstructionOperandKind::ByteLength(value) => Some(value),
+            _ => None,
+        }
     }
 }
 
