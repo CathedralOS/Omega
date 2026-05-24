@@ -18,6 +18,8 @@ machine Game::initialize(
     seed: u64[wrapping]
 ) {
     self.dungeon.initialize(seed);
+    self.input = "";
+    self.output = "";
 }
 
 machine Game::run_game_loop(&mut self) {
@@ -49,22 +51,22 @@ machine Game::run_game_loop(&mut self) {
         self.console.read_line(&mut self.input);
 
         -> finished() when self.input == "";
+        self.dungeon.navigation = self.parser.resolve_navigation(
+            self.dungeon.level,
+            self.dungeon.current_cell,
+            &self.input
+        );
 
-        transition self.input {
-            "quit" -> finished()
-            "look" -> look()
-            "info" -> look()
-            "exits" -> exits()
-            "help" -> exits()
-            "inventory" -> inventory()
-            "inv" -> inventory()
-            "character" -> character()
-            "stats" -> character()
-            "use" -> use_event()
-            "fight" -> fight()
-            "north" -> move_north()
-            "south" -> move_south()
-            _ -> invalid_command()
+        transition self.dungeon.navigation.choice {
+            NavigationChoice::Quit -> finished()
+            NavigationChoice::Look -> look()
+            NavigationChoice::Exits -> exits()
+            NavigationChoice::Inventory -> inventory()
+            NavigationChoice::Character -> character()
+            NavigationChoice::UseFountain -> use_event()
+            NavigationChoice::Fight -> fight()
+            NavigationChoice::Move -> move_player()
+            NavigationChoice::Invalid -> invalid_command()
         }
     }
 
@@ -101,7 +103,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state use_event(&mut self) {
-        self.output = "You search the room, but there is nothing useful to claim.";
+        self.dungeon.use_event(&mut self.output);
         self.view.render_line(self.output, &mut self.console);
 
         transition {
@@ -110,7 +112,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state fight(&mut self) {
-        self.output = "You strike into the dark. The dungeon answers with steel.";
+        self.dungeon.fight(&mut self.output);
         self.view.render_line(self.output, &mut self.console);
 
         transition {
@@ -118,30 +120,8 @@ machine Game::run_game_loop(&mut self) {
         }
     }
 
-    state move_north(&mut self) {
-        transition self.dungeon.current_cell {
-            CellId::R00 -> enter_north()
-            _ -> invalid_command()
-        }
-    }
-
-    state enter_north(&mut self) {
-        self.dungeon.current_cell = CellId::R01;
-
-        transition {
-            _ -> enter_room()
-        }
-    }
-
-    state move_south(&mut self) {
-        transition self.dungeon.current_cell {
-            CellId::R01 -> enter_south()
-            _ -> invalid_command()
-        }
-    }
-
-    state enter_south(&mut self) {
-        self.dungeon.current_cell = CellId::R00;
+    state move_player(&mut self) {
+        self.dungeon.move();
 
         transition {
             _ -> enter_room()

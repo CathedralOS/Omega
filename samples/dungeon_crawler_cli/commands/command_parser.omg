@@ -42,16 +42,9 @@ machine CommandParser::resolve_exit(
     cell: CellId,
     line: &String
     ) -> Navigation {
-    -> self.navigation(NavigationChoice::Move, CellId::R01)
-        when cell == CellId::R00 && line == "north";
-    -> self.navigation(NavigationChoice::Move, CellId::R00)
-        when cell == CellId::R01 && line == "south";
-    -> self.invalid_navigation()
-        when cell == CellId::R00 && line != "north";
-    -> self.invalid_navigation()
-        when cell == CellId::R01 && line != "south";
-    -> self.invalid_navigation()
-        when cell != CellId::R00 && cell != CellId::R01;
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    self.find_exit(room, line);
 }
 
 machine CommandParser::find_exit(
