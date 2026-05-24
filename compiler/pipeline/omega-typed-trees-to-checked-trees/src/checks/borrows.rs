@@ -2,7 +2,7 @@ use omega_checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStat
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_core::diagnostics::Diagnostic;
 
-use crate::labels::{call_target_label, symbol_name};
+use crate::labels::{borrow_access_label, call_target_label, symbol_name};
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 
 pub(crate) fn check_flow_call_borrows(
@@ -65,11 +65,11 @@ fn check_call_borrows(
             match other_access.kind {
                 BorrowAccessKind::Mutable => diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives `{}` as mutable more than once",
-                    symbol_name(program, access.root_symbol),
+                    borrow_access_label(program, &facts.borrow, access),
                 ))),
                 BorrowAccessKind::Read => diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives `{}` as both mutable and read-only",
-                    symbol_name(program, access.root_symbol),
+                    borrow_access_label(program, &facts.borrow, access),
                 ))),
             }
         }

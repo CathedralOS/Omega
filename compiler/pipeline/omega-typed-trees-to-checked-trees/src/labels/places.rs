@@ -2,6 +2,18 @@ use omega_facts::{Fact, FactPayload, FactPlan};
 
 use super::names::symbol_name;
 
+pub(crate) fn borrow_access_label(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &omega_checked_trees::BorrowFacts,
+    access: &omega_checked_trees::BorrowArgumentAccessFact,
+) -> String {
+    canonical_place_label_from_parts(
+        program,
+        omega_facts::PlaceRoot::Symbol(access.root_symbol),
+        borrow.access_segments(access),
+    )
+}
+
 pub(crate) fn semantic_fact_requirement_label(
     program: &omega_typed_trees::TypedTrees,
     semantic: &FactPlan,
