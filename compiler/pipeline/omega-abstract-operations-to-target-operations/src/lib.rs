@@ -2,9 +2,7 @@ use omega_abstract_operations::AbstractOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_operations::{
-    RuntimeTextReadSource, TargetOperation, TargetOperationFunction, TargetOperationPlan,
-};
+use omega_target_operations::{TargetOperation, TargetOperationFunction, TargetOperationPlan};
 
 pub fn build_target_operation_plan(
     target: NativeTarget,
@@ -38,11 +36,21 @@ pub fn build_target_operation_plan(
             });
     }
 
-    for (_, instruction) in abstract_operations.instructions.iter() {
+    for (instruction_key, instruction) in abstract_operations.instructions.iter() {
         let omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine {
-            source: RuntimeTextReadSource::HostOperation { operation_key },
             ..
         } = &instruction.kind
+        else {
+            continue;
+        };
+
+        let omega_target_operations::TargetOperationKind::ReadRuntimeTextLine {
+            source: omega_target_operations::RuntimeTextReadSource::HostOperation { operation_key },
+            ..
+        } = &target_operations
+            .instructions
+            .get(remap_instruction_handle(instruction_key))
+            .kind
         else {
             continue;
         };
@@ -61,6 +69,12 @@ pub fn build_target_operation_plan(
     }
 
     target_operations
+}
+
+fn remap_instruction_handle(
+    handle: omega_core::arena::Handle<omega_abstract_operations::AbstractOperation>,
+) -> omega_core::arena::Handle<TargetOperation> {
+    omega_core::arena::Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 fn remap_instruction_span(

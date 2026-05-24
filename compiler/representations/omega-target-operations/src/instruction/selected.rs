@@ -715,13 +715,17 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_region,
                 target_offset,
                 byte_capacity,
-                source,
             } => Self::ReadRuntimeTextLine {
                 buffer: *buffer,
                 target_region: *target_region,
                 target_offset: *target_offset,
                 byte_capacity: *byte_capacity,
-                source: source.clone(),
+                source: RuntimeTextReadSource::HostOperation {
+                    operation_key: HostOperationKey::new(
+                        omega_calling_conventions::HostCapability::Stdin,
+                        omega_calling_conventions::HostOperation::Read,
+                    ),
+                },
             },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorage {
                 source_region,

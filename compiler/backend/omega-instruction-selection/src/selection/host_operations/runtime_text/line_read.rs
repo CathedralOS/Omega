@@ -6,11 +6,11 @@ use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
 };
 use omega_calling_conventions::{
-    HostCapability, HostOperation, HostOperationKey, PlatformCallData,
+    PlatformCallData,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
-use omega_abstract_operations::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_abstract_operations::SelectedInstructionKind;
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,
@@ -19,9 +19,6 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
     _alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
 ) -> Option<SelectedInstructionKind> {
     let PlatformCallData::MutableOutputBuffer { byte_capacity } = host_call.data else {
-        return None;
-    };
-    let Some(read_source) = runtime_text_read_source(input) else {
         return None;
     };
 
@@ -59,15 +56,6 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_capacity,
-        source: read_source,
-    })
-}
-
-fn runtime_text_read_source(
-    _input: &InstructionSelectionInput<'_>,
-) -> Option<RuntimeTextReadSource> {
-    Some(RuntimeTextReadSource::HostOperation {
-        operation_key: HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
     })
 }
 
