@@ -1,10 +1,11 @@
 use super::*;
+use omega_facts::PlaceHandle;
 
 pub(crate) fn build_flow_facts(
     program: &omega_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
-    semantic: &FactPlan,
+    semantic: &mut FactPlan,
     domains: &DomainFacts,
     effects: &omega_effects::EffectPlan,
 ) -> FlowFacts {
@@ -90,7 +91,7 @@ fn build_state_flow_fact(
     program: &omega_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
-    semantic: &FactPlan,
+    semantic: &mut FactPlan,
     domains: &DomainFacts,
     effects: &omega_effects::EffectPlan,
     ctx: &mut FlowBuildContext,
@@ -222,7 +223,7 @@ fn append_state_call_facts(
     program: &omega_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
-    semantic: &FactPlan,
+    semantic: &mut FactPlan,
     domains: &DomainFacts,
     effects: &omega_effects::EffectPlan,
     ctx: &mut FlowBuildContext,
@@ -330,9 +331,264 @@ fn append_state_call_facts(
                 &ctx.semantic_context_refs,
             );
         }
+
+        propagate_statement_transfers(
+            program,
+            semantic,
+            ctx,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            statement,
+            active_contexts,
+            active_constraints,
+        );
     }
 
     state_calls
+}
+
+fn propagate_statement_transfers(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let (target_place, source_expression, source_place) = match statement {
+        StatementNode::LocalData(local_data) => (
+            semantic.append_symbol_place(local_data.symbol),
+            local_data.initial_value,
+            contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                local_data.initial_value,
+            ),
+        ),
+        StatementNode::Assignment(assignment) => {
+            let Some(target_place) = contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                assignment.target,
+            )
+            else {
+                return;
+            };
+            let source_place = contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                assignment.value,
+            );
+            (target_place, assignment.value, source_place)
+        }
+        StatementNode::Call(_)
+        | StatementNode::Expression(_)
+        | StatementNode::Transition(_) => return,
+    };
+    let source_label = program.expression_table.display_name(source_expression);
+
+    let mut refs = HandleSpan::empty();
+    let context_handles: Vec<_> = ctx
+        .semantic_context_refs
+        .span_or_empty(*active_contexts)
+        .iter()
+        .map(|context_ref| context_ref.context)
+        .collect();
+
+    for context_handle in context_handles {
+        let context = semantic.contexts.get(context_handle);
+        let facts_to_transfer: Vec<_> = semantic
+            .context_view(context)
+            .facts()
+            .filter_map(|fact| match fact.payload {
+                FactPayload::DomainMembership { domain, domain_symbol, .. }
+                | FactPayload::ContractDomainMembership {
+                    domain,
+                    domain_symbol,
+                    ..
+                } => {
+                    let FactPlace::Place(fact_place) = fact.place else {
+                        return None;
+                    };
+                    let fact_label = crate::labels::canonical_place_label(
+                        program,
+                        semantic,
+                        semantic.places.get(fact_place),
+                    );
+                    (source_place.is_some_and(|source_place| {
+                        semantic.places_match(program, fact_place, source_place)
+                    }) || fact_label == source_label)
+                        .then_some((domain, domain_symbol))
+                }
+                _ => None,
+            })
+            .collect();
+
+        for (domain, domain_symbol) in facts_to_transfer {
+            let fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(target_place),
+                point: ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                },
+                origin: FactOrigin::StatementTransfer,
+                payload: FactPayload::DomainMembership {
+                    value: ExpressionHandle::invalid(),
+                    domain,
+                    domain_symbol,
+                },
+            });
+            semantic.append_ref(&mut refs, fact);
+        }
+    }
+
+    if refs.is_empty() {
+        return;
+    }
+
+    let context = semantic.append_context(
+        ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+        },
+        refs,
+    );
+    let mut next_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, *active_contexts);
+    ctx.semantic_context_refs
+        .append_to_span(&mut next_contexts, FlowSemanticContextRef { context });
+    *active_contexts = next_contexts;
+    let mut next_constraints = clone_constraint_refs(&mut ctx.constraint_refs, *active_constraints);
+    append_constraint_ref(
+        &mut ctx.constraint_refs,
+        &mut next_constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+    *active_constraints = next_constraints;
+}
+
+fn contextual_expression_place(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<PlaceHandle> {
+    if let Some(place) = crate::semantic_places::canonical_place_to_fact_place(program, semantic, expression)
+    {
+        return Some(place);
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => contextual_expression_place(
+            program,
+            semantic,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            *inner,
+        ),
+        ExpressionNode::Name(path) => {
+            let name = program.expression_table.display_name(expression);
+            let state = crate::find_state(program, state_symbol)?;
+
+            if name == "self" {
+                let self_symbol = program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.is_self)
+                    .map(|parameter| parameter.symbol)?;
+                return Some(semantic.append_symbol_place(self_symbol));
+            }
+
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| !parameter.is_self && parameter.name.as_str() == name)
+            {
+                return Some(semantic.append_symbol_place(parameter.symbol));
+            }
+
+            for prior in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .take(statement_index)
+            {
+                let StatementNode::LocalData(local_data) = prior else {
+                    continue;
+                };
+                if local_data.name.as_str() == name {
+                    return Some(semantic.append_symbol_place(local_data.symbol));
+                }
+            }
+
+            let _ = path;
+            None
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                member.receiver,
+            )?;
+            let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
+            let symbol = if symbol.is_valid() {
+                symbol
+            } else {
+                crate::semantic_places::resolve_place_member_symbol(
+                    program,
+                    semantic,
+                    receiver,
+                    member.member.as_str(),
+                )?
+            };
+            Some(crate::semantic_places::append_place_segment(
+                semantic,
+                receiver,
+                omega_facts::PlaceSegment::Field { symbol },
+            ))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = contextual_expression_place(
+                program,
+                semantic,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                indexed.collection,
+            )?;
+            Some(crate::semantic_places::append_place_segment(
+                semantic,
+                collection,
+                omega_facts::PlaceSegment::Index {
+                    expression: indexed.index,
+                },
+            ))
+        }
+        _ => {
+            let _ = machine_symbol;
+            None
+        }
+    }
 }
 
 fn filter_expired_borrow_loans(

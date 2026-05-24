@@ -44,9 +44,9 @@ fn accepts_mutable_local_named_place_arguments() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -148,9 +148,9 @@ fn accepts_disjoint_member_borrow_arguments() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -229,9 +229,9 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -293,9 +293,9 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -349,9 +349,9 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -392,9 +392,9 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,

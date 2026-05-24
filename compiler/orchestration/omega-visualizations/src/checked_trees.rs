@@ -671,6 +671,7 @@ fn semantic_origin_label(program: &CheckedTrees, origin: omega_facts::FactOrigin
         omega_facts::FactOrigin::CallRequires => "call requires".to_owned(),
         omega_facts::FactOrigin::CallEnsures => "call ensures".to_owned(),
         omega_facts::FactOrigin::ExitEnsures => "exit ensures".to_owned(),
+        omega_facts::FactOrigin::StatementTransfer => "statement transfer".to_owned(),
     }
 }
 

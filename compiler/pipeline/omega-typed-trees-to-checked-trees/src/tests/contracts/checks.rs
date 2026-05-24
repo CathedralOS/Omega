@@ -1,4 +1,5 @@
 use super::*;
+use omega_checked_trees::ContractProofFactKind;
 
 #[test]
 fn rejects_unproven_exit_ensures_domain_membership() {
@@ -253,4 +254,148 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact),
         "self.player in Player::Alive"
     );
+}
+
+#[test]
+fn accepts_requires_from_local_alias_transfer() {
+    let source = r#"
+        data Player {
+            health: i32;
+        }
+
+        domain Player::Alive {
+            self.health > 0;
+        }
+
+        data Main {
+            player: Player;
+        }
+
+        machine Main::inspect(player: Player)
+        requires
+            player in Player::Alive
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.player in Player::Alive
+        {
+            let local: Player = self.player;
+            self.inspect(local);
+        }
+    "#;
+
+    let typed = parse_typed_trees(source);
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let inspect_contract = proof
+        .contract_facts
+        .iter()
+        .find_map(|(_, fact)| {
+            matches!(fact.kind, ContractProofFactKind::Requires).then_some(fact)
+        })
+        .expect("inspect requires fact");
+    let proof_expression = match typed.proof_facts.get(inspect_contract.fact) {
+        omega_typed_trees::domain::ProofFact::Membership(membership) => membership.value,
+        _ => panic!("expected membership proof fact"),
+    };
+    assert_eq!(typed.expression_table.display_name(proof_expression), "player");
+    let omega_typed_trees::expression::ExpressionNode::Name(path) =
+        typed.expression_table.expression(proof_expression)
+    else {
+        panic!("expected name path proof expression");
+    };
+    let members = typed.expression_table.name_path_members(path.members);
+    assert_eq!(members.len(), 1, "requires path members: {members:?}");
+    assert_eq!(members[0].as_str(), "player");
+    let member_symbols = typed.expression_table.name_path_member_symbols(path.member_symbols);
+    assert_eq!(member_symbols.len(), 1);
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "main")
+        .expect("main state");
+    let caller_flow = flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
+                .then_some(state)
+        })
+        .expect("main flow state");
+    let inspect_call = flow
+        .calls
+        .span_or_empty(caller_flow.calls)
+        .iter()
+        .find(|call| call.target_symbol.is_valid())
+        .expect("inspect call");
+    let call_site = crate::find_call_site(
+        &typed,
+        caller_flow.machine_symbol,
+        caller_flow.state_symbol,
+        inspect_call.statement_index,
+        inspect_call.call_ordinal,
+    )
+    .expect("call site");
+    let arguments = crate::call_site_argument_expressions(&typed, &call_site);
+    assert_eq!(arguments.len(), 1);
+    let local_argument = arguments[0];
+    assert_eq!(typed.expression_table.display_name(local_argument), "local");
+    let transferred: Vec<_> = flow
+        .semantic_context_refs
+        .span_or_empty(inspect_call.entry_semantic_contexts)
+        .iter()
+        .flat_map(|context_ref| {
+            let context = semantic.contexts.get(context_ref.context);
+            semantic.context_view(context).facts().filter_map(|fact| match fact.payload {
+                omega_facts::FactPayload::DomainMembership { domain_symbol, .. }
+                | omega_facts::FactPayload::ContractDomainMembership { domain_symbol, .. }
+                    if typed
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == domain_symbol)
+                        .is_some_and(|domain| domain.name.to_string() == "Player::Alive") =>
+                {
+                    Some(crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact))
+                }
+                _ => None,
+            })
+        })
+        .collect();
+    assert!(
+        transferred.iter().any(|label| label == "self.player in Player::Alive"),
+        "baseline entry fact should still be present: {transferred:?}"
+    );
+    assert!(
+        transferred.iter().any(|label| label == "local in Player::Alive"),
+        "entry contexts should include transferred local fact: {transferred:?}"
+    );
+    let required = flow
+        .semantic_context_refs
+        .span_or_empty(inspect_call.requires_contexts)
+        .iter()
+        .find_map(|context_ref| {
+            let context = semantic.contexts.get(context_ref.context);
+            semantic.context_view(context).facts().next().map(|fact| {
+                crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact)
+            })
+        });
+    assert_eq!(
+        required.as_deref(),
+        Some("local in Player::Alive"),
+        "callee requirement should instantiate onto the local argument"
+    );
+
+    lower_typed_trees(typed).expect("local aliases should inherit proven domain memberships");
 }

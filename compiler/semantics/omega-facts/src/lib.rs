@@ -117,6 +117,7 @@ pub enum FactOrigin {
     CallRequires,
     CallEnsures,
     ExitEnsures,
+    StatementTransfer,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
