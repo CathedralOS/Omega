@@ -762,6 +762,10 @@ fn assigned_value_home_name(
         omega_assigned_target_operations::AssignedValueHomeKind::Immediate => {
             "immediate".to_owned()
         }
+        omega_assigned_target_operations::AssignedValueHomeKind::StackSlot {
+            byte_offset,
+            byte_size,
+        } => format!("stack slot frame@{byte_offset}/{}", byte_size),
         omega_assigned_target_operations::AssignedValueHomeKind::RuntimeStorage {
             region,
             byte_offset,

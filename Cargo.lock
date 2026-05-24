@@ -495,6 +495,7 @@ dependencies = [
 name = "omega-machine-emission"
 version = "0.1.0"
 dependencies = [
+ "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",

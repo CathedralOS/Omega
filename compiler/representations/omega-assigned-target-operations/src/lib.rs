@@ -36,6 +36,10 @@ pub enum AssignedRegisterName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssignedValueHomeKind {
     Immediate,
+    StackSlot {
+        byte_offset: usize,
+        byte_size: usize,
+    },
     RuntimeStorage {
         region: RuntimeStorageRegion,
         byte_offset: usize,
