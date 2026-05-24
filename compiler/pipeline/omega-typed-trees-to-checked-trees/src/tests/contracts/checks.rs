@@ -161,3 +161,96 @@ fn accepts_exit_ensures_preserved_boolean_expression() {
     lower_typed_trees(parse_typed_trees(source))
         .expect("exit boolean ensures should be provable from preserved entry facts");
 }
+
+#[test]
+fn exit_ensures_requirement_label_resolves_attached_data_members() {
+    let source = r#"
+        data Player {
+            health: i32;
+        }
+
+        domain Player::Alive {
+            self.health > 0;
+        }
+
+        data Main {
+            player: Player;
+        }
+
+        machine Main::main(&mut self) -> i32
+        ensures
+            self.player in Player::Alive
+        {
+            0
+        }
+    "#;
+
+    let typed = parse_typed_trees(source);
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let semantic = build_semantic_facts(&typed, &proof);
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let exit_context = semantic
+        .contexts_at_point(omega_facts::ProgramPoint::Exit {
+            machine_symbol: machine.symbol,
+            state_symbol: typed.machine_states(machine)[0].symbol,
+            statement_index: 0,
+        })
+        .next()
+        .expect("exit context");
+    let fact = exit_context
+        .facts()
+        .next()
+        .expect("exit ensures fact");
+
+    let omega_facts::FactPlace::Place(place_handle) = fact.place else {
+        panic!("expected place-backed contract fact");
+    };
+    let place = semantic.places.get(place_handle);
+    let segments = semantic.place_segments.span_or_empty(place.segments);
+
+    let state = &typed.machine_states(machine)[0];
+    let self_symbol = typed.state_parameters(state)[0].symbol;
+    let value_expression = match fact.payload {
+        omega_facts::FactPayload::ContractDomainMembership { value, .. } => value,
+        _ => panic!("expected contract domain membership fact"),
+    };
+    assert_eq!(typed.expression_table.display_name(value_expression), "self.player");
+    assert_eq!(place.root, omega_facts::PlaceRoot::Symbol(self_symbol));
+    let self_type_symbol = crate::flow::symbol_type_symbol(&typed, self_symbol)
+        .expect("self parameter should have a resolvable type symbol");
+    assert!(
+        typed
+            .machines()
+            .iter()
+            .find(|candidate| candidate.symbol == self_type_symbol)
+            .and_then(|candidate| candidate.attached_data.as_ref())
+            .is_some()
+            || typed
+                .data_definitions()
+                .iter()
+                .any(|definition| definition.symbol == self_type_symbol),
+        "self type symbol should resolve to a machine with attached data or a data definition"
+    );
+    let mut scratch = omega_facts::build_definition_fact_plan(&typed);
+    let self_place = scratch.append_symbol_place(self_symbol);
+    assert!(
+        crate::semantic_places::resolve_place_member_symbol(&typed, &scratch, self_place, "player")
+            .is_some(),
+        "root self place should resolve attached-data member"
+    );
+    assert_eq!(segments.len(), 1, "segments: {segments:?}");
+    let omega_facts::PlaceSegment::Field { symbol: member_symbol } = segments[0] else {
+        panic!("expected field segment: {:?}", segments[0]);
+    };
+    assert!(member_symbol.is_valid());
+    assert_eq!(
+        crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact),
+        "self.player in Player::Alive"
+    );
+}

@@ -435,10 +435,19 @@ impl FactPlan {
             }
             ExpressionNode::Member(member) => {
                 let place = self.append_place_from_expression(program, member.receiver);
+                let symbol = {
+                    let symbol = effective_member_symbol(program, member.receiver, member);
+                    if symbol.is_valid() {
+                        symbol
+                    } else {
+                        resolve_place_member_symbol(program, self, place, member.member.as_str())
+                            .unwrap_or_else(SymbolHandle::invalid)
+                    }
+                };
                 self.push_place_segment(
                     place,
                     PlaceSegment::Field {
-                        symbol: effective_member_symbol(program, member.receiver, member),
+                        symbol,
                     },
                 );
                 place
