@@ -88,10 +88,17 @@ pub(super) const CONTROL_FLOW_TO_TARGET_OPERATIONS: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-pub(super) const TARGET_OPERATIONS_TO_MACHINE_PROGRAM: StageMeta = StageMeta::new(
+pub(super) const TARGET_OPERATIONS_TO_ASSIGNED_TARGET_OPERATIONS: StageMeta = StageMeta::new(
     "Stage 09",
     "TargetOperations",
-    "MachineProgram",
+    "AssignedTargetOperations",
+    TimingCategory::Pipeline,
+);
+
+pub(super) const ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS: StageMeta = StageMeta::new(
+    "Stage 10",
+    "AssignedTargetOperations",
+    "MachineInstructions",
     TimingCategory::Pipeline,
 );
 

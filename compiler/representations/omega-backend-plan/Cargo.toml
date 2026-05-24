@@ -13,8 +13,9 @@ omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-layout = { path = "../../backend/omega-layout" }
+omega-assigned-target-operations = { path = "../omega-assigned-target-operations" }
 omega-machine-bytes = { path = "../omega-machine-bytes" }
-omega-machine-program = { path = "../omega-machine-program" }
+omega-machine-instructions = { path = "../omega-machine-instructions" }
 omega-object = { path = "../../backend/object/omega-object" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }

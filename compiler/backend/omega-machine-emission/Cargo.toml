@@ -15,6 +15,6 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-instruction-selection = { path = "../omega-instruction-selection" }
 omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
-omega-machine-program = { path = "../../representations/omega-machine-program" }
+omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
 omega-target = { path = "../omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }

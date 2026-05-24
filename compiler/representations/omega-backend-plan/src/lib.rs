@@ -3,8 +3,9 @@ use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_machine_program::MachineProgram;
+use omega_machine_instructions::MachineInstructionPlan;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -33,7 +34,8 @@ pub struct BackendPlan {
     pub state_storage: Arc<StateStoragePlan>,
     pub state_values: StateValuePlan,
     pub data: TargetDataPlan,
-    pub instructions: InstructionPlan,
+    pub target_operations: InstructionPlan,
+    pub assigned_target_operations: AssignedTargetOperationPlan,
     pub control_flow: Arc<ControlFlowPlan>,
     pub runtime_flow: Arc<RuntimeFlowPlan>,
     pub state_dispatch: Arc<StateDispatchPlan>,
@@ -44,7 +46,7 @@ pub struct BackendPlan {
     pub runtime_storage: RuntimeStoragePlan,
     pub runtime_text: RuntimeTextPlan,
     pub layouts: Arc<LayoutPlan>,
-    pub machine_program: MachineProgram,
+    pub machine_instructions: MachineInstructionPlan,
     pub encoded_machine: EncodedMachinePlan,
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,

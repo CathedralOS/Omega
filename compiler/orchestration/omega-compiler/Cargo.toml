@@ -20,7 +20,6 @@ omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
 omega-tokens = { path = "../../representations/omega-tokens" }
 omega-layout = { path = "../../backend/omega-layout" }
-omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-backend-pipeline = { path = "../omega-backend-pipeline" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-backend-report = { path = "../../backend/omega-backend-report" }

@@ -193,20 +193,25 @@ Omega/
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-target-operations/            # Target-aware operations before instruction selection.
-|   |   |-- [CRATE] omega-machine-program/              # Machine functions, blocks, virtual/physical registers (MIR/LIR territory).
-|   |   `-- [CRATE] omega-machine-bytes/                # Encoded machine bytes and relocation-ready emission payload.
+|   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
+|   |   |-- [CRATE] omega-target-operations/            # Target-aware operations after legalization and selection.
+|   |   |-- [CRATE] omega-assigned-target-operations/   # Target-aware operations after register and stack assignment.
+|   |   |-- [CRATE] omega-machine-instructions/         # Final symbolic machine instructions before object-file encoding.
+|   |   `-- [CRATE] omega-object-file/                  # Relocatable object-file payload with sections, symbols, and relocations.
 |   |
 |   |-- pipeline/
-|   |   |-- [CRATE] omega-source-files-to-tokens/                # Source files to per-file token streams.
-|   |   |-- [CRATE] omega-tokens-to-syntax-trees/                # Token streams to parsed syntax trees.
-|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/ # Syntax trees to SymbolResolvedTrees with symbol identity attached.
-|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/  # SymbolResolvedTrees to typed/effect-annotated trees.
-|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/          # Typed trees to validated/proof-checked trees with semantic facts.
-|   |   |-- [CRATE] omega-checked-trees-to-state-graph/          # Checked trees to explicit machine/state graph.
-|   |   |-- [CRATE] omega-state-graph-to-control-flow/           # State graph to control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-control-flow-to-target-operations/     # Control flow to target-aware operations.
-|   |   `-- [CRATE] omega-target-operations-to-machine-program/  # Target-aware operations to symbolic machine program, before bytes.
+|   |   |-- [CRATE] omega-source-files-to-tokens/                   # Source files to per-file token streams.
+|   |   |-- [CRATE] omega-tokens-to-syntax-trees/                   # Token streams to parsed syntax trees.
+|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/.   # Syntax trees to SymbolResolvedTrees with symbol identity attached.
+|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/.    # SymbolResolvedTrees to typed/effect-annotated trees.
+|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/             # Typed trees to validated/proof-checked trees with semantic facts.
+|   |   |-- [CRATE] omega-checked-trees-to-state-graph/             # Checked trees to explicit machine/state graph.
+|   |   |-- [CRATE] omega-state-graph-to-control-flow/              # State graph to control-flow/data-flow graph.
+|   |   |-- [CRATE] omega-control-flow-to-abstract-operations/      # Lower control flow into target-independent abstract operations with virtual registers.
+|   |   |-- [CRATE] omega-abstract-operations-to-target-operations/ # Normalize, legalize, and lower abstract operations into target-aware forms.
+|   |   |-- [CRATE] omega-target-operations-to-assigned-target-operations/    # Assign registers, stack slots, and calling-convention homes to target-aware operations.
+|   |   |-- [CRATE] omega-assigned-target-operations-to-machine-instructions/ # Convert assigned target-aware operations into final symbolic machine instructions.
+|   |   `-- [CRATE] omega-machine-instructions-to-object-file/                # Encode machine instructions into object files with symbols and relocations.
 |   |
 |   |-- backend/
 |   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
@@ -224,13 +229,13 @@ Omega/
 |   |   |   `-- [CRATE] omega-isa-wasm32/               # Wasm codegen surface where native image rules differ.
 |   |   |
 |   |   |-- object/
-|   |   |   |-- [CRATE] omega-object/                   # Shared object representation: sections, symbols, relocations.
-|   |   |   |-- [CRATE] omega-object-planning/          # Builds section/symbol plans before object or image writing.
+|   |   |   |-- [CRATE] omega-object-file/              # Shared object-file representation: sections, symbols, relocations.
+|   |   |   |-- [CRATE] omega-object-file-planning/     # Builds section and symbol plans before object-file or image writing.
 |   |   |   |-- [CRATE] omega-relocations/              # Builds relocation records over selected and machine instructions.
-|   |   |   |-- [CRATE] omega-object-elf/               # ELF object/container writer.
-|   |   |   |-- [CRATE] omega-object-macho/             # Mach-O object/container writer.
-|   |   |   |-- [CRATE] omega-object-coff/              # COFF/PE object/container writer.
-|   |   |   `-- [CRATE] omega-object-wasm/              # Wasm module/object writer.
+|   |   |   |-- [CRATE] omega-object-file-elf/          # ELF object-file writer.
+|   |   |   |-- [CRATE] omega-object-file-macho/        # Mach-O object-file writer.
+|   |   |   |-- [CRATE] omega-object-file-coff/         # COFF/PE object-file writer.
+|   |   |   `-- [CRATE] omega-object-file-wasm/         # Wasm object-file writer.
 |   |   |
 |   |   |-- linker/
 |   |   |   |-- [CRATE] omega-linker/                   # Compiler-owned linker driver and graph orchestration.
@@ -332,12 +337,15 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 - `semantics/` proves and reports what the program means. `representations/` decides how that meaning is shaped for optimization and code generation.
 - `omega-borrow` answers who may read or mutate. `omega-invariants` answers what remains true. `omega-contracts` answers what a callable or machine requires or promises. `omega-proof` is where those obligations are discharged.
 - `omega-graph` and `omega-proof` stay semantic/proof-facing first. Do not bury language-level state-machine reasoning inside machine-code crates.
-- `omega-symbol-resolved-trees`/`SymbolResolvedTrees`, `omega-typed-trees`, `omega-state-graph`, `omega-control-flow`, `omega-target-operations`, `omega-machine-program`, and `omega-machine-bytes` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often call HIR, MIR, LIR, and final encoded machine output.
+- `omega-symbol-resolved-trees`/`SymbolResolvedTrees`, `omega-typed-trees`, `omega-state-graph`, `omega-control-flow`, `omega-abstract-operations`, `omega-target-operations`, `omega-assigned-target-operations`, `omega-machine-instructions`, and `omega-object-file` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often split into HIR, MIR, target-independent abstract operations, target-aware low-level operations, assigned target operations, symbolic machine instructions, and final object-file emission.
 - `representations/` owns the durable structs and arena data, including frontend products like source files, token streams, and syntax trees. `pipeline/` crates transform from one representation to the next, depend on both sides, and should not become owners of shared helper structures.
-- `omega-target-operations-to-machine-program` is a pipeline crate only if it produces a symbolic machine program. It may consume pure target/ISA/calling-convention facts, but it must not emit final bytes, own relocation records, or commit to final physical registers/stack offsets/branch displacements. If it starts doing those things, split that work into backend crates instead of letting the pipeline layer become a printer.
+- `omega-control-flow-to-abstract-operations` is where the backend stops pretending control flow is already machine-shaped. This phase should produce target-independent abstract operations with infinite virtual registers, explicit values, and explicit effects.
+- `omega-abstract-operations-to-target-operations` is where normalization, legalization, and instruction-shape lowering belong. This phase may depend on target, ISA, layout, and calling-convention facts, but it should still be a pure representation-to-representation transform: abstract operations in, target-aware operations out.
+- `omega-target-operations-to-assigned-target-operations` is where register allocation, stack-slot assignment, spill insertion, and calling-convention placement become concrete. If a pass needs physical registers or fixed stack homes, it belongs here or immediately around it.
 - `backend/instruction_set_architectures/*` owns architecture-specific instruction definitions and encoding. Shared lowering policy belongs in `omega-instruction-selection`, not duplicated per architecture unless the target really demands it.
-- `omega-machine-program` is Omega's LLVM-like handoff layer: virtual registers, symbolic labels, abstract stack slots, unresolved calls, machine constraints, and proof obligations are still inspectable here. Register allocation, scheduling, branch relaxation, and peephole rewrites happen before byte emission.
-- `omega-machine-emission` is where final bytes are born. No earlier representation should carry encoded instruction bytes as its primary truth. Final branch offsets, final physical registers, final stack-frame offsets, and target-specific instruction encodings belong here or immediately before it in backend-only passes.
+- `omega-assigned-target-operations` is the post-assignment layer: target-aware operations whose registers, stack homes, and calling-convention placements are already decided, but which have not yet been converted into final machine instructions.
+- `omega-machine-instructions` is Omega's final symbolic instruction layer: physical registers and stack homes may already be assigned, but labels, relocations, and object-file concerns are still symbolic and inspectable here.
+- `omega-machine-instructions-to-object-file` is where final bytes and relocation-bearing object contents are born. No earlier representation should carry encoded instruction bytes as its primary truth. Final instruction encodings, section layout, relocation records, and symbol references belong here or immediately around it in backend-only passes.
 - `omega-calling-conventions` owns ABI-level rules for how values cross state/function/platform boundaries: registers, stack slots, return locations, and callee/caller responsibilities.
 - `omega-platform-interface` owns ABI-facing OS/platform call surfaces, imports, loader-visible symbols, and host integration facts.
 - `backend/object/*` writes relocatable containers. `backend/linker/*` resolves symbols, applies relocations, strips dead sections, and builds final images. Do not blur object writing and linking together.

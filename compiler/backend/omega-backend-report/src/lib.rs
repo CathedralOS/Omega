@@ -6,13 +6,14 @@ mod object;
 mod stats;
 
 use omega_artifacts::BackendSurfaceReport;
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::{ControlFlowPlan, ProofObligationOwner, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_machine_program::MachineProgram;
+use omega_machine_instructions::MachineInstructionPlan;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -55,7 +56,8 @@ pub struct BackendReportInput<'plan> {
     pub state_storage: &'plan StateStoragePlan,
     pub state_values: &'plan StateValuePlan,
     pub data: &'plan TargetDataPlan,
-    pub instructions: &'plan InstructionPlan,
+    pub target_operations: &'plan InstructionPlan,
+    pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub control_flow: &'plan ControlFlowPlan,
     pub runtime_flow: &'plan RuntimeFlowPlan,
     pub state_dispatch: &'plan StateDispatchPlan,
@@ -66,7 +68,7 @@ pub struct BackendReportInput<'plan> {
     pub runtime_storage: &'plan RuntimeStoragePlan,
     pub runtime_text: &'plan RuntimeTextPlan,
     pub layouts: &'plan LayoutPlan,
-    pub machine_program: &'plan MachineProgram,
+    pub machine_instructions: &'plan MachineInstructionPlan,
     pub encoded_machine: &'plan EncodedMachinePlan,
     pub object: &'plan ObjectPlan,
     pub relocations: &'plan RelocationPlan,

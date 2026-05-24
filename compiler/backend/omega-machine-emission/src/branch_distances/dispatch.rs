@@ -3,7 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::arena::Handle;
-use omega_machine_program::MachineInstructionKind;
+use omega_machine_instructions::MachineInstructionKind;
 use omega_target_operations::SelectedInstructionKind;
 
 pub(crate) fn byte_distance_to_case_end(

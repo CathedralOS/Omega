@@ -17,9 +17,10 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-data-planning = { path = "../../backend/omega-data-planning" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
+omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-machine-emission = { path = "../../backend/omega-machine-emission" }
-omega-machine-program = { path = "../../representations/omega-machine-program" }
+omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
 omega-object = { path = "../../backend/object/omega-object" }
 omega-object-planning = { path = "../../backend/object/omega-object-planning" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
@@ -36,5 +37,6 @@ omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
-omega-target-operations-to-machine-program = { path = "../../pipeline/omega-target-operations-to-machine-program" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-target-operations-to-assigned-target-operations" }
+omega-assigned-target-operations-to-machine-instructions = { path = "../../pipeline/omega-assigned-target-operations-to-machine-instructions" }

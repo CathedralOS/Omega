@@ -1,6 +1,7 @@
 use super::entry::resolve_backend_entry_point;
 use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
+use omega_assigned_target_operations_to_machine_instructions::build_machine_instructions;
 use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_checked_trees::CheckedTrees;
@@ -41,7 +42,7 @@ use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
-use omega_target_operations_to_machine_program::build_machine_program;
+use omega_target_operations_to_assigned_target_operations::build_assigned_target_operations;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
@@ -276,7 +277,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             &backend_plan.runtime_text,
         )
     });
-    backend_plan.instructions = record_backend_phase(&mut phase_timings, "instructions", || {
+    backend_plan.target_operations =
+        record_backend_phase(&mut phase_timings, "target operations", || {
         build_instruction_plan(&InstructionSelectionInput {
             target: backend_plan.target,
             entry_key: backend_plan.entry_key,
@@ -299,16 +301,21 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             data: &backend_plan.data,
         })
     });
-    backend_plan.machine_program =
-        record_backend_phase(&mut phase_timings, "machine program", || {
-            build_machine_program(&backend_plan.instructions)
+    backend_plan.assigned_target_operations = record_backend_phase(
+        &mut phase_timings,
+        "assigned target operations",
+        || build_assigned_target_operations(&backend_plan.target_operations),
+    );
+    backend_plan.machine_instructions =
+        record_backend_phase(&mut phase_timings, "machine instructions", || {
+            build_machine_instructions(&backend_plan.assigned_target_operations)
         })?;
     backend_plan.encoded_machine =
         record_backend_phase(&mut phase_timings, "machine emission", || {
             emit_machine_bytes(MachineEmissionInput {
                 target: backend_plan.target,
-                instructions: &backend_plan.instructions,
-                machine_program: &backend_plan.machine_program,
+                target_operations: &backend_plan.target_operations,
+                machine_instructions: &backend_plan.machine_instructions,
                 host_abi: &backend_plan.host_abi,
                 terminal_dispatch_index: backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
             })
@@ -330,7 +337,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.relocations = record_backend_phase(&mut phase_timings, "relocations", || {
         build_relocation_plan(RelocationPlanningInput {
             target: backend_plan.target,
-            instructions: &backend_plan.instructions,
+            instructions: &backend_plan.target_operations,
             encoded_machine: &backend_plan.encoded_machine,
             data: &backend_plan.data,
             object: &backend_plan.object,

@@ -5,7 +5,7 @@ use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_machine_program::MachineProgram;
+use omega_machine_instructions::MachineInstructionPlan;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::{HostCallPlan, UnsupportedHostCallReason};
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -66,7 +66,7 @@ pub struct EmissionPlanningInput<'plan> {
     pub runtime_text: &'plan RuntimeTextPlan,
     pub state_guards: &'plan StateGuardPlan,
     pub layouts: &'plan LayoutPlan,
-    pub machine_program: &'plan MachineProgram,
+    pub machine_instructions: &'plan MachineInstructionPlan,
     pub encoded_machine: &'plan EncodedMachinePlan,
     pub object: &'plan ObjectPlan,
     pub relocations: &'plan RelocationPlan,
@@ -92,7 +92,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
             }
         };
 
-    if input.encoded_machine.instructions.len() < input.machine_program.instructions.len() {
+    if input.encoded_machine.instructions.len() < input.machine_instructions.instructions.len() {
         blockers.insert(emission_blocker(
             "machine encoding",
             "not all selected native instructions are encoded into target bytes yet",
@@ -185,7 +185,7 @@ fn estimated_emission_blocker_capacity(input: &EmissionPlanningInput<'_>) -> usi
 
 fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
     can_emit_executable_image(input.target)
-        && input.encoded_machine.instructions.len() == input.machine_program.instructions.len()
+        && input.encoded_machine.instructions.len() == input.machine_instructions.instructions.len()
 }
 
 fn blocker(stage: &str, reason: &str) -> EmissionBlocker {

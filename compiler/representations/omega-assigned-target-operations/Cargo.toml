@@ -1,0 +1,15 @@
+[package]
+name = "omega-assigned-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_assigned_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-control-flow = { path = "../omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-target = { path = "../../backend/omega-target" }
+omega-target-operations = { path = "../omega-target-operations" }

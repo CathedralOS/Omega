@@ -1,8 +1,8 @@
 use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
-use omega_machine_program::{MachineInstruction, MachineProgram};
 use omega_target::NativeTarget;
 use omega_target_operations::{
     InstructionPlan, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
@@ -19,8 +19,8 @@ use layout::layout_machine_instructions;
 #[derive(Debug)]
 pub struct MachineEmissionInput<'plan, 'machine> {
     pub target: NativeTarget,
-    pub instructions: &'plan InstructionPlan,
-    pub machine_program: &'machine MachineProgram,
+    pub target_operations: &'plan InstructionPlan,
+    pub machine_instructions: &'machine MachineInstructionPlan,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,
 }
@@ -30,21 +30,21 @@ pub fn emit_machine_bytes(
 ) -> Result<EncodedMachinePlan, Diagnostic> {
     let mut encoded_bytes = EncodedMachinePlan::with_capacity(
         input.target,
-        input.machine_program.functions.len(),
-        input.machine_program.instructions.len(),
+        input.machine_instructions.functions.len(),
+        input.machine_instructions.instructions.len(),
         0,
     );
 
-    for (_, function) in input.machine_program.functions.iter() {
+    for (_, function) in input.machine_instructions.functions.iter() {
         let byte_offset = encoded_bytes.bytes.len();
         emit_function_bytes(
             MachineEmissionContext {
                 target: input.target,
-                instructions: input.instructions,
+                instructions: input.target_operations,
                 host_abi: input.host_abi,
                 terminal_dispatch_index: input.terminal_dispatch_index,
             },
-            input.machine_program,
+            input.machine_instructions,
             &mut encoded_bytes,
             function.instructions,
         )?;
@@ -63,11 +63,11 @@ pub fn emit_machine_bytes(
 
 fn emit_function_bytes(
     emission_context: MachineEmissionContext<'_>,
-    machine_program: &MachineProgram,
+    machine_instructions: &MachineInstructionPlan,
     encoded_plan: &mut EncodedMachinePlan,
     machine_instructions_span: HandleSpan<MachineInstruction>,
 ) -> Result<(), Diagnostic> {
-    let Some(machine_instructions) = machine_program.instructions.span(machine_instructions_span)
+    let Some(machine_instructions) = machine_instructions.instructions.span(machine_instructions_span)
     else {
         return Ok(());
     };
