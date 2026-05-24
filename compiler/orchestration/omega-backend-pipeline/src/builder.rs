@@ -1,6 +1,7 @@
 use super::entry::resolve_backend_entry_point;
 use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
+use omega_abstract_operations_to_target_operations::build_target_operation_plan;
 use omega_assigned_target_operations_to_machine_instructions::build_machine_instructions;
 use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
@@ -9,8 +10,9 @@ use omega_control_flow::ControlFlowPlan;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
+use omega_control_flow_to_abstract_operations::build_abstract_operation_plan;
 use omega_data_planning::build_target_data_plan;
-use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
+use omega_instruction_selection::InstructionSelectionInput;
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_file::object_entry_symbol_name;
@@ -277,9 +279,9 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             &backend_plan.runtime_text,
         )
     });
-    backend_plan.target_operations =
-        record_backend_phase(&mut phase_timings, "target operations", || {
-        build_instruction_plan(&InstructionSelectionInput {
+    backend_plan.abstract_operations =
+        record_backend_phase(&mut phase_timings, "abstract operations", || {
+        build_abstract_operation_plan(&InstructionSelectionInput {
             target: backend_plan.target,
             entry_key: backend_plan.entry_key,
             entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
@@ -300,6 +302,9 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             layouts: &backend_plan.layouts,
             data: &backend_plan.data,
         })
+    });
+    backend_plan.target_operations = record_backend_phase(&mut phase_timings, "target operations", || {
+        build_target_operation_plan(backend_plan.target, &backend_plan.abstract_operations)
     });
     backend_plan.assigned_target_operations = record_backend_phase(
         &mut phase_timings,

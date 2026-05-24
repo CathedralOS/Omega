@@ -9,9 +9,12 @@ name = "omega_backend_pipeline"
 path = "src/lib.rs"
 
 [dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-abstract-operations-to-target-operations = { path = "../../pipeline/omega-abstract-operations-to-target-operations" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
+omega-control-flow-to-abstract-operations = { path = "../../pipeline/omega-control-flow-to-abstract-operations" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-data-planning = { path = "../../backend/omega-data-planning" }

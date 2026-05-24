@@ -84,6 +84,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
+name = "omega-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-target-operations",
+]
+
+[[package]]
+name = "omega-abstract-operations-to-target-operations"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-operations",
+ "omega-target",
+ "omega-target-operations",
+]
+
+[[package]]
 name = "omega-artifacts"
 version = "0.1.0"
 dependencies = [
@@ -116,12 +133,15 @@ dependencies = [
 name = "omega-backend-pipeline"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
+ "omega-abstract-operations-to-target-operations",
  "omega-assigned-target-operations",
  "omega-assigned-target-operations-to-machine-instructions",
  "omega-backend-plan",
  "omega-calling-conventions",
  "omega-checked-trees",
  "omega-control-flow",
+ "omega-control-flow-to-abstract-operations",
  "omega-core",
  "omega-data-planning",
  "omega-instruction-selection",
@@ -153,6 +173,7 @@ dependencies = [
 name = "omega-backend-plan"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-control-flow",
@@ -298,6 +319,14 @@ dependencies = [
  "omega-effects",
  "omega-facts",
  "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-control-flow-to-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-operations",
+ "omega-instruction-selection",
 ]
 
 [[package]]
@@ -516,6 +545,7 @@ dependencies = [
  "omega-core",
  "omega-machine-program",
  "omega-target",
+ "omega-target-operations",
 ]
 
 [[package]]

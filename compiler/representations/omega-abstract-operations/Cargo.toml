@@ -1,0 +1,13 @@
+[package]
+name = "omega-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-target-operations = { path = "../omega-target-operations" }

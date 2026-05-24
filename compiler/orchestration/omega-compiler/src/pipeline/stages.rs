@@ -4,9 +4,10 @@ use crate::pipeline::frontend::{
 use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use crate::pipeline::stage::{
+    ABSTRACT_OPERATIONS_TO_TARGET_OPERATIONS,
     ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS,
     BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, CHECKED_TREES_TO_STATE_GRAPH,
-    CONTROL_FLOW_TO_TARGET_OPERATIONS, SOURCE_FILES_TO_TOKENS, STATE_GRAPH_TO_CONTROL_FLOW,
+    CONTROL_FLOW_TO_ABSTRACT_OPERATIONS, SOURCE_FILES_TO_TOKENS, STATE_GRAPH_TO_CONTROL_FLOW,
     SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
     TARGET_OPERATIONS_TO_ASSIGNED_TARGET_OPERATIONS, TOKENS_TO_SYNTAX_TREES,
     TYPED_TREES_TO_CHECKED_TREES,
@@ -177,8 +178,14 @@ pub(super) fn control_flow_to_backend_plan(
     record_backend_phase_as_stage(
         timings,
         &plan,
+        "abstract operations",
+        CONTROL_FLOW_TO_ABSTRACT_OPERATIONS,
+    )?;
+    record_backend_phase_as_stage(
+        timings,
+        &plan,
         "target operations",
-        CONTROL_FLOW_TO_TARGET_OPERATIONS,
+        ABSTRACT_OPERATIONS_TO_TARGET_OPERATIONS,
     )?;
     record_backend_phase_as_stage(
         timings,
