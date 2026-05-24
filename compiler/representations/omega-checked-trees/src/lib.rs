@@ -594,6 +594,25 @@ impl FlowFacts {
             .iter()
             .find(|statement| statement.statement_index == statement_index)
     }
+
+    pub fn state_call(
+        &self,
+        state: &FlowStateFact,
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+        receiver_symbol: SymbolHandle,
+    ) -> Option<&FlowCallFact> {
+        self.calls
+            .span_or_empty(state.calls)
+            .iter()
+            .find(|call| {
+                call.statement_index == statement_index
+                    && call.call_ordinal == call_ordinal
+                    && call.target_symbol == target_symbol
+                    && call.receiver_symbol == receiver_symbol
+            })
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
