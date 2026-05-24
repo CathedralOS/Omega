@@ -1,4 +1,3 @@
-use omega_assigned_target_operations::AssignedValueHomeHandle;
 use omega_assigned_target_operations::SelectedInstructionKind;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
@@ -54,8 +53,6 @@ pub struct MachineInstruction {
     pub selected_instruction_index: u32,
     pub source_kind: SelectedInstructionKind,
     pub kind: MachineInstructionKind,
-    pub primary_home: AssignedValueHomeHandle,
-    pub secondary_home: AssignedValueHomeHandle,
 }
 
 impl Default for MachineInstruction {
@@ -64,8 +61,6 @@ impl Default for MachineInstruction {
             selected_instruction_index: 0,
             source_kind: SelectedInstructionKind::EnterFunction,
             kind: MachineInstructionKind::NoOp,
-            primary_home: AssignedValueHomeHandle::invalid(),
-            secondary_home: AssignedValueHomeHandle::invalid(),
         }
     }
 }
@@ -86,8 +81,6 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                         selected_instruction_index: instruction.selected_instruction_index,
                         source_kind: SelectedInstructionKind::EnterFunction,
                         kind: instruction.kind,
-                        primary_home: AssignedValueHomeHandle::invalid(),
-                        secondary_home: AssignedValueHomeHandle::invalid(),
                     }),
             )).expect("machine instruction arena insertion should not fail");
             plan.functions.insert(MachineInstructionFunction {

@@ -67,53 +67,7 @@ fn append_machine_instructions(
                     selected_instruction_handle,
                     &selected_instruction.kind,
                 )?,
-                primary_home: primary_home_handle(assigned_target_operations, &selected_instruction.kind),
-                secondary_home: secondary_home_handle(assigned_target_operations, &selected_instruction.kind),
             })
         },
     ))
-}
-
-fn primary_home_handle(
-    assigned_target_operations: &AssignedTargetOperationPlan,
-    kind: &omega_assigned_target_operations::SelectedInstructionKind,
-) -> omega_assigned_target_operations::AssignedValueHomeHandle {
-    first_runtime_value_handle(kind)
-        .map(|handle| assigned_target_operations.runtime_value_home_handle(handle))
-        .filter(|handle| handle.is_valid())
-        .unwrap_or_else(omega_assigned_target_operations::AssignedValueHomeHandle::invalid)
-}
-
-fn secondary_home_handle(
-    assigned_target_operations: &AssignedTargetOperationPlan,
-    kind: &omega_assigned_target_operations::SelectedInstructionKind,
-) -> omega_assigned_target_operations::AssignedValueHomeHandle {
-    second_runtime_value_handle(kind)
-        .map(|handle| assigned_target_operations.runtime_value_home_handle(handle))
-        .filter(|handle| handle.is_valid())
-        .unwrap_or_else(omega_assigned_target_operations::AssignedValueHomeHandle::invalid)
-}
-
-fn first_runtime_value_handle(
-    kind: &omega_assigned_target_operations::SelectedInstructionKind,
-) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
-    match kind {
-        omega_assigned_target_operations::SelectedInstructionKind::CompareRuntimeValues { left, .. }
-        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeStorageBinary { left, .. }
-        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimePointeeBinary { left, .. }
-        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
-        _ => None,
-    }
-}
-
-fn second_runtime_value_handle(
-    kind: &omega_assigned_target_operations::SelectedInstructionKind,
-) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
-    match kind {
-        omega_assigned_target_operations::SelectedInstructionKind::CompareRuntimeValues { right, .. }
-        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeStorageBinary { right, .. }
-        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimePointeeBinary { right, .. }
-        | omega_assigned_target_operations::SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
-        _ => None,
-    }
 }
