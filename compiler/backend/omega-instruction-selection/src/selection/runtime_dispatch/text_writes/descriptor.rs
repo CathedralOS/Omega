@@ -31,7 +31,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
         dispatch_index,
         target_source_key,
         resolved_target,
-    ) && indexed_target.byte_count == input.target.pointer_size * 2
+    ) && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeFrameIndexedString {
@@ -58,7 +58,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     ) else {
         return;
     };
-    if target_place.byte_count != input.target.pointer_size * 2 {
+    if target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return;
     }
 

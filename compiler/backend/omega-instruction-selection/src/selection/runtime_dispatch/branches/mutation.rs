@@ -627,7 +627,7 @@ fn select_runtime_string_mutation_write_in_table(
             expressions,
             target,
         )
-        && indexed_target.byte_count == input.target.pointer_size * 2
+        && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
         return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset: indexed_target.descriptor_offset,
@@ -646,7 +646,7 @@ fn select_runtime_string_mutation_write_in_table(
         expressions,
         target,
     )?;
-    if target_place.byte_count != input.target.pointer_size * 2 || !data.is_valid() {
+    if target_place.byte_count != input.runtime_abi.string_descriptor_size() || !data.is_valid() {
         return None;
     }
 

@@ -273,7 +273,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
-    if slot.byte_size == input.target.pointer_size
+    if slot.byte_size == input.runtime_abi.pointer_size
         && let Some(kind) = select_runtime_frame_slot_address_write_in_table(
             input,
             dispatch_index,
@@ -486,7 +486,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             expressions,
             target,
         )
-        && indexed_target.byte_count == input.target.pointer_size * 2
+        && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
     {
         return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset: indexed_target.descriptor_offset,
@@ -505,7 +505,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
         expressions,
         target,
     )?;
-    if target_place.byte_count != input.target.pointer_size * 2 || !data.is_valid() {
+    if target_place.byte_count != input.runtime_abi.string_descriptor_size() || !data.is_valid() {
         return None;
     }
 

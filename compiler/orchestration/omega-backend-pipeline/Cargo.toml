@@ -27,6 +27,7 @@ omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-object-file-planning = { path = "../../backend/object/omega-object-file-planning" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-relocations = { path = "../../backend/object/omega-relocations" }
+omega-runtime-abi = { path = "../../backend/omega-runtime-abi" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }
 omega-runtime-dispatch-loop = { path = "../../backend/omega-runtime-dispatch-loop" }

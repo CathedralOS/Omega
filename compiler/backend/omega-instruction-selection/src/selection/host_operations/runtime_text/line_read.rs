@@ -50,7 +50,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         &input.runtime_text.expressions,
         buffer.text_place,
     )?;
-    if target_place.byte_count != input.target.pointer_size * 2 {
+    if target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return None;
     }
 
@@ -103,7 +103,7 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
             *expression,
         )
     {
-        return (place.byte_count == input.target.pointer_size * 2).then_some(place);
+        return (place.byte_count == input.runtime_abi.string_descriptor_size()).then_some(place);
     }
 
     let mut expressions = ExpressionTable::with_expression_capacity(
@@ -145,7 +145,7 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         &expressions,
         resolved_expression,
     ) {
-        return (place.byte_count == input.target.pointer_size * 2).then_some(place);
+        return (place.byte_count == input.runtime_abi.string_descriptor_size()).then_some(place);
     }
 
     None

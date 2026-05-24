@@ -19,6 +19,7 @@ omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" 
 omega-layout = { path = "../omega-layout" }
 omega-object-file = { path = "../object/omega-object-file" }
 omega-platform-interface = { path = "../omega-platform-interface" }
+omega-runtime-abi = { path = "../omega-runtime-abi" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-runtime-branching = { path = "../omega-runtime-branching" }
 omega-runtime-dispatch-loop = { path = "../omega-runtime-dispatch-loop" }

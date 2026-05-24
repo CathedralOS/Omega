@@ -41,19 +41,19 @@ impl RuntimeTextTarget {
         }
         if place
             .as_ref()
-            .is_some_and(|place| place.byte_count != input.target.pointer_size * 2)
+            .is_some_and(|place| place.byte_count != input.runtime_abi.string_descriptor_size())
         {
             return None;
         }
         if pointee
             .as_ref()
-            .is_some_and(|target| target.pointee_byte_size != input.target.pointer_size * 2)
+            .is_some_and(|target| target.pointee_byte_size != input.runtime_abi.string_descriptor_size())
         {
             return None;
         }
         if indexed
             .as_ref()
-            .is_some_and(|target| target.byte_count != input.target.pointer_size * 2)
+            .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
         {
             return None;
         }
@@ -174,19 +174,19 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
     }
     if target_place
         .as_ref()
-        .is_some_and(|place| place.byte_count != input.target.pointer_size * 2)
+        .is_some_and(|place| place.byte_count != input.runtime_abi.string_descriptor_size())
     {
         return false;
     }
     if target_pointee
         .as_ref()
-        .is_some_and(|target| target.pointee_byte_size != input.target.pointer_size * 2)
+        .is_some_and(|target| target.pointee_byte_size != input.runtime_abi.string_descriptor_size())
     {
         return false;
     }
     if target_indexed
         .as_ref()
-        .is_some_and(|target| target.byte_count != input.target.pointer_size * 2)
+        .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
     {
         return false;
     }
@@ -244,7 +244,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                 ) else {
                     return false;
                 };
-                if source_place.byte_count != input.target.pointer_size * 2 {
+                if source_place.byte_count != input.runtime_abi.string_descriptor_size() {
                     return false;
                 }
                 if let Some(target_place) = target.place.as_ref() {
@@ -536,7 +536,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                 ) else {
                     return false;
                 };
-                if source_place.byte_count != input.target.pointer_size * 2 {
+                if source_place.byte_count != input.runtime_abi.string_descriptor_size() {
                     return false;
                 }
                 if let Some(target_place) = target.place.as_ref() {
@@ -779,7 +779,7 @@ fn prefixed_stored_place_write_with_handle_resolver(
     ) else {
         return false;
     };
-    if source_place.byte_count != input.target.pointer_size * 2 {
+    if source_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return false;
     }
 
@@ -828,7 +828,7 @@ fn prefixed_stored_place_write_without_aliases(
     ) else {
         return false;
     };
-    if source_place.byte_count != input.target.pointer_size * 2 {
+    if source_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return false;
     }
 
