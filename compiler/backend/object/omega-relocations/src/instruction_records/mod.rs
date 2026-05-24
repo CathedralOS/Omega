@@ -12,9 +12,10 @@ use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
 use omega_object_file::{ObjectSymbolHandle, RelocationPlan};
 use omega_target::Architecture;
+use omega_assigned_target_operations::RuntimeValueOperand;
 use omega_target_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
-    StateGuardLowering, StateGuardOperator,
+    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
+    StateGuardOperator,
 };
 
 pub(super) fn collect_instruction_relocations(

@@ -95,7 +95,129 @@ impl From<AssignedInstructionOperandKind> for omega_target_operations::TargetIns
 pub type InstructionOperand = AssignedInstructionOperand;
 pub type InstructionOperandKind = AssignedInstructionOperandKind;
 
-pub type AssignedValueOperandKind = omega_target_operations::TargetValueOperand;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AssignedValueOperandKind {
+    Immediate(i64),
+    Storage {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_size: usize,
+    },
+    Pointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
+    FrameIndexed {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
+    Binary {
+        left: AssignedValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AssignedValueOperandHandle,
+    },
+}
+
+impl From<omega_target_operations::TargetValueOperand> for AssignedValueOperandKind {
+    fn from(kind: omega_target_operations::TargetValueOperand) -> Self {
+        match kind {
+            omega_target_operations::TargetValueOperand::Immediate(value) => Self::Immediate(value),
+            omega_target_operations::TargetValueOperand::Storage {
+                region,
+                byte_offset,
+                byte_size,
+            } => Self::Storage {
+                region,
+                byte_offset,
+                byte_size,
+            },
+            omega_target_operations::TargetValueOperand::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+            } => Self::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+            },
+            omega_target_operations::TargetValueOperand::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Self::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            },
+            omega_target_operations::TargetValueOperand::Binary {
+                left,
+                operator,
+                right,
+            } => Self::Binary {
+                left,
+                operator,
+                right,
+            },
+        }
+    }
+}
+
+impl From<AssignedValueOperandKind> for omega_target_operations::TargetValueOperand {
+    fn from(kind: AssignedValueOperandKind) -> Self {
+        match kind {
+            AssignedValueOperandKind::Immediate(value) => Self::Immediate(value),
+            AssignedValueOperandKind::Storage {
+                region,
+                byte_offset,
+                byte_size,
+            } => Self::Storage {
+                region,
+                byte_offset,
+                byte_size,
+            },
+            AssignedValueOperandKind::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+            } => Self::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+            },
+            AssignedValueOperandKind::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Self::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            },
+            AssignedValueOperandKind::Binary {
+                left,
+                operator,
+                right,
+            } => Self::Binary {
+                left,
+                operator,
+                right,
+            },
+        }
+    }
+}
+
 pub type AssignedValueOperandHandle = omega_target_operations::TargetValueOperandHandle;
 pub type RuntimeValueOperand = AssignedValueOperandKind;
 pub type RuntimeValueOperandHandle = AssignedValueOperandHandle;
@@ -376,13 +498,82 @@ impl omega_target_operations::InstructionOperandLike for AssignedInstructionOper
 }
 
 impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperationPlan {
-    fn runtime_value_operand(
+    fn immediate_integer(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> &omega_target_operations::RuntimeValueOperand {
-        &AssignedTargetOperationPlan::runtime_value_operand(self, handle)
-            .expect("assigned runtime value operand should exist for target-runtime lookup")
-            .kind
+    ) -> Option<i64> {
+        match AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Immediate(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn storage(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeStorageRegion, usize, usize)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Storage {
+                region,
+                byte_offset,
+                byte_size,
+            } => Some((*region, *byte_offset, *byte_size)),
+            _ => None,
+        }
+    }
+
+    fn pointee(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Pointee {
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+            } => Some((*pointer_byte_offset, *field_byte_offset, *byte_size)),
+            _ => None,
+        }
+    }
+
+    fn frame_indexed(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::FrameIndexed {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Some((
+                *descriptor_offset,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *byte_size,
+            )),
+            _ => None,
+        }
+    }
+
+    fn binary(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(
+        omega_target_operations::RuntimeValueOperandHandle,
+        StateGuardOperator,
+        omega_target_operations::RuntimeValueOperandHandle,
+    )> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Binary {
+                left,
+                operator,
+                right,
+            } => Some((*left, *operator, *right)),
+            _ => None,
+        }
     }
 }
 
@@ -454,7 +645,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
         let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
         for (_, operand) in plan.runtime_value_operands.iter() {
             runtime_value_operands.insert(AssignedValueOperand {
-                kind: operand.clone(),
+                kind: operand.clone().into(),
                 home: AssignedValueHomeKind::Immediate,
             });
         }
@@ -498,10 +689,13 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             });
         }
 
-        let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
-        for (_, operand) in plan.runtime_value_operands.iter() {
-            runtime_value_operands.insert(operand.kind.clone());
-        }
+        let runtime_value_operands = {
+            let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
+            for (_, operand) in plan.runtime_value_operands.iter() {
+                runtime_value_operands.insert(operand.kind.clone().into());
+            }
+            runtime_value_operands
+        };
 
         Self {
             target: plan.target,
