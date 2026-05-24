@@ -8,5 +8,3 @@ pub(crate) use places::{
     canonical_place_label, canonical_place_label_from_parts, joined_place_label,
     semantic_fact_requirement_label,
 };
-#[cfg(test)]
-pub(crate) use places::requirement_place_label;
