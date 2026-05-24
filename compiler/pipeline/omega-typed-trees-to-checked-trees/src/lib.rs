@@ -37,9 +37,9 @@ pub fn lower_typed_trees(
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
     let invariants = build_invariant_facts(&program);
-    let semantic = build_semantic_facts(&program, &proof);
+    let mut semantic = build_semantic_facts(&program, &proof);
     let domains = build_domain_facts(&program, &semantic);
-    let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&program, &borrow, &proof, &mut semantic, &domains, &effects);
     let facts = CheckFacts {
         semantic,
         proof,

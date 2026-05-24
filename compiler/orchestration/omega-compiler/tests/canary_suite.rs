@@ -231,6 +231,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domain_import_valid",
     "entry_surface_receiver_paths",
     "exit_ensures_preserved_from_entry",
+    "local_alias_domain_transfer",
     "mutable_output_host_call",
     "nested_machine_continuation",
     "runtime_alias_integer_write",

@@ -62,7 +62,6 @@ fn instantiate_call_contract_name_path_place(
     path: &omega_typed_trees::expression::TableNamePath,
 ) -> Option<omega_facts::PlaceHandle> {
     let members = program.expression_table.name_path_members(path.members);
-    let head = members.first()?.as_str();
     let call_site = super::find_call_site(
         program,
         call.caller_machine_symbol,
@@ -71,8 +70,17 @@ fn instantiate_call_contract_name_path_place(
         call.call_ordinal,
     )?;
     let target_state = super::find_state(program, call.target_state_symbol)?;
+    let first_member = members.first().map(|member| member.as_str());
 
-    let mut place = if head == "self" {
+    let mut place = if first_member == Some("self")
+        || program
+            .state_parameters(target_state)
+            .iter()
+            .find(|parameter| parameter.is_self)
+            .is_some_and(|parameter| {
+                path.head_symbol == parameter.symbol || path.symbol == parameter.symbol
+            })
+    {
         super::receiver_place_for_call(program, facts, call, &call_site)?
     } else {
         let mut argument_index = 0usize;
@@ -87,9 +95,11 @@ fn instantiate_call_contract_name_path_place(
                 .copied();
             argument_index = argument_index.saturating_add(1);
 
-            if parameter.name.as_str() == head {
-                matched = argument
-                    .and_then(|expr| super::canonical_place_to_fact_place(program, facts, expr));
+            if first_member == Some(parameter.name.as_str())
+                || path.head_symbol == parameter.symbol
+                || path.symbol == parameter.symbol
+            {
+                matched = argument.and_then(|expr| call_argument_place(program, facts, call, expr));
                 break;
             }
         }
@@ -117,4 +127,33 @@ fn instantiate_call_contract_name_path_place(
     }
 
     Some(place)
+}
+
+fn call_argument_place(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    expression: ExpressionHandle,
+) -> Option<omega_facts::PlaceHandle> {
+    if let Some(place) = super::canonical_place_to_fact_place(program, facts, expression) {
+        return Some(place);
+    }
+
+    let caller_state = super::find_state(program, call.caller_state_symbol)?;
+    let expression_name = program.expression_table.display_name(expression);
+    for statement in program
+        .statement_table
+        .statements(caller_state.statement_nodes)
+        .iter()
+        .take(call.statement_index)
+    {
+        let StatementNode::LocalData(local_data) = statement else {
+            continue;
+        };
+        if local_data.name.as_str() == expression_name {
+            return Some(facts.append_symbol_place(local_data.symbol));
+        }
+    }
+
+    None
 }

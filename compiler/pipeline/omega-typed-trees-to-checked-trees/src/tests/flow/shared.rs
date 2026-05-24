@@ -82,9 +82,9 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     let effects = omega_effects::infer_effects(&program);
     let borrow = build_borrow_facts(&program);
     let proof = build_proof_facts(&program, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&program, &proof);
+    let mut semantic = build_semantic_facts(&program, &proof);
     let domains = build_domain_facts(&program, &semantic);
-    let flow = build_flow_facts(&program, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&program, &borrow, &proof, &mut semantic, &domains, &effects);
 
     let caller_borrow_state = borrow
         .states
@@ -217,9 +217,9 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
     let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
     let statement_flows = flow.statements.span_or_empty(state_flow.statements);
@@ -292,9 +292,9 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
     let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
     let statement_flows = flow.statements.span_or_empty(state_flow.statements);
@@ -365,9 +365,9 @@ fn drops_local_borrow_loans_after_last_use() {
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
-    let semantic = build_semantic_facts(&typed, &proof);
+    let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &semantic, &domains, &effects);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
     let loan = borrow.loans.iter().next().map(|(_, loan)| loan).expect("loan");
     assert_eq!(loan.statement_index, 0);
