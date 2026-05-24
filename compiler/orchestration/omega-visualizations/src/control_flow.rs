@@ -1,7 +1,8 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_control_flow::{
     ControlFlowPlan, MachineFlow, Operation, OperationExpressionRefs, OperationKind,
-    PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
+    PlannedTransitionTarget, StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall,
+    StateFlow, StateKey, TransitionFlow,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
@@ -153,7 +154,7 @@ fn machine_label(
 
 fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow) -> String {
     let mut label = format!(
-        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ncontracts: calls {} exits {}\ndirect effects: {}\nreached effects: {}",
+        "{}::{} [block {}]\nparams: {}  mutable params: {}\nops: {}  transitions: {}\ncontracts: calls {} exits {}\nborrow: roots {} calls {}\ndirect effects: {}\nreached effects: {}",
         machine.name.as_str(),
         state.name.as_str(),
         state.key.segment_index,
@@ -163,6 +164,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
         state.transitions.len(),
         state.contracts.calls.len(),
         state.contracts.exits.len(),
+        state.borrow.writable_roots.len(),
+        state.borrow.calls.len(),
         format_effect_bits(state.direct_effects),
         format_effect_bits(state.reached_effects)
     );
@@ -187,6 +190,12 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
             exit.statement_index,
             exit.ensures.len()
         ));
+    }
+
+    for borrow_call in plan.borrow_calls.span_or_empty(state.borrow.calls) {
+        label.push('\n');
+        label.push_str("  ");
+        label.push_str(&borrow_call_label(plan, machine, state, borrow_call));
     }
 
     for operation in plan.operations.span_or_empty(state.operations) {
@@ -222,6 +231,134 @@ fn effect_names_from_bits(bits: omega_effects::EffectBits) -> Vec<String> {
         .names()
         .map(str::to_owned)
         .collect()
+}
+
+fn borrow_call_label(
+    plan: &ControlFlowPlan,
+    machine: &MachineFlow,
+    state: &StateFlow,
+    call: &StateBorrowCall,
+) -> String {
+    let accesses = plan
+        .borrow_argument_accesses
+        .span_or_empty(call.accesses)
+        .iter()
+        .map(|access| borrow_access_label(plan, machine, state, access))
+        .collect::<Vec<_>>();
+    let access_text = if accesses.is_empty() {
+        "<none>".to_owned()
+    } else {
+        accesses.join(" | ")
+    };
+    format!(
+        "borrow call #{}.{} -> {} [{}]",
+        call.statement_index,
+        call.call_ordinal,
+        state_name_for_symbol(plan, call.target_symbol),
+        access_text
+    )
+}
+
+fn borrow_access_label(
+    plan: &ControlFlowPlan,
+    machine: &MachineFlow,
+    state: &StateFlow,
+    access: &StateBorrowArgumentAccess,
+) -> String {
+    let mut label = symbol_name_for_state(plan, machine, state, access.root_symbol);
+    for segment in plan.borrow_access_segments.span_or_empty(access.segments) {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                label.push('.');
+                label.push_str(&symbol_name_for_state(plan, machine, state, *symbol));
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                label.push('[');
+                label.push_str(&expression_label(plan, *expression));
+                label.push(']');
+            }
+        }
+    }
+    label.push_str(": ");
+    label.push_str(match access.kind {
+        StateBorrowAccessKind::Read => "read",
+        StateBorrowAccessKind::Mutable => "mutable",
+    });
+    label
+}
+
+fn symbol_name_for_state(
+    plan: &ControlFlowPlan,
+    machine: &MachineFlow,
+    state: &StateFlow,
+    symbol: SymbolHandle,
+) -> String {
+    if symbol == machine.symbol {
+        return "self".to_owned();
+    }
+
+    if let Some(parameter) = plan
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+    {
+        return parameter.name.as_str().to_owned();
+    }
+
+    if let Some(owned) = plan
+        .machine_owned_data(machine)
+        .iter()
+        .find(|owned| owned.symbol == symbol)
+    {
+        return owned.name.as_str().to_owned();
+    }
+
+    if let Some(contained) = plan
+        .machine_contains(machine)
+        .iter()
+        .find(|contained| contained.symbol == symbol)
+    {
+        return contained.name.as_str().to_owned();
+    }
+
+    for candidate_machine in plan.machines.iter().map(|(_, machine)| machine) {
+        if candidate_machine.symbol == symbol {
+            return candidate_machine.name.as_str().to_owned();
+        }
+        if let Some(state) = plan
+            .states
+            .span_or_empty(candidate_machine.states)
+            .iter()
+            .find(|state| state.key.state == symbol)
+        {
+            return state.name.as_str().to_owned();
+        }
+    }
+
+    if symbol.is_valid() {
+        format!("#{}", symbol.arena_index())
+    } else {
+        "invalid".to_owned()
+    }
+}
+
+fn state_name_for_symbol(plan: &ControlFlowPlan, symbol: SymbolHandle) -> String {
+    for machine in plan.machines.iter().map(|(_, machine)| machine) {
+        if let Some(state) = plan
+            .states
+            .span_or_empty(machine.states)
+            .iter()
+            .find(|state| state.key.state == symbol)
+        {
+            return format!("{}::{}", machine.name.as_str(), state.name.as_str());
+        }
+    }
+
+    if symbol.is_valid() {
+        format!("#{}", symbol.arena_index())
+    } else {
+        "invalid".to_owned()
+    }
 }
 
 fn operation_label(plan: &ControlFlowPlan, operation: &Operation) -> String {
