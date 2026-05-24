@@ -104,7 +104,7 @@ pub fn build_assigned_target_operations(
         assigned_target_operations
             .runtime_value_operands
             .insert(AssignedValueOperand {
-                kind: operand.clone(),
+                kind: operand.clone().into(),
                 home: kind,
             });
     }

@@ -34,17 +34,33 @@ pub enum TargetValueOperand {
 pub type RuntimeValueOperand = TargetValueOperand;
 
 pub trait RuntimeValueOperandSource {
-    fn runtime_value_operand(&self, handle: RuntimeValueOperandHandle) -> &RuntimeValueOperand;
+    fn immediate_integer(&self, handle: RuntimeValueOperandHandle) -> Option<i64>;
+    fn storage(&self, handle: RuntimeValueOperandHandle)
+        -> Option<(RuntimeStorageRegion, usize, usize)>;
+    fn pointee(&self, handle: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)>;
+    fn frame_indexed(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)>;
+    fn binary(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeValueOperandHandle, StateGuardOperator, RuntimeValueOperandHandle)>;
+}
 
+impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn immediate_integer(&self, handle: RuntimeValueOperandHandle) -> Option<i64> {
-        match self.runtime_value_operand(handle) {
+        match self.get(handle) {
             RuntimeValueOperand::Immediate(value) => Some(*value),
             _ => None,
         }
     }
 
-    fn storage(&self, handle: RuntimeValueOperandHandle) -> Option<(RuntimeStorageRegion, usize, usize)> {
-        match self.runtime_value_operand(handle) {
+    fn storage(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeStorageRegion, usize, usize)> {
+        match self.get(handle) {
             RuntimeValueOperand::Storage {
                 region,
                 byte_offset,
@@ -55,7 +71,7 @@ pub trait RuntimeValueOperandSource {
     }
 
     fn pointee(&self, handle: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)> {
-        match self.runtime_value_operand(handle) {
+        match self.get(handle) {
             RuntimeValueOperand::Pointee {
                 pointer_byte_offset,
                 field_byte_offset,
@@ -69,7 +85,7 @@ pub trait RuntimeValueOperandSource {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(usize, usize, usize, usize, usize)> {
-        match self.runtime_value_operand(handle) {
+        match self.get(handle) {
             RuntimeValueOperand::FrameIndexed {
                 descriptor_offset,
                 index_offset,
@@ -91,7 +107,7 @@ pub trait RuntimeValueOperandSource {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(RuntimeValueOperandHandle, StateGuardOperator, RuntimeValueOperandHandle)> {
-        match self.runtime_value_operand(handle) {
+        match self.get(handle) {
             RuntimeValueOperand::Binary {
                 left,
                 operator,
@@ -99,12 +115,6 @@ pub trait RuntimeValueOperandSource {
             } => Some((*left, *operator, *right)),
             _ => None,
         }
-    }
-}
-
-impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
-    fn runtime_value_operand(&self, handle: RuntimeValueOperandHandle) -> &RuntimeValueOperand {
-        self.get(handle)
     }
 }
 
