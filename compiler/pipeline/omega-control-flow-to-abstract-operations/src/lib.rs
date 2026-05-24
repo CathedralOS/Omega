@@ -1,4 +1,4 @@
-use omega_abstract_operations::AbstractOperationPlan;
+use omega_abstract_operations::{AbstractOperationPlan, TargetDataPlan};
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::{ControlFlowPlan, StateKey};
@@ -15,7 +15,6 @@ use omega_state_graph::RuntimeFlowPlan;
 use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
-use omega_target_operations::TargetDataPlan;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,5 +67,5 @@ impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSe
 }
 
 pub fn build_abstract_operation_plan(input: &AbstractOperationLoweringInput<'_>) -> AbstractOperationPlan {
-    build_instruction_plan(&InstructionSelectionInput::from(input)).into()
+    build_instruction_plan(&InstructionSelectionInput::from(input))
 }

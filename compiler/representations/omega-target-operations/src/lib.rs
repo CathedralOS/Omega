@@ -8,14 +8,3 @@ pub use instruction::{
     InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand,
     RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
 };
-
-impl From<InstructionPlan> for omega_abstract_operations::AbstractOperationPlan {
-    fn from(plan: InstructionPlan) -> Self {
-        Self {
-            functions: plan.functions,
-            instructions: plan.instructions,
-            operands: plan.operands,
-            runtime_value_operands: plan.runtime_value_operands,
-        }
-    }
-}

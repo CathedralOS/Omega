@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use omega_abstract_operations::AbstractOperationPlan;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::Arena;
 use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
@@ -14,13 +15,13 @@ mod storage_places;
 use self::bindings::RuntimeAliasBuffer;
 use instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{
-    FunctionInstructionPlan, InstructionOperand, InstructionPlan, RuntimeValueOperand,
-    SelectedInstruction, SelectedInstructionKind,
+    FunctionInstructionPlan, InstructionOperand, RuntimeValueOperand, SelectedInstruction,
+    SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
 use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_body_instructions};
 
-pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
+pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> AbstractOperationPlan {
     let mut instruction_plan = estimated_instruction_plan(input);
 
     let instructions = select_entry_instructions(
@@ -39,7 +40,7 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
     instruction_plan
 }
 
-fn estimated_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
+fn estimated_instruction_plan(input: &InstructionSelectionInput<'_>) -> AbstractOperationPlan {
     let runtime_dispatch_edges = input.runtime_dispatch_loop.edges.len();
     let runtime_body_operations = input.runtime_bodies.operations.len();
     let host_operations = input.host_calls.operations.len();
@@ -67,8 +68,7 @@ fn estimated_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
         .saturating_add(input.state_guards.operands.len())
         .saturating_add(runtime_dispatch_edges.saturating_mul(2));
 
-    InstructionPlan::with_capacity(
-        input.target,
+    AbstractOperationPlan::with_capacity(
         1,
         instruction_capacity,
         operand_capacity,
