@@ -1,8 +1,12 @@
+use enemies::enemies;
 use events::event_runtime;
+use events::events;
 use generation::dungeon_generator;
+use inventory::items;
 use combat::combat_round;
 use player::player;
 use player::player_state;
+use rewards::rewards;
 use rng::random;
 use rng::random_state;
 use rooms::map;
@@ -23,33 +27,147 @@ data Dungeon {
     random: RandomState;
     combat_round: CombatRound;
     mode: GameMode = GameMode::Title;
+    current_room_index: usize[exact, range<0, 15>] = 0;
 }
 
-machine Dungeon::enter_room(&mut self) {
+machine Dungeon::enter_room(
+    &mut self,
+    room_index: usize
+) {
     transition {
         _ -> mark_current_room_discovered()
     }
 
     state mark_current_room_discovered(&mut self) {
-        let room: &mut Room = self.lookup.find_room_mut(&mut self.level, self.current_cell);
-        room.discovered = true;
+        let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
+
+        -> mark_room_zero(rooms) when room_index == 0;
+        -> mark_room_one(rooms) when room_index == 1;
+        -> mark_room_two(rooms) when room_index == 2;
+        -> mark_room_three(rooms) when room_index == 3;
+    }
+
+    state mark_room_zero(
+        &mut self,
+        rooms: &mut [Room]
+    ) {
+        rooms[0].discovered = true;
+    }
+
+    state mark_room_one(
+        &mut self,
+        rooms: &mut [Room]
+    ) {
+        rooms[1].discovered = true;
+    }
+
+    state mark_room_two(
+        &mut self,
+        rooms: &mut [Room]
+    ) {
+        rooms[2].discovered = true;
+    }
+
+    state mark_room_three(
+        &mut self,
+        rooms: &mut [Room]
+    ) {
+        rooms[3].discovered = true;
     }
 }
 
 machine Dungeon::use_event(
     &mut self,
+    room_index: usize,
     line: &mut String
 ) {
-    let room: &mut Room = self.lookup.find_room_mut(&mut self.level, self.current_cell);
-    self.events.use_event(&mut self.player, room, line);
+    transition room_index {
+        1 -> drink_fountain(line)
+        3 -> claim_vault_reward(line)
+        _ -> no_usable_event(line)
+    }
+
+    state drink_fountain(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player_system.heal(&mut self.player, 12);
+        self.level.rooms[1].event.consumed = true;
+        line = "The fountain heals your wounds.";
+    }
+
+    state claim_vault_reward(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player_system.grant_reward(&mut self.player, self.level.rooms[3].event.reward);
+        self.level.rooms[3].event.consumed = true;
+        line = "You take the treasure.";
+    }
+
+    state no_usable_event(
+        &mut self,
+        line: &mut String
+    ) {
+        line = "There is nothing here to use.";
+    }
 }
 
 machine Dungeon::fight(
     &mut self,
+    room_index: usize,
     line: &mut String
 ) {
-    let room: &mut Room = self.lookup.find_room_mut(&mut self.level, self.current_cell);
-    self.events.fight_event(&mut self.player, room, &mut self.random, &mut self.combat_round, line);
+    transition room_index {
+        2 -> fight_bat(line)
+        _ -> no_enemy(line)
+    }
+
+    state fight_bat(
+        &mut self,
+        line: &mut String
+    ) {
+        transition self.level.rooms[2].event.consumed {
+            true -> no_enemy(line)
+            false -> defeat_bat(line)
+        }
+    }
+
+    state defeat_bat(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player_system.take_damage(&mut self.player, 2);
+        self.player.inventory.gold = self.player.inventory.gold + 6;
+        self.player_system.grant_xp(&mut self.player, 5);
+        self.level.rooms[2].event.consumed = true;
+
+        transition self.player.health == 0 {
+            true -> player_died(line)
+            false -> enemy_died(line)
+        }
+    }
+
+    state player_died(
+        &mut self,
+        line: &mut String
+    ) {
+        line = "You fall in the dark.";
+    }
+
+    state enemy_died(
+        &mut self,
+        line: &mut String
+    ) {
+        line = "The enemy collapses. You find a little gold.";
+    }
+
+    state no_enemy(
+        &mut self,
+        line: &mut String
+    ) {
+        line = "There is no enemy here.";
+    }
 }
 
 machine Dungeon::move(&mut self) {
@@ -65,8 +183,105 @@ machine Dungeon::initialize(
     seed: u64[wrapping]
 ) {
     self.player_system.create("Wanderer", &mut self.player);
-    self.generator.generate(seed, &mut self.level);
     self.rng.seed(seed, &mut self.random);
+    self.level.start_cell = CellId::R00;
+    self.level.room_count = 4;
+    self.level.deepest_depth = 2;
+
+    let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
+
+    rooms[0].cell = CellId::R00;
+    rooms[0].depth = 0;
+    rooms[0].branch = 0;
+    rooms[0].label = "Gate";
+    rooms[0].description = "The old gate room breathes cold air from below.";
+    rooms[0].exit_count = 2;
+    rooms[0].discovered = true;
+    rooms[0].event.kind = RoomEventKind::Nothing;
+    rooms[0].event.consumed = true;
+    rooms[0].event.reward.kind = RewardKind::None;
+
+    let gate_exits: &mut [Exit] = rooms[0].exits.as_mut_slice();
+    gate_exits[0] = Exit { command: "north", direction: Direction::North, destination: CellId::R01 };
+    gate_exits[1] = Exit { command: "east", direction: Direction::East, destination: CellId::R02 };
+
+    rooms[1].cell = CellId::R01;
+    rooms[1].depth = 1;
+    rooms[1].branch = 0;
+    rooms[1].label = "Fountain Room";
+    rooms[1].description = "A quiet shrine chamber hums with pale water-light.";
+    rooms[1].exit_count = 2;
+    rooms[1].discovered = false;
+    rooms[1].event.kind = RoomEventKind::FountainOfLife;
+    rooms[1].event.consumed = false;
+    rooms[1].event.reward.kind = RewardKind::None;
+
+    let fountain_exits: &mut [Exit] = rooms[1].exits.as_mut_slice();
+    fountain_exits[0] = Exit { command: "south", direction: Direction::South, destination: CellId::R00 };
+    fountain_exits[1] = Exit { command: "north", direction: Direction::North, destination: CellId::R03 };
+
+    rooms[2].cell = CellId::R02;
+    rooms[2].depth = 1;
+    rooms[2].branch = 1;
+    rooms[2].label = "Ambush Hall";
+    rooms[2].description = "A narrow hall where loose stone crunches underfoot.";
+    rooms[2].exit_count = 2;
+    rooms[2].discovered = false;
+    rooms[2].event.kind = RoomEventKind::Enemy;
+    rooms[2].event.consumed = false;
+    rooms[2].event.enemy.kind = EnemyKind::Bat;
+    rooms[2].event.enemy.name = "Cave Bat";
+    rooms[2].event.enemy.max_health = 8;
+    rooms[2].event.enemy.health = 8;
+    rooms[2].event.enemy.attack = 3;
+    rooms[2].event.enemy.defense = 0;
+    rooms[2].event.enemy.xp_reward = 5;
+    rooms[2].event.enemy.depth = 1;
+    rooms[2].event.reward.kind = RewardKind::None;
+
+    let ambush_exits: &mut [Exit] = rooms[2].exits.as_mut_slice();
+    ambush_exits[0] = Exit { command: "west", direction: Direction::West, destination: CellId::R00 };
+    ambush_exits[1] = Exit { command: "east", direction: Direction::East, destination: CellId::R03 };
+
+    rooms[3].cell = CellId::R03;
+    rooms[3].depth = 2;
+    rooms[3].branch = 0;
+    rooms[3].label = "Treasure Vault";
+    rooms[3].description = "A cracked vault glitters with coins trapped under dust.";
+    rooms[3].exit_count = 2;
+    rooms[3].discovered = false;
+    rooms[3].event.kind = RoomEventKind::Treasure;
+    rooms[3].event.consumed = false;
+    rooms[3].event.reward.kind = RewardKind::GoldAndItem;
+    rooms[3].event.reward.gold = 24;
+    rooms[3].event.reward.item = ItemKind::HealingCharm;
+
+    let vault_exits: &mut [Exit] = rooms[3].exits.as_mut_slice();
+    vault_exits[0] = Exit { command: "south", direction: Direction::South, destination: CellId::R01 };
+    vault_exits[1] = Exit { command: "west", direction: Direction::West, destination: CellId::R02 };
+
     self.current_cell = CellId::R00;
     self.mode = GameMode::Exploring;
+}
+
+machine Dungeon::room_index(
+    &mut self,
+    cell: CellId
+    ) -> usize[exact, range<0, 15>] {
+    -> 0 when cell == CellId::R00;
+    -> 1 when cell == CellId::R01;
+    -> 2 when cell == CellId::R02;
+    -> 3 when cell == CellId::R03;
+    -> 4 when cell == CellId::R04;
+    -> 5 when cell == CellId::R05;
+    -> 6 when cell == CellId::R06;
+    -> 7 when cell == CellId::R07;
+    -> 8 when cell == CellId::R08;
+    -> 9 when cell == CellId::R09;
+    -> 10 when cell == CellId::R10;
+    -> 11 when cell == CellId::R11;
+    -> 12 when cell == CellId::R12;
+    -> 13 when cell == CellId::R13;
+    -> 14 when cell == CellId::R14;
+    -> 15;
 }

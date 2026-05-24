@@ -23,9 +23,10 @@ machine CommandParser::resolve_command(
     line: &String
     ) -> NavigationChoice {
     -> NavigationChoice::Quit when line == "quit";
+    -> NavigationChoice::Quit when line == "exit";
     -> NavigationChoice::Look when line == "look";
     -> NavigationChoice::Look when line == "info";
-    -> NavigationChoice::Exits when line == "exits";
+    -> NavigationChoice::Exits when line == "paths";
     -> NavigationChoice::Exits when line == "help";
     -> NavigationChoice::Inventory when line == "inventory";
     -> NavigationChoice::Inventory when line == "inv";

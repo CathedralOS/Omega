@@ -11,6 +11,10 @@ data Game {
     view: GameView;
     input: String;
     output: String;
+    current_room_index: usize = 0;
+    fountain_used: bool = false;
+    bat_defeated: bool = false;
+    treasure_taken: bool = false;
 }
 
 machine Game::initialize(
@@ -20,6 +24,10 @@ machine Game::initialize(
     self.dungeon.initialize(seed);
     self.input = "";
     self.output = "";
+    self.current_room_index = 0;
+    self.fountain_used = false;
+    self.bat_defeated = false;
+    self.treasure_taken = false;
 }
 
 machine Game::run_game_loop(&mut self) {
@@ -31,12 +39,11 @@ machine Game::run_game_loop(&mut self) {
 
 
     state enter_room(&mut self) {
-        self.dungeon.enter_room();
-        self.view.render_room(self.dungeon, &mut self.console, &mut self.output);
-
-        transition {
-            _ -> prompt()
-        }
+        self.dungeon.enter_room(self.current_room_index);
+        -> show_gate_room() when self.current_room_index == 0;
+        -> show_fountain_room() when self.current_room_index == 1;
+        -> show_ambush_room() when self.current_room_index == 2;
+        -> show_vault_room();
     }
 
     state prompt(&mut self) {
@@ -51,43 +58,43 @@ machine Game::run_game_loop(&mut self) {
         self.console.read_line(&mut self.input);
 
         -> finished() when self.input == "";
-        self.dungeon.navigation = self.parser.resolve_navigation(
-            self.dungeon.level,
-            self.dungeon.current_cell,
-            &self.input
-        );
-
-        transition self.dungeon.navigation.choice {
-            NavigationChoice::Quit -> finished()
-            NavigationChoice::Look -> look()
-            NavigationChoice::Exits -> exits()
-            NavigationChoice::Inventory -> inventory()
-            NavigationChoice::Character -> character()
-            NavigationChoice::UseFountain -> use_event()
-            NavigationChoice::Fight -> fight()
-            NavigationChoice::Move -> move_player()
-            NavigationChoice::Invalid -> invalid_command()
+        transition self.input {
+            "quit" -> finished()
+            "exit" -> finished()
+            "look" -> look()
+            "info" -> look()
+            "paths" -> exits()
+            "help" -> exits()
+            "inventory" -> inventory()
+            "inv" -> inventory()
+            "character" -> character()
+            "stats" -> character()
+            "use" -> use_event()
+            "fight" -> fight()
+            "north" -> move_north()
+            "south" -> move_south()
+            "east" -> move_east()
+            "west" -> move_west()
+            _ -> invalid_command()
         }
     }
 
     state look(&mut self) {
-        self.view.render_look(self.dungeon, &mut self.console, &mut self.output);
-
-        transition {
-            _ -> prompt()
-        }
+        -> look_gate_room() when self.current_room_index == 0;
+        -> look_fountain_room() when self.current_room_index == 1;
+        -> look_ambush_room() when self.current_room_index == 2;
+        -> look_vault_room();
     }
 
     state exits(&mut self) {
-        self.view.render_exits(self.dungeon, &mut self.console, &mut self.output);
-
-        transition {
-            _ -> prompt()
-        }
+        -> show_gate_paths() when self.current_room_index == 0;
+        -> show_fountain_paths() when self.current_room_index == 1;
+        -> show_ambush_paths() when self.current_room_index == 2;
+        -> show_vault_paths();
     }
 
     state inventory(&mut self) {
-        self.view.render_inventory(self.dungeon, &mut self.console, &mut self.output);
+        self.view.render_inventory(self.dungeon.player, &mut self.console, &mut self.output);
 
         transition {
             _ -> prompt()
@@ -95,7 +102,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state character(&mut self) {
-        self.view.render_character(self.dungeon, &mut self.console, &mut self.output);
+        self.view.render_character(self.dungeon.player, &mut self.console, &mut self.output);
 
         transition {
             _ -> prompt()
@@ -103,7 +110,35 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state use_event(&mut self) {
-        self.dungeon.use_event(&mut self.output);
+        -> use_fountain() when self.current_room_index == 1 && self.fountain_used == false;
+        -> use_treasure() when self.current_room_index == 3 && self.treasure_taken == false;
+        -> use_nothing();
+    }
+
+    state use_fountain(&mut self) {
+        self.dungeon.player.health = min(self.dungeon.player.max_health, self.dungeon.player.health + 12);
+        self.fountain_used = true;
+        self.output = "The fountain heals your wounds.";
+        self.view.render_line(self.output, &mut self.console);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state use_treasure(&mut self) {
+        self.dungeon.player.inventory.gold = self.dungeon.player.inventory.gold + 24;
+        self.treasure_taken = true;
+        self.output = "You take the treasure.";
+        self.view.render_line(self.output, &mut self.console);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state use_nothing(&mut self) {
+        self.output = "There is nothing here to use.";
         self.view.render_line(self.output, &mut self.console);
 
         transition {
@@ -112,7 +147,42 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state fight(&mut self) {
-        self.dungeon.fight(&mut self.output);
+        -> fight_bat() when self.current_room_index == 2 && self.bat_defeated == false;
+        -> fight_nothing();
+    }
+
+    state fight_bat(&mut self) {
+        self.dungeon.player.health = max(0, self.dungeon.player.health - 2);
+        self.dungeon.player.inventory.gold = self.dungeon.player.inventory.gold + 6;
+        self.dungeon.player.xp = self.dungeon.player.xp + 5;
+        self.bat_defeated = true;
+
+        transition self.dungeon.player.health == 0 {
+            true -> fight_player_died()
+            false -> fight_enemy_died()
+        }
+    }
+
+    state fight_player_died(&mut self) {
+        self.output = "You fall in the dark.";
+        self.view.render_line(self.output, &mut self.console);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state fight_enemy_died(&mut self) {
+        self.output = "The enemy collapses. You find a little gold.";
+        self.view.render_line(self.output, &mut self.console);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state fight_nothing(&mut self) {
+        self.output = "There is no enemy here.";
         self.view.render_line(self.output, &mut self.console);
 
         transition {
@@ -125,6 +195,174 @@ machine Game::run_game_loop(&mut self) {
 
         transition {
             _ -> enter_room()
+        }
+    }
+
+    state move_north(&mut self) {
+        -> enter_fountain_room() when self.current_room_index == 0;
+        -> enter_vault_room() when self.current_room_index == 1;
+        -> invalid_command();
+    }
+
+    state move_south(&mut self) {
+        -> enter_gate_room() when self.current_room_index == 1;
+        -> enter_fountain_room() when self.current_room_index == 3;
+        -> invalid_command();
+    }
+
+    state move_east(&mut self) {
+        -> enter_ambush_room() when self.current_room_index == 0;
+        -> enter_vault_room() when self.current_room_index == 2;
+        -> invalid_command();
+    }
+
+    state move_west(&mut self) {
+        -> enter_gate_room() when self.current_room_index == 2;
+        -> enter_ambush_room() when self.current_room_index == 3;
+        -> invalid_command();
+    }
+
+    state enter_gate_room(&mut self) {
+        self.current_room_index = 0;
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state enter_fountain_room(&mut self) {
+        self.current_room_index = 1;
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state enter_ambush_room(&mut self) {
+        self.current_room_index = 2;
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state enter_vault_room(&mut self) {
+        self.current_room_index = 3;
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state show_gate_room(&mut self) {
+        self.console.write_line("Room Gate");
+        self.console.write_line("The old gate room breathes cold air from below.");
+        self.console.write_line("The room is quiet.");
+        self.console.write_line("Paths: north, east. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_fountain_room(&mut self) {
+        self.console.write_line("Room Fountain Room");
+        self.console.write_line("A quiet shrine chamber hums with pale water-light.");
+        self.console.write_line("A fountain of life glows here. Type use to drink.");
+        self.console.write_line("Paths: south, north. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_ambush_room(&mut self) {
+        self.console.write_line("Room Ambush Hall");
+        self.console.write_line("A narrow hall where loose stone crunches underfoot.");
+        self.console.write_line("Cave Bat blocks the way. Type fight.");
+        self.console.write_line("Paths: west, east. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_vault_room(&mut self) {
+        self.console.write_line("Room Treasure Vault");
+        self.console.write_line("A cracked vault glitters with coins trapped under dust.");
+        self.console.write_line("A treasure cache rests against the wall. Type use to claim it.");
+        self.console.write_line("Paths: south, west. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state look_gate_room(&mut self) {
+        self.console.write_line("The old gate room breathes cold air from below.");
+        self.console.write_line("The room is quiet.");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state look_fountain_room(&mut self) {
+        self.console.write_line("A quiet shrine chamber hums with pale water-light.");
+        self.console.write_line("A fountain of life glows here. Type use to drink.");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state look_ambush_room(&mut self) {
+        self.console.write_line("A narrow hall where loose stone crunches underfoot.");
+        self.console.write_line("Cave Bat blocks the way. Type fight.");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state look_vault_room(&mut self) {
+        self.console.write_line("A cracked vault glitters with coins trapped under dust.");
+        self.console.write_line("A treasure cache rests against the wall. Type use to claim it.");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_gate_paths(&mut self) {
+        self.console.write_line("Paths: north, east. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_fountain_paths(&mut self) {
+        self.console.write_line("Paths: south, north. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_ambush_paths(&mut self) {
+        self.console.write_line("Paths: west, east. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state show_vault_paths(&mut self) {
+        self.console.write_line("Paths: south, west. Commands: look | inventory | character | use | fight | quit");
+
+        transition {
+            _ -> prompt()
         }
     }
 

@@ -1,5 +1,6 @@
-use dungeon::dungeon;
 use platform::console;
+use player::player_state;
+use rooms::rooms;
 use rooms::room_formatter;
 
 data GameView {
@@ -12,64 +13,67 @@ machine GameView::render_title(
 ) {
     console.write_line("Omega Dungeon");
     console.write_line("A tiny generated crawl for compiler stress.");
-    console.write_line("Type look, exits, inventory, character, use, fight, or quit.");
+    console.write_line("Type look, paths, inventory, character, use, fight, or quit.");
 }
 
 machine GameView::render_room(
     &mut self,
-    dungeon: Dungeon,
+    level: Level,
+    room_index: usize,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_current_cell(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_current_cell(level, room_index, line);
     console.write_line(line);
-    self.formatter.write_room_info(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_room_info(level, room_index, line);
     console.write_line(line);
-    self.formatter.write_room_event(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_room_event(level, room_index, line);
     console.write_line(line);
-    self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_adjacent_rooms(level, room_index, line);
     console.write_line(line);
 }
 
 machine GameView::render_look(
     &mut self,
-    dungeon: Dungeon,
+    level: Level,
+    room_index: usize,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_room_info(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_room_info(level, room_index, line);
     console.write_line(line);
-    self.formatter.write_room_event(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_room_event(level, room_index, line);
     console.write_line(line);
 }
 
 machine GameView::render_exits(
     &mut self,
-    dungeon: Dungeon,
+    level: Level,
+    room_index: usize,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
+    self.formatter.write_adjacent_rooms(level, room_index, line);
     console.write_line(line);
 }
 
 machine GameView::render_inventory(
     &mut self,
-    dungeon: Dungeon,
+    player: Player,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_inventory(dungeon.player, line);
+    self.formatter.write_inventory(player, line);
     console.write_line(line);
 }
 
 machine GameView::render_character(
     &mut self,
-    dungeon: Dungeon,
+    player: Player,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_character(dungeon.player, line);
+    self.formatter.write_character(player, line);
     console.write_line(line);
 }
 
