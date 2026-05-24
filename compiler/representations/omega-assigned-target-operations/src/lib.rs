@@ -6,7 +6,7 @@ use std::sync::Arc;
 pub use omega_target_operations::{
     HostOperationKey, InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
     RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind,
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,54 +1,16 @@
-use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_program::{MachineFunction, MachineInstruction, MachineProgram};
+use omega_machine_program::MachineProgram;
 use omega_target_operations::InstructionPlan;
 
-mod shapes;
-
-use shapes::lower_machine_instruction_kind;
-
 pub fn build_machine_program(instructions: &InstructionPlan) -> Result<MachineProgram, Diagnostic> {
-    let mut machine_program = MachineProgram::with_capacity(
-        instructions.target,
-        instructions.functions.len(),
-        instructions.instructions.len(),
-    );
+    let assigned_target_operations =
+        omega_target_operations_to_assigned_target_operations::build_assigned_target_operations(
+            instructions,
+        );
+    let machine_instructions =
+        omega_assigned_target_operations_to_machine_instructions::build_machine_instructions(
+            &assigned_target_operations,
+        )?;
 
-    for (_, function) in instructions.functions.iter() {
-        let machine_instructions =
-            append_machine_instructions(instructions, function, &mut machine_program.instructions)?;
-
-        machine_program.functions.insert(MachineFunction {
-            source_key: function.source_key,
-            instructions: machine_instructions,
-        });
-    }
-
-    Ok(machine_program)
-}
-
-fn append_machine_instructions(
-    instructions: &InstructionPlan,
-    function: &omega_target_operations::FunctionInstructionPlan,
-    output_instructions: &mut Arena<MachineInstruction>,
-) -> Result<HandleSpan<MachineInstruction>, Diagnostic> {
-    let Some(selected_instructions) = instructions.instructions.span(function.instructions) else {
-        return Ok(HandleSpan::empty());
-    };
-
-    output_instructions.try_insert_many(selected_instructions.iter().enumerate().map(
-        |(selected_offset, selected_instruction)| {
-            let selected_instruction_index = function
-                .instructions
-                .start()
-                .arena_index()
-                .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
-                .expect("selected instruction overflow");
-
-            Ok(MachineInstruction {
-                selected_instruction_index,
-                kind: lower_machine_instruction_kind(&selected_instruction.kind)?,
-            })
-        },
-    ))
+    Ok(MachineProgram::from(machine_instructions))
 }

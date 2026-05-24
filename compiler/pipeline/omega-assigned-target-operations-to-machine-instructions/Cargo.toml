@@ -12,5 +12,3 @@ path = "src/lib.rs"
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
-omega-target-operations = { path = "../../representations/omega-target-operations" }
-omega-target-operations-to-machine-program = { path = "../omega-target-operations-to-machine-program" }
