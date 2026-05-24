@@ -2,8 +2,8 @@ use omega_core::diagnostics::Diagnostic;
 
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
+use omega_assigned_target_operations::SelectedInstructionKind;
 use omega_machine_instructions::MachineInstructionKind;
-use omega_target_operations::SelectedInstructionKind;
 
 pub(crate) fn byte_distance_to_case_end(
     machine_instructions: &[LaidOutMachineInstruction],

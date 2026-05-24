@@ -1,11 +1,13 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_assigned_target_operations::AssignedTargetOperationPlan;
+use omega_assigned_target_operations::{
+    AssignedTargetOperationPlan, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    TargetOperationKind,
+};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_target::NativeTarget;
-use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind};
 
 mod branch_distances;
 mod encoding;

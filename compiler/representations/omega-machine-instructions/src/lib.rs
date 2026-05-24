@@ -1,8 +1,8 @@
 use omega_assigned_target_operations::AssignedValueHomeHandle;
+use omega_assigned_target_operations::SelectedInstructionKind;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_operations::SelectedInstructionKind;
 use std::convert::Infallible;
 
 pub use omega_machine_program::MachineInstructionKind;

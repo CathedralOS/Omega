@@ -5,7 +5,7 @@ mod runtime_text;
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
-use omega_target_operations::SelectedInstructionKind;
+use omega_assigned_target_operations::SelectedInstructionKind;
 
 pub(super) fn encode_machine_instruction_bytes(
     input: MachineEmissionContext<'_>,

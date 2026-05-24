@@ -1,8 +1,8 @@
 use crate::MachineEmissionContext;
 use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
+use omega_assigned_target_operations::InstructionOperand;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_operations::InstructionOperand;
 
 use crate::host_bindings::host_binding_mechanism;
 

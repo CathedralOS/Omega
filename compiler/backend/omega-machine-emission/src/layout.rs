@@ -22,8 +22,8 @@ use omega_instruction_selection::{
     runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
     runtime_value_compare_width, syscall_sequence_width,
 };
+use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
-use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
 #[derive(Debug, Clone)]
 pub(crate) struct LaidOutMachineInstruction {
