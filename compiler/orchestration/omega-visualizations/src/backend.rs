@@ -163,8 +163,8 @@ fn build_backend_cfg_diagram<Function>(
                             state.key.segment_index,
                             chunk.index
                         ),
-                        operation_chunk_label(chunk),
-                        "statement",
+                        operation_chunk_label(chunk, &state_scoped_name(control_flow, state.key)),
+                        "scoped_statement",
                         machine_index + 1,
                     );
                     diagram.node_details(
@@ -307,8 +307,8 @@ fn build_machine_instruction_diagram(
                         state.key.segment_index,
                         chunk.index
                     ),
-                    machine_chunk_label(chunk),
-                    "statement",
+                    machine_chunk_label(chunk, &state_scoped_name(control_flow, state.key)),
+                    "scoped_statement",
                     machine_index + 1,
                 );
                 diagram.node_details(
@@ -422,7 +422,6 @@ fn state_backend_label_from_parts(
         lines.push("no instructions".to_owned());
     } else {
         lines.push(format!("instructions: {}", lines_src.len()));
-        lines.extend(block_preview_lines(lines_src));
     }
 
     lines.join("\n")
@@ -984,6 +983,8 @@ struct MachineChunk {
     first_line_index: usize,
     last_line_index: usize,
     lines: Vec<String>,
+    first_statement: Option<usize>,
+    last_statement: Option<usize>,
     control_count: usize,
     call_count: usize,
     terminator: String,
@@ -996,6 +997,8 @@ struct OperationChunk {
     last_line_index: usize,
     lines: Vec<String>,
     statement_count: usize,
+    first_statement: Option<usize>,
+    last_statement: Option<usize>,
     control_count: usize,
     call_count: usize,
     terminator: String,
@@ -1008,6 +1011,7 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
     let mut call_count = 0usize;
     let mut control_count = 0usize;
     let mut last_statement = None::<usize>;
+    let mut first_statement = None::<usize>;
     let mut statement_count = 0usize;
 
     for (index, line) in lines.iter().enumerate() {
@@ -1016,6 +1020,7 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
             call_count = 0;
             control_count = 0;
             last_statement = None;
+            first_statement = None;
             statement_count = 0;
         }
 
@@ -1032,6 +1037,9 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
         }
 
         let statement = statement_index_from_line(line);
+        if first_statement.is_none() {
+            first_statement = statement;
+        }
         if statement != last_statement {
             if statement.is_some() {
                 statement_count += 1;
@@ -1049,6 +1057,8 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
                 last_line_index: index,
                 lines: std::mem::take(&mut current_lines),
                 statement_count,
+                first_statement,
+                last_statement: statement,
                 control_count,
                 call_count,
                 terminator: operation_line_head(line),
@@ -1064,6 +1074,8 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
             last_line_index,
             lines: current_lines,
             statement_count,
+            first_statement,
+            last_statement,
             control_count,
             call_count,
             terminator: "fallthrough".to_owned(),
@@ -1073,11 +1085,15 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
     chunks
 }
 
-fn operation_chunk_label(chunk: &OperationChunk) -> String {
+fn operation_chunk_label(chunk: &OperationChunk, origin: &str) -> String {
     let mut lines = vec![
+        origin.to_owned(),
         format!(
-            "B{} [{}..{}]",
-            chunk.index, chunk.first_line_index, chunk.last_line_index
+            "B{} [{}..{}] {}",
+            chunk.index,
+            chunk.first_line_index,
+            chunk.last_line_index,
+            chunk_statement_span_label(chunk.first_statement, chunk.last_statement)
         ),
         format!(
             "statements: {} control: {} calls: {}",
@@ -1114,6 +1130,8 @@ fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
     let mut control_count = 0usize;
     let mut call_count = 0usize;
     let mut last_terminator = "none".to_owned();
+    let mut first_statement = None::<usize>;
+    let mut last_statement = None::<usize>;
 
     for (index, line) in lines.iter().enumerate() {
         if current_lines.is_empty() {
@@ -1121,9 +1139,16 @@ fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
             control_count = 0;
             call_count = 0;
             last_terminator = "none".to_owned();
+            first_statement = None;
+            last_statement = None;
         }
 
         current_lines.push(line.clone());
+        let statement = statement_index_from_line(line);
+        if first_statement.is_none() {
+            first_statement = statement;
+        }
+        last_statement = statement.or(last_statement);
 
         let kind = machine_line_kind(line);
         if matches!(kind, MachineLineKind::Call) {
@@ -1137,6 +1162,8 @@ fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
                 first_line_index,
                 last_line_index: index,
                 lines: std::mem::take(&mut current_lines),
+                first_statement,
+                last_statement,
                 control_count,
                 call_count,
                 terminator: last_terminator.clone(),
@@ -1151,6 +1178,8 @@ fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
             first_line_index,
             last_line_index,
             lines: current_lines,
+            first_statement,
+            last_statement,
             control_count,
             call_count,
             terminator: last_terminator,
@@ -1160,11 +1189,15 @@ fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
     chunks
 }
 
-fn machine_chunk_label(chunk: &MachineChunk) -> String {
+fn machine_chunk_label(chunk: &MachineChunk, origin: &str) -> String {
     let mut lines = vec![
+        origin.to_owned(),
         format!(
-            "B{} [{}..{}]",
-            chunk.index, chunk.first_line_index, chunk.last_line_index
+            "B{} [{}..{}] {}",
+            chunk.index,
+            chunk.first_line_index,
+            chunk.last_line_index,
+            chunk_statement_span_label(chunk.first_statement, chunk.last_statement)
         ),
         format!(
             "control: {} calls: {}",
@@ -1208,6 +1241,15 @@ fn machine_chunk_preview_lines(lines: &[String]) -> Vec<String> {
         ));
     }
     preview
+}
+
+fn chunk_statement_span_label(first: Option<usize>, last: Option<usize>) -> String {
+    match (first, last) {
+        (Some(first), Some(last)) if first == last => format!("stmt {first}"),
+        (Some(first), Some(last)) => format!("stmt {first}..{last}"),
+        (Some(first), None) => format!("stmt {first}"),
+        _ => "stmt ?".to_owned(),
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
