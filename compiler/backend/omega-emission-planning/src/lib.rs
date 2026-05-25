@@ -24,6 +24,7 @@ use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
 
+mod guard_expression_support;
 mod host_argument_blockers;
 mod host_binding_blockers;
 mod runtime_dispatch_blockers;
