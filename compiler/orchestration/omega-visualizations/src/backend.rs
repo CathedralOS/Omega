@@ -124,7 +124,32 @@ fn build_backend_cfg_diagram<Function>(
                 state_backend_details(control_flow, state, function),
             );
             diagram.containment_edge(&machine_id, &state_id);
-            state_nodes.push((state.key, state_id));
+            state_nodes.push((state.key, state_id.clone()));
+
+            if let Some(function) = function {
+                let chunks = operation_chunks(&function.lines);
+                let mut previous_chunk_id = None::<String>;
+                for chunk in &chunks {
+                    let chunk_id = diagram.node(
+                        format!(
+                            "operation_chunk_{}_{}_{}_{}",
+                            state.key.machine.arena_index(),
+                            state.key.state.arena_index(),
+                            state.key.segment_index,
+                            chunk.index
+                        ),
+                        operation_chunk_label(chunk),
+                        "statement",
+                        machine_index + 1,
+                    );
+                    diagram.node_details(&chunk_id, operation_chunk_details(chunk));
+                    diagram.containment_edge(&state_id, &chunk_id);
+                    if let Some(previous_chunk_id) = previous_chunk_id.as_deref() {
+                        diagram.edge(previous_chunk_id, &chunk_id, "sequence");
+                    }
+                    previous_chunk_id = Some(chunk_id);
+                }
+            }
         }
     }
 
@@ -359,8 +384,12 @@ fn state_backend_details_from_parts(
 
     if !lines_src.is_empty() {
         lines.push(format!("instructions: {}", lines_src.len()));
+        let statement_count = distinct_statement_count(lines_src);
+        if statement_count > 0 {
+            lines.push(format!("source statements: {statement_count}"));
+        }
         lines.push(String::new());
-        lines.extend(lines_src.iter().cloned());
+        lines.extend(group_lines_by_statement(lines_src));
     } else {
         lines.push("no instructions".to_owned());
     }
@@ -396,6 +425,40 @@ fn block_preview_lines(lines: &[String]) -> Vec<String> {
         ));
     }
     preview
+}
+
+fn distinct_statement_count(lines: &[String]) -> usize {
+    let mut last = None::<usize>;
+    let mut count = 0usize;
+    for line in lines {
+        let Some(statement) = statement_index_from_line(line) else {
+            continue;
+        };
+        if last != Some(statement) {
+            count += 1;
+            last = Some(statement);
+        }
+    }
+    count
+}
+
+fn group_lines_by_statement(lines: &[String]) -> Vec<String> {
+    let mut grouped = Vec::new();
+    let mut current_statement = None::<usize>;
+    for line in lines {
+        let statement = statement_index_from_line(line);
+        if statement != current_statement {
+            if !grouped.is_empty() {
+                grouped.push(String::new());
+            }
+            if let Some(statement) = statement {
+                grouped.push(format!("statement {statement}"));
+            }
+            current_statement = statement;
+        }
+        grouped.push(line.clone());
+    }
+    grouped
 }
 
 fn state_scoped_name(control_flow: &ControlFlowPlan, key: StateKey) -> String {
@@ -578,6 +641,118 @@ struct MachineChunk {
     terminator: String,
 }
 
+#[derive(Clone, Debug)]
+struct OperationChunk {
+    index: usize,
+    first_line_index: usize,
+    last_line_index: usize,
+    lines: Vec<String>,
+    statement_count: usize,
+    control_count: usize,
+    call_count: usize,
+}
+
+fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
+    let mut chunks = Vec::new();
+    let mut current_lines = Vec::new();
+    let mut first_line_index = 0usize;
+    let mut call_count = 0usize;
+    let mut control_count = 0usize;
+    let mut last_statement = None::<usize>;
+    let mut statement_count = 0usize;
+
+    for (index, line) in lines.iter().enumerate() {
+        if current_lines.is_empty() {
+            first_line_index = index;
+            call_count = 0;
+            control_count = 0;
+            last_statement = None;
+            statement_count = 0;
+        }
+
+        current_lines.push(line.clone());
+        let line_kind = operation_line_kind(line);
+        if matches!(line_kind, OperationLineKind::Call) {
+            call_count += 1;
+        }
+        if matches!(
+            line_kind,
+            OperationLineKind::Control | OperationLineKind::Call
+        ) {
+            control_count += 1;
+        }
+
+        let statement = statement_index_from_line(line);
+        if statement != last_statement {
+            if statement.is_some() {
+                statement_count += 1;
+            }
+            last_statement = statement;
+        }
+
+        if matches!(
+            line_kind,
+            OperationLineKind::Control | OperationLineKind::Call
+        ) {
+            chunks.push(OperationChunk {
+                index: chunks.len(),
+                first_line_index,
+                last_line_index: index,
+                lines: std::mem::take(&mut current_lines),
+                statement_count,
+                control_count,
+                call_count,
+            });
+        }
+    }
+
+    if !current_lines.is_empty() {
+        let last_line_index = lines.len().saturating_sub(1);
+        chunks.push(OperationChunk {
+            index: chunks.len(),
+            first_line_index,
+            last_line_index,
+            lines: current_lines,
+            statement_count,
+            control_count,
+            call_count,
+        });
+    }
+
+    chunks
+}
+
+fn operation_chunk_label(chunk: &OperationChunk) -> String {
+    let mut lines = vec![
+        format!(
+            "B{} [{}..{}]",
+            chunk.index, chunk.first_line_index, chunk.last_line_index
+        ),
+        format!(
+            "statements: {} control: {} calls: {}",
+            chunk.statement_count, chunk.control_count, chunk.call_count
+        ),
+    ];
+    lines.extend(machine_chunk_preview_lines(&chunk.lines));
+    lines.join("\n")
+}
+
+fn operation_chunk_details(chunk: &OperationChunk) -> String {
+    let mut lines = vec![
+        format!(
+            "B{} [{}..{}]",
+            chunk.index, chunk.first_line_index, chunk.last_line_index
+        ),
+        format!(
+            "statements: {} control: {} calls: {}",
+            chunk.statement_count, chunk.control_count, chunk.call_count
+        ),
+        String::new(),
+    ];
+    lines.extend(group_lines_by_statement(&chunk.lines));
+    lines.join("\n")
+}
+
 fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
     let mut chunks = Vec::new();
     let mut current_lines = Vec::new();
@@ -687,6 +862,13 @@ enum MachineLineKind {
     Control,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OperationLineKind {
+    Data,
+    Call,
+    Control,
+}
+
 fn machine_line_kind(line: &str) -> MachineLineKind {
     if line.contains(" call ") || line.contains(" call HostCallSequence ") {
         MachineLineKind::Call
@@ -695,6 +877,38 @@ fn machine_line_kind(line: &str) -> MachineLineKind {
     } else {
         MachineLineKind::Data
     }
+}
+
+fn operation_line_kind(line: &str) -> OperationLineKind {
+    let head = operation_line_head(line);
+    if matches!(head.as_str(), "HostOperation" | "ReadRuntimeTextLine") {
+        OperationLineKind::Call
+    } else if head.starts_with("EnterDispatch")
+        || head.starts_with("EvaluateDispatchGuard")
+        || head.starts_with("SetDispatchState")
+        || head.starts_with("LeaveDispatch")
+        || head.starts_with("TerminateDispatch")
+        || head.starts_with("LeaveFunction")
+        || head.starts_with("CompareRuntime")
+    {
+        OperationLineKind::Control
+    } else {
+        OperationLineKind::Data
+    }
+}
+
+fn operation_line_head(line: &str) -> String {
+    let without_index = line.split_once(' ').map(|(_, rest)| rest).unwrap_or(line);
+    without_index
+        .split(" @ statement ")
+        .next()
+        .unwrap_or(without_index)
+        .to_owned()
+}
+
+fn statement_index_from_line(line: &str) -> Option<usize> {
+    let (_, suffix) = line.rsplit_once("@ statement ")?;
+    suffix.trim().parse().ok()
 }
 
 fn machine_line_head(line: &str) -> String {
