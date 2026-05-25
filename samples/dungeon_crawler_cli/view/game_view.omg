@@ -13,7 +13,7 @@ machine GameView::render_title(
 ) {
     console.write_line("Omega Dungeon");
     console.write_line("A tiny generated crawl for compiler stress.");
-    console.write_line("Type look, paths, inventory, character, use, fight, or quit.");
+    console.write_line("Type look, paths, inv, character, use, fight, or exit.");
 }
 
 machine GameView::render_room(

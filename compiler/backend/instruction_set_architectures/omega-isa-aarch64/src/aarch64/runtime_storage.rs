@@ -196,17 +196,18 @@ pub fn encode_runtime_machine_integer_write(
         ))
     })?;
 
-    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_size));
+    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_offset, byte_size));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 16, byte_offset)?;
     match byte_size {
         1 | 4 => {
             bytes.extend(encode_movz_w(17, value as u16));
-            bytes.extend(encode_store_w17_to_x16(byte_offset, byte_size)?);
+            bytes.extend(encode_store_w17_to_x16(0, byte_size)?);
         }
         8 => {
             append_unsigned_immediate_padded(&mut bytes, 17, value);
-            bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+            bytes.extend(encode_store_x17_to_x16(0)?);
         }
         _ => {
             return Err(Diagnostic::error(format!(
@@ -237,7 +238,7 @@ pub fn encode_runtime_pointee_integer_write(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
     if field_byte_offset > 0 {
-        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+        append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     }
     match byte_size {
         1 | 4 => {
@@ -302,7 +303,7 @@ pub fn encode_runtime_pointee_binary_write(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
     if field_byte_offset > 0 {
-        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+        append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     }
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
@@ -341,7 +342,7 @@ pub fn encode_runtime_pointee_string_write(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
     if field_byte_offset > 0 {
-        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+        append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     }
     bytes.extend(encode_store_x_to_x(17, 16, 0)?);
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
@@ -418,36 +419,23 @@ pub fn encode_runtime_storage_copy(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
+    append_add_constant_to_x_register(&mut bytes, 16, source_offset)?;
+    append_add_constant_to_x_register(&mut bytes, 17, target_offset)?;
 
-    for_each_runtime_copy_chunk(
-        source_offset,
-        target_offset,
-        byte_count,
-        |offset, chunk_size| {
-            match chunk_size {
-                1 | 4 => {
-                    bytes.extend(encode_load_w_from_x(
-                        18,
-                        16,
-                        source_offset + offset,
-                        chunk_size,
-                    )?);
-                    bytes.extend(encode_store_w_to_x(
-                        18,
-                        17,
-                        target_offset + offset,
-                        chunk_size,
-                    )?);
-                }
-                8 => {
-                    bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
-                    bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
-                }
-                _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(18, 16, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(18, 17, offset, chunk_size)?);
             }
-            Ok(())
-        },
-    )?;
+            8 => {
+                bytes.extend(encode_load_x_from_x(18, 16, offset)?);
+                bytes.extend(encode_store_x_to_x(18, 17, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
 
     Ok(bytes)
 }
@@ -554,31 +542,22 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         element_byte_size,
         field_byte_offset,
     )?;
+    append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
 
-    for_each_runtime_copy_chunk(
-        source_offset,
-        field_byte_offset,
-        byte_count,
-        |offset, chunk_size| {
-            match chunk_size {
-                1 | 4 => {
-                    bytes.extend(encode_load_w_from_x(
-                        17,
-                        20,
-                        source_offset + offset,
-                        chunk_size,
-                    )?);
-                    bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
-                }
-                8 => {
-                    bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
-                    bytes.extend(encode_store_x_to_x(17, 16, offset)?);
-                }
-                _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 20, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
             }
-            Ok(())
-        },
-    )?;
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 20, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
 
     Ok(bytes)
 }
@@ -606,21 +585,17 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
         element_byte_size,
         field_byte_offset,
     )?;
+    append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
-    for_each_runtime_copy_chunk(0, target_offset, byte_count, |offset, chunk_size| {
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
         match chunk_size {
             1 | 4 => {
                 bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
-                bytes.extend(encode_store_w_to_x(
-                    17,
-                    20,
-                    target_offset + offset,
-                    chunk_size,
-                )?);
+                bytes.extend(encode_store_w_to_x(17, 20, offset, chunk_size)?);
             }
             8 => {
                 bytes.extend(encode_load_x_from_x(17, 16, offset)?);
-                bytes.extend(encode_store_x_to_x(17, 20, target_offset + offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, offset)?);
             }
             _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
         }
@@ -657,21 +632,17 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
             Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed copy")
         })?;
     append_add_constant_to_x_register(&mut bytes, 16, source_offset)?;
+    append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
-    for_each_runtime_copy_chunk(0, target_offset, byte_count, |offset, chunk_size| {
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
         match chunk_size {
             1 | 4 => {
                 bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
-                bytes.extend(encode_store_w_to_x(
-                    17,
-                    20,
-                    target_offset + offset,
-                    chunk_size,
-                )?);
+                bytes.extend(encode_store_w_to_x(17, 20, offset, chunk_size)?);
             }
             8 => {
                 bytes.extend(encode_load_x_from_x(17, 16, offset)?);
-                bytes.extend(encode_store_x_to_x(17, 20, target_offset + offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, offset)?);
             }
             _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
         }
@@ -696,35 +667,26 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
     if field_byte_offset > 0 {
         bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
     }
 
-    for_each_runtime_copy_chunk(
-        source_offset,
-        field_byte_offset,
-        byte_count,
-        |offset, chunk_size| {
-            match chunk_size {
-                1 | 4 => {
-                    bytes.extend(encode_load_w_from_x(
-                        17,
-                        20,
-                        source_offset + offset,
-                        chunk_size,
-                    )?);
-                    bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
-                }
-                8 => {
-                    bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
-                    bytes.extend(encode_store_x_to_x(17, 16, offset)?);
-                }
-                _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 20, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
             }
-            Ok(())
-        },
-    )?;
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 20, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
 
     Ok(bytes)
 }
@@ -803,44 +765,32 @@ fn append_runtime_value_operand(
     } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
         bytes.extend(encode_adrp_placeholder(19));
         bytes.extend(encode_add_page_offset_placeholder(19));
-        match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
-                destination_register,
-                19,
-                byte_offset,
-                byte_size,
-            )?),
-            8 => bytes.extend(encode_load_x_from_x(destination_register, 19, byte_offset)?),
-            _ => {
-                return Err(Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot load runtime operand width `{byte_size}` yet"
-                )));
-            }
-        }
+        append_runtime_storage_load(
+            bytes,
+            destination_register,
+            19,
+            byte_offset,
+            byte_size,
+            "runtime operand",
+        )?;
         Ok(())
     } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
         runtime_value_operands.pointee(operand)
     {
         bytes.extend(encode_adrp_placeholder(19));
         bytes.extend(encode_add_page_offset_placeholder(19));
-        bytes.extend(encode_load_x_from_x(19, 19, pointer_byte_offset)?);
+        append_runtime_storage_load(bytes, 19, 19, pointer_byte_offset, 8, "runtime pointee")?;
         if field_byte_offset > 0 {
-            bytes.extend(encode_add_x_immediate(19, 19, field_byte_offset)?);
+            append_add_constant_to_x_register(bytes, 19, field_byte_offset)?;
         }
-        match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
-                destination_register,
-                19,
-                0,
-                byte_size,
-            )?),
-            8 => bytes.extend(encode_load_x_from_x(destination_register, 19, 0)?),
-            _ => {
-                return Err(Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot load runtime pointee operand width `{byte_size}` yet"
-                )));
-            }
-        }
+        append_runtime_storage_load(
+            bytes,
+            destination_register,
+            19,
+            0,
+            byte_size,
+            "runtime pointee operand",
+        )?;
         Ok(())
     } else if let Some((
         descriptor_offset,
@@ -900,6 +850,40 @@ fn append_runtime_value_operand(
             "AArch64 runtime value operand is not implemented yet",
         ))
     }
+}
+
+fn append_runtime_storage_load(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    byte_size: usize,
+    context: &str,
+) -> Result<(), Diagnostic> {
+    if byte_offset > 0 {
+        append_add_constant_to_x_register(bytes, base_register, byte_offset)?;
+    }
+
+    match byte_size {
+        1 | 4 => bytes.extend(encode_load_w_from_x(
+            destination_register,
+            base_register,
+            0,
+            byte_size,
+        )?),
+        8 => bytes.extend(encode_load_x_from_x(
+            destination_register,
+            base_register,
+            0,
+        )?),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot load {context} width `{byte_size}` yet"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 fn append_runtime_binary_operation(
