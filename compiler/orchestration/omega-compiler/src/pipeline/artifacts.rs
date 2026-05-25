@@ -29,8 +29,31 @@ pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<D
         ),
         ("06", "State Graph", "state-graph", "06_state_graph.html"),
         ("07", "Control Flow", "control-flow", "07_control_flow.html"),
-        ("09", "Backend", "backend", "09_backend_report.html"),
-        ("11", "Emission", "emission", "11_emission.html"),
+        (
+            "08",
+            "Abstract Operations",
+            "abstract-operations",
+            "08_abstract_operations.html",
+        ),
+        (
+            "09",
+            "Target Operations",
+            "target-operations",
+            "09_target_operations.html",
+        ),
+        (
+            "10",
+            "Assigned Target Operations",
+            "assigned-target-operations",
+            "10_assigned_target_operations.html",
+        ),
+        (
+            "11",
+            "Machine Instructions",
+            "machine-instructions",
+            "11_machine_instructions.html",
+        ),
+        ("12", "Emission", "emission", "12_emission.html"),
     ];
     let mut page_html = Vec::new();
     let mut present_page_specs = Vec::new();
@@ -233,7 +256,37 @@ pub(super) fn write_backend_report(
 
     write_phase_diagram(
         options,
-        "09_backend_report.html",
+        "08_abstract_operations.html",
+        &omega_visualizations::abstract_operations_html(
+            &plan.abstract_operations,
+            &plan.control_flow,
+        ),
+    )?;
+    write_phase_diagram(
+        options,
+        "09_target_operations.html",
+        &omega_visualizations::target_operations_html(&plan.target_operations, &plan.control_flow),
+    )?;
+    write_phase_diagram(
+        options,
+        "10_assigned_target_operations.html",
+        &omega_visualizations::assigned_target_operations_html(
+            &plan.assigned_target_operations,
+            &plan.control_flow,
+        ),
+    )?;
+    write_phase_diagram(
+        options,
+        "11_machine_instructions.html",
+        &omega_visualizations::machine_instructions_html(
+            &plan.machine_instructions,
+            &plan.assigned_target_operations,
+            &plan.control_flow,
+        ),
+    )?;
+    write_phase_diagram(
+        options,
+        "backend_report.html",
         &omega_visualizations::text_report_html("backend_report", &report),
     )
 }
@@ -284,14 +337,25 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "09_backend_report.txt",
             "09_backend_report.html",
             "09_native_plan.txt",
+            "08_abstract_operations.html",
+            "09_target_operations.html",
+            "10_assigned_target_operations.html",
+            "11_machine_instructions.html",
+            "backend_report.html",
             "10_trust.txt",
             "10_trust.html",
             "11_emission.txt",
             "11_emission.html",
+            "12_emission.txt",
+            "12_emission.html",
             "12_emitted_output.txt",
             "12_emitted_output.html",
             "13_finalization.txt",
             "13_finalization.html",
+            "13_emitted_output.txt",
+            "13_emitted_output.html",
+            "14_finalization.txt",
+            "14_finalization.html",
         ])
         .map_err(|diagnostic| vec![diagnostic])
 }

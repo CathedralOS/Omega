@@ -14,91 +14,58 @@ pub fn abstract_operations_html(
     plan: &AbstractOperationPlan,
     control_flow: &ControlFlowPlan,
 ) -> String {
-    build_backend_cfg_diagram(
-        "abstract_operations",
-        "Abstract Operations",
-        control_flow,
-        plan.functions.storage_slice(),
-        |function| function.source_key,
-        |_| "abstract block".to_owned(),
-        |function| {
-            numbered_lines(
-                plan.instructions.span_or_empty(function.instructions),
-                abstract_instruction_line,
-            )
-        },
-    )
+    let function_views = collect_state_function_views(
+        "abstract block",
+        plan.instructions.storage_slice(),
+        |instruction| instruction.source_key,
+        abstract_instruction_line,
+    );
+    build_backend_cfg_diagram("abstract_operations", control_flow, &function_views)
 }
 
 pub fn target_operations_html(
     plan: &TargetOperationPlan,
     control_flow: &ControlFlowPlan,
 ) -> String {
-    build_backend_cfg_diagram(
-        "target_operations",
-        "Target Operations",
-        control_flow,
-        plan.functions.storage_slice(),
-        |function| function.source_key,
-        |_| "target block".to_owned(),
-        |function| {
-            numbered_lines(
-                plan.instructions.span_or_empty(function.instructions),
-                target_instruction_line,
-            )
-        },
-    )
+    let function_views = collect_state_function_views(
+        "target block",
+        plan.instructions.storage_slice(),
+        |instruction| instruction.source_key,
+        target_instruction_line,
+    );
+    build_backend_cfg_diagram("target_operations", control_flow, &function_views)
 }
 
 pub fn assigned_target_operations_html(
     plan: &AssignedTargetOperationPlan,
     control_flow: &ControlFlowPlan,
 ) -> String {
-    build_backend_cfg_diagram(
-        "assigned_target_operations",
-        "Assigned Target Operations",
-        control_flow,
-        plan.functions.storage_slice(),
-        |function| function.source_key,
-        |_| "assigned block".to_owned(),
-        |function| {
-            numbered_lines(
-                plan.instructions.span_or_empty(function.instructions),
-                assigned_instruction_line,
-            )
-        },
-    )
+    let function_views = collect_state_function_views(
+        "assigned block",
+        plan.instructions.storage_slice(),
+        |instruction| instruction.source_key,
+        assigned_instruction_line,
+    );
+    build_backend_cfg_diagram("assigned_target_operations", control_flow, &function_views)
 }
 
 pub fn machine_instructions_html(
     plan: &MachineInstructionPlan,
+    assigned_plan: &AssignedTargetOperationPlan,
     control_flow: &ControlFlowPlan,
 ) -> String {
-    build_machine_instruction_diagram(plan, control_flow)
+    build_machine_instruction_diagram(plan, assigned_plan, control_flow)
 }
 
-fn build_backend_cfg_diagram<Function>(
+fn build_backend_cfg_diagram(
     title: &str,
-    _root_label: &str,
     control_flow: &ControlFlowPlan,
-    functions: &[Function],
-    function_source_key: impl Fn(&Function) -> StateKey,
-    function_title: impl Fn(&Function) -> String,
-    function_lines: impl Fn(&Function) -> Vec<String>,
+    function_views: &[FunctionView],
 ) -> String {
     let mut diagram = PhaseDiagramBuilder::new(title);
     let mut machine_nodes = Vec::new();
     let mut state_scope_nodes = Vec::new();
     let mut terminal_anchor_nodes = Vec::<(StateKey, String)>::new();
-
-    let function_views = functions
-        .iter()
-        .map(|function| FunctionView {
-            source_key: function_source_key(function),
-            title: function_title(function),
-            lines: function_lines(function),
-        })
-        .collect::<Vec<_>>();
 
     let mut state_nodes = Vec::<(StateKey, String)>::new();
 
@@ -229,6 +196,7 @@ fn build_backend_cfg_diagram<Function>(
 
 fn build_machine_instruction_diagram(
     plan: &MachineInstructionPlan,
+    assigned_plan: &AssignedTargetOperationPlan,
     control_flow: &ControlFlowPlan,
 ) -> String {
     let mut diagram = PhaseDiagramBuilder::new("machine_instructions");
@@ -236,6 +204,7 @@ fn build_machine_instruction_diagram(
     let mut state_nodes = Vec::<(StateKey, String)>::new();
     let mut state_scope_nodes = Vec::<(StateKey, String)>::new();
     let mut terminal_anchor_nodes = Vec::<(StateKey, String)>::new();
+    let function_views = collect_machine_function_views(plan, assigned_plan);
 
     for (machine_index, (_, machine)) in control_flow.machines.iter().enumerate() {
         let states = unique_machine_states(control_flow, machine);
@@ -265,17 +234,14 @@ fn build_machine_instruction_diagram(
             else {
                 continue;
             };
-            let function = plan
-                .functions
-                .storage_slice()
-                .iter()
-                .find(|function| function.source_key == state.key);
-            let instructions = function
-                .map(|function| plan.instructions.span_or_empty(function.instructions))
-                .unwrap_or(&[]);
-            let lines = numbered_lines(instructions, machine_instruction_line);
+            let function = function_view_by_key(&function_views, state.key);
+            let lines = function
+                .map(|function| function.lines.clone())
+                .unwrap_or_default();
 
-            let block_title = machine_block_title(instructions);
+            let block_title = function
+                .map(|function| function.title.clone())
+                .unwrap_or_else(|| "no lowered block".to_owned());
             let state_id = diagram.node(
                 format!(
                     "state_{}_{}_{}",
@@ -373,9 +339,61 @@ struct FunctionView {
     title: String,
     lines: Vec<String>,
 }
-
-const BLOCK_PREVIEW_LINES: usize = 4;
 const MACHINE_CHUNK_PREVIEW_LINES: usize = 3;
+
+fn collect_state_function_views<Instruction>(
+    title: &str,
+    instructions: &[Instruction],
+    instruction_source_key: impl Fn(&Instruction) -> StateKey,
+    line: impl Fn(&Instruction) -> String,
+) -> Vec<FunctionView> {
+    let mut views = Vec::<FunctionView>::new();
+
+    for (index, instruction) in instructions.iter().enumerate() {
+        let source_key = instruction_source_key(instruction);
+        let line = format!("{index:02} {}", line(instruction));
+        if let Some(existing) = views.iter_mut().find(|view| view.source_key == source_key) {
+            existing.lines.push(line);
+        } else {
+            views.push(FunctionView {
+                source_key,
+                title: title.to_owned(),
+                lines: vec![line],
+            });
+        }
+    }
+
+    views
+}
+
+fn collect_machine_function_views(
+    plan: &MachineInstructionPlan,
+    assigned_plan: &AssignedTargetOperationPlan,
+) -> Vec<FunctionView> {
+    let mut views = Vec::<FunctionView>::new();
+
+    for (index, instruction) in plan.instructions.storage_slice().iter().enumerate() {
+        let handle =
+            omega_core::arena::Handle::from_arena_index(instruction.selected_instruction_index);
+        if handle.arena_index() as usize >= assigned_plan.instructions.len() {
+            continue;
+        }
+        let assigned_instruction = assigned_plan.instructions.get(handle);
+        let source_key = assigned_instruction.source_key;
+        let line = format!("{index:02} {}", machine_instruction_line(instruction));
+        if let Some(existing) = views.iter_mut().find(|view| view.source_key == source_key) {
+            existing.lines.push(line);
+        } else {
+            views.push(FunctionView {
+                source_key,
+                title: "machine block".to_owned(),
+                lines: vec![line],
+            });
+        }
+    }
+
+    views
+}
 
 fn function_view_by_key(functions: &[FunctionView], key: StateKey) -> Option<&FunctionView> {
     functions.iter().find(|function| function.source_key == key)
@@ -537,22 +555,6 @@ fn backend_call_summaries(control_flow: &ControlFlowPlan, state: &StateFlow) -> 
     }
 
     lines
-}
-
-fn block_preview_lines(lines: &[String]) -> Vec<String> {
-    let preview_count = lines.len().min(BLOCK_PREVIEW_LINES);
-    let mut preview = lines
-        .iter()
-        .take(preview_count)
-        .cloned()
-        .collect::<Vec<_>>();
-    if lines.len() > BLOCK_PREVIEW_LINES {
-        preview.push(format!(
-            "... {} more lines in details",
-            lines.len() - BLOCK_PREVIEW_LINES
-        ));
-    }
-    preview
 }
 
 fn distinct_statement_count(lines: &[String]) -> usize {
