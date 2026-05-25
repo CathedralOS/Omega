@@ -2,6 +2,7 @@
 struct PhaseDiagramNode {
     id: String,
     label: String,
+    details: Option<String>,
     kind: String,
     rank: usize,
     scope_target: Option<String>,
@@ -37,8 +38,15 @@ const PIPELINE_PAGES: &[(&str, &str, &str)] = &[
     ("cap", "Capabilities", "capabilities"),
     ("06", "State Graph", "state-graph"),
     ("07", "Control Flow", "control-flow"),
-    ("09", "Backend", "backend"),
-    ("11", "Emission", "emission"),
+    ("08", "Abstract Operations", "abstract-operations"),
+    ("09", "Target Operations", "target-operations"),
+    (
+        "10",
+        "Assigned Target Operations",
+        "assigned-target-operations",
+    ),
+    ("11", "Machine Instructions", "machine-instructions"),
+    ("12", "Emission", "emission"),
 ];
 
 impl PhaseDiagramBuilder {
@@ -61,6 +69,7 @@ impl PhaseDiagramBuilder {
         self.nodes.push(PhaseDiagramNode {
             id: id.clone(),
             label: label.into(),
+            details: None,
             kind: kind.into(),
             rank,
             scope_target: None,
@@ -81,12 +90,21 @@ impl PhaseDiagramBuilder {
         self.nodes.push(PhaseDiagramNode {
             id: id.clone(),
             label: label.into(),
+            details: None,
             kind: kind.into(),
             rank,
             scope_target: Some(scope_target.into()),
             effects: Vec::new(),
         });
         id
+    }
+
+    pub fn node_details(&mut self, id: &str, details: impl Into<String>) {
+        let Some(node) = self.nodes.iter_mut().find(|node| node.id == id) else {
+            return;
+        };
+
+        node.details = Some(details.into());
     }
 
     pub fn node_effects(&mut self, id: &str, effects: impl IntoIterator<Item = impl Into<String>>) {
@@ -256,6 +274,10 @@ fn push_graph_json(
         push_json_string(output, &node.id);
         output.push_str(",\"label\":");
         push_json_string(output, &node.label);
+        if let Some(details) = &node.details {
+            output.push_str(",\"details\":");
+            push_json_string(output, details);
+        }
         output.push_str(",\"kind\":");
         push_json_string(output, &node.kind);
         output.push_str(",\"rank\":");
@@ -1403,7 +1425,8 @@ function selectNode(id, center) {
   const node = nodeById.get(id);
   const targetId = followTargetFor(id);
   const targetText = targetId ? `\n\nfollow target: ${outlineLabel(nodeById.get(targetId))}` : "";
-  details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}${targetText}\n\n${node.label}`;
+  const body = node.details || node.label;
+  details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}${targetText}\n\n${body}`;
   renderDetailsActions(id);
   if (center) centerOn(id);
 }

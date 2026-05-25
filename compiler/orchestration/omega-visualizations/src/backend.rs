@@ -122,6 +122,7 @@ fn build_backend_cfg_diagram<Function>(
         diagram.containment_edge(&root_id, &machine_id);
 
         for state in unique_machine_states(control_flow, machine) {
+            let function = function_view_by_key(&function_views, state.key);
             let state_id = diagram.node(
                 format!(
                     "state_{}_{}_{}",
@@ -129,9 +130,13 @@ fn build_backend_cfg_diagram<Function>(
                     state.key.state.arena_index(),
                     state.key.segment_index
                 ),
-                state_backend_label(control_flow, state, function_view_by_key(&function_views, state.key)),
+                state_backend_label(control_flow, state, function),
                 "state_block",
                 machine_index + 1,
+            );
+            diagram.node_details(
+                &state_id,
+                state_backend_details(control_flow, state, function),
             );
             diagram.containment_edge(&machine_id, &state_id);
             state_nodes.push((state.key, state_id));
@@ -174,15 +179,15 @@ struct FunctionView {
     lines: Vec<String>,
 }
 
+const BLOCK_PREVIEW_LINES: usize = 4;
+
 fn function_view_by_key(functions: &[FunctionView], key: StateKey) -> Option<&FunctionView> {
     functions.iter().find(|function| function.source_key == key)
 }
 
-fn numbered_lines<Item>(
-    items: &[Item],
-    line: impl Fn(&Item) -> String,
-) -> Vec<String> {
-    items.iter()
+fn numbered_lines<Item>(items: &[Item], line: impl Fn(&Item) -> String) -> Vec<String> {
+    items
+        .iter()
         .enumerate()
         .map(|(index, item)| format!("{index:02} {}", line(item)))
         .collect()
@@ -203,21 +208,69 @@ fn state_backend_label(
             state_scoped_name(control_flow, state.key),
             state.key.segment_index
         ),
-        function
-            .map(|function| function.title.clone())
-            .filter(|title| !title.is_empty())
-            .unwrap_or_else(|| "no lowered block".to_owned()),
+        function_title(function),
     ];
 
     if let Some(function) = function {
         if function.lines.is_empty() {
             lines.push("no instructions".to_owned());
         } else {
-            lines.extend(function.lines.iter().cloned());
+            lines.push(format!("instructions: {}", function.lines.len()));
+            lines.extend(block_preview_lines(&function.lines));
         }
     }
 
     lines.join("\n")
+}
+
+fn state_backend_details(
+    control_flow: &ControlFlowPlan,
+    state: &StateFlow,
+    function: Option<&FunctionView>,
+) -> String {
+    let mut lines = vec![
+        format!(
+            "{} [{}]",
+            state_scoped_name(control_flow, state.key),
+            state.key.segment_index
+        ),
+        function_title(function),
+    ];
+
+    match function {
+        Some(function) if !function.lines.is_empty() => {
+            lines.push(format!("instructions: {}", function.lines.len()));
+            lines.push(String::new());
+            lines.extend(function.lines.iter().cloned());
+        }
+        Some(_) => lines.push("no instructions".to_owned()),
+        None => lines.push("no lowered block".to_owned()),
+    }
+
+    lines.join("\n")
+}
+
+fn function_title(function: Option<&FunctionView>) -> String {
+    function
+        .map(|function| function.title.clone())
+        .filter(|title| !title.is_empty())
+        .unwrap_or_else(|| "no lowered block".to_owned())
+}
+
+fn block_preview_lines(lines: &[String]) -> Vec<String> {
+    let preview_count = lines.len().min(BLOCK_PREVIEW_LINES);
+    let mut preview = lines
+        .iter()
+        .take(preview_count)
+        .cloned()
+        .collect::<Vec<_>>();
+    if lines.len() > BLOCK_PREVIEW_LINES {
+        preview.push(format!(
+            "... {} more lines in details",
+            lines.len() - BLOCK_PREVIEW_LINES
+        ));
+    }
+    preview
 }
 
 fn state_scoped_name(control_flow: &ControlFlowPlan, key: StateKey) -> String {
@@ -298,7 +351,10 @@ fn transition_target_key(
     }
 }
 
-fn operation_call_target_key(control_flow: &ControlFlowPlan, operation: &Operation) -> Option<StateKey> {
+fn operation_call_target_key(
+    control_flow: &ControlFlowPlan,
+    operation: &Operation,
+) -> Option<StateKey> {
     let OperationKind::Call {
         receiver_symbol,
         target_symbol,
