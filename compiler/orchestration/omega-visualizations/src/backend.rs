@@ -5,6 +5,7 @@ use omega_control_flow::{
     ControlFlowPlan, MachineFlow, Operation, OperationKind, PlannedTransitionTarget, StateFlow,
     StateKey, TransitionFlow,
 };
+use omega_core::symbols::SymbolHandle;
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::{TargetOperation, TargetOperationPlan};
 use std::fmt::Debug;
@@ -86,6 +87,8 @@ fn build_backend_cfg_diagram<Function>(
     function_lines: impl Fn(&Function) -> Vec<String>,
 ) -> String {
     let mut diagram = PhaseDiagramBuilder::new(title);
+    let mut machine_nodes = Vec::new();
+    let mut state_scope_nodes = Vec::new();
 
     let function_views = functions
         .iter()
@@ -99,14 +102,33 @@ fn build_backend_cfg_diagram<Function>(
     let mut state_nodes = Vec::<(StateKey, String)>::new();
 
     for (machine_index, (_, machine)) in control_flow.machines.iter().enumerate() {
-        let machine_id = diagram.node(
-            format!("machine_{}", machine.symbol.arena_index()),
-            machine_backend_label(machine),
-            "machine",
-            machine_index + 1,
-        );
+        let states = unique_machine_states(control_flow, machine);
+        let root_keys = backend_visual_root_keys(control_flow, &states);
 
-        for state in unique_machine_states(control_flow, machine) {
+        for root_key in &root_keys {
+            let Some(root_state) = backend_state_by_key_in_slice(&states, *root_key) else {
+                continue;
+            };
+            let machine_id = diagram.node(
+                format!(
+                    "machine_{}_{}",
+                    machine.symbol.arena_index(),
+                    root_key.state.arena_index()
+                ),
+                backend_machine_label(machine, root_state),
+                "machine",
+                machine_index + 1,
+            );
+            machine_nodes.push((machine.symbol, *root_key, machine_id));
+        }
+
+        for state in states.iter().copied() {
+            let root_key = backend_root_key_for_state(control_flow, &states, &root_keys, state.key);
+            let Some(machine_id) =
+                backend_machine_id_for_root(&machine_nodes, machine.symbol, root_key)
+            else {
+                continue;
+            };
             let function = function_view_by_key(&function_views, state.key);
             let state_id = diagram.node(
                 format!(
@@ -123,8 +145,9 @@ fn build_backend_cfg_diagram<Function>(
                 &state_id,
                 state_backend_details(control_flow, state, function),
             );
-            diagram.containment_edge(&machine_id, &state_id);
+            diagram.containment_edge(machine_id, &state_id);
             state_nodes.push((state.key, state_id.clone()));
+            state_scope_nodes.push((state.key, machine_id.to_owned()));
 
             if let Some(function) = function {
                 let chunks = operation_chunks(&function.lines);
@@ -154,10 +177,11 @@ fn build_backend_cfg_diagram<Function>(
     }
 
     for (_, machine) in control_flow.machines.iter() {
-        for state in unique_machine_states(control_flow, machine) {
+        for state in control_flow.states.span_or_empty(machine.states) {
             let Some(source_id) = state_node_id(&state_nodes, state.key) else {
                 continue;
             };
+            let source_scope_id = backend_scope_id_for_state(&state_scope_nodes, state.key);
 
             for transition in control_flow.transitions.span_or_empty(state.transitions) {
                 append_transition_edges(
@@ -173,7 +197,19 @@ fn build_backend_cfg_diagram<Function>(
             for operation in control_flow.operations.span_or_empty(state.operations) {
                 if let Some(target_key) = operation_call_target_key(control_flow, operation) {
                     if let Some(target_id) = state_node_id(&state_nodes, target_key) {
-                        diagram.edge(source_id, target_id, "call");
+                        let target_scope_id =
+                            backend_scope_id_for_state(&state_scope_nodes, target_key);
+                        if source_scope_id == target_scope_id {
+                            diagram.edge(source_id, target_id, "call");
+                        } else if let Some(scope_target_id) = target_scope_id {
+                            append_backend_external_call_node(
+                                &mut diagram,
+                                state.key,
+                                source_id,
+                                operation,
+                                scope_target_id,
+                            );
+                        }
                     }
                 }
             }
@@ -188,18 +224,39 @@ fn build_machine_instruction_diagram(
     control_flow: &ControlFlowPlan,
 ) -> String {
     let mut diagram = PhaseDiagramBuilder::new("machine_instructions");
+    let mut machine_nodes = Vec::new();
     let mut state_nodes = Vec::<(StateKey, String)>::new();
+    let mut state_scope_nodes = Vec::<(StateKey, String)>::new();
     let mut terminal_anchor_nodes = Vec::<(StateKey, String)>::new();
 
     for (machine_index, (_, machine)) in control_flow.machines.iter().enumerate() {
-        let machine_id = diagram.node(
-            format!("machine_{}", machine.symbol.arena_index()),
-            machine_backend_label(machine),
-            "machine",
-            machine_index + 1,
-        );
+        let states = unique_machine_states(control_flow, machine);
+        let root_keys = backend_visual_root_keys(control_flow, &states);
 
-        for state in unique_machine_states(control_flow, machine) {
+        for root_key in &root_keys {
+            let Some(root_state) = backend_state_by_key_in_slice(&states, *root_key) else {
+                continue;
+            };
+            let machine_id = diagram.node(
+                format!(
+                    "machine_{}_{}",
+                    machine.symbol.arena_index(),
+                    root_key.state.arena_index()
+                ),
+                backend_machine_label(machine, root_state),
+                "machine",
+                machine_index + 1,
+            );
+            machine_nodes.push((machine.symbol, *root_key, machine_id));
+        }
+
+        for state in states.iter().copied() {
+            let root_key = backend_root_key_for_state(control_flow, &states, &root_keys, state.key);
+            let Some(machine_id) =
+                backend_machine_id_for_root(&machine_nodes, machine.symbol, root_key)
+            else {
+                continue;
+            };
             let function = plan
                 .functions
                 .storage_slice()
@@ -226,8 +283,9 @@ fn build_machine_instruction_diagram(
                 &state_id,
                 state_backend_details_from_parts(control_flow, state, &block_title, &lines),
             );
-            diagram.containment_edge(&machine_id, &state_id);
+            diagram.containment_edge(machine_id, &state_id);
             state_nodes.push((state.key, state_id.clone()));
+            state_scope_nodes.push((state.key, machine_id.to_owned()));
 
             let chunks = machine_instruction_chunks(&lines);
             let mut previous_chunk_id = None::<String>;
@@ -258,12 +316,13 @@ fn build_machine_instruction_diagram(
     }
 
     for (_, machine) in control_flow.machines.iter() {
-        for state in unique_machine_states(control_flow, machine) {
+        for state in control_flow.states.span_or_empty(machine.states) {
             let Some(source_state_id) = state_node_id(&state_nodes, state.key) else {
                 continue;
             };
             let source_anchor_id =
                 state_node_id(&terminal_anchor_nodes, state.key).unwrap_or(source_state_id);
+            let source_scope_id = backend_scope_id_for_state(&state_scope_nodes, state.key);
 
             for transition in control_flow.transitions.span_or_empty(state.transitions) {
                 append_transition_edges(
@@ -279,7 +338,19 @@ fn build_machine_instruction_diagram(
             for operation in control_flow.operations.span_or_empty(state.operations) {
                 if let Some(target_key) = operation_call_target_key(control_flow, operation) {
                     if let Some(target_id) = state_node_id(&state_nodes, target_key) {
-                        diagram.edge(source_state_id, target_id, "call");
+                        let target_scope_id =
+                            backend_scope_id_for_state(&state_scope_nodes, target_key);
+                        if source_scope_id == target_scope_id {
+                            diagram.edge(source_state_id, target_id, "call");
+                        } else if let Some(scope_target_id) = target_scope_id {
+                            append_backend_external_call_node(
+                                &mut diagram,
+                                state.key,
+                                source_state_id,
+                                operation,
+                                scope_target_id,
+                            );
+                        }
                     }
                 }
             }
@@ -308,10 +379,6 @@ fn numbered_lines<Item>(items: &[Item], line: impl Fn(&Item) -> String) -> Vec<S
         .enumerate()
         .map(|(index, item)| format!("{index:02} {}", line(item)))
         .collect()
-}
-
-fn machine_backend_label(machine: &MachineFlow) -> String {
-    machine.name.to_string()
 }
 
 fn state_backend_label(
@@ -382,6 +449,18 @@ fn state_backend_details_from_parts(
         state_flow_summary(control_flow, state),
     ];
 
+    let transition_summaries = backend_transition_summaries(control_flow, state);
+    if !transition_summaries.is_empty() {
+        lines.push("transitions".to_owned());
+        lines.extend(transition_summaries);
+    }
+
+    let call_summaries = backend_call_summaries(control_flow, state);
+    if !call_summaries.is_empty() {
+        lines.push("calls".to_owned());
+        lines.extend(call_summaries);
+    }
+
     if !lines_src.is_empty() {
         lines.push(format!("instructions: {}", lines_src.len()));
         let statement_count = distinct_statement_count(lines_src);
@@ -409,6 +488,48 @@ fn state_flow_summary(control_flow: &ControlFlowPlan, state: &StateFlow) -> Stri
         .span_or_empty(state.transitions)
         .len();
     format!("calls: {call_count} transitions: {transition_count}")
+}
+
+fn backend_transition_summaries(control_flow: &ControlFlowPlan, state: &StateFlow) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    for (index, transition) in control_flow
+        .transitions
+        .span_or_empty(state.transitions)
+        .iter()
+        .enumerate()
+    {
+        if let Some(summary) =
+            backend_transition_target_summary(control_flow, &transition.target, Some(state.key))
+        {
+            lines.push(format!("{index}. target -> {summary}"));
+        }
+        if let Some(summary) = backend_transition_target_summary(
+            control_flow,
+            &transition.continuation,
+            Some(state.key),
+        ) {
+            lines.push(format!("{index}. continue -> {summary}"));
+        }
+    }
+
+    lines
+}
+
+fn backend_call_summaries(control_flow: &ControlFlowPlan, state: &StateFlow) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    for operation in control_flow.operations.span_or_empty(state.operations) {
+        if let Some(target_key) = operation_call_target_key(control_flow, operation) {
+            lines.push(format!(
+                "#{} -> {}",
+                operation.statement_index,
+                state_scoped_name(control_flow, target_key)
+            ));
+        }
+    }
+
+    lines
 }
 
 fn block_preview_lines(lines: &[String]) -> Vec<String> {
@@ -497,6 +618,170 @@ fn unique_machine_states<'plan>(
     states
 }
 
+fn backend_visual_root_keys(plan: &ControlFlowPlan, states: &[&StateFlow]) -> Vec<StateKey> {
+    let mut incoming = Vec::new();
+
+    for state in states {
+        for transition in plan.transitions.span_or_empty(state.transitions) {
+            for target in [&transition.target, &transition.continuation] {
+                if let Some(target_key) = backend_transition_target_key_in_states(states, target) {
+                    if target_key != state.key && !incoming.contains(&target_key) {
+                        incoming.push(target_key);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut roots = states
+        .iter()
+        .filter(|state| !incoming.contains(&state.key))
+        .map(|state| state.key)
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        if let Some(first) = states.first() {
+            roots.push(first.key);
+        }
+    }
+    roots
+}
+
+fn backend_root_key_for_state(
+    plan: &ControlFlowPlan,
+    states: &[&StateFlow],
+    root_keys: &[StateKey],
+    state_key: StateKey,
+) -> StateKey {
+    if root_keys.contains(&state_key) {
+        return state_key;
+    }
+
+    for root_key in root_keys {
+        if backend_reaches_state(plan, states, *root_key, state_key) {
+            return *root_key;
+        }
+    }
+
+    root_keys.first().copied().unwrap_or(state_key)
+}
+
+fn backend_reaches_state(
+    plan: &ControlFlowPlan,
+    states: &[&StateFlow],
+    root_key: StateKey,
+    target_key: StateKey,
+) -> bool {
+    let mut stack = vec![root_key];
+    let mut visited = Vec::new();
+
+    while let Some(key) = stack.pop() {
+        if key == target_key {
+            return true;
+        }
+        if visited.contains(&key) {
+            continue;
+        }
+        visited.push(key);
+
+        let Some(state) = backend_state_by_key_in_slice(states, key) else {
+            continue;
+        };
+        for transition in plan.transitions.span_or_empty(state.transitions) {
+            for target in [&transition.target, &transition.continuation] {
+                if let Some(next_key) = backend_transition_target_key_in_states(states, target) {
+                    stack.push(next_key);
+                }
+            }
+        }
+    }
+
+    false
+}
+
+fn backend_transition_target_key_in_states(
+    states: &[&StateFlow],
+    target: &PlannedTransitionTarget,
+) -> Option<StateKey> {
+    match target {
+        PlannedTransitionTarget::State { key, .. } => {
+            states.iter().any(|state| state.key == *key).then_some(*key)
+        }
+        PlannedTransitionTarget::Nested { state_symbol, .. } => states
+            .iter()
+            .find(|state| state.key.state == *state_symbol)
+            .map(|state| state.key),
+        PlannedTransitionTarget::None
+        | PlannedTransitionTarget::SelfTarget
+        | PlannedTransitionTarget::Terminal => None,
+    }
+}
+
+fn backend_state_by_key_in_slice<'states>(
+    states: &'states [&StateFlow],
+    key: StateKey,
+) -> Option<&'states StateFlow> {
+    states.iter().copied().find(|state| state.key == key)
+}
+
+fn backend_machine_label(machine: &MachineFlow, root_state: &StateFlow) -> String {
+    format!(
+        "{}\nentry slice: {} [{}]",
+        machine.name.as_str(),
+        root_state.name.as_str(),
+        root_state.key.segment_index
+    )
+}
+
+fn backend_machine_id_for_root(
+    machine_nodes: &[(SymbolHandle, StateKey, String)],
+    symbol: SymbolHandle,
+    root_key: StateKey,
+) -> Option<&str> {
+    machine_nodes
+        .iter()
+        .find(|(machine_symbol, candidate_root_key, _)| {
+            *machine_symbol == symbol && *candidate_root_key == root_key
+        })
+        .map(|node| node.2.as_str())
+}
+
+fn backend_scope_id_for_state(
+    state_scope_nodes: &[(StateKey, String)],
+    key: StateKey,
+) -> Option<&str> {
+    state_scope_nodes
+        .iter()
+        .find(|(candidate, _)| *candidate == key)
+        .map(|(_, id)| id.as_str())
+}
+
+fn append_backend_external_call_node(
+    diagram: &mut PhaseDiagramBuilder,
+    source_key: StateKey,
+    source_id: &str,
+    operation: &Operation,
+    scope_target_id: &str,
+) {
+    let call_id = diagram.scoped_node(
+        format!(
+            "external_call_{}_{}_{}_{}",
+            source_key.machine.arena_index(),
+            source_key.state.arena_index(),
+            source_key.segment_index,
+            operation.statement_index
+        ),
+        format!(
+            "external call\n{}\n\ndouble-click to scope target",
+            backend_operation_label(operation)
+        ),
+        "external_call",
+        source_key.machine.arena_index() as usize,
+        scope_target_id,
+    );
+    diagram.edge(source_id, &call_id, "call");
+    diagram.containment_edge(source_id, &call_id);
+}
+
 fn append_transition_edges(
     diagram: &mut PhaseDiagramBuilder,
     control_flow: &ControlFlowPlan,
@@ -549,6 +834,28 @@ fn transition_target_key(
     }
 }
 
+fn backend_transition_target_summary(
+    control_flow: &ControlFlowPlan,
+    target: &PlannedTransitionTarget,
+    source_key: Option<StateKey>,
+) -> Option<String> {
+    match target {
+        PlannedTransitionTarget::Terminal => Some("terminal".to_owned()),
+        PlannedTransitionTarget::SelfTarget => {
+            source_key.map(|key| state_scoped_name(control_flow, key))
+        }
+        PlannedTransitionTarget::State { key, .. } => Some(state_scoped_name(control_flow, *key)),
+        PlannedTransitionTarget::Nested {
+            receiver_symbol,
+            state_symbol,
+            ..
+        } => control_flow
+            .state_key_by_symbols(*receiver_symbol, *state_symbol)
+            .map(|key| state_scoped_name(control_flow, key)),
+        PlannedTransitionTarget::None => None,
+    }
+}
+
 fn operation_call_target_key(
     control_flow: &ControlFlowPlan,
     operation: &Operation,
@@ -572,6 +879,39 @@ fn operation_call_target_key(
         .iter()
         .find(|(_, state)| state.key.state == target_symbol)
         .map(|(_, state)| state.key)
+}
+
+fn backend_operation_label(operation: &Operation) -> String {
+    match &operation.kind {
+        OperationKind::Assignment => format!("#{} assignment", operation.statement_index),
+        OperationKind::Call {
+            has_receiver,
+            receiver,
+            target,
+            ..
+        } => {
+            if *has_receiver {
+                format!(
+                    "#{} call {}.{}(...)",
+                    operation.statement_index,
+                    receiver.as_str(),
+                    target.as_str()
+                )
+            } else {
+                format!(
+                    "#{} call {}(...)",
+                    operation.statement_index,
+                    target.as_str()
+                )
+            }
+        }
+        OperationKind::ConstantIntegerAssignment => {
+            format!("#{} const-int assign", operation.statement_index)
+        }
+        OperationKind::Expression => format!("#{} expr", operation.statement_index),
+        OperationKind::LocalData => format!("#{} local data", operation.statement_index),
+        OperationKind::StaticAssignment => format!("#{} static assign", operation.statement_index),
+    }
 }
 
 fn abstract_instruction_line(instruction: &AbstractOperation) -> String {
