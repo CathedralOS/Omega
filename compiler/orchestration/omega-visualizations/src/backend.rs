@@ -151,7 +151,7 @@ fn build_backend_cfg_diagram<Function>(
 
             if let Some(function) = function {
                 let chunks = operation_chunks(&function.lines);
-                let mut previous_chunk_id = None::<String>;
+                let mut parent_chunk_id = state_id.clone();
                 for chunk in &chunks {
                     let chunk_id = diagram.node(
                         format!(
@@ -166,11 +166,8 @@ fn build_backend_cfg_diagram<Function>(
                         machine_index + 1,
                     );
                     diagram.node_details(&chunk_id, operation_chunk_details(chunk));
-                    diagram.containment_edge(&state_id, &chunk_id);
-                    if let Some(previous_chunk_id) = previous_chunk_id.as_deref() {
-                        diagram.edge(previous_chunk_id, &chunk_id, "sequence");
-                    }
-                    previous_chunk_id = Some(chunk_id);
+                    diagram.containment_edge(&parent_chunk_id, &chunk_id);
+                    parent_chunk_id = chunk_id;
                 }
             }
         }
@@ -288,7 +285,7 @@ fn build_machine_instruction_diagram(
             state_scope_nodes.push((state.key, machine_id.to_owned()));
 
             let chunks = machine_instruction_chunks(&lines);
-            let mut previous_chunk_id = None::<String>;
+            let mut parent_chunk_id = state_id.clone();
             let mut terminal_anchor_id = state_id.clone();
             for chunk in &chunks {
                 let chunk_id = diagram.node(
@@ -304,11 +301,8 @@ fn build_machine_instruction_diagram(
                     machine_index + 1,
                 );
                 diagram.node_details(&chunk_id, machine_chunk_details(chunk));
-                diagram.containment_edge(&state_id, &chunk_id);
-                if let Some(previous_chunk_id) = previous_chunk_id.as_deref() {
-                    diagram.edge(previous_chunk_id, &chunk_id, "sequence");
-                }
-                previous_chunk_id = Some(chunk_id.clone());
+                diagram.containment_edge(&parent_chunk_id, &chunk_id);
+                parent_chunk_id = chunk_id.clone();
                 terminal_anchor_id = chunk_id;
             }
             terminal_anchor_nodes.push((state.key, terminal_anchor_id));
