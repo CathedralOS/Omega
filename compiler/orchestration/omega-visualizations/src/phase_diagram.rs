@@ -1761,9 +1761,5 @@ clearScope.addEventListener("click", () => clearGraphScope(true));
 window.addEventListener("resize", fitGraph);
 
 render();
-const initialScopeId = defaultScopeId();
-if (initialScopeId) {
-  setScope(initialScopeId, false);
-}
 fitGraph();
 "#;
