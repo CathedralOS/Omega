@@ -202,7 +202,7 @@ machine RoomFormatter::write_adjacent_rooms(
         &mut self,
         out_line: &mut String
     ) {
-        out_line = "No paths are open here. Commands: look | inventory | character | use | fight | quit";
+        out_line = "No paths are open here. Commands: look | inv | character | use | fight | exit";
     }
 }
 
@@ -211,11 +211,114 @@ machine RoomFormatter::write_inventory(
     player: Player,
     out_line: &mut String
 ) {
-    transition player.inventory.gold >= 20 {
-        true -> wealthy_inventory(out_line)
-        false -> inventory_items(player, out_line)
+    transition player.inventory.gold >= 30 {
+        true -> inventory_thirty(out_line)
+        false -> inventory_twenty_four_check(player, out_line)
     }
 
+    state inventory_twenty_four_check(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.inventory.gold >= 24 {
+            true -> inventory_twenty_four(player, out_line)
+            false -> inventory_six_check(player, out_line)
+        }
+    }
+
+    state inventory_six_check(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.inventory.gold >= 6 {
+            true -> inventory_six(player, out_line)
+            false -> inventory_zero(player, out_line)
+        }
+    }
+
+    state inventory_zero(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.inventory.item_count > 0 {
+            true -> inventory_zero_with_item(out_line)
+            false -> inventory_zero_empty(out_line)
+        }
+    }
+
+    state inventory_zero_empty(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 0 gold. Pack empty.";
+    }
+
+    state inventory_zero_with_item(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 0 gold. Pack holds a charm.";
+    }
+
+    state inventory_six(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.inventory.item_count > 0 {
+            true -> inventory_six_with_item(out_line)
+            false -> inventory_six_only(out_line)
+        }
+    }
+
+    state inventory_six_only(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 6 gold. A few scavenged coins.";
+    }
+
+    state inventory_six_with_item(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 6 gold. A few coins and a charm.";
+    }
+
+    state inventory_twenty_four(
+        &mut self,
+        player: Player,
+        out_line: &mut String
+    ) {
+        transition player.inventory.item_count > 0 {
+            true -> inventory_twenty_four_with_item(out_line)
+            false -> inventory_twenty_four_only(out_line)
+        }
+    }
+
+    state inventory_twenty_four_only(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 24 gold. A rich little haul.";
+    }
+
+    state inventory_twenty_four_with_item(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 24 gold. A rich haul and a charm.";
+    }
+
+    state inventory_thirty(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "Inv: 30 gold. Purse heavy, charm secured.";
+    }
 
     state inventory_items(
         &mut self,
@@ -232,21 +335,21 @@ machine RoomFormatter::write_inventory(
         &mut self,
         out_line: &mut String
     ) {
-        out_line = "Inventory: a heavy purse and useful gear.";
+        out_line = "Inv: purse heavy and gear secured.";
     }
 
     state stocked_inventory(
         &mut self,
         out_line: &mut String
     ) {
-        out_line = "Inventory: a few coins and some gear.";
+        out_line = "Inv: a few coins and some gear.";
     }
 
     state light_inventory(
         &mut self,
         out_line: &mut String
     ) {
-        out_line = "Inventory: nearly empty.";
+        out_line = "Inv: nearly empty.";
     }
 }
 
