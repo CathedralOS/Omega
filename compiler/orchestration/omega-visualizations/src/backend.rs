@@ -91,7 +91,7 @@ pub fn machine_instructions_html(
 
 fn build_backend_cfg_diagram<Function>(
     title: &str,
-    root_label: &str,
+    _root_label: &str,
     control_flow: &ControlFlowPlan,
     functions: &[Function],
     function_source_key: impl Fn(&Function) -> StateKey,
@@ -99,7 +99,6 @@ fn build_backend_cfg_diagram<Function>(
     function_lines: impl Fn(&Function) -> Vec<String>,
 ) -> String {
     let mut diagram = PhaseDiagramBuilder::new(title);
-    let root_id = diagram.node("root", root_label, "machine", 0);
 
     let function_views = functions
         .iter()
@@ -119,7 +118,6 @@ fn build_backend_cfg_diagram<Function>(
             "machine",
             machine_index + 1,
         );
-        diagram.containment_edge(&root_id, &machine_id);
 
         for state in unique_machine_states(control_flow, machine) {
             let function = function_view_by_key(&function_views, state.key);
@@ -209,6 +207,7 @@ fn state_backend_label(
             state.key.segment_index
         ),
         function_title(function),
+        state_flow_summary(control_flow, state),
     ];
 
     if let Some(function) = function {
@@ -235,6 +234,7 @@ fn state_backend_details(
             state.key.segment_index
         ),
         function_title(function),
+        state_flow_summary(control_flow, state),
     ];
 
     match function {
@@ -255,6 +255,20 @@ fn function_title(function: Option<&FunctionView>) -> String {
         .map(|function| function.title.clone())
         .filter(|title| !title.is_empty())
         .unwrap_or_else(|| "no lowered block".to_owned())
+}
+
+fn state_flow_summary(control_flow: &ControlFlowPlan, state: &StateFlow) -> String {
+    let call_count = control_flow
+        .operations
+        .span_or_empty(state.operations)
+        .iter()
+        .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .count();
+    let transition_count = control_flow
+        .transitions
+        .span_or_empty(state.transitions)
+        .len();
+    format!("calls: {call_count} transitions: {transition_count}")
 }
 
 fn block_preview_lines(lines: &[String]) -> Vec<String> {
