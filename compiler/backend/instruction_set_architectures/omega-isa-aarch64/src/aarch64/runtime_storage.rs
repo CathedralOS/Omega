@@ -4,7 +4,7 @@ use omega_target_operations::{
 };
 
 use super::primitives::{
-    append_unsigned_immediate, append_unsigned_immediate_padded,
+    append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     encode_add_page_offset_placeholder, encode_add_x_immediate, encode_add_x_register,
     encode_adrp_placeholder, encode_compare_w_register, encode_compare_w17_immediate,
     encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
@@ -1066,15 +1066,6 @@ fn append_add_constant_to_x_register(
     register: u8,
     value: usize,
 ) -> Result<(), Diagnostic> {
-    if value == 0 {
-        return Ok(());
-    }
-    if value <= 4095 {
-        bytes.extend(encode_add_x_immediate(register, register, value)?);
-        return Ok(());
-    }
-
-    append_unsigned_immediate(bytes, 19, value as u64);
-    bytes.extend(encode_add_x_register(register, register, 19));
-    Ok(())
+    let scratch_register = if register == 19 { 18 } else { 19 };
+    append_add_x_constant(bytes, register, register, value, scratch_register)
 }
