@@ -70,7 +70,13 @@ fn build_backend_cfg_diagram(
     let mut state_nodes = Vec::<(StateKey, String)>::new();
 
     for (machine_index, (_, machine)) in control_flow.machines.iter().enumerate() {
-        let states = unique_machine_states(control_flow, machine);
+        let states = unique_machine_states(control_flow, machine)
+            .into_iter()
+            .filter(|state| function_view_by_key(function_views, state.key).is_some())
+            .collect::<Vec<_>>();
+        if states.is_empty() {
+            continue;
+        }
         let root_keys = backend_visual_root_keys(control_flow, &states);
 
         for root_key in &root_keys {
@@ -207,7 +213,13 @@ fn build_machine_instruction_diagram(
     let function_views = collect_machine_function_views(plan, assigned_plan);
 
     for (machine_index, (_, machine)) in control_flow.machines.iter().enumerate() {
-        let states = unique_machine_states(control_flow, machine);
+        let states = unique_machine_states(control_flow, machine)
+            .into_iter()
+            .filter(|state| function_view_by_key(&function_views, state.key).is_some())
+            .collect::<Vec<_>>();
+        if states.is_empty() {
+            continue;
+        }
         let root_keys = backend_visual_root_keys(control_flow, &states);
 
         for root_key in &root_keys {
