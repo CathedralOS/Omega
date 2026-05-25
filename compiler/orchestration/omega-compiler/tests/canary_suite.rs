@@ -146,7 +146,9 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     assert!(
         machine_instructions.contains("Machine Instructions")
             && machine_instructions.contains("DispatchLoopEnter")
-            && machine_instructions.contains("Main::main::main [0]"),
+            && machine_instructions.contains("Main::main::main [0]")
+            && machine_instructions.contains("control:")
+            && machine_instructions.contains("terminator:"),
         "machine instruction stage should render block-local instruction listings"
     );
 

@@ -1348,7 +1348,7 @@ function fitLine(line, max) {
   return line.length > max ? line.slice(0, max - 1) + "..." : line;
 }
 
-const LABEL_TOKEN_RE = /(active loan|borrow call|activation|weakening|borrow|contracts?|params|ops|transitions|direct effects|reached effects|attached data|states|contains|owned data|mutable params|created|last use)|(0x[0-9a-fA-F]+|#\d+(?:\.\d+)?|\b\d+\b)|((?:self|mut)\b)|([A-Za-z_][A-Za-z0-9_]*(?:(?:::[A-Za-z_][A-Za-z0-9_]*)|(?:\.[A-Za-z_][A-Za-z0-9_]*)|(?:\[[^\]]*\]))+)/g;
+const LABEL_TOKEN_RE = /(active loan|borrow call|activation|weakening|borrow|contracts?|params|ops|transitions|direct effects|reached effects|attached data|states|contains|owned data|mutable params|created|last use|instructions|control|calls|terminator|call|ctrl|data)|(0x[0-9a-fA-F]+|#\d+(?:\.\d+)?|\b\d+\b)|((?:self|mut)\b)|([A-Za-z_][A-Za-z0-9_]*(?:(?:::[A-Za-z_][A-Za-z0-9_]*)|(?:\.[A-Za-z_][A-Za-z0-9_]*)|(?:\[[^\]]*\]))+)/g;
 
 function appendStyledLine(textNode, line) {
   let lastIndex = 0;
