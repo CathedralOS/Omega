@@ -148,7 +148,6 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state fight(&mut self) {
-        -> fight_bat() when self.current_room_index == 2 && self.bat_defeated == false;
         -> fight_nothing();
     }
 
@@ -201,7 +200,6 @@ machine Game::run_game_loop(&mut self) {
 
     state move_north(&mut self) {
         -> enter_fountain_room() when self.current_room_index == 0;
-        -> enter_vault_room() when self.current_room_index == 1;
         -> invalid_command();
     }
 
@@ -213,7 +211,6 @@ machine Game::run_game_loop(&mut self) {
 
     state move_east(&mut self) {
         -> enter_ambush_room() when self.current_room_index == 0;
-        -> enter_vault_room() when self.current_room_index == 2;
         -> invalid_command();
     }
 
@@ -270,7 +267,7 @@ machine Game::run_game_loop(&mut self) {
         self.console.write_line("Room Fountain Room");
         self.console.write_line("A quiet shrine chamber hums with pale water-light.");
         self.console.write_line("A fountain of life glows here. Type use to drink.");
-        self.console.write_line("Paths: south, north. Commands: look | inv | character | use | fight | exit");
+        self.console.write_line("Paths: south. Commands: look | inv | character | use | fight | exit");
 
         transition {
             _ -> prompt()
@@ -281,7 +278,7 @@ machine Game::run_game_loop(&mut self) {
         self.console.write_line("Room Ambush Hall");
         self.console.write_line("A narrow hall where loose stone crunches underfoot.");
         self.console.write_line("The bat lies still. The hall is clear.");
-        self.console.write_line("Paths: west, east. Commands: look | inv | character | use | fight | exit");
+        self.console.write_line("Paths: west. Commands: look | inv | character | use | fight | exit");
 
         transition {
             _ -> prompt()
@@ -354,7 +351,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state show_fountain_paths(&mut self) {
-        self.console.write_line("Paths: south, north. Commands: look | inv | character | use | fight | exit");
+        self.console.write_line("Paths: south. Commands: look | inv | character | use | fight | exit");
 
         transition {
             _ -> prompt()
@@ -362,7 +359,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state show_ambush_paths(&mut self) {
-        self.console.write_line("Paths: west, east. Commands: look | inv | character | use | fight | exit");
+        self.console.write_line("Paths: west. Commands: look | inv | character | use | fight | exit");
 
         transition {
             _ -> prompt()
