@@ -19,7 +19,7 @@ pub fn abstract_operations_html(
         control_flow,
         plan.functions.storage_slice(),
         |function| function.source_key,
-        |_| "abstract block",
+        |_| "abstract block".to_owned(),
         |function| {
             numbered_lines(
                 plan.instructions.span_or_empty(function.instructions),
@@ -39,7 +39,7 @@ pub fn target_operations_html(
         control_flow,
         plan.functions.storage_slice(),
         |function| function.source_key,
-        |_| "target block",
+        |_| "target block".to_owned(),
         |function| {
             numbered_lines(
                 plan.instructions.span_or_empty(function.instructions),
@@ -59,7 +59,7 @@ pub fn assigned_target_operations_html(
         control_flow,
         plan.functions.storage_slice(),
         |function| function.source_key,
-        |_| "assigned block",
+        |_| "assigned block".to_owned(),
         |function| {
             numbered_lines(
                 plan.instructions.span_or_empty(function.instructions),
@@ -79,7 +79,10 @@ pub fn machine_instructions_html(
         control_flow,
         plan.functions.storage_slice(),
         |function| function.source_key,
-        |_| "machine block",
+        |function| {
+            let instructions = plan.instructions.span_or_empty(function.instructions);
+            machine_block_title(instructions)
+        },
         |function| {
             numbered_lines(
                 plan.instructions.span_or_empty(function.instructions),
@@ -95,7 +98,7 @@ fn build_backend_cfg_diagram<Function>(
     control_flow: &ControlFlowPlan,
     functions: &[Function],
     function_source_key: impl Fn(&Function) -> StateKey,
-    function_title: impl Fn(&Function) -> &str,
+    function_title: impl Fn(&Function) -> String,
     function_lines: impl Fn(&Function) -> Vec<String>,
 ) -> String {
     let mut diagram = PhaseDiagramBuilder::new(title);
@@ -104,7 +107,7 @@ fn build_backend_cfg_diagram<Function>(
         .iter()
         .map(|function| FunctionView {
             source_key: function_source_key(function),
-            title: function_title(function).to_owned(),
+            title: function_title(function),
             lines: function_lines(function),
         })
         .collect::<Vec<_>>();
@@ -415,11 +418,55 @@ fn assigned_instruction_line(instruction: &AssignedOperation) -> String {
 }
 
 fn machine_instruction_line(instruction: &MachineInstruction) -> String {
+    let prefix = if machine_instruction_is_call(instruction) {
+        "call"
+    } else if machine_instruction_is_control(instruction) {
+        "ctrl"
+    } else {
+        "data"
+    };
     format!(
-        "{:?} <- {} #{}",
+        "{prefix} {:?} <- {} #{}",
         instruction.kind,
         enum_variant_name(&instruction.source_kind),
         instruction.selected_instruction_index
+    )
+}
+
+fn machine_block_title(instructions: &[MachineInstruction]) -> String {
+    let call_count = instructions
+        .iter()
+        .filter(|instruction| machine_instruction_is_call(instruction))
+        .count();
+    let control_count = instructions
+        .iter()
+        .filter(|instruction| machine_instruction_is_control(instruction))
+        .count();
+    let terminator = instructions
+        .last()
+        .map(|instruction| format!("{:?}", instruction.kind))
+        .unwrap_or_else(|| "none".to_owned());
+    format!("machine block\ncontrol: {control_count} calls: {call_count}\nterminator: {terminator}")
+}
+
+fn machine_instruction_is_call(instruction: &MachineInstruction) -> bool {
+    matches!(
+        instruction.kind,
+        omega_machine_instructions::MachineInstructionKind::HostCallSequence
+    )
+}
+
+fn machine_instruction_is_control(instruction: &MachineInstruction) -> bool {
+    matches!(
+        instruction.kind,
+        omega_machine_instructions::MachineInstructionKind::DispatchLoopEnter
+            | omega_machine_instructions::MachineInstructionKind::DispatchCaseEnter
+            | omega_machine_instructions::MachineInstructionKind::DispatchGuardCompareStatic
+            | omega_machine_instructions::MachineInstructionKind::DispatchStateWrite
+            | omega_machine_instructions::MachineInstructionKind::DispatchTerminate
+            | omega_machine_instructions::MachineInstructionKind::DispatchCaseLeave
+            | omega_machine_instructions::MachineInstructionKind::HostCallSequence
+            | omega_machine_instructions::MachineInstructionKind::Return
     )
 }
 
