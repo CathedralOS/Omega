@@ -109,6 +109,10 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         .expect("control flow visualization should be written");
     let checked_trees = fs::read_to_string(build_dir.join("05_checked_trees.html"))
         .expect("checked tree visualization should be written");
+    let abstract_operations = fs::read_to_string(build_dir.join("08_abstract_operations.html"))
+        .expect("abstract operations visualization should be written");
+    let machine_instructions = fs::read_to_string(build_dir.join("11_machine_instructions.html"))
+        .expect("machine instructions visualization should be written");
 
     assert!(
         state_graph.contains("contract call #1.0 requires 1 ensures 1"),
@@ -133,6 +137,17 @@ fn contract_canary_visualizes_flow_contract_summaries() {
     assert!(
         checked_trees.contains("Main::main::main [checked]"),
         "checked tree visualization should now be a scoped graph view instead of a text report"
+    );
+    assert!(
+        abstract_operations.contains("Main::main::main [0]")
+            && abstract_operations.contains("00 EnterFunction @ statement 0"),
+        "abstract operations should render backend state blocks with ordered instruction lines"
+    );
+    assert!(
+        machine_instructions.contains("Machine Instructions")
+            && machine_instructions.contains("DispatchLoopEnter")
+            && machine_instructions.contains("Main::main::main [0]"),
+        "machine instruction stage should render block-local instruction listings"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
