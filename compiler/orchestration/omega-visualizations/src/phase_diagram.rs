@@ -565,6 +565,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
 .node.state_block rect { fill: #142637; stroke: #6fbce6; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
+.node.scoped_statement rect { fill: #1c1715; stroke: #c47b52; stroke-dasharray: 6 3; }
 .node.external rect {
   stroke: #ffcf5c;
   stroke-dasharray: 7 4;
@@ -1577,7 +1578,10 @@ function applyFilters() {
   visibleNodeIds = new Set();
   for (const node of GRAPH.nodes) {
     const inScope = scopedNodes.has(node.id);
+    const requiresExplicitScope = node.kind === "scoped_statement";
+    const scopeAllowsNode = !requiresExplicitScope || (scopedId && containedNodes.has(node.id));
     const visible = inScope
+      && scopeAllowsNode
       && (showDataNodes || node.kind !== "data")
       && (!activeEffect || (node.effects || []).includes(activeEffect));
     const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
