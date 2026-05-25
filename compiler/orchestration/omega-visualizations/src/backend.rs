@@ -89,6 +89,7 @@ fn build_backend_cfg_diagram<Function>(
     let mut diagram = PhaseDiagramBuilder::new(title);
     let mut machine_nodes = Vec::new();
     let mut state_scope_nodes = Vec::new();
+    let mut terminal_anchor_nodes = Vec::<(StateKey, String)>::new();
 
     let function_views = functions
         .iter()
@@ -152,6 +153,7 @@ fn build_backend_cfg_diagram<Function>(
             if let Some(function) = function {
                 let chunks = operation_chunks(&function.lines);
                 let mut parent_chunk_id = state_id.clone();
+                let mut terminal_anchor_id = state_id.clone();
                 for chunk in &chunks {
                     let chunk_id = diagram.node(
                         format!(
@@ -165,19 +167,28 @@ fn build_backend_cfg_diagram<Function>(
                         "statement",
                         machine_index + 1,
                     );
-                    diagram.node_details(&chunk_id, operation_chunk_details(chunk));
+                    diagram.node_details(
+                        &chunk_id,
+                        operation_chunk_details(chunk, &state_scoped_name(control_flow, state.key)),
+                    );
                     diagram.containment_edge(&parent_chunk_id, &chunk_id);
-                    parent_chunk_id = chunk_id;
+                    parent_chunk_id = chunk_id.clone();
+                    terminal_anchor_id = chunk_id;
                 }
+                terminal_anchor_nodes.push((state.key, terminal_anchor_id));
+            } else {
+                terminal_anchor_nodes.push((state.key, state_id.clone()));
             }
         }
     }
 
     for (_, machine) in control_flow.machines.iter() {
         for state in control_flow.states.span_or_empty(machine.states) {
-            let Some(source_id) = state_node_id(&state_nodes, state.key) else {
+            let Some(source_state_id) = state_node_id(&state_nodes, state.key) else {
                 continue;
             };
+            let source_anchor_id =
+                state_node_id(&terminal_anchor_nodes, state.key).unwrap_or(source_state_id);
             let source_scope_id = backend_scope_id_for_state(&state_scope_nodes, state.key);
 
             for transition in control_flow.transitions.span_or_empty(state.transitions) {
@@ -186,7 +197,7 @@ fn build_backend_cfg_diagram<Function>(
                     control_flow,
                     &state_nodes,
                     state.key,
-                    source_id,
+                    source_anchor_id,
                     transition,
                 );
             }
@@ -197,12 +208,12 @@ fn build_backend_cfg_diagram<Function>(
                         let target_scope_id =
                             backend_scope_id_for_state(&state_scope_nodes, target_key);
                         if source_scope_id == target_scope_id {
-                            diagram.edge(source_id, target_id, "call");
+                            diagram.edge(source_anchor_id, target_id, "call");
                         } else if let Some(scope_target_id) = target_scope_id {
                             append_backend_external_call_node(
                                 &mut diagram,
                                 state.key,
-                                source_id,
+                                source_anchor_id,
                                 operation,
                                 scope_target_id,
                             );
@@ -300,7 +311,10 @@ fn build_machine_instruction_diagram(
                     "statement",
                     machine_index + 1,
                 );
-                diagram.node_details(&chunk_id, machine_chunk_details(chunk));
+                diagram.node_details(
+                    &chunk_id,
+                    machine_chunk_details(chunk, &state_scoped_name(control_flow, state.key)),
+                );
                 diagram.containment_edge(&parent_chunk_id, &chunk_id);
                 parent_chunk_id = chunk_id.clone();
                 terminal_anchor_id = chunk_id;
@@ -984,6 +998,7 @@ struct OperationChunk {
     statement_count: usize,
     control_count: usize,
     call_count: usize,
+    terminator: String,
 }
 
 fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
@@ -1036,6 +1051,7 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
                 statement_count,
                 control_count,
                 call_count,
+                terminator: operation_line_head(line),
             });
         }
     }
@@ -1050,6 +1066,7 @@ fn operation_chunks(lines: &[String]) -> Vec<OperationChunk> {
             statement_count,
             control_count,
             call_count,
+            terminator: "fallthrough".to_owned(),
         });
     }
 
@@ -1066,12 +1083,13 @@ fn operation_chunk_label(chunk: &OperationChunk) -> String {
             "statements: {} control: {} calls: {}",
             chunk.statement_count, chunk.control_count, chunk.call_count
         ),
+        format!("terminator: {}", chunk.terminator),
     ];
     lines.extend(machine_chunk_preview_lines(&chunk.lines));
     lines.join("\n")
 }
 
-fn operation_chunk_details(chunk: &OperationChunk) -> String {
+fn operation_chunk_details(chunk: &OperationChunk, origin: &str) -> String {
     let mut lines = vec![
         format!(
             "B{} [{}..{}]",
@@ -1081,6 +1099,8 @@ fn operation_chunk_details(chunk: &OperationChunk) -> String {
             "statements: {} control: {} calls: {}",
             chunk.statement_count, chunk.control_count, chunk.call_count
         ),
+        format!("terminator: {}", chunk.terminator),
+        format!("origin: {origin}"),
         String::new(),
     ];
     lines.extend(group_lines_by_statement(&chunk.lines));
@@ -1156,7 +1176,7 @@ fn machine_chunk_label(chunk: &MachineChunk) -> String {
     lines.join("\n")
 }
 
-fn machine_chunk_details(chunk: &MachineChunk) -> String {
+fn machine_chunk_details(chunk: &MachineChunk, origin: &str) -> String {
     let mut lines = vec![
         format!(
             "B{} [{}..{}]",
@@ -1167,6 +1187,7 @@ fn machine_chunk_details(chunk: &MachineChunk) -> String {
             chunk.control_count, chunk.call_count
         ),
         format!("terminator: {}", chunk.terminator),
+        format!("origin: {origin}"),
         String::new(),
     ];
     lines.extend(chunk.lines.iter().cloned());
