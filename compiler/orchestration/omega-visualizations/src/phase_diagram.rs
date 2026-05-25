@@ -545,6 +545,8 @@ main { min-width: 0; min-height: 0; position: relative; }
 .edge.call { stroke: #ff9f7f; opacity: 0.82; stroke-dasharray: 8 2 2 2; }
 .edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
 .edge.transition_continuation { stroke: #8ab4ff; opacity: 0.78; stroke-width: 1.6; stroke-dasharray: 5 4; }
+.edge.transition_target_loopback { stroke: #73f7b8; opacity: 0.95; stroke-width: 2.2; stroke-dasharray: 3 3; }
+.edge.transition_continuation_loopback { stroke: #a2c7ff; opacity: 0.9; stroke-width: 2; stroke-dasharray: 2 6; }
 .node rect {
   fill: #151c26;
   stroke: #405168;
@@ -585,6 +587,10 @@ main { min-width: 0; min-height: 0; position: relative; }
 }
 .edge.related.transition_target {
   stroke: #6fffea;
+  stroke-width: 4;
+}
+.edge.related.transition_target_loopback,
+.edge.related.transition_continuation_loopback {
   stroke-width: 4;
 }
 .node.related rect {
@@ -1608,7 +1614,9 @@ function applyFilters() {
 }
 
 function followTargetFor(id) {
-  const transitionTarget = GRAPH.edges.find(edge => edge.kind === "transition_target" && edge.from === id)?.to;
+  const transitionTarget = GRAPH.edges.find(
+    edge => edge.kind.startsWith("transition_target") && edge.from === id
+  )?.to;
   if (transitionTarget) return transitionTarget;
   return null;
 }
