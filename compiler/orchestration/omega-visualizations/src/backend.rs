@@ -73,23 +73,7 @@ pub fn machine_instructions_html(
     plan: &MachineInstructionPlan,
     control_flow: &ControlFlowPlan,
 ) -> String {
-    build_backend_cfg_diagram(
-        "machine_instructions",
-        &format!("Machine Instructions\n{:?}", plan.target),
-        control_flow,
-        plan.functions.storage_slice(),
-        |function| function.source_key,
-        |function| {
-            let instructions = plan.instructions.span_or_empty(function.instructions);
-            machine_block_title(instructions)
-        },
-        |function| {
-            numbered_lines(
-                plan.instructions.span_or_empty(function.instructions),
-                machine_instruction_line,
-            )
-        },
-    )
+    build_machine_instruction_diagram(plan, control_flow)
 }
 
 fn build_backend_cfg_diagram<Function>(
@@ -174,6 +158,112 @@ fn build_backend_cfg_diagram<Function>(
     diagram.finish()
 }
 
+fn build_machine_instruction_diagram(
+    plan: &MachineInstructionPlan,
+    control_flow: &ControlFlowPlan,
+) -> String {
+    let mut diagram = PhaseDiagramBuilder::new("machine_instructions");
+    let mut state_nodes = Vec::<(StateKey, String)>::new();
+    let mut terminal_anchor_nodes = Vec::<(StateKey, String)>::new();
+
+    for (machine_index, (_, machine)) in control_flow.machines.iter().enumerate() {
+        let machine_id = diagram.node(
+            format!("machine_{}", machine.symbol.arena_index()),
+            machine_backend_label(machine),
+            "machine",
+            machine_index + 1,
+        );
+
+        for state in unique_machine_states(control_flow, machine) {
+            let function = plan
+                .functions
+                .storage_slice()
+                .iter()
+                .find(|function| function.source_key == state.key);
+            let instructions = function
+                .map(|function| plan.instructions.span_or_empty(function.instructions))
+                .unwrap_or(&[]);
+            let lines = numbered_lines(instructions, machine_instruction_line);
+
+            let block_title = machine_block_title(instructions);
+            let state_id = diagram.node(
+                format!(
+                    "state_{}_{}_{}",
+                    state.key.machine.arena_index(),
+                    state.key.state.arena_index(),
+                    state.key.segment_index
+                ),
+                state_backend_label_from_parts(control_flow, state, &block_title, &lines),
+                "state_block",
+                machine_index + 1,
+            );
+            diagram.node_details(
+                &state_id,
+                state_backend_details_from_parts(control_flow, state, &block_title, &lines),
+            );
+            diagram.containment_edge(&machine_id, &state_id);
+            state_nodes.push((state.key, state_id.clone()));
+
+            let chunks = machine_instruction_chunks(&lines);
+            let mut previous_chunk_id = None::<String>;
+            let mut terminal_anchor_id = state_id.clone();
+            for chunk in &chunks {
+                let chunk_id = diagram.node(
+                    format!(
+                        "machine_chunk_{}_{}_{}_{}",
+                        state.key.machine.arena_index(),
+                        state.key.state.arena_index(),
+                        state.key.segment_index,
+                        chunk.index
+                    ),
+                    machine_chunk_label(chunk),
+                    "statement",
+                    machine_index + 1,
+                );
+                diagram.node_details(&chunk_id, machine_chunk_details(chunk));
+                diagram.containment_edge(&state_id, &chunk_id);
+                if let Some(previous_chunk_id) = previous_chunk_id.as_deref() {
+                    diagram.edge(previous_chunk_id, &chunk_id, "sequence");
+                }
+                previous_chunk_id = Some(chunk_id.clone());
+                terminal_anchor_id = chunk_id;
+            }
+            terminal_anchor_nodes.push((state.key, terminal_anchor_id));
+        }
+    }
+
+    for (_, machine) in control_flow.machines.iter() {
+        for state in unique_machine_states(control_flow, machine) {
+            let Some(source_state_id) = state_node_id(&state_nodes, state.key) else {
+                continue;
+            };
+            let source_anchor_id =
+                state_node_id(&terminal_anchor_nodes, state.key).unwrap_or(source_state_id);
+
+            for transition in control_flow.transitions.span_or_empty(state.transitions) {
+                append_transition_edges(
+                    &mut diagram,
+                    control_flow,
+                    &state_nodes,
+                    state.key,
+                    source_anchor_id,
+                    transition,
+                );
+            }
+
+            for operation in control_flow.operations.span_or_empty(state.operations) {
+                if let Some(target_key) = operation_call_target_key(control_flow, operation) {
+                    if let Some(target_id) = state_node_id(&state_nodes, target_key) {
+                        diagram.edge(source_state_id, target_id, "call");
+                    }
+                }
+            }
+        }
+    }
+
+    diagram.finish()
+}
+
 struct FunctionView {
     source_key: StateKey,
     title: String,
@@ -181,6 +271,7 @@ struct FunctionView {
 }
 
 const BLOCK_PREVIEW_LINES: usize = 4;
+const MACHINE_CHUNK_PREVIEW_LINES: usize = 3;
 
 fn function_view_by_key(functions: &[FunctionView], key: StateKey) -> Option<&FunctionView> {
     functions.iter().find(|function| function.source_key == key)
@@ -203,23 +294,35 @@ fn state_backend_label(
     state: &StateFlow,
     function: Option<&FunctionView>,
 ) -> String {
+    match function {
+        Some(function) => {
+            state_backend_label_from_parts(control_flow, state, &function.title, &function.lines)
+        }
+        None => state_backend_label_from_parts(control_flow, state, "no lowered block", &[]),
+    }
+}
+
+fn state_backend_label_from_parts(
+    control_flow: &ControlFlowPlan,
+    state: &StateFlow,
+    title: &str,
+    lines_src: &[String],
+) -> String {
     let mut lines = vec![
         format!(
             "{} [{}]",
             state_scoped_name(control_flow, state.key),
             state.key.segment_index
         ),
-        function_title(function),
+        title.to_owned(),
         state_flow_summary(control_flow, state),
     ];
 
-    if let Some(function) = function {
-        if function.lines.is_empty() {
-            lines.push("no instructions".to_owned());
-        } else {
-            lines.push(format!("instructions: {}", function.lines.len()));
-            lines.extend(block_preview_lines(&function.lines));
-        }
+    if lines_src.is_empty() {
+        lines.push("no instructions".to_owned());
+    } else {
+        lines.push(format!("instructions: {}", lines_src.len()));
+        lines.extend(block_preview_lines(lines_src));
     }
 
     lines.join("\n")
@@ -230,34 +333,39 @@ fn state_backend_details(
     state: &StateFlow,
     function: Option<&FunctionView>,
 ) -> String {
+    match function {
+        Some(function) => {
+            state_backend_details_from_parts(control_flow, state, &function.title, &function.lines)
+        }
+        None => state_backend_details_from_parts(control_flow, state, "no lowered block", &[]),
+    }
+}
+
+fn state_backend_details_from_parts(
+    control_flow: &ControlFlowPlan,
+    state: &StateFlow,
+    title: &str,
+    lines_src: &[String],
+) -> String {
     let mut lines = vec![
         format!(
             "{} [{}]",
             state_scoped_name(control_flow, state.key),
             state.key.segment_index
         ),
-        function_title(function),
+        title.to_owned(),
         state_flow_summary(control_flow, state),
     ];
 
-    match function {
-        Some(function) if !function.lines.is_empty() => {
-            lines.push(format!("instructions: {}", function.lines.len()));
-            lines.push(String::new());
-            lines.extend(function.lines.iter().cloned());
-        }
-        Some(_) => lines.push("no instructions".to_owned()),
-        None => lines.push("no lowered block".to_owned()),
+    if !lines_src.is_empty() {
+        lines.push(format!("instructions: {}", lines_src.len()));
+        lines.push(String::new());
+        lines.extend(lines_src.iter().cloned());
+    } else {
+        lines.push("no instructions".to_owned());
     }
 
     lines.join("\n")
-}
-
-fn function_title(function: Option<&FunctionView>) -> String {
-    function
-        .map(|function| function.title.clone())
-        .filter(|title| !title.is_empty())
-        .unwrap_or_else(|| "no lowered block".to_owned())
 }
 
 fn state_flow_summary(control_flow: &ControlFlowPlan, state: &StateFlow) -> String {
@@ -338,7 +446,12 @@ fn append_transition_edges(
         transition_target_key(control_flow, &transition.target, Some(source_key))
     {
         if let Some(target_id) = state_node_id(state_nodes, target_key) {
-            diagram.edge(source_id, target_id, "transition_target");
+            let kind = if target_key == source_key {
+                "transition_target_loopback"
+            } else {
+                "transition_target"
+            };
+            diagram.edge(source_id, target_id, kind);
         }
     }
 
@@ -346,7 +459,12 @@ fn append_transition_edges(
         transition_target_key(control_flow, &transition.continuation, Some(source_key))
     {
         if let Some(target_id) = state_node_id(state_nodes, target_key) {
-            diagram.edge(source_id, target_id, "transition_continuation");
+            let kind = if target_key == source_key {
+                "transition_continuation_loopback"
+            } else {
+                "transition_continuation"
+            };
+            diagram.edge(source_id, target_id, kind);
         }
     }
 }
@@ -447,6 +565,145 @@ fn machine_block_title(instructions: &[MachineInstruction]) -> String {
         .map(|instruction| format!("{:?}", instruction.kind))
         .unwrap_or_else(|| "none".to_owned());
     format!("machine block\ncontrol: {control_count} calls: {call_count}\nterminator: {terminator}")
+}
+
+#[derive(Clone, Debug)]
+struct MachineChunk {
+    index: usize,
+    first_line_index: usize,
+    last_line_index: usize,
+    lines: Vec<String>,
+    control_count: usize,
+    call_count: usize,
+    terminator: String,
+}
+
+fn machine_instruction_chunks(lines: &[String]) -> Vec<MachineChunk> {
+    let mut chunks = Vec::new();
+    let mut current_lines = Vec::new();
+    let mut first_line_index = 0usize;
+    let mut control_count = 0usize;
+    let mut call_count = 0usize;
+    let mut last_terminator = "none".to_owned();
+
+    for (index, line) in lines.iter().enumerate() {
+        if current_lines.is_empty() {
+            first_line_index = index;
+            control_count = 0;
+            call_count = 0;
+            last_terminator = "none".to_owned();
+        }
+
+        current_lines.push(line.clone());
+
+        let kind = machine_line_kind(line);
+        if matches!(kind, MachineLineKind::Call) {
+            call_count += 1;
+        }
+        if !matches!(kind, MachineLineKind::Data) {
+            control_count += 1;
+            last_terminator = machine_line_head(line);
+            chunks.push(MachineChunk {
+                index: chunks.len(),
+                first_line_index,
+                last_line_index: index,
+                lines: std::mem::take(&mut current_lines),
+                control_count,
+                call_count,
+                terminator: last_terminator.clone(),
+            });
+        }
+    }
+
+    if !current_lines.is_empty() {
+        let last_line_index = lines.len().saturating_sub(1);
+        chunks.push(MachineChunk {
+            index: chunks.len(),
+            first_line_index,
+            last_line_index,
+            lines: current_lines,
+            control_count,
+            call_count,
+            terminator: last_terminator,
+        });
+    }
+
+    chunks
+}
+
+fn machine_chunk_label(chunk: &MachineChunk) -> String {
+    let mut lines = vec![
+        format!(
+            "B{} [{}..{}]",
+            chunk.index, chunk.first_line_index, chunk.last_line_index
+        ),
+        format!(
+            "control: {} calls: {}",
+            chunk.control_count, chunk.call_count
+        ),
+        format!("terminator: {}", chunk.terminator),
+    ];
+    lines.extend(machine_chunk_preview_lines(&chunk.lines));
+    lines.join("\n")
+}
+
+fn machine_chunk_details(chunk: &MachineChunk) -> String {
+    let mut lines = vec![
+        format!(
+            "B{} [{}..{}]",
+            chunk.index, chunk.first_line_index, chunk.last_line_index
+        ),
+        format!(
+            "control: {} calls: {}",
+            chunk.control_count, chunk.call_count
+        ),
+        format!("terminator: {}", chunk.terminator),
+        String::new(),
+    ];
+    lines.extend(chunk.lines.iter().cloned());
+    lines.join("\n")
+}
+
+fn machine_chunk_preview_lines(lines: &[String]) -> Vec<String> {
+    let preview_count = lines.len().min(MACHINE_CHUNK_PREVIEW_LINES);
+    let mut preview = lines
+        .iter()
+        .take(preview_count)
+        .cloned()
+        .collect::<Vec<_>>();
+    if lines.len() > MACHINE_CHUNK_PREVIEW_LINES {
+        preview.push(format!(
+            "... {} more lines in details",
+            lines.len() - MACHINE_CHUNK_PREVIEW_LINES
+        ));
+    }
+    preview
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MachineLineKind {
+    Data,
+    Call,
+    Control,
+}
+
+fn machine_line_kind(line: &str) -> MachineLineKind {
+    if line.contains(" call ") || line.contains(" call HostCallSequence ") {
+        MachineLineKind::Call
+    } else if line.contains(" ctrl ") || line.contains(" Dispatch") || line.contains(" Return") {
+        MachineLineKind::Control
+    } else {
+        MachineLineKind::Data
+    }
+}
+
+fn machine_line_head(line: &str) -> String {
+    let after_prefix = line.split_once(' ').map(|(_, rest)| rest).unwrap_or(line);
+    after_prefix
+        .split(" <- ")
+        .next()
+        .unwrap_or(after_prefix)
+        .to_owned()
 }
 
 fn machine_instruction_is_call(instruction: &MachineInstruction) -> bool {
