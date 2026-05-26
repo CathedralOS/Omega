@@ -1,4 +1,4 @@
-use super::*;
+use crate::context::*;
 
 pub(crate) fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {
     let mut definitions =

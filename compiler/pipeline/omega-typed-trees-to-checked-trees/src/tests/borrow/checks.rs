@@ -22,8 +22,10 @@ fn accepts_mutable_local_named_place_arguments() {
         machine Main::pick(&mut self, flag: bool) -> u32 {
             let choice: bool;
             self.copy(flag, &mut choice);
-            -> self.branch(choice) when choice;
-            -> 0;
+            transition {
+                choice -> self.branch(choice)
+                _ -> 0
+            }
         }
 
         machine Main::copy(&mut self, flag: bool, out: &mut bool) {
@@ -31,8 +33,10 @@ fn accepts_mutable_local_named_place_arguments() {
         }
 
         machine Main::branch(&mut self, flag: bool) -> u32 {
-            -> 1 when flag;
-            -> 2;
+            transition {
+                flag -> 1
+                _ -> 2
+            }
         }
     "#;
 

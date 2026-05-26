@@ -55,7 +55,7 @@ fn materializes_domain_dependency_facts() {
                 _ => None,
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<omega_core::symbols::SymbolHandle>>();
     field_symbols.sort_by_key(|symbol| symbol.arena_index());
 
     let player = typed

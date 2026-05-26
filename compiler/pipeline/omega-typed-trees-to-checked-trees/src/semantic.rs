@@ -1,7 +1,7 @@
 mod contracts;
 mod points;
 
-use super::*;
+use crate::context::*;
 use crate::flow::effective_member_symbol;
 pub(crate) use crate::semantic_calls::{
     CallSite, call_site_argument_expressions, find_call_site, find_state, find_state_in_machine,
@@ -205,5 +205,5 @@ fn semantic_contract_payload(
 pub fn lower_typed_program(
     program: omega_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<omega_core::diagnostics::Diagnostic>> {
-    lower_typed_trees(program)
+    crate::lower_typed_trees(program)
 }
