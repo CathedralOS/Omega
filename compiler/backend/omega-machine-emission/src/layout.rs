@@ -382,6 +382,17 @@ fn machine_instruction_width(
             *element_byte_size,
             *field_byte_offset,
         ),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => omega_instruction_selection::runtime_frame_base_indexed_address_to_runtime_frame_write_width(
+            input.target.architecture,
+            *base_byte_offset,
+            *element_byte_size,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             byte_capacity,
             source,

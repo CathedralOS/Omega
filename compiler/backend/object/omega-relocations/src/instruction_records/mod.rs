@@ -331,6 +331,9 @@ pub(super) fn collect_instruction_relocations(
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. } => {
             context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
         }
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. } => {
+            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_region,
             target_region,

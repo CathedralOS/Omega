@@ -660,6 +660,27 @@ pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
     }
 }
 
+pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_frame_base_indexed_address_to_runtime_frame_write_width(
+                base_byte_offset,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
+        Architecture::X86_64 => {
+            let _ = (base_byte_offset, element_byte_size, field_byte_offset);
+            0
+        }
+    }
+}
+
 pub fn runtime_text_line_read_width(
     architecture: Architecture,
     byte_capacity: usize,

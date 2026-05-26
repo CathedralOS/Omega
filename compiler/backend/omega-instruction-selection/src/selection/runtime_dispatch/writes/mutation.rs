@@ -403,6 +403,45 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             statement_index,
             &receiver,
         );
+        if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
+            input,
+            dispatch_index,
+            value_source_key,
+            &simplified_receiver,
+        ) {
+            let Some(length) = resolve_fixed_array_length(
+                input,
+                dispatch_index,
+                value_source_key,
+                &simplified_receiver,
+            ) else {
+                return false;
+            };
+
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+                    base_byte_offset: indexed_target.base_byte_offset,
+                    index_offset: indexed_target.index_offset,
+                    element_byte_size: indexed_target.element_byte_size,
+                    field_byte_offset: indexed_target.field_byte_offset,
+                    target_offset: slot.byte_offset,
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
+                    byte_size: input.runtime_abi.pointer_size,
+                    value: length as i64,
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            return true;
+        }
+
         let Some(source_place) = resolve_runtime_storage_place(
             input,
             dispatch_index,
@@ -443,6 +482,48 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         });
         return true;
     };
+
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) {
+        let Some(length) = resolve_fixed_array_length_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) else {
+            return false;
+        };
+
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
+                byte_size: input.runtime_abi.pointer_size,
+                value: length as i64,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
     let Some(length) = resolve_fixed_array_length_in_table(
         input,
         dispatch_index,
@@ -631,6 +712,24 @@ fn select_runtime_frame_slot_address_write_in_table(
         return Some(
             SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
                 descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+                base_byte_offset: indexed_target.base_byte_offset,
                 index_offset: indexed_target.index_offset,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
