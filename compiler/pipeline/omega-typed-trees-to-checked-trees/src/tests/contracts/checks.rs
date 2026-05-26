@@ -162,6 +162,114 @@ fn accepts_exit_ensures_preserved_boolean_expression() {
 }
 
 #[test]
+fn accepts_exit_ensures_domain_union_when_left_branch_is_proven() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.password in Password::Valid
+        ensures
+            self.password in Password::Valid | Password::Secure
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("exit ensures union should be provable when the left domain branch holds");
+}
+
+#[test]
+fn accepts_exit_ensures_domain_union_when_right_branch_is_proven() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.password in Password::Secure
+        ensures
+            self.password in Password::Valid | Password::Secure
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("exit ensures union should be provable when the right domain branch holds");
+}
+
+#[test]
+fn rejects_unproven_exit_ensures_domain_union() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::main(&mut self) -> i32
+        ensures
+            self.password in Password::Valid | Password::Secure
+        {
+            0
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("exit ensures union should fail when neither domain branch is proven");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove ensures contract for exit from Main::main at statement 0")
+            && diagnostic
+                .message
+                .contains("self.password.length > 0 || self.password.score >= 8")
+    }));
+}
+
+#[test]
 fn accepts_requires_from_local_boolean_alias_transfer() {
     let source = r#"
         data Main {
