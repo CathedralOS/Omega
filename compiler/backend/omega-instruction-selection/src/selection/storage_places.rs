@@ -39,6 +39,27 @@ fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> b
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
 }
 
+fn runtime_slice_descriptor_member_place(
+    input: &InstructionSelectionInput<'_>,
+    root_offset: usize,
+    byte_size: usize,
+    member_name: Option<&str>,
+    member_count: usize,
+) -> Option<RuntimeStoragePlace> {
+    if byte_size != input.runtime_abi.slice_descriptor_size() || member_count != 1 {
+        return None;
+    }
+
+    match member_name {
+        Some("len") => Some(RuntimeStoragePlace {
+            region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: root_offset.checked_add(input.runtime_abi.pointer_size)?,
+            byte_count: input.runtime_abi.pointer_size,
+        }),
+        _ => None,
+    }
+}
+
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -76,6 +97,16 @@ pub(super) fn resolve_runtime_storage_place(
                 })
         })
     {
+        if let Some(place) = runtime_slice_descriptor_member_place(
+            input,
+            slot.byte_offset,
+            slot.byte_size,
+            suffix.first().map(|name| name.as_str()),
+            suffix.len(),
+        ) {
+            return Some(place);
+        }
+
         let root_field = FieldLayout {
             symbol: slot.symbol,
             name: slot.name.clone(),
@@ -243,6 +274,16 @@ pub(super) fn resolve_runtime_storage_place_in_table(
                 })
         })
     {
+        if let Some(place) = runtime_slice_descriptor_member_place(
+            input,
+            slot.byte_offset,
+            slot.byte_size,
+            suffix.iter().next().map(|(name, _, _)| name.as_str()),
+            suffix.iter().count(),
+        ) {
+            return Some(place);
+        }
+
         let root_field = FieldLayout {
             symbol: slot.symbol,
             name: slot.name.clone(),
