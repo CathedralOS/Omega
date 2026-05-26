@@ -1,0 +1,1 @@
+cannot prove requires contract for call accept from Main::main: password.length > 0 || password.score >= 8

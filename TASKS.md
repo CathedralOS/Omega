@@ -19,6 +19,10 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/domains/executable_domain_membership_union_guard_exit`
     - executable domain unions now work in local bool values too:
       - `canaries/pass/domains/executable_domain_membership_union_value_exit`
+    - call-site requires unions are now proved from either preserved branch too:
+      - `canaries/pass/domains/call_requires_domain_union_left_branch_preserved`
+      - `canaries/pass/domains/call_requires_domain_union_right_branch_preserved`
+      - `canaries/fail/domains/call_requires_domain_union_unproven`
   - boolean `or` guard dispatch now runs:
     - `canaries/pass/control_flow/runtime_boolean_or_guard_exit`
   - local boolean `or` values now lower and run too:
