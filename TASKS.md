@@ -57,9 +57,12 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - keep extending confidence on other multi-edge/full-package dispatch shapes
   - continue strengthening richer nested storage updates for generator-style code
   - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
-  - fixed-index slice element reads through transitioned slice parameters are still not first-class runtime operands yet
-    - `canaries/run/runtime_slice_index_transition_probe`
-    - `canaries/run/runtime_slice_iteration_probe`
+  - fixed-index slice element reads through transitioned slice parameters are still not semantically correct at runtime
+    - direct fixed-index guard probe still fails:
+      - `canaries/run/runtime_slice_fixed_index_guard_probe`
+  - `canaries/run/runtime_slice_index_transition_probe`
+  - `canaries/run/runtime_slice_iteration_probe`
+    - fat slice descriptors are now preserved, but `entries[0]` / `entries[0].field` still misread after transition in both direct-guard and local-initializer shapes
   - direct machine-owned nested fixed-array writes under dynamic indexing are covered, but richer room-style struct copy/readback still needs a dedicated follow-up before it can be promoted into the active pass suite
   - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
     - machine-owned targets:

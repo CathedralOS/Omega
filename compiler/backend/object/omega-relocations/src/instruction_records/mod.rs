@@ -408,7 +408,9 @@ fn collect_runtime_value_operand_relocations(
             let symbol = context.storage_region_symbol_handle(*region);
             context.insert_data_address(operand_text_offset, symbol);
         }
-        RuntimeValueOperand::Pointee { .. } | RuntimeValueOperand::FrameIndexed { .. } => {
+        RuntimeValueOperand::Pointee { .. }
+        | RuntimeValueOperand::FrameIndexed { .. }
+        | RuntimeValueOperand::FrameFixedIndexed { .. } => {
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address(operand_text_offset, symbol);
         }

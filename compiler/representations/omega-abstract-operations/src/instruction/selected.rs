@@ -64,6 +64,13 @@ pub enum AbstractValueOperand {
         field_byte_offset: usize,
         byte_size: usize,
     },
+    FrameFixedIndexed {
+        descriptor_offset: usize,
+        element_index: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     Binary {
         left: AbstractValueOperandHandle,
         operator: StateGuardOperator,

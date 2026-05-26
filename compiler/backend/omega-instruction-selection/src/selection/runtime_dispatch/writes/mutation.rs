@@ -20,7 +20,8 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_assignment_value_call_result_place,
-    resolve_runtime_frame_indexed_target, resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
+    resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
@@ -391,6 +392,44 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
             source_region: source_place.region,
             source_offset: source_place.byte_offset,
             target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        });
+    }
+
+    if let Some(indexed_source) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && indexed_source.byte_count == slot.byte_size
+        && indexed_source.byte_count > 0
+    {
+        return Some(SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
+            descriptor_offset: indexed_source.descriptor_offset,
+            element_index: indexed_source.element_index,
+            element_byte_size: indexed_source.element_byte_size,
+            field_byte_offset: indexed_source.field_byte_offset,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        });
+    }
+
+    if let Some(indexed_source) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && indexed_source.byte_count == slot.byte_size
+        && indexed_source.byte_count > 0
+    {
+        return Some(SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+            descriptor_offset: indexed_source.descriptor_offset,
+            index_offset: indexed_source.index_offset,
+            element_byte_size: indexed_source.element_byte_size,
+            field_byte_offset: indexed_source.field_byte_offset,
             target_offset: slot.byte_offset,
             byte_count: slot.byte_size,
         });
@@ -990,6 +1029,24 @@ fn resolve_runtime_value_operand_in_table(
             runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
                 descriptor_offset: indexed_target.descriptor_offset,
                 index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameFixedIndexed {
+                descriptor_offset: indexed_target.descriptor_offset,
+                element_index: indexed_target.element_index,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
                 byte_size: indexed_target.byte_count,

@@ -843,6 +843,15 @@ fn runtime_value_operand_name(
         } => format!(
             "frame_indexed(descriptor@{descriptor_offset}, index@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
+        RuntimeValueOperand::FrameFixedIndexed {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "frame_fixed_indexed(descriptor@{descriptor_offset}, index {element_index}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+        ),
         RuntimeValueOperand::Binary {
             left,
             operator,
@@ -885,6 +894,16 @@ fn assigned_value_home_name(operand: &AssignedValueOperand) -> String {
             byte_size,
         } => format!(
             "frame-indexed desc@{descriptor_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
+            byte_size
+        ),
+        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameFixedIndexed {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "frame-fixed-indexed desc@{descriptor_offset} idx {element_index} elem {element_byte_size} field +{field_byte_offset}/{}",
             byte_size
         ),
         omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { bank, name } => {

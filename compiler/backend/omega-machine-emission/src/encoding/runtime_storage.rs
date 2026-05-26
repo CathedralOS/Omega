@@ -111,6 +111,32 @@ fn validate_runtime_value_home(
                 ));
             }
         }
+        RuntimeValueOperand::FrameFixedIndexed {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            if !matches!(
+                home,
+                omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameFixedIndexed {
+                    descriptor_offset: home_descriptor,
+                    element_index: home_index,
+                    element_byte_size: home_element_size,
+                    field_byte_offset: home_field,
+                    byte_size: home_size,
+                } if home_descriptor == *descriptor_offset
+                    && home_index == *element_index
+                    && home_element_size == *element_byte_size
+                    && home_field == *field_byte_offset
+                    && home_size == *byte_size
+            ) {
+                return Err(Diagnostic::error(
+                    "runtime fixed frame-indexed value must keep a matching frame-indexed home",
+                ));
+            }
+        }
         RuntimeValueOperand::Binary { .. } => {
             if !matches!(
                 home,

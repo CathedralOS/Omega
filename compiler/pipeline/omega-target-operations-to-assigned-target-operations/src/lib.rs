@@ -93,6 +93,19 @@ pub fn build_assigned_target_operations(
                 field_byte_offset: *field_byte_offset,
                 byte_size: *byte_size,
             },
+            omega_target_operations::TargetValueOperand::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => AssignedValueHomeKind::RuntimeFrameFixedIndexed {
+                descriptor_offset: *descriptor_offset,
+                element_index: *element_index,
+                element_byte_size: *element_byte_size,
+                field_byte_offset: *field_byte_offset,
+                byte_size: *byte_size,
+            },
             omega_target_operations::TargetValueOperand::Binary { .. } => {
                 let name =
                     scratch_register_name(target_operations.target.architecture, next_scratch_slot);

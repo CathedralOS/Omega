@@ -214,6 +214,19 @@ fn translate_runtime_value_operand(
             field_byte_offset: *field_byte_offset,
             byte_size: *byte_size,
         },
+        omega_abstract_operations::AbstractValueOperand::FrameFixedIndexed {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => TargetValueOperand::FrameFixedIndexed {
+            descriptor_offset: *descriptor_offset,
+            element_index: *element_index,
+            element_byte_size: *element_byte_size,
+            field_byte_offset: *field_byte_offset,
+            byte_size: *byte_size,
+        },
         omega_abstract_operations::AbstractValueOperand::Binary {
             left,
             operator,

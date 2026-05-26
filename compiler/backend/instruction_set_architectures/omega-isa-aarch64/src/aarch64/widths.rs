@@ -527,6 +527,11 @@ pub fn runtime_value_operand_width(
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
             + runtime_load_data_width(byte_size)
+    } else if let Some((_, _, element_byte_size, field_byte_offset, byte_size)) =
+        runtime_value_operands.frame_fixed_indexed(operand)
+    {
+        runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+            + runtime_load_data_width(byte_size)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
