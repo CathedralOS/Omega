@@ -143,6 +143,16 @@ pub(super) fn runtime_pointee_address_to_runtime_frame_write_kind(
     MachineInstructionKind::RuntimePointeeAddressToRuntimeFrameWrite
 }
 
+pub(super) fn runtime_frame_indexed_address_to_runtime_frame_write_kind(
+    _descriptor_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameIndexedAddressToRuntimeFrameWrite
+}
+
 pub(super) fn runtime_storage_copy_kind(
     _source_offset: usize,
     _target_offset: usize,

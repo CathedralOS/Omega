@@ -454,6 +454,13 @@ pub enum AssignedOperationKind {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     ReadRuntimeTextLine {
         buffer: omega_target_operations::TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
@@ -1074,6 +1081,19 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 field_byte_offset,
                 target_offset,
             },
+            omega_target_operations::TargetOperationKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            },
             omega_target_operations::TargetOperationKind::ReadRuntimeTextLine {
                 buffer,
                 target_region,
@@ -1633,6 +1653,19 @@ impl From<AssignedOperationKind> for omega_target_operations::TargetOperationKin
                 target_offset,
             } => Self::WriteRuntimePointeeAddressToRuntimeFrame {
                 pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+            },
+            AssignedOperationKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
                 field_byte_offset,
                 target_offset,
             },

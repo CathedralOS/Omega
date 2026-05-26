@@ -338,6 +338,28 @@ pub fn encode_runtime_pointee_address_to_runtime_frame_write(
     }
 }
 
+pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_frame_indexed_address_to_runtime_frame_write(
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
 pub fn encode_runtime_storage_copy(
     architecture: Architecture,
     source_offset: usize,

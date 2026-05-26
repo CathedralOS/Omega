@@ -56,13 +56,16 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - continue strengthening richer nested storage updates for generator-style code
   - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
   - direct machine-owned nested fixed-array writes under dynamic indexing are covered, but richer room-style struct copy/readback still needs a dedicated follow-up before it can be promoted into the active pass suite
-  - mutable state-call parameters currently split into two classes:
-    - machine-owned targets work:
+  - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
+    - machine-owned targets:
       - `canaries/pass/calls/runtime_mutable_machine_owned_parameter_write_exit`
-    - caller-local frame targets still need explicit runtime call-frame/pointer lowering:
-      - `canaries/fail/calls/runtime_mutable_local_parameter_write_unimplemented`
-      - `canaries/fail/storage/runtime_dispatch_helper_local_alias_add_unimplemented`
-      - `canaries/fail/storage/runtime_dispatch_local_index_binary_write_unimplemented`
+    - caller-local frame targets:
+      - `canaries/pass/calls/runtime_mutable_local_parameter_write_compile`
+      - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_compile`
+      - `canaries/pass/storage/runtime_dispatch_local_index_binary_write_exit`
+  - remaining runtime follow-up:
+    - `canaries/run/runtime_mutable_local_parameter_write_probe`
+    - `canaries/run/runtime_dispatch_helper_local_alias_add_probe`
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.

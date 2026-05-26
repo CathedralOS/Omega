@@ -269,6 +269,13 @@ pub enum TargetOperationKind {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     ReadRuntimeTextLine {
         buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
@@ -781,6 +788,19 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset,
             } => Self::WriteRuntimePointeeAddressToRuntimeFrame {
                 pointer_byte_offset: *pointer_byte_offset,
+                field_byte_offset: *field_byte_offset,
+                target_offset: *target_offset,
+            },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset: *descriptor_offset,
+                index_offset: *index_offset,
+                element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,
                 target_offset: *target_offset,
             },

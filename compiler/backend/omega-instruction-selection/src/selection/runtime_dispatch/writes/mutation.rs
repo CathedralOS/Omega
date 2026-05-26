@@ -366,6 +366,24 @@ fn select_runtime_frame_slot_address_write_in_table(
         );
     }
 
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
     let source_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,

@@ -326,6 +326,13 @@ pub fn runtime_pointee_address_to_runtime_frame_write_width() -> usize {
     20
 }
 
+pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    24 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
+}
+
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {
     100
 }
