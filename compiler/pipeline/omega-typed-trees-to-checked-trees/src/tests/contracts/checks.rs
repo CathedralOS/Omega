@@ -462,6 +462,40 @@ fn accepts_requires_boolean_union_expression_from_domain_fact() {
 }
 
 #[test]
+fn accepts_requires_scalar_member_expression_from_domain_fact() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::accept(length: i32)
+        requires
+            length > 0
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.password in Password::Valid
+        {
+            self.accept(self.password.length);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("scalar member requires should be provable from an enclosing preserved domain fact");
+}
+
+#[test]
 fn accepts_requires_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {

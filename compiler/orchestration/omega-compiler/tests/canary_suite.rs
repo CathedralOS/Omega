@@ -2029,6 +2029,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_boolean_expression_from_domain_fact",
+    "domains/call_requires_scalar_member_expression_from_domain_fact",
     "domains/call_requires_boolean_union_expression_from_domain_fact",
     "domains/call_requires_domain_intersection_preserved",
     "domains/call_requires_domain_union_left_branch_preserved",
