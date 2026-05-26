@@ -157,6 +157,36 @@ Possible directions:
 - General quantifiers, if added, are proof-level binders in contracts/domains,
   not executable machine control flow.
 
+## Termination Proofs
+
+Termination is another proof shape the checker should eventually understand.
+
+Unlike ordinary pre/postcondition checking, termination is a claim about every
+cycle in the reachable machine/state graph.
+
+Working direction:
+
+```omega
+machine walk(items: &[Nat]) terminates
+decreases items
+{
+}
+```
+
+The key idea is a ranking argument:
+
+- choose a metric
+- prove it belongs to a well-founded ordering
+- prove every recursive or cyclic step makes that metric strictly smaller
+
+This is a natural fit for proof-oriented helper vocabulary. The language can
+provide built-in well-founded measures for common cases such as naturals and
+slice lengths, while libraries may later help express richer rankings such as
+lexicographic tuples or domain-provided measures.
+
+The important design boundary is that `terminates` is not an effect. It is a
+proof claim over control flow.
+
 ## Automation And Trust
 
 The checker should automatically solve common cases:

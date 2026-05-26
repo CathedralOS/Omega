@@ -58,6 +58,8 @@ Likely obligations:
 - Every spawned graph captures only moved, copied, or concurrency-safe values.
 - Every blocking operation exposes a waitable contract or crosses an explicit
   trust boundary.
+- Every machine that claims termination proves progress for every recursive or
+  cyclic path in its reachable call/state graph.
 
 ## Everyday Shape
 
@@ -84,6 +86,57 @@ preconditions + body facts -> postconditions
 
 Advanced proof work and math libraries exist for cases where the compiler cannot
 derive those facts automatically. They are covered in the next chapter.
+
+## Termination Claims
+
+Termination should be a separate proof claim, not an effect.
+
+Working direction:
+
+```omega
+machine walk(items: &[Item]) terminates
+decreases items
+{
+}
+```
+
+The intended meaning is:
+
+- `terminates` claims that the machine always completes.
+- That claim is transitive through the reachable call graph and internal state
+  graph.
+- A terminating root such as `Main::main` should force every reachable cycle to
+  justify progress, rather than requiring unrelated leaf machines to all carry
+  standalone termination annotations by default.
+- `decreases expr` supplies a ranking metric that must move strictly downward on
+  recursive or cyclic back-edges.
+
+The important semantic piece is a well-founded ordering. A decrease metric is
+accepted only when the compiler knows how to compare successive values in a
+well-founded way.
+
+Likely built-in decrease shapes:
+
+- natural numbers or bounded integers
+- distances such as `limit - index`
+- slice/view extents such as `items`
+- lexicographic tuples of decreasing metrics
+
+For slices, `decreases items` naturally means each back-edge must operate on a
+strictly smaller remaining view, usually by carrying a narrower slice window.
+
+`increases`-style surface syntax may still be useful as sugar:
+
+```omega
+machine walk(index: usize, limit: usize) terminates
+increases index -> limit
+{
+}
+```
+
+But the proof model underneath is still a well-founded decrease on "remaining
+distance to the bound." The core obligation is a ranking function, not merely a
+monotone update.
 
 ## Example
 
