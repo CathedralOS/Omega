@@ -153,6 +153,7 @@ fn runtime_frame_operand_layout(
 ) -> Option<ResolvedOperandLayout> {
     let root_symbol = path.head_symbol();
     let root_name = path.member(0)?;
+    let root_index = path.member_index(0);
     let slot_matches_symbol = |slot: &omega_runtime_storage::RuntimeFrameSlot| {
         (root_symbol.is_valid() && slot.symbol == root_symbol) || slot.name == *root_name
     };
@@ -182,16 +183,35 @@ fn runtime_frame_operand_layout(
             })
         })?;
 
-    let (byte_offset, layout) = if suffix.is_empty() {
+    let root_layout = TypeLayout {
+        size: slot.byte_size,
+        alignment: slot.alignment,
+    };
+    let (root_byte_offset, root_type_symbol, root_layout) = if let Some(index) = root_index {
+        let Some((element_type, length)) = slot.type_descriptor.fixed_array() else {
+            // Slice-like root indexing must stay on the runtime-expression path.
+            return None;
+        };
+        if index >= length {
+            return None;
+        }
+        let element_size = root_layout.size / length;
         (
-            slot.byte_offset,
+            slot.byte_offset + (element_size * index),
+            element_type.storage_symbol(),
             TypeLayout {
-                size: slot.byte_size,
-                alignment: slot.alignment,
+                size: element_size,
+                alignment: root_layout.alignment,
             },
         )
     } else {
-        resolve_nested_slot_layout(layouts, slot.byte_offset, slot.type_symbol, suffix)?
+        (slot.byte_offset, slot.type_symbol, root_layout)
+    };
+
+    let (byte_offset, layout) = if suffix.is_empty() {
+        (root_byte_offset, root_layout)
+    } else {
+        resolve_nested_slot_layout(layouts, root_byte_offset, root_type_symbol, suffix)?
     };
 
     Some(ResolvedOperandLayout {
