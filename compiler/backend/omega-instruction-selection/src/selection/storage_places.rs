@@ -74,21 +74,19 @@ pub(super) fn resolve_runtime_storage_place(
         return None;
     }
     let suffix = &path.members()[1..];
-    let slot = input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find(|(_, slot)| {
-            slot.dispatch_index == dispatch_index
-                && state_key_matches_statement_source(slot.source_key, source_key)
-                && slot_matches_path(slot, path)
-        })
-        .or_else(|| {
-            input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
-                slot.dispatch_index == dispatch_index && slot_matches_path(slot, path)
+    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_path(slot, path)
+    })
+    .or_else(|| {
+        input
+            .runtime_storage
+            .frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (slot.dispatch_index == dispatch_index && slot_matches_path(slot, path))
+                    .then_some(slot)
             })
-        })
-        .map(|(_, slot)| slot)?;
+    })?;
     let root_field = FieldLayout {
         symbol: slot.symbol,
         name: slot.name.clone(),
@@ -240,21 +238,19 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         return None;
     }
     let suffix = path.suffix(1);
-    let slot = input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find(|(_, slot)| {
-            slot.dispatch_index == dispatch_index
-                && state_key_matches_statement_source(slot.source_key, source_key)
-                && slot_matches_table_path(slot, &path)
-        })
-        .or_else(|| {
-            input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
-                slot.dispatch_index == dispatch_index && slot_matches_table_path(slot, &path)
+    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_table_path(slot, &path)
+    })
+    .or_else(|| {
+        input
+            .runtime_storage
+            .frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (slot.dispatch_index == dispatch_index && slot_matches_table_path(slot, &path))
+                    .then_some(slot)
             })
-        })
-        .map(|(_, slot)| slot)?;
+    })?;
     let root_field = FieldLayout {
         symbol: slot.symbol,
         name: slot.name.clone(),
@@ -466,15 +462,10 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     let [_root_name, suffix @ ..] = path.members() else {
         return None;
     };
-    let place =
-        resolve_runtime_frame_root_place(input, dispatch_index, source_key, path.head_symbol())?;
-    if place.region != RuntimeStorageRegion::RuntimeFrame
-        || place.byte_count != input.runtime_abi.pointer_size
-    {
+    let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, target)?;
+    if slot.byte_size != input.runtime_abi.pointer_size {
         return None;
     }
-
-    let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, target)?;
     let pointee_descriptor = slot.type_descriptor.reference_referee()?;
     let pointee_layout = descriptor_layout(input, pointee_descriptor);
     let (field_byte_offset, field_layout) = if suffix.is_empty() {
@@ -494,7 +485,7 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
         })?
     };
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
-        pointer_byte_offset: place.byte_offset,
+        pointer_byte_offset: slot.byte_offset,
         field_byte_offset,
         pointee_byte_size: field_layout.size,
     })
@@ -511,14 +502,6 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     if path.is_empty() {
         return None;
     }
-    let place =
-        resolve_runtime_frame_root_place(input, dispatch_index, source_key, path.head_symbol())?;
-    if place.region != RuntimeStorageRegion::RuntimeFrame
-        || place.byte_count != input.runtime_abi.pointer_size
-    {
-        return None;
-    }
-
     let slot = runtime_frame_slot_for_expression_in_table(
         input,
         dispatch_index,
@@ -526,6 +509,9 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
         expressions,
         expression,
     )?;
+    if slot.byte_size != input.runtime_abi.pointer_size {
+        return None;
+    }
     let pointee_descriptor = slot.type_descriptor.reference_referee()?;
     let pointee_layout = descriptor_layout(input, pointee_descriptor);
     let suffix = path.suffix(1);
@@ -544,7 +530,7 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
         resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?
     };
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
-        pointer_byte_offset: place.byte_offset,
+        pointer_byte_offset: slot.byte_offset,
         field_byte_offset,
         pointee_byte_size: field_layout.size,
     })
@@ -606,33 +592,6 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(
     })
 }
 
-fn resolve_runtime_frame_root_place(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    root_symbol: SymbolHandle,
-) -> Option<RuntimeStoragePlace> {
-    input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find(|(_, slot)| {
-            slot.dispatch_index == dispatch_index
-                && state_key_matches_statement_source(slot.source_key, source_key)
-                && slot_matches_root(slot.symbol, root_symbol)
-        })
-        .or_else(|| {
-            input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
-                slot.dispatch_index == dispatch_index && slot_matches_root(slot.symbol, root_symbol)
-            })
-        })
-        .map(|(_, slot)| RuntimeStoragePlace {
-            region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset,
-            byte_count: slot.byte_size,
-        })
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RuntimePointeeTarget {
     pub(super) pointer_byte_offset: usize,
@@ -668,16 +627,9 @@ fn runtime_frame_slot_for_expression<'plan>(
         return None;
     };
 
-    input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find_map(|(_, slot)| {
-            (slot.dispatch_index == dispatch_index
-                && state_key_matches_statement_source(slot.source_key, source_key)
-                && slot_matches_path(slot, path))
-            .then_some(slot)
-        })
+    find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_path(slot, path)
+    })
 }
 
 fn runtime_frame_slot_for_expression_in_table<'plan>(
@@ -689,6 +641,17 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
 ) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
 
+    find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_table_path(slot, &path)
+    })
+}
+
+fn find_runtime_frame_slot_for_path<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    matches_path: impl Fn(&omega_runtime_storage::RuntimeFrameSlot) -> bool,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
     input
         .runtime_storage
         .frame_slots
@@ -696,8 +659,19 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
         .find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
                 && state_key_matches_statement_source(slot.source_key, source_key)
-                && slot_matches_table_path(slot, &path))
+                && matches_path(slot))
             .then_some(slot)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .find_map(|(_, slot)| {
+                    (state_key_matches_statement_source(slot.source_key, source_key)
+                        && matches_path(slot))
+                    .then_some(slot)
+                })
         })
 }
 

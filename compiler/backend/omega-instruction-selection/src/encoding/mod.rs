@@ -13,6 +13,7 @@ pub use host::{
     encode_return_register_integer_write_bytes, encode_syscall_sequence,
 };
 pub use runtime_storage::{
+    encode_runtime_frame_indexed_address_to_runtime_frame_write,
     encode_runtime_frame_indexed_binary_write, encode_runtime_frame_indexed_integer_write,
     encode_runtime_frame_indexed_string_write, encode_runtime_machine_indexed_integer_write,
     encode_runtime_machine_indexed_string_write, encode_runtime_machine_integer_write,

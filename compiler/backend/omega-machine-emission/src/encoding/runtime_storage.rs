@@ -382,6 +382,24 @@ pub(super) fn encode_runtime_pointee_address_to_runtime_frame_write(
     )
 }
 
+pub(super) fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_frame_indexed_address_to_runtime_frame_write(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+    )
+}
+
 pub(super) fn encode_runtime_storage_copy(
     input: MachineEmissionContext<'_>,
     source_offset: usize,

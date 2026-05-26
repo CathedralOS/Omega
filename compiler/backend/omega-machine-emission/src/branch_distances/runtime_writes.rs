@@ -205,6 +205,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeMachineIndexedStringWrite
             | MachineInstructionKind::RuntimeStorageAddressToRuntimeFrameWrite
             | MachineInstructionKind::RuntimePointeeAddressToRuntimeFrameWrite
+            | MachineInstructionKind::RuntimeFrameIndexedAddressToRuntimeFrameWrite
             | MachineInstructionKind::RuntimeStorageCopy
             | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexed

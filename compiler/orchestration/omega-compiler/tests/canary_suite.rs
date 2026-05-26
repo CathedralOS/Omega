@@ -1047,6 +1047,39 @@ fn runtime_mutable_machine_owned_parameter_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-index-binary-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime local index binary write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime local index binary write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(191),
+        "expected runtime local index binary write canary to preserve direct caller-local indexed binary writes and exit 191, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -1813,9 +1846,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_non_boolean_fact",
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
-    "calls/runtime_mutable_local_parameter_write_unimplemented",
-    "storage/runtime_dispatch_helper_local_alias_add_unimplemented",
-    "storage/runtime_dispatch_local_index_binary_write_unimplemented",
     "calls/runtime_helper_ordering_return",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",

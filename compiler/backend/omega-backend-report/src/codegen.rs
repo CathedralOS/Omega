@@ -598,6 +598,15 @@ fn selected_instruction_name(
         } => format!(
             "write runtime-frame pointer @{target_offset} = *(runtime_frame@{pointer_byte_offset}) +{field_byte_offset}"
         ),
+        SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        } => format!(
+            "write runtime-frame pointer @{target_offset} = &(runtime_frame@{descriptor_offset}[runtime_frame@{index_offset} * {element_byte_size}]) +{field_byte_offset}"
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer,
             target_region,

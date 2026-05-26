@@ -1,0 +1,18 @@
+data Room {
+    exit_count: u32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let rooms: [Room; 1] = [Room { exit_count: 0 }];
+    let from_index: usize = 0;
+
+    self.bump(&mut rooms[from_index]);
+    -> main() when true;
+}
+
+machine Main::bump(&mut self, room: &mut Room) {
+    room.exit_count = 1;
+}
