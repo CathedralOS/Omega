@@ -1,0 +1,25 @@
+data Entry {
+    value: i32;
+}
+
+domain Entry::Positive {
+    self.value > 0;
+}
+
+data Main {
+    entries: [Entry; 2];
+    index: usize;
+}
+
+machine Main::accept(value: i32)
+requires
+    value > 0
+{
+}
+
+machine Main::main(&mut self)
+requires
+    self.entries[self.index] in Entry::Positive
+{
+    self.accept(self.entries[self.index].value);
+}

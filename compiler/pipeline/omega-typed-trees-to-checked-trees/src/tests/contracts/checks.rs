@@ -497,6 +497,75 @@ fn accepts_requires_scalar_member_expression_from_domain_fact() {
 }
 
 #[test]
+fn accepts_requires_fixed_indexed_scalar_member_expression_from_domain_fact() {
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        domain Entry::Positive {
+            self.value > 0;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+        }
+
+        machine Main::accept(value: i32)
+        requires
+            value > 0
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.entries[0] in Entry::Positive
+        {
+            self.accept(self.entries[0].value);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "fixed indexed scalar member requires should be provable from an indexed preserved domain fact",
+    );
+}
+
+#[test]
+fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() {
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        domain Entry::Positive {
+            self.value > 0;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+            index: usize;
+        }
+
+        machine Main::accept(value: i32)
+        requires
+            value > 0
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.entries[self.index] in Entry::Positive
+        {
+            self.accept(self.entries[self.index].value);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "dynamic indexed scalar member requires should be provable from an indexed preserved domain fact",
+    );
+}
+
+#[test]
 fn accepts_requires_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {
