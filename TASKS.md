@@ -25,10 +25,15 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/fail/domains/call_requires_domain_union_unproven`
     - direct boolean requires over call parameters are now also proved from preserved domain facts:
       - `canaries/pass/domains/call_requires_boolean_expression_from_domain_fact`
+      - `canaries/pass/domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call`
       - `canaries/pass/domains/call_requires_boolean_union_expression_from_domain_fact`
+      - `canaries/pass/domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call`
       - `canaries/pass/domains/call_requires_scalar_member_expression_from_domain_fact`
       - `canaries/pass/domains/call_requires_fixed_indexed_scalar_member_expression_from_domain_fact`
       - `canaries/pass/domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact`
+      - mutating-call invalidation is now pinned too:
+        - `canaries/fail/domains/call_requires_boolean_expression_invalidated_by_mutating_call`
+        - `canaries/fail/domains/call_requires_fixed_indexed_boolean_expression_invalidated_by_mutating_call`
     - exit ensures unions are now proved from either preserved branch too:
       - `canaries/pass/domains/exit_ensures_domain_union_left_branch_preserved`
       - `canaries/pass/domains/exit_ensures_domain_union_right_branch_preserved`
