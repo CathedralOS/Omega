@@ -19,7 +19,8 @@ use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_handle_resolver_emit,
 };
 use super::super::writes::{
-    RuntimeStaticValues, runtime_frame_slot_target_expression, runtime_storage_copy,
+    RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
+    runtime_frame_slot_target_expression, runtime_storage_copy,
     select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
@@ -295,6 +296,18 @@ fn select_runtime_leaf_branch_terminal_value_write(
         bindings,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.branch_key,
+        expansion.target_statement_index,
+        &expressions,
+        slot,
+        resolved_value,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,

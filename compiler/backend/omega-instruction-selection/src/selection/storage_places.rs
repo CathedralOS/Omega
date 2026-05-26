@@ -273,6 +273,35 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     })
 }
 
+pub(super) fn resolve_fixed_array_length_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<usize> {
+    if let Some(slot) = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && let Some((_, length)) = slot.type_descriptor.fixed_array()
+    {
+        return Some(length);
+    }
+
+    let collection = resolve_machine_owned_collection_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        expressions,
+        expression,
+    )?;
+    let (_, length) = collection.type_descriptor.fixed_array()?;
+    Some(length)
+}
+
 pub(super) fn resolve_runtime_frame_indexed_target(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,

@@ -21,7 +21,8 @@ use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOper
 pub(crate) use static_values::RuntimeStaticValues;
 
 pub(in crate::selection) use mutation::{
-    runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
+    emit_runtime_frame_slot_slice_descriptor_write_in_table, runtime_frame_slot_target_expression,
+    select_runtime_frame_slot_value_write_in_table,
 };
 pub(super) use storage_copy::{
     runtime_storage_copy, runtime_storage_copy_in_table, runtime_storage_indirect_copy_in_table,
