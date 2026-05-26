@@ -20,8 +20,9 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
-    resolve_fixed_array_length_in_table, resolve_runtime_assignment_value_call_result_place,
-    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_fixed_array_length, resolve_fixed_array_length_in_table,
+    resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_base_indexed_target,
+    resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target,
     resolve_runtime_machine_indexed_target_in_table,
@@ -89,7 +90,7 @@ fn builtin_runtime_call_operator_in_table(
     None
 }
 
-fn simplify_runtime_expression_with_state_locals(
+pub(super) fn simplify_runtime_expression_with_state_locals(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
@@ -395,7 +396,52 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         expressions,
         call.receiver,
     ) else {
-        return false;
+        let receiver = expressions.to_tree(call.receiver);
+        let simplified_receiver = simplify_runtime_expression_with_state_locals(
+            input,
+            value_source_key,
+            statement_index,
+            &receiver,
+        );
+        let Some(source_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            value_source_key,
+            "",
+            "",
+            &simplified_receiver,
+        ) else {
+            return false;
+        };
+        let Some(length) = resolve_fixed_array_length(
+            input,
+            dispatch_index,
+            value_source_key,
+            &simplified_receiver,
+        ) else {
+            return false;
+        };
+
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                source_region: source_place.region,
+                source_offset: source_place.byte_offset,
+                target_offset: slot.byte_offset,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
+                byte_size: input.runtime_abi.pointer_size,
+                value: length as i64,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        return true;
     };
     let Some(length) = resolve_fixed_array_length_in_table(
         input,

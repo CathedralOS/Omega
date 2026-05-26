@@ -4,6 +4,7 @@ use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
+use omega_state_values::simplify_state_expression;
 
 mod branches;
 mod edges;
@@ -334,14 +335,22 @@ fn select_runtime_dispatch_local_initializer_write(
         copied_aliases.bindings(),
         expressions,
     );
+    let resolved_initializer = simplify_runtime_local_initializer_handle(
+        input,
+        expressions,
+        resolved_initializer.source_key,
+        statement_index,
+        resolved_initializer.expression,
+    )
+    .unwrap_or(resolved_initializer.expression);
     let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
         dispatch_index,
-        resolved_initializer.source_key,
+        source_key,
         statement_index,
         expressions,
         slot,
-        resolved_initializer.expression,
+        resolved_initializer,
         selected_instructions,
     );
     if wrote_slice {
@@ -350,11 +359,11 @@ fn select_runtime_dispatch_local_initializer_write(
     let direct_kind = writes::select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,
-        resolved_initializer.source_key,
+        source_key,
         statement_index,
         expressions,
         slot,
-        resolved_initializer.expression,
+        resolved_initializer,
         static_values,
         runtime_value_operands,
     );
@@ -373,11 +382,11 @@ fn select_runtime_dispatch_local_initializer_write(
         dispatch_index,
         source_key,
         source_key,
-        resolved_initializer.source_key,
+        source_key,
         statement_index,
         expressions,
         target,
-        resolved_initializer.expression,
+        resolved_initializer,
         &[],
         static_values,
         mutable_expressions,
@@ -385,6 +394,33 @@ fn select_runtime_dispatch_local_initializer_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+fn simplify_runtime_local_initializer_handle(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &mut ExpressionTable,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let simplified = simplify_state_expression(
+        input.program,
+        machine,
+        state,
+        statement_index,
+        &expressions.to_tree(expression),
+    );
+    Some(expressions.insert_tree(&simplified))
 }
 
 fn local_initializer_handle(
