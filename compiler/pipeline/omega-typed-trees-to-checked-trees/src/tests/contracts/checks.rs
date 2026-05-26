@@ -1038,6 +1038,196 @@ fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_dis
 }
 
 #[test]
+fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mutating_call() {
+    let source = r#"
+        data Item {
+            value: i32;
+            tag: i32;
+        }
+
+        domain Item::Valid {
+            self.value > 0;
+        }
+
+        data Main {
+            items: [Item; 2];
+            index: usize;
+        }
+
+        machine Main::mark_valid(&mut self, item: &mut Item)
+        ensures
+            item in Item::Valid
+        {
+            item.value = 12;
+        }
+
+        machine Main::break_valid(&mut self, item: &mut Item) {
+            item.value = 0;
+        }
+
+        machine Main::accept(item: Item)
+        requires
+            item.value > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.items[self.index]);
+            self.break_valid(&mut self.items[self.index]);
+            self.accept(self.items[self.index]);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("dynamic indexed requires boolean expression should fail after mutating call");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic.message.contains("item.value > 0")
+    }));
+}
+
+#[test]
+fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
+{
+    let source = r#"
+        data Item {
+            value: i32;
+            tag: i32;
+        }
+
+        domain Item::Valid {
+            self.value > 0;
+        }
+
+        data Main {
+            items: [Item; 2];
+            index: usize;
+        }
+
+        machine Main::mark_valid(&mut self, item: &mut Item)
+        ensures
+            item in Item::Valid
+        {
+            item.value = 12;
+        }
+
+        machine Main::touch_tag(&mut self, item: &mut Item) {
+            item.tag = 0;
+        }
+
+        machine Main::accept(item: Item)
+        requires
+            item.value > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.items[self.index]);
+            self.touch_tag(&mut self.items[self.index]);
+            self.accept(self.items[self.index]);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "dynamic indexed requires boolean expression should be preserved across disjoint mutating call",
+    );
+}
+
+#[test]
+fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_after_mutating_call() {
+    let source = r#"
+        data Item {
+            value: i32;
+            tag: i32;
+        }
+
+        domain Item::Valid {
+            self.value > 0;
+        }
+
+        data Main {
+            items: [Item; 2];
+            index: usize;
+        }
+
+        machine Main::mark_valid(&mut self, item: &mut Item)
+        ensures
+            item in Item::Valid
+        {
+            item.value = 12;
+        }
+
+        machine Main::break_valid(&mut self, item: &mut Item) {
+            item.value = 0;
+        }
+
+        machine Main::main(&mut self) -> i32
+        ensures
+            self.items[self.index].value > 0
+        {
+            self.mark_valid(&mut self.items[self.index]);
+            self.break_valid(&mut self.items[self.index]);
+            0
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("dynamic indexed exit boolean ensures should fail after mutating call");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove ensures contract for exit from Main::main")
+            && diagnostic.message.contains("self.items[self.index].value > 0")
+    }));
+}
+
+#[test]
+fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
+{
+    let source = r#"
+        data Item {
+            value: i32;
+            tag: i32;
+        }
+
+        domain Item::Valid {
+            self.value > 0;
+        }
+
+        data Main {
+            items: [Item; 2];
+            index: usize;
+        }
+
+        machine Main::mark_valid(&mut self, item: &mut Item)
+        ensures
+            item in Item::Valid
+        {
+            item.value = 12;
+        }
+
+        machine Main::touch_tag(&mut self, item: &mut Item) {
+            item.tag = 0;
+        }
+
+        machine Main::main(&mut self) -> i32
+        ensures
+            self.items[self.index].value > 0
+        {
+            self.mark_valid(&mut self.items[self.index]);
+            self.touch_tag(&mut self.items[self.index]);
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "dynamic indexed exit boolean ensures should be preserved across disjoint mutating call",
+    );
+}
+
+#[test]
 fn accepts_requires_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {

@@ -33,6 +33,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact`
       - mutating-call invalidation is now pinned too:
         - `canaries/fail/domains/call_requires_boolean_expression_invalidated_by_mutating_call`
+        - `canaries/fail/domains/call_requires_dynamic_indexed_boolean_expression_invalidated_by_mutating_call`
         - `canaries/fail/domains/call_requires_fixed_indexed_boolean_expression_invalidated_by_mutating_call`
     - exit ensures unions are now proved from either preserved branch too:
       - `canaries/pass/domains/exit_ensures_domain_union_left_branch_preserved`
@@ -47,6 +48,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/domains/exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fact`
       - mutating-call invalidation is now pinned too:
         - `canaries/fail/domains/exit_ensures_boolean_expression_invalidated_by_mutating_call`
+        - `canaries/fail/domains/exit_ensures_dynamic_indexed_boolean_expression_invalidated_by_mutating_call`
         - `canaries/fail/domains/exit_ensures_fixed_indexed_boolean_expression_invalidated_by_mutating_call`
   - boolean `or` guard dispatch now runs:
     - `canaries/pass/control_flow/runtime_boolean_or_guard_exit`
@@ -113,6 +115,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - remaining runtime follow-up:
     - `canaries/run/runtime_mutable_local_parameter_write_probe`
     - `canaries/run/runtime_dispatch_helper_local_alias_add_probe`
+    - dynamic-indexed machine-owned mutable call arguments are still blocked by alias-write lowering:
+      - `canaries/fail/calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_unimplemented`
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.
