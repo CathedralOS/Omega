@@ -655,6 +655,40 @@ fn runtime_local_boolean_transition_argument_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_boolean_transition_argument_after_string_guard_exit_canary_runs() {
+    let canary =
+        pass_canary("control_flow/runtime_boolean_transition_argument_after_string_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-bool-transition-after-string-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime boolean transition argument after string guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime boolean transition argument after string guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(247),
+        "expected runtime boolean transition argument after string guard canary to route to exit code 247, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_machine_owned_indexed_nested_room_copy_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_nested_room_copy_exit");
     let main_path = canary.join("main.omg");

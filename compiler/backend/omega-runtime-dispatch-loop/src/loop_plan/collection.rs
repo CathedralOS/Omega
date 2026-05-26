@@ -5,6 +5,7 @@ use omega_checked_trees::expression::{BinaryOperator, ExpressionHandle, Expressi
 use omega_control_flow::StateKey;
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
+use omega_state_guards::{StateGuardLowering, StateGuardOperator};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchLoopCase {
@@ -82,6 +83,8 @@ pub(super) fn runtime_dispatch_loop_edges<'context>(
                 continuation_arguments: edge.expressions.continuation_arguments,
                 guard_expression: disjunct,
                 guard_has_expression: disjunct.is_valid(),
+                guard_lowering: StateGuardLowering::NeedsRuntimeExpression,
+                guard_operator: StateGuardOperator::None,
                 action: dispatch_action(&edge.target),
                 forms_cycle: edge.forms_cycle,
                 ..RuntimeDispatchLoopEdge::default()

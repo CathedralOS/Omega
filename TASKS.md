@@ -60,6 +60,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit`
   - local boolean values initialized from string equality now lower and run:
     - `canaries/pass/control_flow/runtime_local_string_comparison_value_exit`
+  - local bool values can now cross a transition boundary even when the source state first guards on a string comparison:
+    - `canaries/pass/control_flow/runtime_boolean_transition_argument_after_string_guard_exit`
   Remaining visible gap:
   - broader conjunction-heavy runtime-dispatch states still need continued coverage beyond this fixed dungeon path
   - keep extending coverage for more complex boolean normalization shapes beyond the now-covered plain `or` family
@@ -104,7 +106,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - iterative transitioned indexed reads now run correctly
     - `canaries/pass/slices/runtime_slice_iteration_exit`
     - fat slice descriptors are now preserved, direct fixed-index guard reads are healthy, whole-element `entries[0]` local copies are healthy, and iterative `entries[index]` loops now execute correctly across transition boundaries
-  - direct machine-owned nested fixed-array writes under dynamic indexing are covered, but richer room-style struct copy/readback still needs a dedicated follow-up before it can be promoted into the active pass suite
+  - richer room-style struct copy/readback is now covered in the active pass suite:
+    - `canaries/pass/storage/runtime_machine_owned_indexed_nested_room_copy_exit`
   - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
     - machine-owned targets:
       - `canaries/pass/calls/runtime_mutable_machine_owned_parameter_write_exit`

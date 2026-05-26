@@ -91,6 +91,28 @@ pub(crate) fn byte_distance_to_next_runtime_write_end(
     )
 }
 
+pub(crate) fn byte_distance_to_next_guarded_effect_end(
+    _input: MachineEmissionContext<'_>,
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+    branch_offset: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(target) =
+        next_immediate_guarded_effect_end_offset(machine_instructions, machine_instruction_index)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode runtime guarded write at byte {}: missing immediate guarded runtime write",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset + branch_offset;
+    Ok(target as isize - branch_program_counter as isize)
+}
+
 pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
@@ -113,6 +135,17 @@ pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
 
     let branch_program_counter = current.offset + branch_offset;
     Ok(target as isize - branch_program_counter as isize)
+}
+
+fn next_immediate_guarded_effect_end_offset(
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+) -> Option<usize> {
+    let instruction = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| is_guarded_effect(instruction))?;
+    Some(instruction.offset + instruction.byte_width)
 }
 
 fn next_guarded_runtime_write_target_offset(
