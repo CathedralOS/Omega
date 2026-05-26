@@ -379,6 +379,38 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
+    let value_tree = expressions.to_tree(value);
+    let simplified_value_tree = mutation::simplify_runtime_expression_with_state_locals(
+        input,
+        value_source_key,
+        statement_index,
+        &value_tree,
+    );
+    if !aliases.is_empty() || simplified_value_tree != value_tree {
+        let target_tree = expressions.to_tree(target);
+        let (source_machine, source_state) = state_names(input, operation_source_key);
+        let selected_before = selected_instructions.len();
+        mutation::select_runtime_mutation_writes(
+            input,
+            dispatch_index,
+            operation_source_key,
+            &source_machine,
+            &source_state,
+            statement_index,
+            &target_tree,
+            &simplified_value_tree,
+            aliases,
+            expressions,
+            static_values,
+            resolved_segment_expressions,
+            runtime_value_operands,
+            selected_instructions,
+        );
+        if selected_instructions.len() > selected_before {
+            return true;
+        }
+    }
+
     if let Some(kind) = mutation::select_runtime_static_mutation_write_in_table(
         input,
         dispatch_index,

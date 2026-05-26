@@ -334,8 +334,66 @@ pub(super) fn resolve_fixed_array_length_in_table(
         source_key,
         expressions,
         expression,
-    ) && let Some((_, length)) = slot.type_descriptor.fixed_array()
-    {
+    ) {
+        if let Some((_, length)) = slot.type_descriptor.fixed_array() {
+            return Some(length);
+        }
+
+        let path = normalized_storage_name_path_in_table(expressions, expression)?;
+        if path.len() > 1 {
+            let root_field = FieldLayout {
+                symbol: slot.symbol,
+                name: slot.name.clone(),
+                offset: 0,
+                type_symbol: slot.type_descriptor.storage_symbol(),
+                type_name: "".into(),
+                type_descriptor: slot.type_descriptor.clone(),
+                layout: TypeLayout {
+                    size: slot.byte_size,
+                    alignment: slot.alignment,
+                },
+            };
+            let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+            for (field_name, field_symbol, field_index) in path.suffix(1).iter() {
+                cursor = resolve_nested_field_layout_step(
+                    &input.layouts,
+                    cursor,
+                    field_name,
+                    field_symbol,
+                    field_index,
+                )?;
+            }
+            let (_, length) = cursor.type_descriptor().fixed_array()?;
+            return Some(length);
+        }
+    }
+
+    if let Some(indexed) = indexed_target_path_in_table(expressions, expression) {
+        let collection_slot = runtime_frame_slot_for_expression_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            indexed.collection,
+        )?;
+        let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
+        let element_layout = descriptor_layout(input, element_descriptor);
+        let root_field = FieldLayout {
+            symbol: collection_slot.symbol,
+            name: collection_slot.name.clone(),
+            offset: 0,
+            type_symbol: element_descriptor.storage_symbol(),
+            type_name: "".into(),
+            type_descriptor: element_descriptor.clone(),
+            layout: element_layout,
+        };
+        let cursor = resolve_indexed_target_suffix_cursor_in_table(
+            &input.layouts,
+            NestedFieldLayoutCursor::from_root(&root_field),
+            expressions,
+            indexed.suffix_root,
+        )?;
+        let (_, length) = cursor.type_descriptor().fixed_array()?;
         return Some(length);
     }
 
@@ -344,6 +402,88 @@ pub(super) fn resolve_fixed_array_length_in_table(
         input.entry_key.machine,
         source_key.machine,
         expressions,
+        expression,
+    )?;
+    let (_, length) = collection.type_descriptor.fixed_array()?;
+    Some(length)
+}
+
+pub(super) fn resolve_fixed_array_length(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<usize> {
+    if let Some(slot) =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, expression)
+    {
+        if let Some((_, length)) = slot.type_descriptor.fixed_array() {
+            return Some(length);
+        }
+
+        let normalized_expression = normalized_storage_expression(expression)?;
+        if let Expression::Name(path) = &normalized_expression {
+            let suffix = path.members().get(1..).unwrap_or(&[]);
+            if !suffix.is_empty() {
+                let root_field = FieldLayout {
+                    symbol: slot.symbol,
+                    name: slot.name.clone(),
+                    offset: 0,
+                    type_symbol: slot.type_descriptor.storage_symbol(),
+                    type_name: "".into(),
+                    type_descriptor: slot.type_descriptor.clone(),
+                    layout: TypeLayout {
+                        size: slot.byte_size,
+                        alignment: slot.alignment,
+                    },
+                };
+                let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+                for (index, field_name) in suffix.iter().enumerate() {
+                    cursor = resolve_nested_field_layout_step(
+                        &input.layouts,
+                        cursor,
+                        field_name,
+                        path.member_symbol(index + 1),
+                        None,
+                    )?;
+                }
+                let (_, length) = cursor.type_descriptor().fixed_array()?;
+                return Some(length);
+            }
+        }
+    }
+
+    if let Some(indexed) = indexed_target_path(expression) {
+        let collection_slot = runtime_frame_slot_for_expression(
+            input,
+            dispatch_index,
+            source_key,
+            indexed.collection,
+        )?;
+        let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
+        let element_layout = descriptor_layout(input, element_descriptor);
+        let root_field = FieldLayout {
+            symbol: collection_slot.symbol,
+            name: collection_slot.name.clone(),
+            offset: 0,
+            type_symbol: element_descriptor.storage_symbol(),
+            type_name: "".into(),
+            type_descriptor: element_descriptor.clone(),
+            layout: element_layout,
+        };
+        let cursor = resolve_indexed_target_suffix_cursor(
+            &input.layouts,
+            NestedFieldLayoutCursor::from_root(&root_field),
+            indexed.suffix_root,
+        )?;
+        let (_, length) = cursor.type_descriptor().fixed_array()?;
+        return Some(length);
+    }
+
+    let collection = resolve_machine_owned_collection(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
         expression,
     )?;
     let (_, length) = collection.type_descriptor.fixed_array()?;

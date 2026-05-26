@@ -306,6 +306,12 @@ fn local_data_requires_storage(
                     local_symbol,
                     local_name,
                 ))
+                || assignment_target_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
                 || assignment_targets_symbol(expressions, statement, local_symbol, local_name)
                 || statement_uses_symbol_mutably(
                     expressions,
@@ -358,6 +364,19 @@ fn assignment_targets_symbol(
     assignment_target_head_symbol(expressions, assignment.target) == symbol
         || assignment_target_head_name(expressions, assignment.target)
             .is_some_and(|name| name == local_name)
+}
+
+fn assignment_target_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::Assignment(assignment) = statement else {
+        return false;
+    };
+
+    expression_references_symbol(expressions, assignment.target, symbol, local_name)
 }
 
 fn assignment_target_head_symbol(

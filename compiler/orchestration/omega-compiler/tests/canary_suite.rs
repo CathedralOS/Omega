@@ -1544,6 +1544,39 @@ fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_slice_alias_indexed_field_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-alias-indexed-field-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice alias indexed field write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice alias indexed field write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(201),
+        "expected runtime slice alias indexed field write canary to write through a local slice alias and exit 201, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
