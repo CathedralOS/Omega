@@ -1,7 +1,7 @@
 use super::classify::value_kind;
 use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
-use crate::StateValuePlanningContext;
+use crate::planning::StateValuePlanningContext;
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTableCapacity};
 use omega_checked_trees::machine::Machine;

@@ -1642,6 +1642,7 @@ mod tests {
     };
     use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
     use omega_core::symbols::SymbolHandle;
+    use std::sync::Arc;
 
     #[test]
     fn simplifies_guarded_helper_call_comparison_to_guard_expression() {
@@ -1670,6 +1671,8 @@ mod tests {
             name: "RoomEvents".into(),
             attached_data: None,
             contains: Default::default(),
+            contracts: Default::default(),
+            effects: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
@@ -1887,6 +1890,8 @@ mod tests {
             name: "main".into(),
             attached_data: None,
             contains: Default::default(),
+            contracts: Default::default(),
+            effects: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
@@ -1921,6 +1926,8 @@ mod tests {
             name: "main".into(),
             attached_data: None,
             contains: Default::default(),
+            contracts: Default::default(),
+            effects: Default::default(),
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
