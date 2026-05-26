@@ -1,0 +1,36 @@
+use platform::console;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) {
+    let entry_view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> check(entry_view, 0)
+    }
+
+    state check(&mut self, entries: &[Entry], index: usize) {
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < entries.len;
+
+        transition has_next {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(191);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(192);
+    }
+}

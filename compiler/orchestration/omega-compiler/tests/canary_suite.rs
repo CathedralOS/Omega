@@ -981,6 +981,39 @@ fn runtime_slice_fixed_index_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_slice_len_comparison_value_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_local_slice_len_comparison_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-slice-len-comparison-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime local slice len comparison canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime local slice len comparison canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(191),
+        "expected runtime local slice len comparison canary to preserve slice len comparisons in local bool values and exit 191, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_index_transition_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_index_transition_exit");
     let main_path = canary.join("main.omg");
@@ -1006,6 +1039,39 @@ fn runtime_slice_index_transition_exit_canary_runs() {
         output.status.code(),
         Some(111),
         "expected runtime slice index transition canary to preserve whole-element copies across transitioned slice parameters and exit 111, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_iteration_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_iteration_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-iteration-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice iteration canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice iteration canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(91),
+        "expected runtime slice iteration canary to preserve iterative transitioned indexed reads and exit 91, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
