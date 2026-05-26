@@ -1,0 +1,41 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Password {
+    length: i32;
+    score: i32;
+}
+
+domain Password::Valid {
+    self.length > 0;
+}
+
+domain Password::Secure {
+    self.score >= 8;
+}
+
+data Main {
+    console: Console;
+    password: Password;
+}
+
+machine Main::main(&mut self) {
+    self.password.length = 12;
+    self.password.score = 10;
+
+    let ok: bool = self.password in Password::Valid & Password::Secure;
+
+    transition ok {
+        (true) -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(233);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(234);
+    }
+}
