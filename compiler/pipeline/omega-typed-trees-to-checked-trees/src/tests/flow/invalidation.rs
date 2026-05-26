@@ -146,7 +146,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
             .contains("cannot prove requires contract for call heal from Main::main")
             && diagnostic
                 .message
-                .contains("invalidated by prior mutation of Main::main.player.health")
+                .contains("invalidated by prior mutation of self.player.health")
     }));
 
     assert!(mark_exit_proves);
@@ -284,7 +284,7 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
             .contains("cannot prove requires contract for call heal from Main::main")
             && diagnostic
                 .message
-                .contains("invalidated by prior mutation of Main::main.player.health")
+                .contains("invalidated by prior mutation of self.player.health")
     }));
 }
 

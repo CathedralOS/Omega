@@ -1,1 +1,1 @@
-invalidated by prior mutation of Main::main.items[0].value
+invalidated by prior mutation of self.items[0].value
