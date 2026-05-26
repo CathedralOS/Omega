@@ -7,7 +7,7 @@ machine Body::set_mass(
     &mut self,
     delta: i32
 ) {
-    let next_mass: i32[range<1, 100>] = self.mass + delta;
+    let next_mass: i32 = self.mass + delta;
     self.mass = next_mass;
 }
 ```

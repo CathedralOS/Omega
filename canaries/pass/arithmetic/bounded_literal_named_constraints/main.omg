@@ -1,0 +1,22 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self
+) {
+    self.take_non_negative(0);
+    self.take_positive(1);
+    
+
+    state take_non_negative(
+        &mut self,
+        value: u32
+    ) {
+    }
+
+    state take_positive(
+        &mut self,
+        value: u32
+    ) {
+    }
+}

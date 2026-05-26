@@ -32,12 +32,11 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
                     symbol: callee_parameter_symbol,
                 },
             ));
-    let callee_fact =
-        program
-            .proof_facts
-            .append(omega_typed_trees::domain::ProofFact::Expression(
-                callee_parameter_expression,
-            ));
+    let callee_fact = program
+        .proof_facts
+        .append(omega_typed_trees::domain::ProofFact::Expression(
+            callee_parameter_expression,
+        ));
 
     let mut caller_arguments = HandleSpan::empty();
     program
@@ -171,12 +170,11 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
                     symbol: callee_player_symbol,
                 },
             ));
-    let callee_fact =
-        program
-            .proof_facts
-            .append(omega_typed_trees::domain::ProofFact::Expression(
-                player_fact_expression,
-            ));
+    let callee_fact = program
+        .proof_facts
+        .append(omega_typed_trees::domain::ProofFact::Expression(
+            player_fact_expression,
+        ));
 
     let mut caller_arguments = HandleSpan::empty();
     let self_name = Expression::Name(NamePath::resolved(
@@ -321,12 +319,11 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
                     symbol: callee_player_symbol,
                 },
             ));
-    let callee_fact =
-        program
-            .proof_facts
-            .append(omega_typed_trees::domain::ProofFact::Expression(
-                player_fact_expression,
-            ));
+    let callee_fact = program
+        .proof_facts
+        .append(omega_typed_trees::domain::ProofFact::Expression(
+            player_fact_expression,
+        ));
 
     let self_name = Expression::Name(NamePath::resolved(
         vec![Identifier::generated("self")],

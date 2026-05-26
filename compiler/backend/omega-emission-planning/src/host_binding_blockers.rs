@@ -36,7 +36,10 @@ pub(super) fn collect_host_binding_blockers(
             continue;
         };
         if !matches!(
-            input.instructions.host_binding(*operation_key).map(|binding| &binding.mechanism),
+            input
+                .instructions
+                .host_binding(*operation_key)
+                .map(|binding| &binding.mechanism),
             Some(HostBindingMechanism::Syscall { .. })
         ) {
             continue;

@@ -993,14 +993,20 @@ dependencies = [
 name = "omega-visualizations"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
+ "omega-assigned-target-operations",
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
  "omega-facts",
+ "omega-machine-bytes",
+ "omega-machine-instructions",
+ "omega-object-file",
  "omega-state-graph",
  "omega-symbol-resolved-trees",
  "omega-syntax-trees",
+ "omega-target-operations",
  "omega-typed-trees",
 ]
 

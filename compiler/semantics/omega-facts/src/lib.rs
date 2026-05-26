@@ -467,12 +467,7 @@ impl FactPlan {
                             .unwrap_or_else(SymbolHandle::invalid)
                     }
                 };
-                self.push_place_segment(
-                    place,
-                    PlaceSegment::Field {
-                        symbol,
-                    },
-                );
+                self.push_place_segment(place, PlaceSegment::Field { symbol });
                 place
             }
             ExpressionNode::Indexed(indexed) => {
@@ -862,7 +857,9 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
                 omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
                     return field.name.as_str().to_owned();
                 }
-                omega_typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
+                omega_typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == symbol =>
+                {
                     return variant.name.as_str().to_owned();
                 }
                 omega_typed_trees::data::DataMember::Field(_)
@@ -937,7 +934,10 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
     format!("symbol#{}", symbol.arena_index())
 }
 
-fn expression_type_symbol(program: &TypedTrees, expression: ExpressionHandle) -> Option<SymbolHandle> {
+fn expression_type_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
     if !expression.is_valid() {
         return None;
     }
@@ -980,7 +980,10 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
                 if parameter.symbol == symbol {
-                    return Some(type_reference_base_symbol(program, parameter.type_reference));
+                    return Some(type_reference_base_symbol(
+                        program,
+                        parameter.type_reference,
+                    ));
                 }
             }
         }
@@ -1040,7 +1043,11 @@ fn resolve_place_member_symbol(
     let place = facts.places.get(place);
     let base_symbol = fact_place_type_symbol(program, facts, place)?;
 
-    if let Some(machine) = program.machines().iter().find(|machine| machine.symbol == base_symbol) {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == base_symbol)
+    {
         if let Some(attached_data) = machine.attached_data.as_deref()
             && let Some(data) = program
                 .data_definitions()
@@ -1570,12 +1577,12 @@ mod tests {
             return_type: TypeReferenceHandle::invalid(),
             statement_nodes: HandleSpan::empty(),
         };
-        let self_type = program
-            .type_reference_table
-            .insert(omega_typed_trees::types::TypeReferenceNode::Named {
+        let self_type = program.type_reference_table.insert(
+            omega_typed_trees::types::TypeReferenceNode::Named {
                 symbol: machine_symbol,
                 name: Identifier::generated("Self"),
-            });
+            },
+        );
         program.push_state_parameter(
             &mut state,
             omega_typed_trees::signature::StateParameter {
@@ -1590,21 +1597,23 @@ mod tests {
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
 
-        let self_expression = program
-            .expression_table
-            .insert(ExpressionNode::Name(TableNamePath {
-                members: HandleSpan::empty(),
-                member_symbols: HandleSpan::empty(),
-                head_symbol: self_symbol,
-                symbol: self_symbol,
-            }));
-        let member_expression = program
-            .expression_table
-            .insert(ExpressionNode::Member(TableMemberExpression {
-                receiver: self_expression,
-                member_symbol: SymbolHandle::invalid(),
-                member: Identifier::generated("player"),
-            }));
+        let self_expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: HandleSpan::empty(),
+                    member_symbols: HandleSpan::empty(),
+                    head_symbol: self_symbol,
+                    symbol: self_symbol,
+                }));
+        let member_expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: self_expression,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: Identifier::generated("player"),
+                }));
 
         let mut facts = FactPlan::default();
         let place = facts.append_place_from_expression(&program, member_expression);

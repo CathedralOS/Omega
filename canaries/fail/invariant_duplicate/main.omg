@@ -1,8 +1,0 @@
-invariant speed_range = [finite];
-invariant speed_range = [range<0.0f, 100.0f>];
-
-data Main {
-}
-
-machine Main::main(&mut self) {
-}

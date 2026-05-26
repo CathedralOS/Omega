@@ -34,12 +34,12 @@ use super::mutation::{
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
-use omega_state_calls::{StateCallArgument, StateCallLowering, StateCallRole};
-use omega_state_guards::StateGuardLowering;
 use omega_abstract_operations::{
     InstructionOperand, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
     SelectedInstructionKind, StateGuardOperator,
 };
+use omega_state_calls::{StateCallArgument, StateCallLowering, StateCallRole};
+use omega_state_guards::StateGuardLowering;
 
 #[derive(Default)]
 pub(in crate::selection::runtime_dispatch) struct StraightLineBranchSelectionScratch {
@@ -410,11 +410,13 @@ fn select_runtime_straight_line_branch_writes(
                         )
                     },
                     &mut |kind| {
-                        selected_instructions.push(omega_abstract_operations::SelectedInstruction {
-                            kind,
-                            source_key: operation.source_key,
-                            source_statement: operation.statement_index,
-                        });
+                        selected_instructions.push(
+                            omega_abstract_operations::SelectedInstruction {
+                                kind,
+                                source_key: operation.source_key,
+                                source_statement: operation.statement_index,
+                            },
+                        );
                     },
                 ) {
                     continue;

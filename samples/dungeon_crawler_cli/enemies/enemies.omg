@@ -19,10 +19,10 @@ enum EnemyTier {
 data Enemy {
     kind: EnemyKind;
     name: String;
-    max_health: i32[exact, positive];
-    health: i32[exact, range<0, max_health>];
-    attack: i32[exact, positive];
-    defense: i32[exact, non_negative];
-    xp_reward: u32[exact];
-    depth: u32[exact];
+    max_health: i32;
+    health: i32;
+    attack: i32;
+    defense: i32;
+    xp_reward: u32;
+    depth: u32;
 }

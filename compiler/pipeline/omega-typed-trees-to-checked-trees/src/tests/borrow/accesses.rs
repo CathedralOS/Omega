@@ -220,9 +220,8 @@ fn collects_mutable_local_borrow_loans() {
     let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved =
         omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
-    let typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
 
     let facts = build_borrow_facts(&typed);
     let borrow_state = facts.states.iter().next().map(|(_, state)| state).unwrap();
@@ -257,9 +256,8 @@ fn collects_helper_returned_mutable_local_borrow_loans() {
     let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved =
         omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
-    let typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
 
     let facts = build_borrow_facts(&typed);
     let borrow_state = facts.states.iter().next().map(|(_, state)| state).unwrap();
@@ -343,6 +341,11 @@ fn collects_unresolved_local_argument_access_roots() {
 
     assert_eq!(accesses.len(), 1);
     assert_eq!(accesses[0].root_symbol, local_symbol);
-    assert!(facts.access_segments.span_or_empty(accesses[0].segments).is_empty());
+    assert!(
+        facts
+            .access_segments
+            .span_or_empty(accesses[0].segments)
+            .is_empty()
+    );
     assert_eq!(accesses[0].kind, BorrowAccessKind::Mutable);
 }

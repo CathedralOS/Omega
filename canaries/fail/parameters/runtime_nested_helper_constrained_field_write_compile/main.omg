@@ -1,0 +1,29 @@
+data Player {
+    level: u32;
+    xp: u32;
+    max_health: i32;
+    health: i32;
+    attack: i32;
+    defense: i32;
+}
+
+data PlayerSystem {
+}
+
+data Main {
+    system: PlayerSystem;
+    player: Player;
+}
+
+machine Main::main(&mut self) {
+    self.system.create(&mut self.player);
+}
+
+machine PlayerSystem::create(&mut self, player: &mut Player) {
+    player.level = 1;
+    player.xp = 0;
+    player.max_health = 30;
+    player.health = player.max_health;
+    player.attack = 4;
+    player.defense = 1;
+}

@@ -205,7 +205,11 @@ fn append_state(
 }
 
 fn state_label(syntax: &SyntaxTrees, state: &StateNode) -> String {
-    let mut label = format!("state {}\nparams: {}", state.name.as_str(), state.parameters.len());
+    let mut label = format!(
+        "state {}\nparams: {}",
+        state.name.as_str(),
+        state.parameters.len()
+    );
 
     for (statement_index, statement_handle) in syntax
         .items

@@ -1,5 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 
+use super::append_unsigned_immediate;
 use super::instruction::encode_instruction;
 
 pub(in crate::aarch64) fn encode_add_x_immediate(
@@ -20,6 +21,46 @@ pub(in crate::aarch64) fn encode_add_x_immediate(
     ))
 }
 
+pub(in crate::aarch64) fn append_add_x_constant(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    source_register: u8,
+    value: usize,
+    scratch_register: u8,
+) -> Result<(), Diagnostic> {
+    if value == 0 {
+        if destination_register != source_register {
+            bytes.extend(super::encode_move_x_register(
+                destination_register,
+                source_register,
+            ));
+        }
+        return Ok(());
+    }
+
+    if value <= 4095 {
+        bytes.extend(encode_add_x_immediate(
+            destination_register,
+            source_register,
+            value,
+        )?);
+        return Ok(());
+    }
+
+    let immediate_register = if destination_register == source_register {
+        scratch_register
+    } else {
+        destination_register
+    };
+    append_unsigned_immediate(bytes, immediate_register, value as u64);
+    bytes.extend(encode_add_x_register(
+        destination_register,
+        source_register,
+        immediate_register,
+    ));
+    Ok(())
+}
+
 pub(in crate::aarch64) fn encode_add_x_register(
     destination_register: u8,
     left_register: u8,
@@ -27,6 +68,19 @@ pub(in crate::aarch64) fn encode_add_x_register(
 ) -> [u8; 4] {
     encode_instruction(
         0x8B000000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+pub(in crate::aarch64) fn encode_and_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x8A000000
             | (u32::from(right_register) << 16)
             | (u32::from(left_register) << 5)
             | u32::from(destination_register),

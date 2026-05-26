@@ -13,18 +13,18 @@ data RoomEvents {
 
 machine RoomEvents::roll_event(
     &mut self,
-    depth: u32[exact, non_negative],
+    depth: u32,
     random: &mut RandomState,
     event: &mut RoomEvent
 ) {
-    let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
+    let roll: u32 = self.rng.range(random, 100);
     self.apply_event(depth, random, event, roll);
 
 }
 
 machine RoomEvents::event_action(
     &mut self,
-    roll: u32[exact, range<0, 100>]
+    roll: u32
     ) -> RoomEventAction {
     let is_quiet: bool = roll < 20;
     let is_fountain: bool = roll < 30;
@@ -38,10 +38,10 @@ machine RoomEvents::event_action(
 
 machine RoomEvents::apply_event(
     &mut self,
-    depth: u32[exact, non_negative],
+    depth: u32,
     random: &mut RandomState,
     event: &mut RoomEvent,
-    roll: u32[exact, range<0, 100>]
+    roll: u32
 ) {
     transition self.event_action(roll) {
         RoomEventAction::Quiet -> no_event(event)
@@ -53,10 +53,10 @@ machine RoomEvents::apply_event(
 
     state reward_event(
         &mut self,
-        depth: u32[exact, non_negative],
+        depth: u32,
         random: &mut RandomState,
         event: &mut RoomEvent,
-        roll: u32[exact, range<0, 100>]
+        roll: u32
     ) {
         transition roll < 45 {
             true -> treasure(depth, random, event)
@@ -84,7 +84,7 @@ machine RoomEvents::apply_event(
 
     state treasure(
         &mut self,
-        depth: u32[exact, non_negative],
+        depth: u32,
         random: &mut RandomState,
         event: &mut RoomEvent
     ) {
@@ -95,7 +95,7 @@ machine RoomEvents::apply_event(
 
     state gold_cache(
         &mut self,
-        depth: u32[exact, non_negative],
+        depth: u32,
         random: &mut RandomState,
         event: &mut RoomEvent
     ) {
@@ -106,7 +106,7 @@ machine RoomEvents::apply_event(
 
     state enemy(
         &mut self,
-        depth: u32[exact, non_negative],
+        depth: u32,
         random: &mut RandomState,
         event: &mut RoomEvent
     ) {

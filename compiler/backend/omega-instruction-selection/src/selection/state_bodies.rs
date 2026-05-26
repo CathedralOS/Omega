@@ -15,13 +15,13 @@ use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
 use super::runtime_dispatch::{
-    RuntimeStorageWriteScratch, select_runtime_frame_slot_value_write_in_table,
-    select_runtime_resolved_mutation_write,
+    RuntimeStorageWriteScratch, runtime_frame_slot_target_expression,
+    select_runtime_frame_slot_value_write_in_table, select_runtime_resolved_mutation_write,
     select_runtime_storage_resolved_mutation_write_in_table_with_scratch,
     select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
-use omega_state_calls::StateCall;
 use omega_abstract_operations::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
+use omega_state_calls::StateCall;
 
 const INLINE_STATE_BODY_VISIT_COUNT: usize = 16;
 
@@ -132,6 +132,7 @@ pub(super) fn select_state_body_instructions(
                 aliases,
                 alias_expressions,
                 &mut expressions,
+                &mut mutation_mutable_expressions,
                 &mut mutation_segment_expressions,
                 &mut static_values,
                 runtime_value_operands,
@@ -386,7 +387,8 @@ fn select_runtime_state_body_local_initializer_write(
     aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     expressions: &mut ExpressionTable,
-    _segment_expressions: &mut ExpressionTable,
+    mutable_expressions: &mut ExpressionTable,
+    segment_expressions: &mut ExpressionTable,
     static_values: &mut super::runtime_dispatch::RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -438,6 +440,27 @@ fn select_runtime_state_body_local_initializer_write(
             source_key: state_key,
             source_statement: statement_index,
         });
+        return;
+    }
+
+    let target = runtime_frame_slot_target_expression(expressions, slot);
+    if select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
+        input,
+        dispatch_index,
+        state_key,
+        state_key,
+        resolved_initializer.source_key,
+        statement_index,
+        expressions,
+        target,
+        resolved_initializer.expression,
+        &[],
+        static_values,
+        mutable_expressions,
+        segment_expressions,
+        runtime_value_operands,
+        selected_instructions,
+    ) {
         return;
     }
 }

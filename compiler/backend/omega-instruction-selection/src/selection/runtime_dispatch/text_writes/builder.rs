@@ -7,17 +7,18 @@ use crate::selection::bindings::{
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place_in_table;
 use crate::selection::storage_places::{
-    RuntimeFrameIndexedTarget, RuntimePointeeTarget, RuntimeStoragePlace,
-    resolve_runtime_frame_indexed_target, resolve_runtime_frame_indexed_target_in_table,
+    RuntimeFrameIndexedTarget, RuntimeMachineIndexedTarget, RuntimePointeeTarget,
+    RuntimeStoragePlace, resolve_runtime_frame_indexed_target,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset, resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+};
+use omega_abstract_operations::{
+    RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle, TargetDataObjectKind,
 };
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
-use omega_abstract_operations::{
-    RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle, TargetDataObjectKind,
-};
 use std::sync::Arc;
 
 const UNSUPPORTED_RUNTIME_TEXT_SEGMENT: &str = "<expr>";
@@ -26,6 +27,7 @@ const UNSUPPORTED_RUNTIME_TEXT_SEGMENT: &str = "<expr>";
 struct RuntimeTextTarget {
     place: Option<RuntimeStoragePlace>,
     indexed: Option<RuntimeFrameIndexedTarget>,
+    machine_indexed: Option<RuntimeMachineIndexedTarget>,
     pointee: Option<RuntimePointeeTarget>,
 }
 
@@ -34,9 +36,10 @@ impl RuntimeTextTarget {
         input: &InstructionSelectionInput<'_>,
         place: Option<RuntimeStoragePlace>,
         indexed: Option<RuntimeFrameIndexedTarget>,
+        machine_indexed: Option<RuntimeMachineIndexedTarget>,
         pointee: Option<RuntimePointeeTarget>,
     ) -> Option<Self> {
-        if place.is_none() && pointee.is_none() && indexed.is_none() {
+        if place.is_none() && pointee.is_none() && indexed.is_none() && machine_indexed.is_none() {
             return None;
         }
         if place
@@ -45,13 +48,18 @@ impl RuntimeTextTarget {
         {
             return None;
         }
-        if pointee
-            .as_ref()
-            .is_some_and(|target| target.pointee_byte_size != input.runtime_abi.string_descriptor_size())
-        {
+        if pointee.as_ref().is_some_and(|target| {
+            target.pointee_byte_size != input.runtime_abi.string_descriptor_size()
+        }) {
             return None;
         }
         if indexed
+            .as_ref()
+            .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
+        {
+            return None;
+        }
+        if machine_indexed
             .as_ref()
             .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
         {
@@ -61,6 +69,7 @@ impl RuntimeTextTarget {
         Some(Self {
             place,
             indexed,
+            machine_indexed,
             pointee,
         })
     }
@@ -167,9 +176,22 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
     );
     let target_indexed =
         resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, &resolved_target);
+    let mut machine_indexed_expressions = ExpressionTable::default();
+    let machine_indexed_target = machine_indexed_expressions.insert_tree(&resolved_target);
+    let target_machine_indexed = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &machine_indexed_expressions,
+        machine_indexed_target,
+    );
     let target_pointee =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
-    if target_place.is_none() && target_pointee.is_none() && target_indexed.is_none() {
+    if target_place.is_none()
+        && target_pointee.is_none()
+        && target_indexed.is_none()
+        && target_machine_indexed.is_none()
+    {
         return false;
     }
     if target_place
@@ -178,13 +200,18 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
     {
         return false;
     }
-    if target_pointee
-        .as_ref()
-        .is_some_and(|target| target.pointee_byte_size != input.runtime_abi.string_descriptor_size())
-    {
+    if target_pointee.as_ref().is_some_and(|target| {
+        target.pointee_byte_size != input.runtime_abi.string_descriptor_size()
+    }) {
         return false;
     }
     if target_indexed
+        .as_ref()
+        .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
+    {
+        return false;
+    }
+    if target_machine_indexed
         .as_ref()
         .is_some_and(|target| target.byte_count != input.runtime_abi.string_descriptor_size())
     {
@@ -213,6 +240,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
         input,
         target_place.clone(),
         target_indexed.clone(),
+        target_machine_indexed,
         target_pointee,
     ) else {
         return false;
@@ -300,10 +328,14 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                     return false;
                 };
                 if !append_runtime_text_literal_to_target(
+                    input,
+                    source_key,
+                    statement_index,
                     buffer,
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.machine_indexed.as_ref(),
                     literal,
                     emit,
                 ) {
@@ -313,10 +345,14 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
             }
             RuntimeTextBuilderSegmentKind::OtherExpression => {
                 if !append_runtime_text_literal_to_target(
+                    input,
+                    source_key,
+                    statement_index,
                     buffer,
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.machine_indexed.as_ref(),
                     Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
                     emit,
                 ) {
@@ -378,8 +414,23 @@ pub(in crate::selection) fn runtime_text_builder_write_with_handle_resolver_emit
         resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, &resolved_target);
     let target_pointee =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
-    let Some(target) = RuntimeTextTarget::new(input, target_place, target_indexed, target_pointee)
-    else {
+    let mut machine_indexed_target_expressions = ExpressionTable::default();
+    let machine_indexed_target_expression =
+        machine_indexed_target_expressions.insert_tree(&resolved_target);
+    let target_machine_indexed = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &machine_indexed_target_expressions,
+        machine_indexed_target_expression,
+    );
+    let Some(target) = RuntimeTextTarget::new(
+        input,
+        target_place,
+        target_indexed,
+        target_machine_indexed,
+        target_pointee,
+    ) else {
         return false;
     };
     emit_runtime_text_builder_segments_with_handle_resolver(
@@ -449,6 +500,13 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
         target_expressions,
         resolved_target,
     );
+    let target_machine_indexed = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        target_expressions,
+        resolved_target,
+    );
     let target_pointee = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
@@ -456,8 +514,13 @@ pub(in crate::selection) fn runtime_text_builder_write_in_table_emit(
         target_expressions,
         resolved_target,
     );
-    let Some(target) = RuntimeTextTarget::new(input, target_place, target_indexed, target_pointee)
-    else {
+    let Some(target) = RuntimeTextTarget::new(
+        input,
+        target_place,
+        target_indexed,
+        target_machine_indexed,
+        target_pointee,
+    ) else {
         return false;
     };
     emit_runtime_text_builder_segments_with_handle_resolver(
@@ -592,10 +655,14 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                     return false;
                 };
                 if !append_runtime_text_literal_to_target(
+                    input,
+                    source_key,
+                    statement_index,
                     buffer,
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.machine_indexed.as_ref(),
                     literal,
                     emit,
                 ) {
@@ -605,10 +672,14 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
             }
             RuntimeTextBuilderSegmentKind::OtherExpression => {
                 if !append_runtime_text_literal_to_target(
+                    input,
+                    source_key,
+                    statement_index,
                     buffer,
                     target.place.as_ref(),
                     target.pointee.as_ref(),
                     target.indexed.as_ref(),
+                    target.machine_indexed.as_ref(),
                     Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
                     emit,
                 ) {
@@ -623,10 +694,14 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
 }
 
 fn append_runtime_text_literal_to_target(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
     buffer: TargetDataObjectHandle,
     target_place: Option<&RuntimeStoragePlace>,
     target_pointee: Option<&RuntimePointeeTarget>,
     target_indexed: Option<&RuntimeFrameIndexedTarget>,
+    target_machine_indexed: Option<&RuntimeMachineIndexedTarget>,
     literal: Arc<str>,
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
@@ -657,6 +732,19 @@ fn append_runtime_text_literal_to_target(
                 literal,
             },
         );
+    } else if let Some(target) = target_machine_indexed {
+        let data = string_literal_data_handle(input, source_key, statement_index, &literal);
+        if !data.is_valid() {
+            return false;
+        }
+        emit(SelectedInstructionKind::WriteRuntimeMachineIndexedString {
+            base_byte_offset: target.base_byte_offset,
+            index_offset: target.index_offset,
+            element_byte_size: target.element_byte_size,
+            field_byte_offset: target.field_byte_offset,
+            data,
+            byte_length: literal.len(),
+        });
     } else {
         return false;
     }
@@ -716,6 +804,15 @@ fn initialize_runtime_text_target_with_first_literal_segment(
     } else if let Some(target) = target.indexed.as_ref() {
         emit(SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset: target.descriptor_offset,
+            index_offset: target.index_offset,
+            element_byte_size: target.element_byte_size,
+            field_byte_offset: target.field_byte_offset,
+            data,
+            byte_length: literal.len(),
+        });
+    } else if let Some(target) = target.machine_indexed.as_ref() {
+        emit(SelectedInstructionKind::WriteRuntimeMachineIndexedString {
+            base_byte_offset: target.base_byte_offset,
             index_offset: target.index_offset,
             element_byte_size: target.element_byte_size,
             field_byte_offset: target.field_byte_offset,

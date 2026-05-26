@@ -245,6 +245,26 @@ boundary trait Filesystem {
 }
 ```
 
+The same idea likely extends to text encodings and ABI string constraints.
+Instead of growing separate surface types such as `CString`, `OsString`, or
+`Utf16String`, a boundary should usually ask for the string domains it
+actually needs:
+
+```omega
+boundary trait CConsole {
+    machine write(text: String)
+    requires
+        text in String::Utf8 & String::NoNul
+    effects
+        stdout_io;
+}
+```
+
+That keeps encoding and interop requirements inside Omega's ordinary domain
+system. The hard unresolved piece is proving or checking sequence-wide facts
+such as UTF-8 validity efficiently enough that common text handling does not
+turn into byte-by-byte proof boilerplate.
+
 Target metadata such as library artifact, symbol, syscall number, calling
 convention, and trust root belongs in toolchain host packages or explicitly
 whitelisted boundary providers. Pulling in a boundary with `filesystem_io`,

@@ -105,7 +105,7 @@ are not part of Chapter 1's core model.
 
 ```omega
 data Player {
-    health: i32[range<0, 100>];
+    health: i32;
 }
 ```
 

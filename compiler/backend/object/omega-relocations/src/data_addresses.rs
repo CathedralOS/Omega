@@ -17,7 +17,10 @@ pub(super) fn collect_data_address_relocations(
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
 ) {
-    let Some(operands) = input.assigned_target_operations.instruction_operands(operands) else {
+    let Some(operands) = input
+        .assigned_target_operations
+        .instruction_operands(operands)
+    else {
         return;
     };
 

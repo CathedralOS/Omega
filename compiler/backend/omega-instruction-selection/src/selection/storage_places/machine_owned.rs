@@ -2,12 +2,19 @@ use super::expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
 use super::nested_fields::{
+    NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
 };
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{FieldLayout, LayoutPlan};
+use omega_layout::{FieldLayout, LayoutPlan, TypeLayoutDescriptor};
+
+#[derive(Clone)]
+pub(in crate::selection) struct MachineOwnedCollectionTarget {
+    pub(in crate::selection) byte_offset: usize,
+    pub(in crate::selection) type_descriptor: TypeLayoutDescriptor,
+}
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,
@@ -44,6 +51,33 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
         resolve_nested_field_layout_with_pairs(layouts, root_field, suffix.iter())?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
+    layouts: &LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<MachineOwnedCollectionTarget> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let (machine_base_offset, root_field, suffix_start_index) =
+        root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
+    let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
+    for (field_name, field_symbol, field_index) in path.suffix(suffix_start_index).iter() {
+        cursor = resolve_nested_field_layout_step(
+            layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+        )?;
+    }
+
+    Some(MachineOwnedCollectionTarget {
+        byte_offset: machine_base_offset + cursor.byte_offset(),
+        type_descriptor: cursor.type_descriptor().clone(),
+    })
 }
 
 fn root_machine_field_layout_from_table_path<'path, 'layout>(

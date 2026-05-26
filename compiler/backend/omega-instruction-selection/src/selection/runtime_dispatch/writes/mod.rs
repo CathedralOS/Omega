@@ -9,6 +9,7 @@ use super::super::lookups::state_mutation_for_statement;
 use super::text_writes::runtime_text_builder_write_in_table_emit;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_abstract_operations::{RuntimeValueOperand, SelectedInstruction};
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
 };
@@ -17,7 +18,6 @@ use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use omega_abstract_operations::{RuntimeValueOperand, SelectedInstruction};
 pub(crate) use static_values::RuntimeStaticValues;
 
 pub(in crate::selection) use mutation::{

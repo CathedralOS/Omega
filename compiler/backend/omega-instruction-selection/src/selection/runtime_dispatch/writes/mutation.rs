@@ -1,5 +1,9 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_abstract_operations::{
+    RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
+    SelectedInstructionKind, StateGuardOperator,
+};
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
     TableCallExpression, TableNamePath,
@@ -8,10 +12,6 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
-use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind, StateGuardOperator,
-};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix, resolve_runtime_alias_binding,
@@ -20,7 +20,8 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_indexed_target,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
 };
@@ -412,6 +413,42 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
         });
     }
 
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    {
+        set_runtime_static_value_in_table(static_values, expressions, target, value);
+        return Some(SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
+            base_byte_offset: indexed_target.base_byte_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            value,
+        });
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(pointer_target.pointee_byte_size)
+    {
+        set_runtime_static_value_in_table(static_values, expressions, target, value);
+        return Some(SelectedInstructionKind::WriteRuntimePointeeInteger {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+            value,
+        });
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
@@ -460,6 +497,23 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
 ) -> Option<SelectedInstructionKind> {
     let value = expressions.string_literal_value(value)?;
     let data = string_literal_data_handle(input, operation_source_key, statement_index, &value);
+
+    if data.is_valid()
+        && let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+    {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
 
     if data.is_valid()
         && let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -614,6 +668,23 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
             byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
             left,
             operator,
             right,
@@ -1509,6 +1580,7 @@ fn resolve_runtime_value_operand(
 fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::And => Some(StateGuardOperator::And),
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
         BinaryOperator::Greater => Some(StateGuardOperator::Greater),
         BinaryOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqual),
@@ -1518,8 +1590,7 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::And
-        | BinaryOperator::Divide
+        BinaryOperator::Divide
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,

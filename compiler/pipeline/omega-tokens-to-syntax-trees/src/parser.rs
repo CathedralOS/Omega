@@ -258,6 +258,67 @@ mod tests {
     }
 
     #[test]
+    fn parses_executable_domain_membership_expression() {
+        let source = r#"
+        data Player {
+            health: i32;
+        }
+
+        data Main {
+            alive: Player;
+        }
+
+        machine Main::main(&mut self) {
+            transition (self.alive in Player::Alive) {
+                (true) -> done()
+                _ -> done()
+            }
+
+            state done(&mut self) {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+        let entry = parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state");
+        let state = parsed.items.state(entry);
+        let omega_syntax_trees::statement::StatementNode::Transition(transition) = parsed
+            .statement_table
+            .statements(state.statement_nodes)
+            .first()
+            .expect("entry transition")
+        else {
+            panic!("entry should start with transition")
+        };
+        let omega_syntax_trees::statement::TransitionTargetNode::Match { subject, arms } =
+            parsed.statement_table.transition_target(transition.target)
+        else {
+            panic!("transition target should lower as a match");
+        };
+        let subject = parsed.statement_table.expression_handles(*subject);
+        assert_eq!(subject.len(), 1);
+        assert!(matches!(
+            parsed.expressions.expression(subject[0]),
+            ExpressionNode::Membership(_)
+        ));
+        assert_eq!(parsed.statement_table.transition_arms(*arms).len(), 2);
+    }
+
+    #[test]
     fn parses_export_items_with_optional_alias() {
         let source = r#"
         export internal_regex::Match as Match;

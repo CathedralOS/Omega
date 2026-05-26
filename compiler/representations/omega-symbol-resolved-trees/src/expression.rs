@@ -217,6 +217,15 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            ExpressionNode::Membership(membership) => {
+                let value = self.copy_from(source, membership.value);
+                let domain = self.copy_name_path_members(source, membership.domain);
+                self.insert(ExpressionNode::Membership(TableMembershipExpression {
+                    value,
+                    domain,
+                    domain_symbol: membership.domain_symbol,
+                }))
+            }
             ExpressionNode::Member(member) => {
                 let receiver = self.copy_from(source, member.receiver);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
@@ -555,6 +564,15 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
+            ExpressionNode::Membership(membership) => {
+                let value = self.copy_from_self(membership.value);
+                let domain = self.copy_name_path_members_from_self(membership.domain);
+                self.insert(ExpressionNode::Membership(TableMembershipExpression {
+                    value,
+                    domain,
+                    domain_symbol: membership.domain_symbol,
+                }))
+            }
             ExpressionNode::Member(member) => {
                 let receiver = self.copy_from_self(member.receiver);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
@@ -771,6 +789,7 @@ pub enum ExpressionNode {
     Float(FloatLiteral),
     Indexed(TableIndexedExpression),
     Integer(i64),
+    Membership(TableMembershipExpression),
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(TableNamePath),
@@ -801,6 +820,13 @@ pub struct TableCastExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableMembershipExpression {
+    pub value: ExpressionHandle,
+    pub domain: HandleSpan<DiagnosticName>,
+    pub domain_symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -924,6 +950,13 @@ impl ExpressionNode {
                 )
             }
             Self::Integer(value) => value.to_string(),
+            Self::Membership(membership) => {
+                format!(
+                    "{} in {}",
+                    table.display_name(membership.value),
+                    display_name_path(table.name_path_members(membership.domain), "::")
+                )
+            }
             Self::Member(member) => {
                 format!("{}.{}", table.display_name(member.receiver), member.member)
             }

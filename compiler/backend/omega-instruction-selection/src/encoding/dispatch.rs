@@ -1,8 +1,8 @@
+use omega_abstract_operations::StateGuardOperator;
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
-use omega_abstract_operations::StateGuardOperator;
 
 pub fn encode_dispatch_loop_enter_bytes(
     architecture: Architecture,

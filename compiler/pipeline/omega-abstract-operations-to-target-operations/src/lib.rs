@@ -24,7 +24,9 @@ pub fn build_target_operation_plan(
     );
 
     for (_, operand) in abstract_operations.operands.iter() {
-        target_operations.operands.insert(translate_operand(operand));
+        target_operations
+            .operands
+            .insert(translate_operand(operand));
     }
     for (_, operand) in abstract_operations.runtime_value_operands.iter() {
         target_operations
@@ -39,19 +41,16 @@ pub fn build_target_operation_plan(
     }
 
     for (_, function) in abstract_operations.functions.iter() {
-        target_operations
-            .functions
-            .insert(TargetOperationFunction {
-                symbol: std::sync::Arc::clone(&function.symbol),
-                source_key: function.source_key,
-                instructions: remap_instruction_span(function.instructions),
-            });
+        target_operations.functions.insert(TargetOperationFunction {
+            symbol: std::sync::Arc::clone(&function.symbol),
+            source_key: function.source_key,
+            instructions: remap_instruction_span(function.instructions),
+        });
     }
 
     for (instruction_key, instruction) in abstract_operations.instructions.iter() {
-        let omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine {
-            ..
-        } = &instruction.kind
+        let omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine { .. } =
+            &instruction.kind
         else {
             continue;
         };

@@ -1,12 +1,13 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_indexed_target, resolve_runtime_storage_place,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_storage_place,
 };
-use omega_checked_trees::expression::Expression;
-use omega_control_flow::StateKey;
 use omega_abstract_operations::TargetDataObjectHandle;
 use omega_abstract_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_checked_trees::expression::Expression;
+use omega_control_flow::StateKey;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_string_descriptor_write(
@@ -36,6 +37,32 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeFrameIndexedString {
                 descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                data,
+                byte_length: value.len(),
+            },
+            source_key: literal_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
+    let mut machine_indexed_expressions =
+        omega_checked_trees::expression::ExpressionTable::default();
+    let target_handle = machine_indexed_expressions.insert_tree(resolved_target);
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        &machine_indexed_expressions,
+        target_handle,
+    ) && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeMachineIndexedString {
+                base_byte_offset: indexed_target.base_byte_offset,
                 index_offset: indexed_target.index_offset,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,

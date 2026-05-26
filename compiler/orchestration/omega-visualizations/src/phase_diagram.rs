@@ -2,6 +2,7 @@
 struct PhaseDiagramNode {
     id: String,
     label: String,
+    scoped_label: Option<String>,
     details: Option<String>,
     kind: String,
     rank: usize,
@@ -69,6 +70,7 @@ impl PhaseDiagramBuilder {
         self.nodes.push(PhaseDiagramNode {
             id: id.clone(),
             label: label.into(),
+            scoped_label: None,
             details: None,
             kind: kind.into(),
             rank,
@@ -90,6 +92,7 @@ impl PhaseDiagramBuilder {
         self.nodes.push(PhaseDiagramNode {
             id: id.clone(),
             label: label.into(),
+            scoped_label: None,
             details: None,
             kind: kind.into(),
             rank,
@@ -105,6 +108,14 @@ impl PhaseDiagramBuilder {
         };
 
         node.details = Some(details.into());
+    }
+
+    pub fn node_scoped_label(&mut self, id: &str, label: impl Into<String>) {
+        let Some(node) = self.nodes.iter_mut().find(|node| node.id == id) else {
+            return;
+        };
+
+        node.scoped_label = Some(label.into());
     }
 
     pub fn node_effects(&mut self, id: &str, effects: impl IntoIterator<Item = impl Into<String>>) {
@@ -274,6 +285,10 @@ fn push_graph_json(
         push_json_string(output, &node.id);
         output.push_str(",\"label\":");
         push_json_string(output, &node.label);
+        if let Some(scoped_label) = &node.scoped_label {
+            output.push_str(",\"scopedLabel\":");
+            push_json_string(output, scoped_label);
+        }
         if let Some(details) = &node.details {
             output.push_str(",\"details\":");
             push_json_string(output, details);
@@ -542,7 +557,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .edge.implements_data { stroke: #b089f0; opacity: 0.82; stroke-dasharray: 10 5; }
 .edge.satisfies_trait { stroke: #4dd4c6; opacity: 0.82; stroke-dasharray: 8 3; }
 .edge.requires_trait { stroke: #ffcf5c; opacity: 0.82; stroke-dasharray: 3 3; }
-.edge.call { stroke: #ff9f7f; opacity: 0.82; stroke-dasharray: 8 2 2 2; }
+.edge.call { stroke: #ff9f7f; opacity: 0.9; stroke-width: 1.8; stroke-dasharray: 8 2 2 2; }
 .edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
 .edge.transition_continuation { stroke: #8ab4ff; opacity: 0.78; stroke-width: 1.6; stroke-dasharray: 5 4; }
 .edge.transition_target_loopback { stroke: #73f7b8; opacity: 0.95; stroke-width: 2.2; stroke-dasharray: 3 3; }
@@ -565,7 +580,7 @@ main { min-width: 0; min-height: 0; position: relative; }
 .node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
 .node.state_block rect { fill: #142637; stroke: #6fbce6; }
 .node.statement rect { fill: #241e1c; stroke: #db8f61; }
-.node.scoped_statement rect { fill: #1c1715; stroke: #c47b52; stroke-dasharray: 6 3; }
+.node.scoped_block rect { fill: #1c1715; stroke: #c47b52; stroke-dasharray: 6 3; }
 .node.external rect {
   stroke: #ffcf5c;
   stroke-dasharray: 7 4;
@@ -817,7 +832,7 @@ const TOP = 60;
 const SECTION_GAP_Y = 70;
 const OWNER_COLUMNS = 2;
 const DATA_COLUMNS = 4;
-const nodeBoxes = new Map(GRAPH.nodes.map(node => [node.id, measureNode(node)]));
+const nodeBoxes = new Map();
 const positions = new Map();
 let graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
 let selectedId = null;
@@ -827,6 +842,17 @@ let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
 let transform = { x: 0, y: 0, scale: 1 };
 let lastActivation = { id: null, time: 0 };
 let activeEffect = null;
+
+function displayLabel(node) {
+  if (node.scopedLabel && scopedId && containedNodeSet(scopedId).has(node.id)) {
+    return node.scopedLabel;
+  }
+  return node.label;
+}
+
+function isExpandedScopedLabel(node) {
+  return Boolean(node.scopedLabel && scopedId && containedNodeSet(scopedId).has(node.id));
+}
 
 function layoutGraph(allowedIds = null) {
   positions.clear();
@@ -867,6 +893,82 @@ function hasContainmentParentIn(id, allowed) {
   return false;
 }
 
+function usesContainedGraphLayout(id, children) {
+  if (children.length === 0) return false;
+  const node = nodeById.get(id);
+  if (!node || node.kind !== "state_block") return false;
+  return children.every(childId => nodeById.get(childId)?.kind === "scoped_block");
+}
+
+function graphChildrenLayout(children, allowed) {
+  const childSet = new Set(children.filter(childId => allowed.has(childId) && nodeById.has(childId)));
+  if (childSet.size === 0) {
+    return { positions: new Map(), width: 0, height: 0 };
+  }
+
+  const outgoing = new Map(Array.from(childSet, id => [id, []]));
+  const incomingCount = new Map(Array.from(childSet, id => [id, 0]));
+  for (const edge of GRAPH.edges) {
+    if (!childSet.has(edge.from) || !childSet.has(edge.to)) continue;
+    if (edge.kind === "contains") continue;
+    outgoing.get(edge.from).push(edge.to);
+    incomingCount.set(edge.to, (incomingCount.get(edge.to) || 0) + 1);
+  }
+
+  const ranks = new Map();
+  const roots = Array.from(childSet).filter(id => (incomingCount.get(id) || 0) === 0);
+  const pendingRoots = roots.length > 0 ? roots : Array.from(childSet).slice(0, 1);
+
+  for (const root of pendingRoots) assignFallbackRanks(root, 0, ranks, outgoing);
+  for (const id of childSet) {
+    if (!ranks.has(id)) assignFallbackRanks(id, 0, ranks, outgoing);
+  }
+
+  const ids = Array.from(childSet).sort((a, b) => {
+    const rankDiff = (ranks.get(a) || 0) - (ranks.get(b) || 0);
+    if (rankDiff !== 0) return rankDiff;
+    return a.localeCompare(b);
+  });
+
+  const columns = new Map();
+  for (const id of ids) {
+    const rank = ranks.get(id) || 0;
+    const column = columns.get(rank) || [];
+    column.push(id);
+    columns.set(rank, column);
+  }
+
+  const orderedRanks = Array.from(columns.keys()).sort((a, b) => a - b);
+  const columnWidths = orderedRanks.map(rank => maxNodeWidth(columns.get(rank) || []));
+  const positions = new Map();
+  let cursorX = 0;
+  let totalHeight = 0;
+
+  orderedRanks.forEach((rank, rankIndex) => {
+    const idsInColumn = columns.get(rank) || [];
+    const columnWidth = columnWidths[rankIndex] || NODE_W;
+    let cursorY = 0;
+    idsInColumn.forEach((childId, childIndex) => {
+      const box = nodeBox(childId);
+      positions.set(childId, {
+        x: cursorX + Math.max(0, (columnWidth - box.width) / 2),
+        y: cursorY,
+        width: box.width,
+        height: box.height
+      });
+      cursorY += box.height + (childIndex + 1 < idsInColumn.length ? ROW_GAP : 0);
+    });
+    totalHeight = Math.max(totalHeight, cursorY);
+    cursorX += columnWidth + (rankIndex + 1 < orderedRanks.length ? RANK_GAP : 0);
+  });
+
+  return {
+    positions,
+    width: Math.max(0, cursorX),
+    height: totalHeight
+  };
+}
+
 function layoutSubtreeWidth(id, seen, allowed) {
   if (seen.has(id)) {
     return nodeBox(id).width;
@@ -879,6 +981,12 @@ function layoutSubtreeWidth(id, seen, allowed) {
   if (children.length === 0) {
     seen.delete(id);
     return box.width;
+  }
+
+  if (usesContainedGraphLayout(id, children)) {
+    const graph = graphChildrenLayout(children, allowed);
+    seen.delete(id);
+    return Math.max(box.width, graph.width);
   }
 
   const childrenWidth = children
@@ -902,6 +1010,12 @@ function layoutSubtreeHeight(id, seen, allowed) {
     return box.height;
   }
 
+  if (usesContainedGraphLayout(id, children)) {
+    const graph = graphChildrenLayout(children, allowed);
+    seen.delete(id);
+    return box.height + TREE_LEVEL_GAP + graph.height;
+  }
+
   const childHeight = Math.max(...children.map(childId => layoutSubtreeHeight(childId, seen, allowed)));
   seen.delete(id);
   return box.height + TREE_LEVEL_GAP + childHeight;
@@ -920,6 +1034,19 @@ function layoutSubtree(id, x, y, seen, allowed) {
   placeNode(id, x + Math.max(0, (subtreeWidth - box.width) / 2), y);
 
   if (children.length === 0) {
+    seen.delete(id);
+    return subtreeWidth;
+  }
+
+  if (usesContainedGraphLayout(id, children)) {
+    const graph = graphChildrenLayout(children, allowed);
+    const childY = y + box.height + TREE_LEVEL_GAP;
+    const graphX = x + Math.max(0, (subtreeWidth - graph.width) / 2);
+    for (const childId of children) {
+      const relative = graph.positions.get(childId);
+      if (!relative) continue;
+      placeNode(childId, graphX + relative.x, childY + relative.y);
+    }
     seen.delete(id);
     return subtreeWidth;
   }
@@ -988,13 +1115,36 @@ function fallbackLayout(allowedIds = null) {
 }
 
 function measureNode(node) {
-  const lines = node.label.split("\n");
-  const shownLines = Math.min(lines.length, NODE_MAX_LINES);
-  const maxChars = lines.slice(0, NODE_MAX_LINES).reduce((max, line) => Math.max(max, line.length), 0);
+  const lines = displayLabel(node).split("\n");
+  const measuredLines = isExpandedScopedLabel(node) ? lines : lines.slice(0, NODE_MAX_LINES);
+  const shownLines = measuredLines.length;
+  const maxChars = measuredLines.reduce((max, line) => Math.max(max, line.length), 0);
   return {
     width: Math.min(NODE_MAX_W, Math.max(NODE_W, 28 + maxChars * 7.2)),
-    height: Math.max(NODE_H, 30 + shownLines * LINE_H + (lines.length > NODE_MAX_LINES ? LINE_H : 0))
+    height: Math.max(
+      NODE_H,
+      30 + shownLines * LINE_H + (!isExpandedScopedLabel(node) && lines.length > NODE_MAX_LINES ? LINE_H : 0)
+    )
   };
+}
+
+function refreshNodePresentation() {
+  for (const node of GRAPH.nodes) {
+    const box = measureNode(node);
+    nodeBoxes.set(node.id, box);
+    const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
+    if (!element) continue;
+    const rect = element.querySelector("rect");
+    if (rect) {
+      rect.setAttribute("width", box.width);
+      rect.setAttribute("height", box.height);
+    }
+    const title = element.querySelector("title");
+    const label = displayLabel(node);
+    if (title) title.textContent = label;
+    element.querySelectorAll("text").forEach(text => text.remove());
+    populateNodeText(element, node, box, label);
+  }
 }
 
 function nodeBox(id) {
@@ -1030,6 +1180,7 @@ function assignFallbackRanks(root, rootRank, ranks, outgoing) {
   }
 }
 
+refreshNodePresentation();
 layoutGraph();
 
 function calculateBounds() {
@@ -1265,6 +1416,17 @@ function edgePath(from, to, kind) {
   const ay = a.y + a.height;
   const bx = b.x + b.width / 2;
   const by = b.y;
+  if (kind === "call") {
+    const targetOnRight = bx >= ax;
+    const sx = targetOnRight ? a.x + a.width : a.x;
+    const sy = a.y + a.height / 2;
+    const tx = targetOnRight ? b.x : b.x + b.width;
+    const ty = b.y + b.height / 2;
+    const dx = Math.max(42, Math.abs(tx - sx) * 0.35);
+    const c1x = sx + (targetOnRight ? dx : -dx);
+    const c2x = tx - (targetOnRight ? dx : -dx);
+    return `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`;
+  }
   if (kind === "sequence") {
     const sx = a.x + a.width / 2;
     const sy = a.y + a.height;
@@ -1297,22 +1459,10 @@ function drawNode(node) {
   });
   group.appendChild(el("rect", { width: box.width, height: box.height }));
   const title = el("title");
-  title.textContent = node.label;
+  const label = displayLabel(node);
+  title.textContent = label;
   group.appendChild(title);
-
-  const allLines = node.label.split("\n");
-  const lines = allLines.slice(0, NODE_MAX_LINES);
-  if (allLines.length > NODE_MAX_LINES) lines.push(`... ${allLines.length - NODE_MAX_LINES} more lines`);
-  const maxChars = Math.max(8, Math.floor((box.width - 28) / 7.2));
-  lines.forEach((line, index) => {
-    const text = el("text", {
-      x: 14,
-      y: 22 + index * 16,
-      "class": index === 0 ? "" : "subtitle"
-    });
-    appendStyledLine(text, fitLine(line, maxChars));
-    group.appendChild(text);
-  });
+  populateNodeText(group, node, box, label);
   group.addEventListener("pointerdown", event => {
     event.stopPropagation();
   });
@@ -1349,6 +1499,26 @@ function drawNode(node) {
     applyRelationshipHighlight();
   });
   nodeLayer.appendChild(group);
+}
+
+function populateNodeText(group, node, box, label) {
+  const allLines = label.split("\n");
+  const lines = isExpandedScopedLabel(node)
+    ? allLines
+    : allLines.slice(0, NODE_MAX_LINES);
+  if (!isExpandedScopedLabel(node) && allLines.length > NODE_MAX_LINES) {
+    lines.push(`... ${allLines.length - NODE_MAX_LINES} more lines`);
+  }
+  const maxChars = Math.max(8, Math.floor((box.width - 28) / 7.2));
+  lines.forEach((line, index) => {
+    const text = el("text", {
+      x: 14,
+      y: 22 + index * 16,
+      "class": index === 0 ? "" : "subtitle"
+    });
+    appendStyledLine(text, fitLine(line, maxChars));
+    group.appendChild(text);
+  });
 }
 
 function fitLine(line, max) {
@@ -1570,6 +1740,7 @@ function updateGeometry() {
 }
 
 function applyFilters() {
+  refreshNodePresentation();
   const query = search.value.trim().toLowerCase();
   const showDataNodes = showData.checked;
   const scopedNodes = scopedNodeSet(scopedId);
@@ -1578,7 +1749,7 @@ function applyFilters() {
   visibleNodeIds = new Set();
   for (const node of GRAPH.nodes) {
     const inScope = scopedNodes.has(node.id);
-    const requiresExplicitScope = node.kind === "scoped_statement";
+    const requiresExplicitScope = node.kind === "scoped_block";
     const scopeAllowsNode = !requiresExplicitScope || (scopedId && containedNodes.has(node.id));
     const visible = inScope
       && scopeAllowsNode

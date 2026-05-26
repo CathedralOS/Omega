@@ -1,13 +1,12 @@
 use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, MachineOwnedDataFlow, Operation,
     OperationExpressionRefs, OperationKind, PlannedTransitionTarget, ProofFactKind,
-    ProofObligationFact, ProofObligationOwner, StateBorrowAccessKind, StateBorrowArgumentAccess,
-    StateBorrowActivation, StateBorrowCall, StateBorrowEventSource, StateBorrowLoan,
+    ProofObligationFact, ProofObligationOwner, StateBorrowAccessKind, StateBorrowActivation,
+    StateBorrowArgumentAccess, StateBorrowCall, StateBorrowEventSource, StateBorrowLoan,
     StateBorrowRootKind, StateBorrowSummary, StateBorrowWeakening, StateBorrowWeakeningReason,
-    StateBorrowWritableRoot,
-    StateContractCall, StateContractExit, StateContractFactKind, StateContractFactRef,
-    StateContractSummary, StateFlow, StateKey, StateParameterFlow, TransitionExpressionRefs,
-    TransitionFlow,
+    StateBorrowWritableRoot, StateContractCall, StateContractExit, StateContractFactKind,
+    StateContractFactRef, StateContractSummary, StateFlow, StateKey, StateParameterFlow,
+    TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;

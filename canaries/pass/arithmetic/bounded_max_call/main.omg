@@ -1,0 +1,15 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self
+    ) -> i32 {
+    
+
+    state answer(
+        &mut self,
+        amount: i32
+    ) {
+        max(0, amount)
+    }
+}

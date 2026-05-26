@@ -1,5 +1,6 @@
 use platform::console;
 use player::player_state;
+use rooms::map;
 use rooms::rooms;
 use rooms::room_formatter;
 
@@ -11,49 +12,60 @@ machine GameView::render_title(
     &mut self,
     console: &mut Console
 ) {
-    console.write_line("Omega Dungeon");
+    console.write_line("###########################");
+    console.write_line("#     Dungeon Crawler     #");
+    console.write_line("###########################");
+    console.write_line("");
     console.write_line("A tiny generated crawl for compiler stress.");
-    console.write_line("Type look, paths, inv, character, use, fight, or exit.");
+    console.write_line("Type help if you need a command reminder.");
+    console.write_line("");
+}
+
+machine GameView::render_commands(
+    &mut self,
+    console: &mut Console
+) {
+    console.write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
 
 machine GameView::render_room(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_current_cell(level, room_index, line);
+    self.formatter.write_current_cell(level, cell, line);
     console.write_line(line);
-    self.formatter.write_room_info(level, room_index, line);
+    self.formatter.write_room_info(level, cell, line);
     console.write_line(line);
-    self.formatter.write_room_event(level, room_index, line);
+    self.formatter.write_room_event(level, cell, line);
     console.write_line(line);
-    self.formatter.write_adjacent_rooms(level, room_index, line);
+    self.formatter.write_adjacent_rooms(level, cell, line);
     console.write_line(line);
 }
 
 machine GameView::render_look(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_room_info(level, room_index, line);
+    self.formatter.write_room_info(level, cell, line);
     console.write_line(line);
-    self.formatter.write_room_event(level, room_index, line);
+    self.formatter.write_room_event(level, cell, line);
     console.write_line(line);
 }
 
 machine GameView::render_exits(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     console: &mut Console,
     line: &mut String
 ) {
-    self.formatter.write_adjacent_rooms(level, room_index, line);
+    self.formatter.write_adjacent_rooms(level, cell, line);
     console.write_line(line);
 }
 
@@ -96,7 +108,7 @@ machine GameView::render_invalid_command(
     &mut self,
     console: &mut Console
 ) {
-    console.write_line("That path is not open.");
+    console.write_line("[Input] That action is not available right now.");
 }
 
 machine GameView::render_game_over(

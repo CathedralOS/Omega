@@ -1,0 +1,10 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    room_count: u32,
+    index: usize
+) -> u32 {
+    max(room_count, index + 1)
+}

@@ -168,7 +168,10 @@ pub(super) fn find_call_site_in_expression<'program>(
             current_ordinal,
         ),
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 if let Some(call_site) = find_call_site_in_expression(
                     program,
                     machine,

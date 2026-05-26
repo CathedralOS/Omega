@@ -38,7 +38,9 @@ pub struct AbstractOperationLoweringInput<'plan> {
     pub data: &'plan AbstractDataPlan,
 }
 
-impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSelectionInput<'plan> {
+impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>>
+    for InstructionSelectionInput<'plan>
+{
     fn from(input: &'plan AbstractOperationLoweringInput<'plan>) -> Self {
         Self {
             runtime_abi: input.runtime_abi,
@@ -63,6 +65,8 @@ impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>> for InstructionSe
     }
 }
 
-pub fn build_abstract_operation_plan(input: &AbstractOperationLoweringInput<'_>) -> AbstractOperationPlan {
+pub fn build_abstract_operation_plan(
+    input: &AbstractOperationLoweringInput<'_>,
+) -> AbstractOperationPlan {
     build_instruction_plan(&InstructionSelectionInput::from(input))
 }

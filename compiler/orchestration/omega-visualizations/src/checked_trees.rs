@@ -37,7 +37,10 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
                 machine_index + 1,
             );
             if let Some(flow_state) = flow_state_for(program, machine.symbol, state.symbol) {
-                diagram.node_effects(&state_id, effect_names_from_set(flow_state.transitive_effects));
+                diagram.node_effects(
+                    &state_id,
+                    effect_names_from_set(flow_state.transitive_effects),
+                );
             }
             diagram.containment_edge(&machine_id, &state_id);
             state_nodes.push((state.symbol, state_id));
@@ -62,8 +65,12 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
 
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Transition(transition) = statement
-                    && let Some(target_id) =
-                        transition_target_id(program, program.machine_states(machine), &state_nodes, transition)
+                    && let Some(target_id) = transition_target_id(
+                        program,
+                        program.machine_states(machine),
+                        &state_nodes,
+                        transition,
+                    )
                 {
                     diagram.edge(source_id, target_id, "transition_target");
                 }
@@ -186,7 +193,12 @@ fn append_loan_preview(
         .collect::<Vec<_>>();
     for loan in loans {
         label.push_str("\n  entry loan: ");
-        label.push_str(&borrow_loan_label(program, machine, state, program.facts.borrow.loans.get(loan)));
+        label.push_str(&borrow_loan_label(
+            program,
+            machine,
+            state,
+            program.facts.borrow.loans.get(loan),
+        ));
     }
 }
 
@@ -204,7 +216,9 @@ fn append_activation_preview(
         .span_or_empty(flow.borrow_activations);
     for activation in activations.iter().take(3) {
         label.push_str("\n  activation: ");
-        label.push_str(&borrow_activation_label(program, machine, state, activation));
+        label.push_str(&borrow_activation_label(
+            program, machine, state, activation,
+        ));
     }
     if activations.len() > 3 {
         label.push_str("\n  ... ");
@@ -295,15 +309,22 @@ fn append_checked_call_nodes(
             call.call_ordinal
         );
 
-        let rendered_id = if let Some(target_id) = state_id_for_symbol(state_nodes, call.target_symbol) {
-            if target_id == source_id {
-                diagram.node(call_id, label, "external_call", machine_index + 1)
+        let rendered_id =
+            if let Some(target_id) = state_id_for_symbol(state_nodes, call.target_symbol) {
+                if target_id == source_id {
+                    diagram.node(call_id, label, "external_call", machine_index + 1)
+                } else {
+                    diagram.scoped_node(
+                        call_id,
+                        label,
+                        "external_call",
+                        machine_index + 1,
+                        target_id,
+                    )
+                }
             } else {
-                diagram.scoped_node(call_id, label, "external_call", machine_index + 1, target_id)
-            }
-        } else {
-            diagram.node(call_id, label, "external_call", machine_index + 1)
-        };
+                diagram.node(call_id, label, "external_call", machine_index + 1)
+            };
 
         diagram.node_effects(&rendered_id, effect_names_from_set(call.transitive_effects));
         diagram.edge(source_id, &rendered_id, "call");
@@ -325,7 +346,11 @@ fn checked_call_label(
         call.call_ordinal,
         call.entry_semantic_contexts.len(),
         call.entry_constraints.len(),
-        program.facts.flow.borrow_loan_constraints(call.entry_constraints).count(),
+        program
+            .facts
+            .flow
+            .borrow_loan_constraints(call.entry_constraints)
+            .count(),
         call.requires.len(),
         call.ensures.len(),
         access_text,
@@ -342,7 +367,11 @@ fn borrow_access_summary(
     state: &State,
     accesses: omega_core::arena::HandleSpan<BorrowArgumentAccessFact>,
 ) -> String {
-    let access_facts = program.facts.borrow.argument_accesses.span_or_empty(accesses);
+    let access_facts = program
+        .facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(accesses);
     if access_facts.is_empty() {
         return "<none>".to_owned();
     }
@@ -361,7 +390,12 @@ fn borrow_access_label(
     access: &BorrowArgumentAccessFact,
 ) -> String {
     let mut label = symbol_name_for_state(program, machine, state, access.root_symbol);
-    for segment in program.facts.borrow.access_segments.span_or_empty(access.segments) {
+    for segment in program
+        .facts
+        .borrow
+        .access_segments
+        .span_or_empty(access.segments)
+    {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
@@ -389,7 +423,12 @@ fn borrow_loan_label(
     loan: &BorrowLoanFact,
 ) -> String {
     let mut place = symbol_name_for_state(program, machine, state, loan.root_symbol);
-    for segment in program.facts.borrow.access_segments.span_or_empty(loan.segments) {
+    for segment in program
+        .facts
+        .borrow
+        .access_segments
+        .span_or_empty(loan.segments)
+    {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 place.push('.');
@@ -517,15 +556,10 @@ fn flow_state_for(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<&FlowStateFact> {
-    program
-        .facts
-        .flow
-        .states
-        .iter()
-        .find_map(|(_, state)| {
-            (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-                .then_some(state)
-        })
+    program.facts.flow.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    })
 }
 
 fn borrow_state_for(
@@ -533,15 +567,10 @@ fn borrow_state_for(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<&omega_checked_trees::StateBorrowFact> {
-    program
-        .facts
-        .borrow
-        .states
-        .iter()
-        .find_map(|(_, state)| {
-            (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-                .then_some(state)
-        })
+    program.facts.borrow.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    })
 }
 
 fn machine_effects_for(
@@ -556,7 +585,10 @@ fn machine_effects_for(
         .find(|effects| effects.symbol == symbol)
 }
 
-fn state_id_for_symbol(state_nodes: &[(SymbolHandle, String)], symbol: SymbolHandle) -> Option<&str> {
+fn state_id_for_symbol(
+    state_nodes: &[(SymbolHandle, String)],
+    symbol: SymbolHandle,
+) -> Option<&str> {
     state_nodes
         .iter()
         .find(|(candidate, _)| *candidate == symbol)
@@ -789,7 +821,11 @@ fn state_label_from_symbol(program: &CheckedTrees, symbol: SymbolHandle) -> Stri
 
 fn symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
     if symbol.is_valid() {
-        format!("{} (#{})", program.symbols.name(symbol), symbol.arena_index())
+        format!(
+            "{} (#{})",
+            program.symbols.name(symbol),
+            symbol.arena_index()
+        )
     } else {
         "invalid".to_owned()
     }

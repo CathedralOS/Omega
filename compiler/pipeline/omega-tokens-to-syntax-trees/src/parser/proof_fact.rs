@@ -1,5 +1,5 @@
 use crate::parse_error::ParseError;
-use crate::parser::expression::parse_expression_handle_without_struct_literals;
+use crate::parser::expression::parse_expression_handle_without_struct_literals_or_membership;
 use crate::parser::input::{Input, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
@@ -21,27 +21,47 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
             return Err(input.error_here("expected proof fact terminator"));
         }
 
-        let (value, rest) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+        let (value, rest) =
+            parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         input = rest;
 
-        let fact = if input.at_contextual("in") {
+        if input.at_contextual("in") {
             input = input.take_contextual("in")?;
-            let (domain, rest) = parse_path_handle_span(input, |member| {
-                syntax_trees.items.append_identifier_path_member(member)
-            })?;
-            input = rest;
-            ProofFact::Membership(ProofMembershipFact { value, domain })
-        } else {
-            ProofFact::Expression(value)
-        };
 
-        let handle = syntax_trees.items.append_proof_fact(fact);
-        if fact_count == 0 {
-            fact_start = handle;
+            loop {
+                let (domain, rest) = parse_path_handle_span(input, |member| {
+                    syntax_trees.items.append_identifier_path_member(member)
+                })?;
+                input = rest;
+
+                let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
+                    ProofMembershipFact { value, domain },
+                ));
+                if fact_count == 0 {
+                    fact_start = handle;
+                }
+                fact_count = fact_count
+                    .checked_add(1)
+                    .expect("proof fact span count overflow");
+
+                if input.at_punctuation(PunctuationKind::Ampersand) {
+                    input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+                    continue;
+                }
+
+                break;
+            }
+        } else {
+            let handle = syntax_trees
+                .items
+                .append_proof_fact(ProofFact::Expression(value));
+            if fact_count == 0 {
+                fact_start = handle;
+            }
+            fact_count = fact_count
+                .checked_add(1)
+                .expect("proof fact span count overflow");
         }
-        fact_count = fact_count
-            .checked_add(1)
-            .expect("proof fact span count overflow");
 
         if is_terminator(input) {
             continue;

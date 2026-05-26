@@ -19,7 +19,9 @@ pub(super) fn append_contract_semantic_facts(
         };
         let fact = match contract.kind {
             ContractProofFactKind::Requires => facts.append_fact_context(fact),
-            ContractProofFactKind::Ensures | ContractProofFactKind::Trusted => facts.append_fact(fact),
+            ContractProofFactKind::Ensures | ContractProofFactKind::Trusted => {
+                facts.append_fact(fact)
+            }
         };
         let contract_index = usize::try_from(contract_handle.arena_index())
             .expect("contract fact handle index overflow");

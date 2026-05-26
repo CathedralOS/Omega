@@ -1,0 +1,7 @@
+data Main {
+    health: i32 = 100;
+}
+
+machine Main::main(&mut self) {
+    self.health = 500;
+}

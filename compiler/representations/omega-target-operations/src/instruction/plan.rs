@@ -1,6 +1,6 @@
+use super::{HostOperationKey, InstructionOperand, TargetHostBinding};
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
-use super::{HostOperationKey, InstructionOperand, TargetHostBinding};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetOperationPlan {

@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
@@ -32,6 +33,7 @@ use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
 pub(crate) use branches::select_runtime_resolved_mutation_write;
+pub(in crate::selection) use writes::runtime_frame_slot_target_expression;
 pub(in crate::selection) use writes::select_runtime_frame_slot_value_write_in_table;
 pub(in crate::selection) use writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch;
 
@@ -80,6 +82,11 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
     let mut runtime_aliases = RuntimeAliasBuffer::with_capacity(input.state_calls.arguments.len());
     let mut runtime_alias_expressions =
         ExpressionTable::with_expression_capacity(input.state_calls.arguments.len());
+    let mut local_initializer_expressions = ExpressionTable::with_expression_capacity(
+        input.state_calls.arguments.len().saturating_add(4),
+    );
+    let mut local_initializer_mutable_expressions = ExpressionTable::with_expression_capacity(4);
+    let mut local_initializer_segment_expressions = ExpressionTable::with_expression_capacity(4);
     let mut runtime_static_values =
         writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     let mut runtime_storage_write_scratch = RuntimeStorageWriteScratch::default();
@@ -132,6 +139,27 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     &mut runtime_aliases,
                     &mut runtime_alias_expressions,
                 );
+
+                if matches!(
+                    operation.kind,
+                    RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                ) {
+                    select_runtime_dispatch_local_initializer_write(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        runtime_aliases.bindings(),
+                        &runtime_alias_expressions,
+                        &mut local_initializer_expressions,
+                        &mut local_initializer_mutable_expressions,
+                        &mut local_initializer_segment_expressions,
+                        &mut runtime_static_values,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
+                    continue;
+                }
 
                 select_runtime_storage_write_for_operation(
                     input,
@@ -252,4 +280,120 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         source_key: input.entry_key,
         source_statement: 0,
     });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_dispatch_local_initializer_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    aliases: &[crate::selection::bindings::RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+    expressions: &mut ExpressionTable,
+    mutable_expressions: &mut ExpressionTable,
+    resolved_segment_expressions: &mut ExpressionTable,
+    static_values: &mut writes::RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(slot) = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+    else {
+        return;
+    };
+
+    expressions.clear();
+    let Some(initializer) =
+        local_initializer_handle(input, expressions, source_key, statement_index)
+    else {
+        return;
+    };
+    let copied_aliases =
+        RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, expressions);
+    let resolved_initializer = crate::selection::bindings::resolve_runtime_alias_binding_handle(
+        initializer,
+        source_key,
+        copied_aliases.bindings(),
+        expressions,
+    );
+    if let Some(kind) = writes::select_runtime_frame_slot_value_write_in_table(
+        input,
+        dispatch_index,
+        resolved_initializer.source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer.expression,
+        static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
+    let target = writes::runtime_frame_slot_target_expression(expressions, slot);
+    let _ = writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
+        input,
+        dispatch_index,
+        source_key,
+        source_key,
+        resolved_initializer.source_key,
+        statement_index,
+        expressions,
+        target,
+        resolved_initializer.expression,
+        &[],
+        static_values,
+        mutable_expressions,
+        resolved_segment_expressions,
+        runtime_value_operands,
+        selected_instructions,
+    );
+}
+
+fn local_initializer_handle(
+    input: &InstructionSelectionInput<'_>,
+    table: &mut ExpressionTable,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<ExpressionHandle> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statement = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+    local_data
+        .initial_value
+        .is_valid()
+        .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
 }

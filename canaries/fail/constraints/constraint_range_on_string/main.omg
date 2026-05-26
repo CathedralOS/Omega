@@ -1,0 +1,10 @@
+data Label {
+    text: String;
+}
+
+data Main {
+    label: String;
+}
+
+machine Main::main(&mut self) {
+}

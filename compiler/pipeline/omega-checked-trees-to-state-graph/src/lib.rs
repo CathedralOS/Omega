@@ -9,10 +9,10 @@ use omega_state_graph::{
     OperationExpressionRefs, PlannedTransitionTarget, ProofFactKind, ProofObligationFact,
     ProofObligationOwner, StateBorrowAccessKind, StateBorrowActivation, StateBorrowArgumentAccess,
     StateBorrowCall, StateBorrowEventSource, StateBorrowLoan, StateBorrowRootKind,
-    StateBorrowSummary, StateBorrowWeakening, StateBorrowWeakeningReason,
-    StateBorrowWritableRoot, StateContractCall, StateContractExit, StateContractFactKind,
-    StateContractFactRef, StateContractSummary, StateGraph, StateKey, StateNode,
-    StateParameterNode, TransitionEdge, TransitionExpressionRefs,
+    StateBorrowSummary, StateBorrowWeakening, StateBorrowWeakeningReason, StateBorrowWritableRoot,
+    StateContractCall, StateContractExit, StateContractFactKind, StateContractFactRef,
+    StateContractSummary, StateGraph, StateKey, StateNode, StateParameterNode, TransitionEdge,
+    TransitionExpressionRefs,
 };
 use std::sync::Arc;
 
@@ -222,7 +222,10 @@ impl StateGraphCapacity {
     }
 }
 
-fn machine_expression_capacity(program: &CheckedTrees, machine: &Machine) -> ExpressionTableCapacity {
+fn machine_expression_capacity(
+    program: &CheckedTrees,
+    machine: &Machine,
+) -> ExpressionTableCapacity {
     program
         .machine_states(machine)
         .iter()
@@ -983,7 +986,10 @@ fn remapped_loan_handle(
     source_loan: Handle<StateBorrowLoan>,
     loan_map: &mut Vec<(Handle<StateBorrowLoan>, Handle<StateBorrowLoan>)>,
 ) -> Handle<StateBorrowLoan> {
-    if let Some((_, mapped)) = loan_map.iter().find(|(candidate, _)| *candidate == source_loan) {
+    if let Some((_, mapped)) = loan_map
+        .iter()
+        .find(|(candidate, _)| *candidate == source_loan)
+    {
         return *mapped;
     }
 
@@ -1507,12 +1513,7 @@ fn state_borrow_summary(
             .flow
             .borrow_loan_constraints(flow_state.entry_constraints)
         {
-            let loan = ensure_state_borrow_loan(
-                state_graph,
-                program,
-                source_loan,
-                &mut loan_map,
-            );
+            let loan = ensure_state_borrow_loan(state_graph, program, source_loan, &mut loan_map);
             active_loan_start.get_or_insert(loan);
             active_loan_count += 1;
         }
@@ -1523,7 +1524,8 @@ fn state_borrow_summary(
             .borrow_activations
             .span_or_empty(flow_state.borrow_activations)
         {
-            let loan = ensure_state_borrow_loan(state_graph, program, activation.loan, &mut loan_map);
+            let loan =
+                ensure_state_borrow_loan(state_graph, program, activation.loan, &mut loan_map);
             state_graph.borrow_activations.append_to_span(
                 &mut activations,
                 StateBorrowActivation {
@@ -1539,7 +1541,8 @@ fn state_borrow_summary(
             .borrow_weakenings
             .span_or_empty(flow_state.borrow_weakenings)
         {
-            let loan = ensure_state_borrow_loan(state_graph, program, weakening.loan, &mut loan_map);
+            let loan =
+                ensure_state_borrow_loan(state_graph, program, weakening.loan, &mut loan_map);
             state_graph.borrow_weakenings.append_to_span(
                 &mut weakenings,
                 StateBorrowWeakening {

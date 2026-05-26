@@ -1,0 +1,31 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    description: String;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+}
+
+machine Main::main(&mut self) {
+    let index: usize = 1;
+    self.rooms[index].description = "prefix " + "omega";
+
+    let room_slice: &[Room] = self.rooms.as_slice();
+    transition room_slice[index].description == "prefix omega" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(81);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(82);
+    }
+}

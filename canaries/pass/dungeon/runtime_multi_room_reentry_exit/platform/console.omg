@@ -1,0 +1,17 @@
+boundary trait Console {
+    machine write(text: String)
+    effects
+        stdout_io;
+
+    machine write_line(text: String)
+    effects
+        stdout_io;
+
+    machine read_line(out: &mut String)
+    effects
+        stdin_io;
+
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}

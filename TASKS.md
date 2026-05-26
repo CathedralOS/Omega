@@ -16,12 +16,20 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/domains/executable_imported_domain_membership_guard_exit`
   - boolean `or` guard dispatch now runs:
     - `canaries/pass/control_flow/runtime_boolean_or_guard_exit`
+  - computed local boolean conjunction values now lower and run:
+    - `canaries/pass/control_flow/runtime_local_boolean_conjunction_value_exit`
+  - scalar local comparison values now lower and run too:
+    - `canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit`
   Remaining visible gap:
   - broader conjunction-heavy runtime-dispatch states still need continued coverage beyond this fixed dungeon path
   - keep extending coverage for more complex boolean normalization shapes beyond the now-covered plain `or` family
     - simple negated guards are covered and work:
       - `canaries/pass/control_flow/runtime_negated_boolean_place_guard_exit`
       - `canaries/pass/control_flow/runtime_negated_comparison_guard_exit`
+  - runtime local boolean values initialized from string equality still need a dedicated lowering path
+    - pinned by:
+      - `canaries/run/runtime_local_comparison_value_probe`
+      - `canaries/run/runtime_machine_owned_indexed_nested_room_copy_probe`
 
 - [ ] Persistent machine/state mutation confidence
   Make writes in one state reliably observable in later states and transitions, with regression coverage for room/event flags, counters, and re-entry behavior.
@@ -74,6 +82,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - `canaries/pass/dungeon/runtime_boolean_helper_guard_dispatch`
   - `canaries/pass/dungeon/runtime_direct_boolean_conjunction_dispatch`
   - `canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit`
+  - `canaries/pass/control_flow/runtime_local_boolean_conjunction_value_exit`
+  - `canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit`
   - `canaries/pass/slices/runtime_mutable_slice_element_write_compile`
   - `canaries/pass/slices/runtime_mutable_slice_element_write_exit`
   - `canaries/pass/slices/runtime_dispatch_mutable_slice_element_write_compile`

@@ -1,0 +1,31 @@
+data Main {
+    current_room: u32;
+    bat_defeated: bool;
+}
+
+machine Main::main(&mut self) {
+    self.current_room = 2;
+    self.bat_defeated = false;
+
+    -> defeat_bat();
+
+    state defeat_bat(&mut self) {
+        self.bat_defeated = true;
+        -> retreat_to_gate();
+    }
+
+    state retreat_to_gate(&mut self) {
+        self.current_room = 0;
+        -> reenter_ambush();
+    }
+
+    state reenter_ambush(&mut self) {
+        self.current_room = 2;
+        -> show_cleared_hall() when self.current_room == 2 && self.bat_defeated == true;
+        -> show_blocked_hall();
+    }
+
+    state show_cleared_hall(&mut self) {}
+
+    state show_blocked_hall(&mut self) {}
+}

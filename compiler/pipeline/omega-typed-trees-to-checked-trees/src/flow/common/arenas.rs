@@ -65,7 +65,11 @@ pub(crate) fn clone_constraint_refs(
     source: omega_core::arena::HandleSpan<FlowConstraintRef>,
 ) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
     let mut cloned = omega_core::arena::HandleSpan::empty();
-    let copied: Vec<_> = constraint_refs.span_or_empty(source).iter().copied().collect();
+    let copied: Vec<_> = constraint_refs
+        .span_or_empty(source)
+        .iter()
+        .copied()
+        .collect();
     for constraint_ref in copied {
         constraint_refs.append_to_span(&mut cloned, constraint_ref);
     }
@@ -109,7 +113,11 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
         .map(|context_ref| context_ref.context)
         .collect();
     let mut projected = omega_core::arena::HandleSpan::empty();
-    let copied: Vec<_> = constraint_refs.span_or_empty(source).iter().copied().collect();
+    let copied: Vec<_> = constraint_refs
+        .span_or_empty(source)
+        .iter()
+        .copied()
+        .collect();
 
     for constraint_ref in copied {
         let keep = match constraint_ref.kind {
@@ -138,7 +146,11 @@ pub(crate) fn filter_constraint_refs(
     mut keep: impl FnMut(FlowConstraintRef) -> bool,
 ) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
     let mut filtered = omega_core::arena::HandleSpan::empty();
-    let copied: Vec<_> = constraint_refs.span_or_empty(source).iter().copied().collect();
+    let copied: Vec<_> = constraint_refs
+        .span_or_empty(source)
+        .iter()
+        .copied()
+        .collect();
 
     for constraint_ref in copied {
         if keep(constraint_ref) {

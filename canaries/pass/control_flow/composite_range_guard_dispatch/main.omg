@@ -1,0 +1,26 @@
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    roll: i32;
+}
+
+machine Main::main(&mut self) {
+    self.roll = 24;
+    -> reward() when self.roll >= 20 && self.roll < 30;
+    -> quiet();
+    
+
+    state reward(&mut self) {
+        self.console.write_line("reward");
+        self.console.exit_process(0);
+    }
+
+    state quiet(&mut self) {
+        self.console.write_line("quiet");
+        self.console.exit_process(1);
+    }
+}

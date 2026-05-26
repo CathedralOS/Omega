@@ -1,0 +1,52 @@
+use platform::console;
+
+data Main {
+    console: Console;
+    current_room: usize;
+    fountain_used: bool;
+    bat_defeated: bool;
+    treasure_taken: bool;
+}
+
+machine Main::main(&mut self) {
+    self.current_room = 2;
+    self.fountain_used = false;
+    self.bat_defeated = true;
+    self.treasure_taken = false;
+
+    -> gate() when self.current_room == 0;
+    -> spent() when self.current_room == 1 && self.fountain_used == true;
+    -> fountain() when self.current_room == 1;
+    -> ambush_clear() when self.current_room == 2 && self.bat_defeated == true;
+    -> ambush() when self.current_room == 2;
+    -> looted() when self.current_room == 3 && self.treasure_taken == true;
+    -> vault();
+
+    state gate(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state spent(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state fountain(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state ambush_clear(&mut self) {
+        self.console.exit_process(73);
+    }
+
+    state ambush(&mut self) {
+        self.console.exit_process(74);
+    }
+
+    state looted(&mut self) {
+        self.console.exit_process(75);
+    }
+
+    state vault(&mut self) {
+        self.console.exit_process(76);
+    }
+}

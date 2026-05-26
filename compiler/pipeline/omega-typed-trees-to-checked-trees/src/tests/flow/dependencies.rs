@@ -41,7 +41,9 @@ fn materializes_domain_dependency_facts() {
         .find_map(|(_, fact)| (fact.domain_symbol == ready_symbol).then_some(fact))
         .expect("ready dependency fact");
 
-    let paths = domains.dependency_paths.span_or_empty(ready_fact.dependencies);
+    let paths = domains
+        .dependency_paths
+        .span_or_empty(ready_fact.dependencies);
     assert_eq!(paths.len(), 2);
 
     let mut field_symbols = paths

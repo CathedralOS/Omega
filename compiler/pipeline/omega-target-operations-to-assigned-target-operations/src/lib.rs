@@ -19,28 +19,30 @@ pub fn build_assigned_target_operations(
     );
 
     for (_, function) in target_operations.functions.iter() {
-        assigned_target_operations
-            .functions
-            .insert(omega_assigned_target_operations::AssignedTargetOperationFunction {
+        assigned_target_operations.functions.insert(
+            omega_assigned_target_operations::AssignedTargetOperationFunction {
                 symbol: std::sync::Arc::clone(&function.symbol),
                 source_key: function.source_key,
                 instructions: assigned_operation_span_from_target(function.instructions),
-            });
+            },
+        );
     }
 
     for (_, instruction) in target_operations.instructions.iter() {
-        assigned_target_operations.instructions.insert(AssignedOperation {
-            kind: instruction.kind.clone().into(),
-            source_key: instruction.source_key,
-            source_statement: instruction.source_statement,
-        });
+        assigned_target_operations
+            .instructions
+            .insert(AssignedOperation {
+                kind: instruction.kind.clone().into(),
+                source_key: instruction.source_key,
+                source_statement: instruction.source_statement,
+            });
     }
     for (_, operand) in target_operations.operands.iter() {
-        assigned_target_operations
-            .operands
-            .insert(omega_assigned_target_operations::AssignedInstructionOperand {
+        assigned_target_operations.operands.insert(
+            omega_assigned_target_operations::AssignedInstructionOperand {
                 kind: operand.kind.clone().into(),
-            });
+            },
+        );
     }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
 
@@ -92,7 +94,8 @@ pub fn build_assigned_target_operations(
                 byte_size: *byte_size,
             },
             omega_target_operations::TargetValueOperand::Binary { .. } => {
-                let name = scratch_register_name(target_operations.target.architecture, next_scratch_slot);
+                let name =
+                    scratch_register_name(target_operations.target.architecture, next_scratch_slot);
                 next_scratch_slot = next_scratch_slot.saturating_add(1);
                 AssignedValueHomeKind::ScratchRegister {
                     bank: AssignedRegisterBank::GeneralPurpose,

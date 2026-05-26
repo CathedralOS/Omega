@@ -1,0 +1,73 @@
+use platform::console;
+
+data Main {
+    console: Console;
+    current_room: u32;
+    fountain_used: bool;
+    bat_defeated: bool;
+    treasure_taken: bool;
+}
+
+machine Main::main(&mut self) {
+    self.current_room = 2;
+    self.fountain_used = false;
+    self.bat_defeated = false;
+    self.treasure_taken = false;
+
+    -> defeat_bat();
+
+    state defeat_bat(&mut self) {
+        self.bat_defeated = true;
+        -> take_treasure();
+    }
+
+    state take_treasure(&mut self) {
+        self.current_room = 3;
+        self.treasure_taken = true;
+        -> use_fountain();
+    }
+
+    state use_fountain(&mut self) {
+        self.current_room = 1;
+        self.fountain_used = true;
+        -> revisit_ambush();
+    }
+
+    state revisit_ambush(&mut self) {
+        self.current_room = 2;
+        -> route_after_ambush();
+    }
+
+    state route_after_ambush(&mut self) {
+        -> ambush_clear() when self.current_room == 2 && self.bat_defeated == true;
+        -> fail(60);
+    }
+
+    state ambush_clear(&mut self) {
+        self.current_room = 1;
+        -> route_after_fountain();
+    }
+
+    state route_after_fountain(&mut self) {
+        -> spent_fountain() when self.current_room == 1 && self.fountain_used == true;
+        -> fail(61);
+    }
+
+    state spent_fountain(&mut self) {
+        self.current_room = 3;
+        -> route_after_vault();
+    }
+
+    state route_after_vault(&mut self) {
+        -> looted_vault() when self.current_room == 3 && self.treasure_taken == true;
+        -> fail(62);
+    }
+
+    state looted_vault(&mut self) {
+        self.console.exit_process(63);
+    }
+
+    state fail(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

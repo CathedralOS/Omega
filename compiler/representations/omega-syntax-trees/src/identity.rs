@@ -366,6 +366,15 @@ fn count_expression_handle(
             count_expression_handle(syntax_trees, indexed.collection, counts);
             count_expression_handle(syntax_trees, indexed.index, counts);
         }
+        crate::expression::ExpressionNode::Membership(membership) => {
+            count_expression_handle(syntax_trees, membership.value, counts);
+            for member in syntax_trees
+                .expressions
+                .identifier_path_members(membership.domain)
+            {
+                count_identifier(member, counts);
+            }
+        }
         crate::expression::ExpressionNode::Member(member) => {
             count_expression_handle(syntax_trees, member.receiver, counts);
             count_identifier(&member.member, counts);

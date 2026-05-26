@@ -1,0 +1,15 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self
+    ) -> Real {
+    
+
+    state answer(
+        &mut self,
+        raw: u32
+    ) {
+        -> Real::from(raw) / Real::from(u32::MAX);
+    }
+}

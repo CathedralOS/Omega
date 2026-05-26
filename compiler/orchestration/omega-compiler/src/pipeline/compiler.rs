@@ -66,18 +66,24 @@ impl Compiler {
             workers.handle(),
             &mut timings,
         )?;
+        if self.options.write_output {
+            write_backend_report(&self.options, &backend_surface, &backend.plan)?;
+        }
 
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, &mut timings)?;
 
         if self.options.write_output {
-            write_backend_report(&self.options, &backend_surface, &backend.plan)?;
-            write_emission_plan(&self.options, &emission_plan)?;
-        }
-
-        if self.options.write_output {
-            write_output(&self.options, emitted)?;
+            let output_path = write_output(&self.options, emitted)?;
+            write_emission_plan(
+                &self.options,
+                &backend.plan,
+                &emission_plan,
+                Some(output_path.as_path()),
+            )?;
             write_timings(&self.options, timings.as_slice())?;
+        } else {
+            write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
         }
 
         write_pipeline_shell(&self.options)?;

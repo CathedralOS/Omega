@@ -73,16 +73,20 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
             program.instructions.len(),
         );
         for (_, function) in program.functions.iter() {
-            let Some(function_instructions) = program.instructions.span(function.instructions) else {
+            let Some(function_instructions) = program.instructions.span(function.instructions)
+            else {
                 continue;
             };
-            let inserted = plan.instructions.try_insert_many(function_instructions.iter().map(
-                |instruction| Ok::<MachineInstruction, Infallible>(MachineInstruction {
+            let inserted = plan
+                .instructions
+                .try_insert_many(function_instructions.iter().map(|instruction| {
+                    Ok::<MachineInstruction, Infallible>(MachineInstruction {
                         selected_instruction_index: instruction.selected_instruction_index,
                         source_kind: SelectedInstructionKind::EnterFunction,
                         kind: instruction.kind,
-                    }),
-            )).expect("machine instruction arena insertion should not fail");
+                    })
+                }))
+                .expect("machine instruction arena insertion should not fail");
             plan.functions.insert(MachineInstructionFunction {
                 source_key: function.source_key,
                 instructions: inserted,
@@ -103,16 +107,23 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
             let Some(function_instructions) = plan.instructions.span(function.instructions) else {
                 continue;
             };
-            let inserted = program.instructions.try_insert_many(function_instructions.iter().map(
-                |instruction| Ok::<omega_machine_program::MachineInstruction, Infallible>(omega_machine_program::MachineInstruction {
-                        selected_instruction_index: instruction.selected_instruction_index,
-                        kind: instruction.kind,
-                    }),
-            )).expect("machine instruction arena insertion should not fail");
-            program.functions.insert(omega_machine_program::MachineFunction {
-                source_key: function.source_key,
-                instructions: inserted,
-            });
+            let inserted = program
+                .instructions
+                .try_insert_many(function_instructions.iter().map(|instruction| {
+                    Ok::<omega_machine_program::MachineInstruction, Infallible>(
+                        omega_machine_program::MachineInstruction {
+                            selected_instruction_index: instruction.selected_instruction_index,
+                            kind: instruction.kind,
+                        },
+                    )
+                }))
+                .expect("machine instruction arena insertion should not fail");
+            program
+                .functions
+                .insert(omega_machine_program::MachineFunction {
+                    source_key: function.source_key,
+                    instructions: inserted,
+                });
         }
         program
     }

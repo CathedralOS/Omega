@@ -1,15 +1,15 @@
 use super::entry::resolve_backend_entry_point;
 use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
-use omega_control_flow_to_abstract_operations::{
-    AbstractOperationLoweringInput, build_abstract_operation_plan,
-};
 use omega_abstract_operations_to_target_operations::build_target_operation_plan;
 use omega_assigned_target_operations_to_machine_instructions::build_machine_instructions;
 use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_checked_trees::CheckedTrees;
 use omega_control_flow::ControlFlowPlan;
+use omega_control_flow_to_abstract_operations::{
+    AbstractOperationLoweringInput, build_abstract_operation_plan,
+};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
@@ -284,28 +284,28 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.abstract_data = (&backend_plan.data).into();
     backend_plan.abstract_operations =
         record_backend_phase(&mut phase_timings, "abstract operations", || {
-        let runtime_abi = build_runtime_abi_plan(backend_plan.target);
-        build_abstract_operation_plan(&AbstractOperationLoweringInput {
-            runtime_abi: &runtime_abi,
-            entry_key: backend_plan.entry_key,
-            entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
-            program: program.as_ref(),
-            control_flow: &backend_plan.control_flow,
-            host_calls: &backend_plan.host_calls,
-            state_calls: &backend_plan.state_calls,
-            alias_flow: &backend_plan.alias_flow,
-            state_storage: &backend_plan.state_storage,
-            runtime_flow: &backend_plan.runtime_flow,
-            runtime_bodies: &backend_plan.runtime_bodies,
-            runtime_branching_calls: &backend_plan.runtime_branching_calls,
-            runtime_dispatch_loop: &backend_plan.runtime_dispatch_loop,
-            runtime_storage: &backend_plan.runtime_storage,
-            runtime_text: &backend_plan.runtime_text,
-            state_guards: &backend_plan.state_guards,
-            layouts: &backend_plan.layouts,
-            data: &backend_plan.abstract_data,
-        })
-    });
+            let runtime_abi = build_runtime_abi_plan(backend_plan.target);
+            build_abstract_operation_plan(&AbstractOperationLoweringInput {
+                runtime_abi: &runtime_abi,
+                entry_key: backend_plan.entry_key,
+                entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
+                program: program.as_ref(),
+                control_flow: &backend_plan.control_flow,
+                host_calls: &backend_plan.host_calls,
+                state_calls: &backend_plan.state_calls,
+                alias_flow: &backend_plan.alias_flow,
+                state_storage: &backend_plan.state_storage,
+                runtime_flow: &backend_plan.runtime_flow,
+                runtime_bodies: &backend_plan.runtime_bodies,
+                runtime_branching_calls: &backend_plan.runtime_branching_calls,
+                runtime_dispatch_loop: &backend_plan.runtime_dispatch_loop,
+                runtime_storage: &backend_plan.runtime_storage,
+                runtime_text: &backend_plan.runtime_text,
+                state_guards: &backend_plan.state_guards,
+                layouts: &backend_plan.layouts,
+                data: &backend_plan.abstract_data,
+            })
+        });
     backend_plan.target_operations =
         record_backend_phase(&mut phase_timings, "target operations", || {
             build_target_operation_plan(
@@ -315,11 +315,10 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 &backend_plan.abstract_operations,
             )
         });
-    backend_plan.assigned_target_operations = record_backend_phase(
-        &mut phase_timings,
-        "assigned target operations",
-        || build_assigned_target_operations(&backend_plan.target_operations),
-    );
+    backend_plan.assigned_target_operations =
+        record_backend_phase(&mut phase_timings, "assigned target operations", || {
+            build_assigned_target_operations(&backend_plan.target_operations)
+        });
     backend_plan.machine_instructions =
         record_backend_phase(&mut phase_timings, "machine instructions", || {
             build_machine_instructions(&backend_plan.assigned_target_operations)

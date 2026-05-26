@@ -3,10 +3,12 @@ mod runtime_text;
 
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
-use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey, PlatformCallData};
+use omega_abstract_operations::{AbstractDataObject, AbstractDataObjectKind};
+use omega_calling_conventions::{
+    HostCapability, HostOperation, HostOperationKey, PlatformCallData,
+};
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
-use omega_abstract_operations::{AbstractDataObject, AbstractDataObjectKind};
 
 use super::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{

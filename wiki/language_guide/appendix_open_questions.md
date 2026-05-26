@@ -21,7 +21,7 @@ This page tracks design pressure that is not fully nailed down yet.
   They are built-in borrowed views with proof-visible facts such as `len` and
   type-scoped invariant parameters such as `&[T, [non_empty]]`; indexing is
   valid when the current facts prove the index is inside the slice bounds.
-- The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
+- Old bracketed refinement syntax is dead. The open question is how much range-heavy proof vocabulary should live directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`, versus being packaged into named domains or helper proof constructs.
 - Omega should distinguish proof numbers from machine numbers. `UInt`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
@@ -35,13 +35,19 @@ This page tracks design pressure that is not fully nailed down yet.
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond
   explicit `when` clauses and executable domain bodies?
+- How should Omega express and prove sequence-wide domains over runtime text,
+  such as `String::Utf8` or `String::NoNul`, without turning ordinary string
+  handling into a byte-level proof tax?
+- When domains can participate in operator resolution, what exact ambiguity
+  rules should apply, and which concepts should remain ordinary value domains
+  versus a separate evaluation-mode/policy system?
 - Should relax ever permit graph-edge proof debt, or should it remain strictly
   lexical and non-transitioning?
 - How explicit should weakened machine invariants be in target state signatures?
 - Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?
 - What syntax should Omega use for float optimization permissions, separate from float invariants?
 - Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?
-- What exact spelling should arithmetic modes use: `i32[exact]`, `i32[wrapping]`, `i32[trap]`, `i32[saturating]`, and `i32[checked]`, or a separate syntax?
+- What exact spelling should arithmetic modes use: scoped policy, operator variants, or domain-sensitive operator resolution for semantic quantity domains?
 - Does `checked` arithmetic return `Option`, `Result`, a language-specific checked value, or require explicit operator forms?
 - How should `Real` contracts lower when called with `f32` or `f64`: explicit `approx<Real, eps=...>`, compiler-inferred error bounds, or named approximation policies?
 - Should inline assembly allow local labels and internal jumps, or only structured exits that map to Omega transitions?

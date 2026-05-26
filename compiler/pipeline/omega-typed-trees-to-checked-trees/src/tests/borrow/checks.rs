@@ -1,10 +1,10 @@
+use crate::checks::check_checked_facts;
+use crate::flow::canonical_place_overlaps_segments;
+use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 use crate::{
     build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
     build_semantic_facts,
 };
-use crate::checks::check_checked_facts;
-use crate::flow::canonical_place_overlaps_segments;
-use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 use omega_source_files_to_tokens::Lexer;
 use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -91,7 +91,11 @@ fn accepts_mutable_local_named_place_arguments() {
         .expect("copy borrow call");
 
     assert_eq!(
-        facts.borrow.argument_accesses.span_or_empty(copy_call.accesses).len(),
+        facts
+            .borrow
+            .argument_accesses
+            .span_or_empty(copy_call.accesses)
+            .len(),
         2
     );
     let call_site = find_call_site(
@@ -116,7 +120,8 @@ fn accepts_mutable_local_named_place_arguments() {
         1
     );
 
-    check_checked_facts(&typed, &facts).expect("mutable local named place should pass borrow checks");
+    check_checked_facts(&typed, &facts)
+        .expect("mutable local named place should pass borrow checks");
 }
 
 #[test]
@@ -181,22 +186,34 @@ fn accepts_disjoint_member_borrow_arguments() {
         })
         .expect("main borrow state");
     let use_stats_call = facts.borrow.calls.span_or_empty(borrow_state.calls)[0].clone();
-    let accesses = facts.borrow.argument_accesses.span_or_empty(use_stats_call.accesses);
+    let accesses = facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(use_stats_call.accesses);
     assert_eq!(accesses.len(), 2);
     assert_eq!(accesses[0].root_symbol, accesses[1].root_symbol);
     assert_ne!(
-        facts.borrow.access_segments.span_or_empty(accesses[0].segments),
-        facts.borrow.access_segments.span_or_empty(accesses[1].segments),
+        facts
+            .borrow
+            .access_segments
+            .span_or_empty(accesses[0].segments),
+        facts
+            .borrow
+            .access_segments
+            .span_or_empty(accesses[1].segments),
     );
-    assert!(
-        !canonical_place_overlaps_segments(
-            facts.borrow.access_segments.span_or_empty(accesses[0].segments),
-            facts.borrow.access_segments.span_or_empty(accesses[1].segments),
-        )
-    );
+    assert!(!canonical_place_overlaps_segments(
+        facts
+            .borrow
+            .access_segments
+            .span_or_empty(accesses[0].segments),
+        facts
+            .borrow
+            .access_segments
+            .span_or_empty(accesses[1].segments),
+    ));
 
-    check_checked_facts(&typed, &facts)
-        .expect("disjoint member borrows should not conflict");
+    check_checked_facts(&typed, &facts).expect("disjoint member borrows should not conflict");
 }
 
 #[test]
@@ -242,8 +259,8 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         flow,
     };
 
-    let diagnostics =
-        check_checked_facts(&typed, &facts).expect_err("active local alias should block direct mutable borrow");
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("active local alias should block direct mutable borrow");
     let combined = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -366,7 +383,10 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(combined.contains("creates local borrow `second` while local borrow `first` is still active"));
+    assert!(
+        combined
+            .contains("creates local borrow `second` while local borrow `first` is still active")
+    );
     assert!(combined.contains("borrowed at statement 0"));
     assert!(combined.contains("its last use is at statement 2"));
 }
@@ -414,8 +434,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
         flow,
     };
 
-    check_checked_facts(&typed, &facts)
-        .expect("loan should end after alias last use");
+    check_checked_facts(&typed, &facts).expect("loan should end after alias last use");
 }
 
 #[test]
@@ -464,7 +483,9 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(combined.contains("statement 1 mutates `Main::main.value` while local borrow `alias` is still active"));
+    assert!(combined.contains(
+        "statement 1 mutates `Main::main.value` while local borrow `alias` is still active"
+    ));
     assert!(combined.contains("borrowed at statement 0"));
 }
 

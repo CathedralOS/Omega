@@ -1,0 +1,19 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    exit_count: u32
+) {
+    transition exit_count < 4 {
+        true -> append(exit_count)
+        false -> {}
+    }
+
+    state append(
+        &mut self,
+        exit_count: u32
+    ) -> u32 {
+        -> exit_count + 1;
+    }
+}

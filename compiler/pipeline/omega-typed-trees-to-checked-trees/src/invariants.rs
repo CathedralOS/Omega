@@ -1,8 +1,6 @@
 use super::*;
 
-pub(crate) fn build_invariant_facts(
-    program: &omega_typed_trees::TypedTrees,
-) -> InvariantFacts {
+pub(crate) fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {
     let mut definitions =
         omega_core::arena::Arena::with_capacity(program.invariant_definitions().len());
 

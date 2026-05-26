@@ -1,6 +1,9 @@
 use super::guards::{
-    select_runtime_dispatch_expression_guard, select_runtime_dispatch_expression_guard_in_table,
+    select_runtime_dispatch_expression_guard,
+    select_runtime_dispatch_expression_guard_conjuncts_in_table,
+    select_runtime_dispatch_expression_guard_in_table,
 };
+use super::writes::select_runtime_frame_slot_value_write_in_table;
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
@@ -46,6 +49,7 @@ pub(super) fn select_runtime_dispatch_edge(
                 edge.statement_index,
                 edge.target_dispatch_index,
                 edge.target_arguments,
+                runtime_value_operands,
                 selected_instructions,
             );
 
@@ -163,6 +167,28 @@ fn select_dispatch_guard_instructions(
     }
 
     if !guard_can_emit_directly(edge) {
+        if edge.guard_has_expression {
+            let guards = select_runtime_dispatch_expression_guard_conjuncts_in_table(
+                input,
+                source_dispatch_index,
+                source_key,
+                edge.statement_index,
+                &input.state_guards.expressions,
+                edge.guard_expression,
+                runtime_value_operands,
+            );
+            if !guards.is_empty() {
+                for kind in guards {
+                    selected_instructions.push(SelectedInstruction {
+                        kind,
+                        source_key,
+                        source_statement: edge.statement_index,
+                    });
+                }
+                return;
+            }
+        }
+
         if edge.guard_has_expression
             && let Some(kind) = select_runtime_dispatch_expression_guard_in_table(
                 input,
@@ -295,6 +321,7 @@ fn select_runtime_dispatch_argument_materialization(
     statement_index: usize,
     target_dispatch_index: u32,
     arguments: omega_core::arena::HandleSpan<ExpressionHandle>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(target_key) = dispatch_key_for_index(input, target_dispatch_index) else {
@@ -306,6 +333,8 @@ fn select_runtime_dispatch_argument_materialization(
     let expressions = &input.control_flow.expressions;
     let target_arguments = expressions.expression_handles(arguments);
     let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
+    let static_values =
+        super::writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
 
     for (parameter_index, parameter) in input
         .control_flow
@@ -369,23 +398,41 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
-        let Some(value) = static_runtime_argument_value(expressions.expression(argument)) else {
-            continue;
-        };
-        if !matches!(slot.byte_size, 1 | 4 | 8) {
+        if let Some(value) = static_runtime_argument_value(expressions.expression(argument)) {
+            if !matches!(slot.byte_size, 1 | 4 | 8) {
+                continue;
+            }
+
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: slot.byte_offset,
+                    byte_size: slot.byte_size,
+                    value,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
             continue;
         }
 
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                byte_offset: slot.byte_offset,
-                byte_size: slot.byte_size,
-                value,
-            },
+        if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+            input,
+            source_dispatch_index,
             source_key,
-            source_statement: statement_index,
-        });
+            statement_index,
+            expressions,
+            slot,
+            argument,
+            &static_values,
+            runtime_value_operands,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: statement_index,
+            });
+        }
     }
 }
 

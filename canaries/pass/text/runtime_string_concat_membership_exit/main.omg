@@ -1,0 +1,25 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    self.line = "prefix " + "omega";
+
+    transition self.line == "prefix omega" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(72);
+    }
+}

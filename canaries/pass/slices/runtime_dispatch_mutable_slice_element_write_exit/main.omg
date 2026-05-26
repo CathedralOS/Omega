@@ -1,0 +1,34 @@
+use platform::console;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) {
+    transition true {
+        true -> write_alias()
+    }
+
+    state write_alias(&mut self) {
+        let entry_slice: &mut [Entry] = self.entries.as_mut_slice();
+        entry_slice[0].value = 7;
+
+        transition self.entries[0].value == 7 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(31);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(32);
+    }
+}

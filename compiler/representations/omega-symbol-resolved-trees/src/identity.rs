@@ -360,6 +360,12 @@ fn count_expression_node(
             count_expression_handle(table, indexed.collection, counts);
             count_expression_handle(table, indexed.index, counts);
         }
+        ExpressionNode::Membership(membership) => {
+            count_expression_handle(table, membership.value, counts);
+            for name in table.name_path_members(membership.domain) {
+                count_expression_path_member(name, counts);
+            }
+        }
         ExpressionNode::Mutable(expression) => count_expression_handle(table, *expression, counts),
         ExpressionNode::Member(member) => {
             count_expression_handle(table, member.receiver, counts);

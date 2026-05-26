@@ -32,8 +32,10 @@ Better direction:
 state polling_window_events {
     platform.poll_frame(main_window, mut frame_input);
 
-    -> shutdown when frame_input.close_requested;
-    -> running_game_iteration;
+    transition frame_input.close_requested {
+        true -> shutdown()
+        false -> running_game_iteration()
+    }
 }
 ```
 
@@ -45,20 +47,26 @@ Current design preference:
 
 States should be branch-free. There is no `if` or `else` inside normal Omega state code.
 
-Instead, a state performs a straight-line unit of work, then reaches required trailing transition lines. The machine evaluates that state's outgoing edges in source order. The first enabled edge wins.
+Instead, a state performs a straight-line unit of work, then reaches one
+trailing `transition` block. The machine evaluates that state's outgoing edges
+in source order. The first enabled edge wins.
 
 ```omega
 state polling_window_events {
     platform.poll_frame(main_window, mut frame_input);
 
-    -> shutdown when frame_input.close_requested;
-    -> running_game_iteration;
+    transition frame_input.close_requested {
+        true -> shutdown()
+        false -> running_game_iteration()
+    }
 }
 ```
 
-This keeps exits physically attached to the state they leave, and it gives tools a direct way to show "these are the possible exits from the current state."
+This keeps exits physically attached to the state they leave, and it gives
+tools a direct way to show "these are the possible exits from the current
+state."
 
-The trailing transition list becomes the branch table.
+The trailing transition block becomes the branch table.
 
 ## Suggested vocabulary
 
@@ -95,21 +103,16 @@ Declarative edge from one state to another. It has no body and does not use a `r
 
 Within a machine, a transition is a goto. It does not create a call frame, does not store a return address, and does not resume the state it left.
 
-If multiple transitions leave the same state, they appear as trailing `-> target` lines and are evaluated in source order. The first enabled edge is selected. A bare `-> target` edge is unconditional.
+If multiple transitions leave the same state, they appear in one trailing
+`transition ... { ... }` block and are evaluated in source order. The first
+enabled edge is selected. An anonymous `transition { _ -> target() }` arm is
+unconditional.
 
-`-> self;` is a self-transition. It re-enters the current state without repeating the state name.
+`transition { _ -> self() }` is a self-transition. It re-enters the current
+state without repeating the state name.
 
-A trailing bare `->` is explicit terminal completion. It deliberately has no target and no semicolon:
-
-```omega
-state collect_key(mut inventory: Inventory) {
-    inventory.has_key = true;
-
-    ->
-}
-```
-
-This says the state may complete here. If the state is running as part of nested machine flow, completion resumes the explicit continuation carried by the parent. If the state is a typed state with a value, a final expression produces the value instead of a `return` statement:
+If the state is a typed state with a value, a final expression produces the
+value instead of a `return` statement:
 
 ```omega
 state clamp_done(value: f32) -> f32 {
@@ -117,7 +120,8 @@ state clamp_done(value: f32) -> f32 {
 }
 ```
 
-For straight-line states with no outgoing transition table, terminal completion may be implicit:
+For straight-line states with no outgoing transition table, terminal completion
+may be implicit:
 
 ```omega
 state open_chest {
@@ -125,19 +129,11 @@ state open_chest {
 }
 ```
 
-The explicit `->` earns its keep when there are guarded exits and the author wants to say "none of the guarded exits matched, complete here."
-
-Nested machine flow can be sketched as two arrows:
-
-```omega
-state running {
-    -> dungeon.entry -> shutdown;
-}
-```
-
-This means the parent transitions into the child machine's `entry` state, and when that child reaches terminal completion (`->`), parent control resumes at `shutdown`. This avoids a special `.finished` property on every machine while keeping the continuation visible in source.
-
-This is the stack-like exception. A parent may enter a child machine and carry an explicit continuation, but ordinary transitions inside a machine remain gotos.
+Nested machine flow and explicit continuation syntax are still open design
+space. The stable rule for ordinary machine code is simpler: setup code runs at
+machine entry, then the machine reaches its one explicit entry `transition`,
+and each state ends in its own trailing `transition` block or completes
+implicitly.
 
 Typed-state sketches may allow state signatures and return value compatibility checks. In that model, transitions are still handoffs: the target state's parameters must match, and its return value must satisfy the source graph's return value obligation, but there is no hidden caller stack inside the machine.
 
@@ -151,28 +147,34 @@ A value or signal that can wake a dormant state or satisfy an edge.
 
 ## Transition forms
 
-These are plausible transition forms, not final syntax.
+These are plausible transition forms in the current tail-`transition` style.
 
 ```omega
 state a {
     do_work();
 
-    -> b when done;
-    -> c when retry_count < 3;
-    -> self;
+    transition {
+        done -> b()
+        retry_count < 3 -> c()
+        _ -> self()
+    }
 }
 
 state waiting {
     wait_for_http();
 
-    -> complete when request.status == HttpStatus::Ok;
-    -> retry when request.failed;
+    transition {
+        request.status == HttpStatus::Ok -> complete()
+        request.failed -> retry()
+    }
 }
 
 state backing_off {
     sleep();
 
-    -> waiting when elapsed_ms >= retry_delay_ms;
+    transition {
+        elapsed_ms >= retry_delay_ms -> waiting()
+    }
 }
 ```
 
@@ -186,8 +188,10 @@ Event-driven transitions fit the model well.
 state waiting_for_input {
     platform.sleep_until_event();
 
-    -> handling_click when event == Event::MouseClick;
-    -> shutdown when event == Event::WindowClose;
+    transition event {
+        Event::MouseClick -> handling_click()
+        Event::WindowClose -> shutdown()
+    }
 }
 ```
 

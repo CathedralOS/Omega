@@ -9,7 +9,7 @@ use omega_object_file::{ObjectContainerInput, emit_omega_object_container};
 pub(super) fn write_output(
     options: &CompileOptions,
     emitted: EmittedProgram,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
     let build_dir = options.build_dir();
     std::fs::create_dir_all(&build_dir).map_err(io_diagnostic)?;
 
@@ -29,7 +29,7 @@ pub(super) fn write_output(
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
-        return Ok(());
+        return Ok(output_path);
     }
 
     let object_container = emit_omega_object_container(ObjectContainerInput {
@@ -42,7 +42,7 @@ pub(super) fn write_output(
     let output_path = build_dir.join(&object_container.file_name);
     write_output_file(&output_path, &object_container.bytes, false)
         .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(())
+    Ok(output_path)
 }
 
 fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {

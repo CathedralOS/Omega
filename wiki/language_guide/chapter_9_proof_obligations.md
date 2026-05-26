@@ -84,18 +84,18 @@ derive those facts automatically. They are covered in the next chapter.
 
 ```omega
 data Player {
-    health: i32[exact, range<0, 100>];
+    health: i32;
 }
 
 machine Player::take_damage(
     &mut self,
-    damage: i32[range<0, 100>]
+    damage: i32
 ) {
     self.health -= damage;
 }
 ```
 
-The value `self.health` carries facts: it is an initialized machine integer, it is mutable through `self`, it uses exact arithmetic, and it must remain in `range<0, 100>`.
+The value `self.health` carries facts: it is an initialized machine integer, it is mutable through `self`, it follows the current arithmetic policy, and it may have obligations such as remaining in `0..=100`.
 
 The subtraction operation has requirements: `self.health` must be mutable, `damage` must be compatible, and exact subtraction must not underflow or overflow.
 
@@ -113,4 +113,4 @@ This maps well onto TLA+ style action checking:
 
 Invariants are not RTTI. If proof fails, the normal result is a compiler diagnostic, not a hidden runtime tag check. Runtime validation may exist as an explicit debug or proof-emission mode, but it should not define the semantics.
 
-Float invariants are also not fast-math flags. A proof that a value is `finite` or in `range<a, b>` does not automatically permit reassociation, signed-zero erasure, reciprocal transforms, or other approximate rewrites.
+Float invariants are also not fast-math flags. A proof that a value is `finite` or in `a..=b` does not automatically permit reassociation, signed-zero erasure, reciprocal transforms, or other approximate rewrites.

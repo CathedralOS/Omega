@@ -1148,6 +1148,30 @@ fn assign_expression_table_symbols(
                 member.member_symbol = symbol;
             }
         }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+            assign_expression_table_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                membership.value,
+            );
+            let name = expression_table
+                .name_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if let omega_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
+                expression_table.expression_mut(expression)
+            {
+                membership.domain_symbol = symbols
+                    .find_child_by_name_and_kind(symbols.root(), &name, SymbolKind::Domain)
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
             assign_expression_table_symbols(
                 symbols,

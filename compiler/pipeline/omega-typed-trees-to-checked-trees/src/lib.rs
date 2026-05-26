@@ -10,13 +10,13 @@ use omega_checked_trees::statement::{
 };
 use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
-    BorrowWritableRootFact, CheckFacts, ContractCallFact, ContractExitFact, ContractProofFact,
-    ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
-    DomainDependencyPathFact, DomainFacts, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
-    FlowBorrowActivationFact, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
-    FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
-    FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts, CheckedTrees, ProofFactKind,
-    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    BorrowWritableRootFact, CheckFacts, CheckedTrees, ContractCallFact, ContractExitFact,
+    ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef,
+    DomainDependencyFact, DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact,
+    FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowCallFact, FlowConstraintKind,
+    FlowConstraintRef, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
+    FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts,
+    ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -57,17 +57,15 @@ pub fn lower_typed_trees(
     })
 }
 
-
 mod semantic;
 mod semantic_calls;
 mod semantic_places;
 
 pub use semantic::lower_typed_program;
 use semantic::{
-    build_semantic_facts, call_site_argument_expressions, find_call_site, find_state,
-    find_state_in_machine, CallSite,
+    CallSite, build_semantic_facts, call_site_argument_expressions, find_call_site, find_state,
+    find_state_in_machine,
 };
-
 
 mod proof;
 

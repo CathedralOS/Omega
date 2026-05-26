@@ -1,6 +1,7 @@
 use super::context::RuntimeDispatchLoopContext;
 use super::guards::{dispatch_guard_comparison, dispatch_guard_expression};
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
+use omega_checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_control_flow::StateKey;
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
@@ -26,18 +27,23 @@ pub(super) fn build_runtime_dispatch_loop_case(
 pub(super) fn runtime_dispatch_loop_edges<'context>(
     context: &'context RuntimeDispatchLoopContext,
     state: &'context DispatchState,
-) -> impl Iterator<Item = RuntimeDispatchLoopEdge> + 'context {
-    context
+) -> Vec<RuntimeDispatchLoopEdge> {
+    let mut output = Vec::new();
+
+    for (order, edge) in context
         .state_dispatch
         .edges
         .span(state.edges)
         .into_iter()
         .flatten()
         .enumerate()
-        .map(move |(order, edge)| {
-            let guard_comparison = dispatch_guard_comparison(context, state.dispatch_index, order);
-            let guard_expression = dispatch_guard_expression(context, state.dispatch_index, order);
-            RuntimeDispatchLoopEdge {
+    {
+        let guard_comparison = dispatch_guard_comparison(context, state.dispatch_index, order);
+        let guard_expression = dispatch_guard_expression(context, state.dispatch_index, order);
+        let disjuncts = guard_disjuncts(&context.state_guards.expressions, guard_expression);
+
+        if disjuncts.len() <= 1 {
+            output.push(RuntimeDispatchLoopEdge {
                 order,
                 statement_index: edge.statement_index,
                 target: edge.target,
@@ -60,8 +66,50 @@ pub(super) fn runtime_dispatch_loop_edges<'context>(
                 guard_has_right_storage: guard_comparison.has_right_storage,
                 action: dispatch_action(&edge.target),
                 forms_cycle: edge.forms_cycle,
-            }
-        })
+            });
+            continue;
+        }
+
+        for disjunct in disjuncts {
+            output.push(RuntimeDispatchLoopEdge {
+                order,
+                statement_index: edge.statement_index,
+                target: edge.target,
+                target_dispatch_index: edge.target_dispatch_index,
+                target_arguments: edge.expressions.target_arguments,
+                continuation: edge.continuation,
+                continuation_dispatch_index: edge.continuation_dispatch_index,
+                continuation_arguments: edge.expressions.continuation_arguments,
+                guard_expression: disjunct,
+                guard_has_expression: disjunct.is_valid(),
+                action: dispatch_action(&edge.target),
+                forms_cycle: edge.forms_cycle,
+                ..RuntimeDispatchLoopEdge::default()
+            });
+        }
+    }
+
+    output
+}
+
+fn guard_disjuncts(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    if !expression.is_valid() {
+        return vec![ExpressionHandle::invalid()];
+    }
+
+    let ExpressionNode::Binary(binary) = expressions.expression(expression) else {
+        return vec![expression];
+    };
+    if binary.operator != BinaryOperator::Or {
+        return vec![expression];
+    }
+
+    let mut disjuncts = guard_disjuncts(expressions, binary.left);
+    disjuncts.extend(guard_disjuncts(expressions, binary.right));
+    disjuncts
 }
 
 fn dispatch_action(target: &RuntimeTransitionTarget) -> RuntimeDispatchLoopAction {

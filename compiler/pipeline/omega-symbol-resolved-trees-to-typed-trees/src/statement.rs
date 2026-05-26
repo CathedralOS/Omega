@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_handle_from_table;
+use crate::expression::lower_expression_handle;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle_from_table;
 use omega_core::arena::HandleSpan;
@@ -70,11 +70,7 @@ fn lower_statement_expression(
     lowerer: &mut Lowerer,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    lower_expression_handle_from_table(
-        &lowerer.source_trees.tables.bodies.expressions,
-        &mut lowerer.typed_trees.expression_table,
-        expression,
-    )
+    lower_expression_handle(lowerer, expression)
 }
 
 fn lower_statement_argument_span(

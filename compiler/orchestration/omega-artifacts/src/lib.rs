@@ -227,7 +227,7 @@ impl ArtifactWriter {
             }
         }
 
-        self.write_html_report("11_emission.html", "emission", &output)
+        self.write_text("12_emission.txt", &output)
     }
 
     pub fn write_emitted_native_output(
@@ -260,7 +260,7 @@ impl ArtifactWriter {
             emitted_output.final_image_relocations
         ));
 
-        self.write_html_report("12_emitted_output.html", "emitted_output", &output)?;
+        self.write_html_report("13_emitted_output.html", "emitted_output", &output)?;
 
         Ok(output_path)
     }
@@ -270,8 +270,12 @@ impl ArtifactWriter {
             "omega-program",
             "12_emitted_output.txt",
             "12_emitted_output.html",
+            "13_emitted_output.txt",
+            "13_emitted_output.html",
             "13_finalization.txt",
             "13_finalization.html",
+            "14_finalization.txt",
+            "14_finalization.html",
         ])
     }
 
@@ -308,7 +312,7 @@ impl ArtifactWriter {
             );
         }
 
-        self.write_html_report("13_finalization.html", "finalization", &output)
+        self.write_html_report("14_finalization.html", "finalization", &output)
     }
 
     pub fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
@@ -606,10 +610,18 @@ const REPORT_LINKS: &[(&str, &str, &str)] = &[
     ("02", "Syntax", "syntax"),
     ("03", "Symbols", "symbols"),
     ("04", "Typed", "typed"),
+    ("05", "Checked", "checked"),
     ("06", "State Graph", "state-graph"),
     ("07", "Control Flow", "control-flow"),
-    ("09", "Backend", "backend"),
-    ("11", "Emission", "emission"),
+    ("08", "Abstract Operations", "abstract-operations"),
+    ("09", "Target Operations", "target-operations"),
+    (
+        "10",
+        "Assigned Target Operations",
+        "assigned-target-operations",
+    ),
+    ("11", "Machine Instructions", "machine-instructions"),
+    ("12", "Emission", "emission"),
 ];
 
 const REPORT_STYLE: &str = r#"
@@ -993,7 +1005,11 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &CheckedTrees, ma
     }
 }
 
-fn collect_platform(report: &mut BackendSurfaceReport, program: &CheckedTrees, platform: &Platform) {
+fn collect_platform(
+    report: &mut BackendSurfaceReport,
+    program: &CheckedTrees,
+    platform: &Platform,
+) {
     report.platforms.insert(BackendPlatformSurface {
         name: platform.name.to_string(),
         states: program.platform_state_signatures(platform).len(),

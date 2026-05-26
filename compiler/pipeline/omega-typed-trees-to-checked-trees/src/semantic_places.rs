@@ -1,8 +1,8 @@
 use super::*;
 use crate::semantic::contract_fact_place;
 mod expression;
-mod receiver;
 mod place_builders;
+mod receiver;
 mod substitution;
 
 pub(crate) fn instantiate_call_contract_place(
@@ -18,8 +18,7 @@ pub(crate) fn instantiate_call_contract_place(
                 facts,
                 call,
                 *expression,
-            )
-            {
+            ) {
                 return FactPlace::Place(place);
             }
         }

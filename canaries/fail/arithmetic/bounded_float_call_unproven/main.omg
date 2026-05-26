@@ -1,0 +1,11 @@
+data Main {
+    speed: f32 = 0.0f;
+}
+
+machine Main::main(&mut self) {
+    safe_speed(self.speed);
+
+
+    state safe_speed(value: f32) {
+    }
+}

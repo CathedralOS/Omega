@@ -55,7 +55,10 @@ impl FlowBuildContext {
                 semantic.contexts.len().saturating_mul(2),
             ),
             constraint_refs: omega_core::arena::Arena::with_capacity(
-                semantic.contexts.len().saturating_mul(3)
+                semantic
+                    .contexts
+                    .len()
+                    .saturating_mul(3)
                     .saturating_add(borrow.states.len())
                     .saturating_add(borrow.calls.len())
                     .saturating_add(borrow.loans.len()),
@@ -151,8 +154,7 @@ fn build_state_flow_fact(
         borrow_state.writable_roots,
     );
     let mut active_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, state_contexts);
-    let mut active_constraints =
-        clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
+    let mut active_constraints = clone_constraint_refs(&mut ctx.constraint_refs, state_constraints);
     let state_invalidations_start = ctx.invalidations.len();
     let state_borrow_activations_start = ctx.borrow_activations.len();
     let state_borrow_weakenings_start = ctx.borrow_weakenings.len();
@@ -177,7 +179,10 @@ fn build_state_flow_fact(
         &mut ctx.constraint_refs,
         active_constraints,
         borrow,
-        program.statement_table.statements(state.statement_nodes).len(),
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
         FlowBorrowWeakeningReason::StateExit,
     );
     let state_exits = append_state_exit_facts(
@@ -306,9 +311,7 @@ fn append_state_call_facts(
             append_constraint_ref(
                 &mut ctx.constraint_refs,
                 active_constraints,
-                FlowConstraintKind::BorrowLoan {
-                    loan: loan_handle,
-                },
+                FlowConstraintKind::BorrowLoan { loan: loan_handle },
             );
         }
 
@@ -397,8 +400,7 @@ fn propagate_statement_transfers(
                 state_symbol,
                 statement_index,
                 assignment.target,
-            )
-            else {
+            ) else {
                 return;
             };
             let source_place = contextual_expression_place(
@@ -411,9 +413,9 @@ fn propagate_statement_transfers(
             );
             (target_place, assignment.value, source_place)
         }
-        StatementNode::Call(_)
-        | StatementNode::Expression(_)
-        | StatementNode::Transition(_) => return,
+        StatementNode::Call(_) | StatementNode::Expression(_) | StatementNode::Transition(_) => {
+            return;
+        }
     };
     let source_label = program.expression_table.display_name(source_expression);
 
@@ -431,7 +433,11 @@ fn propagate_statement_transfers(
             .context_view(context)
             .facts()
             .filter_map(|fact| match fact.payload {
-                FactPayload::DomainMembership { domain, domain_symbol, .. }
+                FactPayload::DomainMembership {
+                    domain,
+                    domain_symbol,
+                    ..
+                }
                 | FactPayload::ContractDomainMembership {
                     domain,
                     domain_symbol,
@@ -456,9 +462,8 @@ fn propagate_statement_transfers(
                 }
                 FactPayload::BooleanExpression(expression)
                 | FactPayload::ContractBooleanExpression { expression, .. } => {
-                    (program.expression_table.display_name(expression) == source_label).then_some(
-                        FactPayload::BooleanExpression(expression),
-                    )
+                    (program.expression_table.display_name(expression) == source_label)
+                        .then_some(FactPayload::BooleanExpression(expression))
                 }
                 _ => None,
             })
@@ -530,8 +535,10 @@ fn filter_expired_borrow_loans(
     statement_index: usize,
     reason: FlowBorrowWeakeningReason,
 ) -> omega_core::arena::HandleSpan<FlowConstraintRef> {
-    common::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
-        match constraint_ref.kind {
+    common::filter_constraint_refs(
+        constraint_refs,
+        source,
+        |constraint_ref| match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
                 let keep = borrow.loans.get(loan).last_use_statement_index >= statement_index;
                 if !keep {
@@ -549,8 +556,8 @@ fn filter_expired_borrow_loans(
             | FlowConstraintKind::BorrowCall { .. }
             | FlowConstraintKind::BorrowWritableRoot { .. }
             | FlowConstraintKind::BorrowAccess { .. } => true,
-        }
-    })
+        },
+    )
 }
 
 fn filter_reassigned_borrow_loans(
@@ -584,8 +591,10 @@ fn filter_reassigned_borrow_loans(
         | StatementNode::Transition(_) => return source,
     };
 
-    common::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
-        match constraint_ref.kind {
+    common::filter_constraint_refs(
+        constraint_refs,
+        source,
+        |constraint_ref| match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
                 let keep = borrow.loans.get(loan).owner_symbol != reassigned_symbol;
                 if !keep {
@@ -603,8 +612,8 @@ fn filter_reassigned_borrow_loans(
             | FlowConstraintKind::BorrowCall { .. }
             | FlowConstraintKind::BorrowWritableRoot { .. }
             | FlowConstraintKind::BorrowAccess { .. } => true,
-        }
-    })
+        },
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -632,7 +641,8 @@ fn build_call_flow_fact(
         borrow_call.call_ordinal,
     );
     let entry_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, *active_contexts);
-    let mut entry_constraints = clone_constraint_refs(&mut ctx.constraint_refs, *active_constraints);
+    let mut entry_constraints =
+        clone_constraint_refs(&mut ctx.constraint_refs, *active_constraints);
     if let Some((borrow_call_handle, _)) = borrow.calls.iter().find(|(_, call)| {
         call.statement_index == borrow_call.statement_index
             && call.call_ordinal == borrow_call.call_ordinal
@@ -787,10 +797,7 @@ fn append_contiguous_borrow_root_constraints(
             constraint_refs,
             refs,
             FlowConstraintKind::BorrowWritableRoot {
-                root: Handle::from_parts(
-                    start.arena_index() + offset,
-                    start.generation(),
-                ),
+                root: Handle::from_parts(start.arena_index() + offset, start.generation()),
             },
         );
     }
@@ -811,10 +818,7 @@ fn append_contiguous_borrow_access_constraints(
             constraint_refs,
             refs,
             FlowConstraintKind::BorrowAccess {
-                access: Handle::from_parts(
-                    start.arena_index() + offset,
-                    start.generation(),
-                ),
+                access: Handle::from_parts(start.arena_index() + offset, start.generation()),
             },
         );
     }
@@ -836,8 +840,7 @@ fn append_state_exit_facts(
     }) {
         let entry_exit_contexts =
             clone_flow_contexts(&mut ctx.semantic_context_refs, active_contexts);
-        let entry_constraints =
-            clone_constraint_refs(&mut ctx.constraint_refs, active_constraints);
+        let entry_constraints = clone_constraint_refs(&mut ctx.constraint_refs, active_constraints);
         let mut ensures_contexts = omega_core::arena::HandleSpan::empty();
         let mut ensures_constraints = omega_core::arena::HandleSpan::empty();
         append_flow_contexts_for_points(

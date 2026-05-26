@@ -2,10 +2,12 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::ExpressionTableCapacity;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTableCapacity};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::StatementNode;
+use omega_checked_trees::statement::{
+    StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode,
+};
 use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
@@ -152,6 +154,7 @@ fn build_machine_state_storage_plan(
                 StatementNode::LocalData(local_data) => {
                     if !local_data_requires_storage(
                         &program.expression_table,
+                        &program.statement_table,
                         statements,
                         statement_index,
                         local_data.symbol,
@@ -278,6 +281,7 @@ fn state_has_initialized_locals_before(
 
 fn local_data_requires_storage(
     expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     local_symbol: SymbolHandle,
@@ -288,14 +292,50 @@ fn local_data_requires_storage(
         return true;
     }
 
-    if uses_runtime_flow {
-        return true;
-    }
-
     statements
         .iter()
         .skip(local_statement_index + 1)
-        .any(|statement| assignment_targets_symbol(expressions, statement, local_symbol))
+        .any(|statement| {
+            (uses_runtime_flow && statement_references_symbol_in_transition(
+                expressions,
+                statement_table,
+                statement,
+                local_symbol,
+            ))
+                ||
+            assignment_targets_symbol(expressions, statement, local_symbol)
+                || statement_uses_symbol_mutably(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                )
+        })
+}
+
+fn statement_references_symbol_in_transition(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+) -> bool {
+    let StatementNode::Transition(transition) = statement else {
+        return false;
+    };
+
+    transition_guard_references_symbol(expressions, transition.guard, symbol)
+        || transition_target_references_symbol(
+            expressions,
+            statement_table,
+            transition.target,
+            symbol,
+        )
+        || transition_target_references_symbol(
+            expressions,
+            statement_table,
+            transition.continuation,
+            symbol,
+        )
 }
 
 fn assignment_targets_symbol(
@@ -329,6 +369,210 @@ fn assignment_target_head_symbol(
         }
         ExpressionNode::Mutable(inner) => assignment_target_head_symbol(expressions, *inner),
         _ => SymbolHandle::invalid(),
+    }
+}
+
+fn statement_uses_symbol_mutably(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+) -> bool {
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            expression_uses_symbol_mutably(expressions, assignment.value, symbol)
+        }
+        StatementNode::Call(call) => statement_table
+            .expression_handles(call.arguments)
+            .iter()
+            .copied()
+            .any(|expression| expression_uses_symbol_mutably(expressions, expression, symbol)),
+        StatementNode::Expression(expression) => {
+            expression_uses_symbol_mutably(expressions, *expression, symbol)
+        }
+        StatementNode::LocalData(local_data) => {
+            local_data.initial_value.is_valid()
+                && expression_uses_symbol_mutably(expressions, local_data.initial_value, symbol)
+        }
+        StatementNode::Transition(transition) => {
+            transition_guard_uses_symbol_mutably(expressions, transition.guard, symbol)
+                || transition_target_uses_symbol_mutably(
+                    expressions,
+                    statement_table,
+                    transition.target,
+                    symbol,
+                )
+                || transition_target_uses_symbol_mutably(
+                    expressions,
+                    statement_table,
+                    transition.continuation,
+                    symbol,
+                )
+        }
+    }
+}
+
+fn transition_guard_uses_symbol_mutably(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    guard: TransitionGuardNode,
+    symbol: SymbolHandle,
+) -> bool {
+    match guard {
+        TransitionGuardNode::Always => false,
+        TransitionGuardNode::When(expression) => {
+            expression_uses_symbol_mutably(expressions, expression, symbol)
+        }
+    }
+}
+
+fn transition_guard_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    guard: TransitionGuardNode,
+    symbol: SymbolHandle,
+) -> bool {
+    match guard {
+        TransitionGuardNode::Always => false,
+        TransitionGuardNode::When(expression) => {
+            expression_references_symbol(expressions, expression, symbol)
+        }
+    }
+}
+
+fn transition_target_uses_symbol_mutably(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+
+    match statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. } => statement_table
+            .expression_handles(*arguments)
+            .iter()
+            .copied()
+            .any(|expression| expression_uses_symbol_mutably(expressions, expression, symbol)),
+        TransitionTargetNode::Value(expression) => {
+            expression_uses_symbol_mutably(expressions, *expression, symbol)
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+    }
+}
+
+fn transition_target_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+
+    match statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. } => statement_table
+            .expression_handles(*arguments)
+            .iter()
+            .copied()
+            .any(|expression| expression_references_symbol(expressions, expression, symbol)),
+        TransitionTargetNode::Value(expression) => {
+            expression_references_symbol(expressions, *expression, symbol)
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+    }
+}
+
+fn expression_uses_symbol_mutably(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => expression_references_symbol(expressions, *inner, symbol),
+        ExpressionNode::ArrayLiteral(items) => expressions
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(|item| expression_uses_symbol_mutably(expressions, item, symbol)),
+        ExpressionNode::Binary(binary) => {
+            expression_uses_symbol_mutably(expressions, binary.left, symbol)
+                || expression_uses_symbol_mutably(expressions, binary.right, symbol)
+        }
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid()
+                && expression_uses_symbol_mutably(expressions, call.receiver, symbol))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(|argument| expression_uses_symbol_mutably(expressions, argument, symbol))
+        }
+        ExpressionNode::Cast(cast) => {
+            expression_uses_symbol_mutably(expressions, cast.value, symbol)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_uses_symbol_mutably(expressions, indexed.collection, symbol)
+                || expression_uses_symbol_mutably(expressions, indexed.index, symbol)
+        }
+        ExpressionNode::Member(member) => {
+            expression_uses_symbol_mutably(expressions, member.receiver, symbol)
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| expression_uses_symbol_mutably(expressions, field.value, symbol)),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => false,
+    }
+}
+
+fn expression_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(path) => path.head_symbol == symbol,
+        ExpressionNode::Mutable(inner) => expression_references_symbol(expressions, *inner, symbol),
+        ExpressionNode::ArrayLiteral(items) => expressions
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(|item| expression_references_symbol(expressions, item, symbol)),
+        ExpressionNode::Binary(binary) => {
+            expression_references_symbol(expressions, binary.left, symbol)
+                || expression_references_symbol(expressions, binary.right, symbol)
+        }
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid()
+                && expression_references_symbol(expressions, call.receiver, symbol))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(|argument| expression_references_symbol(expressions, argument, symbol))
+        }
+        ExpressionNode::Cast(cast) => expression_references_symbol(expressions, cast.value, symbol),
+        ExpressionNode::Indexed(indexed) => {
+            expression_references_symbol(expressions, indexed.collection, symbol)
+                || expression_references_symbol(expressions, indexed.index, symbol)
+        }
+        ExpressionNode::Member(member) => {
+            expression_references_symbol(expressions, member.receiver, symbol)
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| expression_references_symbol(expressions, field.value, symbol)),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => false,
     }
 }
 

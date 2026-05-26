@@ -92,8 +92,12 @@ fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let satisfied =
-                semantic_contexts_prove_contract_fact(program, &facts.semantic, &entry_contexts, fact);
+            let satisfied = semantic_contexts_prove_contract_fact(
+                program,
+                &facts.semantic,
+                &entry_contexts,
+                fact,
+            );
 
             if !satisfied {
                 let detail = match fact.payload {
@@ -144,23 +148,27 @@ fn semantic_contexts_prove_contract_fact(
                     .proves_place_domain_membership_in_program(program, place, domain_symbol)
             })
         }
-        FactPayload::ContractBooleanExpression { expression, .. } => matches!(
-            program.expression_table.expression(expression),
-            omega_checked_trees::expression::ExpressionNode::Boolean(true)
-        ) || entry_contexts.iter().any(|entry_context| {
-            let context = semantic.contexts.get(*entry_context);
-            semantic.context_view(context).proves_boolean_expression_for_place_in_program(
-                program,
-                expression,
-                match fact.place {
-                    FactPlace::Place(place) => Some(place),
-                    FactPlace::Unknown
-                    | FactPlace::Symbol(_)
-                    | FactPlace::Expression(_)
-                    | FactPlace::TypeReference(_) => None,
-                },
-            )
-        }),
+        FactPayload::ContractBooleanExpression { expression, .. } => {
+            matches!(
+                program.expression_table.expression(expression),
+                omega_checked_trees::expression::ExpressionNode::Boolean(true)
+            ) || entry_contexts.iter().any(|entry_context| {
+                let context = semantic.contexts.get(*entry_context);
+                semantic
+                    .context_view(context)
+                    .proves_boolean_expression_for_place_in_program(
+                        program,
+                        expression,
+                        match fact.place {
+                            FactPlace::Place(place) => Some(place),
+                            FactPlace::Unknown
+                            | FactPlace::Symbol(_)
+                            | FactPlace::Expression(_)
+                            | FactPlace::TypeReference(_) => None,
+                        },
+                    )
+            })
+        }
         _ => true,
     }
 }
@@ -174,7 +182,10 @@ fn explain_domain_requirement_failure(
     required_domain: SymbolHandle,
 ) -> Option<String> {
     let mut detail = None;
-    for invalidation in facts.flow.state_call_prior_invalidations(state_flow, call_flow) {
+    for invalidation in facts
+        .flow
+        .state_call_prior_invalidations(state_flow, call_flow)
+    {
         let fact = facts.semantic.facts.get(invalidation.fact);
         let (fact_domain, fact_place) = match fact.payload {
             FactPayload::DomainMembership { domain_symbol, .. }
@@ -188,7 +199,9 @@ fn explain_domain_requirement_failure(
         };
 
         if !facts.semantic.domain_implies(fact_domain, required_domain)
-            || !facts.semantic.places_match(program, fact_place, required_place)
+            || !facts
+                .semantic
+                .places_match(program, fact_place, required_place)
         {
             continue;
         }
@@ -203,7 +216,8 @@ fn explain_domain_requirement_failure(
         let mutated = canonical_place_label_from_parts(
             program,
             invalidation.mutated_root,
-            facts.flow
+            facts
+                .flow
                 .invalidation_segments
                 .span_or_empty(invalidation.mutated_segments),
         );

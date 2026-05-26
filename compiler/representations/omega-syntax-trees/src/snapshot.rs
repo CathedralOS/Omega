@@ -352,6 +352,10 @@ pub enum ExpressionSnapshot {
     Integer {
         value: i64,
     },
+    Membership {
+        value: Box<ExpressionSnapshot>,
+        domain: Vec<IdentifierSnapshot>,
+    },
     Member {
         receiver: Box<ExpressionSnapshot>,
         member: IdentifierSnapshot,
@@ -955,6 +959,14 @@ fn snapshot_expression_handle(
             index: Box::new(snapshot_expression_handle(syntax_trees, indexed.index)),
         },
         ExpressionNode::Integer(value) => ExpressionSnapshot::Integer { value: *value },
+        ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
+            value: Box::new(snapshot_expression_handle(syntax_trees, membership.value)),
+            domain: snapshot_identifier_slice(
+                syntax_trees
+                    .expressions
+                    .identifier_path_members(membership.domain),
+            ),
+        },
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(snapshot_expression_handle(syntax_trees, member.receiver)),
             member: snapshot_identifier(&member.member),

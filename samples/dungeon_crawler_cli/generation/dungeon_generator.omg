@@ -7,7 +7,7 @@ data DungeonGenerator {
 
 machine DungeonGenerator::generate(
     &mut self,
-    seed: u64[wrapping],
+    seed: u64,
     out_level: &mut Level
 ) {
     self.maze.build(seed, out_level);

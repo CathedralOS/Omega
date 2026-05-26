@@ -7,7 +7,9 @@ pub(crate) fn call_site_argument_expressions<'program>(
     match call_site {
         CallSite::Statement(call) => program.statement_table.expression_handles(call.arguments),
         CallSite::Expression(call) => program.expression_table.expression_handles(call.arguments),
-        CallSite::TransitionNamed(arguments) => program.statement_table.expression_handles(*arguments),
+        CallSite::TransitionNamed(arguments) => {
+            program.statement_table.expression_handles(*arguments)
+        }
     }
 }
 

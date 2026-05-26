@@ -1,0 +1,15 @@
+data Stats {
+    level: u32;
+}
+
+data Main {
+    stats: Stats;
+}
+
+machine Main::main(&mut self) {
+    self.bump(&mut self.stats);
+}
+
+machine Main::bump(&mut self, stats: &mut Stats) {
+    stats.level = 1;
+}

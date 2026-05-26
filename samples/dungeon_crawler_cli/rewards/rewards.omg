@@ -9,6 +9,6 @@ enum RewardKind {
 
 data Reward {
     kind: RewardKind;
-    gold: u32[exact, non_negative];
+    gold: u32;
     item: ItemKind;
 }

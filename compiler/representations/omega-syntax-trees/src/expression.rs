@@ -118,6 +118,7 @@ pub enum ExpressionNode {
     Float(SourceText),
     Indexed(TableIndexedExpression),
     Integer(i64),
+    Membership(TableMembershipExpression),
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(HandleSpan<Identifier>),
@@ -149,6 +150,12 @@ pub struct TableCastExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableMembershipExpression {
+    pub value: ExpressionHandle,
+    pub domain: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -234,6 +241,13 @@ impl ExpressionNode {
                 )
             }
             Self::Integer(value) => value.to_string(),
+            Self::Membership(membership) => {
+                format!(
+                    "{} in {}",
+                    table.display_name(membership.value),
+                    display_identifier_path(table.identifier_path_members(membership.domain), "::")
+                )
+            }
             Self::Member(member) => {
                 format!("{}.{}", table.display_name(member.receiver), member.member)
             }

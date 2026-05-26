@@ -48,12 +48,16 @@ machine Game::run(&mut self) {
 ## Working Rules
 
 - Calling `Game::run` enters the machine body at the top.
+- The machine body may do setup work first, but the entry path must end in one
+  explicit tail `transition { ... }` before any `state` declarations.
 - `prompt`, `look`, `invalid_command`, and `finished` are internal state labels.
 - Ordinary calls target machines, not states.
 - Transitions target states in the current machine.
 - A transition is a jump, not a call.
 - A transition does not push a frame, store a return address, or resume the
   source state later.
+- State-to-state control flow is expressed with the `transition` keyword, not
+  standalone `-> target when ...;` lines.
 - A state that reaches the end without another transition completes the current
   machine invocation.
 

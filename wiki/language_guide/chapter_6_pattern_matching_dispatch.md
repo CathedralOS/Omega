@@ -66,17 +66,17 @@ transition command {
 If `Command` later gains a variant, this transition should fail until it handles
 the new variant or proves that the new variant cannot occur.
 
-## Guarded Jumps
+## Tail Dispatch
 
-A guarded jump is still a transition.
+Transitions are expressed with the `transition` keyword. Tail transitions are
+the supported control form inside state bodies.
 
 ```omega
 state read_command(&mut self) {
     self.console.read_line(&mut self.input);
 
-    -> finished() when self.input == "";
-
     transition self.input {
+        "" -> finished()
         "quit" -> finished()
         "look" -> look()
         _ -> invalid_command()
@@ -84,7 +84,10 @@ state read_command(&mut self) {
 }
 ```
 
-If the guard is true, the current path ends and the target state starts.
+The selected arm ends the current state and transfers control to the target
+state. Entry code follows the same rule: the machine body executes straight-line
+setup first, then reaches one explicit trailing `transition { ... }` before the
+state declarations begin.
 
 ## Domain Patterns
 

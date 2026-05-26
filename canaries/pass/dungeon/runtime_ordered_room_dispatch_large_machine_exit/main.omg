@@ -1,0 +1,240 @@
+use platform::console;
+
+data CommandParser {}
+
+data GameView {}
+
+machine GameView::render_title(
+    &mut self,
+    console: &mut Console
+) {
+    console.write_line("Dungeon Crawler");
+}
+
+machine GameView::render_prompt(
+    &mut self,
+    console: &mut Console
+) {
+    console.write("> ");
+}
+
+machine GameView::render_line(
+    &mut self,
+    line: String,
+    console: &mut Console
+) {
+    console.write_line(line);
+}
+
+data Dungeon {
+    room_zero_seen: bool;
+    room_one_seen: bool;
+    room_two_seen: bool;
+    room_three_seen: bool;
+}
+
+machine Dungeon::enter_room(
+    &mut self,
+    room_index: usize
+) {
+    transition {
+        _ -> mark_current_room()
+    }
+
+    state mark_current_room(&mut self) {
+        -> mark_zero() when room_index == 0;
+        -> mark_one() when room_index == 1;
+        -> mark_two() when room_index == 2;
+        -> mark_three();
+    }
+
+    state mark_zero(&mut self) {
+        self.room_zero_seen = true;
+    }
+
+    state mark_one(&mut self) {
+        self.room_one_seen = true;
+    }
+
+    state mark_two(&mut self) {
+        self.room_two_seen = true;
+    }
+
+    state mark_three(&mut self) {
+        self.room_three_seen = true;
+    }
+}
+
+data Main {
+    console: Console;
+    dungeon: Dungeon;
+    parser: CommandParser;
+    view: GameView;
+    input: String;
+    output: String;
+    current_room_index: usize;
+    fountain_used: bool;
+    bat_defeated: bool;
+    treasure_taken: bool;
+}
+
+machine Main::main(&mut self) {
+    self.input = "";
+    self.output = "";
+    self.current_room_index = 2;
+    self.fountain_used = false;
+    self.bat_defeated = true;
+    self.treasure_taken = false;
+
+    self.view.render_title(&mut self.console);
+
+    transition {
+        _ -> enter_room()
+    }
+
+    state enter_room(&mut self) {
+        self.dungeon.enter_room(self.current_room_index);
+
+        -> show_gate_room() when self.current_room_index == 0;
+        -> show_spent_fountain_room() when self.current_room_index == 1 && self.fountain_used == true;
+        -> show_fountain_room() when self.current_room_index == 1;
+        -> show_ambush_room() when self.current_room_index == 2 && self.bat_defeated == true;
+        -> show_ambush_encounter() when self.current_room_index == 2;
+        -> show_looted_vault_room() when self.current_room_index == 3 && self.treasure_taken == true;
+        -> show_vault_room();
+    }
+
+    state prompt(&mut self) {
+        self.view.render_prompt(&mut self.console);
+        -> finished() when self.input == "exit";
+        -> invalid_command();
+    }
+
+    state read_command(&mut self) {
+        self.console.read_line(&mut self.input);
+
+        transition self.input {
+            "look" -> look()
+            "help" -> exits()
+            "use" -> use_event()
+            "fight" -> fight()
+            _ -> invalid_command()
+        }
+    }
+
+    state look(&mut self) {
+        -> look_gate_room() when self.current_room_index == 0;
+        -> look_spent_fountain_room() when self.current_room_index == 1 && self.fountain_used == true;
+        -> look_fountain_room() when self.current_room_index == 1;
+        -> look_ambush_room() when self.current_room_index == 2 && self.bat_defeated == true;
+        -> look_ambush_encounter() when self.current_room_index == 2;
+        -> look_looted_vault_room() when self.current_room_index == 3 && self.treasure_taken == true;
+        -> look_vault_room();
+    }
+
+    state exits(&mut self) {
+        -> show_gate_paths() when self.current_room_index == 0;
+        -> show_fountain_paths() when self.current_room_index == 1;
+        -> show_ambush_paths() when self.current_room_index == 2 && self.bat_defeated == true;
+        -> show_ambush_blocked_paths() when self.current_room_index == 2;
+        -> show_vault_paths();
+    }
+
+    state use_event(&mut self) {
+        self.output = "use";
+        self.view.render_line(self.output, &mut self.console);
+        -> prompt();
+    }
+
+    state fight(&mut self) {
+        self.output = "fight";
+        self.view.render_line(self.output, &mut self.console);
+        -> prompt();
+    }
+
+    state invalid_command(&mut self) {
+        self.output = "invalid";
+        self.view.render_line(self.output, &mut self.console);
+        -> finished();
+    }
+
+    state show_gate_room(&mut self) {
+        self.console.exit_process(100);
+    }
+
+    state show_spent_fountain_room(&mut self) {
+        self.console.exit_process(101);
+    }
+
+    state show_fountain_room(&mut self) {
+        self.console.exit_process(102);
+    }
+
+    state show_ambush_room(&mut self) {
+        self.console.exit_process(103);
+    }
+
+    state show_ambush_encounter(&mut self) {
+        self.console.exit_process(104);
+    }
+
+    state show_looted_vault_room(&mut self) {
+        self.console.exit_process(105);
+    }
+
+    state show_vault_room(&mut self) {
+        self.console.exit_process(106);
+    }
+
+    state look_gate_room(&mut self) {
+        self.console.exit_process(110);
+    }
+
+    state look_spent_fountain_room(&mut self) {
+        self.console.exit_process(111);
+    }
+
+    state look_fountain_room(&mut self) {
+        self.console.exit_process(112);
+    }
+
+    state look_ambush_room(&mut self) {
+        self.console.exit_process(113);
+    }
+
+    state look_ambush_encounter(&mut self) {
+        self.console.exit_process(114);
+    }
+
+    state look_looted_vault_room(&mut self) {
+        self.console.exit_process(115);
+    }
+
+    state look_vault_room(&mut self) {
+        self.console.exit_process(116);
+    }
+
+    state show_gate_paths(&mut self) {
+        self.console.exit_process(120);
+    }
+
+    state show_fountain_paths(&mut self) {
+        self.console.exit_process(121);
+    }
+
+    state show_ambush_paths(&mut self) {
+        self.console.exit_process(122);
+    }
+
+    state show_ambush_blocked_paths(&mut self) {
+        self.console.exit_process(123);
+    }
+
+    state show_vault_paths(&mut self) {
+        self.console.exit_process(124);
+    }
+
+    state finished(&mut self) {
+        self.console.exit_process(125);
+    }
+}

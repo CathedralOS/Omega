@@ -340,10 +340,10 @@ those machines safe to use.
 
 ```omega
 trait BoundedCounter {
-    invariant self.value in range<0, 1000>;
+    invariant self.value in 0..=1000;
 
     machine Self::increment(&mut self)
-        ensures self.value in range<0, 1000>;
+        ensures self.value in 0..=1000;
 
     machine Self::snapshot(&self, out: &mut CounterSnapshot);
 }

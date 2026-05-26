@@ -142,10 +142,11 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
             .collect::<Vec<_>>(),
         vec![caller_borrow_state]
     );
-    assert!(flow
-        .borrow_activations
-        .span_or_empty(caller_flow.borrow_activations)
-        .is_empty());
+    assert!(
+        flow.borrow_activations
+            .span_or_empty(caller_flow.borrow_activations)
+            .is_empty()
+    );
     assert_eq!(call_flow.statement_index, 0);
     assert_eq!(call_flow.call_ordinal, 0);
     assert_eq!(call_flow.target_symbol, callee_state_symbol);
@@ -164,11 +165,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         flow.borrow_access_constraints(call_flow.entry_constraints)
             .collect::<Vec<_>>()
             .len(),
-        borrow
-            .calls
-            .get(caller_borrow_call)
-            .accesses
-            .count() as usize
+        borrow.calls.get(caller_borrow_call).accesses.count() as usize
     );
     assert!(!call_flow.requires_contexts.is_empty());
     assert_eq!(
@@ -210,9 +207,8 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved =
         omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
-    let typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -240,7 +236,9 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     assert_eq!(activations[0].loan, loans[0]);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
-    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    let weakenings = flow
+        .borrow_weakenings
+        .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(weakenings[0].loan, loans[0]);
     assert_eq!(
@@ -285,9 +283,8 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved =
         omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
-    let typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -321,7 +318,9 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     assert_eq!(activations[0].loan, loans[0]);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
-    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    let weakenings = flow
+        .borrow_weakenings
+        .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(weakenings[0].loan, loans[0]);
     assert_eq!(
@@ -358,9 +357,8 @@ fn drops_local_borrow_loans_after_last_use() {
     let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved =
         omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
-    let typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -369,7 +367,12 @@ fn drops_local_borrow_loans_after_last_use() {
     let domains = build_domain_facts(&typed, &semantic);
     let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
-    let loan = borrow.loans.iter().next().map(|(_, loan)| loan).expect("loan");
+    let loan = borrow
+        .loans
+        .iter()
+        .next()
+        .map(|(_, loan)| loan)
+        .expect("loan");
     assert_eq!(loan.statement_index, 0);
     assert_eq!(loan.last_use_statement_index, 1);
 
@@ -386,7 +389,9 @@ fn drops_local_borrow_loans_after_last_use() {
         .borrow_loan_constraints(call_flows[1].entry_constraints)
         .collect();
     assert!(second_call_loans.is_empty());
-    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    let weakenings = flow
+        .borrow_weakenings
+        .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(weakenings[0].loan, first_call_loans[0]);
     assert_eq!(
@@ -418,9 +423,8 @@ fn drops_local_borrow_loans_after_local_reassignment() {
     let syntax = omega_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved =
         omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
-    let typed =
-        omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
+    let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
     let effects = omega_effects::infer_effects(&typed);
     let borrow = build_borrow_facts(&typed);
@@ -437,7 +441,9 @@ fn drops_local_borrow_loans_after_local_reassignment() {
         .collect();
     assert!(call_loans.is_empty());
 
-    let weakenings = flow.borrow_weakenings.span_or_empty(state_flow.borrow_weakenings);
+    let weakenings = flow
+        .borrow_weakenings
+        .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(
         weakenings[0].reason,

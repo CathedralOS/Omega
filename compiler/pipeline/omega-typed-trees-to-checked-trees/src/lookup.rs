@@ -8,6 +8,6 @@ pub(crate) use calls::{
     statement_call_receiver_path,
 };
 pub(crate) use symbols::{
-    expression_root_symbol, first_valid_name_path_symbol, machine_by_symbol,
-    machine_state_count, machine_symbol_from_type_reference_handle,
+    expression_root_symbol, first_valid_name_path_symbol, machine_by_symbol, machine_state_count,
+    machine_symbol_from_type_reference_handle,
 };
