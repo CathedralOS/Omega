@@ -32,7 +32,9 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - runnable exit-code probes now cover straight-line and state-body mutable slice alias writes too
   - runnable slice-index probes now cover dynamic reads and dynamic local copies in both straight-line and state-body forms
   - indexed borrow overlap checks now distinguish obviously disjoint fixed indices from potentially aliasing ones
+    - `canaries/pass/borrows/borrow_disjoint_fixed_index_call_mut`
     - `canaries/pass/borrows/borrow_disjoint_fixed_index_mut`
+    - `canaries/fail/borrows/borrow_same_fixed_index_call_mut`
     - `canaries/fail/borrows/borrow_same_fixed_index_mut`
     - `canaries/fail/borrows/borrow_same_fixed_index_slice_alias_mut`
     - `canaries/fail/borrows/borrow_unknown_index_pair_mut`

@@ -1,0 +1,16 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine Main::pair_write(&mut self, left: &mut Entry, right: &mut Entry) {
+    left = Entry { value: 1 };
+    right = Entry { value: 2 };
+}
+
+machine Main::main(&mut self) {
+    self.pair_write(&mut self.entries[0], &mut self.entries[1]);
+}
