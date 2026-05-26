@@ -1014,6 +1014,39 @@ fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-alias-indexed-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice alias indexed string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice alias indexed string field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime slice alias indexed string field concat canary to preserve alias-indexed string writes and exit 77, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_integer_write_exit");
     let main_path = canary.join("main.omg");
@@ -1662,6 +1695,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_concat_membership_exit",
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
+    "text/runtime_slice_alias_indexed_string_field_concat_exit",
     "arithmetic/runtime_arithmetic_guard",
     "arithmetic/runtime_arithmetic_value",
     "calls/runtime_call_guard",
@@ -1694,8 +1728,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_nested_branch_assignment_prelude_value",
     "control_flow/runtime_nested_branch_prelude_value",
     "control_flow/runtime_nested_branch_value",
-    "storage/runtime_dispatch_helper_local_alias_add",
-    "storage/runtime_dispatch_local_index_binary_write",
     "slices/runtime_dispatch_mutable_slice_element_write_compile",
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "storage/runtime_indexed_alias_field_binary",
@@ -1747,6 +1779,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_non_boolean_fact",
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
+    "storage/runtime_dispatch_helper_local_alias_add_unimplemented",
+    "storage/runtime_dispatch_local_index_binary_write_unimplemented",
     "calls/runtime_helper_ordering_return",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
@@ -1755,5 +1789,4 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_parameter_mismatch",
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
-    "text/runtime_slice_alias_indexed_string_field_concat_unimplemented",
 ];

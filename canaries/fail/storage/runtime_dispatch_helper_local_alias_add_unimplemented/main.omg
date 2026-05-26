@@ -24,7 +24,6 @@ machine Main::main(&mut self) {
 
     self.append_exit(&mut rooms[from_index], 1);
     -> main() when true;
-    
 }
 
 machine Main::append_exit(
@@ -37,5 +36,4 @@ machine Main::append_exit(
 
     exits[index] = Exit { destination: destination };
     room.exit_count = index + 1;
-    
 }

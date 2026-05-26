@@ -1,6 +1,6 @@
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, IndexedExpression,
-    MemberExpression, NamePath,
+    MemberExpression, NamePath, TableCallExpression,
 };
 use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
@@ -12,6 +12,9 @@ pub(in crate::selection) fn normalized_storage_expression(
         Expression::Mutable(target) => normalized_storage_expression(target),
         Expression::Indexed(indexed) => Some(Expression::Name(indexed_expression_path(indexed)?)),
         Expression::Member(member) => Some(Expression::Name(member_expression_path(member)?)),
+        Expression::Call(call) => {
+            normalized_storage_expression(slice_view_call_receiver_expression(call)?)
+        }
         Expression::Name(_) => Some(expression.clone()),
         _ => None,
     }
@@ -22,6 +25,15 @@ fn member_expression_path(member: &MemberExpression) -> Option<NamePath> {
         Expression::Name(path) => path.clone(),
         Expression::Indexed(indexed) => indexed_expression_path(indexed)?,
         Expression::Member(inner_member) => member_expression_path(inner_member)?,
+        Expression::Call(call) => normalized_storage_expression(
+            slice_view_call_receiver_expression(call)?,
+        )
+        .and_then(|normalized| {
+            let Expression::Name(path) = normalized else {
+                return None;
+            };
+            Some(path)
+        })?,
         Expression::Mutable(target) => {
             normalized_storage_expression(target).and_then(|normalized| {
                 let Expression::Name(path) = normalized else {
@@ -42,7 +54,7 @@ pub(in crate::selection) fn indexed_expression_path(
     let Expression::Integer(index) = &indexed.index else {
         return None;
     };
-    let mut path = match &indexed.collection {
+    let mut path = match slice_view_collection_expression(&indexed.collection) {
         Expression::Name(path) => path.clone(),
         Expression::Indexed(inner_indexed) => indexed_expression_path(inner_indexed)?,
         _ => return None,
@@ -99,6 +111,9 @@ fn storage_path_head_symbol(table: &ExpressionTable, expression: ExpressionHandl
         ExpressionNode::Mutable(target) => storage_path_head_symbol(table, *target),
         ExpressionNode::Indexed(indexed) => storage_path_head_symbol(table, indexed.collection),
         ExpressionNode::Member(member) => storage_path_head_symbol(table, member.receiver),
+        ExpressionNode::Call(call) => slice_view_call_receiver_handle(call)
+            .map(|receiver| storage_path_head_symbol(table, receiver))
+            .unwrap_or_else(SymbolHandle::invalid),
         ExpressionNode::Name(path) => path.head_symbol,
         _ => SymbolHandle::invalid(),
     }
@@ -114,6 +129,9 @@ fn storage_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Op
             storage_path_len(table, indexed.collection)
         }
         ExpressionNode::Member(member) => storage_path_len(table, member.receiver)?.checked_add(1),
+        ExpressionNode::Call(call) => {
+            storage_path_len(table, slice_view_call_receiver_handle(call)?)
+        }
         ExpressionNode::Name(path) => Some(table.name_path_members(path.members).len()),
         _ => None,
     }
@@ -127,6 +145,9 @@ fn storage_path_member(
     match table.expression(expression) {
         ExpressionNode::Mutable(target) => storage_path_member(table, *target, index),
         ExpressionNode::Indexed(indexed) => storage_path_member(table, indexed.collection, index),
+        ExpressionNode::Call(call) => {
+            storage_path_member(table, slice_view_call_receiver_handle(call)?, index)
+        }
         ExpressionNode::Member(member) => {
             let receiver_len = storage_path_len(table, member.receiver)?;
             if index == receiver_len {
@@ -150,6 +171,9 @@ fn storage_path_member_symbol(
         ExpressionNode::Indexed(indexed) => {
             storage_path_member_symbol(table, indexed.collection, index)
         }
+        ExpressionNode::Call(call) => slice_view_call_receiver_handle(call)
+            .map(|receiver| storage_path_member_symbol(table, receiver, index))
+            .unwrap_or_else(SymbolHandle::invalid),
         ExpressionNode::Member(member) => {
             let Some(receiver_len) = storage_path_len(table, member.receiver) else {
                 return SymbolHandle::invalid();
@@ -189,6 +213,9 @@ fn storage_path_member_index(
                 storage_path_member_index(table, indexed.collection, index)
             }
         }
+        ExpressionNode::Call(call) => {
+            storage_path_member_index(table, slice_view_call_receiver_handle(call)?, index)
+        }
         ExpressionNode::Member(member) => {
             let receiver_len = storage_path_len(table, member.receiver)?;
             if index < receiver_len {
@@ -218,6 +245,34 @@ fn borrowed_member_symbol(
             SymbolHandle::invalid()
         }
     })
+}
+
+fn slice_view_collection_expression<'expr>(expression: &'expr Expression) -> &'expr Expression {
+    match expression {
+        Expression::Call(call) => slice_view_call_receiver_expression(call).unwrap_or(expression),
+        _ => expression,
+    }
+}
+
+fn slice_view_call_receiver_expression(
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<&Expression> {
+    if !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return None;
+    }
+    call.receiver.as_deref()
+}
+
+fn slice_view_call_receiver_handle(call: &TableCallExpression) -> Option<ExpressionHandle> {
+    if !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return None;
+    }
+    Some(call.receiver)
 }
 
 #[derive(Clone, Copy)]
