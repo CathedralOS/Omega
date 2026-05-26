@@ -1377,6 +1377,39 @@ fn runtime_mutable_local_parameter_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mutable_parameter_read_modify_write_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_mutable_parameter_read_modify_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-parameter-read-modify-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable parameter read/modify/write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable parameter read/modify/write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(191),
+        "expected runtime mutable parameter read/modify/write canary to preserve aliased binary writes and exit 191, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_local_indexed_parameter_write_exit");
     let main_path = canary.join("main.omg");

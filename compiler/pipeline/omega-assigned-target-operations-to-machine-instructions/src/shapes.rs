@@ -289,6 +289,22 @@ pub(super) fn lower_machine_instruction_kind(
             *byte_size,
             *operator,
         ),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            operator,
+            ..
+        } => runtime_storage::runtime_frame_base_indexed_binary_write_kind(
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *operator,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             byte_length,
@@ -551,6 +567,7 @@ fn first_runtime_value_handle(
         | SelectedInstructionKind::WriteRuntimeStorageBinary { left, .. }
         | SelectedInstructionKind::WriteRuntimePointeeBinary { left, .. }
         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { left, .. } => Some(*left),
         _ => None,
     }
 }
@@ -563,6 +580,7 @@ fn second_runtime_value_handle(
         | SelectedInstructionKind::WriteRuntimeStorageBinary { right, .. }
         | SelectedInstructionKind::WriteRuntimePointeeBinary { right, .. }
         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { right, .. } => Some(*right),
         _ => None,
     }
 }

@@ -403,6 +403,32 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     }
 }
 
+pub fn runtime_frame_base_indexed_binary_write_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_frame_base_indexed_binary_write_width(
+            runtime_value_operands,
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_machine_indexed_integer_write_width(
     architecture: Architecture,
     base_byte_offset: usize,

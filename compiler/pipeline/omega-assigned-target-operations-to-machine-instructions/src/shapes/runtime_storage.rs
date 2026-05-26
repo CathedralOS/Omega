@@ -105,6 +105,17 @@ pub(super) fn runtime_frame_indexed_binary_write_kind(
     MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
 }
 
+pub(super) fn runtime_frame_base_indexed_binary_write_kind(
+    _base_byte_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _operator: omega_assigned_target_operations::StateGuardOperator,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameBaseIndexedBinaryWrite
+}
+
 pub(super) fn runtime_machine_string_write_kind(
     _byte_offset: usize,
     _byte_length: usize,

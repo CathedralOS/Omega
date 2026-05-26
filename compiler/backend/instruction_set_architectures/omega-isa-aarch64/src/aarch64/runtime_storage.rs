@@ -17,7 +17,7 @@ use super::primitives::{
     encode_udiv_x_register,
 };
 use super::widths::{
-    runtime_frame_base_indexed_integer_write_width,
+    runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_machine_indexed_integer_write_width,
@@ -657,6 +657,41 @@ pub fn encode_runtime_frame_indexed_binary_write(
     append_runtime_frame_index_target_address(
         &mut bytes,
         descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 17, &[18, 15, 14], left)?;
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, 18, &[15, 14], right)?;
+    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+    append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
+    Ok(bytes)
+}
+
+pub fn encode_runtime_frame_base_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_binary_write_width(
+        runtime_value_operands,
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        base_byte_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
