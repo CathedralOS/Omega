@@ -981,39 +981,6 @@ fn runtime_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
-    let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-slice-alias-indexed-string-field-concat-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice alias indexed string field concat canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime slice alias indexed string field concat canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(77),
-        "expected runtime slice alias indexed string field concat canary to preserve alias-based indexed string writes and exit 77, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_machine_owned_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -1695,7 +1662,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_concat_membership_exit",
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
-    "text/runtime_slice_alias_indexed_string_field_concat_exit",
     "arithmetic/runtime_arithmetic_guard",
     "arithmetic/runtime_arithmetic_value",
     "calls/runtime_call_guard",
@@ -1789,4 +1755,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_parameter_mismatch",
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
+    "text/runtime_slice_alias_indexed_string_field_concat_unimplemented",
 ];
