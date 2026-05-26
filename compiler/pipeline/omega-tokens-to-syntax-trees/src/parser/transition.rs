@@ -1,12 +1,14 @@
 use crate::parse_error::ParseError;
 use crate::parser::expression::{
-    parse_expression_handle, parse_expression_handle_without_struct_literals,
+    parse_argument_list_after_open_paren_handle, parse_expression_handle,
+    parse_expression_handle_without_struct_literals,
 };
-use crate::parser::input::{Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
+    TableMemberExpression,
 };
 use omega_syntax_trees::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionGuardNode, TransitionTargetHandle,
@@ -88,43 +90,24 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let (subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
         (
-            ExpressionHandle::invalid(),
+            Vec::new(),
             input.take_punctuation(PunctuationKind::LeftBrace, "{")?,
         )
     } else {
-        let (expression, rest) = parse_expression_handle_until_punctuation(
+        let (expressions, rest) = parse_expression_list_until_punctuation(
             syntax_trees,
             input,
             PunctuationKind::LeftBrace,
         )?;
         let input = rest.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        (expression, input)
+        (expressions, input)
     };
 
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (guard, rest) = if input.at_contextual("_") {
-            (TransitionGuardNode::Always, input.take_contextual("_")?)
-        } else {
-            let (pattern, rest) =
-                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-            if subject.is_valid() {
-                (
-                    TransitionGuardNode::When(syntax_trees.expressions.insert(
-                        ExpressionNode::Binary(TableBinaryExpression {
-                            left: subject,
-                            operator: BinaryOperator::Equal,
-                            right: pattern,
-                        }),
-                    )),
-                    rest,
-                )
-            } else {
-                (TransitionGuardNode::When(pattern), rest)
-            }
-        };
+        let (guard, rest) = parse_transition_guard_node(syntax_trees, input, &subject)?;
         input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
 
         let (target, rest) = if input.at_punctuation(PunctuationKind::LeftBrace) {
@@ -137,7 +120,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                 input,
             )
         } else {
-            parse_transition_target_handle(syntax_trees, input)?
+            parse_transition_block_target_handle(syntax_trees, input)?
         };
         input = rest;
 
@@ -178,21 +161,205 @@ pub(super) fn parse_transition_target_handle<'tokens, 'source>(
     ))
 }
 
-fn parse_expression_handle_until_punctuation<'tokens, 'source>(
+fn parse_transition_block_target_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
+    if input.at_keyword(KeywordKind::SelfValue) || input.at_name_like() {
+        let (expression, rest) = parse_transition_target_expression_handle(syntax_trees, input)?;
+        return Ok((
+            classify_transition_target_handle(syntax_trees, expression)?,
+            rest,
+        ));
+    }
+
+    parse_transition_target_handle(syntax_trees, input)
+}
+
+fn parse_expression_list_until_punctuation<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     delimiter: PunctuationKind,
-) -> Result<(ExpressionHandle, Input<'tokens, 'source>), ParseError> {
+) -> Result<(Vec<ExpressionHandle>, Input<'tokens, 'source>), ParseError> {
     let (expression_input, rest) =
         input.split_at_top_level_punctuation(delimiter, "expected transition block delimiter")?;
-    let (expression, rest_after_expression) =
-        parse_expression_handle_without_struct_literals(syntax_trees, expression_input)?;
+    let (expressions, rest_after_expression) =
+        parse_transition_expression_list(syntax_trees, expression_input)?;
 
     if !rest_after_expression.tokens.is_empty() {
         return Err(rest_after_expression.error_here("expected transition subject expression"));
     }
 
-    Ok((expression, rest))
+    Ok((expressions, rest))
+}
+
+fn parse_transition_guard_node<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    subject: &[ExpressionHandle],
+) -> Result<(TransitionGuardNode, Input<'tokens, 'source>), ParseError> {
+    let (pattern_input, rest) =
+        input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
+    let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
+    if !pattern_rest.tokens.is_empty() {
+        return Err(pattern_rest.error_here("expected transition pattern"));
+    }
+
+    if subject.is_empty() {
+        if patterns.len() == 1 {
+            let guard = match patterns.into_iter().next().flatten() {
+                Some(expression) => TransitionGuardNode::When(expression),
+                None => TransitionGuardNode::Always,
+            };
+            return Ok((guard, rest));
+        }
+        return Err(input.error_here("anonymous transition blocks do not support tuple patterns"));
+    }
+
+    if patterns.len() == 1 && patterns[0].is_none() {
+        return Ok((TransitionGuardNode::Always, rest));
+    }
+
+    if subject.len() != patterns.len() {
+        return Err(input.error_here(format!(
+            "transition pattern arity {} does not match subject arity {}",
+            patterns.len(),
+            subject.len()
+        )));
+    }
+
+    let mut combined = ExpressionHandle::invalid();
+    for (left, right) in subject.iter().copied().zip(patterns.into_iter()) {
+        let Some(right) = right else {
+            continue;
+        };
+        let equality =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Equal,
+                    right,
+                }));
+        combined = if combined.is_valid() {
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: combined,
+                    operator: BinaryOperator::And,
+                    right: equality,
+                }))
+        } else {
+            equality
+        };
+    }
+
+    Ok((
+        if combined.is_valid() {
+            TransitionGuardNode::When(combined)
+        } else {
+            TransitionGuardNode::Always
+        },
+        rest,
+    ))
+}
+
+fn parse_transition_expression_list<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<ExpressionHandle>> {
+    parse_transition_match_list(syntax_trees, input, false)
+}
+
+fn parse_transition_pattern_list<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<Option<ExpressionHandle>>> {
+    parse_transition_match_list(syntax_trees, input, true)
+}
+
+fn parse_transition_match_list<'tokens, 'source, T>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    allow_wildcard: bool,
+) -> ParseResult<'tokens, 'source, Vec<T>>
+where
+    T: FromTransitionMatchComponent,
+{
+    if input.at_punctuation(PunctuationKind::LeftParen) {
+        let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+        let (values, input) =
+            parse_transition_match_list_after_open_paren(syntax_trees, input, allow_wildcard)?;
+        let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+        Ok((values, input))
+    } else {
+        let (value, input) = parse_transition_match_component(syntax_trees, input, allow_wildcard)?;
+        Ok((vec![value], input))
+    }
+}
+
+fn parse_transition_match_list_after_open_paren<'tokens, 'source, T>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+    allow_wildcard: bool,
+) -> ParseResult<'tokens, 'source, Vec<T>>
+where
+    T: FromTransitionMatchComponent,
+{
+    let mut values = Vec::new();
+    while !input.at_punctuation(PunctuationKind::RightParen) {
+        let (value, rest) = parse_transition_match_component(syntax_trees, input, allow_wildcard)?;
+        values.push(value);
+        input = rest;
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+        } else {
+            break;
+        }
+    }
+    Ok((values, input))
+}
+
+fn parse_transition_match_component<'tokens, 'source, T>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    allow_wildcard: bool,
+) -> ParseResult<'tokens, 'source, T>
+where
+    T: FromTransitionMatchComponent,
+{
+    if allow_wildcard && input.at_contextual("_") {
+        let input = input.take_contextual("_")?;
+        return Ok((T::from_wildcard(), input));
+    }
+
+    let (expression, input) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+    Ok((T::from_expression(expression), input))
+}
+
+trait FromTransitionMatchComponent {
+    fn from_expression(expression: ExpressionHandle) -> Self;
+    fn from_wildcard() -> Self;
+}
+
+impl FromTransitionMatchComponent for ExpressionHandle {
+    fn from_expression(expression: ExpressionHandle) -> Self {
+        expression
+    }
+
+    fn from_wildcard() -> Self {
+        ExpressionHandle::invalid()
+    }
+}
+
+impl FromTransitionMatchComponent for Option<ExpressionHandle> {
+    fn from_expression(expression: ExpressionHandle) -> Self {
+        Some(expression)
+    }
+
+    fn from_wildcard() -> Self {
+        None
+    }
 }
 
 fn classify_transition_target_handle(
@@ -208,6 +375,86 @@ fn classify_transition_target_handle(
     };
 
     Ok(syntax_trees.statements.insert_transition_target(target))
+}
+
+fn parse_transition_target_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let (mut expression, mut input) = if input.at_keyword(KeywordKind::SelfValue) {
+        (
+            syntax_trees.expressions.insert(ExpressionNode::SelfValue),
+            input.take_keyword(KeywordKind::SelfValue, "self")?,
+        )
+    } else {
+        let (path, rest) = parse_path_handle_span(input, |member| {
+            syntax_trees
+                .expressions
+                .append_identifier_path_member(member)
+        })?;
+        (
+            syntax_trees.expressions.insert(ExpressionNode::Name(path)),
+            rest,
+        )
+    };
+
+    while input.at_punctuation(PunctuationKind::Dot) {
+        input = input.take_punctuation(PunctuationKind::Dot, ".")?;
+        let (member, rest) = input.take_identifier()?;
+        input = rest;
+        expression =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: expression,
+                    member,
+                }));
+    }
+
+    if input.at_punctuation(PunctuationKind::LeftParen) {
+        input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+        let (arguments, rest) = parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
+        input = rest;
+        expression = match syntax_trees.expressions.expression(expression).clone() {
+            ExpressionNode::Name(path) => {
+                let members = syntax_trees.expressions.identifier_path_members(path);
+                let target = members
+                    .last()
+                    .cloned()
+                    .expect("call path should have at least one member");
+                let receiver = if members.len() <= 1 {
+                    ExpressionHandle::invalid()
+                } else {
+                    let receiver_path = syntax_trees
+                        .expressions
+                        .copy_identifier_path_prefix(path, members.len() - 1);
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Name(receiver_path))
+                };
+
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver,
+                        target,
+                        arguments,
+                    }))
+            }
+            ExpressionNode::Member(member) => {
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: member.receiver,
+                        target: member.member,
+                        arguments,
+                    }))
+            }
+            _ => unreachable!("transition target call base should be a path or member access"),
+        };
+    }
+
+    Ok((expression, input))
 }
 
 fn classify_call_target_handle(

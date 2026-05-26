@@ -1,0 +1,9 @@
+data Main {
+}
+
+machine Main::main(&mut self) -> i32 {
+
+    state answer() {
+        25
+    }
+}

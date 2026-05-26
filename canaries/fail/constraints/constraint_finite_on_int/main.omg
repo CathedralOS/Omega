@@ -1,0 +1,6 @@
+data Main {
+    count: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

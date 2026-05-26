@@ -236,13 +236,194 @@ pub(super) fn build_runtime_storage_body_plan(
     plan
 }
 
+pub(super) fn build_straight_line_runtime_storage_plan(
+    context: &RuntimeStorageContext,
+) -> RuntimeStoragePlan {
+    let local_count = context.state_storage.locals.len();
+    let parameter_count = context.control_flow.state_parameters.len();
+    let write_count = context
+        .state_storage
+        .mutations
+        .iter()
+        .filter(|(_, mutation)| mutation.lowering != StateMutationLowering::AlreadyLowered)
+        .count();
+    let mut plan = RuntimeStoragePlan::with_capacities(
+        ExpressionTableCapacity {
+            expressions: write_count.saturating_mul(2),
+            ..ExpressionTableCapacity::default()
+        },
+        local_count,
+        parameter_count
+            .saturating_add(local_count)
+            .saturating_add(context.state_calls.calls.len()),
+        write_count,
+    );
+    let mut next_frame_offset = 0usize;
+    let dispatch_index = 0u32;
+
+    for (_, machine) in context.control_flow.machines.iter() {
+        let Some(states) = context.control_flow.states.span(machine.states) else {
+            continue;
+        };
+
+        for state in states {
+            append_parameter_slots_for_state(
+                context,
+                dispatch_index,
+                state.key,
+                &mut plan,
+                &mut next_frame_offset,
+            );
+            append_straight_line_local_slots_for_state(
+                context,
+                dispatch_index,
+                state.key,
+                &mut plan,
+                &mut next_frame_offset,
+            );
+
+            let Some(operations) = context.control_flow.operations.span(state.operations) else {
+                continue;
+            };
+
+            for operation in operations {
+                if let Some(local_storage) =
+                    local_storage_for_operation(context, state.key, operation.statement_index)
+                {
+                    append_branch_local_slot(
+                        context,
+                        &mut plan,
+                        &mut next_frame_offset,
+                        dispatch_index,
+                        local_storage,
+                    );
+                }
+
+                if let Some(state_call) = context
+                    .state_calls
+                    .statement_call(state.key, operation.statement_index)
+                {
+                    append_state_call_result_slot(
+                        context,
+                        &mut plan,
+                        &mut next_frame_offset,
+                        dispatch_index,
+                        state_call.source_key,
+                        state_call.statement_index,
+                        state_call.role,
+                        state_call.call_ordinal,
+                        state_call.target_key,
+                    );
+                }
+
+                if let Some(state_call) = context
+                    .state_calls
+                    .assignment_value_call(state.key, operation.statement_index)
+                {
+                    append_state_call_result_slot(
+                        context,
+                        &mut plan,
+                        &mut next_frame_offset,
+                        dispatch_index,
+                        state_call.source_key,
+                        state_call.statement_index,
+                        state_call.role,
+                        state_call.call_ordinal,
+                        state_call.target_key,
+                    );
+                }
+
+                if let Some(mutation) =
+                    mutation_for_operation(context, state.key, operation.statement_index)
+                    && mutation.lowering != StateMutationLowering::AlreadyLowered
+                {
+                    plan.writes.insert(super::RuntimeStorageWrite {
+                        dispatch_index,
+                        source_key: state.key,
+                        statement_index: operation.statement_index,
+                        target: plan
+                            .expressions
+                            .copy_from(&context.state_storage.expressions, mutation.target),
+                        value: plan
+                            .expressions
+                            .copy_from(&context.state_storage.expressions, mutation.value),
+                        mutation_kind: mutation.mutation_kind,
+                        lowering: mutation.lowering,
+                    });
+                }
+            }
+
+            for (_, state_call) in context.state_calls.calls.iter() {
+                if state_call.source_key == state.key
+                    && matches!(
+                        state_call.role,
+                        StateCallRole::TransitionArgument | StateCallRole::TransitionGuard
+                    )
+                {
+                    append_state_call_result_slot(
+                        context,
+                        &mut plan,
+                        &mut next_frame_offset,
+                        dispatch_index,
+                        state_call.source_key,
+                        state_call.statement_index,
+                        state_call.role,
+                        state_call.call_ordinal,
+                        state_call.target_key,
+                    );
+                }
+            }
+        }
+    }
+
+    plan
+}
+
+fn append_straight_line_local_slots_for_state(
+    context: &RuntimeStorageContext,
+    dispatch_index: u32,
+    state_key: StateKey,
+    plan: &mut RuntimeStoragePlan,
+    next_frame_offset: &mut usize,
+) {
+    for (_, local_storage) in context.state_storage.locals.iter() {
+        if !state_key_matches_statement_source(local_storage.source_key, state_key) {
+            continue;
+        }
+
+        append_branch_local_slot(
+            context,
+            plan,
+            next_frame_offset,
+            dispatch_index,
+            local_storage,
+        );
+    }
+}
+
 fn append_parameter_slots(
     context: &RuntimeStorageContext,
     body: &RuntimeDispatchBody,
     plan: &mut RuntimeStoragePlan,
     next_frame_offset: &mut usize,
 ) {
-    let Some(state) = context.control_flow.state_by_key(body.key) else {
+    append_parameter_slots_for_state(
+        context,
+        body.dispatch_index,
+        body.key,
+        plan,
+        next_frame_offset,
+    );
+}
+
+fn append_parameter_slots_for_state(
+    context: &RuntimeStorageContext,
+    dispatch_index: u32,
+    state_key: StateKey,
+    plan: &mut RuntimeStoragePlan,
+    next_frame_offset: &mut usize,
+) {
+    let Some(state) = context.control_flow.state_by_key(state_key) else {
         return;
     };
 
@@ -258,8 +439,8 @@ fn append_parameter_slots(
             .expect("runtime parameter slot size overflow");
 
         plan.frame_slots.insert(RuntimeFrameSlot {
-            dispatch_index: body.dispatch_index,
-            source_key: body.key,
+            dispatch_index,
+            source_key: state_key,
             statement_index: usize::MAX,
             kind: RuntimeFrameSlotKind::Parameter,
             symbol: parameter.symbol,

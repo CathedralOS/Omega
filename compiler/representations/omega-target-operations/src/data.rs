@@ -67,11 +67,10 @@ pub fn target_data_handle_from_abstract(
 
 impl From<&TargetDataPlan> for omega_abstract_operations::AbstractDataPlan {
     fn from(data: &TargetDataPlan) -> Self {
-        let mut abstract_data =
-            omega_abstract_operations::AbstractDataPlan::with_capacity(
-                data.objects.len(),
-                data.bytes.len(),
-            );
+        let mut abstract_data = omega_abstract_operations::AbstractDataPlan::with_capacity(
+            data.objects.len(),
+            data.bytes.len(),
+        );
 
         abstract_data.bytes = data.bytes.clone();
         for (_, object) in data.objects.iter() {

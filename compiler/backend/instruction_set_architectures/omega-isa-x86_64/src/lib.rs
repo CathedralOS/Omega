@@ -420,7 +420,7 @@ pub fn encode_runtime_value_compare(
     Ok(bytes)
 }
 
-pub fn runtime_machine_integer_write_width(_byte_size: usize) -> usize {
+pub fn runtime_machine_integer_write_width(_byte_offset: usize, _byte_size: usize) -> usize {
     27
 }
 
@@ -429,7 +429,7 @@ pub fn encode_runtime_machine_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_size));
+    let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_offset, byte_size));
     append_mov_r15_imm64(&mut bytes, 0);
     append_mov_rax_imm64(&mut bytes, value as u64);
     append_store_rax_to_r15(&mut bytes, byte_offset, byte_size)?;
@@ -575,9 +575,9 @@ fn append_runtime_value_operand(
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
     } else {
-        Err(
-            Diagnostic::error("X86_64 runtime value operand is not implemented yet"),
-        )
+        Err(Diagnostic::error(
+            "X86_64 runtime value operand is not implemented yet",
+        ))
     }
 }
 
@@ -587,6 +587,7 @@ fn append_runtime_binary_operation(
 ) -> Result<(), Diagnostic> {
     match operator {
         StateGuardOperator::Add => bytes.extend([0x4d, 0x01, 0xda]), // add r10, r11
+        StateGuardOperator::And => bytes.extend([0x4d, 0x21, 0xda]), // and r10, r11
         StateGuardOperator::Subtract => bytes.extend([0x4d, 0x29, 0xda]), // sub r10, r11
         StateGuardOperator::Multiply => bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]), // imul r10, r11
         StateGuardOperator::Modulo => {
@@ -624,7 +625,7 @@ fn append_runtime_binary_operation(
 
 fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
     match operator {
-        StateGuardOperator::Add | StateGuardOperator::Subtract => 3,
+        StateGuardOperator::Add | StateGuardOperator::And | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         StateGuardOperator::Modulo => 12,
         StateGuardOperator::Equal

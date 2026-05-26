@@ -1,5 +1,5 @@
 use crate::domain::lower_proof_facts;
-use crate::expression::lower_expression_handle_from_table;
+use crate::expression::lower_expression_handle;
 use crate::program::Lowerer;
 use crate::state::lower_state;
 use crate::type_reference::lower_type_reference_into_table;
@@ -46,13 +46,7 @@ pub(crate) fn lower_machine(
             initial_value: owned_data
                 .initial_value
                 .is_valid()
-                .then(|| {
-                    lower_expression_handle_from_table(
-                        &lowerer.source_trees.tables.bodies.expressions,
-                        &mut lowerer.typed_trees.expression_table,
-                        owned_data.initial_value,
-                    )
-                })
+                .then(|| lower_expression_handle(lowerer, owned_data.initial_value))
                 .transpose()?
                 .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
         };

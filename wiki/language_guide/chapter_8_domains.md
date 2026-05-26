@@ -88,7 +88,7 @@ Domains classify values that are valid for their type.
 
 ```omega
 data Player {
-    health: i32[non_negative];
+    health: i32;
 }
 
 domain Player::Valid {
@@ -106,20 +106,20 @@ domain Player::Dead {
 }
 ```
 
-The field constraint defines ordinary `Player` validity. The domains name
+The type definition defines ordinary `Player` validity. The domains name
 semantic subsets inside that valid space. A domain may include another domain
 with `self in Type::Domain`, which imports that domain's proof facts instead of
 duplicating them.
 
-A domain may not specify facts that violate the data or field invariants of the
+A domain may not specify facts that violate the ordinary validity rules of the
 type it classifies.
 
 ```omega
 data Player {
-    health: i32[positive];
+    health: i32;
 }
 
-// Invalid: `health == 0` contradicts `health: i32[positive]`.
+// Invalid when the ordinary validity rules say health must stay positive.
 domain Player::Dead {
     self.health == 0;
 }
@@ -262,6 +262,95 @@ Here `Password::Secure` wins when both domains hold because it appears first.
 If source code needs an unordered, exhaustive split of a known domain union,
 the domains must still be distinguishable by mutually exclusive classifiers.
 
+## Domain-Sensitive Operators
+
+Domains are primarily proof facts about values, but Omega may also allow proven
+domains to participate in operator resolution when the meaning is unique.
+
+The intuition is that operators are shorthand for resolved semantic
+operations. If a domain supplies the only valid `+`, `-`, or similar operator
+meaning for a value in the current proof context, the compiler may resolve the
+operator through that domain's operation contract.
+
+```omega
+domain i32::Degrees {
+    // semantic facts about cyclic degree values
+}
+
+machine rotate(value: i32, delta: i32) -> i32
+requires value in i32::Degrees
+{
+    value + delta
+}
+```
+
+In that shape, `+` is not mystical. The machine body already knows that
+`value` is in `i32::Degrees`, so the compiler can resolve `value + delta`
+through the `Degrees`-specific addition meaning if that meaning is unique.
+
+This should stay strict:
+
+- Only proven domains may participate in operator resolution.
+- Resolution must be unambiguous.
+- Competing domain-provided meanings are compile errors.
+- No hidden runtime tag is introduced for dispatch.
+
+This is especially attractive for semantic abstractions such as strings and
+quantities. For example, `String::Utf8` and `String::NoNul` may want `+` to
+resolve through concatenation while preserving whichever domains the operation
+can soundly guarantee.
+
+Not every domain needs this power. Some ideas, especially arithmetic policy
+concepts such as `wrapping` or `checked`, may turn out to fit better as a
+separate evaluation-mode concept than as ordinary value domains. The important
+point is that domain-sensitive operators are resolved from compile-time proof
+knowledge, not from runtime type mutation.
+
+## Domains On Strings And Encodings
+
+One likely Omega direction is to treat text encoding and boundary requirements
+as domains on a string value rather than as a zoo of unrelated string types.
+
+Working shape:
+
+```omega
+data String {
+    // runtime text storage
+}
+
+domain String::Utf8 {
+    // text satisfies UTF-8 validity
+}
+
+domain String::NoNul {
+    // text contains no interior NUL bytes
+}
+```
+
+That would let host and ABI boundaries ask for the domain they actually need:
+
+- `String in String::Utf8` for APIs that require UTF-8 text
+- `String in String::NoNul` for C-style boundaries that reject interior NULs
+- intersections such as `String::Utf8 & String::NoNul` when both matter
+
+This fits Omega's existing domain model better than inventing separate
+first-class surface types such as `CString`, `OsString`, or `Utf16String` for
+every boundary case.
+
+It also fits naturally with domain-sensitive operators. If string
+concatenation is written as `left + right`, the compiler can treat `+` as
+syntax sugar for a resolved concat operation and use the participating string
+domains to decide which facts the result preserves.
+
+The hard part is not the surface idea; it is proving or checking invariants
+over a large byte sequence. A full "every byte sequence chunk is valid UTF-8"
+predicate may be too expensive or too low-level for early Omega domains. The
+language may need staged support here:
+
+- cheap classifier/checker domains at boundaries,
+- richer proof facts for trusted constructors and validated transformations,
+- and only later more expressive sequence-wide invariants.
+
 ## No Hidden RTTI
 
 Omega should not inject hidden domain tags to make classification work.
@@ -293,5 +382,7 @@ Working interpretation:
 - `Type::Domain` in a match arm is a domain pattern for values of `Type`.
 - `if x in Type::Domain` is a full executable domain check when the domain is
   runtime-checkable.
+- Proven domains may participate in operator resolution when the applicable
+  operator meaning is unique.
 - Domain facts erase from ordinary runtime code unless a diagnostic build
   explicitly asks for checks.

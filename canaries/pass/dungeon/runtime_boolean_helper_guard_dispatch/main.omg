@@ -1,0 +1,32 @@
+data Main {
+    room: u32;
+    cleared: bool;
+}
+
+machine Main::main(&mut self) {
+    self.room = 1;
+    self.cleared = false;
+
+    -> enter_room();
+
+    state enter_room(&mut self) {
+        transition self.room {
+            1 -> enter_room_view()
+            _ -> done()
+        }
+    }
+
+    state enter_room_view(&mut self) {
+        -> show_cleared() when self.cleared == true;
+        -> show_blocked();
+    }
+
+    state show_cleared(&mut self) {}
+
+    state show_blocked(&mut self) {
+        self.cleared = true;
+        -> enter_room();
+    }
+
+    state done(&mut self) {}
+}

@@ -5,12 +5,10 @@ use crate::selection::bindings::{
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
 };
-use omega_calling_conventions::{
-    PlatformCallData,
-};
+use omega_abstract_operations::SelectedInstructionKind;
+use omega_calling_conventions::PlatformCallData;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
-use omega_abstract_operations::SelectedInstructionKind;
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,

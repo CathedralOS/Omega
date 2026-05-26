@@ -1,4 +1,8 @@
 use crate::InstructionSelectionInput;
+use omega_abstract_operations::{
+    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
+    StateGuardOperator,
+};
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
     TableCallExpression, TableMemberExpression,
@@ -6,18 +10,15 @@ use omega_checked_trees::expression::{
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::{BuiltinFunction, SymbolHandle};
-use omega_abstract_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
-    StateGuardOperator,
-};
 
 use super::super::super::storage_places::{
     resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
     resolve_runtime_storage_place, static_integer_value,
 };
 use super::super::super::storage_places::{
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_place_in_table, static_integer_value_in_table,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
+    static_integer_value_in_table,
 };
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_without_aliases_emit,
@@ -554,6 +555,24 @@ fn select_runtime_static_mutation_write_in_table(
         });
     }
 
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
+            base_byte_offset: indexed_target.base_byte_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            value,
+        });
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
@@ -1032,6 +1051,7 @@ fn resolve_runtime_value_operand_in_table(
 fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::And => Some(StateGuardOperator::And),
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
         BinaryOperator::Greater => Some(StateGuardOperator::Greater),
         BinaryOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqual),
@@ -1041,8 +1061,7 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::And
-        | BinaryOperator::Divide
+        BinaryOperator::Divide
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,

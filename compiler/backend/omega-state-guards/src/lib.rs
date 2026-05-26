@@ -504,6 +504,7 @@ fn guard_conjunction_clause_count(
         {
             Some(1)
         }
+        _ if expressions.expression_is_direct_place_path(expression) => Some(1),
         _ => None,
     }
 }
@@ -575,6 +576,19 @@ fn lower_guard_conjunction_expression(
                 clauses,
             )
         }
+        _ if plan.expressions.expression_is_direct_place_path(expression) => lower_guard_leaf(
+            plan,
+            layouts,
+            runtime_storage,
+            entry_machine,
+            source_key,
+            source_machine,
+            source_dispatch_index,
+            statement_index,
+            expression,
+            scratch_expressions,
+            clauses,
+        ),
         _ => None,
     }
 }
@@ -592,12 +606,35 @@ fn lower_guard_leaf(
     scratch_expressions: &mut ExpressionTable,
     clauses: &mut StateGuardClauses,
 ) -> Option<()> {
-    let kind = classify_transition_guard_expression(&plan.expressions, expression);
-    let operator = guard_operator(&plan.expressions, expression);
-    scratch_expressions.clear();
+    let mut operand_expressions = ExpressionTable::with_expression_capacity(2);
+    let (source_expressions, normalized_expression, kind, operator) =
+        if plan.expressions.expression_is_direct_place_path(expression) {
+            scratch_expressions.clear();
+            let left = scratch_expressions.copy_from(&plan.expressions, expression);
+            let right = scratch_expressions.insert(ExpressionNode::Boolean(true));
+            let normalized_expression =
+                scratch_expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Equal,
+                    right,
+                }));
+            (
+                &*scratch_expressions,
+                normalized_expression,
+                StateGuardKind::RuntimeEquality,
+                StateGuardOperator::Equal,
+            )
+        } else {
+            (
+                &plan.expressions,
+                expression,
+                classify_transition_guard_expression(&plan.expressions, expression),
+                guard_operator(&plan.expressions, expression),
+            )
+        };
     let operands = guard_operands(
-        &plan.expressions,
-        scratch_expressions,
+        source_expressions,
+        &mut operand_expressions,
         layouts,
         runtime_storage,
         entry_machine,
@@ -605,7 +642,7 @@ fn lower_guard_leaf(
         source_machine,
         source_dispatch_index,
         statement_index,
-        expression,
+        normalized_expression,
     )?;
     let lowering = guard_lowering(kind, operator, Some(&operands));
     if matches!(

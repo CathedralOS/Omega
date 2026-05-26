@@ -1,4 +1,7 @@
 use crate::EmissionPlanningInput;
+use omega_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
@@ -47,6 +50,19 @@ pub(super) fn collect_state_guard_blockers(
             continue;
         }
 
+        if guard.has_expression
+            && disjunctive_expression_guard_can_emit(
+                input,
+                guard.source,
+                guard.source_dispatch_index,
+                guard.statement_index,
+                &input.state_guards.expressions,
+                guard.expression,
+            )
+        {
+            continue;
+        }
+
         let machine_name = input
             .control_flow
             .machine_by_symbol(guard.source.machine)
@@ -78,6 +94,47 @@ pub(super) fn collect_state_guard_blockers(
             ),
         ));
     }
+}
+
+fn disjunctive_expression_guard_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    let disjuncts = expression_disjuncts(expressions, expression);
+    disjuncts.len() > 1
+        && disjuncts.into_iter().all(|disjunct| {
+            expression_guard_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_index,
+                &expressions.to_tree(disjunct),
+            )
+        })
+}
+
+fn expression_disjuncts(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    if !expression.is_valid() {
+        return vec![ExpressionHandle::invalid()];
+    }
+
+    let ExpressionNode::Binary(binary) = expressions.expression(expression) else {
+        return vec![expression];
+    };
+    if binary.operator != BinaryOperator::Or {
+        return vec![expression];
+    }
+
+    let mut disjuncts = expression_disjuncts(expressions, binary.left);
+    disjuncts.extend(expression_disjuncts(expressions, binary.right));
+    disjuncts
 }
 
 fn runtime_transition_target_name(

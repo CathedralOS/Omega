@@ -1,117 +1,43 @@
 use events::events;
 use player::player_state;
 use rooms::map;
+use rooms::room_lookup;
 use rooms::rooms;
 
 data RoomFormatter {
+    lookup: RoomLookup;
 }
 
 machine RoomFormatter::write_current_cell(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     out_line: &mut String
 ) {
-    -> gate_label(out_line) when room_index == 0;
-    -> fountain_label(out_line) when room_index == 1;
-    -> ambush_label(out_line) when room_index == 2;
-    -> vault_label(out_line) when room_index == 3;
-    -> unknown_label(out_line);
-
-
-    state gate_label(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Room Gate";
-    }
-
-    state fountain_label(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Room Fountain Room";
-    }
-
-    state ambush_label(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Room Ambush Hall";
-    }
-
-    state vault_label(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Room Treasure Vault";
-    }
-
-    state unknown_label(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Room Unknown";
-    }
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    out_line = "== " + room.label + " ==";
 }
 
 machine RoomFormatter::write_room_info(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     out_line: &mut String
 ) {
-    -> gate_info(out_line) when room_index == 0;
-    -> fountain_info(out_line) when room_index == 1;
-    -> ambush_info(out_line) when room_index == 2;
-    -> vault_info(out_line) when room_index == 3;
-    -> unknown_info(out_line);
-
-
-    state gate_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "The old gate room breathes cold air from below.";
-    }
-
-    state fountain_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A quiet shrine chamber hums with pale water-light.";
-    }
-
-    state ambush_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A narrow hall where loose stone crunches underfoot.";
-    }
-
-    state vault_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A cracked vault glitters with coins trapped under dust.";
-    }
-
-    state unknown_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Stone closes in from every side.";
-    }
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    out_line = room.description;
 }
 
 machine RoomFormatter::write_room_event(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     out_line: &mut String
 ) {
-    let rooms: &[Room] = level.rooms.as_slice();
-    let room: Room = rooms[room_index];
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
 
     -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
     -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
@@ -160,49 +86,65 @@ machine RoomFormatter::write_room_event(
 machine RoomFormatter::write_adjacent_rooms(
     &mut self,
     level: Level,
-    room_index: usize,
+    cell: CellId,
     out_line: &mut String
 ) {
-    -> gate_paths(out_line) when room_index == 0;
-    -> fountain_paths(out_line) when room_index == 1;
-    -> ambush_paths(out_line) when room_index == 2;
-    -> vault_paths(out_line) when room_index == 3;
-    -> no_paths(out_line);
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    let exits: &[Exit] = room.exits.as_slice();
 
-
-    state gate_paths(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Paths: north, east. Commands: look | inventory | character | use | fight | quit";
+    transition room.exit_count {
+        0 -> no_paths(out_line)
+        1 -> one_path(exits[0].command, out_line)
+        2 -> two_paths(exits[0].command, exits[1].command, out_line)
+        3 -> three_paths(exits[0].command, exits[1].command, exits[2].command, out_line)
+        _ -> four_paths(exits[0].command, exits[1].command, exits[2].command, exits[3].command, out_line)
     }
 
-    state fountain_paths(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Paths: south, north. Commands: look | inventory | character | use | fight | quit";
-    }
-
-    state ambush_paths(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Paths: west, east. Commands: look | inventory | character | use | fight | quit";
-    }
-
-    state vault_paths(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "Paths: south, west. Commands: look | inventory | character | use | fight | quit";
-    }
 
     state no_paths(
         &mut self,
         out_line: &mut String
     ) {
-        out_line = "No paths are open here. Commands: look | inv | character | use | fight | exit";
+        out_line = "[Paths] none";
+    }
+
+    state one_path(
+        &mut self,
+        one: String,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] " + one;
+    }
+
+    state two_paths(
+        &mut self,
+        one: String,
+        two: String,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] " + one + " | " + two;
+    }
+
+    state three_paths(
+        &mut self,
+        one: String,
+        two: String,
+        three: String,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] " + one + " | " + two + " | " + three;
+    }
+
+    state four_paths(
+        &mut self,
+        one: String,
+        two: String,
+        three: String,
+        four: String,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] " + one + " | " + two + " | " + three + " | " + four;
     }
 }
 

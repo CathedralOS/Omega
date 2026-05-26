@@ -1,0 +1,11 @@
+data Entry {
+    value: u32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) {
+    self.entries[0].value = 1;
+}

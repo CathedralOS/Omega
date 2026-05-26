@@ -1,5 +1,7 @@
 use super::*;
-use crate::flow::{canonical_place_from_expression_in_state, expression_type_symbol, symbol_type_symbol};
+use crate::flow::{
+    canonical_place_from_expression_in_state, expression_type_symbol, symbol_type_symbol,
+};
 
 pub(crate) fn canonical_place_to_fact_place_in_state(
     program: &omega_typed_trees::TypedTrees,
@@ -8,8 +10,12 @@ pub(crate) fn canonical_place_to_fact_place_in_state(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<omega_facts::PlaceHandle> {
-    let canonical =
-        canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)?;
+    let canonical = canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
     Some(append_place_with_segments(
         facts,
         canonical.root,
@@ -42,7 +48,11 @@ pub(crate) fn resolve_place_member_symbol(
     let place = facts.places.get(place);
     let base_symbol = fact_place_type_symbol(program, facts, place)?;
 
-    if let Some(machine) = program.machines().iter().find(|machine| machine.symbol == base_symbol) {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == base_symbol)
+    {
         if let Some(attached_data) = machine.attached_data.as_deref()
             && let Some(data) = program
                 .data_definitions()

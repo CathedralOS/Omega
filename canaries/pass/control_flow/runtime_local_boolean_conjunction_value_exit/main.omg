@@ -1,0 +1,35 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    left: bool;
+    middle: bool;
+    right: bool;
+}
+
+machine Main::main(&mut self) {
+    self.left = true;
+    self.middle = true;
+    self.right = true;
+
+    -> route();
+
+    state route(&mut self) {
+        let ok: bool = self.left && self.middle && self.right;
+
+        transition ok {
+            (true) -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(74);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(75);
+    }
+}

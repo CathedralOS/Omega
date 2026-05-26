@@ -1,6 +1,6 @@
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
-use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
+use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::{Arena, Handle};

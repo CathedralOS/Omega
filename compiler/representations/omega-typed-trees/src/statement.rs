@@ -76,11 +76,7 @@ impl StatementTable {
         )) = expression;
     }
 
-    pub fn push_name_path_member(
-        &mut self,
-        span: &mut HandleSpan<Identifier>,
-        member: Identifier,
-    ) {
+    pub fn push_name_path_member(&mut self, span: &mut HandleSpan<Identifier>, member: Identifier) {
         self.name_path_members.append_to_span(span, member);
     }
 

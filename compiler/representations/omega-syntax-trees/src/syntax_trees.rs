@@ -746,6 +746,12 @@ impl SyntaxTrees {
                 index: self.copy_expression_handle(other, indexed.index),
             }),
             ExpressionNode::Integer(value) => ExpressionNode::Integer(*value),
+            ExpressionNode::Membership(membership) => {
+                ExpressionNode::Membership(crate::expression::TableMembershipExpression {
+                    value: self.copy_expression_handle(other, membership.value),
+                    domain: self.copy_expression_identifier_span(other, membership.domain),
+                })
+            }
             ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
                 receiver: self.copy_expression_handle(other, member.receiver),
                 member: member.member.clone(),

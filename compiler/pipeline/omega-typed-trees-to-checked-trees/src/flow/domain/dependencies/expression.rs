@@ -117,7 +117,10 @@ pub(super) fn collect_dependency_paths_from_expression(
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 collect_dependency_paths_from_expression(
                     program,
                     field.value,
@@ -233,9 +236,7 @@ pub(super) fn resolve_member_symbol_from_type(
     None
 }
 
-pub(super) fn dedupe_dependency_segments(
-    dependencies: &mut Vec<Vec<omega_facts::PlaceSegment>>,
-) {
+pub(super) fn dedupe_dependency_segments(dependencies: &mut Vec<Vec<omega_facts::PlaceSegment>>) {
     let mut unique: Vec<Vec<omega_facts::PlaceSegment>> = Vec::with_capacity(dependencies.len());
     for dependency in dependencies.drain(..) {
         if !unique.iter().any(|existing| {

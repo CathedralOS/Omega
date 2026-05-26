@@ -1,11 +1,11 @@
-use omega_abstract_operations::AbstractOperationPlan;
 use omega_abstract_operations::AbstractDataPlan;
+use omega_abstract_operations::AbstractOperationPlan;
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
-use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
 use omega_object_file::{ObjectPlan, RelocationPlan};

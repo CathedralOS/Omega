@@ -5,6 +5,5 @@ pub use operand::{InstructionOperand, InstructionOperandKind};
 pub use selected::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
     AbstractValueOperandHandle, FunctionInstructionPlan, RuntimeStorageRegion, RuntimeValueOperand,
-    RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind,
+    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
 };

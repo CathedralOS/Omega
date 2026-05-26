@@ -48,9 +48,7 @@ pub(in crate::selection) fn indexed_expression_path(
         _ => return None,
     };
     let last_segment = path.last()?.clone();
-    path.replace_last_preserving_symbol(Identifier::generated(format!(
-        "{last_segment}[{index}]"
-    )))?;
+    path.replace_last_preserving_symbol(Identifier::generated(format!("{last_segment}[{index}]")))?;
     Some(path)
 }
 

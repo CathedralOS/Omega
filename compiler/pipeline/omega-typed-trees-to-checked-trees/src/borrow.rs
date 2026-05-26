@@ -3,10 +3,10 @@ mod accesses;
 mod calls;
 mod roots;
 
-use accesses::borrow_access_place;
-use calls::collect_statement_borrow_calls;
 use crate::lookup::{first_valid_name_path_symbol, machine_state_count};
 use crate::semantic_calls::find_state;
+use accesses::borrow_access_place;
+use calls::collect_statement_borrow_calls;
 use roots::{append_state_writable_roots, estimated_borrow_root_capacity, mutable_parameter_count};
 
 #[derive(Clone)]
@@ -56,8 +56,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                     statement_index,
                     machine.symbol,
                     statement,
-                )
-                {
+                ) {
                     let handle = loans.append_to_span(
                         &mut loans_span,
                         omega_checked_trees::BorrowLoanFact {
@@ -132,7 +131,10 @@ fn statement_borrow_loan(
                 return None;
             }
 
-            let place = match program.expression_table.expression(local_data.initial_value) {
+            let place = match program
+                .expression_table
+                .expression(local_data.initial_value)
+            {
                 omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) => {
                     borrow_access_place(
                         program,
@@ -245,7 +247,12 @@ fn update_state_loan_last_uses(
         }
     }
 
-    for (statement_index, statement) in program.statement_table.statements(statements).iter().enumerate() {
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(statements)
+        .iter()
+        .enumerate()
+    {
         for tracker in loan_trackers {
             if statement_uses_local_name(program, statement, tracker.owner_name.as_str())
                 || statement_uses_symbol(program, statement, tracker.owner_symbol)
@@ -293,7 +300,9 @@ fn statement_uses_local_name(
                 )
                 || transition_target_uses_local_name(
                     program,
-                    program.statement_table.transition_target(transition.continuation),
+                    program
+                        .statement_table
+                        .transition_target(transition.continuation),
                     local_name,
                 )
         }
@@ -318,7 +327,9 @@ fn statement_uses_symbol(
                     .iter()
                     .any(|argument| expression_uses_symbol(program, *argument, symbol))
         }
-        StatementNode::Expression(expression) => expression_uses_symbol(program, *expression, symbol),
+        StatementNode::Expression(expression) => {
+            expression_uses_symbol(program, *expression, symbol)
+        }
         StatementNode::LocalData(local_data) => {
             expression_uses_symbol(program, local_data.initial_value, symbol)
         }
@@ -331,7 +342,9 @@ fn statement_uses_symbol(
                 )
                 || transition_target_uses_symbol(
                     program,
-                    program.statement_table.transition_target(transition.continuation),
+                    program
+                        .statement_table
+                        .transition_target(transition.continuation),
                     symbol,
                 )
         }

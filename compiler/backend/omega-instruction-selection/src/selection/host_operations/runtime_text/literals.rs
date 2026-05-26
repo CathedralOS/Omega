@@ -1,11 +1,11 @@
 use super::buffers::find_runtime_text_input_buffer_data;
 use crate::InstructionSelectionInput;
+use omega_abstract_operations::AbstractDataObjectHandle;
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
-use omega_abstract_operations::AbstractDataObjectHandle;
 use std::sync::Arc;
 
 pub(in crate::selection) struct RuntimeTextLiteralWrite {

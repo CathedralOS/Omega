@@ -2,9 +2,7 @@ mod expression;
 
 use super::*;
 use crate::lookup::{machine_by_symbol, machine_symbol_from_type_reference_handle};
-use expression::{
-    collect_dependency_paths_from_expression, dedupe_dependency_segments,
-};
+use expression::{collect_dependency_paths_from_expression, dedupe_dependency_segments};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DomainDependencyCache {
@@ -63,7 +61,11 @@ pub(crate) fn domain_dependency_segments<'cache>(
     cache: &'cache mut DomainDependencyCache,
     domain_symbol: SymbolHandle,
 ) -> &'cache [Vec<omega_facts::PlaceSegment>] {
-    if !cache.by_domain.iter().any(|entry| entry.domain_symbol == domain_symbol) {
+    if !cache
+        .by_domain
+        .iter()
+        .any(|entry| entry.domain_symbol == domain_symbol)
+    {
         let mut visiting = BTreeSet::new();
         let dependencies = compute_domain_dependency_segments(
             program,
@@ -148,9 +150,8 @@ fn compute_domain_dependency_segments(
                     dependencies.push(base_segments);
                 } else {
                     for imported in imported_dependencies {
-                        let mut rebased = Vec::with_capacity(
-                            base_segments.len().saturating_add(imported.len()),
-                        );
+                        let mut rebased =
+                            Vec::with_capacity(base_segments.len().saturating_add(imported.len()));
                         rebased.extend(base_segments.iter().copied());
                         rebased.extend(imported);
                         dependencies.push(rebased);

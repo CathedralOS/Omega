@@ -109,23 +109,38 @@ fn contextual_canonical_place_from_expression(
             *inner,
         ),
         ExpressionNode::Name(path) => {
-            let root_symbol =
-                resolve_contextual_name_path_root(program, state_symbol, statement_index, expression, path)?;
+            let root_symbol = resolve_contextual_name_path_root(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+                path,
+            )?;
             let mut place = CanonicalPlace {
                 root: omega_facts::PlaceRoot::Symbol(root_symbol),
                 segments: Vec::new(),
             };
             let members = program.expression_table.name_path_members(path.members);
-            let member_symbols = program.expression_table.name_path_member_symbols(path.member_symbols);
-            let start_index = usize::from(members.first().is_some_and(|member| member.as_str() == "self"));
+            let member_symbols = program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols);
+            let start_index = usize::from(
+                members
+                    .first()
+                    .is_some_and(|member| member.as_str() == "self"),
+            );
             for (offset, member_name) in members.iter().skip(start_index + 1).enumerate() {
                 let symbol = member_symbols
                     .get(offset + start_index + 1)
                     .copied()
                     .filter(|symbol| symbol.is_valid())
-                    .or_else(|| resolve_member_symbol_from_place(program, &place, member_name.as_str()))
+                    .or_else(|| {
+                        resolve_member_symbol_from_place(program, &place, member_name.as_str())
+                    })
                     .unwrap_or_else(SymbolHandle::invalid);
-                place.segments.push(omega_facts::PlaceSegment::Field { symbol });
+                place
+                    .segments
+                    .push(omega_facts::PlaceSegment::Field { symbol });
             }
             Some(place)
         }
@@ -145,7 +160,9 @@ fn contextual_canonical_place_from_expression(
                         .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            place.segments.push(omega_facts::PlaceSegment::Field { symbol });
+            place
+                .segments
+                .push(omega_facts::PlaceSegment::Field { symbol });
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -171,18 +188,18 @@ fn resolve_contextual_name_path_root(
     expression: ExpressionHandle,
     path: &omega_typed_trees::expression::TableNamePath,
 ) -> Option<SymbolHandle> {
-    if let Some(symbol) = first_valid_name_path_symbol(path, &program.expression_table) {
-        return Some(symbol);
-    }
-
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
     let name = program.expression_table.display_name(expression);
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
     if name == "self" {
         return program
             .state_parameters(state)
             .iter()
             .find(|parameter| parameter.is_self)
             .map(|parameter| parameter.symbol);
+    }
+
+    if let Some(symbol) = first_valid_name_path_symbol(path, &program.expression_table) {
+        return Some(symbol);
     }
 
     if let Some(parameter) = program

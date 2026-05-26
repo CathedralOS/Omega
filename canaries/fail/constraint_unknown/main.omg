@@ -1,6 +1,0 @@
-data Main {
-    value: i32[magic] = 0;
-}
-
-machine Main::main(&mut self) {
-}

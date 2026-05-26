@@ -1,0 +1,109 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    distance: i32;
+}
+
+data Event {
+    reward: i32;
+    consumed: bool;
+}
+
+data Room {
+    description: String;
+    exit_count: i32;
+    exits: [Exit; 2];
+    event: Event;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+    copy: Room;
+}
+
+machine Main::main(&mut self) {
+    let index: usize = 1;
+    self.rooms[index].description = "deep room";
+    self.rooms[index].exit_count = 2;
+    self.rooms[index].exits[0].distance = 9;
+    self.rooms[index].exits[1].distance = 4;
+    self.rooms[index].event.reward = 11;
+    self.rooms[index].event.consumed = false;
+
+    self.copy = self.rooms[index];
+
+    -> check_description();
+
+    state check_description(&mut self) {
+        transition self.copy.description == "deep room" {
+            (true) -> check_count()
+            _ -> bad_description()
+        }
+    }
+
+    state check_count(&mut self) {
+        transition self.copy.exit_count == 2 {
+            (true) -> check_first_exit()
+            _ -> bad_count()
+        }
+    }
+
+    state check_first_exit(&mut self) {
+        transition self.copy.exits[0].distance == 9 {
+            (true) -> check_second_exit()
+            _ -> bad_first_exit()
+        }
+    }
+
+    state check_second_exit(&mut self) {
+        transition self.copy.exits[1].distance == 4 {
+            (true) -> check_reward()
+            _ -> bad_second_exit()
+        }
+    }
+
+    state check_reward(&mut self) {
+        transition self.copy.event.reward == 11 {
+            (true) -> check_consumed()
+            _ -> bad_reward()
+        }
+    }
+
+    state check_consumed(&mut self) {
+        transition self.copy.event.consumed == false {
+            (true) -> good()
+            _ -> bad_consumed()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(187);
+    }
+
+    state bad_description(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad_count(&mut self) {
+        self.console.exit_process(182);
+    }
+
+    state bad_first_exit(&mut self) {
+        self.console.exit_process(183);
+    }
+
+    state bad_second_exit(&mut self) {
+        self.console.exit_process(184);
+    }
+
+    state bad_reward(&mut self) {
+        self.console.exit_process(185);
+    }
+
+    state bad_consumed(&mut self) {
+        self.console.exit_process(186);
+    }
+}

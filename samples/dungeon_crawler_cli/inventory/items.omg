@@ -8,11 +8,11 @@ enum ItemKind {
 
 data InventoryItem {
     kind: ItemKind;
-    count: u32[exact, positive];
+    count: u32;
 }
 
 data Inventory {
     items: [InventoryItem; 32];
-    item_count: usize[exact, non_negative];
-    gold: u32[exact, non_negative];
+    item_count: usize;
+    gold: u32;
 }

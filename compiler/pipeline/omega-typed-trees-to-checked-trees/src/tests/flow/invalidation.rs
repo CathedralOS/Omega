@@ -66,15 +66,24 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
         .states
         .iter()
         .find_map(|(_, state)| {
-            (state.machine_symbol == main_machine.symbol
-                && state.state_symbol == main_state.symbol)
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
                 .then_some(state)
         })
         .expect("main flow state");
     let calls = flow.calls.span_or_empty(caller_flow.calls);
     assert_eq!(calls.len(), 3);
-    assert_eq!(flow.invalidations.span_or_empty(caller_flow.invalidations).len(), 1);
-    assert_eq!(flow.invalidations.span_or_empty(calls[1].invalidations).len(), 1);
+    assert_eq!(
+        flow.invalidations
+            .span_or_empty(caller_flow.invalidations)
+            .len(),
+        1
+    );
+    assert_eq!(
+        flow.invalidations
+            .span_or_empty(calls[1].invalidations)
+            .len(),
+        1
+    );
 
     let heal_call = &calls[2];
     let (required_place, required_domain) = flow
@@ -106,11 +115,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
             let context = semantic.contexts.get(context_ref.context);
             semantic
                 .context_view(context)
-                .proves_place_domain_membership_in_program(
-                    &typed,
-                    required_place,
-                    required_domain,
-                )
+                .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
     let break_entry_proves = flow
         .semantic_context_refs
@@ -120,11 +125,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
             let context = semantic.contexts.get(context_ref.context);
             semantic
                 .context_view(context)
-                .proves_place_domain_membership_in_program(
-                    &typed,
-                    required_place,
-                    required_domain,
-                )
+                .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
     let heal_entry_proves = flow
         .semantic_context_refs
@@ -134,11 +135,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
             let context = semantic.contexts.get(context_ref.context);
             semantic
                 .context_view(context)
-                .proves_place_domain_membership_in_program(
-                    &typed,
-                    required_place,
-                    required_domain,
-                )
+                .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
 
     let diagnostics =
@@ -230,14 +227,23 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
         .states
         .iter()
         .find_map(|(_, state)| {
-            (state.machine_symbol == main_machine.symbol
-                && state.state_symbol == main_state.symbol)
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
                 .then_some(state)
         })
         .expect("main flow state");
     let calls = flow.calls.span_or_empty(caller_flow.calls);
-    assert_eq!(flow.invalidations.span_or_empty(caller_flow.invalidations).len(), 1);
-    assert_eq!(flow.invalidations.span_or_empty(calls[1].invalidations).len(), 1);
+    assert_eq!(
+        flow.invalidations
+            .span_or_empty(caller_flow.invalidations)
+            .len(),
+        1
+    );
+    assert_eq!(
+        flow.invalidations
+            .span_or_empty(calls[1].invalidations)
+            .len(),
+        1
+    );
     let heal_call = &calls[2];
     let (required_place, required_domain) = flow
         .semantic_context_refs
@@ -267,16 +273,11 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
             let context = semantic.contexts.get(context_ref.context);
             semantic
                 .context_view(context)
-                .proves_place_domain_membership_in_program(
-                    &typed,
-                    required_place,
-                    required_domain,
-                )
+                .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
     assert!(!heal_entry_proves);
 
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("requires should fail after mutation");
+    let diagnostics = lower_typed_trees(typed).expect_err("requires should fail after mutation");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -361,13 +362,16 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
         .states
         .iter()
         .find_map(|(_, state)| {
-            (state.machine_symbol == main_machine.symbol
-                && state.state_symbol == main_state.symbol)
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
                 .then_some(state)
         })
         .expect("main flow state");
     let calls = flow.calls.span_or_empty(caller_flow.calls);
-    assert!(flow.invalidations.span_or_empty(calls[1].invalidations).is_empty());
+    assert!(
+        flow.invalidations
+            .span_or_empty(calls[1].invalidations)
+            .is_empty()
+    );
     let heal_call = &calls[2];
     let (required_place, required_domain) = flow
         .semantic_context_refs
@@ -397,13 +401,208 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
             let context = semantic.contexts.get(context_ref.context);
             semantic
                 .context_view(context)
-                .proves_place_domain_membership_in_program(
-                    &typed,
-                    required_place,
-                    required_domain,
-                )
+                .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
 
     assert!(heal_entry_proves);
     lower_typed_trees(typed).expect("disjoint mutation should preserve imported domain fact");
+}
+
+#[test]
+fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutation() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+            salt: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+            unrelated: i32;
+        }
+
+        machine Main::mark_valid(&mut self, password: &mut Password)
+        ensures
+            password in Password::Valid
+        {
+            password.length = 12;
+        }
+
+        machine Main::mark_secure(&mut self, password: &mut Password)
+        ensures
+            password in Password::Secure
+        {
+            password.score = 10;
+        }
+
+        machine Main::touch_unrelated(&mut self) {
+            self.unrelated = self.unrelated + 1;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password in Password::Valid & Password::Secure
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.password);
+            self.mark_secure(&mut self.password);
+            self.touch_unrelated();
+            self.accept(self.password);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "main")
+        .expect("main state");
+    let caller_flow = flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
+                .then_some(state)
+        })
+        .expect("main flow state");
+    let calls = flow.calls.span_or_empty(caller_flow.calls);
+    assert_eq!(calls.len(), 4);
+    let borrow_calls = borrow.calls.span_or_empty(
+        borrow
+            .states
+            .iter()
+            .find_map(|(_, state)| {
+                (state.machine_symbol == main_machine.symbol
+                    && state.state_symbol == main_state.symbol)
+                    .then_some(state.calls)
+            })
+            .expect("borrow main calls"),
+    );
+    let touch_unrelated_borrow_call = &borrow_calls[2];
+    let target_state = crate::find_state(&typed, touch_unrelated_borrow_call.target_symbol);
+    assert!(
+        target_state.is_some(),
+        "expected touch_unrelated target state, got {:?}",
+        touch_unrelated_borrow_call.target_symbol
+    );
+    let target_state = target_state.expect("target state");
+    assert_eq!(target_state.name.as_str(), "touch_unrelated");
+    let touch_statement = typed
+        .statement_table
+        .statements(target_state.statement_nodes)
+        .first()
+        .expect("touch statement");
+    let StatementNode::Assignment(touch_assignment) = touch_statement else {
+        panic!("expected assignment, got {touch_statement:?}");
+    };
+    let target_place = crate::flow::canonical_place_from_expression_in_state(
+        &typed,
+        target_state.symbol,
+        0,
+        touch_assignment.target,
+    )
+    .expect("touch target place");
+    assert_eq!(
+        target_place.segments.len(),
+        1,
+        "touch target place: {target_place:?}"
+    );
+    let mut cache = StateMutationSummaryCache::default();
+    let mutated_places = call_mutated_places(
+        &typed,
+        main_machine.symbol,
+        main_state.symbol,
+        &borrow,
+        touch_unrelated_borrow_call,
+        &mut cache,
+    );
+    assert_eq!(
+        mutated_places.len(),
+        1,
+        "mutated places: {mutated_places:?}"
+    );
+    assert_eq!(
+        mutated_places[0].segments.len(),
+        1,
+        "mutated places: {mutated_places:?}"
+    );
+    assert!(
+        flow.invalidations
+            .span_or_empty(calls[2].invalidations)
+            .is_empty(),
+        "touch_unrelated should not invalidate password domain facts: {:?}",
+        flow.invalidations.span_or_empty(calls[2].invalidations)
+    );
+    let accept_call = &calls[3];
+    let required_facts: Vec<_> = flow
+        .semantic_context_refs
+        .span_or_empty(accept_call.requires_contexts)
+        .iter()
+        .flat_map(|context_ref| {
+            let context = semantic.contexts.get(context_ref.context);
+            semantic
+                .context_view(context)
+                .facts()
+                .filter_map(|fact| match fact.payload {
+                    FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                        let FactPlace::Place(place) = fact.place else {
+                            return None;
+                        };
+                        Some((place, domain_symbol))
+                    }
+                    _ => None,
+                })
+        })
+        .collect();
+    assert_eq!(required_facts.len(), 2);
+    for (required_place, required_domain) in required_facts {
+        let proves = flow
+            .semantic_context_refs
+            .span_or_empty(accept_call.entry_semantic_contexts)
+            .iter()
+            .any(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                semantic
+                    .context_view(context)
+                    .proves_place_domain_membership_in_program(
+                        &typed,
+                        required_place,
+                        required_domain,
+                    )
+            });
+        assert!(
+            proves,
+            "accept entry should still prove domain {:?} for place {:?}",
+            required_domain, required_place
+        );
+    }
+
+    lower_typed_trees(typed)
+        .expect("unrelated machine-field mutation should preserve intersection requirements");
 }

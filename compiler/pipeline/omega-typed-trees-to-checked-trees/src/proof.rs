@@ -3,9 +3,9 @@ mod contracts;
 mod obligations;
 
 use contracts::{
-    build_contract_call_facts, build_contract_exit_facts, estimated_contract_fact_capacity,
     append_inherited_trait_contract_facts, append_machine_contract_facts,
-    append_state_signature_contract_facts,
+    append_state_signature_contract_facts, build_contract_call_facts, build_contract_exit_facts,
+    estimated_contract_fact_capacity,
 };
 use obligations::lower_proof_obligation;
 

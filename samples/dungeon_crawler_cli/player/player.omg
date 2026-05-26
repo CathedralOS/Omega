@@ -24,7 +24,7 @@ machine PlayerSystem::create(
 machine PlayerSystem::heal(
     &mut self,
     player: &mut Player,
-    amount: i32[exact, positive]
+    amount: i32
 ) {
     player.health = min(player.max_health, player.health + amount);
 }
@@ -32,10 +32,10 @@ machine PlayerSystem::heal(
 machine PlayerSystem::take_damage(
     &mut self,
     player: &mut Player,
-    amount: i32[exact, non_negative]
+    amount: i32
 ) {
-    let prevented: i32[exact, non_negative] = min(amount, player.defense);
-    let actual: i32[exact, non_negative] = amount - prevented;
+    let prevented: i32 = min(amount, player.defense);
+    let actual: i32 = amount - prevented;
     player.health = max(0, player.health - actual);
 }
 
@@ -50,7 +50,7 @@ machine PlayerSystem::grant_reward(
 machine PlayerSystem::grant_xp(
     &mut self,
     player: &mut Player,
-    amount: u32[exact, non_negative]
+    amount: u32
 ) {
     player.xp = player.xp + amount;
 
@@ -79,7 +79,7 @@ machine PlayerSystem::grant_xp(
 
 machine PlayerSystem::xp_required(
     &mut self,
-    level: u32[exact, positive]
-    ) -> u32[exact, positive] {
+    level: u32
+    ) -> u32 {
     -> 10 + level * 5;
 }

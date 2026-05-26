@@ -101,7 +101,10 @@ fn receiver_leaf_name<'program>(
         .map(|name| name.as_str())
 }
 
-fn data_field_type_symbol(program: &CheckedTrees, field_symbol: SymbolHandle) -> Option<SymbolHandle> {
+fn data_field_type_symbol(
+    program: &CheckedTrees,
+    field_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
     program
         .data_definitions()
         .iter()

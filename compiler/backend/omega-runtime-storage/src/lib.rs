@@ -10,7 +10,7 @@ use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use std::sync::Arc;
 
-use body::build_runtime_storage_body_plan;
+use body::{build_runtime_storage_body_plan, build_straight_line_runtime_storage_plan};
 
 pub fn build_runtime_storage_plan(context: RuntimeStorageContext) -> RuntimeStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -23,7 +23,7 @@ pub fn build_runtime_storage_plan_with_workers(
     workers: WorkerPoolHandle,
 ) -> RuntimeStoragePlan {
     if context.runtime_bodies.bodies.is_empty() {
-        return RuntimeStoragePlan::default();
+        return build_straight_line_runtime_storage_plan(&context);
     }
 
     let body_count = context.runtime_bodies.bodies.len();

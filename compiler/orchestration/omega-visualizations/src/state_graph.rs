@@ -293,8 +293,7 @@ fn borrow_access_label(
     state: &StateNode,
     access: &StateBorrowArgumentAccess,
 ) -> String {
-    let mut label =
-        borrow_place_label(graph, machine, state, access.root_symbol, access.segments);
+    let mut label = borrow_place_label(graph, machine, state, access.root_symbol, access.segments);
     label.push_str(": ");
     label.push_str(match access.kind {
         StateBorrowAccessKind::Read => "read",

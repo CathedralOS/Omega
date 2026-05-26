@@ -106,7 +106,12 @@ pub(crate) fn byte_distance_to_dispatch_loop_leave(
     let Some(loop_leave) = machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| matches!(instruction.source_kind, SelectedInstructionKind::LeaveDispatchLoop))
+        .find(|instruction| {
+            matches!(
+                instruction.source_kind,
+                SelectedInstructionKind::LeaveDispatchLoop
+            )
+        })
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode dispatch termination at byte {}: missing dispatch loop leave",

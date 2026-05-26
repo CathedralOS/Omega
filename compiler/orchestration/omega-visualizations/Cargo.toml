@@ -9,12 +9,18 @@ name = "omega_visualizations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
+omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-effects = { path = "../../semantics/omega-effects" }
 omega-facts = { path = "../../semantics/omega-facts" }
+omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
 omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }

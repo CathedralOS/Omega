@@ -1,16 +1,18 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
 use omega_calling_conventions::{HostCapability, HostOperation};
-use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
+use omega_platform_interface::{
+    HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
+};
 
 use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
     runtime_text_literal_for_host_call,
 };
-use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
+use omega_core::arena::{Arena, Handle, HandleSpan};
 
 pub(super) fn select_host_operation_operands(
     input: &InstructionSelectionInput<'_>,
@@ -21,9 +23,7 @@ pub(super) fn select_host_operation_operands(
     operands: &mut Arena<InstructionOperand>,
 ) -> HandleSpan<InstructionOperand> {
     if let Some(value) = operation.fixed_leading_immediate {
-        return operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
-            value,
-        ))]);
+        return operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(value))]);
     }
 
     match (
@@ -100,11 +100,12 @@ pub(super) fn select_host_operation_operands(
 
             HandleSpan::empty()
         }
-        (HostCapability::Process, HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess) => {
-            operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
-                exit_code(host_call, input),
-            ))])
-        }
+        (
+            HostCapability::Process,
+            HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
+        ) => operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
+            exit_code(host_call, input),
+        ))]),
         _ => HandleSpan::empty(),
     }
 }

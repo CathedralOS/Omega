@@ -24,9 +24,8 @@ fn rejects_unproven_exit_ensures_domain_membership() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
-        "exit ensures without a supporting flow fact should fail",
-    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("exit ensures without a supporting flow fact should fail");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -131,9 +130,8 @@ fn rejects_unproven_exit_ensures_boolean_expression() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
-        "exit boolean ensures without a supporting flow fact should fail",
-    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("exit boolean ensures without a supporting flow fact should fail");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -230,10 +228,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         })
         .next()
         .expect("exit context");
-    let fact = exit_context
-        .facts()
-        .next()
-        .expect("exit ensures fact");
+    let fact = exit_context.facts().next().expect("exit ensures fact");
 
     let omega_facts::FactPlace::Place(place_handle) = fact.place else {
         panic!("expected place-backed contract fact");
@@ -247,7 +242,10 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         omega_facts::FactPayload::ContractDomainMembership { value, .. } => value,
         _ => panic!("expected contract domain membership fact"),
     };
-    assert_eq!(typed.expression_table.display_name(value_expression), "self.player");
+    assert_eq!(
+        typed.expression_table.display_name(value_expression),
+        "self.player"
+    );
     assert_eq!(place.root, omega_facts::PlaceRoot::Symbol(self_symbol));
     let self_type_symbol = crate::flow::symbol_type_symbol(&typed, self_symbol)
         .expect("self parameter should have a resolvable type symbol");
@@ -272,7 +270,10 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
         "root self place should resolve attached-data member"
     );
     assert_eq!(segments.len(), 1, "segments: {segments:?}");
-    let omega_facts::PlaceSegment::Field { symbol: member_symbol } = segments[0] else {
+    let omega_facts::PlaceSegment::Field {
+        symbol: member_symbol,
+    } = segments[0]
+    else {
         panic!("expected field segment: {:?}", segments[0]);
     };
     assert!(member_symbol.is_valid());
@@ -323,15 +324,16 @@ fn accepts_requires_from_local_alias_transfer() {
     let inspect_contract = proof
         .contract_facts
         .iter()
-        .find_map(|(_, fact)| {
-            matches!(fact.kind, ContractProofFactKind::Requires).then_some(fact)
-        })
+        .find_map(|(_, fact)| matches!(fact.kind, ContractProofFactKind::Requires).then_some(fact))
         .expect("inspect requires fact");
     let proof_expression = match typed.proof_facts.get(inspect_contract.fact) {
         omega_typed_trees::domain::ProofFact::Membership(membership) => membership.value,
         _ => panic!("expected membership proof fact"),
     };
-    assert_eq!(typed.expression_table.display_name(proof_expression), "player");
+    assert_eq!(
+        typed.expression_table.display_name(proof_expression),
+        "player"
+    );
     let omega_typed_trees::expression::ExpressionNode::Name(path) =
         typed.expression_table.expression(proof_expression)
     else {
@@ -340,7 +342,9 @@ fn accepts_requires_from_local_alias_transfer() {
     let members = typed.expression_table.name_path_members(path.members);
     assert_eq!(members.len(), 1, "requires path members: {members:?}");
     assert_eq!(members[0].as_str(), "player");
-    let member_symbols = typed.expression_table.name_path_member_symbols(path.member_symbols);
+    let member_symbols = typed
+        .expression_table
+        .name_path_member_symbols(path.member_symbols);
     assert_eq!(member_symbols.len(), 1);
     let main_machine = typed
         .machines()
@@ -384,39 +388,49 @@ fn accepts_requires_from_local_alias_transfer() {
         .iter()
         .flat_map(|context_ref| {
             let context = semantic.contexts.get(context_ref.context);
-            semantic.context_view(context).facts().filter_map(|fact| match fact.payload {
-                omega_facts::FactPayload::DomainMembership { domain_symbol, .. }
-                | omega_facts::FactPayload::ContractDomainMembership { domain_symbol, .. }
-                    if typed
+            semantic
+                .context_view(context)
+                .facts()
+                .filter_map(|fact| match fact.payload {
+                    omega_facts::FactPayload::DomainMembership { domain_symbol, .. }
+                    | omega_facts::FactPayload::ContractDomainMembership {
+                        domain_symbol, ..
+                    } if typed
                         .domain_definitions()
                         .iter()
                         .find(|domain| domain.symbol == domain_symbol)
                         .is_some_and(|domain| domain.name.to_string() == "Player::Alive") =>
-                {
-                    Some(crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact))
-                }
-                _ => None,
-            })
+                    {
+                        Some(crate::labels::semantic_fact_requirement_label(
+                            &typed, &semantic, fact,
+                        ))
+                    }
+                    _ => None,
+                })
         })
         .collect();
     assert!(
-        transferred.iter().any(|label| label == "self.player in Player::Alive"),
+        transferred
+            .iter()
+            .any(|label| label == "self.player in Player::Alive"),
         "baseline entry fact should still be present: {transferred:?}"
     );
     assert!(
-        transferred.iter().any(|label| label == "local in Player::Alive"),
+        transferred
+            .iter()
+            .any(|label| label == "local in Player::Alive"),
         "entry contexts should include transferred local fact: {transferred:?}"
     );
-    let required = flow
-        .semantic_context_refs
-        .span_or_empty(inspect_call.requires_contexts)
-        .iter()
-        .find_map(|context_ref| {
-            let context = semantic.contexts.get(context_ref.context);
-            semantic.context_view(context).facts().next().map(|fact| {
-                crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact)
-            })
-        });
+    let required =
+        flow.semantic_context_refs
+            .span_or_empty(inspect_call.requires_contexts)
+            .iter()
+            .find_map(|context_ref| {
+                let context = semantic.contexts.get(context_ref.context);
+                semantic.context_view(context).facts().next().map(|fact| {
+                    crate::labels::semantic_fact_requirement_label(&typed, &semantic, fact)
+                })
+            });
     assert_eq!(
         required.as_deref(),
         Some("local in Player::Alive"),

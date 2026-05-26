@@ -1,8 +1,6 @@
 use super::*;
 use crate::borrow::accesses::collect_call_argument_accesses;
-use crate::lookup::{
-    statement_call_can_dispatch_to_machine, statement_call_receiver_path,
-};
+use crate::lookup::{statement_call_can_dispatch_to_machine, statement_call_receiver_path};
 mod expression;
 
 pub(crate) fn collect_statement_borrow_calls(

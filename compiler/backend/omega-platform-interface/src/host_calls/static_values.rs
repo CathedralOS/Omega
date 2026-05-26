@@ -258,7 +258,10 @@ pub(crate) fn resolve_static_value_handle(
     }
 }
 
-fn static_place_key_handle(program: &CheckedTrees, expression: ExpressionHandle) -> Option<PlaceKey> {
+fn static_place_key_handle(
+    program: &CheckedTrees,
+    expression: ExpressionHandle,
+) -> Option<PlaceKey> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path)
             if !program

@@ -1,0 +1,62 @@
+data RandomState {
+    seed: u64;
+    calls: UInt;
+}
+
+data Random {
+}
+
+machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+    state.calls = state.calls + 1;
+    -> ((state.seed >> 32) as u32);
+}
+
+machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) -> u32 {
+    let raw: u32 = self.next_u32(state);
+    -> raw % exclusive_max;
+}
+
+enum ItemKind {
+    RustedDagger,
+    DeepKey,
+}
+
+enum RewardKind {
+    Gold,
+    GoldAndItem,
+}
+
+data Reward {
+    kind: RewardKind;
+    gold: u32;
+    item: ItemKind;
+}
+
+data Main {
+    rng: Random;
+}
+
+machine Main::main(
+    &mut self,
+    depth: u32,
+    random: &mut RandomState,
+    reward: &mut Reward
+) {
+    reward.kind = RewardKind::GoldAndItem;
+    reward.gold = 20 + depth * 8 + self.rng.range(random, 15);
+    reward.item = self.pick(depth, random);
+    
+}
+
+machine Main::pick(
+    &mut self,
+    depth: u32,
+    random: &mut RandomState
+    ) -> ItemKind {
+    let roll: u32 = self.rng.range(random, 100);
+
+    -> ItemKind::DeepKey when depth >= 8 && roll < 96;
+    -> ItemKind::RustedDagger;
+    
+}

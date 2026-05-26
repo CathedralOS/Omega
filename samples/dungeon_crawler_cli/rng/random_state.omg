@@ -1,4 +1,4 @@
 data RandomState {
-    seed: u64[wrapping];
+    seed: u64;
     calls: UInt;
 }

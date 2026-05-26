@@ -1,12 +1,12 @@
-use omega_calling_conventions::HostAbiPlan;
 use omega_assigned_target_operations::{
     AssignedTargetOperationPlan, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
     TargetOperationKind,
 };
+use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
+use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target::NativeTarget;
 
 mod branch_distances;
@@ -68,7 +68,9 @@ fn emit_function_bytes(
     encoded_plan: &mut EncodedMachinePlan,
     machine_instructions_span: HandleSpan<MachineInstruction>,
 ) -> Result<(), Diagnostic> {
-    let Some(machine_instructions) = machine_instructions.instructions.span(machine_instructions_span)
+    let Some(machine_instructions) = machine_instructions
+        .instructions
+        .span(machine_instructions_span)
     else {
         return Ok(());
     };

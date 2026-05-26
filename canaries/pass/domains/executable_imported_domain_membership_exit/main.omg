@@ -1,0 +1,38 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Player {
+    health: i32;
+}
+
+domain Player::Valid {
+    self.health >= 0;
+}
+
+domain Player::Alive {
+    self in Player::Valid;
+    self.health > 0;
+}
+
+data Main {
+    console: Console;
+    alive: Player;
+}
+
+machine Main::main(&mut self) {
+    self.alive.health = 10;
+
+    transition (self.alive in Player::Alive) {
+        (true) -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(91);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(92);
+    }
+}

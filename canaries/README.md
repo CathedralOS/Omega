@@ -1,38 +1,38 @@
-# Omega Canaries
+# Canaries
 
-Canaries are tiny programs that isolate one compiler capability at a time.
-They are not samples, tutorials, or end-user examples.
+Canaries are organized by outcome first, then by feature area.
 
-## Layout
+- `pass/`: should compile, and runnable ones should behave as asserted
+- `fail/`: should be rejected with the expected diagnostic fragment
+- `run/`: ad hoc runnable probes and exploratory cases that are not part of the
+  main pass/fail contract suite
 
-- `pass/<feature>/main.omg`: the compiler should accept this program.
-- `fail/<feature>/main.omg`: the compiler should reject this program.
-- `fail/<feature>/expected.txt`: the diagnostic fragment that must appear.
-- `run/<feature>/main.omg`: future executable behavior canary. These may carry
-  `input.txt` and `expected_stdout.txt` until the runtime canary runner exists.
+Inside each bucket, prefer feature folders when a group becomes noisy:
 
-Feature names should describe the compiler behavior being pinned down, not the
-sample that happened to need it first. Prefer names like
-`guarded_transition_dispatch` or `bounded_float_call_unproven` over
-story-shaped names like `dungeon_step_01`.
+- `arithmetic/`
+- `borrows/`
+- `calls/`
+- `collections/`
+- `constraints/`
+- `control_flow/`
+- `ownership/`
+- `parameters/`
+- `rewards/`
+- `slices/`
+- `storage/`
+- `text/`
+- `domains/`
+- `dungeon/`
+- `traits/`
 
-## Build Output
+These are not hard semantic silos. A canary may mix features. The goal is
+simply to keep the tree navigable and let the dominant pressure of the test
+decide the folder.
 
-Canaries may emit a local `build/` directory when run through the real CLI.
-Those artifacts are intentionally ignored. They are useful scratch evidence,
-not source.
+Conventions:
 
-If a canary needs a permanent expected output, keep that expectation as a small
-checked-in text file beside the canary instead of preserving the generated
-build directory.
-
-## Relationship To Samples
-
-Samples are miniature projects that should read like user code.
-Canaries are compiler tripwires. When a sample exposes a missing feature, add
-or extend the smallest canary that proves that feature in isolation, then return
-to the sample once the tripwire is green.
-
-Runtime canaries are the bridge between those two worlds. They should stay tiny
-like compiler canaries, but they are allowed to describe process behavior that
-only becomes checkable after native execution is mature enough.
+- Keep each canary self-contained in its own directory with `main.omg`.
+- Add `platform/` shims only when the canary needs host boundaries.
+- Name canaries by the behavior under test, not by the fix that motivated them.
+- If a canary graduates into a clearer feature family, move the directory and
+  update the suite path rather than duplicating it.

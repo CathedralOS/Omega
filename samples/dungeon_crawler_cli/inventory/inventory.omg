@@ -29,7 +29,7 @@ machine InventorySystem::add_reward(
     state add_gold(
         &mut self,
         inventory: &mut Inventory,
-        amount: u32[exact, non_negative]
+        amount: u32
     ) {
         self.add_gold(inventory, amount);
     }
@@ -55,7 +55,7 @@ machine InventorySystem::add_reward(
 machine InventorySystem::add_gold(
     &mut self,
     inventory: &mut Inventory,
-    amount: u32[exact, non_negative]
+    amount: u32
 ) {
     inventory.gold = inventory.gold + amount;
 }
@@ -84,7 +84,7 @@ machine InventorySystem::add_item(
     state increment_item(
         &mut self,
         item: &mut InventoryItem,
-        amount: u32[exact, positive]
+        amount: u32
     ) {
         self.increment_item(item, amount);
     }
@@ -146,7 +146,7 @@ machine InventorySystem::find_item_after(
 machine InventorySystem::increment_item(
     &mut self,
     item: &mut InventoryItem,
-    amount: u32[exact, positive]
+    amount: u32
 ) {
     item.count = item.count + amount;
 }

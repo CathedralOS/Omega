@@ -1,0 +1,36 @@
+use platform::console;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) {
+    transition true {
+        true -> read_alias()
+    }
+
+    state read_alias(&mut self) {
+        self.entries[0].value = 7;
+
+        let entry_view: &[Entry] = self.entries.as_slice();
+        let index: usize = 0;
+
+        transition entry_view[index].value == 7 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(43);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(44);
+    }
+}

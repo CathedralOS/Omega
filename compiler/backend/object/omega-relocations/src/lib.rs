@@ -1,5 +1,5 @@
-use omega_calling_conventions::HostAbiPlan;
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
+use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::EncodedMachinePlan;

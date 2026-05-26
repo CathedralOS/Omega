@@ -102,9 +102,10 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         &mut state_mutation_summary_cache,
     );
 
-    assert!(places.iter().any(|place| place.root
-        == omega_facts::PlaceRoot::Symbol(player_symbol)
-        && place.segments.is_empty()));
+    assert!(places.iter().any(
+        |place| place.root == omega_facts::PlaceRoot::Symbol(player_symbol)
+            && place.segments.is_empty()
+    ));
 }
 
 #[test]
@@ -196,7 +197,8 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         &mut state_mutation_summary_cache,
     );
 
-    assert!(places.iter().any(|place| place.root
-        == omega_facts::PlaceRoot::Symbol(local_symbol)
-        && place.segments.is_empty()));
+    assert!(places.iter().any(
+        |place| place.root == omega_facts::PlaceRoot::Symbol(local_symbol)
+            && place.segments.is_empty()
+    ));
 }

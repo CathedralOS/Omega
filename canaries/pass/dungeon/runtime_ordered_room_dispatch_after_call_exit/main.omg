@@ -1,0 +1,85 @@
+use platform::console;
+
+data Tracker {
+    room_zero_seen: bool;
+    room_one_seen: bool;
+    room_two_seen: bool;
+    room_three_seen: bool;
+}
+
+machine Tracker::mark_room(&mut self, room_index: usize) {
+    -> mark_zero() when room_index == 0;
+    -> mark_one() when room_index == 1;
+    -> mark_two() when room_index == 2;
+    -> mark_three();
+
+    state mark_zero(&mut self) {
+        self.room_zero_seen = true;
+    }
+
+    state mark_one(&mut self) {
+        self.room_one_seen = true;
+    }
+
+    state mark_two(&mut self) {
+        self.room_two_seen = true;
+    }
+
+    state mark_three(&mut self) {
+        self.room_three_seen = true;
+    }
+}
+
+data Main {
+    console: Console;
+    tracker: Tracker;
+    current_room: usize;
+    fountain_used: bool;
+    bat_defeated: bool;
+    treasure_taken: bool;
+}
+
+machine Main::main(&mut self) {
+    self.current_room = 2;
+    self.fountain_used = false;
+    self.bat_defeated = true;
+    self.treasure_taken = false;
+
+    self.tracker.mark_room(self.current_room);
+
+    -> gate() when self.current_room == 0;
+    -> spent() when self.current_room == 1 && self.fountain_used == true;
+    -> fountain() when self.current_room == 1;
+    -> ambush_clear() when self.current_room == 2 && self.bat_defeated == true;
+    -> ambush() when self.current_room == 2;
+    -> looted() when self.current_room == 3 && self.treasure_taken == true;
+    -> vault();
+
+    state gate(&mut self) {
+        self.console.exit_process(80);
+    }
+
+    state spent(&mut self) {
+        self.console.exit_process(81);
+    }
+
+    state fountain(&mut self) {
+        self.console.exit_process(82);
+    }
+
+    state ambush_clear(&mut self) {
+        self.console.exit_process(83);
+    }
+
+    state ambush(&mut self) {
+        self.console.exit_process(84);
+    }
+
+    state looted(&mut self) {
+        self.console.exit_process(85);
+    }
+
+    state vault(&mut self) {
+        self.console.exit_process(86);
+    }
+}

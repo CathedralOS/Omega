@@ -49,7 +49,9 @@ pub(super) fn expression_guard_can_emit(
         );
     }
 
-    if let Some(expression) = boolean_condition_expression(expression) {
+    if let Some((expression, _expected_true)) = boolean_condition_expression(expression)
+        && !matches!(expression, Expression::Binary(_))
+    {
         return runtime_value_expression_can_emit(
             input,
             source_key,
@@ -114,7 +116,10 @@ fn runtime_value_expression_can_emit(
         Expression::Binary(binary) => {
             matches!(
                 binary.operator,
-                BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
+                BinaryOperator::Add
+                    | BinaryOperator::And
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Subtract
             ) && runtime_value_expression_can_emit(
                 input,
                 source_key,
@@ -144,17 +149,24 @@ fn runtime_value_expression_can_emit(
     }
 }
 
-fn boolean_condition_expression(expression: &Expression) -> Option<&Expression> {
+fn boolean_condition_expression(expression: &Expression) -> Option<(&Expression, bool)> {
     let Expression::Binary(binary) = expression else {
-        return None;
+        return Some((expression, true));
     };
 
     match (&binary.left, &binary.right, binary.operator) {
         (inner, Expression::Boolean(_), BinaryOperator::Equal | BinaryOperator::NotEqual)
         | (Expression::Boolean(_), inner, BinaryOperator::Equal | BinaryOperator::NotEqual) => {
-            (!matches!(inner, Expression::Binary(_))).then_some(inner)
+            (!matches!(inner, Expression::Binary(_))).then_some((
+                inner,
+                matches!(binary.operator, BinaryOperator::Equal)
+                    == matches!(
+                        (&binary.left, &binary.right),
+                        (_, Expression::Boolean(true)) | (Expression::Boolean(true), _)
+                    ),
+            ))
         }
-        _ => None,
+        _ => Some((expression, true)),
     }
 }
 

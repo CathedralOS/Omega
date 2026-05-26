@@ -25,15 +25,16 @@ pub(crate) fn call_target_label(
         .unwrap_or_else(|| symbol_name(program, target_symbol))
 }
 
-pub(crate) fn symbol_name(
-    program: &omega_typed_trees::TypedTrees,
-    symbol: SymbolHandle,
-) -> String {
+pub(crate) fn symbol_name(program: &omega_typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
     if !symbol.is_valid() {
         return "unknown".to_owned();
     }
 
-    if let Some(machine) = program.machines().iter().find(|machine| machine.symbol == symbol) {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+    {
         return machine.name.as_str().to_owned();
     }
 

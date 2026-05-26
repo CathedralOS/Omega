@@ -9,8 +9,8 @@ pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractValueOperand,
     AbstractValueOperandHandle, FunctionInstructionPlan, InstructionOperand,
-    InstructionOperandKind, RuntimeStorageRegion, RuntimeValueOperand,
-    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
+    InstructionOperandKind, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
+    SelectedInstruction, SelectedInstructionKind,
 };
 
 use omega_core::arena::Arena;

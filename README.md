@@ -89,9 +89,9 @@ Important artifact files:
 - `08_proof.txt`: proof surface and obligations.
 - `09_backend_plan.txt`: target, host ABI, calls, data, instructions, and image planning.
 - `10_trust.txt`: trusted contracts and unchecked obligations.
-- `11_emission.txt`: whether native emission is currently possible.
-- `12_emitted_output.txt`: emitted native output information.
-- `13_finalization.txt`: executable finalization and permission stamping for directly emitted images.
+- `12_emission.txt`: whether native emission is currently possible.
+- `13_emitted_output.txt`: emitted native output information.
+- `14_finalization.txt`: executable finalization and permission stamping for directly emitted images.
 
 ## Current Native Status
 

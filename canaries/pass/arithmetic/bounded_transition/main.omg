@@ -1,0 +1,15 @@
+data Main {
+    health: i32 = 100;
+}
+
+machine Main::main(&mut self) {
+    -> wounded(self.health) when self.health < 50;
+    -> healthy();
+
+
+    state wounded(value: i32) {
+    }
+
+    state healthy() {
+    }
+}

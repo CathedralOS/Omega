@@ -1,5 +1,7 @@
 use super::*;
-use crate::flow::{effective_member_symbol, resolve_member_symbol_from_type_symbol, symbol_type_symbol};
+use crate::flow::{
+    effective_member_symbol, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+};
 use crate::lookup::first_valid_name_path_symbol;
 
 pub(crate) fn collect_call_argument_accesses(
@@ -242,7 +244,10 @@ fn collect_read_accesses(
             machine_symbol,
         ),
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 collect_read_accesses(
                     field.value,
                     program,
@@ -296,52 +301,54 @@ pub(crate) fn borrow_access_place(
             *inner,
             machine_symbol,
         ),
-        ExpressionNode::Member(member) => match program.expression_table.expression(member.receiver) {
-            ExpressionNode::Name(path)
-                if path.members.count() == 1
-                    && contextual_name_root_symbol(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        member.receiver,
-                        path,
-                    )
-                    .is_some_and(|symbol| symbol == machine_symbol) =>
-            {
-                let member_symbol = contextual_effective_member_symbol(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    member.receiver,
-                    member,
-                    machine_symbol,
-                );
-                Some(BorrowAccessPlace {
-                    root_symbol: member_symbol,
-                    segments: Vec::new(),
-                })
-            }
-            _ => {
-                let mut place = borrow_access_place(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    member.receiver,
-                    machine_symbol,
-                )?;
-                place.segments.push(omega_facts::PlaceSegment::Field {
-                    symbol: contextual_effective_member_symbol(
+        ExpressionNode::Member(member) => {
+            match program.expression_table.expression(member.receiver) {
+                ExpressionNode::Name(path)
+                    if path.members.count() == 1
+                        && contextual_name_root_symbol(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            member.receiver,
+                            path,
+                        )
+                        .is_some_and(|symbol| symbol == machine_symbol) =>
+                {
+                    let member_symbol = contextual_effective_member_symbol(
                         program,
                         state_symbol,
                         statement_index,
                         member.receiver,
                         member,
                         machine_symbol,
-                    ),
-                });
-                Some(place)
+                    );
+                    Some(BorrowAccessPlace {
+                        root_symbol: member_symbol,
+                        segments: Vec::new(),
+                    })
+                }
+                _ => {
+                    let mut place = borrow_access_place(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        member.receiver,
+                        machine_symbol,
+                    )?;
+                    place.segments.push(omega_facts::PlaceSegment::Field {
+                        symbol: contextual_effective_member_symbol(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            member.receiver,
+                            member,
+                            machine_symbol,
+                        ),
+                    });
+                    Some(place)
+                }
             }
-        },
+        }
         ExpressionNode::Name(path) => {
             let root_symbol = contextual_name_root_symbol(
                 program,
@@ -474,7 +481,9 @@ fn contextual_symbol_type_symbol(
         .take(statement_index)
         .find_map(|statement| match statement {
             StatementNode::LocalData(local_data) if local_data.symbol == symbol => {
-                let type_symbol = program.type_reference_table.type_symbol(local_data.type_reference);
+                let type_symbol = program
+                    .type_reference_table
+                    .type_symbol(local_data.type_reference);
                 type_symbol.is_valid().then_some(type_symbol)
             }
             _ => None,

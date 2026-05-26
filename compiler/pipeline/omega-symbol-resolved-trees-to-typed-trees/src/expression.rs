@@ -1,21 +1,66 @@
 use crate::name::lower_name;
+use crate::program::Lowerer;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
+
+pub(crate) fn lower_expression_handle(
+    lowerer: &mut Lowerer,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    let source = &lowerer.source_trees.tables.bodies.expressions;
+    lower_expression_handle_from_table_with_self_substitution(
+        Some(lowerer.source_trees),
+        source,
+        &mut lowerer.typed_trees.expression_table,
+        expression,
+        None,
+    )
+}
 
 pub(crate) fn lower_expression_handle_from_table(
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::expression::ExpressionTable,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    lower_expression_handle_from_table_with_self_substitution(
+        None, source, target, expression, None,
+    )
+}
+
+fn lower_expression_handle_from_table_with_self_substitution(
+    program: Option<&resolved::SymbolResolvedTrees>,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    expression: resolved::expression::ExpressionHandle,
+    self_substitution: Option<typed::expression::ExpressionHandle>,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     match source.expression(expression) {
         resolved::expression::ExpressionNode::ArrayLiteral(values) => {
-            let values = lower_expression_handle_span_from_table(source, target, *values)?;
+            let values = lower_expression_handle_span_from_table(
+                program,
+                source,
+                target,
+                *values,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::ArrayLiteral(values)))
         }
         resolved::expression::ExpressionNode::Binary(binary) => {
-            let left = lower_expression_handle_from_table(source, target, binary.left)?;
-            let right = lower_expression_handle_from_table(source, target, binary.right)?;
+            let left = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                binary.left,
+                self_substitution,
+            )?;
+            let right = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                binary.right,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::Binary(
                 typed::expression::TableBinaryExpression {
                     left,
@@ -28,7 +73,13 @@ pub(crate) fn lower_expression_handle_from_table(
             Ok(target.insert(typed::expression::ExpressionNode::Boolean(*value)))
         }
         resolved::expression::ExpressionNode::Cast(cast) => {
-            let value = lower_expression_handle_from_table(source, target, cast.value)?;
+            let value = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                cast.value,
+                self_substitution,
+            )?;
             let target_type = lower_name_path_members_into_table(source, target, cast.target_type);
             Ok(target.insert(typed::expression::ExpressionNode::Cast(
                 typed::expression::TableCastExpression { value, target_type },
@@ -38,11 +89,24 @@ pub(crate) fn lower_expression_handle_from_table(
             let receiver = call
                 .receiver
                 .is_valid()
-                .then(|| lower_expression_handle_from_table(source, target, call.receiver))
+                .then(|| {
+                    lower_expression_handle_from_table_with_self_substitution(
+                        program,
+                        source,
+                        target,
+                        call.receiver,
+                        self_substitution,
+                    )
+                })
                 .transpose()?
                 .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
-            let arguments =
-                lower_expression_handle_span_from_table(source, target, call.arguments)?;
+            let arguments = lower_expression_handle_span_from_table(
+                program,
+                source,
+                target,
+                call.arguments,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
                     receiver,
@@ -58,9 +122,20 @@ pub(crate) fn lower_expression_handle_from_table(
             )))
         }
         resolved::expression::ExpressionNode::Indexed(indexed) => {
-            let collection =
-                lower_expression_handle_from_table(source, target, indexed.collection)?;
-            let index = lower_expression_handle_from_table(source, target, indexed.index)?;
+            let collection = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                indexed.collection,
+                self_substitution,
+            )?;
+            let index = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                indexed.index,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::Indexed(
                 typed::expression::TableIndexedExpression { collection, index },
             )))
@@ -68,8 +143,38 @@ pub(crate) fn lower_expression_handle_from_table(
         resolved::expression::ExpressionNode::Integer(value) => {
             Ok(target.insert(typed::expression::ExpressionNode::Integer(*value)))
         }
+        resolved::expression::ExpressionNode::Membership(membership) => {
+            let Some(program) = program else {
+                return Err(Diagnostic::error(
+                    "cannot lower executable domain membership without a resolved program context",
+                ));
+            };
+            if !membership.domain_symbol.is_valid() {
+                let domain_name = resolved::expression::display_name_path(
+                    source.name_path_members(membership.domain),
+                    "::",
+                );
+                return Err(Diagnostic::error(format!(
+                    "unknown domain `{domain_name}` in executable membership expression"
+                )));
+            }
+            let value = lower_expression_handle_from_table_with_self_substitution(
+                Some(program),
+                source,
+                target,
+                membership.value,
+                self_substitution,
+            )?;
+            lower_domain_membership_expression(program, target, value, membership.domain_symbol)
+        }
         resolved::expression::ExpressionNode::Member(member) => {
-            let receiver = lower_expression_handle_from_table(source, target, member.receiver)?;
+            let receiver = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                member.receiver,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::Member(
                 typed::expression::TableMemberExpression {
                     receiver,
@@ -79,16 +184,33 @@ pub(crate) fn lower_expression_handle_from_table(
             )))
         }
         resolved::expression::ExpressionNode::Mutable(expression) => {
-            let expression = lower_expression_handle_from_table(source, target, *expression)?;
+            let expression = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                *expression,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::Mutable(expression)))
         }
         resolved::expression::ExpressionNode::Name(path) => {
+            if path.is_self_value
+                && path.members.count() == 1
+                && let Some(substitution) = self_substitution
+            {
+                return Ok(substitution);
+            }
             let path = lower_table_name_path_node_into_table(source, target, path);
             Ok(target.insert(typed::expression::ExpressionNode::Name(path)))
         }
         resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
-            let fields =
-                lower_struct_literal_field_span_from_table(source, target, struct_literal.fields)?;
+            let fields = lower_struct_literal_field_span_from_table(
+                program,
+                source,
+                target,
+                struct_literal.fields,
+                self_substitution,
+            )?;
             Ok(
                 target.insert(typed::expression::ExpressionNode::StructLiteral(
                     typed::expression::TableStructLiteral {
@@ -105,30 +227,48 @@ pub(crate) fn lower_expression_handle_from_table(
 }
 
 fn lower_expression_handle_span_from_table(
+    program: Option<&resolved::SymbolResolvedTrees>,
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::expression::ExpressionTable,
     expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
+    self_substitution: Option<typed::expression::ExpressionHandle>,
 ) -> Result<omega_core::arena::HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
     let lowered = source
         .expression_handles(expressions)
         .iter()
         .copied()
-        .map(|expression| lower_expression_handle_from_table(source, target, expression))
+        .map(|expression| {
+            lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                expression,
+                self_substitution,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(target.insert_expression_handles(lowered))
 }
 
 fn lower_struct_literal_field_span_from_table(
+    program: Option<&resolved::SymbolResolvedTrees>,
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::expression::ExpressionTable,
     fields: omega_core::arena::HandleSpan<resolved::expression::TableStructLiteralField>,
+    self_substitution: Option<typed::expression::ExpressionHandle>,
 ) -> Result<omega_core::arena::HandleSpan<typed::expression::TableStructLiteralField>, Diagnostic> {
     let lowered = source
         .struct_fields(fields)
         .iter()
         .map(|field| {
-            let value = lower_expression_handle_from_table(source, target, field.value)?;
+            let value = lower_expression_handle_from_table_with_self_substitution(
+                program,
+                source,
+                target,
+                field.value,
+                self_substitution,
+            )?;
             Ok(typed::expression::TableStructLiteralField {
                 name: lower_name(&field.name),
                 value,
@@ -137,6 +277,73 @@ fn lower_struct_literal_field_span_from_table(
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(target.insert_struct_fields(lowered))
+}
+
+fn lower_domain_membership_expression(
+    program: &resolved::SymbolResolvedTrees,
+    target: &mut typed::expression::ExpressionTable,
+    value: typed::expression::ExpressionHandle,
+    domain_symbol: omega_core::symbols::SymbolHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    let Some(domain_definition) = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot lower executable membership for unknown domain symbol {}",
+            domain_symbol.arena_index()
+        )));
+    };
+
+    let source = &program.tables.bodies.expressions;
+    let mut lowered_facts = Vec::new();
+    for fact in program.proof_facts(domain_definition.facts) {
+        let lowered = match fact {
+            resolved::domain::ProofFact::Expression(expression) => {
+                lower_expression_handle_from_table_with_self_substitution(
+                    Some(program),
+                    source,
+                    target,
+                    *expression,
+                    Some(value),
+                )?
+            }
+            resolved::domain::ProofFact::Membership(membership) => {
+                let nested_value = lower_expression_handle_from_table_with_self_substitution(
+                    Some(program),
+                    source,
+                    target,
+                    membership.value,
+                    Some(value),
+                )?;
+                lower_domain_membership_expression(
+                    program,
+                    target,
+                    nested_value,
+                    membership.domain_symbol,
+                )?
+            }
+        };
+        lowered_facts.push(lowered);
+    }
+
+    let mut lowered_facts = lowered_facts.into_iter();
+    let Some(mut combined) = lowered_facts.next() else {
+        return Ok(target.insert(typed::expression::ExpressionNode::Boolean(true)));
+    };
+
+    for fact in lowered_facts {
+        combined = target.insert(typed::expression::ExpressionNode::Binary(
+            typed::expression::TableBinaryExpression {
+                left: combined,
+                operator: typed::expression::BinaryOperator::And,
+                right: fact,
+            },
+        ));
+    }
+
+    Ok(combined)
 }
 
 fn lower_name_path_members_into_table(

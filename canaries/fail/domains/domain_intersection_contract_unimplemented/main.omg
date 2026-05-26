@@ -1,0 +1,42 @@
+data Password {
+    length: i32;
+    score: i32;
+}
+
+domain Password::Valid {
+    self.length > 0;
+}
+
+domain Password::Secure {
+    self.score >= 8;
+}
+
+data Main {
+    password: Password;
+}
+
+machine Main::mark_valid(&mut self, password: &mut Password)
+ensures
+    password in Password::Valid
+{
+    password.length = 12;
+}
+
+machine Main::mark_secure(&mut self, password: &mut Password)
+ensures
+    password in Password::Secure
+{
+    password.score = 10;
+}
+
+machine Main::accept(password: Password)
+requires
+    password in Password::Valid & Password::Secure
+{
+}
+
+machine Main::main(&mut self) {
+    self.mark_valid(&mut self.password);
+    self.mark_secure(&mut self.password);
+    self.accept(self.password);
+}

@@ -4,12 +4,12 @@ mod points;
 use super::*;
 use crate::flow::effective_member_symbol;
 pub(crate) use crate::semantic_calls::{
-    call_site_argument_expressions, find_call_site, find_state, find_state_in_machine, CallSite,
+    CallSite, call_site_argument_expressions, find_call_site, find_state, find_state_in_machine,
 };
 pub(crate) use crate::semantic_places::instantiate_call_contract_place;
 use crate::semantic_places::{append_place_segment, resolve_place_member_symbol};
-use omega_facts::PlaceHandle;
 use contracts::append_contract_semantic_facts;
+use omega_facts::PlaceHandle;
 use points::{contract_fact_origin, contract_fact_point, proof_obligation_point};
 
 pub(crate) fn build_semantic_facts(
@@ -43,20 +43,14 @@ pub(crate) fn contract_fact_place(
     contract: &ContractProofFact,
 ) -> FactPlace {
     match program.proof_facts.get(contract.fact) {
-        omega_typed_trees::domain::ProofFact::Expression(expression) => {
-            FactPlace::Place(
-                contract_expression_place(program, facts, contract, *expression)
-                    .unwrap_or_else(|| facts.append_place_from_expression(program, *expression)),
-            )
-        }
-        omega_typed_trees::domain::ProofFact::Membership(membership) => {
-            FactPlace::Place(
-                contract_expression_place(program, facts, contract, membership.value)
-                    .unwrap_or_else(|| {
-                        facts.append_place_from_expression(program, membership.value)
-                    }),
-            )
-        }
+        omega_typed_trees::domain::ProofFact::Expression(expression) => FactPlace::Place(
+            contract_expression_place(program, facts, contract, *expression)
+                .unwrap_or_else(|| facts.append_place_from_expression(program, *expression)),
+        ),
+        omega_typed_trees::domain::ProofFact::Membership(membership) => FactPlace::Place(
+            contract_expression_place(program, facts, contract, membership.value)
+                .unwrap_or_else(|| facts.append_place_from_expression(program, membership.value)),
+        ),
     }
 }
 
@@ -71,7 +65,9 @@ fn contract_expression_place(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => contract_expression_place(program, facts, contract, *inner),
+        ExpressionNode::Mutable(inner) => {
+            contract_expression_place(program, facts, contract, *inner)
+        }
         ExpressionNode::Name(path) => contract_name_path_place(program, facts, contract, path),
         ExpressionNode::Member(member) => {
             let receiver = contract_expression_place(program, facts, contract, member.receiver)
@@ -85,9 +81,7 @@ fn contract_expression_place(
                         .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            let segment = omega_facts::PlaceSegment::Field {
-                symbol,
-            };
+            let segment = omega_facts::PlaceSegment::Field { symbol };
             Some(append_place_segment(facts, receiver, segment))
         }
         ExpressionNode::Indexed(indexed) => {
@@ -115,7 +109,9 @@ fn contract_name_path_place(
     path: &omega_typed_trees::expression::TableNamePath,
 ) -> Option<PlaceHandle> {
     let members = program.expression_table.name_path_members(path.members);
-    let member_symbols = program.expression_table.name_path_member_symbols(path.member_symbols);
+    let member_symbols = program
+        .expression_table
+        .name_path_member_symbols(path.member_symbols);
 
     let (mut place, start_index) = if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)

@@ -1,0 +1,112 @@
+use platform::console;
+
+data CommandParser {}
+
+data GameView {}
+
+machine GameView::render_title(
+    &mut self,
+    console: &mut Console
+) {
+    console.write_line("Dungeon Crawler");
+}
+
+data Dungeon {
+    room_zero_seen: bool;
+    room_one_seen: bool;
+    room_two_seen: bool;
+    room_three_seen: bool;
+}
+
+machine Dungeon::enter_room(
+    &mut self,
+    room_index: usize
+) {
+    transition {
+        _ -> mark_current_room()
+    }
+
+    state mark_current_room(&mut self) {
+        -> mark_zero() when room_index == 0;
+        -> mark_one() when room_index == 1;
+        -> mark_two() when room_index == 2;
+        -> mark_three();
+    }
+
+    state mark_zero(&mut self) {
+        self.room_zero_seen = true;
+    }
+
+    state mark_one(&mut self) {
+        self.room_one_seen = true;
+    }
+
+    state mark_two(&mut self) {
+        self.room_two_seen = true;
+    }
+
+    state mark_three(&mut self) {
+        self.room_three_seen = true;
+    }
+}
+
+data Main {
+    console: Console;
+    dungeon: Dungeon;
+    parser: CommandParser;
+    view: GameView;
+    input: String;
+    output: String;
+    current_room_index: usize;
+    fountain_used: bool;
+    bat_defeated: bool;
+    treasure_taken: bool;
+}
+
+machine Main::main(&mut self) {
+    self.input = "";
+    self.output = "";
+    self.current_room_index = 2;
+    self.fountain_used = false;
+    self.bat_defeated = true;
+    self.treasure_taken = false;
+
+    self.view.render_title(&mut self.console);
+    self.dungeon.enter_room(self.current_room_index);
+
+    -> show_gate_room() when self.current_room_index == 0;
+    -> show_spent_fountain_room() when self.current_room_index == 1 && self.fountain_used == true;
+    -> show_fountain_room() when self.current_room_index == 1;
+    -> show_ambush_room() when self.current_room_index == 2 && self.bat_defeated == true;
+    -> show_ambush_encounter() when self.current_room_index == 2;
+    -> show_looted_vault_room() when self.current_room_index == 3 && self.treasure_taken == true;
+    -> show_vault_room();
+
+    state show_gate_room(&mut self) {
+        self.console.exit_process(90);
+    }
+
+    state show_spent_fountain_room(&mut self) {
+        self.console.exit_process(91);
+    }
+
+    state show_fountain_room(&mut self) {
+        self.console.exit_process(92);
+    }
+
+    state show_ambush_room(&mut self) {
+        self.console.exit_process(93);
+    }
+
+    state show_ambush_encounter(&mut self) {
+        self.console.exit_process(94);
+    }
+
+    state show_looted_vault_room(&mut self) {
+        self.console.exit_process(95);
+    }
+
+    state show_vault_room(&mut self) {
+        self.console.exit_process(96);
+    }
+}

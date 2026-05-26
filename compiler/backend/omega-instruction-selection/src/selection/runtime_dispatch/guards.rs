@@ -15,11 +15,11 @@ use super::super::storage_places::{
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_guard_call_result_place,
 };
-use omega_runtime_text::places::{
-    expression_place_eq_across_tables, expression_place_eq_table_tree,
-};
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
+};
+use omega_runtime_text::places::{
+    expression_place_eq_across_tables, expression_place_eq_table_tree,
 };
 use std::sync::Arc;
 
@@ -94,6 +94,26 @@ fn select_runtime_branch_guard_conjuncts_in_table(
         &mut guards,
     );
     guards
+}
+
+pub(super) fn select_runtime_dispatch_expression_guard_conjuncts_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Vec<SelectedInstructionKind> {
+    select_runtime_branch_guard_conjuncts_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+    )
 }
 
 fn collect_runtime_branch_guard_conjuncts_in_table(
@@ -1251,11 +1271,11 @@ fn runtime_compare_operator(operator: BinaryOperator) -> Option<StateGuardOperat
 fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::And => Some(StateGuardOperator::And),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::And
-        | BinaryOperator::Divide
+        BinaryOperator::Divide
         | BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual

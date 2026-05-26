@@ -1,0 +1,38 @@
+use platform::console;
+
+data Main {
+    console: Console;
+    current_room: u32;
+    fountain_used: bool;
+}
+
+machine Main::main(&mut self) {
+    self.current_room = 1;
+    self.fountain_used = false;
+
+    -> use_fountain();
+
+    state use_fountain(&mut self) {
+        self.fountain_used = true;
+        -> leave_room();
+    }
+
+    state leave_room(&mut self) {
+        self.current_room = 0;
+        -> reenter_fountain();
+    }
+
+    state reenter_fountain(&mut self) {
+        self.current_room = 1;
+        -> show_spent_fountain() when self.current_room == 1 && self.fountain_used == true;
+        -> show_live_fountain();
+    }
+
+    state show_spent_fountain(&mut self) {
+        self.console.exit_process(41);
+    }
+
+    state show_live_fountain(&mut self) {
+        self.console.exit_process(42);
+    }
+}

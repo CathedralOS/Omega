@@ -303,6 +303,10 @@ pub enum ExpressionSnapshot {
     Integer {
         value: i64,
     },
+    Membership {
+        value: Box<ExpressionSnapshot>,
+        domain: Vec<String>,
+    },
     Member {
         receiver: Box<ExpressionSnapshot>,
         member: String,
@@ -752,6 +756,14 @@ fn table_expression_snapshot(
             index: Box::new(table_expression_snapshot(program, indexed.index)),
         },
         ExpressionNode::Integer(value) => ExpressionSnapshot::Integer { value: *value },
+        ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
+            value: Box::new(table_expression_snapshot(program, membership.value)),
+            domain: table
+                .name_path_members(membership.domain)
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        },
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(table_expression_snapshot(program, member.receiver)),
             member: member.member.to_string(),

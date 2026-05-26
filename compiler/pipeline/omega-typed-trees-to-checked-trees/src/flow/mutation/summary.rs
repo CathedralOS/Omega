@@ -49,7 +49,11 @@ fn state_mutation_summary_places<'cache>(
     cache: &'cache mut StateMutationSummaryCache,
     state: &omega_typed_trees::state::State,
 ) -> &'cache [CanonicalPlace] {
-    if !cache.states.iter().any(|entry| entry.state_symbol == state.symbol) {
+    if !cache
+        .states
+        .iter()
+        .any(|entry| entry.state_symbol == state.symbol)
+    {
         let writes = collect_state_mutation_summary_places(program, state);
         cache.states.push(StateMutationSummary {
             state_symbol: state.symbol,
@@ -69,6 +73,17 @@ fn collect_state_mutation_summary_places(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
 ) -> Vec<CanonicalPlace> {
+    let machine_symbol = program
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+                .then_some(machine.symbol)
+        })
+        .unwrap_or_else(SymbolHandle::invalid);
     let parameter_symbols: Vec<_> = program
         .state_parameters(state)
         .iter()
@@ -76,17 +91,29 @@ fn collect_state_mutation_summary_places(
         .collect();
     let mut writes = Vec::new();
 
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
-        let Some(place) = canonical_place_from_expression(program, assignment.target) else {
+        let Some(place) = canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            assignment.target,
+        ) else {
             continue;
         };
         let omega_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
             continue;
         };
-        if parameter_symbols.contains(&root_symbol) && !writes.contains(&place) {
+        if (parameter_symbols.contains(&root_symbol) || root_symbol == machine_symbol)
+            && !writes.contains(&place)
+        {
             writes.push(place);
         }
     }
@@ -112,11 +139,22 @@ fn instantiate_call_relative_place(
         borrow_call.call_ordinal,
     )?;
     let target_state = find_state(program, borrow_call.target_symbol)?;
+    let target_machine_symbol = program
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == target_state.symbol)
+                .then_some(machine.symbol)
+        })
+        .unwrap_or_else(SymbolHandle::invalid);
     let mut argument_index = 0usize;
 
     for parameter in program.state_parameters(target_state) {
         let base_place = if parameter.is_self {
-            if parameter.symbol != parameter_symbol {
+            if parameter.symbol != parameter_symbol && target_machine_symbol != parameter_symbol {
                 continue;
             }
             canonical_receiver_place_for_call_site(

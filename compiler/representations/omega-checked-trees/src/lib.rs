@@ -129,11 +129,7 @@ impl BorrowFacts {
             && place_segments_overlap(self.access_segments(access), self.loan_segments(loan))
     }
 
-    pub fn loan_overlaps_loan(
-        &self,
-        left: &BorrowLoanFact,
-        right: &BorrowLoanFact,
-    ) -> bool {
+    pub fn loan_overlaps_loan(&self, left: &BorrowLoanFact, right: &BorrowLoanFact) -> bool {
         left.root_symbol == right.root_symbol
             && place_segments_overlap(self.loan_segments(left), self.loan_segments(right))
     }
@@ -485,10 +481,7 @@ pub struct FlowFacts {
 }
 
 impl FlowFacts {
-    pub fn constraints(
-        &self,
-        constraints: HandleSpan<FlowConstraintRef>,
-    ) -> &[FlowConstraintRef] {
+    pub fn constraints(&self, constraints: HandleSpan<FlowConstraintRef>) -> &[FlowConstraintRef] {
         self.constraint_refs.span_or_empty(constraints)
     }
 
@@ -613,15 +606,12 @@ impl FlowFacts {
         target_symbol: SymbolHandle,
         receiver_symbol: SymbolHandle,
     ) -> Option<&FlowCallFact> {
-        self.calls
-            .span_or_empty(state.calls)
-            .iter()
-            .find(|call| {
-                call.statement_index == statement_index
-                    && call.call_ordinal == call_ordinal
-                    && call.target_symbol == target_symbol
-                    && call.receiver_symbol == receiver_symbol
-            })
+        self.calls.span_or_empty(state.calls).iter().find(|call| {
+            call.statement_index == statement_index
+                && call.call_ordinal == call_ordinal
+                && call.target_symbol == target_symbol
+                && call.receiver_symbol == receiver_symbol
+        })
     }
 
     pub fn state_call_entry_constraints(

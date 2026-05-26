@@ -192,7 +192,10 @@ pub(super) fn collect_expression_borrow_calls(
             state_calls,
         ),
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 collect_expression_borrow_calls(
                     program,
                     machine,

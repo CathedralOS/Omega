@@ -4,9 +4,7 @@ use omega_facts::{
     ProofObligationKind as SemanticProofObligationKind,
 };
 
-pub(crate) fn semantic_contract_fact_kind(
-    kind: ContractProofFactKind,
-) -> SemanticContractFactKind {
+pub(crate) fn semantic_contract_fact_kind(kind: ContractProofFactKind) -> SemanticContractFactKind {
     match kind {
         ContractProofFactKind::Requires => SemanticContractFactKind::Requires,
         ContractProofFactKind::Ensures => SemanticContractFactKind::Ensures,
@@ -14,9 +12,7 @@ pub(crate) fn semantic_contract_fact_kind(
     }
 }
 
-pub(crate) fn semantic_proof_obligation_kind(
-    kind: ProofFactKind,
-) -> SemanticProofObligationKind {
+pub(crate) fn semantic_proof_obligation_kind(kind: ProofFactKind) -> SemanticProofObligationKind {
     match kind {
         ProofFactKind::BoundedAssignment => SemanticProofObligationKind::BoundedAssignment,
         ProofFactKind::BoundedCallArgument => SemanticProofObligationKind::BoundedCallArgument,

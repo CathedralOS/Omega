@@ -27,10 +27,10 @@ use super::mutation::{
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_runtime_dispatch_loop::RuntimeDispatchLoopAction;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
+use omega_runtime_dispatch_loop::RuntimeDispatchLoopAction;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)

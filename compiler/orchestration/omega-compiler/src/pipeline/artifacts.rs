@@ -293,13 +293,76 @@ pub(super) fn write_backend_report(
 
 pub(super) fn write_emission_plan(
     options: &CompileOptions,
+    plan: &omega_backend_plan::BackendPlan,
     emission_plan: &omega_artifacts::EmissionPlan,
+    output_path: Option<&Path>,
 ) -> Result<(), Vec<Diagnostic>> {
     let writer =
         ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
     writer
         .write_emission_plan(emission_plan)
-        .map_err(|diagnostic| vec![diagnostic])
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let disassembly = output_path
+        .and_then(|output_path| load_native_disassembly(plan.target, output_path).ok())
+        .flatten();
+    write_phase_diagram(
+        options,
+        "12_emission.html",
+        &omega_visualizations::emission_html(
+            &plan.encoded_machine,
+            &plan.machine_instructions,
+            &plan.assigned_target_operations,
+            &plan.control_flow,
+            &plan.object,
+            &plan.relocations,
+            disassembly.as_deref(),
+        ),
+    )
+}
+
+fn load_native_disassembly(
+    target: omega_target::NativeTarget,
+    output_path: &Path,
+) -> Result<Option<String>, Diagnostic> {
+    match target.object_format {
+        omega_target::ObjectFormat::MachO => {
+            run_disassembler("otool", &["-tvV"], output_path).map(Some)
+        }
+        omega_target::ObjectFormat::Elf | omega_target::ObjectFormat::Coff => {
+            for tool in ["llvm-objdump", "objdump"] {
+                if let Ok(output) = run_disassembler(tool, &["-d"], output_path) {
+                    return Ok(Some(output));
+                }
+            }
+            Ok(None)
+        }
+    }
+}
+
+fn run_disassembler(tool: &str, args: &[&str], output_path: &Path) -> Result<String, Diagnostic> {
+    let output = std::process::Command::new(tool)
+        .args(args)
+        .arg(output_path)
+        .output()
+        .map_err(|error| {
+            Diagnostic::error(format!(
+                "failed to run disassembler `{tool}` on {}: {error}",
+                output_path.display()
+            ))
+        })?;
+    if !output.status.success() {
+        return Err(Diagnostic::error(format!(
+            "disassembler `{tool}` failed on {} with status {}",
+            output_path.display(),
+            output.status
+        )));
+    }
+    String::from_utf8(output.stdout).map_err(|error| {
+        Diagnostic::error(format!(
+            "disassembler `{tool}` produced non-utf8 output for {}: {error}",
+            output_path.display()
+        ))
+    })
 }
 
 pub(super) fn write_timings(

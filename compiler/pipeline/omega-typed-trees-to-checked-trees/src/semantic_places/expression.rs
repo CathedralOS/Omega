@@ -19,24 +19,23 @@ pub(crate) fn instantiate_call_contract_expression_place(
             instantiate_call_contract_name_path_place(program, facts, call, path)
         }
         ExpressionNode::Member(member) => {
-            let receiver = instantiate_call_contract_expression_place(
-                program,
-                facts,
-                call,
-                member.receiver,
-            )?;
+            let receiver =
+                instantiate_call_contract_expression_place(program, facts, call, member.receiver)?;
             let symbol = {
                 let symbol = effective_member_symbol(program, member.receiver, member);
                 if symbol.is_valid() {
                     symbol
                 } else {
-                    super::resolve_place_member_symbol(program, facts, receiver, member.member.as_str())
-                        .unwrap_or_else(SymbolHandle::invalid)
+                    super::resolve_place_member_symbol(
+                        program,
+                        facts,
+                        receiver,
+                        member.member.as_str(),
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            let segment = omega_facts::PlaceSegment::Field {
-                symbol,
-            };
+            let segment = omega_facts::PlaceSegment::Field { symbol };
             Some(super::append_place_segment(facts, receiver, segment))
         }
         ExpressionNode::Indexed(indexed) => {
@@ -79,8 +78,7 @@ fn instantiate_call_contract_name_path_place(
             .find(|parameter| parameter.is_self)
             .is_some_and(|parameter| {
                 path.head_symbol == parameter.symbol || path.symbol == parameter.symbol
-            })
-    {
+            }) {
         super::receiver_place_for_call(program, facts, call, &call_site)?
     } else {
         let mut argument_index = 0usize;
@@ -111,19 +109,20 @@ fn instantiate_call_contract_name_path_place(
         return Some(place);
     }
 
-    let member_symbols = program.expression_table.name_path_member_symbols(path.member_symbols);
+    let member_symbols = program
+        .expression_table
+        .name_path_member_symbols(path.member_symbols);
     for (offset, member_name) in members.iter().skip(1).enumerate() {
         let symbol = member_symbols
             .get(offset + 1)
             .copied()
             .filter(|symbol| symbol.is_valid())
-            .or_else(|| super::resolve_place_member_symbol(program, facts, place, member_name.as_str()))
+            .or_else(|| {
+                super::resolve_place_member_symbol(program, facts, place, member_name.as_str())
+            })
             .unwrap_or_else(SymbolHandle::invalid);
-        place = super::append_place_segment(
-            facts,
-            place,
-            omega_facts::PlaceSegment::Field { symbol },
-        );
+        place =
+            super::append_place_segment(facts, place, omega_facts::PlaceSegment::Field { symbol });
     }
 
     Some(place)

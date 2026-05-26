@@ -5,8 +5,8 @@ use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
-    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableStructLiteral,
-    TableStructLiteralField,
+    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableMembershipExpression,
+    TableStructLiteral, TableStructLiteralField,
 };
 use omega_syntax_trees::identifier::Identifier;
 use omega_tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
@@ -23,6 +23,17 @@ pub(super) fn parse_expression_handle_without_struct_literals<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     parse_expression_handle_in(syntax_trees, input, ExpressionContext::NoStructLiteral)
+}
+
+pub(super) fn parse_expression_handle_without_struct_literals_or_membership<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    parse_expression_handle_in(
+        syntax_trees,
+        input,
+        ExpressionContext::NoStructLiteralOrMembership,
+    )
 }
 
 fn parse_expression_handle_in<'tokens, 'source>(
@@ -118,7 +129,7 @@ fn parse_comparison_expression_handle<'tokens, 'source>(
         syntax_trees,
         input,
         context,
-        parse_shift_expression_handle,
+        parse_membership_expression_handle,
         &[
             (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual),
             (
@@ -129,6 +140,32 @@ fn parse_comparison_expression_handle<'tokens, 'source>(
             (PunctuationKind::Greater, BinaryOperator::Greater),
         ],
     )
+}
+
+fn parse_membership_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    context: ExpressionContext,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let (mut expression, mut input) = parse_shift_expression_handle(syntax_trees, input, context)?;
+
+    while context.allows_membership() && input.at_contextual("in") {
+        input = input.take_contextual("in")?;
+        let (domain, rest) = parse_path_handle_span(input, |member| {
+            syntax_trees
+                .expressions
+                .append_identifier_path_member(member)
+        })?;
+        input = rest;
+        expression = syntax_trees.expressions.insert(ExpressionNode::Membership(
+            TableMembershipExpression {
+                value: expression,
+                domain,
+            },
+        ));
+    }
+
+    Ok((expression, input))
 }
 
 fn parse_shift_expression_handle<'tokens, 'source>(
@@ -442,7 +479,7 @@ fn parse_primary_expression_handle<'tokens, 'source>(
                 .append_identifier_path_member(member)
         })?;
 
-        if context != ExpressionContext::NoStructLiteral
+        if context.allows_struct_literal()
             && input.at_punctuation(PunctuationKind::LeftBrace)
             && path.count() == 1
         {

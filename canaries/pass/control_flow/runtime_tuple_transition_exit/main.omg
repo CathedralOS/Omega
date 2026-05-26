@@ -1,0 +1,28 @@
+data Main {
+}
+
+machine Main::main(&mut self) -> i32 {
+    transition {
+        _ -> classify(false, true)
+    }
+
+    state classify(left: bool, right: bool) -> i32 {
+        transition (left, right) {
+            (true, _) -> done_11()
+            (false, true) -> done_22()
+            (false, false) -> done_33()
+        }
+    }
+
+    state done_11(&mut self) -> i32 {
+        11
+    }
+
+    state done_22(&mut self) -> i32 {
+        22
+    }
+
+    state done_33(&mut self) -> i32 {
+        33
+    }
+}

@@ -1,5 +1,5 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_abstract_operations::SelectedInstruction;
+use omega_core::arena::{Arena, Handle, HandleSpan};
 
 pub(super) struct SelectedInstructionSink<'arena> {
     instructions: &'arena mut Arena<SelectedInstruction>,

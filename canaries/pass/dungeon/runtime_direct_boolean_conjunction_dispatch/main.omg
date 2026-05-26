@@ -1,0 +1,26 @@
+data Main {
+    current_room: u32;
+    fountain_used: bool;
+}
+
+machine Main::main(&mut self) {
+    self.current_room = 1;
+    self.fountain_used = false;
+
+    -> enter_room();
+
+    state enter_room(&mut self) {
+        -> show_spent_fountain() when self.current_room == 1 && self.fountain_used == true;
+        -> show_fountain() when self.current_room == 1;
+        -> done();
+    }
+
+    state show_fountain(&mut self) {
+        self.fountain_used = true;
+        -> enter_room();
+    }
+
+    state show_spent_fountain(&mut self) {}
+
+    state done(&mut self) {}
+}

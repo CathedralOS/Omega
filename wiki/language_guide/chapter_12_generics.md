@@ -95,7 +95,7 @@ data FixedBuffer<T, const N: usize> {
 
 machine Math::clamp_i32<const MIN: i32, const MAX: i32>(
     value: i32,
-    out: &mut i32[range<MIN, MAX>]
+    out: &mut i32
 ) {
     match (value < MIN, value > MAX) {
         (true, _) -> {

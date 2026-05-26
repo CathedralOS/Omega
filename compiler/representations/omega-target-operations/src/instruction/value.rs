@@ -35,8 +35,10 @@ pub type RuntimeValueOperand = TargetValueOperand;
 
 pub trait RuntimeValueOperandSource {
     fn immediate_integer(&self, handle: RuntimeValueOperandHandle) -> Option<i64>;
-    fn storage(&self, handle: RuntimeValueOperandHandle)
-        -> Option<(RuntimeStorageRegion, usize, usize)>;
+    fn storage(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeStorageRegion, usize, usize)>;
     fn pointee(&self, handle: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)>;
     fn frame_indexed(
         &self,
@@ -45,7 +47,11 @@ pub trait RuntimeValueOperandSource {
     fn binary(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeValueOperandHandle, StateGuardOperator, RuntimeValueOperandHandle)>;
+    ) -> Option<(
+        RuntimeValueOperandHandle,
+        StateGuardOperator,
+        RuntimeValueOperandHandle,
+    )>;
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
@@ -106,7 +112,11 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn binary(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeValueOperandHandle, StateGuardOperator, RuntimeValueOperandHandle)> {
+    ) -> Option<(
+        RuntimeValueOperandHandle,
+        StateGuardOperator,
+        RuntimeValueOperandHandle,
+    )> {
         match self.get(handle) {
             RuntimeValueOperand::Binary {
                 left,

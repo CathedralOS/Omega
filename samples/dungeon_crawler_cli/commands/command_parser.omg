@@ -30,9 +30,10 @@ machine CommandParser::resolve_command(
     -> NavigationChoice::Exits when line == "help";
     -> NavigationChoice::Inventory when line == "inventory";
     -> NavigationChoice::Inventory when line == "inv";
+    -> NavigationChoice::Character when line == "char";
     -> NavigationChoice::Character when line == "character";
     -> NavigationChoice::Character when line == "stats";
-    -> NavigationChoice::UseFountain when line == "use";
+    -> NavigationChoice::UseEvent when line == "use";
     -> NavigationChoice::Fight when line == "fight";
     -> NavigationChoice::Invalid;
 }
@@ -64,7 +65,7 @@ machine CommandParser::find_exit(
 machine CommandParser::find_exit_at(
     &mut self,
     exits: &[Exit],
-    exit_count: usize[positive],
+    exit_count: usize,
     command: &String,
     index: usize
     ) -> Navigation {

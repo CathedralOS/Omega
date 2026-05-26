@@ -179,7 +179,11 @@ fn selected_instruction_site<'plan>(
     instruction: &LaidOutMachineInstruction,
 ) -> Option<SelectedInstructionSite> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
-    if !input.assigned_target_operations.instructions.is_valid(handle) {
+    if !input
+        .assigned_target_operations
+        .instructions
+        .is_valid(handle)
+    {
         return None;
     }
     let selected = input.assigned_target_operations.instructions.get(handle);
@@ -198,6 +202,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeMachineStringWrite
             | MachineInstructionKind::RuntimePointeeStringWrite
             | MachineInstructionKind::RuntimeFrameIndexedStringWrite
+            | MachineInstructionKind::RuntimeMachineIndexedStringWrite
             | MachineInstructionKind::RuntimeStorageAddressToRuntimeFrameWrite
             | MachineInstructionKind::RuntimePointeeAddressToRuntimeFrameWrite
             | MachineInstructionKind::RuntimeStorageCopy
