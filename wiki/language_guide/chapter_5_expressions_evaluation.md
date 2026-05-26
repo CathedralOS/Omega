@@ -58,27 +58,94 @@ operand types decide which rules and obligations apply.
 Operators should be understood as shorthand for resolved semantic operations,
 not as syntax with a completely separate meaning model. In that sense,
 `left + right` is conceptually like a call to the appropriate add/concat
-operation for the proven operand meaning.
+operation for the operand meaning in scope.
 
-One likely Omega direction is that proven domains may participate in operator
-resolution when that resolution is unambiguous.
+This chapter only defines ordinary evaluation. Domain-sensitive operator
+resolution, if Omega adopts it, belongs to the domains chapter because it
+depends on proved semantic facts rather than raw expression syntax.
+
+## Indexing And Slices
+
+Indexed access is an ordinary expression form with proof obligations.
 
 ```omega
-machine degrees_add(value: i32, add: i32) -> i32
-requires value in i32::Degrees
-{
-    value + add
+let item: InventoryItem = items[index];
+let first: InventoryItem = items[0];
+```
+
+Working interpretation:
+
+- `items[index]` means "index into this slice/view/array place."
+- The compiler must prove the index is in bounds for the accessed view.
+- Fixed arrays and slice views can use the same `[]` surface while obtaining
+  the proof from different sources.
+- `items[0]` is valid when the current facts prove the view is non-empty.
+- Slice ranges such as `items[1..]` create a new slice view with a narrower
+  extent and updated facts.
+
+Omega loops often look like repeated transitions over either:
+
+- a bounded index carried in state parameters, or
+- a shrinking slice window where `[0]` remains valid until the window is empty.
+
+The important point is that indexing is not magical pointer syntax. It is a
+normal operation guarded by proof of a valid range.
+
+## Numeric Semantics
+
+Machine numbers and proof numbers are different kinds of values.
+
+Working categories:
+
+- `UInt` is a proof-level natural number.
+- `Int` is a proof-level integer.
+- `Real` is a proof-level real number.
+- `i32`, `u64`, `f32`, and similar types are concrete machine representations.
+
+Proof-level numbers are useful for specifications, constraints, and generic
+numeric reasoning. Lowering to native code must erase proof-only numbers or
+replace them with proven machine representations.
+
+Machine integers also need an explicit arithmetic policy somewhere in the
+language model.
+
+Possible policies:
+
+- `exact`: prove overflow, underflow, division by zero, invalid shifts, and
+  similar hazards cannot happen.
+- `wrapping`: arithmetic wraps according to the fixed-width representation.
+- `trap`: runtime trap on arithmetic failure.
+- `saturating`: arithmetic clamps to the representable minimum or maximum.
+- `checked`: operations that can fail must surface failure explicitly.
+
+The likely default is exact/proven arithmetic. Weaker behavior should be
+explicit because it changes both proof obligations and runtime behavior.
+
+## Float Facts
+
+Float constraints describe correctness facts, not optimization permissions.
+
+```omega
+data Motion {
+    speed: f32;
 }
 ```
 
-If `i32::Degrees` supplies the only applicable `+` meaning in that proof
-context, the operator resolves through that domain-specific operation contract.
-If multiple proven domains would supply competing operator meanings, the
-compiler should reject the expression rather than guessing.
+Working interpretation:
 
-This does not attach runtime type tags to values. The value representation is
-still `i32`; the operator resolution changes because the proof context knows
-what semantic domain the value inhabits.
+- `finite` means the value is not `NaN`, `+inf`, or `-inf`.
+- `0.0f..=100000.0f` is the intended range spelling for a float fact.
+- Float constraints are not runtime metadata.
+- Float constraints do not automatically permit reassociation, signed-zero
+  erasure, reciprocal transforms, or other fast-math rewrites.
+
+The language probably needs two separate layers:
+
+- semantic constraints: facts that must be true, such as `finite`,
+  `non_negative`, or `a..=b`
+- optimization permissions: facts about which rewrites are acceptable
+
+For now, this chapter only covers semantic constraints.
 
 ## Temporaries
 

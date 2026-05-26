@@ -3,9 +3,14 @@
 Typed states, bounded values, borrows, transitions, effects, drops, and host
 boundaries imply compiler-generated obligations.
 
-This is the everyday proof chapter. Most programmers should see facts move
-through invariants, domains, preconditions, and postconditions. They should not
-need to write mathematical proof libraries to get normal code accepted.
+This chapter is about the compiler's proving job, not new surface syntax.
+Chapter 7 introduces contracts and flow facts. Chapter 8 introduces domains.
+This chapter explains how those facts turn into obligations the compiler must
+discharge.
+
+Most programmers should see facts move through contracts, domains,
+preconditions, and postconditions without needing to write mathematical proof
+libraries just to get normal code accepted.
 
 ## Vocabulary
 

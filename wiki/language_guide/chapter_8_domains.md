@@ -33,7 +33,10 @@ domain Player::Alive {
 not create fields and they do not run unless the program explicitly asks for a
 runtime diagnostic/checking build.
 
-## State Contracts
+This chapter assumes Chapter 7's contract model already exists. Domains do not
+replace contracts; they give contracts reusable semantic names.
+
+## Domains In Contracts
 
 Machines and states can require or guarantee domains.
 
@@ -82,7 +85,7 @@ machine Game::start_game(&mut self)
 }
 ```
 
-## Domains And Invariants
+## Domains And Ordinary Validity
 
 Domains classify values that are valid for their type.
 
@@ -106,9 +109,9 @@ domain Player::Dead {
 }
 ```
 
-The type definition defines ordinary `Player` validity. The domains name
-semantic subsets inside that valid space. A domain may include another domain
-with `self in Type::Domain`, which imports that domain's proof facts instead of
+The type definition defines ordinary `Player` validity. Domains name semantic
+subsets inside that valid space. A domain may include another domain with
+`self in Type::Domain`, which imports that domain's proof facts instead of
 duplicating them.
 
 A domain may not specify facts that violate the ordinary validity rules of the
@@ -125,7 +128,7 @@ domain Player::Dead {
 }
 ```
 
-Relax scopes may temporarily suspend an invariant inside a machine body, but
+Relax scopes may temporarily suspend a required fact inside a machine body, but
 that does not make an invalid value a member of a domain. Domain membership is a
 fact about values that satisfy the type's ordinary validity rules.
 
