@@ -994,10 +994,14 @@ fn append_runtime_frame_fixed_index_target_address(
 ) -> Result<(), Diagnostic> {
     let scaled_index = element_index
         .checked_mul(element_byte_size)
-        .ok_or_else(|| Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed operand"))?;
-    let byte_offset = scaled_index
-        .checked_add(field_byte_offset)
-        .ok_or_else(|| Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed operand"))?;
+        .ok_or_else(|| {
+            Diagnostic::error(
+                "AArch64 MVP encoder cannot address overflowing fixed indexed operand",
+            )
+        })?;
+    let byte_offset = scaled_index.checked_add(field_byte_offset).ok_or_else(|| {
+        Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed operand")
+    })?;
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_runtime_storage_load(bytes, 16, 20, descriptor_offset, 8, "runtime frame indexed")?;

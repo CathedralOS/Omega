@@ -13,12 +13,11 @@ use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 
 use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target, resolve_runtime_frame_indexed_target,
-    resolve_runtime_pointee_slot_offset,
-    resolve_runtime_storage_place, static_integer_value,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place, static_integer_value,
 };
 use super::super::super::storage_places::{
-    resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target_in_table,
-    resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_frame_fixed_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     static_integer_value_in_table,
 };

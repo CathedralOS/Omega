@@ -10,8 +10,8 @@ use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBra
 use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
-    enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_fixed_indexed_target_in_table,
-    resolve_runtime_frame_indexed_target,
+    enum_variant_value, enum_variant_value_in_table,
+    resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_guard_call_result_place,
