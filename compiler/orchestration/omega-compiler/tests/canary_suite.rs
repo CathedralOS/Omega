@@ -1610,6 +1610,104 @@ fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_stdin_command_branch_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_stdin_command_branch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-stdin-command-branch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime stdin command branch canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("runtime stdin command branch canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"look\n")
+        .expect("stdin command branch input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("runtime stdin command branch canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected runtime stdin command branch canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "look\n",
+        "expected runtime stdin command branch canary to echo the resolved command output"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_stdin_line_buffering_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-stdin-line-buffering-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime stdin line buffering canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("runtime stdin line buffering canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"hello\nworld\n")
+        .expect("stdin line buffering input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("runtime stdin line buffering canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected runtime stdin line buffering canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "hello\nworld\n",
+        "expected runtime stdin line buffering canary to preserve one logical line per read"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -2369,6 +2467,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_room_use_reentry_guard",
     "dungeon/runtime_room_use_reentry_exit",
     "text/runtime_text_storage",
+    "text/runtime_stdin_command_branch_exit",
+    "text/runtime_stdin_line_buffering_exit",
     "calls/runtime_transition_subject_call_guard",
     "calls/runtime_transition_argument_call_value",
     "collections/std_option_storage_write",
