@@ -942,6 +942,13 @@ fn fixed_indexed_target_path_in_table(
             })
         }
         ExpressionNode::Indexed(indexed) => {
+            if let Some(path) = fixed_indexed_target_path_in_table(table, indexed.collection) {
+                return Some(TableFixedIndexedTargetPath {
+                    collection: path.collection,
+                    index: path.index,
+                    suffix_root: expression,
+                });
+            }
             let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
                 return None;
             };
@@ -989,11 +996,20 @@ fn indexed_target_path_in_table(
                 suffix_root: expression,
             })
         }
-        ExpressionNode::Indexed(indexed) => Some(TableIndexedTargetPath {
-            collection: indexed.collection,
-            index: indexed.index,
-            suffix_root: expression,
-        }),
+        ExpressionNode::Indexed(indexed) => {
+            if let Some(path) = indexed_target_path_in_table(table, indexed.collection) {
+                return Some(TableIndexedTargetPath {
+                    collection: path.collection,
+                    index: path.index,
+                    suffix_root: expression,
+                });
+            }
+            Some(TableIndexedTargetPath {
+                collection: indexed.collection,
+                index: indexed.index,
+                suffix_root: expression,
+            })
+        }
         _ => None,
     }
 }
@@ -1058,7 +1074,21 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
         ExpressionNode::Mutable(target) => {
             resolve_indexed_target_suffix_cursor_in_table(layouts, cursor, expressions, *target)
         }
-        ExpressionNode::Indexed(_) => Some(cursor),
+        ExpressionNode::Indexed(indexed) => {
+            let Some(collection_cursor) = resolve_indexed_target_suffix_cursor_in_table(
+                layouts,
+                cursor,
+                expressions,
+                indexed.collection,
+            ) else {
+                return Some(cursor);
+            };
+
+            let ExpressionNode::Integer(index) = expressions.expression(indexed.index) else {
+                return None;
+            };
+            apply_fixed_array_index_to_cursor(collection_cursor, usize::try_from(*index).ok()?)
+        }
         ExpressionNode::Member(member) => {
             let cursor = resolve_indexed_target_suffix_cursor_in_table(
                 layouts,
@@ -1076,6 +1106,28 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
         }
         _ => None,
     }
+}
+
+fn apply_fixed_array_index_to_cursor<'layout>(
+    cursor: NestedFieldLayoutCursor<'layout>,
+    index: usize,
+) -> Option<NestedFieldLayoutCursor<'layout>> {
+    let (element_type, length) = cursor.type_descriptor().fixed_array()?;
+    if index >= length {
+        return None;
+    }
+
+    let element_layout = TypeLayout {
+        size: cursor.layout().size / length,
+        alignment: cursor.layout().alignment,
+    };
+
+    Some(NestedFieldLayoutCursor::from_indexed_fixed_array_element(
+        cursor,
+        index,
+        element_type,
+        element_layout,
+    ))
 }
 
 fn descriptor_layout(

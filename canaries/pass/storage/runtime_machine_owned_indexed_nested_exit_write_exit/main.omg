@@ -1,0 +1,38 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    distance: i32;
+}
+
+data Room {
+    exits: [Exit; 2];
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+}
+
+machine Main::main(&mut self) {
+    let index: usize = 1;
+    self.rooms[index].exits[0].distance = 9;
+    self.rooms[index].exits[1].distance = 4;
+
+    let first_ok: bool = self.rooms[index].exits[0].distance == 9;
+    let second_ok: bool = self.rooms[index].exits[1].distance == 4;
+
+    transition first_ok && second_ok {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(89);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(90);
+    }
+}
