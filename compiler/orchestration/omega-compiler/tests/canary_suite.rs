@@ -457,6 +457,39 @@ fn runtime_boolean_or_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_direct_boolean_transition_argument_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_direct_boolean_transition_argument_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-direct-bool-transition-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime direct boolean transition argument canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime direct boolean transition argument canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(211),
+        "expected runtime direct boolean transition argument canary to route to exit code 211, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_machine_owned_indexed_nested_room_copy_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_nested_room_copy_exit");
     let main_path = canary.join("main.omg");
