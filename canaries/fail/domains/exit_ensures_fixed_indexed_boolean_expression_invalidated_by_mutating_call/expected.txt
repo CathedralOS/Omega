@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from Main::main at statement 2: self.items[0].value > 0
