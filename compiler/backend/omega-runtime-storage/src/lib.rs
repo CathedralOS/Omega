@@ -2,105 +2,11 @@ mod body;
 mod context;
 mod layout;
 mod model;
+mod planning;
 
 pub use context::RuntimeStorageContext;
 pub use model::{RuntimeFrameSlot, RuntimeFrameSlotKind, RuntimeStoragePlan, RuntimeStorageWrite};
-
-use omega_checked_trees::expression::ExpressionTableCapacity;
-use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use std::sync::Arc;
-
-use body::{build_runtime_storage_body_plan, build_straight_line_runtime_storage_plan};
-
-pub fn build_runtime_storage_plan(context: RuntimeStorageContext) -> RuntimeStoragePlan {
-    let workers = WorkerPool::with_available_parallelism();
-
-    build_runtime_storage_plan_with_workers(Arc::new(context), workers.handle())
-}
-
-pub fn build_runtime_storage_plan_with_workers(
-    context: Arc<RuntimeStorageContext>,
-    workers: WorkerPoolHandle,
-) -> RuntimeStoragePlan {
-    if context.runtime_bodies.bodies.is_empty() {
-        return build_straight_line_runtime_storage_plan(&context);
-    }
-
-    let body_count = context.runtime_bodies.bodies.len();
-    let context_for_bodies = Arc::clone(&context);
-    let body_plans = workers.map_ordered(body_count, move |index| {
-        let body = context_for_bodies
-            .runtime_bodies
-            .bodies
-            .storage_slice()
-            .get(index)
-            .expect("runtime-storage worker index should be in range");
-
-        build_runtime_storage_body_plan(&context_for_bodies, body)
-    });
-
-    let expression_capacity = body_plans.iter().fold(
-        ExpressionTableCapacity::default(),
-        |mut capacity, body_plan| {
-            capacity.saturating_add_assign(body_plan.expressions.copy_capacity());
-            capacity
-        },
-    );
-    let invariant_name_capacity = body_plans
-        .iter()
-        .map(|body_plan| body_plan.invariant_names.len())
-        .sum();
-    let frame_slot_capacity = body_plans
-        .iter()
-        .map(|body_plan| body_plan.frame_slots.len())
-        .sum();
-    let write_capacity = body_plans
-        .iter()
-        .map(|body_plan| body_plan.writes.len())
-        .sum();
-    let mut plan = RuntimeStoragePlan::with_capacities(
-        expression_capacity,
-        invariant_name_capacity,
-        frame_slot_capacity,
-        write_capacity,
-    );
-
-    for body_plan in body_plans {
-        let RuntimeStoragePlan {
-            expressions,
-            invariant_names: _,
-            frame_slots,
-            writes,
-        } = body_plan;
-        plan.frame_slots.insert_many(frame_slots.into_items());
-        for write in writes.into_items() {
-            plan.writes.append(RuntimeStorageWrite {
-                dispatch_index: write.dispatch_index,
-                source_key: write.source_key,
-                statement_index: write.statement_index,
-                target: plan.expressions.copy_from(&expressions, write.target),
-                value: plan.expressions.copy_from(&expressions, write.value),
-                mutation_kind: write.mutation_kind,
-                lowering: write.lowering,
-            });
-        }
-    }
-
-    plan
-}
-
-pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
-    plan.frame_slots
-        .iter()
-        .map(|(_, slot)| slot.byte_offset + slot.byte_size)
-        .max()
-        .unwrap_or(0)
-}
-
-pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
-    plan.frame_slots
-        .iter()
-        .map(|(_, slot)| slot.alignment)
-        .max()
-        .unwrap_or(1)
-}
+pub use planning::{
+    build_runtime_storage_plan, build_runtime_storage_plan_with_workers,
+    runtime_frame_storage_alignment, runtime_frame_storage_size,
+};
