@@ -1,7 +1,9 @@
 data Main {
 }
 
-machine Main::main(&mut self, flag: bool) {
+machine Main::main(&mut self) {
+    let flag: bool = true;
+
     transition self.pick(flag) == true {
         true -> done()
         false -> done()

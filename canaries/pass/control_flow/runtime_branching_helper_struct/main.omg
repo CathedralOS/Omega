@@ -4,11 +4,12 @@ enum RewardItem {
 }
 
 data Main {
+    out: RewardItem;
 }
 
-machine Main::main(&mut self, flag: bool, out: &mut RewardItem) {
-    out = self.pick(flag);
-    
+machine Main::main(&mut self) {
+    let flag: bool = true;
+    self.out = self.pick(flag);
 }
 
 machine Main::pick(&mut self, flag: bool) -> RewardItem {
