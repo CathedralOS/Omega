@@ -1,0 +1,25 @@
+data Password {
+    length: i32;
+    score: i32;
+}
+
+domain Password::Valid {
+    self.length > 0;
+}
+
+data Main {
+    password: Password;
+}
+
+machine Main::accept(password: Password)
+requires
+    password.length > 0 || password.score >= 8
+{
+}
+
+machine Main::main(&mut self)
+requires
+    self.password in Password::Valid
+{
+    self.accept(self.password);
+}

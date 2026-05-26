@@ -334,6 +334,74 @@ fn accepts_requires_domain_union_when_left_branch_is_proven() {
 }
 
 #[test]
+fn accepts_requires_boolean_expression_from_domain_fact() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password.length > 0
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.password in Password::Valid
+        {
+            self.accept(self.password);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("requires boolean comparison should be provable from a preserved domain fact");
+}
+
+#[test]
+fn accepts_requires_boolean_union_expression_from_domain_fact() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password.length > 0 || password.score >= 8
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.password in Password::Valid
+        {
+            self.accept(self.password);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("requires boolean disjunction should be provable from a preserved domain fact");
+}
+
+#[test]
 fn accepts_requires_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {
