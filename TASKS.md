@@ -20,16 +20,15 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/pass/control_flow/runtime_local_boolean_conjunction_value_exit`
   - scalar local comparison values now lower and run too:
     - `canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit`
+  - local boolean values initialized from string equality now lower and run:
+    - `canaries/pass/control_flow/runtime_local_string_comparison_value_exit`
   Remaining visible gap:
   - broader conjunction-heavy runtime-dispatch states still need continued coverage beyond this fixed dungeon path
   - keep extending coverage for more complex boolean normalization shapes beyond the now-covered plain `or` family
     - simple negated guards are covered and work:
       - `canaries/pass/control_flow/runtime_negated_boolean_place_guard_exit`
       - `canaries/pass/control_flow/runtime_negated_comparison_guard_exit`
-  - runtime local boolean values initialized from string equality still need a dedicated lowering path
-    - pinned by:
-      - `canaries/run/runtime_local_comparison_value_probe`
-      - `canaries/run/runtime_machine_owned_indexed_nested_room_copy_probe`
+  - keep extending coverage for computed boolean values that cross more complex transition boundaries and helper-call shapes
 
 - [ ] Persistent machine/state mutation confidence
   Make writes in one state reliably observable in later states and transitions, with regression coverage for room/event flags, counters, and re-entry behavior.
@@ -39,6 +38,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - local mutable slice alias writes now compile in both straight-line and state-body forms
   - runnable exit-code probes now cover straight-line and state-body mutable slice alias writes too
   - runnable slice-index probes now cover dynamic reads and dynamic local copies in both straight-line and state-body forms
+  - alias-indexed machine-owned string writes through slice views now run too
+    - `canaries/pass/text/runtime_slice_alias_indexed_string_field_concat_exit`
   - indexed borrow overlap checks now distinguish obviously disjoint fixed indices from potentially aliasing ones
     - `canaries/pass/borrows/borrow_disjoint_fixed_index_call_mut`
     - `canaries/pass/borrows/borrow_disjoint_fixed_index_mut`
