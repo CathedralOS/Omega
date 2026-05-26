@@ -627,6 +627,47 @@ fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() 
 }
 
 #[test]
+fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
+    let source = r#"
+        data Entry {
+            value: i32;
+            other: i32;
+        }
+
+        domain Entry::Positive {
+            self.value > 0;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+        }
+
+        machine Main::accept(value: i32)
+        requires
+            value > 0
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.entries[0] in Entry::Positive
+        {
+            self.entries[0].value = 0;
+            self.accept(self.entries[0].value);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("scalar member requires should fail after same-index mutation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic.message.contains("value > 0")
+    }));
+}
+
+#[test]
 fn accepts_requires_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {

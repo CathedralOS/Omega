@@ -171,7 +171,15 @@ fn instantiate_call_relative_place(
             if parameter.symbol != parameter_symbol {
                 continue;
             }
-            argument.and_then(|expression| canonical_place_from_expression(program, expression))
+            argument.and_then(|expression| {
+                canonical_place_from_expression_in_state(
+                    program,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    expression,
+                )
+                .or_else(|| canonical_place_from_expression(program, expression))
+            })
         }?;
 
         let mut instantiated = base_place;

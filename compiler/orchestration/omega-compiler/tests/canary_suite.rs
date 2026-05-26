@@ -2141,6 +2141,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/call_requires_invalidated_by_mutation",
     "domains/call_requires_domain_intersection_invalidated_by_mutation",
     "domains/call_requires_domain_union_unproven",
+    "domains/call_requires_scalar_member_expression_invalidated_by_same_index_mutation",
     "domains/call_requires_unproven",
     "domains/exit_ensures_domain_union_unproven",
     "domains/exit_ensures_unproven",

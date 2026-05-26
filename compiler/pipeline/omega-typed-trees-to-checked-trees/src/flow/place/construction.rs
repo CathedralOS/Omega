@@ -54,14 +54,8 @@ pub(crate) fn canonical_place_from_expression_in_state(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
-    canonical_place_from_expression(program, expression).or_else(|| {
-        contextual_canonical_place_from_expression(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-        )
-    })
+    contextual_canonical_place_from_expression(program, state_symbol, statement_index, expression)
+        .or_else(|| canonical_place_from_expression(program, expression))
 }
 
 pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<CanonicalPlace> {
