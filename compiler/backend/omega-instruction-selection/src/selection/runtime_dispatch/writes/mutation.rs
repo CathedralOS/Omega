@@ -12,6 +12,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
+use omega_state_values::simplify_state_expression;
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix, resolve_runtime_alias_binding,
@@ -88,6 +89,62 @@ fn builtin_runtime_call_operator_in_table(
     None
 }
 
+fn simplify_runtime_expression_with_state_locals(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: &Expression,
+) -> Expression {
+    let Some(machine) = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+    else {
+        return expression.clone();
+    };
+    let Some(state) = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)
+    else {
+        return expression.clone();
+    };
+
+    simplify_state_expression(input.program, machine, state, statement_index, expression)
+}
+
+fn normalize_runtime_mutation_expression(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+) -> super::super::super::bindings::RuntimeResolvedExpression {
+    let first = resolve_runtime_alias_binding(expression, source_key, aliases, alias_expressions);
+    let first_simplified = simplify_runtime_expression_with_state_locals(
+        input,
+        first.source_key,
+        statement_index,
+        &first.expression,
+    );
+    let second =
+        resolve_runtime_alias_binding(&first_simplified, first.source_key, aliases, alias_expressions);
+    let second_simplified = simplify_runtime_expression_with_state_locals(
+        input,
+        second.source_key,
+        statement_index,
+        &second.expression,
+    );
+
+    super::super::super::bindings::RuntimeResolvedExpression {
+        source_key: second.source_key,
+        expression: second_simplified,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_mutation_writes(
     input: &InstructionSelectionInput<'_>,
@@ -105,8 +162,14 @@ pub(super) fn select_runtime_mutation_writes(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let resolved_target =
-        resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
+    let resolved_target = normalize_runtime_mutation_expression(
+        input,
+        source_key,
+        statement_index,
+        target,
+        aliases,
+        alias_expressions,
+    );
     select_runtime_resolved_target_value_source_mutation_writes(
         input,
         dispatch_index,
@@ -1221,8 +1284,14 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    let resolved_value =
-        resolve_runtime_alias_binding(value, value_source_key, aliases, alias_expressions);
+    let resolved_value = normalize_runtime_mutation_expression(
+        input,
+        value_source_key,
+        statement_index,
+        value,
+        aliases,
+        alias_expressions,
+    );
     if let Expression::String(value) = &resolved_value.expression {
         select_runtime_string_descriptor_write(
             input,
