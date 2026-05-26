@@ -54,6 +54,25 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
     pub(in crate::selection) fn layout(self) -> TypeLayout {
         self.layout
     }
+
+    pub(in crate::selection) fn type_descriptor(self) -> &'layout TypeLayoutDescriptor {
+        self.type_descriptor
+    }
+
+    pub(in crate::selection) fn from_indexed_fixed_array_element(
+        cursor: Self,
+        index: usize,
+        element_type: &'layout TypeLayoutDescriptor,
+        element_layout: TypeLayout,
+    ) -> Self {
+        Self {
+            byte_offset: cursor.byte_offset + element_layout.size * index,
+            type_symbol: element_type.storage_symbol(),
+            type_name: "",
+            type_descriptor: element_type,
+            layout: element_layout,
+        }
+    }
 }
 
 pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(

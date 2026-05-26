@@ -46,6 +46,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - keep extending confidence on other multi-edge/full-package dispatch shapes
   - continue strengthening richer nested storage updates for generator-style code
   - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
+  - direct machine-owned nested fixed-array writes under dynamic indexing are covered, but richer room-style struct copy/readback still needs a dedicated follow-up before it can be promoted into the active pass suite
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.
