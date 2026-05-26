@@ -1,0 +1,14 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine Main::main(&mut self) {
+    let left: &mut Entry = &mut self.entries[0];
+    let right: &mut Entry = &mut self.entries[0];
+    left = Entry { value: 1 };
+    right = Entry { value: 2 };
+}
