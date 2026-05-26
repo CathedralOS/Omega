@@ -585,6 +585,7 @@ pub(super) fn select_runtime_static_mutation_write_in_table(
         set_runtime_static_value_in_table(static_values, expressions, target, value);
         return Some(SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset: indexed_target.base_byte_offset,
+            index_region: indexed_target.index_region,
             index_offset: indexed_target.index_offset,
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
@@ -1490,6 +1491,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
                     base_byte_offset: indexed_target.base_byte_offset,
+                    index_region: indexed_target.index_region,
                     index_offset: indexed_target.index_offset,
                     element_byte_size: indexed_target.element_byte_size,
                     field_byte_offset: indexed_target.field_byte_offset,

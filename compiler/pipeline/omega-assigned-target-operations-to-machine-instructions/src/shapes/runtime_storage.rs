@@ -84,6 +84,7 @@ pub(super) fn runtime_frame_base_indexed_integer_write_kind(
 
 pub(super) fn runtime_machine_indexed_integer_write_kind(
     _base_byte_offset: usize,
+    _index_region: omega_assigned_target_operations::RuntimeStorageRegion,
     _index_offset: usize,
     _element_byte_size: usize,
     _field_byte_offset: usize,

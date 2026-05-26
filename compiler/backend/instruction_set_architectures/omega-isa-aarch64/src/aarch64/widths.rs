@@ -231,20 +231,31 @@ pub fn runtime_frame_base_indexed_integer_write_width(
 
 pub fn runtime_machine_indexed_integer_write_width(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
 ) -> usize {
-    24 + add_constant_width(base_byte_offset)
-        + scale_index_width(element_byte_size)
-        + add_constant_width(field_byte_offset)
-        + runtime_store_data_width(byte_size)
+    match index_region {
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+            28 + add_constant_width(base_byte_offset)
+                + scale_index_width(element_byte_size)
+                + add_constant_width(field_byte_offset)
+                + runtime_store_data_width(byte_size)
+        }
+        omega_target_operations::RuntimeStorageRegion::Machine => {
+            20 + add_constant_width(base_byte_offset)
+                + scale_index_width(element_byte_size)
+                + add_constant_width(field_byte_offset)
+                + runtime_store_data_width(byte_size)
+        }
+    }
 }
 
 pub fn runtime_machine_indexed_integer_runtime_frame_address_offset(
     base_byte_offset: usize,
 ) -> usize {
-    8 + add_constant_width(base_byte_offset)
+    12 + add_constant_width(base_byte_offset)
 }
 
 pub fn runtime_frame_indexed_binary_write_width(
@@ -289,7 +300,7 @@ pub fn runtime_machine_indexed_string_write_width(
     field_byte_offset: usize,
     byte_length: usize,
 ) -> usize {
-    24 + add_constant_width(base_byte_offset)
+    28 + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + 8
@@ -301,7 +312,7 @@ pub fn runtime_machine_indexed_string_write_width(
 pub fn runtime_machine_indexed_string_runtime_frame_address_offset(
     base_byte_offset: usize,
 ) -> usize {
-    16 + add_constant_width(base_byte_offset)
+    20 + add_constant_width(base_byte_offset)
 }
 
 pub fn runtime_machine_indexed_string_data_address_offset(
@@ -309,7 +320,7 @@ pub fn runtime_machine_indexed_string_data_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    24 + add_constant_width(base_byte_offset)
+    28 + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
 }
@@ -317,7 +328,7 @@ pub fn runtime_machine_indexed_string_data_address_offset(
 pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
     base_byte_offset: usize,
 ) -> usize {
-    8 + add_constant_width(base_byte_offset)
+    12 + add_constant_width(base_byte_offset)
 }
 
 pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
@@ -325,7 +336,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    24 + add_constant_width(base_byte_offset)
+    28 + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
 }

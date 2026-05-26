@@ -1411,6 +1411,40 @@ fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs(
 }
 
 #[test]
+fn runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_runs() {
+    let canary =
+        pass_canary("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-dynamic-indexed-machine-owned-parameter-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable dynamic indexed machine-owned parameter write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable dynamic indexed machine-owned parameter write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(175),
+        "expected runtime mutable dynamic indexed machine-owned parameter write canary to preserve writes through machine-owned collection + machine-owned indexed mutable call parameters and exit 175, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
     let main_path = canary.join("main.omg");
@@ -2165,6 +2199,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
     "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
+    "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
     "dungeon/runtime_boolean_helper_guard_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_exit",
@@ -2244,7 +2279,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
     "calls/runtime_helper_ordering_return",
-    "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_unimplemented",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
     "traits/trait_requires_unknown",

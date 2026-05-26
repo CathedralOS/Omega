@@ -276,6 +276,7 @@ fn machine_instruction_width(
         ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -283,6 +284,7 @@ fn machine_instruction_width(
         } => omega_instruction_selection::runtime_machine_indexed_integer_write_width(
             input.target.architecture,
             *base_byte_offset,
+            *index_region,
             *element_byte_size,
             *field_byte_offset,
             *byte_size,

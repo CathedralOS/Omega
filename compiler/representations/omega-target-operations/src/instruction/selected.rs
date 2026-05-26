@@ -224,6 +224,7 @@ pub enum TargetOperationKind {
     },
     WriteRuntimeMachineIndexedInteger {
         base_byte_offset: usize,
+        index_region: RuntimeStorageRegion,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
@@ -714,6 +715,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineIndexedInteger {
                 base_byte_offset,
+                index_region,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -721,6 +723,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 value,
             } => Self::WriteRuntimeMachineIndexedInteger {
                 base_byte_offset: *base_byte_offset,
+                index_region: *index_region,
                 index_offset: *index_offset,
                 element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,

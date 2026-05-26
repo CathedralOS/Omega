@@ -519,6 +519,7 @@ fn selected_instruction_name(
         }
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
+            index_region,
             index_offset,
             element_byte_size,
             field_byte_offset,
@@ -526,7 +527,7 @@ fn selected_instruction_name(
             value,
         } => {
             format!(
-                "write runtime-machine indexed integer machine@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
+                "write runtime-machine indexed integer machine@{base_byte_offset} index({index_region:?})@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
             )
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
