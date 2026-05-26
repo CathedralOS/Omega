@@ -42,10 +42,12 @@ machine Dungeon::enter_room(
     }
 
     state mark_current_room(&mut self) {
-        -> mark_zero() when room_index == 0;
-        -> mark_one() when room_index == 1;
-        -> mark_two() when room_index == 2;
-        -> mark_three();
+        transition room_index {
+            0 -> mark_zero()
+            1 -> mark_one()
+            2 -> mark_two()
+            _ -> mark_three()
+        }
     }
 
     state mark_zero(&mut self) {
@@ -95,19 +97,28 @@ machine Main::main(&mut self) {
     state enter_room(&mut self) {
         self.dungeon.enter_room(self.current_room_index);
 
-        -> show_gate_room() when self.current_room_index == 0;
-        -> show_spent_fountain_room() when self.current_room_index == 1 && self.fountain_used == true;
-        -> show_fountain_room() when self.current_room_index == 1;
-        -> show_ambush_room() when self.current_room_index == 2 && self.bat_defeated == true;
-        -> show_ambush_encounter() when self.current_room_index == 2;
-        -> show_looted_vault_room() when self.current_room_index == 3 && self.treasure_taken == true;
-        -> show_vault_room();
+        transition (
+            self.current_room_index,
+            self.fountain_used,
+            self.bat_defeated,
+            self.treasure_taken
+        ) {
+            (0, _, _, _) -> show_gate_room()
+            (1, true, _, _) -> show_spent_fountain_room()
+            (1, false, _, _) -> show_fountain_room()
+            (2, _, true, _) -> show_ambush_room()
+            (2, _, false, _) -> show_ambush_encounter()
+            (3, _, _, true) -> show_looted_vault_room()
+            _ -> show_vault_room()
+        }
     }
 
     state prompt(&mut self) {
         self.view.render_prompt(&mut self.console);
-        -> finished() when self.input == "exit";
-        -> invalid_command();
+        transition self.input == "exit" {
+            true -> finished()
+            false -> invalid_command()
+        }
     }
 
     state read_command(&mut self) {
@@ -123,39 +134,54 @@ machine Main::main(&mut self) {
     }
 
     state look(&mut self) {
-        -> look_gate_room() when self.current_room_index == 0;
-        -> look_spent_fountain_room() when self.current_room_index == 1 && self.fountain_used == true;
-        -> look_fountain_room() when self.current_room_index == 1;
-        -> look_ambush_room() when self.current_room_index == 2 && self.bat_defeated == true;
-        -> look_ambush_encounter() when self.current_room_index == 2;
-        -> look_looted_vault_room() when self.current_room_index == 3 && self.treasure_taken == true;
-        -> look_vault_room();
+        transition (
+            self.current_room_index,
+            self.fountain_used,
+            self.bat_defeated,
+            self.treasure_taken
+        ) {
+            (0, _, _, _) -> look_gate_room()
+            (1, true, _, _) -> look_spent_fountain_room()
+            (1, false, _, _) -> look_fountain_room()
+            (2, _, true, _) -> look_ambush_room()
+            (2, _, false, _) -> look_ambush_encounter()
+            (3, _, _, true) -> look_looted_vault_room()
+            _ -> look_vault_room()
+        }
     }
 
     state exits(&mut self) {
-        -> show_gate_paths() when self.current_room_index == 0;
-        -> show_fountain_paths() when self.current_room_index == 1;
-        -> show_ambush_paths() when self.current_room_index == 2 && self.bat_defeated == true;
-        -> show_ambush_blocked_paths() when self.current_room_index == 2;
-        -> show_vault_paths();
+        transition (self.current_room_index, self.bat_defeated) {
+            (0, _) -> show_gate_paths()
+            (1, _) -> show_fountain_paths()
+            (2, true) -> show_ambush_paths()
+            (2, false) -> show_ambush_blocked_paths()
+            _ -> show_vault_paths()
+        }
     }
 
     state use_event(&mut self) {
         self.output = "use";
         self.view.render_line(self.output, &mut self.console);
-        -> prompt();
+        transition {
+            _ -> prompt()
+        }
     }
 
     state fight(&mut self) {
         self.output = "fight";
         self.view.render_line(self.output, &mut self.console);
-        -> prompt();
+        transition {
+            _ -> prompt()
+        }
     }
 
     state invalid_command(&mut self) {
         self.output = "invalid";
         self.view.render_line(self.output, &mut self.console);
-        -> finished();
+        transition {
+            _ -> finished()
+        }
     }
 
     state show_gate_room(&mut self) {

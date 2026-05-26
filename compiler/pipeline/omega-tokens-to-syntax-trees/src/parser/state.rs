@@ -1,9 +1,7 @@
 use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::parse_statement_handle;
-use crate::parser::transition::{
-    parse_transition_block_handles, parse_transition_statement_handle,
-};
+use crate::parser::transition::parse_transition_block_handles;
 use crate::parser::type_reference::{
     parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
 };
@@ -54,16 +52,9 @@ pub(super) fn parse_state<'tokens, 'source>(
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_punctuation(PunctuationKind::Arrow) {
-            let next = input.take_punctuation(PunctuationKind::Arrow, "->")?;
-            let (statement, rest) = parse_transition_statement_handle(syntax_trees, next)?;
-            let handle = syntax_trees.items.append_statement_handle(statement);
-            if statement_count == 0 {
-                statement_start = handle;
-            }
-            statement_count = statement_count
-                .checked_add(1)
-                .expect("state statement span count overflow");
-            input = rest;
+            return Err(input.error_here(
+                "explicit state bodies must use the `transition` keyword; bare `->` transitions are only allowed in implicit entry",
+            ));
         } else if input.at_keyword(KeywordKind::Transition) || input.at_keyword(KeywordKind::Match)
         {
             let next = if input.at_keyword(KeywordKind::Transition) {

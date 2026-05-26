@@ -3,8 +3,10 @@ data Room {
 }
 
 data Main {
+    room: Room;
 }
 
-machine Main::main(&mut self, room: &mut Room, suffix: String) {
-    room.description = "prefix " + suffix;
+machine Main::main(&mut self) {
+    let room_alias: &mut Room = &mut self.room;
+    room_alias.description = "prefix " + "omega";
 }

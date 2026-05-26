@@ -14,13 +14,20 @@ machine Main::main(&mut self) {
     self.bat_defeated = true;
     self.treasure_taken = false;
 
-    -> gate() when self.current_room == 0;
-    -> spent() when self.current_room == 1 && self.fountain_used == true;
-    -> fountain() when self.current_room == 1;
-    -> ambush_clear() when self.current_room == 2 && self.bat_defeated == true;
-    -> ambush() when self.current_room == 2;
-    -> looted() when self.current_room == 3 && self.treasure_taken == true;
-    -> vault();
+    transition (
+        self.current_room,
+        self.fountain_used,
+        self.bat_defeated,
+        self.treasure_taken
+    ) {
+        (0, _, _, _) -> gate()
+        (1, true, _, _) -> spent()
+        (1, false, _, _) -> fountain()
+        (2, _, true, _) -> ambush_clear()
+        (2, _, false, _) -> ambush()
+        (3, _, _, true) -> looted()
+        _ -> vault()
+    }
 
     state gate(&mut self) {
         self.console.exit_process(70);

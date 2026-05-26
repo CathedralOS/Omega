@@ -1,9 +1,8 @@
 data Main {
+    label: String;
 }
 
-machine Main::main(
-    &mut self,
-    label: &mut String
-) {
-    label = "hello";
+machine Main::main(&mut self) {
+    let label_alias: &mut String = &mut self.label;
+    label_alias = "hello";
 }

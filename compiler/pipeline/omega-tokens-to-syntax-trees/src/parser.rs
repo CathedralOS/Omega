@@ -221,6 +221,35 @@ mod tests {
     }
 
     #[test]
+    fn rejects_bare_arrow_transition_in_explicit_state_body() {
+        let source = r#"
+        machine Main::main(&mut self) {
+            transition { _ -> running() }
+
+            state running(&mut self) {
+                -> finished();
+            }
+
+            state finished(&mut self) {
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("parse should reject bare arrows in explicit state bodies");
+        assert!(
+            error
+                .message
+                .contains("explicit state bodies must use the `transition` keyword"),
+            "unexpected parse error: {}",
+            error.message
+        );
+    }
+
+    #[test]
     fn parses_trait_machine_contract_clauses() {
         let source = r#"
         boundary trait Filesystem {

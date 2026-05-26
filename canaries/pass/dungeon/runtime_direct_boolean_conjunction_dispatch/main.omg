@@ -10,14 +10,18 @@ machine Main::main(&mut self) {
     -> enter_room();
 
     state enter_room(&mut self) {
-        -> show_spent_fountain() when self.current_room == 1 && self.fountain_used == true;
-        -> show_fountain() when self.current_room == 1;
-        -> done();
+        transition (self.current_room, self.fountain_used) {
+            (1, true) -> show_spent_fountain()
+            (1, false) -> show_fountain()
+            _ -> done()
+        }
     }
 
     state show_fountain(&mut self) {
         self.fountain_used = true;
-        -> enter_room();
+        transition {
+            _ -> enter_room()
+        }
     }
 
     state show_spent_fountain(&mut self) {}

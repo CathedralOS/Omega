@@ -8,10 +8,12 @@ data Tracker {
 }
 
 machine Tracker::mark_room(&mut self, room_index: usize) {
-    -> mark_zero() when room_index == 0;
-    -> mark_one() when room_index == 1;
-    -> mark_two() when room_index == 2;
-    -> mark_three();
+    transition room_index {
+        0 -> mark_zero()
+        1 -> mark_one()
+        2 -> mark_two()
+        _ -> mark_three()
+    }
 
     state mark_zero(&mut self) {
         self.room_zero_seen = true;
@@ -47,13 +49,20 @@ machine Main::main(&mut self) {
 
     self.tracker.mark_room(self.current_room);
 
-    -> gate() when self.current_room == 0;
-    -> spent() when self.current_room == 1 && self.fountain_used == true;
-    -> fountain() when self.current_room == 1;
-    -> ambush_clear() when self.current_room == 2 && self.bat_defeated == true;
-    -> ambush() when self.current_room == 2;
-    -> looted() when self.current_room == 3 && self.treasure_taken == true;
-    -> vault();
+    transition (
+        self.current_room,
+        self.fountain_used,
+        self.bat_defeated,
+        self.treasure_taken
+    ) {
+        (0, _, _, _) -> gate()
+        (1, true, _, _) -> spent()
+        (1, false, _, _) -> fountain()
+        (2, _, true, _) -> ambush_clear()
+        (2, _, false, _) -> ambush()
+        (3, _, _, true) -> looted()
+        _ -> vault()
+    }
 
     state gate(&mut self) {
         self.console.exit_process(80);
