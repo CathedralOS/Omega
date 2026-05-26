@@ -12,8 +12,9 @@ use super::primitives::{
     encode_conditional_branch_greater_or_equal, encode_conditional_branch_less,
     encode_conditional_branch_less_or_equal, encode_conditional_branch_not_equal,
     encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
-    encode_msub_x_register, encode_mul_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
-    encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_x_register,
+    encode_msub_x_register, encode_mul_x_register, encode_orr_x_register, encode_store_w_to_x,
+    encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register,
+    encode_udiv_x_register,
 };
 use super::widths::{
     runtime_frame_indexed_address_to_runtime_frame_write_width,
@@ -1213,6 +1214,13 @@ fn append_runtime_binary_operation(
         }
         StateGuardOperator::And => {
             bytes.extend(encode_and_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
+        StateGuardOperator::Or => {
+            bytes.extend(encode_orr_x_register(
                 destination_register,
                 destination_register,
                 right_register,

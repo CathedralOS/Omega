@@ -600,6 +600,7 @@ fn append_runtime_binary_operation(
     match operator {
         StateGuardOperator::Add => bytes.extend([0x4d, 0x01, 0xda]), // add r10, r11
         StateGuardOperator::And => bytes.extend([0x4d, 0x21, 0xda]), // and r10, r11
+        StateGuardOperator::Or => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
         StateGuardOperator::Subtract => bytes.extend([0x4d, 0x29, 0xda]), // sub r10, r11
         StateGuardOperator::Multiply => bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]), // imul r10, r11
         StateGuardOperator::Modulo => {
@@ -637,7 +638,10 @@ fn append_runtime_binary_operation(
 
 fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
     match operator {
-        StateGuardOperator::Add | StateGuardOperator::And | StateGuardOperator::Subtract => 3,
+        StateGuardOperator::Add
+        | StateGuardOperator::And
+        | StateGuardOperator::Or
+        | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         StateGuardOperator::Modulo => 12,
         StateGuardOperator::Equal

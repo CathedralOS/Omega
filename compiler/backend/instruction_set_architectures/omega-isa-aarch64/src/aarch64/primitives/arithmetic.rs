@@ -87,6 +87,19 @@ pub(in crate::aarch64) fn encode_and_x_register(
     )
 }
 
+pub(in crate::aarch64) fn encode_orr_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xAA000000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_sub_x_register(
     destination_register: u8,
     left_register: u8,

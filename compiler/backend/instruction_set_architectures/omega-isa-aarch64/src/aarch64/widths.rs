@@ -545,6 +545,7 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
     match operator {
         StateGuardOperator::Add
         | StateGuardOperator::And
+        | StateGuardOperator::Or
         | StateGuardOperator::Subtract
         | StateGuardOperator::Multiply => 4,
         StateGuardOperator::Modulo => 8,

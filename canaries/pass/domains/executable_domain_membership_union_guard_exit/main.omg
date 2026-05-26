@@ -1,0 +1,37 @@
+use platform::console;
+
+data Password {
+    length: i32;
+    score: i32;
+}
+
+domain Password::Valid {
+    self.length > 0;
+}
+
+domain Password::Secure {
+    self.score >= 8;
+}
+
+data Main {
+    console: Console;
+    password: Password;
+}
+
+machine Main::main(&mut self) {
+    self.password.length = 12;
+    self.password.score = 2;
+
+    transition (self.password in Password::Valid | Password::Secure) {
+        (true) -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(241);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(242);
+    }
+}

@@ -292,6 +292,105 @@ fn executable_imported_domain_membership_guard_exit_canary_runs() {
 }
 
 #[test]
+fn executable_domain_membership_intersection_guard_exit_canary_runs() {
+    let canary = pass_canary("domains/executable_domain_membership_intersection_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-domain-membership-intersection-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable domain membership intersection canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable domain membership intersection canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(231),
+        "expected executable domain membership intersection canary to route to exit code 231, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn executable_domain_membership_union_guard_exit_canary_runs() {
+    let canary = pass_canary("domains/executable_domain_membership_union_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-domain-membership-union-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable domain membership union canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable domain membership union canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(241),
+        "expected executable domain membership union canary to route to exit code 241, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_local_boolean_or_value_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_local_boolean_or_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-boolean-or-value-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime local boolean or value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime local boolean or value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(251),
+        "expected runtime local boolean or value canary to route to exit code 251, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_negated_boolean_place_guard_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_negated_boolean_place_guard_exit");
     let main_path = canary.join("main.omg");
@@ -1899,10 +1998,13 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_domain_intersection_preserved",
     "control_flow/composite_field_guard_dispatch",
     "control_flow/composite_range_guard_dispatch",
+    "control_flow/runtime_local_boolean_or_value_exit",
     "domains/contracts_domain_membership_surface",
     "domains/executable_domain_membership_expression_exit",
+    "domains/executable_domain_membership_intersection_guard_exit",
     "domains/executable_imported_domain_membership_exit",
     "domains/executable_imported_domain_membership_guard_exit",
+    "domains/executable_domain_membership_union_guard_exit",
     "domains/domain_intersection_contract_surface",
     "domains/domain_import_valid",
     "domains/indexed_domain_requires_preserved_across_disjoint_field_mutation",

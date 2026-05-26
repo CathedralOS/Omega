@@ -14,8 +14,13 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/pass/domains/executable_imported_domain_membership_exit`
     - imported-domain false-branch guards now run too:
       - `canaries/pass/domains/executable_imported_domain_membership_guard_exit`
+    - executable domain intersections and unions now run directly in transition guards too:
+      - `canaries/pass/domains/executable_domain_membership_intersection_guard_exit`
+      - `canaries/pass/domains/executable_domain_membership_union_guard_exit`
   - boolean `or` guard dispatch now runs:
     - `canaries/pass/control_flow/runtime_boolean_or_guard_exit`
+  - local boolean `or` values now lower and run too:
+    - `canaries/pass/control_flow/runtime_local_boolean_or_value_exit`
   - computed local boolean conjunction values now lower and run:
     - `canaries/pass/control_flow/runtime_local_boolean_conjunction_value_exit`
   - scalar local comparison values now lower and run too:
@@ -29,6 +34,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/control_flow/runtime_negated_boolean_place_guard_exit`
       - `canaries/pass/control_flow/runtime_negated_comparison_guard_exit`
   - keep extending coverage for computed boolean values that cross more complex transition boundaries and helper-call shapes
+  - local bool values formed from executable domain unions still need follow-up:
+    - `canaries/run/runtime_executable_domain_membership_union_value_probe`
 
 - [ ] Persistent machine/state mutation confidence
   Make writes in one state reliably observable in later states and transitions, with regression coverage for room/event flags, counters, and re-entry behavior.
