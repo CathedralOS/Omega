@@ -505,6 +505,18 @@ fn selected_instruction_name(
                 "write runtime-frame indexed integer descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => {
+            format!(
+                "write runtime-frame base indexed integer base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_offset,
@@ -843,6 +855,15 @@ fn runtime_value_operand_name(
         } => format!(
             "frame_indexed(descriptor@{descriptor_offset}, index@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
+        RuntimeValueOperand::FrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "frame_base_indexed(base@{base_byte_offset}, index@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+        ),
         RuntimeValueOperand::FrameFixedIndexed {
             descriptor_offset,
             element_index,
@@ -894,6 +915,16 @@ fn assigned_value_home_name(operand: &AssignedValueOperand) -> String {
             byte_size,
         } => format!(
             "frame-indexed desc@{descriptor_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
+            byte_size
+        ),
+        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "frame-base-indexed base@{base_byte_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
             byte_size
         ),
         omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameFixedIndexed {

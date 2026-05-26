@@ -9,11 +9,12 @@ use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
     host_call_sequence_width, return_register_integer_write_width, return_width,
-    runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
-    runtime_frame_indexed_string_write_width, runtime_machine_integer_write_width,
-    runtime_machine_string_write_width, runtime_pointee_binary_write_width,
-    runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
-    runtime_storage_binary_write_width, runtime_storage_compare_width,
+    runtime_frame_base_indexed_integer_write_width, runtime_frame_indexed_binary_write_width,
+    runtime_frame_indexed_integer_write_width, runtime_frame_indexed_string_write_width,
+    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
+    runtime_pointee_string_write_width, runtime_storage_binary_write_width,
+    runtime_storage_compare_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_width,
     runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width,
@@ -256,6 +257,19 @@ fn machine_instruction_width(
             ..
         } => runtime_frame_indexed_integer_write_width(
             input.target.architecture,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+        ),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            ..
+        } => runtime_frame_base_indexed_integer_write_width(
+            input.target.architecture,
+            *base_byte_offset,
             *element_byte_size,
             *field_byte_offset,
             *byte_size,

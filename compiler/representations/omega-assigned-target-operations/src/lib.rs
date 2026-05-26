@@ -121,6 +121,13 @@ pub enum AssignedValueOperandKind {
         field_byte_offset: usize,
         byte_size: usize,
     },
+    FrameBaseIndexed {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     FrameFixedIndexed {
         descriptor_offset: usize,
         element_index: usize,
@@ -165,6 +172,19 @@ impl From<omega_target_operations::TargetValueOperand> for AssignedValueOperandK
                 byte_size,
             } => Self::FrameIndexed {
                 descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            },
+            omega_target_operations::TargetValueOperand::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Self::FrameBaseIndexed {
+                base_byte_offset,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -226,6 +246,19 @@ impl From<AssignedValueOperandKind> for omega_target_operations::TargetValueOper
                 byte_size,
             } => Self::FrameIndexed {
                 descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            },
+            AssignedValueOperandKind::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Self::FrameBaseIndexed {
+                base_byte_offset,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -432,6 +465,14 @@ pub enum AssignedOperationKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeFrameBaseIndexedInteger {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeMachineIndexedInteger {
         base_byte_offset: usize,
         index_offset: usize,
@@ -632,6 +673,13 @@ pub enum AssignedValueHomeKind {
     },
     RuntimeFrameIndexed {
         descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
+    RuntimeFrameBaseIndexed {
+        base_byte_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
@@ -1013,6 +1061,21 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 value,
             } => Self::WriteRuntimeFrameIndexedInteger {
                 descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            },
+            omega_target_operations::TargetOperationKind::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            } => Self::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -1594,6 +1657,21 @@ impl From<AssignedOperationKind> for omega_target_operations::TargetOperationKin
                 byte_size,
                 value,
             },
+            AssignedOperationKind::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            } => Self::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            },
             AssignedOperationKind::WriteRuntimeMachineIndexedInteger {
                 base_byte_offset,
                 index_offset,
@@ -2073,6 +2151,28 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 byte_size,
             } => Some((
                 *descriptor_offset,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *byte_size,
+            )),
+            _ => None,
+        }
+    }
+
+    fn frame_base_indexed(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Some((
+                *base_byte_offset,
                 *index_offset,
                 *element_byte_size,
                 *field_byte_offset,

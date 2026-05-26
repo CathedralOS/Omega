@@ -243,6 +243,22 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => runtime_storage::encode_runtime_frame_base_indexed_integer_write(
+            input,
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_offset,

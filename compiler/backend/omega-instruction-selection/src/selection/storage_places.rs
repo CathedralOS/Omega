@@ -10,7 +10,8 @@ pub(super) use machine_owned::{
     resolve_machine_owned_place_in_table,
 };
 pub(super) use model::{
-    RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget, RuntimeStoragePlace,
+    RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget,
+    RuntimeStoragePlace,
 };
 use omega_abstract_operations::RuntimeStorageRegion;
 pub(super) use static_values::{
@@ -402,6 +403,44 @@ pub(super) fn resolve_runtime_frame_indexed_target(
     })
 }
 
+pub(super) fn resolve_runtime_frame_base_indexed_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeFrameBaseIndexedTarget> {
+    let indexed = indexed_target_path(expression)?;
+    let collection_slot =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, indexed.collection)?;
+    let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
+    let index_place =
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
+    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) =
+        resolve_indexed_target_suffix_layout(input, &root_field, indexed.suffix_root)?;
+
+    Some(RuntimeFrameBaseIndexedTarget {
+        base_byte_offset: collection_slot.byte_offset,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
 pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -462,6 +501,59 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
 
     Some(RuntimeFrameIndexedTarget {
         descriptor_offset: descriptor_place.byte_offset,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
+pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeFrameBaseIndexedTarget> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
+    let index_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.index,
+    )?;
+    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &root_field,
+        expressions,
+        indexed.suffix_root,
+    )?;
+
+    Some(RuntimeFrameBaseIndexedTarget {
+        base_byte_offset: collection_slot.byte_offset,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
         field_byte_offset,

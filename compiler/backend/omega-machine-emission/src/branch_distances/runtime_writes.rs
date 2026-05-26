@@ -198,6 +198,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
         MachineInstructionKind::RuntimeMachineIntegerWrite
             | MachineInstructionKind::RuntimeStorageBinaryWrite
             | MachineInstructionKind::RuntimeFrameIndexedIntegerWrite
+            | MachineInstructionKind::RuntimeFrameBaseIndexedIntegerWrite
             | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
             | MachineInstructionKind::RuntimeMachineStringWrite
             | MachineInstructionKind::RuntimePointeeStringWrite
