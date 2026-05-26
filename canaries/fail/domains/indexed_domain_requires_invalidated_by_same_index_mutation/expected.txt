@@ -1,0 +1,1 @@
+invalidated by prior mutation of Main::main.items[0].value
