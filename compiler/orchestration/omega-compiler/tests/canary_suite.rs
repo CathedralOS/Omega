@@ -457,6 +457,40 @@ fn executable_imported_domain_membership_union_value_exit_canary_runs() {
 }
 
 #[test]
+fn executable_imported_domain_membership_intersection_value_exit_canary_runs() {
+    let canary =
+        pass_canary("domains/executable_imported_domain_membership_intersection_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-imported-domain-membership-intersection-value-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable imported domain membership intersection value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable imported domain membership intersection value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(217),
+        "expected executable imported domain membership intersection value canary to route to exit code 217, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_local_boolean_or_value_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_local_boolean_or_value_exit");
     let main_path = canary.join("main.omg");

@@ -23,6 +23,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/domains/executable_domain_membership_intersection_value_exit`
     - imported executable domain unions now work in local bool values too:
       - `canaries/pass/domains/executable_imported_domain_membership_union_value_exit`
+    - imported executable domain intersections now work in local bool values too:
+      - `canaries/pass/domains/executable_imported_domain_membership_intersection_value_exit`
     - call-site requires unions are now proved from either preserved branch too:
       - `canaries/pass/domains/call_requires_domain_union_left_branch_preserved`
       - `canaries/pass/domains/call_requires_domain_union_right_branch_preserved`
