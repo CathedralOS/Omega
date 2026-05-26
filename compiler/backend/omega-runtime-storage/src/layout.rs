@@ -11,7 +11,9 @@ pub(super) fn layout_for_type_reference(
     type_reference: TypeReferenceHandle,
 ) -> TypeLayout {
     match table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => pointer_layout(context),
+        TypeReferenceNode::Reference { referee, .. } => {
+            layout_for_reference_type(context, table, *referee)
+        }
         TypeReferenceNode::Constrained { base_type, .. } => {
             layout_for_type_reference(context, table, *base_type)
         }
@@ -35,6 +37,20 @@ pub(super) fn layout_for_type_reference(
             layout_for_named_type(context, *symbol, name.as_str())
         }
         TypeReferenceNode::Unit => TypeLayout::default(),
+    }
+}
+
+fn layout_for_reference_type(
+    context: &RuntimeStorageContext,
+    table: &TypeReferenceTable,
+    referee: TypeReferenceHandle,
+) -> TypeLayout {
+    match table.type_reference(referee) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            layout_for_reference_type(context, table, *base_type)
+        }
+        TypeReferenceNode::Slice { .. } => slice_layout(context),
+        _ => pointer_layout(context),
     }
 }
 

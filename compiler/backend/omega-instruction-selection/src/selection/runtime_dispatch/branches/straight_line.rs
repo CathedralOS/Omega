@@ -24,8 +24,8 @@ use super::super::super::storage_places::resolve_runtime_storage_place_in_table;
 use super::super::guards::select_runtime_straight_line_branch_guards;
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::super::writes::{
-    RuntimeStaticValues, runtime_frame_slot_target_expression,
-    select_runtime_frame_slot_value_write_in_table,
+    RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
+    runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
     select_runtime_resolved_mutation_write,
@@ -193,6 +193,18 @@ fn select_runtime_straight_line_branch_terminal_value_write(
         bindings,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expressions,
+        slot,
+        resolved_value,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,
@@ -570,6 +582,18 @@ fn select_runtime_straight_line_local_initializer_write(
         bindings,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        operation.statement_index,
+        expressions,
+        slot,
+        resolved_initializer,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,
@@ -1113,6 +1137,18 @@ fn select_runtime_leaf_state_call_local_initializer_write(
         straight_line_bindings,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        statement_index,
+        &scratch.expressions,
+        slot,
+        resolved_initializer,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,

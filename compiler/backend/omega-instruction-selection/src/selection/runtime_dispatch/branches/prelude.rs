@@ -21,8 +21,8 @@ use omega_runtime_branching::{
 use super::super::super::lookups::{host_call_for_statement, state_call_for_statement};
 use super::super::text_writes::runtime_text_builder_write_in_table_emit;
 use super::super::writes::{
-    RuntimeStaticValues, runtime_frame_slot_target_expression,
-    select_runtime_frame_slot_value_write_in_table,
+    RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
+    runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
     select_runtime_resolved_mutation_write,
@@ -326,6 +326,18 @@ fn select_runtime_branch_prelude_local_initializer_write(
         bindings,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,

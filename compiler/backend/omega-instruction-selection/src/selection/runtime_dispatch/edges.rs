@@ -6,7 +6,8 @@ use super::guards::{
 use super::writes::select_runtime_frame_slot_value_write_in_table;
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
-    resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
+    resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_transition_argument_call_result_place,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_checked_trees::statement::StatementNode;
@@ -375,6 +376,36 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        if emit_runtime_fixed_array_slice_argument_materialization(
+            input,
+            source_key,
+            statement_index,
+            source_dispatch_index,
+            expressions,
+            argument,
+            slot,
+            selected_instructions,
+        ) {
+            continue;
+        }
+
+        if let Some(initial_value) =
+            source_local_initial_value(input, source_key, statement_index, expressions, argument)
+        {
+            if emit_runtime_fixed_array_slice_argument_materialization(
+                input,
+                source_key,
+                statement_index,
+                source_dispatch_index,
+                expressions,
+                initial_value,
+                slot,
+                selected_instructions,
+            ) {
+                continue;
+            }
+        }
+
         if let Some(place) = resolve_runtime_storage_place_in_table(
             input,
             source_dispatch_index,
@@ -457,6 +488,72 @@ fn select_runtime_dispatch_argument_materialization(
             });
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_runtime_fixed_array_slice_argument_materialization(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    dispatch_index: u32,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    argument: ExpressionHandle,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if slot.byte_size != input.runtime_abi.slice_descriptor_size() {
+        return false;
+    }
+
+    let ExpressionNode::Call(call) = expressions.expression(argument) else {
+        return false;
+    };
+    if !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return false;
+    }
+
+    let Some(source_place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        call.receiver,
+    ) else {
+        return false;
+    };
+    let Some(length) = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        call.receiver,
+    ) else {
+        return false;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_offset: slot.byte_offset,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
+            byte_size: input.runtime_abi.pointer_size,
+            value: length as i64,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    true
 }
 
 fn source_local_initial_value(

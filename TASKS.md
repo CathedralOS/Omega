@@ -38,6 +38,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - local mutable slice alias writes now compile in both straight-line and state-body forms
   - runnable exit-code probes now cover straight-line and state-body mutable slice alias writes too
   - runnable slice-index probes now cover dynamic reads and dynamic local copies in both straight-line and state-body forms
+  - slice descriptors for `&[T]` now survive local storage and transition-argument materialization as full fat descriptors
+    - `canaries/pass/slices/runtime_slice_len_transition_exit`
   - alias-indexed machine-owned string writes through slice views now run too
     - `canaries/pass/text/runtime_slice_alias_indexed_string_field_concat_exit`
   - indexed borrow overlap checks now distinguish obviously disjoint fixed indices from potentially aliasing ones
@@ -55,6 +57,9 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - keep extending confidence on other multi-edge/full-package dispatch shapes
   - continue strengthening richer nested storage updates for generator-style code
   - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
+  - fixed-index slice element reads through transitioned slice parameters are still not first-class runtime operands yet
+    - `canaries/run/runtime_slice_index_transition_probe`
+    - `canaries/run/runtime_slice_iteration_probe`
   - direct machine-owned nested fixed-array writes under dynamic indexing are covered, but richer room-style struct copy/readback still needs a dedicated follow-up before it can be promoted into the active pass suite
   - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
     - machine-owned targets:

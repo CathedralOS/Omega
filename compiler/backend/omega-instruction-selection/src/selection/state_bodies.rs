@@ -15,8 +15,9 @@ use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
 use super::runtime_dispatch::{
-    RuntimeStorageWriteScratch, runtime_frame_slot_target_expression,
-    select_runtime_frame_slot_value_write_in_table, select_runtime_resolved_mutation_write,
+    RuntimeStorageWriteScratch, emit_runtime_frame_slot_slice_descriptor_write_in_table,
+    runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
+    select_runtime_resolved_mutation_write,
     select_runtime_storage_resolved_mutation_write_in_table_with_scratch,
     select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
@@ -424,6 +425,18 @@ fn select_runtime_state_body_local_initializer_write(
         copied_aliases.bindings(),
         expressions,
     );
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        dispatch_index,
+        resolved_initializer.source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer.expression,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,

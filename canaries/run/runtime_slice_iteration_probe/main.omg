@@ -1,0 +1,51 @@
+use platform::console;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) {
+    let entry_view: &[Entry] = self.entries.as_slice();
+
+    transition entry_view.len > 0 {
+        true -> sum_entries(entry_view, 0, 0)
+        false -> bad()
+    }
+
+    state sum_entries(
+        &mut self,
+        entries: &[Entry],
+        index: usize,
+        total: i32
+    ) {
+        let current: Entry = entries[index];
+        let next_total: i32 = total + 1;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < entries.len;
+
+        transition has_next {
+            true -> sum_entries(entries, next_index, next_total)
+            false -> check_total(next_total)
+        }
+    }
+
+    state check_total(&mut self, total: i32) {
+        transition total == 4 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(91);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(92);
+    }
+}

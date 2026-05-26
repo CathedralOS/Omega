@@ -33,6 +33,7 @@ use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
 pub(crate) use branches::select_runtime_resolved_mutation_write;
+pub(in crate::selection) use writes::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 pub(in crate::selection) use writes::runtime_frame_slot_target_expression;
 pub(in crate::selection) use writes::select_runtime_frame_slot_value_write_in_table;
 pub(in crate::selection) use writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch;
@@ -329,6 +330,18 @@ fn select_runtime_dispatch_local_initializer_write(
         copied_aliases.bindings(),
         expressions,
     );
+    if writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        dispatch_index,
+        resolved_initializer.source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer.expression,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = writes::select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,

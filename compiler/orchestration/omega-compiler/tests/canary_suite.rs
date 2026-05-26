@@ -915,6 +915,39 @@ fn runtime_slice_index_copy_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_slice_len_transition_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_len_transition_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-len-transition-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice len transition canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice len transition canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(101),
+        "expected runtime slice len transition canary to preserve slice descriptors across transitions and exit 101, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_string_concat_membership_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_concat_membership_exit");
     let main_path = canary.join("main.omg");

@@ -19,8 +19,9 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
-    resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_indexed_target,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_fixed_array_length_in_table, resolve_runtime_assignment_value_call_result_place,
+    resolve_runtime_frame_indexed_target, resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
@@ -161,6 +162,18 @@ pub(super) fn select_runtime_state_call_result_write(
         copied_aliases.bindings(),
         value_expressions,
     );
+    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+        input,
+        dispatch_index,
+        resolved_value.source_key,
+        statement_index,
+        &value_expressions,
+        slot,
+        resolved_value.expression,
+        selected_instructions,
+    ) {
+        return;
+    }
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,
@@ -260,6 +273,72 @@ pub(in crate::selection) fn runtime_frame_slot_target_expression(
         head_symbol: slot.symbol,
         symbol: slot.symbol,
     }))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if slot.byte_size != input.runtime_abi.slice_descriptor_size() {
+        return false;
+    }
+
+    let ExpressionNode::Call(call) = expressions.expression(value) else {
+        return false;
+    };
+    if !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return false;
+    }
+
+    let Some(source_place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) else {
+        return false;
+    };
+    let Some(length) = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) else {
+        return false;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_offset: slot.byte_offset,
+        },
+        source_key: value_source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
+            byte_size: input.runtime_abi.pointer_size,
+            value: length as i64,
+        },
+        source_key: value_source_key,
+        source_statement: statement_index,
+    });
+    true
 }
 
 #[allow(clippy::too_many_arguments)]
