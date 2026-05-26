@@ -1,0 +1,21 @@
+data Password {
+    length: i32;
+    score: i32;
+}
+
+domain Password::Valid {
+    self.length > 0;
+}
+
+data Main {
+    password: Password;
+}
+
+machine Main::main(&mut self) -> i32
+requires
+    self.password in Password::Valid
+ensures
+    self.password.length > 0
+{
+    0
+}
