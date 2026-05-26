@@ -1,0 +1,35 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Item {
+    value: i32;
+    tag: i32;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::touch_tag(&mut self, item: &mut Item) {
+    item.tag = 0;
+}
+
+machine Main::main(&mut self) {
+    let items: [Item; 2] = [Item { value: 1, tag: 1 }, Item { value: 2, tag: 2 }];
+    let index: usize = 0;
+    self.touch_tag(&mut items[index]);
+
+    transition items[index].tag == 0 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(171);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(172);
+    }
+}
