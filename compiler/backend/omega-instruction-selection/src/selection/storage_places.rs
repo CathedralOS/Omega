@@ -53,19 +53,6 @@ pub(super) fn resolve_runtime_storage_place(
         return Some(place);
     }
 
-    if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
-        &input.layouts,
-        input.entry_key.machine,
-        source_key.machine,
-        expression,
-    ) {
-        return Some(RuntimeStoragePlace {
-            region: RuntimeStorageRegion::Machine,
-            byte_offset,
-            byte_count,
-        });
-    }
-
     let normalized_expression = normalized_storage_expression(expression)?;
     let Expression::Name(path) = &normalized_expression else {
         return None;
@@ -74,40 +61,57 @@ pub(super) fn resolve_runtime_storage_place(
         return None;
     }
     let suffix = &path.members()[1..];
-    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_path(slot, path)
-    })
-    .or_else(|| {
-        input
-            .runtime_storage
-            .frame_slots
-            .iter()
-            .find_map(|(_, slot)| {
-                (slot.dispatch_index == dispatch_index && slot_matches_path(slot, path))
-                    .then_some(slot)
-            })
-    })?;
-    let root_field = FieldLayout {
-        symbol: slot.symbol,
-        name: slot.name.clone(),
-        offset: slot.byte_offset,
-        type_symbol: slot.type_symbol,
-        type_name: slot.type_name.clone(),
-        type_descriptor: slot.type_descriptor.clone(),
-        layout: TypeLayout {
-            size: slot.byte_size,
-            alignment: slot.alignment,
-        },
-    };
-    let (byte_offset, layout) =
-        resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
-            path.member_symbol(index + 1)
-        })?;
+    if let Some(slot) =
+        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+            slot_matches_path(slot, path)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .find_map(|(_, slot)| {
+                    (slot.dispatch_index == dispatch_index && slot_matches_path(slot, path))
+                        .then_some(slot)
+                })
+        })
+    {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: slot.byte_offset,
+            type_symbol: slot.type_symbol,
+            type_name: slot.type_name.clone(),
+            type_descriptor: slot.type_descriptor.clone(),
+            layout: TypeLayout {
+                size: slot.byte_size,
+                alignment: slot.alignment,
+            },
+        };
+        let (byte_offset, layout) = resolve_nested_field_layout_with_symbols(
+            &input.layouts,
+            &root_field,
+            suffix,
+            |index| path.member_symbol(index + 1),
+        )?;
 
-    Some(RuntimeStoragePlace {
-        region: RuntimeStorageRegion::RuntimeFrame,
+        return Some(RuntimeStoragePlace {
+            region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset,
+            byte_count: layout.size,
+        });
+    }
+
+    resolve_machine_owned_place(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        expression,
+    )
+    .map(|(byte_offset, byte_count)| RuntimeStoragePlace {
+        region: RuntimeStorageRegion::Machine,
         byte_offset,
-        byte_count: layout.size,
+        byte_count,
     })
 }
 
@@ -219,57 +223,59 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         return Some(place);
     }
 
-    if let Some((byte_offset, byte_count)) = resolve_machine_owned_place_in_table(
-        &input.layouts,
-        input.entry_key.machine,
-        source_key.machine,
-        expressions,
-        expression,
-    ) {
-        return Some(RuntimeStoragePlace {
-            region: RuntimeStorageRegion::Machine,
-            byte_offset,
-            byte_count,
-        });
-    }
-
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
     if path.is_empty() {
         return None;
     }
     let suffix = path.suffix(1);
-    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_table_path(slot, &path)
-    })
-    .or_else(|| {
-        input
-            .runtime_storage
-            .frame_slots
-            .iter()
-            .find_map(|(_, slot)| {
-                (slot.dispatch_index == dispatch_index && slot_matches_table_path(slot, &path))
-                    .then_some(slot)
-            })
-    })?;
-    let root_field = FieldLayout {
-        symbol: slot.symbol,
-        name: slot.name.clone(),
-        offset: slot.byte_offset,
-        type_symbol: slot.type_symbol,
-        type_name: slot.type_name.clone(),
-        type_descriptor: slot.type_descriptor.clone(),
-        layout: TypeLayout {
-            size: slot.byte_size,
-            alignment: slot.alignment,
-        },
-    };
-    let (byte_offset, layout) =
-        resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?;
+    if let Some(slot) =
+        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+            slot_matches_table_path(slot, &path)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .find_map(|(_, slot)| {
+                    (slot.dispatch_index == dispatch_index && slot_matches_table_path(slot, &path))
+                        .then_some(slot)
+                })
+        })
+    {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: slot.byte_offset,
+            type_symbol: slot.type_symbol,
+            type_name: slot.type_name.clone(),
+            type_descriptor: slot.type_descriptor.clone(),
+            layout: TypeLayout {
+                size: slot.byte_size,
+                alignment: slot.alignment,
+            },
+        };
+        let (byte_offset, layout) =
+            resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?;
 
-    Some(RuntimeStoragePlace {
-        region: RuntimeStorageRegion::RuntimeFrame,
+        return Some(RuntimeStoragePlace {
+            region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset,
+            byte_count: layout.size,
+        });
+    }
+
+    resolve_machine_owned_place_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        expressions,
+        expression,
+    )
+    .map(|(byte_offset, byte_count)| RuntimeStoragePlace {
+        region: RuntimeStorageRegion::Machine,
         byte_offset,
-        byte_count: layout.size,
+        byte_count,
     })
 }
 
@@ -1078,7 +1084,18 @@ fn resolve_indexed_target_suffix_cursor<'layout>(
         Expression::Mutable(target) => {
             resolve_indexed_target_suffix_cursor(layouts, cursor, target)
         }
-        Expression::Indexed(_) => Some(cursor),
+        Expression::Indexed(indexed) => {
+            let Some(collection_cursor) =
+                resolve_indexed_target_suffix_cursor(layouts, cursor, &indexed.collection)
+            else {
+                return Some(cursor);
+            };
+
+            let Expression::Integer(index) = &indexed.index else {
+                return None;
+            };
+            apply_fixed_array_index_to_cursor(collection_cursor, usize::try_from(*index).ok()?)
+        }
         Expression::Member(member) => {
             let cursor = resolve_indexed_target_suffix_cursor(layouts, cursor, &member.receiver)?;
             resolve_nested_field_layout_step(

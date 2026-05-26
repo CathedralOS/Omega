@@ -59,10 +59,11 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
   - fixed-index transitioned slice guards now run correctly
     - `canaries/pass/slices/runtime_slice_fixed_index_guard_exit`
-  - transitioned slice element copies and iterative indexed reads are still not semantically correct at runtime
-    - `canaries/run/runtime_slice_index_transition_probe`
+  - transitioned whole-element fixed-index slice copies now run correctly too
+    - `canaries/pass/slices/runtime_slice_index_transition_exit`
+  - iterative transitioned indexed reads are still not semantically correct at runtime
     - `canaries/run/runtime_slice_iteration_probe`
-    - fat slice descriptors are now preserved, and direct fixed-index guard reads are healthy, but `entries[0]` local copies and iterative `entries[index]` reads still misread after transition
+    - fat slice descriptors are now preserved, and both direct fixed-index guard reads and whole-element `entries[0]` local copies are healthy, but iterative `entries[index]` reads still misread after transition
   - direct machine-owned nested fixed-array writes under dynamic indexing are covered, but richer room-style struct copy/readback still needs a dedicated follow-up before it can be promoted into the active pass suite
   - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
     - machine-owned targets:

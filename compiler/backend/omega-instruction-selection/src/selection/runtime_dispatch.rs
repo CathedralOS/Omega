@@ -38,6 +38,10 @@ pub(in crate::selection) use writes::runtime_frame_slot_target_expression;
 pub(in crate::selection) use writes::select_runtime_frame_slot_value_write_in_table;
 pub(in crate::selection) use writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch;
 
+fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     input: &InstructionSelectionInput<'_>,
@@ -304,7 +308,7 @@ fn select_runtime_dispatch_local_initializer_write(
         .iter()
         .find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && state_key_matches_statement_source(slot.source_key, source_key)
                 && slot.statement_index == statement_index
                 && matches!(
                     slot.kind,
@@ -330,7 +334,7 @@ fn select_runtime_dispatch_local_initializer_write(
         copied_aliases.bindings(),
         expressions,
     );
-    if writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
+    let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
         dispatch_index,
         resolved_initializer.source_key,
@@ -339,10 +343,11 @@ fn select_runtime_dispatch_local_initializer_write(
         slot,
         resolved_initializer.expression,
         selected_instructions,
-    ) {
+    );
+    if wrote_slice {
         return;
     }
-    if let Some(kind) = writes::select_runtime_frame_slot_value_write_in_table(
+    let direct_kind = writes::select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,
         resolved_initializer.source_key,
@@ -352,7 +357,8 @@ fn select_runtime_dispatch_local_initializer_write(
         resolved_initializer.expression,
         static_values,
         runtime_value_operands,
-    ) {
+    );
+    if let Some(kind) = direct_kind {
         selected_instructions.push(SelectedInstruction {
             kind,
             source_key,
