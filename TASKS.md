@@ -38,6 +38,10 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/fail/borrows/borrow_same_fixed_index_mut`
     - `canaries/fail/borrows/borrow_same_fixed_index_slice_alias_mut`
     - `canaries/fail/borrows/borrow_unknown_index_pair_mut`
+  - indexed domain invalidation now has parser-safe canary coverage
+    - `canaries/pass/domains/indexed_domain_requires_preserved_across_disjoint_field_mutation`
+    - `canaries/fail/domains/indexed_domain_requires_invalidated_by_same_index_mutation`
+    - `canaries/fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation`
   Remaining gap:
   - keep extending confidence on other multi-edge/full-package dispatch shapes
   - continue strengthening dynamic indexed mutation and richer nested storage updates for generator-style code
