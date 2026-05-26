@@ -1,0 +1,35 @@
+data Password {
+    length: i32;
+    salt: i32;
+}
+
+domain Password::Valid {
+    self.length > 0;
+}
+
+data Main {
+    password: Password;
+}
+
+machine Main::mark_valid(&mut self, password: &mut Password)
+ensures
+    password in Password::Valid
+{
+    password.length = 12;
+}
+
+machine Main::touch_salt(&mut self, password: &mut Password) {
+    password.salt = 0;
+}
+
+machine Main::accept(password: Password)
+requires
+    password.length > 0
+{
+}
+
+machine Main::main(&mut self) {
+    self.mark_valid(&mut self.password);
+    self.touch_salt(&mut self.password);
+    self.accept(self.password);
+}

@@ -627,6 +627,101 @@ fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() 
 }
 
 #[test]
+fn rejects_requires_boolean_expression_from_domain_fact_after_mutating_call() {
+    let source = r#"
+        data Password {
+            length: i32;
+            salt: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::mark_valid(&mut self, password: &mut Password)
+        ensures
+            password in Password::Valid
+        {
+            password.length = 12;
+        }
+
+        machine Main::break_valid(&mut self, password: &mut Password) {
+            password.length = 0;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password.length > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.password);
+            self.break_valid(&mut self.password);
+            self.accept(self.password);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("requires boolean expression should fail after mutating call");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic.message.contains("password.length > 0")
+    }));
+}
+
+#[test]
+fn accepts_requires_boolean_expression_from_domain_fact_across_disjoint_mutating_call() {
+    let source = r#"
+        data Password {
+            length: i32;
+            salt: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::mark_valid(&mut self, password: &mut Password)
+        ensures
+            password in Password::Valid
+        {
+            password.length = 12;
+        }
+
+        machine Main::touch_salt(&mut self, password: &mut Password) {
+            password.salt = 0;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password.length > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.password);
+            self.touch_salt(&mut self.password);
+            self.accept(self.password);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "requires boolean expression should be preserved across disjoint mutating call",
+    );
+}
+
+#[test]
 fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
     let source = r#"
         data Entry {
@@ -665,6 +760,102 @@ fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
             .contains("cannot prove requires contract for call accept from Main::main")
             && diagnostic.message.contains("value > 0")
     }));
+}
+
+#[test]
+fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_mutating_call() {
+    let source = r#"
+        data Item {
+            value: i32;
+            tag: i32;
+        }
+
+        domain Item::Valid {
+            self.value > 0;
+        }
+
+        data Main {
+            items: [Item; 2];
+        }
+
+        machine Main::mark_valid(&mut self, item: &mut Item)
+        ensures
+            item in Item::Valid
+        {
+            item.value = 12;
+        }
+
+        machine Main::break_valid(&mut self, item: &mut Item) {
+            item.value = 0;
+        }
+
+        machine Main::accept(item: Item)
+        requires
+            item.value > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.items[0]);
+            self.break_valid(&mut self.items[0]);
+            self.accept(self.items[0]);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("fixed indexed requires boolean expression should fail after mutating call");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic.message.contains("item.value > 0")
+    }));
+}
+
+#[test]
+fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
+{
+    let source = r#"
+        data Item {
+            value: i32;
+            tag: i32;
+        }
+
+        domain Item::Valid {
+            self.value > 0;
+        }
+
+        data Main {
+            items: [Item; 2];
+        }
+
+        machine Main::mark_valid(&mut self, item: &mut Item)
+        ensures
+            item in Item::Valid
+        {
+            item.value = 12;
+        }
+
+        machine Main::touch_tag(&mut self, item: &mut Item) {
+            item.tag = 0;
+        }
+
+        machine Main::accept(item: Item)
+        requires
+            item.value > 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.mark_valid(&mut self.items[0]);
+            self.touch_tag(&mut self.items[0]);
+            self.accept(self.items[0]);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "fixed indexed requires boolean expression should be preserved across disjoint mutating call",
+    );
 }
 
 #[test]
