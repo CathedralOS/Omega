@@ -1344,6 +1344,39 @@ fn runtime_mutable_machine_owned_parameter_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mutable_local_parameter_write_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_mutable_local_parameter_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-local-parameter-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable local parameter write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable local parameter write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(171),
+        "expected runtime mutable local parameter write canary to preserve writes through local mutable call parameters and exit 171, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_local_indexed_parameter_write_exit");
     let main_path = canary.join("main.omg");
