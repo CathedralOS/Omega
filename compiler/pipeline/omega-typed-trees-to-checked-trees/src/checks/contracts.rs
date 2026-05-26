@@ -178,6 +178,8 @@ fn call_entry_contexts_prove_boolean_contract_expression(
             program,
             semantic,
             context,
+            state_flow.state_symbol,
+            call_flow.statement_index,
             &call_site,
             target_state,
             expression,
@@ -263,6 +265,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,
     context: &omega_facts::FactContext,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
     call_site: &crate::CallSite<'_>,
     target_state: &omega_typed_trees::state::State,
     expression: omega_typed_trees::expression::ExpressionHandle,
@@ -271,6 +275,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
         program,
         semantic,
         context,
+        caller_state_symbol,
+        statement_index,
         call_site,
         target_state,
         expression,
@@ -280,13 +286,15 @@ fn semantic_context_proves_instantiated_boolean_expression(
 
     match program.expression_table.expression(expression) {
         omega_typed_trees::expression::ExpressionNode::Mutable(inner) => {
-            semantic_context_proves_instantiated_boolean_expression(
-                program,
-                semantic,
-                context,
-                call_site,
-                target_state,
-                *inner,
+                semantic_context_proves_instantiated_boolean_expression(
+                    program,
+                    semantic,
+                    context,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    *inner,
             )
         }
         omega_typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {
@@ -295,6 +303,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
                     program,
                     semantic,
                     context,
+                    caller_state_symbol,
+                    statement_index,
                     call_site,
                     target_state,
                     binary.left,
@@ -302,6 +312,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
                     program,
                     semantic,
                     context,
+                    caller_state_symbol,
+                    statement_index,
                     call_site,
                     target_state,
                     binary.right,
@@ -312,6 +324,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
                     program,
                     semantic,
                     context,
+                    caller_state_symbol,
+                    statement_index,
                     call_site,
                     target_state,
                     binary.left,
@@ -319,6 +333,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
                     program,
                     semantic,
                     context,
+                    caller_state_symbol,
+                    statement_index,
                     call_site,
                     target_state,
                     binary.right,
@@ -328,6 +344,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
                 program,
                 semantic,
                 context,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 expression,
@@ -337,6 +355,8 @@ fn semantic_context_proves_instantiated_boolean_expression(
             program,
             semantic,
             context,
+            caller_state_symbol,
+            statement_index,
             call_site,
             target_state,
             expression,
@@ -374,12 +394,21 @@ fn direct_context_proves_instantiated_boolean_expression(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,
     context: &omega_facts::FactContext,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
     call_site: &crate::CallSite<'_>,
     target_state: &omega_typed_trees::state::State,
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let required_label =
-        instantiate_call_contract_expression_label(program, call_site, target_state, expression);
+        instantiate_call_contract_expression_label(
+            program,
+            caller_state_symbol,
+            statement_index,
+            call_site,
+            target_state,
+            expression,
+        );
 
     semantic.context_view(context).facts().any(|fact| {
         let candidate_expression = match fact.payload {
@@ -394,11 +423,13 @@ fn direct_context_proves_instantiated_boolean_expression(
         program.expression_table.display_name(candidate_expression) == required_label
             || (expression_is_boolean_place_like(program, expression)
                 && matches!(fact.place, FactPlace::Place(candidate_place)
-                if instantiate_call_contract_expression_label(
-                    program,
-                    call_site,
-                    target_state,
-                    expression,
+                    if instantiate_call_contract_expression_label(
+                        program,
+                        caller_state_symbol,
+                        statement_index,
+                        call_site,
+                        target_state,
+                        expression,
                 ) == canonical_place_label(
                     program,
                     semantic,
@@ -442,18 +473,38 @@ fn prove_boolean_expression_via_context_domain_membership(
     let candidate_label = program.expression_table.display_name(expression);
 
     semantic.context_view(context).facts().any(|fact| {
-        let (domain_symbol, place) = match fact.payload {
-            FactPayload::DomainMembership { domain_symbol, .. }
-            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+        let (domain_symbol, value, place) = match fact.payload {
+            FactPayload::DomainMembership {
+                domain_symbol,
+                value,
+                ..
+            }
+            | FactPayload::ContractDomainMembership {
+                domain_symbol,
+                value,
+                ..
+            } => {
                 let FactPlace::Place(place) = fact.place else {
                     return false;
                 };
-                (domain_symbol, place)
+                (domain_symbol, value, place)
             }
             _ => return false,
         };
-        let base_label = canonical_place_label(program, semantic, semantic.places.get(place));
-        domain_proves_expression_label(program, domain_symbol, &base_label, &candidate_label)
+        let canonical_base_label =
+            canonical_place_label(program, semantic, semantic.places.get(place));
+        let display_base_label = program.expression_table.display_name(value);
+        domain_proves_expression_label(
+            program,
+            domain_symbol,
+            &canonical_base_label,
+            &candidate_label,
+        ) || domain_proves_expression_label(
+            program,
+            domain_symbol,
+            &display_base_label,
+            &candidate_label,
+        )
     })
 }
 
@@ -461,26 +512,54 @@ fn prove_instantiated_boolean_expression_via_context_domain_membership(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,
     context: &omega_facts::FactContext,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
     call_site: &crate::CallSite<'_>,
     target_state: &omega_typed_trees::state::State,
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let candidate_label =
-        instantiate_call_contract_expression_label(program, call_site, target_state, expression);
+    let candidate_label = instantiate_call_contract_expression_label(
+        program,
+        caller_state_symbol,
+        statement_index,
+        call_site,
+        target_state,
+        expression,
+    );
 
     semantic.context_view(context).facts().any(|fact| {
-        let (domain_symbol, place) = match fact.payload {
-            FactPayload::DomainMembership { domain_symbol, .. }
-            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+        let (domain_symbol, value, place) = match fact.payload {
+            FactPayload::DomainMembership {
+                domain_symbol,
+                value,
+                ..
+            }
+            | FactPayload::ContractDomainMembership {
+                domain_symbol,
+                value,
+                ..
+            } => {
                 let FactPlace::Place(place) = fact.place else {
                     return false;
                 };
-                (domain_symbol, place)
+                (domain_symbol, value, place)
             }
             _ => return false,
         };
-        let base_label = canonical_place_label(program, semantic, semantic.places.get(place));
-        domain_proves_expression_label(program, domain_symbol, &base_label, &candidate_label)
+        let canonical_base_label =
+            canonical_place_label(program, semantic, semantic.places.get(place));
+        let display_base_label = program.expression_table.display_name(value);
+        domain_proves_expression_label(
+            program,
+            domain_symbol,
+            &canonical_base_label,
+            &candidate_label,
+        ) || domain_proves_expression_label(
+            program,
+            domain_symbol,
+            &display_base_label,
+            &candidate_label,
+        )
     })
 }
 
@@ -609,6 +688,8 @@ fn instantiate_domain_expression_label(
 
 fn instantiate_call_contract_expression_label(
     program: &omega_typed_trees::TypedTrees,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
     call_site: &crate::CallSite<'_>,
     target_state: &omega_typed_trees::state::State,
     expression: omega_typed_trees::expression::ExpressionHandle,
@@ -622,6 +703,8 @@ fn instantiate_call_contract_expression_label(
                 .map(|value| {
                     instantiate_call_contract_expression_label(
                         program,
+                        caller_state_symbol,
+                        statement_index,
                         call_site,
                         target_state,
                         *value,
@@ -635,6 +718,8 @@ fn instantiate_call_contract_expression_label(
             "{} {} {}",
             instantiate_call_contract_expression_label(
                 program,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 binary.left,
@@ -642,6 +727,8 @@ fn instantiate_call_contract_expression_label(
             binary.operator.display_name(),
             instantiate_call_contract_expression_label(
                 program,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 binary.right,
@@ -652,6 +739,8 @@ fn instantiate_call_contract_expression_label(
             "{} as {}",
             instantiate_call_contract_expression_label(
                 program,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 cast.value,
@@ -669,6 +758,8 @@ fn instantiate_call_contract_expression_label(
                 .map(|argument| {
                     instantiate_call_contract_expression_label(
                         program,
+                        caller_state_symbol,
+                        statement_index,
                         call_site,
                         target_state,
                         *argument,
@@ -681,6 +772,8 @@ fn instantiate_call_contract_expression_label(
                     "{}.{}({arguments})",
                     instantiate_call_contract_expression_label(
                         program,
+                        caller_state_symbol,
+                        statement_index,
                         call_site,
                         target_state,
                         call.receiver,
@@ -696,12 +789,16 @@ fn instantiate_call_contract_expression_label(
             "{}[{}]",
             instantiate_call_contract_expression_label(
                 program,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 indexed.collection,
             ),
             instantiate_call_contract_expression_label(
                 program,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 indexed.index,
@@ -712,6 +809,8 @@ fn instantiate_call_contract_expression_label(
             "{}.{}",
             instantiate_call_contract_expression_label(
                 program,
+                caller_state_symbol,
+                statement_index,
                 call_site,
                 target_state,
                 member.receiver,
@@ -723,6 +822,8 @@ fn instantiate_call_contract_expression_label(
                 "mut {}",
                 instantiate_call_contract_expression_label(
                     program,
+                    caller_state_symbol,
+                    statement_index,
                     call_site,
                     target_state,
                     *inner,
