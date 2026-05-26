@@ -325,26 +325,147 @@ mod tests {
             .copied()
             .expect("entry state");
         let state = parsed.items.state(entry);
-        let omega_syntax_trees::statement::StatementNode::Transition(transition) = parsed
-            .statement_table
-            .statements(state.statement_nodes)
+        let statement = parsed
+            .items
+            .statements(state.statements)
             .first()
-            .expect("entry transition")
+            .copied()
+            .expect("entry transition");
+        let omega_syntax_trees::statement::StatementNode::Transition(transition) =
+            parsed.statements.statement(statement)
         else {
             panic!("entry should start with transition")
         };
-        let omega_syntax_trees::statement::TransitionTargetNode::Match { subject, arms } =
-            parsed.statement_table.transition_target(transition.target)
+        let omega_syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard
         else {
-            panic!("transition target should lower as a match");
+            panic!("transition should lower as a guarded expression");
         };
-        let subject = parsed.statement_table.expression_handles(*subject);
-        assert_eq!(subject.len(), 1);
         assert!(matches!(
-            parsed.expressions.expression(subject[0]),
-            ExpressionNode::Membership(_)
+            parsed.expressions.expression(subject),
+            ExpressionNode::Binary(_)
         ));
-        assert_eq!(parsed.statement_table.transition_arms(*arms).len(), 2);
+    }
+
+    #[test]
+    fn parses_executable_domain_membership_intersection_expression() {
+        let source = r#"
+        data Player {
+            health: i32;
+            mana: i32;
+        }
+
+        data Main {
+            alive: Player;
+        }
+
+        machine Main::main(&mut self) {
+            transition (self.alive in Player::Alive & Player::Charged) {
+                (true) -> done()
+                _ -> done()
+            }
+
+            state done(&mut self) {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+        let entry = parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state");
+        let state = parsed.items.state(entry);
+        let statement = parsed
+            .items
+            .statements(state.statements)
+            .first()
+            .copied()
+            .expect("entry transition");
+        let omega_syntax_trees::statement::StatementNode::Transition(transition) =
+            parsed.statements.statement(statement)
+        else {
+            panic!("entry should start with transition")
+        };
+        let omega_syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard
+        else {
+            panic!("transition should lower as a guarded expression");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(subject),
+            ExpressionNode::Binary(_)
+        ));
+    }
+
+    #[test]
+    fn parses_executable_domain_membership_union_expression() {
+        let source = r#"
+        data Player {
+            health: i32;
+            mana: i32;
+        }
+
+        data Main {
+            alive: Player;
+        }
+
+        machine Main::main(&mut self) {
+            transition (self.alive in Player::Alive | Player::Charged) {
+                (true) -> done()
+                _ -> done()
+            }
+
+            state done(&mut self) {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+        let entry = parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state");
+        let state = parsed.items.state(entry);
+        let statement = parsed
+            .items
+            .statements(state.statements)
+            .first()
+            .copied()
+            .expect("entry transition");
+        let omega_syntax_trees::statement::StatementNode::Transition(transition) =
+            parsed.statements.statement(statement)
+        else {
+            panic!("entry should start with transition")
+        };
+        let omega_syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard
+        else {
+            panic!("transition should lower as a guarded expression");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(subject),
+            ExpressionNode::Binary(_)
+        ));
     }
 
     #[test]

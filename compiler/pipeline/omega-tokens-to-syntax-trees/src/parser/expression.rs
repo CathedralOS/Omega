@@ -151,18 +151,56 @@ fn parse_membership_expression_handle<'tokens, 'source>(
 
     while context.allows_membership() && input.at_contextual("in") {
         input = input.take_contextual("in")?;
+        let subject = expression;
         let (domain, rest) = parse_path_handle_span(input, |member| {
             syntax_trees
                 .expressions
                 .append_identifier_path_member(member)
         })?;
         input = rest;
-        expression = syntax_trees.expressions.insert(ExpressionNode::Membership(
+        let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
             TableMembershipExpression {
                 value: expression,
                 domain,
             },
         ));
+        expression = membership;
+
+        while input.at_punctuation(PunctuationKind::Ampersand)
+            || input.at_punctuation(PunctuationKind::Pipe)
+        {
+            let (operator, after_operator) = if input.at_punctuation(PunctuationKind::Ampersand) {
+                (
+                    BinaryOperator::And,
+                    input.take_punctuation(PunctuationKind::Ampersand, "&")?,
+                )
+            } else {
+                (
+                    BinaryOperator::Or,
+                    input.take_punctuation(PunctuationKind::Pipe, "|")?,
+                )
+            };
+            let (domain, rest) = parse_path_handle_span(after_operator, |member| {
+                syntax_trees
+                    .expressions
+                    .append_identifier_path_member(member)
+            })?;
+            input = rest;
+            let right = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                TableMembershipExpression {
+                    value: subject,
+                    domain,
+                },
+            ));
+            expression =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: expression,
+                        operator,
+                        right,
+                    }));
+        }
     }
 
     Ok((expression, input))
