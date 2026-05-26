@@ -80,6 +80,36 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     })
 }
 
+pub(in crate::selection) fn resolve_machine_owned_collection(
+    layouts: &LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    expression: &Expression,
+) -> Option<MachineOwnedCollectionTarget> {
+    let normalized_expression = normalized_storage_expression(expression)?;
+    let Expression::Name(path) = &normalized_expression else {
+        return None;
+    };
+    let (machine_base_offset, root_field, suffix, suffix_start_index) =
+        root_machine_field_layout_from_path(layouts, entry_machine, source_machine, path)?;
+    let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
+    for index in 0..suffix.len() {
+        let field_name = suffix.get(index)?;
+        cursor = resolve_nested_field_layout_step(
+            layouts,
+            cursor,
+            field_name,
+            path.member_symbol(suffix_start_index + index),
+            Some(suffix_start_index + index),
+        )?;
+    }
+
+    Some(MachineOwnedCollectionTarget {
+        byte_offset: machine_base_offset + cursor.byte_offset(),
+        type_descriptor: cursor.type_descriptor().clone(),
+    })
+}
+
 fn root_machine_field_layout_from_table_path<'path, 'layout>(
     layouts: &'layout LayoutPlan,
     entry_machine: SymbolHandle,

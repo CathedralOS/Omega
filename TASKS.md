@@ -108,6 +108,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
   - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
     - machine-owned targets:
       - `canaries/pass/calls/runtime_mutable_machine_owned_parameter_write_exit`
+      - `canaries/pass/calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit`
     - caller-local frame targets:
       - `canaries/pass/calls/runtime_mutable_local_parameter_write_compile`
       - `canaries/pass/calls/runtime_mutable_local_indexed_parameter_write_exit`
@@ -118,6 +119,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/run/runtime_dispatch_helper_local_alias_add_probe`
     - dynamic-indexed machine-owned mutable call arguments are still blocked by alias-write lowering:
       - `canaries/fail/calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_unimplemented`
+      - specifically the remaining blocked shape is machine-owned collection + machine-owned dynamic index like `&mut self.items[self.index]`; machine-owned collection + local frame index now runs
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.
