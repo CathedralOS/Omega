@@ -112,6 +112,7 @@ pub fn simplify_state_expression_for_role(
 #[derive(Debug, Clone)]
 struct Binding {
     symbol: SymbolHandle,
+    name: omega_checked_trees::name::Identifier,
     value: Expression,
 }
 
@@ -119,6 +120,7 @@ impl Default for Binding {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
+            name: omega_checked_trees::name::Identifier::generated_static(""),
             value: Expression::Integer(0),
         }
     }
@@ -160,9 +162,11 @@ impl<Parent: BindingScope + ?Sized> BindingScope for ScopedBindings<'_, Parent> 
 }
 
 fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
-    binding.symbol.is_valid()
-        && path.head_symbol().is_valid()
-        && binding.symbol == path.head_symbol()
+    if binding.symbol.is_valid() && path.head_symbol().is_valid() {
+        return binding.symbol == path.head_symbol();
+    }
+
+    path.first().is_some_and(|name| *name == binding.name)
 }
 
 fn simple_local_bindings(
@@ -204,6 +208,7 @@ fn simple_local_bindings(
         };
         bindings.insert(Binding {
             symbol: local_data.symbol,
+            name: local_data.name.clone(),
             value,
         });
     }
@@ -459,6 +464,7 @@ fn simplify_call_expression(
         for (parameter, argument) in parameters.iter().zip(simplified_arguments.iter()) {
             argument_bindings.insert(Binding {
                 symbol: parameter.symbol,
+                name: parameter.name.clone(),
                 value: argument.clone(),
             });
         }
@@ -539,6 +545,7 @@ fn simplify_helper_call_comparison(
     for (parameter, argument) in parameters.iter().zip(call.arguments.iter()) {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
+            name: parameter.name.clone(),
             value: simplify_expression_with_bindings(program, machine, argument, bindings, false),
         });
     }
@@ -748,6 +755,7 @@ fn expression_match_condition_with_stack(
     for (parameter, argument) in parameters.iter().zip(call.arguments.iter()) {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
+            name: parameter.name.clone(),
             value: argument.clone(),
         });
     }
@@ -810,6 +818,7 @@ fn helper_state_model(
                 );
                 local_bindings.insert(Binding {
                     symbol: local.symbol,
+                    name: local.name.clone(),
                     value,
                 });
             }
