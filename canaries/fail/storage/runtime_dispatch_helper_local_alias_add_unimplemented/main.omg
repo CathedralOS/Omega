@@ -23,7 +23,9 @@ machine Main::main(&mut self) {
     let from_index: usize = 0;
 
     self.append_exit(&mut rooms[from_index], 1);
-    -> main() when true;
+    transition {
+        true -> main()
+    }
 }
 
 machine Main::append_exit(

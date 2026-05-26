@@ -14,7 +14,9 @@ machine Main::main(&mut self) {
     self.bat_defeated = false;
     self.treasure_taken = false;
 
-    -> defeat_bat();
+    transition {
+        _ -> defeat_bat()
+    }
 
     state defeat_bat(&mut self) {
         self.bat_defeated = true;

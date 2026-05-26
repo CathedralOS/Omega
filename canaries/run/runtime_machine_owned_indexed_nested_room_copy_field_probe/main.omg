@@ -35,7 +35,9 @@ machine Main::main(&mut self) {
 
     self.copy = self.rooms[index];
 
-    -> check_description();
+    transition {
+        _ -> check_description()
+    }
 
     state check_description(&mut self) {
         transition self.copy.description == "deep room" {

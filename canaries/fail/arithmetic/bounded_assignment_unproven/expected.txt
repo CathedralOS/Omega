@@ -1,1 +1,1 @@
-cannot prove assignment value `500` satisfies bounded target `health`
+retired bounded proof surface; replace this canary with a requires/ensures-based proof failure before reactivating it

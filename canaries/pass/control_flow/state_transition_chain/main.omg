@@ -10,7 +10,9 @@ data Main {
 machine Main::main(&mut self) {
     self.console.write_line("first");
 
-    -> second();
+    transition {
+        _ -> second()
+    }
 
 
     state second() {

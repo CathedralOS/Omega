@@ -22,8 +22,10 @@ machine Main::main(&mut self) {
     self.event.kind = EventKind::Treasure;
     self.event.consumed = false;
 
-    -> describe_reward() when self.event.kind == EventKind::Treasure && self.event.consumed == false;
-    -> describe_quiet();
+    transition {
+        self.event.kind == EventKind::Treasure && self.event.consumed == false -> describe_reward()
+        _ -> describe_quiet()
+    }
     
 
     state describe_reward(&mut self) {

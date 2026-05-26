@@ -10,8 +10,9 @@ machine Main::main(
 ) {
     let room: Room = Room { exit_count: 1 };
 
-    -> append(room.exit_count) when room.exit_count > 0;
-    
+    transition {
+        room.exit_count > 0 -> append(room.exit_count)
+    }
 
     state append(
         &mut self,

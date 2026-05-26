@@ -21,6 +21,5 @@ machine Main::main(
 machine Main::pick(
     &mut self
     ) -> ItemKind {
-    -> ItemKind::DeepKey;
-    
+    ItemKind::DeepKey
 }

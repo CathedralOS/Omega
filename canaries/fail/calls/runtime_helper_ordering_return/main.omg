@@ -9,12 +9,12 @@ data Random {
 machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
-    -> ((state.seed >> 32) as u32);
+    ((state.seed >> 32) as u32)
 }
 
 machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) -> u32 {
     let raw: u32 = self.next_u32(state);
-    -> raw % exclusive_max;
+    raw % exclusive_max
 }
 
 machine Random::chance(
@@ -23,16 +23,17 @@ machine Random::chance(
     top: u32,
     bottom: u32
     ) -> bool {
-    -> self.range(state, bottom) < top;
+    self.range(state, bottom) < top
 }
 
 data Main {
 }
 
 machine Main::main(&mut self, random: &mut RandomState) {
-    -> success() when self.chance(random, 1, 4) == true;
-    -> failure();
-    
+    transition {
+        self.chance(random, 1, 4) == true -> success()
+        _ -> failure()
+    }
 
     state success(&mut self) {}
 

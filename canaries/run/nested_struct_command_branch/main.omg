@@ -21,23 +21,22 @@ data Parser {
 machine Parser::resolve_navigation(&mut self, line: &String) -> Navigation {
     let choice: Command = self.resolve_command(line);
 
-    -> self.resolve_exit() when choice == Command::Invalid;
-    -> self.navigation(choice, 0);
-    
-
-
+    transition {
+        choice == Command::Invalid -> self.resolve_exit()
+        _ -> self.navigation(choice, 0)
+    }
 }
 
 machine Parser::resolve_command(&mut self, line: &String) -> Command {
-    -> Command::Look when line == "look";
-    -> Command::Quit when line == "quit";
-    -> Command::Invalid;
-    
+    transition {
+        line == "look" -> Command::Look
+        line == "quit" -> Command::Quit
+        _ -> Command::Invalid
+    }
 }
 
 machine Parser::resolve_exit(&mut self) -> Navigation {
-    -> self.navigation(Command::Invalid, 99);
-    
+    self.navigation(Command::Invalid, 99)
 }
 
 machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {

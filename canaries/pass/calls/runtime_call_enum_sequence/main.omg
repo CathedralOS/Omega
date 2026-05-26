@@ -9,12 +9,12 @@ data Random {
 machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
-    -> ((state.seed >> 32) as u32);
+    ((state.seed >> 32) as u32)
 }
 
 machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) -> u32 {
     let raw: u32 = self.next_u32(state);
-    -> raw % exclusive_max;
+    raw % exclusive_max
 }
 
 enum ItemKind {
@@ -56,7 +56,8 @@ machine Main::pick(
     ) -> ItemKind {
     let roll: u32 = self.rng.range(random, 100);
 
-    -> ItemKind::DeepKey when depth >= 8 && roll < 96;
-    -> ItemKind::RustedDagger;
-    
+    transition {
+        depth >= 8 && roll < 96 -> ItemKind::DeepKey
+        _ -> ItemKind::RustedDagger
+    }
 }

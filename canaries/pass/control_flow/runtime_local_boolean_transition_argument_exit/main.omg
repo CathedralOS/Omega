@@ -12,7 +12,9 @@ machine Main::main(&mut self) {
 
     let flag_ok: bool = self.flag == false;
 
-    -> check(flag_ok);
+    transition {
+        _ -> check(flag_ok)
+    }
 
     state check(&mut self, flag_ok: bool) {
         transition flag_ok {

@@ -12,6 +12,5 @@ machine Main::main(
 machine Main::name(
     &mut self
     ) -> String {
-    -> "hello";
-    
+    "hello"
 }

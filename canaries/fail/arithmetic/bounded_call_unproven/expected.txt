@@ -1,1 +1,1 @@
-cannot prove call argument `health` satisfies bounded parameter `value`
+retired bounded proof surface; replace this canary with a requires/ensures-based proof failure before reactivating it

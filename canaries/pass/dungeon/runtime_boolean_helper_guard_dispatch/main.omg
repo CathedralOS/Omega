@@ -7,7 +7,9 @@ machine Main::main(&mut self) {
     self.room = 1;
     self.cleared = false;
 
-    -> enter_room();
+    transition {
+        _ -> enter_room()
+    }
 
     state enter_room(&mut self) {
         transition self.room {

@@ -18,6 +18,5 @@ machine Main::main(&mut self, flag: Flag) {
 }
 
 machine Main::pick(&mut self, flag: Flag) -> bool {
-    -> flag.value;
-    
+    flag.value
 }

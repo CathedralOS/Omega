@@ -14,7 +14,9 @@ machine Main::main(&mut self) {
     self.middle = true;
     self.right = true;
 
-    -> route();
+    transition {
+        _ -> route()
+    }
 
     state route(&mut self) {
         let ok: bool = self.left && self.middle && self.right;

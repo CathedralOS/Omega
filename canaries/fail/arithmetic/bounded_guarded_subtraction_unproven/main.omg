@@ -16,7 +16,7 @@ machine Main::main(
         level: u32,
         xp: u32
     ) -> u32 {
-        -> xp - cost(level);
+        xp - cost(level)
     }
 }
 
@@ -24,5 +24,5 @@ machine Main::cost(
     &mut self,
     level: u32
 ) -> u32 {
-    -> 10 + level * 5;
+    10 + level * 5
 }

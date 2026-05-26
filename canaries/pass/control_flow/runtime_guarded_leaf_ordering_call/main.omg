@@ -13,7 +13,8 @@ machine Main::main(&mut self, depth: u32, random: &mut RandomState, reward: &mut
 }
 
 machine Main::roll_item(&mut self, depth: u32, random: &mut RandomState) -> ItemKind {
-    -> ItemKind::DeepKey when depth > 0;
-    -> ItemKind::RustedDagger;
-    
+    transition {
+        depth > 0 -> ItemKind::DeepKey
+        _ -> ItemKind::RustedDagger
+    }
 }

@@ -5,9 +5,7 @@ use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
 };
 use crate::parser::statement::parse_statement_handle;
-use crate::parser::transition::{
-    parse_transition_block_handles, parse_transition_statement_handle,
-};
+use crate::parser::transition::parse_transition_block_handles;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -301,15 +299,9 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
 
     while !starts_machine_member(input) {
         if input.at_punctuation(PunctuationKind::Arrow) {
-            let next = input.take_punctuation(PunctuationKind::Arrow, "->")?;
-            let (statement, rest) = parse_transition_statement_handle(syntax_trees, next)?;
-            append_statement_handle(
-                syntax_trees,
-                &mut statement_start,
-                &mut statement_count,
-                statement,
-            );
-            input = rest;
+            return Err(input.error_here(
+                "machine entry bodies must use the `transition` keyword; bare `->` transitions are not supported",
+            ));
         } else if input.at_keyword(KeywordKind::Transition) || input.at_keyword(KeywordKind::Match)
         {
             let next = if input.at_keyword(KeywordKind::Transition) {

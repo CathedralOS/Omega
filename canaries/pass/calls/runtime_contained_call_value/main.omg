@@ -10,7 +10,7 @@ data Main {
 }
 
 machine Random::one(&mut self) -> i32 {
-    -> 1;
+    1
 }
 
 machine Main::main(

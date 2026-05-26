@@ -1872,6 +1872,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrows/borrow_same_fixed_index_mut",
     "borrows/borrow_same_fixed_index_slice_alias_mut",
     "borrows/borrow_unknown_index_pair_mut",
+    "control_flow/bare_machine_arrow_transition",
+    "control_flow/bare_state_arrow_transition",
     "domains/domain_import_cycle",
     "domains/domain_import_unknown",
     "domains/domain_import_wrong_target",
