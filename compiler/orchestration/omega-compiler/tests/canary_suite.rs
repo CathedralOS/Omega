@@ -1,10 +1,16 @@
 use omega_compiler::{CompileOptions, compile};
 use std::fs;
+#[cfg(not(windows))]
+use std::io::Write;
 #[cfg(windows)]
 use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(not(windows))]
+use std::process::Command;
 #[cfg(windows)]
 use std::process::Command;
+#[cfg(not(windows))]
+use std::process::Stdio;
 #[cfg(windows)]
 use std::process::Stdio;
 
@@ -79,7 +85,7 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Omega Dungeon"));
+    assert!(stdout.contains("Dungeon Crawler"));
     assert!(stdout.contains("A bottomless dark room near the dungeon heart."));
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -87,9 +93,7 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
 
 #[test]
 fn contract_canary_visualizes_flow_contract_summaries() {
-    let canary = repo_root()
-        .join("canaries/pass")
-        .join("contracts_domain_membership_surface");
+    let canary = pass_canary("domains/contracts_domain_membership_surface");
     let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-contract-canary-{}", std::process::id()));
@@ -156,9 +160,1104 @@ fn contract_canary_visualizes_flow_contract_summaries() {
 }
 
 #[test]
+fn runtime_direct_boolean_conjunction_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_direct_boolean_conjunction_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-direct-bool-conjunction-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime direct boolean conjunction canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime direct boolean conjunction canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(21),
+        "expected runtime direct boolean conjunction canary to route to ambush exit code 21, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn executable_domain_membership_expression_exit_canary_runs() {
+    let canary = pass_canary("domains/executable_domain_membership_expression_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-domain-membership-expression-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable domain membership expression canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable domain membership expression canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(81),
+        "expected executable domain membership expression canary to route to exit code 81, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn executable_imported_domain_membership_exit_canary_runs() {
+    let canary = pass_canary("domains/executable_imported_domain_membership_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-imported-domain-membership-expression-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable imported domain membership canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable imported domain membership canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(91),
+        "expected executable imported domain membership canary to route to exit code 91, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn executable_imported_domain_membership_guard_exit_canary_runs() {
+    let canary = pass_canary("domains/executable_imported_domain_membership_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-imported-domain-membership-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable imported domain membership guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable imported domain membership guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(81),
+        "expected executable imported domain membership guard canary to route to exit code 81, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_negated_boolean_place_guard_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_negated_boolean_place_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-negated-bool-place-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime negated boolean place guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime negated boolean place guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(73),
+        "expected runtime negated boolean place guard canary to route to exit code 73, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_boolean_or_guard_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_boolean_or_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-bool-or-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime boolean or guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime boolean or guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(71),
+        "expected runtime boolean or guard canary to route to exit code 71, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_negated_comparison_guard_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_negated_comparison_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-negated-comparison-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime negated comparison guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime negated comparison guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(75),
+        "expected runtime negated comparison guard canary to route to exit code 75, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_tuple_transition_exit_canary_runs() {
+    let canary = repo_root()
+        .join("canaries/pass")
+        .join("runtime_tuple_transition_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-tuple-transition-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime tuple transition canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime tuple transition canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(22),
+        "expected runtime tuple transition canary to route to tuple arm exit code 22, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_room_use_reentry_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_room_use_reentry_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-room-reentry-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime room use reentry canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime room use reentry canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(41),
+        "expected runtime room use reentry canary to route to spent-fountain exit code 41, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_enemy_clear_reentry_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_enemy_clear_reentry_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-enemy-reentry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime enemy clear reentry canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime enemy clear reentry canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(51),
+        "expected runtime enemy clear reentry canary to route to cleared-hall exit code 51, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_multi_room_reentry_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_multi_room_reentry_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-multi-room-reentry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime multi-room reentry canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime multi-room reentry canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(63),
+        "expected runtime multi-room reentry canary to preserve all three room flags and exit 63, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_slice_element_write_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_mutable_slice_element_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-slice-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable slice write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable slice write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(21),
+        "expected runtime mutable slice write canary to preserve alias mutation and exit 21, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_dispatch_mutable_slice_element_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dispatch-mutable-slice-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime dispatch mutable slice write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime dispatch mutable slice write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(31),
+        "expected runtime dispatch mutable slice write canary to preserve alias mutation and exit 31, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_index_read_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_index_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-slice-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice index read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice index read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(41),
+        "expected runtime slice index read canary to preserve dynamic slice reads and exit 41, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_index_read_dispatch_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_index_read_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-read-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime dispatch slice index read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime dispatch slice index read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(43),
+        "expected runtime dispatch slice index read canary to preserve dynamic slice reads and exit 43, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_index_copy_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_index_copy_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-slice-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice index copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice index copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(51),
+        "expected runtime slice index copy canary to preserve dynamic element copies and exit 51, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_index_copy_dispatch_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_index_copy_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-copy-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime dispatch slice index copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime dispatch slice index copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(61),
+        "expected runtime dispatch slice index copy canary to preserve dynamic element copies and exit 61, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_string_concat_membership_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_string_concat_membership_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-string-concat-membership-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime string concat membership canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime string concat membership canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(71),
+        "expected runtime string concat membership canary to preserve concat result and exit 71, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_string_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime string field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(73),
+        "expected runtime string field concat canary to preserve nested string writes and exit 73, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-alias-indexed-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice alias indexed string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice alias indexed string field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime slice alias indexed string field concat canary to preserve alias-based indexed string writes and exit 77, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_machine_owned_indexed_string_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-indexed-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned indexed string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned indexed string field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(81),
+        "expected runtime machine-owned indexed string field concat canary to preserve direct machine-owned indexed string writes and exit 81, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_machine_owned_indexed_integer_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-indexed-integer-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned indexed integer write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned indexed integer write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(79),
+        "expected runtime machine-owned indexed integer write canary to preserve direct machine-owned indexed writes and exit 79, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ordered_room_dispatch_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-ordered-room-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime ordered room dispatch canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime ordered room dispatch canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(73),
+        "expected runtime ordered room dispatch canary to route to ambush_clear exit code 73, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ordered_room_dispatch_after_call_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_after_call_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-ordered-room-dispatch-after-call-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime ordered room dispatch after call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime ordered room dispatch after call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(83),
+        "expected runtime ordered room dispatch after call canary to route to ambush_clear exit code 83, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ordered_room_dispatch_game_shape_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_game_shape_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-ordered-room-dispatch-game-shape-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime ordered room dispatch game-shape canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime ordered room dispatch game-shape canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(93),
+        "expected runtime ordered room dispatch game-shape canary to route to show_ambush_room exit code 93, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ordered_room_dispatch_large_machine_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_large_machine_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-ordered-room-dispatch-large-machine-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime ordered room dispatch large-machine canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime ordered room dispatch large-machine canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(103),
+        "expected runtime ordered room dispatch large-machine canary to route to show_ambush_room exit code 103, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_loop_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-ordered-room-dispatch-loop-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime ordered room dispatch loop canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("runtime ordered room dispatch loop canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"east\n")
+        .expect("loop canary input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("runtime ordered room dispatch loop canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(135),
+        "expected runtime ordered room dispatch loop canary to route to show_ambush_encounter exit code 135, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ordered_room_dispatch_real_show_states_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_real_show_states_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-ordered-room-dispatch-real-show-states-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime ordered room dispatch real-show-states canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("runtime ordered room dispatch real-show-states canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"east\n")
+        .expect("real show states canary input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("runtime ordered room dispatch real-show-states canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(145),
+        "expected runtime ordered room dispatch real-show-states canary to route to show_ambush_encounter exit code 145, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(not(windows))]
+#[test]
+fn native_dungeon_crawler_runs_stable_scripted_loop() {
+    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let main_path = sample.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-native-dungeon-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("native dungeon crawler should compile to a runnable executable");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("native dungeon crawler executable should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"east\nfight\neast\nuse\nwest\nwest\nnorth\nuse\nsouth\nhelp\nexit\n")
+        .expect("scripted dungeon input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("native dungeon crawler executable should finish");
+
+    assert!(
+        output.status.success(),
+        "generated native dungeon executable exited with {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Dungeon Crawler"));
+    assert!(stdout.contains("== Ambush Hall =="));
+    assert!(stdout.contains("The enemy collapses. You find a little gold."));
+    assert!(stdout.contains("== Treasure Vault =="));
+    assert!(stdout.contains("You take the treasure."));
+    assert!(stdout.contains("== Fountain Room =="));
+    assert!(stdout.contains("The fountain heals your wounds."));
+    assert!(stdout.contains("[Paths] north | east"));
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(not(windows))]
+#[test]
+fn native_dungeon_direct_enter_room_dispatch_runs() {
+    let source = repo_root().join("samples").join("dungeon_crawler_cli");
+    let package_dir = std::env::temp_dir().join(format!(
+        "omega-dungeon-direct-dispatch-{}",
+        std::process::id()
+    ));
+    let build_dir = package_dir.join("build");
+    let _ = fs::remove_dir_all(&package_dir);
+    copy_dir_recursive(&source, &package_dir).expect("sample package should copy into temp repro");
+
+    let game_path = package_dir.join("game").join("game.omg");
+    let original = fs::read_to_string(&game_path).expect("temp game.omg should be readable");
+    let patched = original.replace(
+        r#"    state enter_room(&mut self) {
+        self.dungeon.enter_room(self.current_room_index);
+
+        transition self.current_room_index {
+            0 -> show_gate_room()
+            1 -> enter_fountain_view()
+            2 -> enter_ambush_view()
+            _ -> enter_vault_view()
+        }
+    }
+
+    state enter_fountain_view(&mut self) {
+        -> show_spent_fountain_room() when self.fountain_used == true;
+        -> show_fountain_room();
+    }
+
+    state enter_ambush_view(&mut self) {
+        -> show_ambush_room() when self.bat_defeated == true;
+        -> show_ambush_encounter();
+    }
+
+    state enter_vault_view(&mut self) {
+        -> show_looted_vault_room() when self.treasure_taken == true;
+        -> show_vault_room();
+    }
+"#,
+        r#"    state enter_room(&mut self) {
+        self.dungeon.enter_room(self.current_room_index);
+
+        -> show_gate_room() when self.current_room_index == 0;
+        -> show_spent_fountain_room() when self.current_room_index == 1 && self.fountain_used == true;
+        -> show_fountain_room() when self.current_room_index == 1;
+        -> show_ambush_room() when self.current_room_index == 2 && self.bat_defeated == true;
+        -> show_ambush_encounter() when self.current_room_index == 2;
+        -> show_looted_vault_room() when self.current_room_index == 3 && self.treasure_taken == true;
+        -> show_vault_room();
+    }
+"#,
+    );
+    if original != patched {
+        fs::write(&game_path, patched).expect("patched temp game.omg should be writable");
+    }
+
+    compile(CompileOptions {
+        root_path: package_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("patched dungeon direct-dispatch repro should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("patched dungeon direct-dispatch repro should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"east\n")
+        .expect("repro input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("patched dungeon direct-dispatch repro should finish");
+
+    assert!(
+        output.status.success(),
+        "patched dungeon direct-dispatch repro exited with {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("== Ambush Hall =="),
+        "expected direct enter_room dispatch sample variant to reach Ambush Hall after 'east'; stdout was:\n{}",
+        stdout
+    );
+    assert!(
+        !stdout.contains("== Fountain Room =="),
+        "expected direct enter_room dispatch sample variant not to misroute into Fountain Room after 'east'; stdout was:\n{}",
+        stdout
+    );
+
+    let _ = fs::remove_dir_all(&package_dir);
+}
+
+#[test]
 fn pass_canaries_compile() {
     for canary_name in ACTIVE_PASS_CANARIES {
-        let canary = repo_root().join("canaries/pass").join(canary_name);
+        let canary = pass_canary(canary_name);
         let main_path = canary.join("main.omg");
         let options = CompileOptions {
             root_path: main_path.clone(),
@@ -184,7 +1283,7 @@ fn pass_canaries_compile() {
 #[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
-        let canary = repo_root().join("canaries/fail").join(canary_name);
+        let canary = fail_canary(canary_name);
         let main_path = canary.join("main.omg");
         let expected_path = canary.join("expected.txt");
         let expected_fragment = fs::read_to_string(&expected_path)
@@ -232,94 +1331,157 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn pass_canary(path: &str) -> PathBuf {
+    repo_root().join("canaries/pass").join(path)
+}
+
+fn fail_canary(path: &str) -> PathBuf {
+    repo_root().join("canaries/fail").join(path)
+}
+
+fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let destination = to.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir_recursive(&entry.path(), &destination)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), destination)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn executable_name() -> &'static str {
+    "omega-program.exe"
+}
+
+#[cfg(not(windows))]
+fn executable_name() -> &'static str {
+    "omega-program"
+}
+
 const ACTIVE_PASS_CANARIES: &[&str] = &[
-    "bounded_arithmetic_return",
-    "bounded_float_division",
-    "bounded_slice_index_max",
-    "bounded_literal_named_constraints",
-    "bounded_max_call",
-    "bounded_member_guard_transition",
-    "boundary_trait_effects_host_call",
-    "call_requires_preserved_across_imported_disjoint_mutation",
-    "call_requires_preserved_across_disjoint_mutation",
-    "composite_field_guard_dispatch",
-    "composite_range_guard_dispatch",
-    "contracts_domain_membership_surface",
-    "domain_import_valid",
-    "entry_surface_receiver_paths",
-    "exit_ensures_preserved_from_entry",
-    "local_alias_boolean_transfer",
-    "local_alias_domain_transfer",
-    "mutable_output_host_call",
-    "nested_machine_continuation",
-    "runtime_alias_integer_write",
-    "runtime_alias_field_integer",
-    "runtime_alias_field_binary",
-    "runtime_alias_string_write",
-    "runtime_alias_text_builder_write",
-    "runtime_arithmetic_guard",
-    "runtime_arithmetic_value",
-    "runtime_call_guard",
-    "runtime_branching_helper_guard",
-    "runtime_branching_helper_local_guard_value",
-    "runtime_branching_helper_string",
-    "runtime_branching_helper_struct",
-    "runtime_branching_helper_value",
-    "runtime_branch_enemy_reward_shape",
-    "runtime_call_value",
-    "runtime_call_enum_field_value",
-    "runtime_call_enum_field_with_args",
-    "runtime_call_enum_field_with_mut_arg",
-    "runtime_call_enum_sequence",
-    "runtime_call_enum_value",
-    "runtime_guarded_leaf_ordering_call",
-    "runtime_contained_call_value",
-    "runtime_contained_reward_table_roll_item",
-    "runtime_nested_branch_assignment_prelude_value",
-    "runtime_nested_branch_prelude_value",
-    "runtime_nested_branch_value",
-    "runtime_dispatch_helper_local_alias_add",
-    "runtime_dispatch_local_index_binary_write",
-    "runtime_indexed_alias_field_binary",
-    "runtime_indexed_text_builder_write",
-    "runtime_modulo_value",
-    "runtime_multi_assignment_value_calls",
-    "runtime_reward_table_roll_item_shape",
-    "runtime_text_storage",
-    "runtime_transition_subject_call_guard",
-    "runtime_transition_argument_call_value",
-    "std_option_storage_write",
-    "std_option_surface",
-    "trait_composition_satisfies",
-    "trait_declaration_bundle",
-    "trait_satisfies_machine_signature",
+    "traits/boundary_trait_effects_host_call",
+    "domains/call_requires_preserved_across_imported_disjoint_mutation",
+    "domains/call_requires_preserved_across_disjoint_mutation",
+    "domains/call_requires_domain_intersection_preserved",
+    "control_flow/composite_field_guard_dispatch",
+    "control_flow/composite_range_guard_dispatch",
+    "domains/contracts_domain_membership_surface",
+    "domains/executable_domain_membership_expression_exit",
+    "domains/executable_imported_domain_membership_exit",
+    "domains/executable_imported_domain_membership_guard_exit",
+    "domains/domain_intersection_contract_surface",
+    "domains/domain_import_valid",
+    "control_flow/entry_surface_receiver_paths",
+    "domains/exit_ensures_preserved_from_entry",
+    "borrows/borrow_disjoint_fixed_index_mut",
+    "borrows/local_alias_boolean_transfer",
+    "domains/local_alias_domain_transfer",
+    "calls/mutable_output_host_call",
+    "calls/nested_machine_continuation",
+    "storage/runtime_alias_integer_write",
+    "storage/runtime_alias_field_integer",
+    "storage/runtime_alias_field_binary",
+    "storage/runtime_machine_owned_indexed_integer_write_exit",
+    "text/runtime_alias_string_write",
+    "text/runtime_alias_text_builder_write",
+    "text/runtime_string_concat_membership_exit",
+    "text/runtime_string_field_concat_exit",
+    "text/runtime_machine_owned_indexed_string_field_concat_exit",
+    "text/runtime_slice_alias_indexed_string_field_concat_exit",
+    "arithmetic/runtime_arithmetic_guard",
+    "arithmetic/runtime_arithmetic_value",
+    "calls/runtime_call_guard",
+    "control_flow/runtime_branching_helper_guard",
+    "control_flow/runtime_branching_helper_local_guard_value",
+    "control_flow/runtime_branching_helper_string",
+    "control_flow/runtime_branching_helper_struct",
+    "control_flow/runtime_branching_helper_value",
+    "rewards/runtime_branch_enemy_reward_shape",
+    "calls/runtime_call_value",
+    "calls/runtime_call_enum_field_value",
+    "calls/runtime_call_enum_field_with_args",
+    "calls/runtime_call_enum_field_with_mut_arg",
+    "calls/runtime_call_enum_sequence",
+    "calls/runtime_call_enum_value",
+    "dungeon/runtime_boolean_helper_guard_dispatch",
+    "dungeon/runtime_direct_boolean_conjunction_dispatch",
+    "dungeon/runtime_direct_boolean_conjunction_exit",
+    "dungeon/runtime_enemy_clear_reentry_exit",
+    "dungeon/runtime_enemy_clear_reentry_guard",
+    "control_flow/runtime_guarded_leaf_ordering_call",
+    "dungeon/runtime_ordered_room_dispatch_after_call_exit",
+    "dungeon/runtime_ordered_room_dispatch_exit",
+    "dungeon/runtime_ordered_room_dispatch_game_shape_exit",
+    "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
+    "dungeon/runtime_ordered_room_dispatch_loop_exit",
+    "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
+    "calls/runtime_contained_call_value",
+    "rewards/runtime_contained_reward_table_roll_item",
+    "control_flow/runtime_nested_branch_assignment_prelude_value",
+    "control_flow/runtime_nested_branch_prelude_value",
+    "control_flow/runtime_nested_branch_value",
+    "storage/runtime_dispatch_helper_local_alias_add",
+    "storage/runtime_dispatch_local_index_binary_write",
+    "slices/runtime_dispatch_mutable_slice_element_write_compile",
+    "slices/runtime_dispatch_mutable_slice_element_write_exit",
+    "storage/runtime_indexed_alias_field_binary",
+    "text/runtime_indexed_text_builder_write",
+    "arithmetic/runtime_modulo_value",
+    "control_flow/runtime_multi_assignment_value_calls",
+    "control_flow/runtime_boolean_or_guard_exit",
+    "control_flow/runtime_negated_boolean_place_guard_exit",
+    "control_flow/runtime_negated_comparison_guard_exit",
+    "dungeon/runtime_multi_room_reentry_exit",
+    "slices/runtime_mutable_slice_element_write_compile",
+    "slices/runtime_mutable_slice_element_write_exit",
+    "slices/runtime_slice_index_copy_dispatch_exit",
+    "slices/runtime_slice_index_copy_exit",
+    "slices/runtime_slice_index_read_dispatch_exit",
+    "slices/runtime_slice_index_read_exit",
+    "rewards/runtime_reward_table_roll_item_shape",
+    "dungeon/runtime_room_use_reentry_guard",
+    "dungeon/runtime_room_use_reentry_exit",
+    "text/runtime_text_storage",
+    "calls/runtime_transition_subject_call_guard",
+    "calls/runtime_transition_argument_call_value",
+    "collections/std_option_storage_write",
+    "collections/std_option_surface",
+    "traits/trait_composition_satisfies",
+    "traits/trait_declaration_bundle",
+    "traits/trait_satisfies_machine_signature",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
-    "call_requires_invalidated_by_mutation",
-    "call_requires_unproven",
-    "exit_ensures_unproven",
-    "assign_immutable_parameter",
-    "borrow_duplicate_mut",
-    "borrow_helper_alias_active",
-    "borrow_local_alias_active",
-    "borrow_local_alias_reborrow_active",
-    "borrow_mut_and_read",
-    "borrow_mut_literal",
-    "bounded_guarded_increment_unproven",
-    "bounded_guarded_subtraction_unproven",
-    "bounded_index_max_unproven",
-    "bounded_match_guard_unproven",
-    "domain_import_cycle",
-    "domain_import_unknown",
-    "domain_import_wrong_target",
-    "domain_non_boolean_fact",
-    "runtime_helper_ordering_return",
-    "trait_composition_missing_requirement",
-    "trait_requirement_cycle",
-    "trait_requires_unknown",
-    "trait_satisfies_missing_machine",
-    "trait_satisfies_parameter_mismatch",
-    "trait_satisfies_unknown",
-    "trait_unknown_signature_type",
+    "domains/call_requires_invalidated_by_mutation",
+    "domains/call_requires_domain_intersection_invalidated_by_mutation",
+    "domains/call_requires_unproven",
+    "domains/exit_ensures_unproven",
+    "ownership/assign_immutable_parameter",
+    "borrows/borrow_duplicate_mut",
+    "borrows/borrow_helper_alias_active",
+    "borrows/borrow_local_alias_active",
+    "borrows/borrow_local_alias_reborrow_active",
+    "borrows/borrow_mut_and_read",
+    "borrows/borrow_mut_literal",
+    "borrows/borrow_same_fixed_index_mut",
+    "borrows/borrow_same_fixed_index_slice_alias_mut",
+    "borrows/borrow_unknown_index_pair_mut",
+    "domains/domain_import_cycle",
+    "domains/domain_import_unknown",
+    "domains/domain_import_wrong_target",
+    "domains/domain_non_boolean_fact",
+    "calls/runtime_helper_ordering_return",
+    "traits/trait_composition_missing_requirement",
+    "traits/trait_requirement_cycle",
+    "traits/trait_requires_unknown",
+    "traits/trait_satisfies_missing_machine",
+    "traits/trait_satisfies_parameter_mismatch",
+    "traits/trait_satisfies_unknown",
+    "traits/trait_unknown_signature_type",
 ];

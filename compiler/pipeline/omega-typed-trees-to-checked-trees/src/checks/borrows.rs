@@ -1,10 +1,12 @@
-use omega_checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
 use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 
 use crate::flow::statement_mutated_place;
 use crate::labels::{borrow_access_label, call_target_label, symbol_name};
-use crate::semantic_calls::{call_site_argument_expressions, find_call_site, find_state_in_machine};
+use crate::semantic_calls::{
+    call_site_argument_expressions, find_call_site, find_state_in_machine,
+};
 
 pub(crate) fn check_flow_call_borrows(
     program: &omega_typed_trees::TypedTrees,
@@ -41,7 +43,8 @@ fn check_statement_borrows(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(state) = find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
+    let Some(state) =
+        find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return;
     };
@@ -69,9 +72,12 @@ fn check_statement_borrows(
             .iter()
             .filter(|loan| loan.statement_index == statement.statement_index)
         {
-            for active_loan_handle in facts.flow.borrow_loan_constraints(statement.entry_constraints) {
+            for active_loan_handle in facts
+                .flow
+                .borrow_loan_constraints(statement.entry_constraints)
+            {
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
-                if !facts.borrow.loan_overlaps_loan(loan, active_loan) {
+                if !borrow_loan_overlaps_loan(program, facts, loan, active_loan) {
                     continue;
                 }
 
@@ -101,9 +107,12 @@ fn check_statement_borrows(
             continue;
         };
 
-        for loan_handle in facts.flow.borrow_loan_constraints(statement.entry_constraints) {
+        for loan_handle in facts
+            .flow
+            .borrow_loan_constraints(statement.entry_constraints)
+        {
             let loan = facts.borrow.loans.get(loan_handle);
-            if canonical_place_overlaps_loan(&mutated_place, loan, &facts.borrow) {
+            if canonical_place_overlaps_loan(program, &mutated_place, loan, &facts.borrow) {
                 diagnostics.push(Diagnostic::error(format!(
                     "statement {} mutates `{}` while local borrow `{}` is still active ({})",
                     statement.statement_index,
@@ -152,7 +161,7 @@ fn check_call_borrows(
         }
 
         for other_access in accesses.iter().skip(index + 1) {
-            if !facts.borrow.accesses_overlap(access, other_access) {
+            if !borrow_accesses_overlap(program, facts, access, other_access) {
                 continue;
             }
 
@@ -169,9 +178,13 @@ fn check_call_borrows(
         }
 
         for (loan_handle, loan) in &active_loans {
-            if facts.borrow.access_overlaps_loan(access, loan) {
-                let detail =
-                    active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
+            if borrow_access_overlaps_loan(program, facts, access, loan) {
+                let detail = active_loan_detail(
+                    state_flow,
+                    facts,
+                    *loan_handle,
+                    borrow_call.statement_index,
+                );
                 diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
                     borrow_access_label(program, &facts.borrow, access),
@@ -242,7 +255,10 @@ fn mutable_argument_root_name(
             match program.expression_table.expression(member.receiver) {
                 omega_checked_trees::expression::ExpressionNode::Name(path) => {
                     let members = program.expression_table.name_path_members(path.members);
-                    if members.first().is_some_and(|member_name| member_name.as_str() == "self") {
+                    if members
+                        .first()
+                        .is_some_and(|member_name| member_name.as_str() == "self")
+                    {
                         return Some(member.member.as_str().to_owned());
                     }
                 }
@@ -338,6 +354,7 @@ fn active_loan_detail(
 }
 
 fn canonical_place_overlaps_loan(
+    program: &omega_typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
     loan: &omega_checked_trees::BorrowLoanFact,
     borrow: &omega_checked_trees::BorrowFacts,
@@ -345,20 +362,21 @@ fn canonical_place_overlaps_loan(
     match place.root {
         omega_facts::PlaceRoot::Symbol(symbol) => {
             if symbol == loan.root_symbol {
-                return crate::flow::canonical_place_overlaps_segments(
+                return place_segments_may_overlap(
+                    program,
                     &place.segments,
                     borrow.loan_segments(loan),
                 );
             }
 
             match place.segments.split_first() {
-                Some((omega_facts::PlaceSegment::Field { symbol: field_symbol }, remaining))
-                    if *field_symbol == loan.root_symbol =>
-                {
-                    crate::flow::canonical_place_overlaps_segments(
-                        remaining,
-                        borrow.loan_segments(loan),
-                    )
+                Some((
+                    omega_facts::PlaceSegment::Field {
+                        symbol: field_symbol,
+                    },
+                    remaining,
+                )) if *field_symbol == loan.root_symbol => {
+                    place_segments_may_overlap(program, remaining, borrow.loan_segments(loan))
                 }
                 _ => false,
             }
@@ -369,6 +387,109 @@ fn canonical_place_overlaps_loan(
     }
 }
 
+fn borrow_accesses_overlap(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    left: &omega_checked_trees::BorrowArgumentAccessFact,
+    right: &omega_checked_trees::BorrowArgumentAccessFact,
+) -> bool {
+    left.root_symbol == right.root_symbol
+        && place_segments_may_overlap(
+            program,
+            facts.borrow.access_segments(left),
+            facts.borrow.access_segments(right),
+        )
+}
+
+fn borrow_access_overlaps_loan(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    access: &omega_checked_trees::BorrowArgumentAccessFact,
+    loan: &omega_checked_trees::BorrowLoanFact,
+) -> bool {
+    access.root_symbol == loan.root_symbol
+        && place_segments_may_overlap(
+            program,
+            facts.borrow.access_segments(access),
+            facts.borrow.loan_segments(loan),
+        )
+}
+
+fn borrow_loan_overlaps_loan(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    left: &omega_checked_trees::BorrowLoanFact,
+    right: &omega_checked_trees::BorrowLoanFact,
+) -> bool {
+    left.root_symbol == right.root_symbol
+        && place_segments_may_overlap(
+            program,
+            facts.borrow.loan_segments(left),
+            facts.borrow.loan_segments(right),
+        )
+}
+
+fn place_segments_may_overlap(
+    program: &omega_typed_trees::TypedTrees,
+    left: &[omega_facts::PlaceSegment],
+    right: &[omega_facts::PlaceSegment],
+) -> bool {
+    let shared_len = left.len().min(right.len());
+    left.iter()
+        .take(shared_len)
+        .zip(right.iter().take(shared_len))
+        .all(|(left_segment, right_segment)| {
+            place_segment_pair_may_overlap(program, *left_segment, *right_segment)
+        })
+}
+
+fn place_segment_pair_may_overlap(
+    program: &omega_typed_trees::TypedTrees,
+    left: omega_facts::PlaceSegment,
+    right: omega_facts::PlaceSegment,
+) -> bool {
+    match (left, right) {
+        (
+            omega_facts::PlaceSegment::Field {
+                symbol: left_symbol,
+            },
+            omega_facts::PlaceSegment::Field {
+                symbol: right_symbol,
+            },
+        ) => left_symbol == right_symbol,
+        (
+            omega_facts::PlaceSegment::Index {
+                expression: left_expression,
+            },
+            omega_facts::PlaceSegment::Index {
+                expression: right_expression,
+            },
+        ) => index_expressions_may_overlap(program, left_expression, right_expression),
+        _ => false,
+    }
+}
+
+fn index_expressions_may_overlap(
+    program: &omega_typed_trees::TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    if left == right {
+        return true;
+    }
+
+    match (
+        program.expression_table.expression(left),
+        program.expression_table.expression(right),
+    ) {
+        (
+            omega_checked_trees::expression::ExpressionNode::Integer(left_value),
+            omega_checked_trees::expression::ExpressionNode::Integer(right_value),
+        ) => left_value == right_value,
+        _ => true,
+    }
+}
+
 fn canonical_place_label(
     program: &omega_typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
@@ -376,7 +497,9 @@ fn canonical_place_label(
     let mut label = match place.root {
         omega_facts::PlaceRoot::Unknown => "<unknown>".to_owned(),
         omega_facts::PlaceRoot::Symbol(symbol) => symbol_name(program, symbol),
-        omega_facts::PlaceRoot::Expression(expression) => format!("expr#{}", expression.arena_index()),
+        omega_facts::PlaceRoot::Expression(expression) => {
+            format!("expr#{}", expression.arena_index())
+        }
         omega_facts::PlaceRoot::TypeReference(type_reference) => {
             format!("type#{}", type_reference.arena_index())
         }
