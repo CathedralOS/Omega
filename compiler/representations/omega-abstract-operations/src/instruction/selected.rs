@@ -343,6 +343,13 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         target_offset: usize,
     },
+    WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+    },
     ReadRuntimeTextLine {
         buffer: AbstractDataObjectHandle,
         target_region: RuntimeStorageRegion,

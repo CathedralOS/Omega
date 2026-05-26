@@ -97,6 +97,7 @@ pub enum MachineInstructionKind {
     RuntimeStorageAddressToRuntimeFrameWrite,
     RuntimePointeeAddressToRuntimeFrameWrite,
     RuntimeFrameIndexedAddressToRuntimeFrameWrite,
+    RuntimeFrameBaseIndexedAddressToRuntimeFrameWrite,
     RuntimeTextLineRead,
     RuntimeStorageCopy,
     RuntimeStorageCopyToRuntimeFrameIndexed,

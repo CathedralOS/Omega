@@ -1,0 +1,63 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    destination: u32;
+}
+
+data Room {
+    exits: [Exit; 4];
+    exit_count: u32;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let rooms: [Room; 1] = [Room {
+        exits: [
+            Exit { destination: 0 },
+            Exit { destination: 0 },
+            Exit { destination: 0 },
+            Exit { destination: 0 }
+        ],
+        exit_count: 0
+    }];
+    let from_index: usize = 0;
+
+    self.append_exit(&mut rooms[from_index], 1);
+
+    transition rooms[0].exit_count == 1 {
+        true -> check_destination(rooms[0].exits[0].destination)
+        false -> bad()
+    }
+
+    state check_destination(&mut self, destination: u32) {
+        transition destination == 1 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(182);
+    }
+}
+
+machine Main::append_exit(
+    &mut self,
+    room: &mut Room,
+    destination: u32
+) {
+    let exits: &mut [Exit] = room.exits.as_mut_slice();
+    let index: usize = room.exit_count;
+
+    exits[index] = Exit { destination: destination };
+    room.exit_count = index + 1;
+}

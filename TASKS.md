@@ -116,11 +116,12 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/calls/runtime_mutable_parameter_read_modify_write_exit`
       - `canaries/pass/calls/runtime_mutable_local_indexed_parameter_write_exit`
       - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_compile`
+      - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_exit`
       - `canaries/pass/storage/runtime_dispatch_local_index_binary_write_exit`
       - `canaries/pass/storage/runtime_slice_alias_indexed_field_write_exit`
-  - remaining runtime follow-up:
-    - `canaries/run/runtime_dispatch_helper_local_alias_add_probe`
-    - direct aliased read/modify/write like `room.exit_count = room.exit_count + 1` now runs, but helper-expanded local slice alias mutation still exits wrong and is the clearer remaining runtime seam
+  - helper-expanded local slice alias mutation now runs end-to-end:
+    - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_exit`
+    - direct aliased read/modify/write like `room.exit_count = room.exit_count + 1` and helper-expanded local slice alias mutation both run, so this storage seam is no longer open
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.

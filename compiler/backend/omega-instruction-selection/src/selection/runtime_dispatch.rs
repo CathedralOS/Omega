@@ -335,10 +335,11 @@ fn select_runtime_dispatch_local_initializer_write(
         copied_aliases.bindings(),
         expressions,
     );
+    let resolved_initializer_source_key = resolved_initializer.source_key;
     let resolved_initializer = simplify_runtime_local_initializer_handle(
         input,
         expressions,
-        resolved_initializer.source_key,
+        source_key,
         statement_index,
         resolved_initializer.expression,
     )
@@ -346,7 +347,7 @@ fn select_runtime_dispatch_local_initializer_write(
     let wrote_slice = writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
         dispatch_index,
-        source_key,
+        resolved_initializer_source_key,
         statement_index,
         expressions,
         slot,
@@ -359,7 +360,7 @@ fn select_runtime_dispatch_local_initializer_write(
     let direct_kind = writes::select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,
-        source_key,
+        resolved_initializer_source_key,
         statement_index,
         expressions,
         slot,
@@ -382,7 +383,7 @@ fn select_runtime_dispatch_local_initializer_write(
         dispatch_index,
         source_key,
         source_key,
-        source_key,
+        resolved_initializer_source_key,
         statement_index,
         expressions,
         target,

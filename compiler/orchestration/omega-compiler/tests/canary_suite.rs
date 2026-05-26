@@ -1577,6 +1577,39 @@ fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_dispatch_helper_local_alias_add_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dispatch-helper-local-alias-add-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime dispatch helper local alias add canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime dispatch helper local alias add canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(181),
+        "expected runtime dispatch helper local alias add canary to route to exit code 181, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -2319,6 +2352,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_dispatch_mutable_slice_element_write_compile",
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "storage/runtime_indexed_alias_field_binary",
+    "storage/runtime_dispatch_helper_local_alias_add_exit",
     "arithmetic/runtime_modulo_value",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",

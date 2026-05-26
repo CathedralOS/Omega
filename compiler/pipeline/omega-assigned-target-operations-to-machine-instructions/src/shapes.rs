@@ -379,6 +379,19 @@ pub(super) fn lower_machine_instruction_kind(
             *field_byte_offset,
             *target_offset,
         ),
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        } => runtime_storage::runtime_frame_base_indexed_address_to_runtime_frame_write_kind(
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,

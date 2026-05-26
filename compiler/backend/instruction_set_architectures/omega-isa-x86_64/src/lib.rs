@@ -31,6 +31,10 @@ pub fn return_register_integer_write_width() -> usize {
     5
 }
 
+pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usize {
+    0
+}
+
 pub fn encode_return_register_integer_write_bytes(
     byte_size: usize,
     value: i64,
