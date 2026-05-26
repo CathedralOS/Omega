@@ -1,0 +1,48 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    description: String;
+    exit_count: i32;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+    copy: Room;
+}
+
+machine Main::main(&mut self) {
+    let index: usize = 1;
+    self.rooms[index].description = "deep room";
+    self.rooms[index].exit_count = 2;
+    self.copy = self.rooms[index];
+
+    let copied_desc: bool = self.copy.description == "deep room";
+    let copied_count: bool = self.copy.exit_count == 2;
+
+    transition copied_desc {
+        true -> check_count(copied_count)
+        false -> bad_desc()
+    }
+
+    state check_count(&mut self, copied_count: bool) {
+        transition copied_count {
+            true -> good()
+            false -> bad_count()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(247);
+    }
+
+    state bad_desc(&mut self) {
+        self.console.exit_process(248);
+    }
+
+    state bad_count(&mut self) {
+        self.console.exit_process(249);
+    }
+}

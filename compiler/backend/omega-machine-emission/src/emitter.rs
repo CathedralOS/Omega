@@ -300,13 +300,13 @@ fn insert_fixed_machine_instruction_bytes(
             let bytes = omega_instruction_selection::encode_runtime_text_storage_compare_bytes(
                 emission_context.target.architecture,
                 *source_offset,
-                branch_distances::byte_distance_to_next_runtime_write_end_from_branch_offset(
+                branch_distances::byte_distance_to_next_guarded_effect_end(
                     emission_context,
                     laid_out_instructions,
                     machine_instruction_index,
                     40,
                 )?,
-                branch_distances::byte_distance_to_next_runtime_write_end_from_branch_offset(
+                branch_distances::byte_distance_to_next_guarded_effect_end(
                     emission_context,
                     laid_out_instructions,
                     machine_instruction_index,

@@ -357,6 +357,19 @@ fn select_runtime_dispatch_local_initializer_write(
     if wrote_slice {
         return;
     }
+    let wrote_text_comparison = writes::emit_runtime_frame_slot_text_comparison_write_in_table(
+        input,
+        dispatch_index,
+        resolved_initializer_source_key,
+        statement_index,
+        expressions,
+        slot,
+        resolved_initializer,
+        selected_instructions,
+    );
+    if wrote_text_comparison {
+        return;
+    }
     let direct_kind = writes::select_runtime_frame_slot_value_write_in_table(
         input,
         dispatch_index,
