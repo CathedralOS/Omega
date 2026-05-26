@@ -1,6 +1,5 @@
 data Main {
     value: i32;
-    flag: bool;
 }
 
 machine Main::inspect(flag: bool)
@@ -13,6 +12,6 @@ machine Main::main(&mut self)
 requires
     self.value > 0
 {
-    self.flag = self.value > 0;
-    self.inspect(self.flag);
+    let flag: bool = self.value > 0;
+    self.inspect(flag);
 }

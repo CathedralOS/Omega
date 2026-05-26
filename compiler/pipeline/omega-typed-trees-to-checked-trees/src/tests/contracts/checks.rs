@@ -188,6 +188,125 @@ fn accepts_requires_from_local_boolean_alias_transfer() {
 }
 
 #[test]
+fn accepts_requires_domain_union_when_left_branch_is_proven() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password in Password::Valid | Password::Secure
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.password in Password::Valid
+        {
+            self.accept(self.password);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("requires union should be provable when the left domain branch holds");
+}
+
+#[test]
+fn accepts_requires_domain_union_when_right_branch_is_proven() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password in Password::Valid | Password::Secure
+        {
+        }
+
+        machine Main::main(&mut self)
+        requires
+            self.password in Password::Secure
+        {
+            self.accept(self.password);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("requires union should be provable when the right domain branch holds");
+}
+
+#[test]
+fn rejects_unproven_requires_domain_union() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        domain Password::Secure {
+            self.score >= 8;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::accept(password: Password)
+        requires
+            password in Password::Valid | Password::Secure
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.accept(self.password);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("requires union should fail when neither domain branch is proven");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from Main::main")
+            && diagnostic
+                .message
+                .contains("password.length > 0 || password.score >= 8")
+    }));
+}
+
+#[test]
 fn exit_ensures_requirement_label_resolves_attached_data_members() {
     let source = r#"
         data Player {

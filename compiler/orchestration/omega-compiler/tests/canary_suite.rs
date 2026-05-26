@@ -2029,6 +2029,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_domain_intersection_preserved",
+    "domains/call_requires_domain_union_left_branch_preserved",
+    "domains/call_requires_domain_union_right_branch_preserved",
     "control_flow/composite_field_guard_dispatch",
     "control_flow/composite_range_guard_dispatch",
     "control_flow/runtime_local_boolean_or_value_exit",
@@ -2127,6 +2129,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/call_requires_invalidated_by_mutation",
     "domains/call_requires_domain_intersection_invalidated_by_mutation",
+    "domains/call_requires_domain_union_unproven",
     "domains/call_requires_unproven",
     "domains/exit_ensures_unproven",
     "ownership/assign_immutable_parameter",
