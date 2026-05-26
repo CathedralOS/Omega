@@ -6,8 +6,8 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{
-    resolve_machine_owned_collection_in_table, resolve_machine_owned_place,
-    resolve_machine_owned_place_in_table,
+    resolve_machine_owned_collection, resolve_machine_owned_collection_in_table,
+    resolve_machine_owned_place, resolve_machine_owned_place_in_table,
 };
 pub(super) use model::{
     RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget,
@@ -613,6 +613,48 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         expressions,
         indexed.suffix_root,
     )?;
+
+    Some(RuntimeMachineIndexedTarget {
+        base_byte_offset: collection.byte_offset,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
+pub(super) fn resolve_runtime_machine_indexed_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeMachineIndexedTarget> {
+    let indexed = indexed_target_path(expression)?;
+    let collection = resolve_machine_owned_collection(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        indexed.collection,
+    )?;
+    let index_place =
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
+    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+
+    let element_descriptor = collection.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) =
+        resolve_indexed_target_suffix_layout(input, &root_field, indexed.suffix_root)?;
 
     Some(RuntimeMachineIndexedTarget {
         base_byte_offset: collection.byte_offset,

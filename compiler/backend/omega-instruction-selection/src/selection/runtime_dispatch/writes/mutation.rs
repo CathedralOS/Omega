@@ -22,7 +22,8 @@ use super::super::super::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_assignment_value_call_result_place,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target,
+    resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
@@ -1456,6 +1457,38 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
+                    base_byte_offset: indexed_target.base_byte_offset,
+                    index_offset: indexed_target.index_offset,
+                    element_byte_size: indexed_target.element_byte_size,
+                    field_byte_offset: indexed_target.field_byte_offset,
+                    byte_size: indexed_target.byte_count,
+                    value,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+    }
+
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        if supports_scalar_integer_write(indexed_target.byte_count)
+            && let Some(value) = resolve_runtime_static_integer_value(
+                input,
+                operation_source_key,
+                value,
+                aliases,
+                alias_expressions,
+                static_values,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
                     base_byte_offset: indexed_target.base_byte_offset,
                     index_offset: indexed_target.index_offset,
                     element_byte_size: indexed_target.element_byte_size,

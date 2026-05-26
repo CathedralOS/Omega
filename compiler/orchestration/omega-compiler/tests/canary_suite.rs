@@ -1377,6 +1377,40 @@ fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs() {
+    let canary =
+        pass_canary("calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-machine-owned-local-indexed-parameter-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable machine-owned local indexed parameter write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable machine-owned local indexed parameter write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(173),
+        "expected runtime mutable machine-owned local indexed parameter write canary to preserve writes through machine-owned collection + local indexed mutable call parameters and exit 173, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
     let main_path = canary.join("main.omg");
@@ -2130,6 +2164,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_value",
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
+    "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
     "dungeon/runtime_boolean_helper_guard_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_exit",
