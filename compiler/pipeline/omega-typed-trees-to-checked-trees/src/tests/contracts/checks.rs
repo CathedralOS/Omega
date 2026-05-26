@@ -491,8 +491,9 @@ fn accepts_requires_scalar_member_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
-        .expect("scalar member requires should be provable from an enclosing preserved domain fact");
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "scalar member requires should be provable from an enclosing preserved domain fact",
+    );
 }
 
 #[test]

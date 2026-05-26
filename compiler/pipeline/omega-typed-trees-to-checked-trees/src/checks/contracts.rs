@@ -286,15 +286,15 @@ fn semantic_context_proves_instantiated_boolean_expression(
 
     match program.expression_table.expression(expression) {
         omega_typed_trees::expression::ExpressionNode::Mutable(inner) => {
-                semantic_context_proves_instantiated_boolean_expression(
-                    program,
-                    semantic,
-                    context,
-                    caller_state_symbol,
-                    statement_index,
-                    call_site,
-                    target_state,
-                    *inner,
+            semantic_context_proves_instantiated_boolean_expression(
+                program,
+                semantic,
+                context,
+                caller_state_symbol,
+                statement_index,
+                call_site,
+                target_state,
+                *inner,
             )
         }
         omega_typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {
@@ -400,15 +400,14 @@ fn direct_context_proves_instantiated_boolean_expression(
     target_state: &omega_typed_trees::state::State,
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let required_label =
-        instantiate_call_contract_expression_label(
-            program,
-            caller_state_symbol,
-            statement_index,
-            call_site,
-            target_state,
-            expression,
-        );
+    let required_label = instantiate_call_contract_expression_label(
+        program,
+        caller_state_symbol,
+        statement_index,
+        call_site,
+        target_state,
+        expression,
+    );
 
     semantic.context_view(context).facts().any(|fact| {
         let candidate_expression = match fact.payload {
