@@ -68,7 +68,8 @@ machine Main::roll_item(
     depth: u32,
     random: &mut RandomState
     ) -> ItemKind {
-    -> ItemKind::HealingCharm when depth > 1;
-    -> ItemKind::RustedDagger;
-    
+    transition {
+        depth > 1 -> ItemKind::HealingCharm
+        _ -> ItemKind::RustedDagger
+    }
 }

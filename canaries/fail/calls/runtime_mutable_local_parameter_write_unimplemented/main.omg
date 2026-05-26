@@ -10,7 +10,9 @@ machine Main::main(&mut self) {
     let from_index: usize = 0;
 
     self.bump(&mut rooms[from_index]);
-    -> main() when true;
+    transition {
+        true -> main()
+    }
 }
 
 machine Main::bump(&mut self, room: &mut Room) {

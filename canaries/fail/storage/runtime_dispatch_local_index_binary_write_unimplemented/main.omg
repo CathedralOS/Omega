@@ -11,5 +11,7 @@ machine Main::main(&mut self) {
 
     rooms[index].exit_count = rooms[index].exit_count + 1;
 
-    -> main() when true;
+    transition {
+        true -> main()
+    }
 }

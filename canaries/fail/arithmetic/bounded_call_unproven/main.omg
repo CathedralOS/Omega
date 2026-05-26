@@ -3,9 +3,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    wounded(self.health);
+    self.wounded(self.health);
+}
 
-
-    state wounded(value: i32) {
-    }
+machine Main::wounded(&mut self, value: i32) {
 }

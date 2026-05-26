@@ -5,8 +5,9 @@ machine Main::main(
     &mut self,
     branch_id: u32
 ) {
-    -> consume(branch_id + 1);
-    
+    transition {
+        _ -> consume(branch_id + 1)
+    }
 
     state consume(
         &mut self,

@@ -1,0 +1,1 @@
+machine entry bodies must use the `transition` keyword; bare `->` transitions are not supported

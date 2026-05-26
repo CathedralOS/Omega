@@ -7,7 +7,9 @@ machine Main::main(&mut self) {
     self.current_room = 1;
     self.fountain_used = false;
 
-    -> use_fountain();
+    transition {
+        _ -> use_fountain()
+    }
 
     state use_fountain(&mut self) {
         self.fountain_used = true;

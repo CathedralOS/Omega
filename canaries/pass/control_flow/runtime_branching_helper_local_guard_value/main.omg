@@ -9,12 +9,12 @@ data Random {
 machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
-    -> ((state.seed >> 32) as u32);
+    ((state.seed >> 32) as u32)
 }
 
 machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) -> u32 {
     let raw: u32 = self.next_u32(state);
-    -> raw % exclusive_max;
+    raw % exclusive_max
 }
 
 enum ItemKind {
@@ -55,11 +55,12 @@ machine Main::pick(
     let is_ember_blade: bool = depth >= 5 && roll < 96;
     let is_deep_key: bool = depth >= 8;
 
-    -> ItemKind::RustedDagger when is_early_dagger;
-    -> ItemKind::EarlyBuckler when is_early_buckler;
-    -> ItemKind::HealingCharm when is_healing_charm;
-    -> ItemKind::EmberBlade when is_ember_blade;
-    -> ItemKind::DeepKey when is_deep_key;
-    -> ItemKind::RustedDagger;
-    
+    transition {
+        is_early_dagger -> ItemKind::RustedDagger
+        is_early_buckler -> ItemKind::EarlyBuckler
+        is_healing_charm -> ItemKind::HealingCharm
+        is_ember_blade -> ItemKind::EmberBlade
+        is_deep_key -> ItemKind::DeepKey
+        _ -> ItemKind::RustedDagger
+    }
 }

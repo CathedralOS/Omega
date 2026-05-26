@@ -10,7 +10,7 @@ machine Random::chance(
     state: &mut Counter
     ) -> bool {
     state.calls = state.calls + 1;
-    -> state.calls > 0;
+    state.calls > 0
 }
 
 data Main {
@@ -19,9 +19,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    -> success() when self.rng.chance(&mut self.counter) == true;
-    -> failure();
-    
+    transition {
+        self.rng.chance(&mut self.counter) == true -> success()
+        _ -> failure()
+    }
 
     state success(&mut self) {}
 

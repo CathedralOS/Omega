@@ -31,12 +31,16 @@ machine Main::main(&mut self) {
     self.line.text = self.selected.label;
     self.console.write_line(self.line.text);
 
-    -> self();
+    transition {
+        _ -> self()
+    }
 
 
     state scan(cell: Cell, id: CellId, out_cell: &mut Cell) {
-        -> apply(cell, mut out_cell) when cell.id == id;
-        ->
+        transition {
+            cell.id == id -> apply(cell, mut out_cell)
+            _ -> {}
+        }
     }
 
     state apply(cell: Cell, out_cell: &mut Cell) {

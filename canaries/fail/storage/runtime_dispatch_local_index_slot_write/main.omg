@@ -13,5 +13,7 @@ machine Main::main(
 
     rooms[index].x = 1;
 
-    -> main() when true;
+    transition {
+        true -> main()
+    }
 }

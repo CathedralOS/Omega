@@ -8,13 +8,15 @@ machine Main::main(&mut self) {
 }
 
 machine Main::pick(&mut self, flag: bool) -> u32 {
-    -> self.branch(flag) when flag;
-    -> 0;
-    
+    transition {
+        flag -> self.branch(flag)
+        _ -> 0
+    }
 }
 
 machine Main::branch(&mut self, flag: bool) -> u32 {
-    -> 1 when flag;
-    -> 2;
-    
+    transition {
+        flag -> 1
+        _ -> 2
+    }
 }

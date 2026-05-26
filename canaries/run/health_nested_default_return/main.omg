@@ -18,14 +18,11 @@ data Parser {
 
 machine Parser::resolve_navigation(&mut self) -> Navigation {
     let choice: Command = self.resolve_command();
-    -> self.navigation(choice, 0);
-    
-
+    self.navigation(choice, 0)
 }
 
 machine Parser::resolve_command(&mut self) -> Command {
-    -> Command::Invalid;
-    
+    Command::Invalid
 }
 
 machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {

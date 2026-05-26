@@ -1,0 +1,9 @@
+data Main {
+}
+
+machine Main::main(&mut self) {
+    -> finished();
+
+    state finished(&mut self) {
+    }
+}

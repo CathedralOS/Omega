@@ -14,9 +14,11 @@ data Parser {
 }
 
 machine Parser::resolve(&mut self, line: &String) -> Command {
-    -> Command::Look when line == "look";
-    -> Command::Quit when line == "quit";
-    -> Command::Invalid;
+    transition {
+        line == "look" -> Command::Look
+        line == "quit" -> Command::Quit
+        _ -> Command::Invalid
+    }
 }
 
 data Main {

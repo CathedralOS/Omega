@@ -3,7 +3,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    -> wounded(self.health);
+    transition {
+        _ -> wounded(self.health)
+    }
 
 
     state wounded(value: i32) {

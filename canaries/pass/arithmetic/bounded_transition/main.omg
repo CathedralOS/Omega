@@ -3,8 +3,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    -> wounded(self.health) when self.health < 50;
-    -> healthy();
+    transition {
+        self.health < 50 -> wounded(self.health)
+        _ -> healthy()
+    }
 
 
     state wounded(value: i32) {

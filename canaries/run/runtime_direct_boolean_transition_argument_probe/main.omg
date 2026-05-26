@@ -10,7 +10,9 @@ data Main {
 machine Main::main(&mut self) {
     self.flag = false;
 
-    -> check(self.flag == false);
+    transition {
+        _ -> check(self.flag == false)
+    }
 
     state check(&mut self, flag_ok: bool) {
         transition flag_ok {

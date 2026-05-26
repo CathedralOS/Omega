@@ -10,6 +10,6 @@ machine Main::main(
         &mut self,
         raw: u32
     ) {
-        -> Real::from(raw) / Real::from(u32::MAX);
+        Real::from(raw) / Real::from(u32::MAX)
     }
 }

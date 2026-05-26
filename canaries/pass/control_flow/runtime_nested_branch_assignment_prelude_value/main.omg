@@ -9,18 +9,19 @@ machine Main::main(&mut self) {
 
 machine Main::pick(&mut self, flag: bool) -> u32 {
     let choice: bool = self.identity(flag);
-    -> self.branch(choice) when choice;
-    -> 0;
-    
+    transition {
+        choice -> self.branch(choice)
+        _ -> 0
+    }
 }
 
 machine Main::identity(&mut self, flag: bool) -> bool {
-    -> flag;
-    
+    flag
 }
 
 machine Main::branch(&mut self, flag: bool) -> u32 {
-    -> 1 when flag;
-    -> 2;
-    
+    transition {
+        flag -> 1
+        _ -> 2
+    }
 }
