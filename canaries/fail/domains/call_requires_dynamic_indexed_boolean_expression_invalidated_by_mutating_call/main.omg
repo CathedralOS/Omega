@@ -1,0 +1,36 @@
+data Item {
+    value: i32;
+    tag: i32;
+}
+
+domain Item::Valid {
+    self.value > 0;
+}
+
+data Main {
+    items: [Item; 2];
+    index: usize;
+}
+
+machine Main::mark_valid(&mut self, item: &mut Item)
+ensures
+    item in Item::Valid
+{
+    item.value = 12;
+}
+
+machine Main::break_valid(&mut self, item: &mut Item) {
+    item.value = 0;
+}
+
+machine Main::accept(item: Item)
+requires
+    item.value > 0
+{
+}
+
+machine Main::main(&mut self) {
+    self.mark_valid(&mut self.items[self.index]);
+    self.break_valid(&mut self.items[self.index]);
+    self.accept(self.items[self.index]);
+}
