@@ -1,11 +1,23 @@
 data Main {
 }
 
-machine Main::main(
+machine Main::next_room_count(
     &mut self,
     room_count: usize,
-    rooms: [u32; 16],
     index: usize
 ) -> usize {
     max(room_count, index + 1)
+}
+
+machine Main::main(&mut self) {
+    let rooms: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let room_count: usize = 1;
+    let index: usize = 0;
+    let next_count: usize = self.next_room_count(room_count, index);
+    let room_value: u32 = rooms[index];
+
+    transition (next_count, room_value) {
+        (1, 0) -> {}
+        _ -> {}
+    }
 }

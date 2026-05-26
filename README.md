@@ -29,7 +29,7 @@ Omega is exploring these core ideas:
 - Process entry is currently expressed as `machine main` with `pub entry(...)`, often alongside `data main` for owned root data.
 - Machines can expose both `pub entry(...)` callable entry surfaces and `state ...` graph nodes.
 - States prefer straight-line work. Ordered `transition { ... }` tables handle branch handoff.
-- Transition rows use `_ -> target()` for unconditional/default flow and `condition -> target()` for guarded flow.
+- Transition rows live inside a trailing `transition { ... }` block, using `_ -> target()` for unconditional/default flow and `condition -> target()` for guarded flow.
 - `-> expr;` is the expression-style terminal return form used by helper machines and value-returning states.
 - Nested machine flow can be expressed as machine calls in straight-line code or as continuation-style transition handoff.
 - Callable machine entries like `entry helper(...)` create frame/return semantics; `state ...` stays graph handoff.

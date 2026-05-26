@@ -1,0 +1,1 @@
+explicit state bodies must use the `transition` keyword

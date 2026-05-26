@@ -5,6 +5,17 @@ data Room {
 data Main {
 }
 
-machine Main::main(&mut self, rooms: &mut [Room], index: usize, suffix: String) {
+machine Main::append_description_at(
+    &mut self,
+    rooms: &mut [Room],
+    index: usize,
+    suffix: String
+) {
     rooms[index].description = "prefix " + suffix;
+}
+
+machine Main::main(&mut self) {
+    let rooms: [Room; 1] = [Room { description: "" }];
+    let room_slice: &mut [Room] = rooms.as_mut_slice();
+    self.append_description_at(&mut room_slice, 0, "omega");
 }

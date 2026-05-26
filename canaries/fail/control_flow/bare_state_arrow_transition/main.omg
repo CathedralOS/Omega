@@ -1,0 +1,10 @@
+machine Main::main(&mut self) {
+    transition { _ -> running() }
+
+    state running(&mut self) {
+        -> finished();
+    }
+
+    state finished(&mut self) {
+    }
+}

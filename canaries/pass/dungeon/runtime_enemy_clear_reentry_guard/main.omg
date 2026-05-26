@@ -11,18 +11,24 @@ machine Main::main(&mut self) {
 
     state defeat_bat(&mut self) {
         self.bat_defeated = true;
-        -> retreat_to_gate();
+        transition {
+            _ -> retreat_to_gate()
+        }
     }
 
     state retreat_to_gate(&mut self) {
         self.current_room = 0;
-        -> reenter_ambush();
+        transition {
+            _ -> reenter_ambush()
+        }
     }
 
     state reenter_ambush(&mut self) {
         self.current_room = 2;
-        -> show_cleared_hall() when self.current_room == 2 && self.bat_defeated == true;
-        -> show_blocked_hall();
+        transition (self.current_room, self.bat_defeated) {
+            (2, true) -> show_cleared_hall()
+            _ -> show_blocked_hall()
+        }
     }
 
     state show_cleared_hall(&mut self) {}

@@ -17,15 +17,19 @@ machine Main::main(&mut self) {
     }
 
     state enter_room_view(&mut self) {
-        -> show_cleared() when self.cleared == true;
-        -> show_blocked();
+        transition self.cleared == true {
+            true -> show_cleared()
+            false -> show_blocked()
+        }
     }
 
     state show_cleared(&mut self) {}
 
     state show_blocked(&mut self) {
         self.cleared = true;
-        -> enter_room();
+        transition {
+            _ -> enter_room()
+        }
     }
 
     state done(&mut self) {}

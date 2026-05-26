@@ -1798,7 +1798,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_dispatch_mutable_slice_element_write_compile",
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "storage/runtime_indexed_alias_field_binary",
-    "text/runtime_indexed_text_builder_write",
     "arithmetic/runtime_modulo_value",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
