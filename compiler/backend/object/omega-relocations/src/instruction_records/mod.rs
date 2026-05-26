@@ -221,6 +221,36 @@ pub(super) fn collect_instruction_relocations(
                 *right,
             );
         }
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            left,
+            right,
+            ..
+        } => {
+            let symbol = context.runtime_frame_symbol_handle();
+            context.insert_data_address_at_instruction_start(symbol);
+            let left_offset = context.selected_text_offset
+                + omega_instruction_selection::runtime_frame_base_indexed_integer_write_width(
+                    input.target.architecture,
+                    *base_byte_offset,
+                    *element_byte_size,
+                    *field_byte_offset,
+                    0,
+                );
+            collect_runtime_value_operand_relocations(&mut context, left_offset, *left);
+            let left_width = omega_instruction_selection::runtime_value_operand_width(
+                input.target.architecture,
+                input.assigned_target_operations,
+                *left,
+            );
+            collect_runtime_value_operand_relocations(
+                &mut context,
+                left_offset + left_width,
+                *right,
+            );
+        }
         SelectedInstructionKind::WriteRuntimeMachineString { data, .. } => {
             let data_symbol = context.data_object_symbol_handle(*data);
             context.insert_data_address_at_instruction_start(data_symbol);

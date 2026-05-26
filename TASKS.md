@@ -113,13 +113,13 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - caller-local frame targets:
       - `canaries/pass/calls/runtime_mutable_local_parameter_write_compile`
       - `canaries/pass/calls/runtime_mutable_local_parameter_write_exit`
+      - `canaries/pass/calls/runtime_mutable_parameter_read_modify_write_exit`
       - `canaries/pass/calls/runtime_mutable_local_indexed_parameter_write_exit`
       - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_compile`
       - `canaries/pass/storage/runtime_dispatch_local_index_binary_write_exit`
   - remaining runtime follow-up:
     - `canaries/run/runtime_dispatch_helper_local_alias_add_probe`
-  - remaining lowering gap pinned honestly:
-    - `canaries/fail/calls/runtime_mutable_parameter_read_modify_write_unimplemented`
+    - direct aliased read/modify/write like `room.exit_count = room.exit_count + 1` now runs, but helper-expanded local slice alias mutation still exits wrong and is the clearer remaining runtime seam
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.

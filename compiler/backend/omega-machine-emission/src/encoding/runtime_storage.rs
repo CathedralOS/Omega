@@ -368,6 +368,33 @@ pub(super) fn encode_runtime_frame_indexed_binary_write(
     )
 }
 
+pub(super) fn encode_runtime_frame_base_indexed_binary_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
+    architecture::encode_runtime_frame_base_indexed_binary_write(
+        input.target.architecture,
+        input.assigned_target_operations,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub(super) fn encode_runtime_machine_string_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,

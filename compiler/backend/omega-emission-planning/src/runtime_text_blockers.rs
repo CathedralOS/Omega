@@ -101,8 +101,10 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }

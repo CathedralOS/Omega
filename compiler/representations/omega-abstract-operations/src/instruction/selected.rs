@@ -289,6 +289,16 @@ pub enum AbstractOperationKind {
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
     },
+    WriteRuntimeFrameBaseIndexedBinary {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: AbstractValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AbstractValueOperandHandle,
+    },
     WriteRuntimeMachineString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,

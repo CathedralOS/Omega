@@ -130,8 +130,12 @@ fn normalize_runtime_mutation_expression(
         statement_index,
         &first.expression,
     );
-    let second =
-        resolve_runtime_alias_binding(&first_simplified, first.source_key, aliases, alias_expressions);
+    let second = resolve_runtime_alias_binding(
+        &first_simplified,
+        first.source_key,
+        aliases,
+        alias_expressions,
+    );
     let second_simplified = simplify_runtime_expression_with_state_locals(
         input,
         second.source_key,
@@ -143,6 +147,25 @@ fn normalize_runtime_mutation_expression(
         source_key: second.source_key,
         expression: second_simplified,
     }
+}
+
+fn resolve_runtime_mutation_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+) -> super::super::super::bindings::RuntimeResolvedExpression {
+    if resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression).is_some()
+    {
+        return super::super::super::bindings::RuntimeResolvedExpression {
+            source_key,
+            expression: expression.clone(),
+        };
+    }
+
+    resolve_runtime_alias_binding(expression, source_key, aliases, alias_expressions)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -162,10 +185,10 @@ pub(super) fn select_runtime_mutation_writes(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let resolved_target = normalize_runtime_mutation_expression(
+    let resolved_target = resolve_runtime_mutation_target(
         input,
+        dispatch_index,
         source_key,
-        statement_index,
         target,
         aliases,
         alias_expressions,
@@ -1713,6 +1736,26 @@ fn select_runtime_binary_mutation_write(
             operator,
             right,
         });
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+                left,
+                operator,
+                right,
+            },
+        );
     }
 
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(

@@ -274,6 +274,25 @@ pub fn runtime_frame_indexed_binary_write_width(
         + runtime_result_write_width(byte_size)
 }
 
+pub fn runtime_frame_base_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    20 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + runtime_binary_operation_width(operator)
+        + runtime_result_write_width(byte_size)
+}
+
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }

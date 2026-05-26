@@ -546,6 +546,22 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *right),
             )
         }
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => {
+            format!(
+                "write runtime-frame base indexed binary base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
+                runtime_value_operand_name(backend_plan, *left),
+                runtime_value_operand_name(backend_plan, *right),
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             data,
