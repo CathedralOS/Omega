@@ -44,8 +44,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation`
   Remaining gap:
   - keep extending confidence on other multi-edge/full-package dispatch shapes
-  - continue strengthening dynamic indexed mutation and richer nested storage updates for generator-style code
-  - close the remaining runtime gap for richer nested/indexed room-storage writes beyond the now-covered slice read/copy ladder, which still blocks the more generic dungeon sample path
+  - continue strengthening richer nested storage updates for generator-style code
+  - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.

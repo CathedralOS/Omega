@@ -184,6 +184,28 @@ pub fn encode_runtime_frame_indexed_integer_write(
     }
 }
 
+pub fn encode_runtime_machine_indexed_integer_write(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_indexed_integer_write(
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
 pub fn encode_runtime_frame_indexed_binary_write(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
@@ -254,6 +276,26 @@ pub fn encode_runtime_frame_indexed_string_write(
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_frame_indexed_string_write(
             descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        ),
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
+pub fn encode_runtime_machine_indexed_string_write(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_indexed_string_write(
+            base_byte_offset,
             index_offset,
             element_byte_size,
             field_byte_offset,
@@ -370,6 +412,78 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
             aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
                 descriptor_offset,
                 element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
+pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
+pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+                base_byte_offset,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,

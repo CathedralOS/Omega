@@ -6,8 +6,8 @@ mod runtime_text;
 use omega_assigned_target_operations::{
     AssignedValueHomeKind, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_core::arena::Handle;
+use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn lower_machine_instruction_kind(
@@ -15,7 +15,11 @@ pub(super) fn lower_machine_instruction_kind(
     selected_instruction_handle: Handle<omega_assigned_target_operations::SelectedInstruction>,
     kind: &SelectedInstructionKind,
 ) -> Result<MachineInstructionKind, Diagnostic> {
-    ensure_runtime_value_homes(assigned_target_operations, selected_instruction_handle, kind)?;
+    ensure_runtime_value_homes(
+        assigned_target_operations,
+        selected_instruction_handle,
+        kind,
+    )?;
     Ok(match kind {
         SelectedInstructionKind::HostOperation { operation_key, .. } => {
             host::host_operation_kind(*operation_key)
@@ -236,6 +240,21 @@ pub(super) fn lower_machine_instruction_kind(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => runtime_storage::runtime_machine_indexed_integer_write_kind(
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
             descriptor_offset,
             index_offset,
@@ -282,6 +301,20 @@ pub(super) fn lower_machine_instruction_kind(
             *field_byte_offset,
             *byte_length,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+            ..
+        } => runtime_storage::runtime_machine_indexed_string_write_kind(
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_length,
+        ),
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             source_offset,
             target_offset,
@@ -310,11 +343,9 @@ pub(super) fn lower_machine_instruction_kind(
             target_offset,
             byte_count,
             ..
-        } => runtime_storage::runtime_storage_copy_kind(
-            *source_offset,
-            *target_offset,
-            *byte_count,
-        ),
+        } => {
+            runtime_storage::runtime_storage_copy_kind(*source_offset, *target_offset, *byte_count)
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
             source_offset,
             descriptor_offset,
@@ -347,6 +378,22 @@ pub(super) fn lower_machine_instruction_kind(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::runtime_storage_copy_from_runtime_frame_indexed_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
             descriptor_offset,
             element_index,
@@ -358,6 +405,38 @@ pub(super) fn lower_machine_instruction_kind(
         } => runtime_storage::runtime_storage_copy_from_runtime_frame_fixed_indexed_kind(
             *descriptor_offset,
             *element_index,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::runtime_storage_copy_from_runtime_frame_fixed_indexed_kind(
+            *descriptor_offset,
+            *element_index,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::runtime_storage_copy_from_runtime_machine_indexed_kind(
+            *base_byte_offset,
+            *index_offset,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,
@@ -395,18 +474,21 @@ fn ensure_runtime_value_homes(
     selected_instruction_handle: Handle<omega_assigned_target_operations::SelectedInstruction>,
     kind: &SelectedInstructionKind,
 ) -> Result<(), Diagnostic> {
-    let selected_instruction = assigned_target_operations.instructions.get(selected_instruction_handle);
-    for handle in [first_runtime_value_handle(kind), second_runtime_value_handle(kind)]
-        .into_iter()
-        .flatten()
+    let selected_instruction = assigned_target_operations
+        .instructions
+        .get(selected_instruction_handle);
+    for handle in [
+        first_runtime_value_handle(kind),
+        second_runtime_value_handle(kind),
+    ]
+    .into_iter()
+    .flatten()
     {
         let home_handle = assigned_target_operations.runtime_value_home_handle(handle);
         if !home_handle.is_valid() {
             return Err(Diagnostic::error(format!(
                 "missing assigned value home for {:?} in {:?} statement {}",
-                handle,
-                selected_instruction.source_key,
-                selected_instruction.source_statement
+                handle, selected_instruction.source_key, selected_instruction.source_statement
             )));
         }
         let home = assigned_target_operations
@@ -423,9 +505,7 @@ fn ensure_runtime_value_homes(
         {
             return Err(Diagnostic::error(format!(
                 "binary runtime value {:?} in {:?} statement {} must lower through a scratch register home",
-                handle,
-                selected_instruction.source_key,
-                selected_instruction.source_statement
+                handle, selected_instruction.source_key, selected_instruction.source_statement
             )));
         }
     }

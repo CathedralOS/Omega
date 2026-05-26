@@ -101,19 +101,24 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                        | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
+                        | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
+                        | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
-        })
+            })
 }
 
 fn runtime_transition_arguments_are_materialized(
@@ -296,10 +301,13 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::CopyRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
+                        | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
-        })
+            })
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {

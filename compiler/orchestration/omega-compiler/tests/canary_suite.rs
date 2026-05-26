@@ -882,6 +882,72 @@ fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_machine_owned_fixed_indexed_struct_copy_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-fixed-indexed-struct-copy-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned fixed indexed struct copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned fixed indexed struct copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(83),
+        "expected runtime machine-owned fixed indexed struct copy canary to preserve direct fixed-index machine-owned copies and exit 83, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_machine_owned_indexed_struct_copy_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-machine-owned-indexed-struct-copy-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime machine-owned indexed struct copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime machine-owned indexed struct copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(85),
+        "expected runtime machine-owned indexed struct copy canary to preserve direct indexed machine-owned copies and exit 85, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_ordered_room_dispatch_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_exit");
     let main_path = canary.join("main.omg");
@@ -1389,7 +1455,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/runtime_alias_integer_write",
     "storage/runtime_alias_field_integer",
     "storage/runtime_alias_field_binary",
+    "storage/runtime_machine_owned_fixed_indexed_struct_copy_exit",
     "storage/runtime_machine_owned_indexed_integer_write_exit",
+    "storage/runtime_machine_owned_indexed_struct_copy_exit",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",

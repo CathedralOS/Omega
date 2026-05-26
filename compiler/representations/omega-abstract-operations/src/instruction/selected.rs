@@ -1,6 +1,4 @@
-use crate::{
-    AbstractDataObjectHandle, InstructionOperand, StateGuardLowering, StateGuardOperator,
-};
+use crate::{AbstractDataObjectHandle, InstructionOperand, StateGuardLowering, StateGuardOperator};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 use std::sync::Arc;
@@ -250,6 +248,14 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeMachineIndexedInteger {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeFrameIndexedBinary {
         descriptor_offset: usize,
         index_offset: usize,
@@ -273,6 +279,14 @@ pub enum AbstractOperationKind {
     },
     WriteRuntimeFrameIndexedString {
         descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        data: AbstractDataObjectHandle,
+        byte_length: usize,
+    },
+    WriteRuntimeMachineIndexedString {
+        base_byte_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
@@ -319,11 +333,38 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    CopyRuntimeFrameIndexedToRuntimeStorage {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeFrameFixedIndexedToRuntimeFrame {
         descriptor_offset: usize,
         element_index: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+        descriptor_offset: usize,
+        element_index: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimeMachineIndexedToRuntimeStorage {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_count: usize,
     },

@@ -1,7 +1,9 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use crate::layout::LaidOutMachineInstruction;
-use omega_assigned_target_operations::{RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator};
+use omega_assigned_target_operations::{
+    RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 
@@ -245,6 +247,26 @@ pub(super) fn encode_runtime_frame_indexed_integer_write(
     )
 }
 
+pub(super) fn encode_runtime_machine_indexed_integer_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_indexed_integer_write(
+        input.target.architecture,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        value,
+    )
+}
+
 pub(super) fn encode_runtime_frame_indexed_binary_write(
     input: MachineEmissionContext<'_>,
     descriptor_offset: usize,
@@ -309,6 +331,24 @@ pub(super) fn encode_runtime_frame_indexed_string_write(
     architecture::encode_runtime_frame_indexed_string_write(
         input.target.architecture,
         descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    )
+}
+
+pub(super) fn encode_runtime_machine_indexed_string_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_indexed_string_write(
+        input.target.architecture,
+        base_byte_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -409,6 +449,66 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
         input.target.architecture,
         descriptor_offset,
         element_index,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+        input.target.architecture,
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+        input.target.architecture,
+        base_byte_offset,
+        index_offset,
         element_byte_size,
         field_byte_offset,
         target_offset,

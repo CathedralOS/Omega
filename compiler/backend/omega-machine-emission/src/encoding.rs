@@ -4,8 +4,8 @@ mod runtime_text;
 
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
-use omega_core::diagnostics::Diagnostic;
 use omega_assigned_target_operations::SelectedInstructionKind;
+use omega_core::diagnostics::Diagnostic;
 
 pub(super) fn encode_machine_instruction_bytes(
     input: MachineEmissionContext<'_>,
@@ -18,7 +18,10 @@ pub(super) fn encode_machine_instruction_bytes(
             operation_key,
             operands,
         } => {
-            let Some(operands) = input.assigned_target_operations.instruction_operands(*operands) else {
+            let Some(operands) = input
+                .assigned_target_operations
+                .instruction_operands(*operands)
+            else {
                 return Err(Diagnostic::error(
                     "cannot encode host operation: missing operand span",
                 ));
@@ -240,6 +243,22 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => runtime_storage::encode_runtime_machine_indexed_integer_write(
+            input,
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
             descriptor_offset,
             index_offset,
@@ -288,6 +307,21 @@ pub(super) fn encode_machine_instruction_bytes(
         } => runtime_storage::encode_runtime_frame_indexed_string_write(
             input,
             *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_length,
+        ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+            ..
+        } => runtime_storage::encode_runtime_machine_indexed_string_write(
+            input,
+            *base_byte_offset,
             *index_offset,
             *element_byte_size,
             *field_byte_offset,
@@ -367,6 +401,23 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+            input,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
             descriptor_offset,
             element_index,
@@ -378,6 +429,40 @@ pub(super) fn encode_machine_instruction_bytes(
             input,
             *descriptor_offset,
             *element_index,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+            input,
+            *descriptor_offset,
+            *element_index,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+            input,
+            *base_byte_offset,
+            *index_offset,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,
