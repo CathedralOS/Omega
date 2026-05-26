@@ -2175,6 +2175,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
     "calls/runtime_helper_ordering_return",
+    "calls/runtime_mutable_local_indexed_parameter_write_unimplemented",
     "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_unimplemented",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",

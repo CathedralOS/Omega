@@ -358,6 +358,11 @@ pub(super) fn resolve_runtime_frame_indexed_target(
     let indexed = indexed_target_path(expression)?;
     let collection_slot =
         runtime_frame_slot_for_expression(input, dispatch_index, source_key, indexed.collection)?;
+    // Dynamic indexing for inline frame arrays needs a base-offset lowering path rather than the
+    // descriptor-based slice/view path used by runtime frame indexed targets.
+    if collection_slot.type_descriptor.fixed_array().is_some() {
+        return None;
+    }
     let descriptor_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
@@ -412,6 +417,11 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
         expressions,
         indexed.collection,
     )?;
+    // Dynamic indexing for inline frame arrays needs a base-offset lowering path rather than the
+    // descriptor-based slice/view path used by runtime frame indexed targets.
+    if collection_slot.type_descriptor.fixed_array().is_some() {
+        return None;
+    }
     let descriptor_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
