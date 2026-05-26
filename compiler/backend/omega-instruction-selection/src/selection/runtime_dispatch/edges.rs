@@ -9,6 +9,7 @@ use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
@@ -398,6 +399,28 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        if let Some(initial_value) =
+            source_local_initial_value(input, source_key, statement_index, expressions, argument)
+            && let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+                input,
+                source_dispatch_index,
+                source_key,
+                statement_index,
+                &input.program.expression_table,
+                slot,
+                initial_value,
+                &static_values,
+                runtime_value_operands,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: statement_index,
+            });
+            continue;
+        }
+
         if let Some(value) = static_runtime_argument_value(expressions.expression(argument)) {
             if !matches!(slot.byte_size, 1 | 4 | 8) {
                 continue;
@@ -433,6 +456,64 @@ fn select_runtime_dispatch_argument_materialization(
                 source_statement: statement_index,
             });
         }
+    }
+}
+
+fn source_local_initial_value(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    argument: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let (local_symbol, local_name) = local_root_identity(expressions, argument)?;
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+
+    let result = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local_data)
+                if local_data.initial_value.is_valid()
+                    && ((local_symbol.is_valid() && local_data.symbol == local_symbol)
+                        || local_data.name == local_name) =>
+            {
+                Some(local_data.initial_value)
+            }
+            _ => None,
+        });
+
+    result
+}
+
+fn local_root_identity(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<(
+    omega_core::symbols::SymbolHandle,
+    omega_checked_trees::name::Identifier,
+)> {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(path) => Some((
+            path.head_symbol,
+            expressions.name_path_members(path.members).first()?.clone(),
+        )),
+        ExpressionNode::Member(member) => local_root_identity(expressions, member.receiver),
+        ExpressionNode::Indexed(indexed) => local_root_identity(expressions, indexed.collection),
+        ExpressionNode::Mutable(inner) => local_root_identity(expressions, *inner),
+        _ => None,
     }
 }
 
