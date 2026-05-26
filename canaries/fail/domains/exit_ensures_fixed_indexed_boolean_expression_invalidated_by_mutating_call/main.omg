@@ -1,0 +1,32 @@
+data Item {
+    value: i32;
+    tag: i32;
+}
+
+domain Item::Valid {
+    self.value > 0;
+}
+
+data Main {
+    items: [Item; 2];
+}
+
+machine Main::mark_valid(&mut self, item: &mut Item)
+ensures
+    item in Item::Valid
+{
+    item.value = 12;
+}
+
+machine Main::break_valid(&mut self, item: &mut Item) {
+    item.value = 0;
+}
+
+machine Main::main(&mut self) -> i32
+ensures
+    self.items[0].value > 0
+{
+    self.mark_valid(&mut self.items[0]);
+    self.break_valid(&mut self.items[0]);
+    0
+}
