@@ -24,7 +24,8 @@ requires
 {
 }
 
-machine Main::main(&mut self, index: usize) {
+machine Main::main(&mut self) {
+    let index: usize = 1;
     self.mark_valid(&mut self.items[0]);
     self.items[index].tag = 9;
     self.accept(self.items[0]);

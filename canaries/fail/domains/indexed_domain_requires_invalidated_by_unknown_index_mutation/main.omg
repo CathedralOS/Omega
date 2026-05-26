@@ -24,7 +24,12 @@ requires
 {
 }
 
-machine Main::main(&mut self, index: usize) {
+machine Main::identity_index(&mut self, index: usize) -> usize {
+    index
+}
+
+machine Main::main(&mut self) {
+    let index: usize = self.identity_index(1);
     self.mark_valid(&mut self.items[0]);
     self.items[index].value = 0;
     self.accept(self.items[0]);

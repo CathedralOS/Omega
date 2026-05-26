@@ -1,11 +1,10 @@
 data Main {
+    out: u32;
 }
 
-machine Main::main(&mut self, flag: bool, out: &mut u32) {
-    out = self.pick(flag);
-    
-
-
+machine Main::main(&mut self) {
+    let flag: bool = true;
+    self.out = self.pick(flag);
 }
 
 machine Main::pick(&mut self, flag: bool) -> u32 {
