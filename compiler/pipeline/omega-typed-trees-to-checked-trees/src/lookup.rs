@@ -1,7 +1,7 @@
 mod calls;
 mod symbols;
 
-use super::*;
+use crate::context::*;
 pub(crate) use calls::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
