@@ -358,6 +358,39 @@ fn executable_domain_membership_union_guard_exit_canary_runs() {
 }
 
 #[test]
+fn executable_domain_membership_union_value_exit_canary_runs() {
+    let canary = pass_canary("domains/executable_domain_membership_union_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-domain-membership-union-value-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("executable domain membership union value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("executable domain membership union value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(205),
+        "expected executable domain membership union value canary to route to exit code 205, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_local_boolean_or_value_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_local_boolean_or_value_exit");
     let main_path = canary.join("main.omg");
@@ -2005,6 +2038,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/executable_imported_domain_membership_exit",
     "domains/executable_imported_domain_membership_guard_exit",
     "domains/executable_domain_membership_union_guard_exit",
+    "domains/executable_domain_membership_union_value_exit",
     "domains/domain_intersection_contract_surface",
     "domains/domain_import_valid",
     "domains/indexed_domain_requires_preserved_across_disjoint_field_mutation",

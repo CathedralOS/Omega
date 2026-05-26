@@ -30,10 +30,10 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
-        self.console.exit_process(261);
+        self.console.exit_process(205);
     }
 
     state bad(&mut self) {
-        self.console.exit_process(262);
+        self.console.exit_process(206);
     }
 }
