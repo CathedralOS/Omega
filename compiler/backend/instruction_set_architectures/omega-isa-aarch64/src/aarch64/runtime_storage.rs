@@ -17,6 +17,7 @@ use super::primitives::{
     encode_udiv_x_register,
 };
 use super::widths::{
+    runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_machine_indexed_integer_write_width,
@@ -538,6 +539,51 @@ pub fn encode_runtime_frame_indexed_integer_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_frame_base_indexed_integer_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    let value = u64::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot store runtime indexed integer value `{value}` yet"
+        ))
+    })?;
+
+    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    ));
+    append_runtime_frame_base_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    match byte_size {
+        1 | 4 => {
+            bytes.extend(encode_movz_w(17, value as u16));
+            bytes.extend(encode_store_w17_to_x16(0, byte_size)?);
+        }
+        8 => {
+            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            bytes.extend(encode_store_x17_to_x16(0)?);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot store {byte_size}-byte runtime indexed integers yet"
+            )));
+        }
+    }
+    Ok(bytes)
+}
+
 pub fn encode_runtime_machine_indexed_integer_write(
     base_byte_offset: usize,
     index_offset: usize,
@@ -1029,6 +1075,24 @@ fn append_runtime_machine_index_target_address(
     Ok(())
 }
 
+fn append_runtime_frame_base_index_target_address(
+    bytes: &mut Vec<u8>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_move_x_register(16, 20));
+    append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
+    bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
+    bytes.extend(encode_add_x_register(16, 16, 18));
+    append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    Ok(())
+}
+
 fn append_runtime_value_operand(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     bytes: &mut Vec<u8>,
@@ -1100,6 +1164,36 @@ fn append_runtime_value_operand(
             _ => {
                 return Err(Diagnostic::error(format!(
                     "AArch64 MVP encoder cannot load runtime indexed operand width `{byte_size}` yet"
+                )));
+            }
+        }
+        Ok(())
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_base_indexed(operand)
+    {
+        append_runtime_frame_base_index_target_address(
+            bytes,
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        )?;
+        match byte_size {
+            1 | 4 => bytes.extend(encode_load_w_from_x(
+                destination_register,
+                16,
+                0,
+                byte_size,
+            )?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load runtime frame-base-indexed operand width `{byte_size}` yet"
                 )));
             }
         }

@@ -10,7 +10,8 @@ use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBra
 use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
-    enum_variant_value, enum_variant_value_in_table,
+    enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_base_indexed_target,
+    resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
@@ -1092,6 +1093,20 @@ fn resolve_runtime_value_operand(
         );
     }
 
+    if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target(input, dispatch_index, source_key, expression)
+    {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
     let place = resolve_runtime_storage_place(
         input,
         dispatch_index,
@@ -1196,6 +1211,24 @@ fn resolve_runtime_value_operand_in_table(
         );
     }
 
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,
         dispatch_index,
@@ -1236,7 +1269,8 @@ fn runtime_value_operand_byte_size(
         RuntimeValueOperand::Immediate(_) => 8,
         RuntimeValueOperand::Storage { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Pointee { byte_size, .. } => *byte_size,
-        RuntimeValueOperand::FrameIndexed { byte_size, .. } => *byte_size,
+        RuntimeValueOperand::FrameIndexed { byte_size, .. }
+        | RuntimeValueOperand::FrameBaseIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::FrameFixedIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Binary { left, right, .. } => {
             runtime_value_operand_byte_size(runtime_value_operands, *left).max(

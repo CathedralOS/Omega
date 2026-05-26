@@ -217,6 +217,18 @@ pub fn runtime_frame_indexed_integer_write_width(
         + runtime_store_data_width(byte_size)
 }
 
+pub fn runtime_frame_base_indexed_integer_write_width(
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    20 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + runtime_store_data_width(byte_size)
+}
+
 pub fn runtime_machine_indexed_integer_write_width(
     base_byte_offset: usize,
     element_byte_size: usize,
@@ -526,6 +538,16 @@ pub fn runtime_value_operand_width(
         runtime_value_operands.frame_indexed(operand)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+            + runtime_load_data_width(byte_size)
+    } else if let Some((base_byte_offset, _, element_byte_size, field_byte_offset, byte_size)) =
+        runtime_value_operands.frame_base_indexed(operand)
+    {
+        runtime_frame_base_indexed_integer_write_width(
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        ) - runtime_store_data_width(byte_size)
             + runtime_load_data_width(byte_size)
     } else if let Some((_, _, element_byte_size, field_byte_offset, byte_size)) =
         runtime_value_operands.frame_fixed_indexed(operand)

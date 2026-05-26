@@ -189,6 +189,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }

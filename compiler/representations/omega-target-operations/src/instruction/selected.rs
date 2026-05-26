@@ -214,6 +214,14 @@ pub enum TargetOperationKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeFrameBaseIndexedInteger {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeMachineIndexedInteger {
         base_byte_offset: usize,
         index_offset: usize,
@@ -683,6 +691,21 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 value,
             } => Self::WriteRuntimeFrameIndexedInteger {
                 descriptor_offset: *descriptor_offset,
+                index_offset: *index_offset,
+                element_byte_size: *element_byte_size,
+                field_byte_offset: *field_byte_offset,
+                byte_size: *byte_size,
+                value: *value,
+            },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            } => Self::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset: *base_byte_offset,
                 index_offset: *index_offset,
                 element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,

@@ -111,6 +111,32 @@ fn validate_runtime_value_home(
                 ));
             }
         }
+        RuntimeValueOperand::FrameBaseIndexed {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            if !matches!(
+                home,
+                omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameBaseIndexed {
+                    base_byte_offset: home_base,
+                    index_offset: home_index,
+                    element_byte_size: home_element_size,
+                    field_byte_offset: home_field,
+                    byte_size: home_size,
+                } if home_base == *base_byte_offset
+                    && home_index == *index_offset
+                    && home_element_size == *element_byte_size
+                    && home_field == *field_byte_offset
+                    && home_size == *byte_size
+            ) {
+                return Err(Diagnostic::error(
+                    "runtime frame-base-indexed value must keep a matching frame-base-indexed home",
+                ));
+            }
+        }
         RuntimeValueOperand::FrameFixedIndexed {
             descriptor_offset,
             element_index,
@@ -265,6 +291,26 @@ pub(super) fn encode_runtime_frame_indexed_integer_write(
     architecture::encode_runtime_frame_indexed_integer_write(
         input.target.architecture,
         descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        value,
+    )
+}
+
+pub(super) fn encode_runtime_frame_base_indexed_integer_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_frame_base_indexed_integer_write(
+        input.target.architecture,
+        base_byte_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,

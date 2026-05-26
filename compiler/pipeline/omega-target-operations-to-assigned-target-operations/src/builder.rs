@@ -93,6 +93,19 @@ pub(crate) fn build_assigned_target_operations(
                 field_byte_offset: *field_byte_offset,
                 byte_size: *byte_size,
             },
+            omega_target_operations::TargetValueOperand::FrameBaseIndexed {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => AssignedValueHomeKind::RuntimeFrameBaseIndexed {
+                base_byte_offset: *base_byte_offset,
+                index_offset: *index_offset,
+                element_byte_size: *element_byte_size,
+                field_byte_offset: *field_byte_offset,
+                byte_size: *byte_size,
+            },
             omega_target_operations::TargetValueOperand::FrameFixedIndexed {
                 descriptor_offset,
                 element_index,

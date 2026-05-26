@@ -12,6 +12,7 @@ use omega_core::arena::Arena;
 use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 
 use super::super::super::storage_places::{
+    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target, resolve_runtime_frame_indexed_target,
     resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place, static_integer_value,
 };
@@ -556,6 +557,26 @@ fn select_runtime_static_mutation_write_in_table(
         });
     }
 
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(indexed_target.byte_count)
+    {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+                value,
+            },
+        );
+    }
+
     if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
         input,
         dispatch_index,
@@ -907,6 +928,20 @@ fn resolve_runtime_value_operand(
     }
 
     if let Some(indexed_target) =
+        resolve_runtime_frame_base_indexed_target(input, dispatch_index, source_key, expression)
+    {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    if let Some(indexed_target) =
         resolve_runtime_frame_fixed_indexed_target(input, dispatch_index, source_key, expression)
     {
         return Some(
@@ -1023,6 +1058,24 @@ fn resolve_runtime_value_operand_in_table(
         return Some(
             runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
                 descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
                 index_offset: indexed_target.index_offset,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,

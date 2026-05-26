@@ -17,6 +17,15 @@ pub(in crate::selection) struct RuntimeFrameIndexedTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::selection) struct RuntimeFrameBaseIndexedTarget {
+    pub(in crate::selection) base_byte_offset: usize,
+    pub(in crate::selection) index_offset: usize,
+    pub(in crate::selection) element_byte_size: usize,
+    pub(in crate::selection) field_byte_offset: usize,
+    pub(in crate::selection) byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeFrameFixedIndexedTarget {
     pub(in crate::selection) descriptor_offset: usize,
     pub(in crate::selection) element_index: usize,

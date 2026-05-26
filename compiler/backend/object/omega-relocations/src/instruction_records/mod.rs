@@ -171,6 +171,10 @@ pub(super) fn collect_instruction_relocations(
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
         }
+        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedInteger { .. } => {
+            let symbol = context.runtime_frame_symbol_handle();
+            context.insert_data_address_at_instruction_start(symbol);
+        }
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset, ..
         } => {
@@ -409,6 +413,7 @@ fn collect_runtime_value_operand_relocations(
             context.insert_data_address(operand_text_offset, symbol);
         }
         RuntimeValueOperand::Pointee { .. }
+        | RuntimeValueOperand::FrameBaseIndexed { .. }
         | RuntimeValueOperand::FrameIndexed { .. }
         | RuntimeValueOperand::FrameFixedIndexed { .. } => {
             let symbol = context.runtime_frame_symbol_handle();

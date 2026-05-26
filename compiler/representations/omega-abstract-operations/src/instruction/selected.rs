@@ -64,6 +64,13 @@ pub enum AbstractValueOperand {
         field_byte_offset: usize,
         byte_size: usize,
     },
+    FrameBaseIndexed {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     FrameFixedIndexed {
         descriptor_offset: usize,
         element_index: usize,
@@ -249,6 +256,14 @@ pub enum AbstractOperationKind {
     },
     WriteRuntimeFrameIndexedInteger {
         descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
+    WriteRuntimeFrameBaseIndexedInteger {
+        base_byte_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,

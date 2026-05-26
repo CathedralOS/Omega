@@ -71,6 +71,17 @@ pub(super) fn runtime_frame_indexed_integer_write_kind(
     MachineInstructionKind::RuntimeFrameIndexedIntegerWrite
 }
 
+pub(super) fn runtime_frame_base_indexed_integer_write_kind(
+    _base_byte_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _value: i64,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameBaseIndexedIntegerWrite
+}
+
 pub(super) fn runtime_machine_indexed_integer_write_kind(
     _base_byte_offset: usize,
     _index_offset: usize,
