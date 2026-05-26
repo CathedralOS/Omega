@@ -2047,6 +2047,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/domain_import_valid",
     "domains/exit_ensures_domain_union_left_branch_preserved",
     "domains/exit_ensures_domain_union_right_branch_preserved",
+    "domains/exit_ensures_boolean_expression_from_domain_fact",
+    "domains/exit_ensures_boolean_union_expression_from_domain_fact",
     "domains/indexed_domain_requires_preserved_across_disjoint_field_mutation",
     "borrows/borrow_disjoint_fixed_index_call_mut",
     "control_flow/entry_surface_receiver_paths",

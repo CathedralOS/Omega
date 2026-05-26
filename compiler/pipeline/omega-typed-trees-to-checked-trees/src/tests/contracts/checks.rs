@@ -196,6 +196,66 @@ fn accepts_exit_ensures_domain_union_when_left_branch_is_proven() {
 }
 
 #[test]
+fn accepts_exit_ensures_boolean_expression_from_domain_fact() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.password in Password::Valid
+        ensures
+            self.password.length > 0
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("exit boolean comparison should be provable from a preserved domain fact");
+}
+
+#[test]
+fn accepts_exit_ensures_boolean_union_expression_from_domain_fact() {
+    let source = r#"
+        data Password {
+            length: i32;
+            score: i32;
+        }
+
+        domain Password::Valid {
+            self.length > 0;
+        }
+
+        data Main {
+            password: Password;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.password in Password::Valid
+        ensures
+            self.password.length > 0 || self.password.score >= 8
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("exit boolean disjunction should be provable from a preserved domain fact");
+}
+
+#[test]
 fn accepts_exit_ensures_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {
