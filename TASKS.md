@@ -117,6 +117,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - `canaries/run/runtime_dispatch_helper_local_alias_add_probe`
     - dynamic-indexed machine-owned mutable call arguments are still blocked by alias-write lowering:
       - `canaries/fail/calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_unimplemented`
+    - dynamic-indexed local fixed-array mutable call arguments compile, but still fail at runtime:
+      - `canaries/run/runtime_mutable_local_indexed_parameter_write_probe`
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.

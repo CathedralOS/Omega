@@ -1,0 +1,3 @@
+impl Console {
+    machine Console::exit_process(&mut self, return_code: i32);
+}
