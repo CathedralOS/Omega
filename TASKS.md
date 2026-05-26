@@ -36,6 +36,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
     - direct boolean ensures over exit state are now also proved from preserved domain facts:
       - `canaries/pass/domains/exit_ensures_boolean_expression_from_domain_fact`
       - `canaries/pass/domains/exit_ensures_boolean_union_expression_from_domain_fact`
+      - `canaries/pass/domains/exit_ensures_fixed_indexed_scalar_member_expression_from_domain_fact`
+      - `canaries/pass/domains/exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fact`
   - boolean `or` guard dispatch now runs:
     - `canaries/pass/control_flow/runtime_boolean_or_guard_exit`
   - local boolean `or` values now lower and run too:

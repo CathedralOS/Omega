@@ -256,6 +256,67 @@ fn accepts_exit_ensures_boolean_union_expression_from_domain_fact() {
 }
 
 #[test]
+fn accepts_exit_ensures_fixed_indexed_scalar_member_expression_from_domain_fact() {
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        domain Entry::Positive {
+            self.value > 0;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.entries[0] in Entry::Positive
+        ensures
+            self.entries[0].value > 0
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "fixed indexed exit boolean requires should be provable from an indexed preserved domain fact",
+    );
+}
+
+#[test]
+fn accepts_exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fact() {
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        domain Entry::Positive {
+            self.value > 0;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+            index: usize;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.entries[self.index] in Entry::Positive
+        ensures
+            self.entries[self.index].value > 0
+        {
+            0
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "dynamic indexed exit boolean requires should be provable from an indexed preserved domain fact",
+    );
+}
+
+#[test]
 fn accepts_exit_ensures_domain_union_when_right_branch_is_proven() {
     let source = r#"
         data Password {
