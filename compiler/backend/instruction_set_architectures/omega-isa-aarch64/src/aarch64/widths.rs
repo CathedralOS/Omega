@@ -217,6 +217,24 @@ pub fn runtime_frame_indexed_integer_write_width(
         + runtime_store_data_width(byte_size)
 }
 
+pub fn runtime_machine_indexed_integer_write_width(
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    24 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + runtime_store_data_width(byte_size)
+}
+
+pub fn runtime_machine_indexed_integer_runtime_frame_address_offset(
+    base_byte_offset: usize,
+) -> usize {
+    8 + add_constant_width(base_byte_offset)
+}
+
 pub fn runtime_frame_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     element_byte_size: usize,
@@ -251,6 +269,53 @@ pub fn runtime_frame_indexed_string_write_width(
         + 4
         + unsigned_immediate_width(byte_length as u64)
         + 4
+}
+
+pub fn runtime_machine_indexed_string_write_width(
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    24 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + 8
+        + 4
+        + unsigned_immediate_width(byte_length as u64)
+        + 4
+}
+
+pub fn runtime_machine_indexed_string_runtime_frame_address_offset(
+    base_byte_offset: usize,
+) -> usize {
+    16 + add_constant_width(base_byte_offset)
+}
+
+pub fn runtime_machine_indexed_string_data_address_offset(
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    24 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+}
+
+pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+    base_byte_offset: usize,
+) -> usize {
+    8 + add_constant_width(base_byte_offset)
+}
+
+pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    24 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
@@ -313,6 +378,18 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + 8
+        + add_constant_width(target_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
 pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
     element_index: usize,
     element_byte_size: usize,
@@ -324,6 +401,35 @@ pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
         .saturating_mul(element_byte_size)
         .saturating_add(field_byte_offset);
     12 + add_constant_width(source_offset)
+        + add_constant_width(target_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width(
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let source_offset = element_index
+        .saturating_mul(element_byte_size)
+        .saturating_add(field_byte_offset);
+    20 + add_constant_width(source_offset)
+        + add_constant_width(target_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    32 + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
         + add_constant_width(target_offset)
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
@@ -425,7 +531,10 @@ pub fn runtime_value_operand_width(
 
 fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
     match operator {
-        StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply => 4,
+        StateGuardOperator::Add
+        | StateGuardOperator::And
+        | StateGuardOperator::Subtract
+        | StateGuardOperator::Multiply => 4,
         StateGuardOperator::Modulo => 8,
         StateGuardOperator::Max | StateGuardOperator::Min => 12,
         StateGuardOperator::Equal

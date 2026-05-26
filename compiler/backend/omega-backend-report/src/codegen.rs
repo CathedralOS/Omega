@@ -2,13 +2,15 @@ use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
-use omega_assigned_target_operations::{AssignedValueOperand, RuntimeTextReadSource, RuntimeValueOperand};
+use omega_assigned_target_operations::{
+    AssignedValueOperand, RuntimeTextReadSource, RuntimeValueOperand,
+};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
-    InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle, TargetDataObject,
-    SelectedInstructionKind, TargetOperation, TargetOperationFunction, TargetOperationKind,
+    InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle, SelectedInstructionKind,
+    TargetDataObject, TargetOperation, TargetOperationFunction, TargetOperationKind,
 };
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -503,6 +505,18 @@ fn selected_instruction_name(
                 "write runtime-frame indexed integer descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => {
+            format!(
+                "write runtime-machine indexed integer machine@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
             descriptor_offset,
             index_offset,
@@ -551,6 +565,19 @@ fn selected_instruction_name(
             let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
             format!(
                 "write runtime-frame indexed string descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeMachineIndexedString {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            data,
+            byte_length,
+        } => {
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
+            format!(
+                "write runtime-machine indexed string machine@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
@@ -628,6 +655,21 @@ fn selected_instruction_name(
                 "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_region,
+            target_offset,
+            byte_count,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
+            )
+        }
         SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
             descriptor_offset,
             element_index,
@@ -638,6 +680,36 @@ fn selected_instruction_name(
         } => {
             format!(
                 "copy runtime-frame fixed-indexed descriptor@{descriptor_offset} index {element_index} elem {element_byte_size} field +{field_byte_offset} -> runtime_frame@{target_offset} bytes {byte_count}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_region,
+            target_offset,
+            byte_count,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime-frame fixed-indexed descriptor@{descriptor_offset} index {element_index} elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_region,
+            target_offset,
+            byte_count,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
@@ -702,8 +774,7 @@ fn runtime_text_read_source_name(
                 .map(|binding| &binding.mechanism)
             {
                 Some(omega_calling_conventions::HostBindingMechanism::Import {
-                    symbol,
-                    ..
+                    symbol, ..
                 }) => {
                     format!("import {symbol}")
                 }
@@ -807,15 +878,15 @@ fn assigned_value_home_name(operand: &AssignedValueOperand) -> String {
             "frame-indexed desc@{descriptor_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
             byte_size
         ),
-        omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister {
-            bank,
-            name,
-        } => {
+        omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { bank, name } => {
             let source = match operand.kind {
                 RuntimeValueOperand::Binary { .. } => "binary temp",
                 _ => "temp",
             };
-            format!("{bank:?} register {} ({source})", assigned_register_name(name))
+            format!(
+                "{bank:?} register {} ({source})",
+                assigned_register_name(name)
+            )
         }
     }
 }
@@ -825,14 +896,16 @@ fn assigned_register_name(name: omega_assigned_target_operations::AssignedRegist
         omega_assigned_target_operations::AssignedRegisterName::Aarch64X(register) => {
             format!("x{register}")
         }
-        omega_assigned_target_operations::AssignedRegisterName::X86_64(register) => match register {
-            omega_assigned_target_operations::X86_64AssignedRegister::R10 => "r10".to_owned(),
-            omega_assigned_target_operations::X86_64AssignedRegister::R11 => "r11".to_owned(),
-            omega_assigned_target_operations::X86_64AssignedRegister::R12 => "r12".to_owned(),
-            omega_assigned_target_operations::X86_64AssignedRegister::R13 => "r13".to_owned(),
-            omega_assigned_target_operations::X86_64AssignedRegister::R14 => "r14".to_owned(),
-            omega_assigned_target_operations::X86_64AssignedRegister::R15 => "r15".to_owned(),
-        },
+        omega_assigned_target_operations::AssignedRegisterName::X86_64(register) => {
+            match register {
+                omega_assigned_target_operations::X86_64AssignedRegister::R10 => "r10".to_owned(),
+                omega_assigned_target_operations::X86_64AssignedRegister::R11 => "r11".to_owned(),
+                omega_assigned_target_operations::X86_64AssignedRegister::R12 => "r12".to_owned(),
+                omega_assigned_target_operations::X86_64AssignedRegister::R13 => "r13".to_owned(),
+                omega_assigned_target_operations::X86_64AssignedRegister::R14 => "r14".to_owned(),
+                omega_assigned_target_operations::X86_64AssignedRegister::R15 => "r15".to_owned(),
+            }
+        }
     }
 }
 
@@ -871,7 +944,6 @@ fn selected_instruction_operands_name(
         .collect::<Vec<_>>()
         .join(", ")
 }
-
 
 fn write_machine_function_code(
     output: &mut String,

@@ -38,7 +38,9 @@ pub enum AssignedInstructionOperandKind {
     ByteLength(usize),
 }
 
-impl From<omega_target_operations::TargetInstructionOperandKind> for AssignedInstructionOperandKind {
+impl From<omega_target_operations::TargetInstructionOperandKind>
+    for AssignedInstructionOperandKind
+{
     fn from(kind: omega_target_operations::TargetInstructionOperandKind) -> Self {
         match kind {
             omega_target_operations::TargetInstructionOperandKind::DataAddress { data } => {
@@ -68,7 +70,9 @@ impl From<omega_target_operations::TargetInstructionOperandKind> for AssignedIns
     }
 }
 
-impl From<AssignedInstructionOperandKind> for omega_target_operations::TargetInstructionOperandKind {
+impl From<AssignedInstructionOperandKind>
+    for omega_target_operations::TargetInstructionOperandKind
+{
     fn from(kind: AssignedInstructionOperandKind) -> Self {
         match kind {
             AssignedInstructionOperandKind::DataAddress { data } => Self::DataAddress { data },
@@ -86,7 +90,9 @@ impl From<AssignedInstructionOperandKind> for omega_target_operations::TargetIns
                 region,
                 byte_offset,
             },
-            AssignedInstructionOperandKind::ImmediateInteger(value) => Self::ImmediateInteger(value),
+            AssignedInstructionOperandKind::ImmediateInteger(value) => {
+                Self::ImmediateInteger(value)
+            }
             AssignedInstructionOperandKind::ByteLength(value) => Self::ByteLength(value),
         }
     }
@@ -393,6 +399,14 @@ pub enum AssignedOperationKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeMachineIndexedInteger {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeFrameIndexedBinary {
         descriptor_offset: usize,
         index_offset: usize,
@@ -416,6 +430,14 @@ pub enum AssignedOperationKind {
     },
     WriteRuntimeFrameIndexedString {
         descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        data: omega_target_operations::TargetDataObjectHandle,
+        byte_length: usize,
+    },
+    WriteRuntimeMachineIndexedString {
+        base_byte_offset: usize,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
@@ -463,11 +485,38 @@ pub enum AssignedOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    CopyRuntimeFrameIndexedToRuntimeStorage {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeFrameFixedIndexedToRuntimeFrame {
         descriptor_offset: usize,
         element_index: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+        descriptor_offset: usize,
+        element_index: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimeMachineIndexedToRuntimeStorage {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_count: usize,
     },
@@ -923,6 +972,21 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 byte_size,
                 value,
             },
+            omega_target_operations::TargetOperationKind::WriteRuntimeMachineIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            } => Self::WriteRuntimeMachineIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            },
             omega_target_operations::TargetOperationKind::WriteRuntimeFrameIndexedBinary {
                 descriptor_offset,
                 index_offset,
@@ -971,6 +1035,21 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 byte_length,
             } => Self::WriteRuntimeFrameIndexedString {
                 descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                data,
+                byte_length,
+            },
+            omega_target_operations::TargetOperationKind::WriteRuntimeMachineIndexedString {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                data,
+                byte_length,
+            } => Self::WriteRuntimeMachineIndexedString {
+                base_byte_offset,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -1053,6 +1132,23 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 target_offset,
                 byte_count,
             },
+            omega_target_operations::TargetOperationKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameIndexedToRuntimeStorage {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            },
             omega_target_operations::TargetOperationKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
                 descriptor_offset,
                 element_index,
@@ -1065,6 +1161,40 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 element_index,
                 element_byte_size,
                 field_byte_offset,
+                target_offset,
+                byte_count,
+            },
+            omega_target_operations::TargetOperationKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            },
+            omega_target_operations::TargetOperationKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimeMachineIndexedToRuntimeStorage {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
                 target_offset,
                 byte_count,
             },
@@ -1404,6 +1534,21 @@ impl From<AssignedOperationKind> for omega_target_operations::TargetOperationKin
                 byte_size,
                 value,
             },
+            AssignedOperationKind::WriteRuntimeMachineIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            } => Self::WriteRuntimeMachineIndexedInteger {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+                value,
+            },
             AssignedOperationKind::WriteRuntimeFrameIndexedBinary {
                 descriptor_offset,
                 index_offset,
@@ -1452,6 +1597,21 @@ impl From<AssignedOperationKind> for omega_target_operations::TargetOperationKin
                 byte_length,
             } => Self::WriteRuntimeFrameIndexedString {
                 descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                data,
+                byte_length,
+            },
+            AssignedOperationKind::WriteRuntimeMachineIndexedString {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                data,
+                byte_length,
+            } => Self::WriteRuntimeMachineIndexedString {
+                base_byte_offset,
                 index_offset,
                 element_byte_size,
                 field_byte_offset,
@@ -1534,6 +1694,23 @@ impl From<AssignedOperationKind> for omega_target_operations::TargetOperationKin
                 target_offset,
                 byte_count,
             },
+            AssignedOperationKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameIndexedToRuntimeStorage {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            },
             AssignedOperationKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
                 descriptor_offset,
                 element_index,
@@ -1546,6 +1723,40 @@ impl From<AssignedOperationKind> for omega_target_operations::TargetOperationKin
                 element_index,
                 element_byte_size,
                 field_byte_offset,
+                target_offset,
+                byte_count,
+            },
+            AssignedOperationKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            },
+            AssignedOperationKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimeMachineIndexedToRuntimeStorage {
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_region,
                 target_offset,
                 byte_count,
             },
@@ -1631,7 +1842,9 @@ impl AssignedTargetOperationPlan {
         handle: Handle<omega_target_operations::TargetInstructionOperand>,
     ) -> Option<&AssignedInstructionOperand> {
         let handle = assigned_instruction_handle(handle);
-        self.operands.is_valid(handle).then(|| self.operands.get(handle))
+        self.operands
+            .is_valid(handle)
+            .then(|| self.operands.get(handle))
     }
 
     pub fn instruction_operands(
@@ -1646,9 +1859,10 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> AssignedValueHomeHandle {
-        if assigned_value_handle(handle)
-            .is_valid()
-            && self.runtime_value_operands.is_valid(assigned_value_handle(handle))
+        if assigned_value_handle(handle).is_valid()
+            && self
+                .runtime_value_operands
+                .is_valid(assigned_value_handle(handle))
         {
             handle
         } else {
@@ -1660,7 +1874,8 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<AssignedValueHomeKind> {
-        self.runtime_value_operand(handle).map(|operand| operand.home)
+        self.runtime_value_operand(handle)
+            .map(|operand| operand.home)
     }
 
     pub fn runtime_value_operand(
@@ -1683,7 +1898,9 @@ impl AssignedTargetOperationPlan {
 
     pub fn scratch_home_count(&self) -> usize {
         self.runtime_values_with_homes()
-            .filter(|(_, operand)| matches!(operand.home, AssignedValueHomeKind::ScratchRegister { .. }))
+            .filter(|(_, operand)| {
+                matches!(operand.home, AssignedValueHomeKind::ScratchRegister { .. })
+            })
             .count()
     }
 }
@@ -1811,9 +2028,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     }
 }
 
-fn assigned_value_handle(
-    handle: RuntimeValueOperandHandle,
-) -> Handle<AssignedValueOperand> {
+fn assigned_value_handle(handle: RuntimeValueOperandHandle) -> Handle<AssignedValueOperand> {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
@@ -1833,9 +2048,7 @@ fn assigned_instruction_span(
     }
 }
 
-fn target_value_handle(
-    handle: Handle<AssignedValueOperand>,
-) -> RuntimeValueOperandHandle {
+fn target_value_handle(handle: Handle<AssignedValueOperand>) -> RuntimeValueOperandHandle {
     Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
@@ -1924,7 +2137,8 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
         }
 
         let runtime_value_operands = {
-            let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
+            let mut runtime_value_operands =
+                Arena::with_capacity(plan.runtime_value_operands.len());
             for (_, operand) in plan.runtime_value_operands.iter() {
                 runtime_value_operands.insert(operand.kind.clone().into());
             }

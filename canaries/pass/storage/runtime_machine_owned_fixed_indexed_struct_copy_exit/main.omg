@@ -1,0 +1,31 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Item {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    items: [Item; 2];
+    copy: Item;
+}
+
+machine Main::main(&mut self) {
+    self.items[0].value = 17;
+    self.copy = self.items[0];
+
+    transition self.copy.value == 17 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(83);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(84);
+    }
+}

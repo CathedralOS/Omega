@@ -6,18 +6,19 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     encode_add_page_offset_placeholder, encode_add_x_immediate, encode_add_x_register,
-    encode_adrp_placeholder, encode_compare_w_register, encode_compare_w17_immediate,
-    encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
-    encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
-    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
-    encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
-    encode_move_x_register, encode_movz_w, encode_msub_x_register, encode_mul_x_register,
-    encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_sub_x_register, encode_udiv_x_register,
+    encode_adrp_placeholder, encode_and_x_register, encode_compare_w_register,
+    encode_compare_w17_immediate, encode_compare_x_register, encode_compare_x17_immediate,
+    encode_conditional_branch_equal, encode_conditional_branch_greater,
+    encode_conditional_branch_greater_or_equal, encode_conditional_branch_less,
+    encode_conditional_branch_less_or_equal, encode_conditional_branch_not_equal,
+    encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
+    encode_msub_x_register, encode_mul_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
+    encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_x_register,
 };
 use super::widths::{
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
-    runtime_frame_indexed_string_write_width, runtime_machine_integer_write_width,
+    runtime_frame_indexed_string_write_width, runtime_machine_indexed_integer_write_width,
+    runtime_machine_indexed_string_write_width, runtime_machine_integer_write_width,
     runtime_machine_string_write_width, runtime_pointee_address_to_runtime_frame_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
     runtime_pointee_string_write_width, runtime_storage_address_to_runtime_frame_write_width,
@@ -377,6 +378,34 @@ pub fn encode_runtime_frame_indexed_string_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_machine_indexed_string_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_indexed_string_write_width(
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    ));
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+    append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, 8)?);
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_address_to_runtime_frame_write(
     source_offset: usize,
     target_offset: usize,
@@ -462,6 +491,52 @@ pub fn encode_runtime_frame_indexed_integer_write(
     append_runtime_frame_index_target_address(
         &mut bytes,
         descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    match byte_size {
+        1 | 4 => {
+            bytes.extend(encode_movz_w(17, value as u16));
+            bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
+        }
+        8 => {
+            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot store {byte_size}-byte runtime integers yet"
+            )));
+        }
+    }
+
+    Ok(bytes)
+}
+
+pub fn encode_runtime_machine_indexed_integer_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    let value = u64::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
+        ))
+    })?;
+
+    let mut bytes = Vec::with_capacity(runtime_machine_indexed_integer_write_width(
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    ));
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -605,6 +680,51 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        ),
+    );
+    append_runtime_frame_index_target_address(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
+
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 20, offset, chunk_size)?);
+            }
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 16, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
     descriptor_offset: usize,
     element_index: usize,
@@ -632,6 +752,101 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
             Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed copy")
         })?;
     append_add_constant_to_x_register(&mut bytes, 16, source_offset)?;
+    append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
+
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 20, offset, chunk_size)?);
+            }
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 16, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
+pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width(
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        ),
+    );
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
+    let source_offset = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|offset| offset.checked_add(field_byte_offset))
+        .ok_or_else(|| {
+            Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed copy")
+        })?;
+    append_add_constant_to_x_register(&mut bytes, 16, source_offset)?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
+
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 16, offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 20, offset, chunk_size)?);
+            }
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 16, offset)?);
+                bytes.extend(encode_store_x_to_x(17, 20, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
+pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        ),
+    );
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
@@ -740,6 +955,25 @@ fn append_runtime_frame_index_target_address(
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
+    bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
+    bytes.extend(encode_add_x_register(16, 16, 18));
+    append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    Ok(())
+}
+
+fn append_runtime_machine_index_target_address(
+    bytes: &mut Vec<u8>,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
     append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
@@ -895,6 +1129,13 @@ fn append_runtime_binary_operation(
     match operator {
         StateGuardOperator::Add => {
             bytes.extend(encode_add_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
+        StateGuardOperator::And => {
+            bytes.extend(encode_and_x_register(
                 destination_register,
                 destination_register,
                 right_register,

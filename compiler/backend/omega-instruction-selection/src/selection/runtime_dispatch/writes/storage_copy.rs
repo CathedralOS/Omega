@@ -4,8 +4,10 @@ use omega_control_flow::StateKey;
 
 use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::RuntimeStorageRegion;
 use omega_abstract_operations::SelectedInstructionKind;
@@ -121,6 +123,25 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indirect_copy_in_t
         );
     }
 
+    if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && source_place.byte_count > 0
+    {
+        return Some(
+            SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+                source_region: source_place.region,
+                source_offset: source_place.byte_offset,
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                byte_count: source_place.byte_count,
+            },
+        );
+    }
+
     let indexed_target = resolve_runtime_frame_indexed_target_in_table(
         input,
         dispatch_index,
@@ -163,11 +184,47 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         expressions,
         target,
     )?;
-    if target_place.region != RuntimeStorageRegion::RuntimeFrame || target_place.byte_count == 0 {
+    if target_place.byte_count == 0 {
         return None;
     }
 
     let indexed_source = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    );
+    if let Some(indexed_source) = indexed_source {
+        if target_place.byte_count != indexed_source.byte_count {
+            return None;
+        }
+
+        let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
+            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+                descriptor_offset: indexed_source.descriptor_offset,
+                index_offset: indexed_source.index_offset,
+                element_byte_size: indexed_source.element_byte_size,
+                field_byte_offset: indexed_source.field_byte_offset,
+                target_offset: target_place.byte_offset,
+                byte_count: target_place.byte_count,
+            }
+        } else {
+            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+                descriptor_offset: indexed_source.descriptor_offset,
+                index_offset: indexed_source.index_offset,
+                element_byte_size: indexed_source.element_byte_size,
+                field_byte_offset: indexed_source.field_byte_offset,
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_count: target_place.byte_count,
+            }
+        };
+
+        return Some(kind);
+    }
+
+    let indexed_source = resolve_runtime_machine_indexed_target_in_table(
         input,
         dispatch_index,
         value_source_key,
@@ -179,11 +236,12 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
     }
 
     Some(
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
-            descriptor_offset: indexed_source.descriptor_offset,
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+            base_byte_offset: indexed_source.base_byte_offset,
             index_offset: indexed_source.index_offset,
             element_byte_size: indexed_source.element_byte_size,
             field_byte_offset: indexed_source.field_byte_offset,
+            target_region: target_place.region,
             target_offset: target_place.byte_offset,
             byte_count: target_place.byte_count,
         },
@@ -206,7 +264,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
         expressions,
         target,
     )?;
-    if target_place.region != RuntimeStorageRegion::RuntimeFrame || target_place.byte_count == 0 {
+    if target_place.byte_count == 0 {
         return None;
     }
 
@@ -221,7 +279,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
         return None;
     }
 
-    Some(
+    let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
         SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
             descriptor_offset: fixed_source.descriptor_offset,
             element_index: fixed_source.element_index,
@@ -229,6 +287,18 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_sour
             field_byte_offset: fixed_source.field_byte_offset,
             target_offset: target_place.byte_offset,
             byte_count: target_place.byte_count,
-        },
-    )
+        }
+    } else {
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+            descriptor_offset: fixed_source.descriptor_offset,
+            element_index: fixed_source.element_index,
+            element_byte_size: fixed_source.element_byte_size,
+            field_byte_offset: fixed_source.field_byte_offset,
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            byte_count: target_place.byte_count,
+        }
+    };
+
+    Some(kind)
 }

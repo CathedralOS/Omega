@@ -27,6 +27,10 @@ pub(super) fn collect_state_storage_blockers(
             continue;
         }
 
+        if state_local_is_planned(input, local) {
+            continue;
+        }
+
         let source_name = state_name(input, local.source_key);
         blockers.insert(blocker(
             "state storage",
@@ -76,6 +80,21 @@ pub(super) fn collect_state_storage_blockers(
             ),
         ));
     }
+}
+
+fn state_local_is_planned(
+    input: &EmissionPlanningInput<'_>,
+    local: &omega_state_storage::StateLocalStorage,
+) -> bool {
+    input.runtime_storage.frame_slots.iter().any(|(_, slot)| {
+        state_key_matches_statement_source(slot.source_key, local.source_key)
+            && slot.statement_index == local.statement_index
+            && slot.symbol == local.symbol
+            && matches!(
+                slot.kind,
+                omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+            )
+    })
 }
 
 fn collect_runtime_body_storage_blockers(
@@ -170,10 +189,12 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
@@ -189,7 +210,10 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                    | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
+                    | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
+                    | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
         })
