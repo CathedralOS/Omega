@@ -2,12 +2,35 @@
 
 Pattern matching inspects values and binds facts.
 
-Transitions use matching to choose control edges. Ordinary expression-level
-matching may exist later, but the same fact rules should apply.
+Omega uses the same pattern vocabulary in both expression position and
+transition dispatch. The selected arm contributes facts to the arm body or
+target edge.
+
+## Match Expressions
+
+Expression-level `match` chooses a value-producing arm.
+
+```omega
+let command: Command = match self.input {
+    "quit" -> Command::Quit
+    "look" -> Command::Look
+    _ -> Command::Invalid
+};
+```
+
+Working rules:
+
+- `match` evaluates one scrutinee expression.
+- Arms are checked top-to-bottom.
+- The selected arm contributes its matched facts to the arm body.
+- Every reachable arm of a value-producing `match` must produce a compatible
+  result type.
+- Exhaustiveness is checked unless existing facts prove some arms unreachable.
 
 ## Transition Dispatch
 
-Conditional transitions name the value being inspected.
+Transition dispatch uses the same pattern model, but instead of producing a
+value it selects the next control edge.
 
 ```omega
 transition navigation.choice {
@@ -87,17 +110,21 @@ state read_command(&mut self) {
 The selected arm ends the current state and transfers control to the target
 state. Entry code follows the same rule: the machine body executes straight-line
 setup first, then reaches one explicit trailing `transition { ... }` before the
-state declarations begin.
+state declarations begin. Chapter 4 defines the machine/state control model;
+this chapter focuses on how pattern selection feeds that control model.
 
 ## Domain Patterns
 
 Domains may participate in matching when the classifier is proof-visible.
+Chapter 8 defines domains themselves; this section only defines how domain
+patterns participate in matching once those domains exist.
 
 ```omega
-transition player {
-    Player::Alive -> continue_game()
-    Player::Dead -> game_over()
+match player {
+    Player::Alive -> continue_game(player)
+    Player::Dead -> game_over(player)
 }
 ```
 
-The selected arm contributes the matched domain fact to the target edge.
+The selected arm contributes the matched domain fact to the selected arm body or
+transition target.

@@ -29,22 +29,11 @@ machine Player::take_damage(
 Free-standing machines are ordinary machines without a data receiver.
 
 ```omega
-machine clamp_i32(
-    value: i32,
-    min: i32,
-    max: i32
+machine add_i32(
+    left: i32,
+    right: i32
 ) -> i32 {
-    transition value < min {
-        true -> min
-        false -> clamp_high(value, max)
-    }
-
-    state clamp_high(value: i32, max: i32) {
-        transition value > max {
-            true -> max
-            false -> value
-        }
-    }
+    left + right
 }
 ```
 
@@ -57,27 +46,12 @@ Executable programs should use an explicit root data type.
 
 ```omega
 data Main {
-    game: Game;
+    total: i32;
 }
 
 machine Main::main(&mut self) -> i32 {
-    self.game.initialize(7);
-
-    transition {
-        _ -> running()
-    }
-
-    state running(&mut self) {
-        self.game.run_game_loop();
-
-        transition {
-            _ -> shutdown()
-        }
-    }
-
-    state shutdown(&mut self) {
-        0
-    }
+    self.total = add_i32(3, 4);
+    self.total
 }
 ```
 
@@ -89,18 +63,14 @@ This keeps process-owned state under one explicit owner.
 ## Parameters And Returns
 
 Machine parameters are entry data. A machine return type is the value shape its
-graph eventually produces.
+body or internal state graph eventually produces.
 
 ```omega
 machine Parser::resolve(
-    &mut self,
+    &self,
     line: &String
 ) -> Command {
-    transition line {
-        "quit" -> Command::Quit
-        "look" -> Command::Look
-        _ -> Command::Invalid
-    }
+    Command::Invalid
 }
 ```
 
@@ -116,7 +86,8 @@ let command: Command = self.parser.resolve(&self.line);
 ```
 
 Calls and transitions are different. A call enters another machine. A transition
-jumps to a state inside the current machine.
+jumps to a state inside the current machine. Chapter 4 introduces states and
+transitions directly.
 
 ## Contracts
 
