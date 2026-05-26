@@ -564,6 +564,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RuntimeMachineIndexedTarget {
     pub(super) base_byte_offset: usize,
+    pub(super) index_region: RuntimeStorageRegion,
     pub(super) index_offset: usize,
     pub(super) element_byte_size: usize,
     pub(super) field_byte_offset: usize,
@@ -592,7 +593,10 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         expressions,
         indexed.index,
     )?;
-    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+    if !matches!(
+        index_place.region,
+        RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+    ) {
         return None;
     }
 
@@ -616,6 +620,7 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
 
     Some(RuntimeMachineIndexedTarget {
         base_byte_offset: collection.byte_offset,
+        index_region: index_place.region,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
         field_byte_offset,
@@ -638,7 +643,10 @@ pub(super) fn resolve_runtime_machine_indexed_target(
     )?;
     let index_place =
         resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
-    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+    if !matches!(
+        index_place.region,
+        RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+    ) {
         return None;
     }
 
@@ -658,6 +666,7 @@ pub(super) fn resolve_runtime_machine_indexed_target(
 
     Some(RuntimeMachineIndexedTarget {
         base_byte_offset: collection.byte_offset,
+        index_region: index_place.region,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
         field_byte_offset,

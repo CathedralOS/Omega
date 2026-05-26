@@ -397,6 +397,7 @@ pub fn encode_runtime_machine_indexed_string_write(
     append_runtime_machine_index_target_address(
         &mut bytes,
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -586,6 +587,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
 
 pub fn encode_runtime_machine_indexed_integer_write(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -600,6 +602,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
 
     let mut bytes = Vec::with_capacity(runtime_machine_indexed_integer_write_width(
         base_byte_offset,
+        index_region,
         element_byte_size,
         field_byte_offset,
         byte_size,
@@ -607,6 +610,7 @@ pub fn encode_runtime_machine_indexed_integer_write(
     append_runtime_machine_index_target_address(
         &mut bytes,
         base_byte_offset,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -911,6 +915,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     append_runtime_machine_index_target_address(
         &mut bytes,
         base_byte_offset,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -1059,16 +1064,25 @@ fn append_runtime_frame_fixed_index_target_address(
 fn append_runtime_machine_index_target_address(
     bytes: &mut Vec<u8>,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_move_x_register(20, 16));
     append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
-    bytes.extend(encode_adrp_placeholder(20));
-    bytes.extend(encode_add_page_offset_placeholder(20));
-    bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+    match index_region {
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+            bytes.extend(encode_adrp_placeholder(20));
+            bytes.extend(encode_add_page_offset_placeholder(20));
+            bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+        }
+        omega_target_operations::RuntimeStorageRegion::Machine => {
+            bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+        }
+    }
     append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;

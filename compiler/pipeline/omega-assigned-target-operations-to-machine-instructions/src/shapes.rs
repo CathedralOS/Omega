@@ -257,6 +257,7 @@ pub(super) fn lower_machine_instruction_kind(
         ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
+            index_region,
             index_offset,
             element_byte_size,
             field_byte_offset,
@@ -264,6 +265,7 @@ pub(super) fn lower_machine_instruction_kind(
             value,
         } => runtime_storage::runtime_machine_indexed_integer_write_kind(
             *base_byte_offset,
+            *index_region,
             *index_offset,
             *element_byte_size,
             *field_byte_offset,

@@ -176,17 +176,22 @@ pub(super) fn collect_instruction_relocations(
             context.insert_data_address_at_instruction_start(symbol);
         }
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
-            base_byte_offset, ..
+            base_byte_offset,
+            index_region,
+            ..
         } => {
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_machine_indexed_integer_runtime_frame_address_offset(
-                    input.target.architecture,
-                    *base_byte_offset,
-                ),
-                context.runtime_frame_symbol_handle(),
-            );
+            if *index_region == omega_assigned_target_operations::RuntimeStorageRegion::RuntimeFrame
+            {
+                context.insert_data_address_at_relative_offset(
+                    runtime_machine_indexed_integer_runtime_frame_address_offset(
+                        input.target.architecture,
+                        *base_byte_offset,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
             element_byte_size,
