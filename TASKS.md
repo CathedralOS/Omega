@@ -23,6 +23,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
       - `canaries/pass/domains/executable_domain_membership_intersection_value_exit`
     - imported executable domain unions now work in local bool values too:
       - `canaries/pass/domains/executable_imported_domain_membership_union_value_exit`
+    - imported executable domain unions now run directly in transition guards too:
+      - `canaries/pass/domains/executable_imported_domain_membership_union_guard_exit`
     - imported executable domain intersections now work in local bool values too:
       - `canaries/pass/domains/executable_imported_domain_membership_intersection_value_exit`
     - imported executable domain intersections now run directly in transition guards too:
