@@ -877,6 +877,48 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
     })
 }
 
+pub(super) fn resolve_runtime_frame_fixed_indexed_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeFrameFixedIndexedTarget> {
+    let fixed = fixed_indexed_target_path(expression)?;
+    let collection_slot =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
+    if inline_fixed_array_element_type(&collection_slot.type_descriptor).is_some() {
+        return None;
+    }
+    let descriptor_place =
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", fixed.collection)?;
+    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let element_index = usize::try_from(fixed.index).ok()?;
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) =
+        resolve_indexed_target_suffix_layout(input, &root_field, fixed.suffix_root)?;
+
+    Some(RuntimeFrameFixedIndexedTarget {
+        descriptor_offset: descriptor_place.byte_offset,
+        element_index,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
 #[derive(Debug, Clone, Copy)]
 struct FixedIndexedTargetPath<'expression> {
     collection: &'expression Expression,

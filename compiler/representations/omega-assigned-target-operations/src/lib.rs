@@ -121,6 +121,13 @@ pub enum AssignedValueOperandKind {
         field_byte_offset: usize,
         byte_size: usize,
     },
+    FrameFixedIndexed {
+        descriptor_offset: usize,
+        element_index: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     Binary {
         left: AssignedValueOperandHandle,
         operator: StateGuardOperator,
@@ -159,6 +166,19 @@ impl From<omega_target_operations::TargetValueOperand> for AssignedValueOperandK
             } => Self::FrameIndexed {
                 descriptor_offset,
                 index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            },
+            omega_target_operations::TargetValueOperand::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Self::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
@@ -207,6 +227,19 @@ impl From<AssignedValueOperandKind> for omega_target_operations::TargetValueOper
             } => Self::FrameIndexed {
                 descriptor_offset,
                 index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            },
+            AssignedValueOperandKind::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Self::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
                 element_byte_size,
                 field_byte_offset,
                 byte_size,
@@ -600,6 +633,13 @@ pub enum AssignedValueHomeKind {
     RuntimeFrameIndexed {
         descriptor_offset: usize,
         index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
+    RuntimeFrameFixedIndexed {
+        descriptor_offset: usize,
+        element_index: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
         byte_size: usize,
@@ -2034,6 +2074,28 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
             } => Some((
                 *descriptor_offset,
                 *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *byte_size,
+            )),
+            _ => None,
+        }
+    }
+
+    fn frame_fixed_indexed(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Some((
+                *descriptor_offset,
+                *element_index,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,

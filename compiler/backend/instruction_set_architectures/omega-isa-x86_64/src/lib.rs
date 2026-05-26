@@ -546,6 +546,8 @@ pub fn runtime_value_operand_width(
         10
     } else if let Some((_, _, byte_size)) = runtime_value_operands.storage(operand) {
         10 + load_width(byte_size)
+    } else if runtime_value_operands.frame_fixed_indexed(operand).is_some() {
+        32
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -568,6 +570,10 @@ fn append_runtime_value_operand(
     } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
         append_mov_r15_imm64(bytes, 0);
         append_load_reg_from_r15(bytes, destination, byte_offset, byte_size)
+    } else if runtime_value_operands.frame_fixed_indexed(operand).is_some() {
+        Err(Diagnostic::error(
+            "X86_64 runtime fixed indexed value operand is not implemented yet",
+        ))
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, left)?;
         append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R11, right)?;

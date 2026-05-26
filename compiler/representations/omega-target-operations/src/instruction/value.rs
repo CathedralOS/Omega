@@ -24,6 +24,13 @@ pub enum TargetValueOperand {
         field_byte_offset: usize,
         byte_size: usize,
     },
+    FrameFixedIndexed {
+        descriptor_offset: usize,
+        element_index: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     Binary {
         left: TargetValueOperandHandle,
         operator: StateGuardOperator,
@@ -41,6 +48,10 @@ pub trait RuntimeValueOperandSource {
     ) -> Option<(RuntimeStorageRegion, usize, usize)>;
     fn pointee(&self, handle: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)>;
     fn frame_indexed(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)>;
+    fn frame_fixed_indexed(
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(usize, usize, usize, usize, usize)>;
@@ -101,6 +112,28 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
             } => Some((
                 *descriptor_offset,
                 *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+                *byte_size,
+            )),
+            _ => None,
+        }
+    }
+
+    fn frame_fixed_indexed(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(usize, usize, usize, usize, usize)> {
+        match self.get(handle) {
+            RuntimeValueOperand::FrameFixedIndexed {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Some((
+                *descriptor_offset,
+                *element_index,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,

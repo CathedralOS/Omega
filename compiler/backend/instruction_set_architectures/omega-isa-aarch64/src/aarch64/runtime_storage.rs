@@ -985,6 +985,26 @@ fn append_runtime_frame_index_target_address(
     Ok(())
 }
 
+fn append_runtime_frame_fixed_index_target_address(
+    bytes: &mut Vec<u8>,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let scaled_index = element_index
+        .checked_mul(element_byte_size)
+        .ok_or_else(|| Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed operand"))?;
+    let byte_offset = scaled_index
+        .checked_add(field_byte_offset)
+        .ok_or_else(|| Diagnostic::error("AArch64 MVP encoder cannot address overflowing fixed indexed operand"))?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_runtime_storage_load(bytes, 16, 20, descriptor_offset, 8, "runtime frame indexed")?;
+    append_add_constant_to_x_register(bytes, 16, byte_offset)?;
+    Ok(())
+}
+
 fn append_runtime_machine_index_target_address(
     bytes: &mut Vec<u8>,
     base_byte_offset: usize,
@@ -1075,6 +1095,36 @@ fn append_runtime_value_operand(
             _ => {
                 return Err(Diagnostic::error(format!(
                     "AArch64 MVP encoder cannot load runtime indexed operand width `{byte_size}` yet"
+                )));
+            }
+        }
+        Ok(())
+    } else if let Some((
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_fixed_indexed(operand)
+    {
+        append_runtime_frame_fixed_index_target_address(
+            bytes,
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+        )?;
+        match byte_size {
+            1 | 4 => bytes.extend(encode_load_w_from_x(
+                destination_register,
+                16,
+                0,
+                byte_size,
+            )?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load runtime fixed indexed operand width `{byte_size}` yet"
                 )));
             }
         }
