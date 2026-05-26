@@ -1014,6 +1014,39 @@ fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mutable_machine_owned_parameter_write_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_mutable_machine_owned_parameter_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-machine-owned-parameter-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable machine-owned parameter write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable machine-owned parameter write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(141),
+        "expected runtime mutable machine-owned parameter write canary to preserve writes through mutable machine-owned call parameters and exit 141, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");
@@ -1711,6 +1744,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_field_with_mut_arg",
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
+    "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "dungeon/runtime_boolean_helper_guard_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_exit",
@@ -1779,6 +1813,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_non_boolean_fact",
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
+    "calls/runtime_mutable_local_parameter_write_unimplemented",
     "storage/runtime_dispatch_helper_local_alias_add_unimplemented",
     "storage/runtime_dispatch_local_index_binary_write_unimplemented",
     "calls/runtime_helper_ordering_return",
