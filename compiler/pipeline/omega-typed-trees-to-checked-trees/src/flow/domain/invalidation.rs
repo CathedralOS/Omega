@@ -84,6 +84,7 @@ fn matching_mutation_for_fact_place<'a, 'b>(
             FactPayload::DomainMembership { .. } | FactPayload::ContractDomainMembership { .. }
         );
         if let Some(dependency_segments) = domain_membership_matching_dependency(
+            program,
             domain_dependencies,
             fact,
             &fact_canonical_place,
@@ -97,7 +98,8 @@ fn matching_mutation_for_fact_place<'a, 'b>(
         }
 
         if fact_canonical_place.root == mutated_place.root
-            && canonical_place_overlaps_segments(
+            && canonical_place_segments_may_overlap(
+                program,
                 &fact_canonical_place.segments,
                 &mutated_place.segments,
             )
@@ -110,6 +112,7 @@ fn matching_mutation_for_fact_place<'a, 'b>(
 }
 
 fn domain_membership_matching_dependency<'a>(
+    program: &omega_typed_trees::TypedTrees,
     domain_dependencies: &'a DomainFacts,
     fact: &Fact,
     fact_place: &CanonicalPlace,
@@ -126,19 +129,28 @@ fn domain_membership_matching_dependency<'a>(
     }
 
     let Some(domain_dependency) = domain_dependencies.dependency_fact(domain_symbol) else {
-        return canonical_place_overlaps_segments(&fact_place.segments, &mutated_place.segments)
-            .then_some(&[]);
+        return canonical_place_segments_may_overlap(
+            program,
+            &fact_place.segments,
+            &mutated_place.segments,
+        )
+        .then_some(&[]);
     };
 
     if domain_dependency.dependencies.is_empty() {
-        return canonical_place_overlaps_segments(&fact_place.segments, &mutated_place.segments)
-            .then_some(&[]);
+        return canonical_place_segments_may_overlap(
+            program,
+            &fact_place.segments,
+            &mutated_place.segments,
+        )
+        .then_some(&[]);
     }
 
     domain_dependencies
         .dependency_paths(domain_dependency)
         .find(|dependency_segments| {
-            canonical_place_overlaps_joined_segments(
+            canonical_place_joined_segments_may_overlap(
+                program,
                 &fact_place.segments,
                 dependency_segments,
                 &mutated_place.segments,

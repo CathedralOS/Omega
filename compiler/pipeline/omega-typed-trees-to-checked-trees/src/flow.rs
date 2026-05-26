@@ -7,22 +7,25 @@ mod domain;
 mod mutation;
 mod place;
 
+pub(crate) use builder::build_flow_facts;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
     append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
     clone_constraint_refs, clone_flow_contexts, effects_call, effects_machine, effects_state,
     project_constraint_refs_to_active_contexts, proof_contract_call,
 };
-use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::build_domain_facts;
-pub(crate) use mutation::{call_mutated_places, statement_mutated_place, StateMutationSummaryCache};
-pub(crate) use place::{
-    canonical_place_from_expression, canonical_place_from_expression_in_state,
-    canonical_place_from_symbol,
-    canonical_place_from_semantic_place, canonical_place_overlaps_joined_segments,
-    canonical_place_overlaps_segments, canonical_place_segments_equal,
-    effective_member_symbol, expression_type_symbol, resolve_member_symbol_from_type_symbol,
-    symbol_type_symbol, CanonicalPlace,
-};
+use domain::filter_contexts_after_place_mutations;
 use mutation::call_may_mutate_contract_state;
-pub(crate) use builder::build_flow_facts;
+pub(crate) use mutation::{
+    StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
+};
+#[allow(unused_imports)]
+pub(crate) use place::{
+    CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
+    canonical_place_from_semantic_place, canonical_place_from_symbol,
+    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,
+    canonical_place_overlaps_segments, canonical_place_segments_equal,
+    canonical_place_segments_may_overlap, effective_member_symbol, expression_type_symbol,
+    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+};
