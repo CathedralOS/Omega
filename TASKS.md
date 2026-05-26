@@ -125,6 +125,11 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
 
 - [ ] Runtime text and `read_line` cleanup
   Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.
+  Progress:
+  - direct stdin-driven command branching now has runnable pass coverage:
+    - `canaries/pass/text/runtime_stdin_command_branch_exit`
+  - repeated `read_line` calls now have runnable pass coverage asserting one logical line per read:
+    - `canaries/pass/text/runtime_stdin_line_buffering_exit`
 
 ## Backend Quality
 
