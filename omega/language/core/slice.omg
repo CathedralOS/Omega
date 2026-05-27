@@ -20,6 +20,12 @@ trust compiler_slice_tail {
 trust compiler_slice_from {
 }
 
+trust compiler_slice_to {
+}
+
+trust compiler_slice_range {
+}
+
 trust compiler_slice_length {
 }
 
@@ -36,3 +42,11 @@ requires
 operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
     start <= items.len;
+
+operator Slice::to<T>(items: &[T], end: usize) -> &[T]
+requires
+    end <= items.len;
+
+operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+requires
+    start <= end && end <= items.len;

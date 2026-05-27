@@ -21,6 +21,7 @@ meaning, without needing access to pointer descriptor internals.
   - initial browsable `Nat::Descending` home for termination ranking docs
   - import canaries for the first core collection/text module surfaces
   - `Slice` core source now exposes index and subslice-style operator contracts
+    for start-only, end-only, and bounded range windows
     with proof obligations
   - `Slice::Length` and `Nat::Descending` now have explicit browsable core
     declarations through the current operator declaration surface
