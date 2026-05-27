@@ -141,13 +141,15 @@ meaning, without needing access to pointer descriptor internals.
   - dynamic subslice bounds such as `view[self.start..]`,
     `view[..self.end]`, and `view[self.start..self.end]` now reject until
     the compiler has a real proof that the bound is within the current view
+  - local literal integer facts now prove equivalent subslice bounds, covering
+    `let start: usize = 1; view[start..]`
   - obvious literal indexes over fixed-array-derived slice views now reject
     when outside the proven length
   - obvious literal indexes over fixed-array locals now use the same length
     proof path and reject when outside bounds
   Next target:
-  - require proof-backed acceptance, not blanket rejection, for dynamic
-    `view[start..]`, `view[..end]`, and `view[start..end]`
+  - expand proof-backed acceptance for dynamic `view[start..]`,
+    `view[..end]`, and `view[start..end]` beyond literal local constants
   - decide how inclusive/exclusive range forms spell and lower
   - connect range validity facts to indexing validity facts instead of duplicating proof logic
 
