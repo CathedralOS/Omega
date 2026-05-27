@@ -138,6 +138,8 @@ meaning, without needing access to pointer descriptor internals.
     reject when outside the proven slice length
   - literal start-only, end-only, and bounded subslice forms now have pass/fail
     canary coverage
+  - obvious literal indexes over fixed-array-derived slice views now reject
+    when outside the proven slice length
   Next target:
   - require proof that dynamic `view[start..]`, `view[..end]`, and
     `view[start..end]` are valid for the current view

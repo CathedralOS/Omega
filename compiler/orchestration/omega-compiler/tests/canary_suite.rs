@@ -2805,6 +2805,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/invalid_subslice_bounded_order_unchecked",
     "slices/invalid_subslice_bounds_unchecked",
     "slices/invalid_subslice_end_bounds_unchecked",
+    "slices/invalid_slice_literal_index_unchecked",
     "slices/termination_slice_length_order_unimplemented",
     "domains/domain_import_cycle",
     "domains/domain_import_unknown",
