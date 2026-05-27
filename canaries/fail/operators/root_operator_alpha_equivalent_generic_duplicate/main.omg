@@ -1,0 +1,9 @@
+operator Slice::index<T>(items: &[T], index: usize) -> T;
+
+operator Slice::index<U>(items: &[U], index: usize) -> U;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
