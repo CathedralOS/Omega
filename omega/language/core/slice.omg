@@ -11,6 +11,18 @@
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
 
+trust compiler_slice_index {
+}
+
+trust compiler_slice_tail {
+}
+
+trust compiler_slice_from {
+}
+
+trust compiler_slice_length {
+}
+
 operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
     index < items.len;

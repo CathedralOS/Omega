@@ -38,6 +38,10 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Trusted primitive registry
   Core contracts need an auditable implementation authority without inventing ad hoc keywords on every declaration.
+  Landed:
+  - syntax trust reports now emit trust roots, target trust policies, trusted contracts, unresolved trusts, and unchecked policies
+  - the pipeline shell includes the Trust artifact when present
+  - core `Slice` declares the first language-authored primitive trust roots for indexing, subslicing, and length ranking
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
