@@ -83,6 +83,28 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
                     }
                 }
             }
+            Item::Operator(operator) => {
+                collect_trusted_contracts(
+                    &mut report,
+                    &roots,
+                    &mut checked_root_uses,
+                    "operator",
+                    &identifier_path_name(syntax, operator.name),
+                    syntax.items.capability_contracts(operator.contracts),
+                );
+            }
+            Item::Domain(domain) => {
+                for operator in syntax.items.operators(domain.operators) {
+                    collect_trusted_contracts(
+                        &mut report,
+                        &roots,
+                        &mut checked_root_uses,
+                        &format!("domain operator {}", domain.name.as_str()),
+                        &identifier_path_name(syntax, operator.name),
+                        syntax.items.capability_contracts(operator.contracts),
+                    );
+                }
+            }
             Item::Target(target) => {
                 let policies = syntax.items.trust_policies(target.trust_policies);
                 report.targets.insert(TrustTarget {
@@ -246,6 +268,11 @@ mod tests {
                 }
             }
 
+            operator Slice::index<T>(items: &[T], index: usize) -> T
+            requires
+                index < items.len
+            trust compiler_slice_index;
+
             target native {
                 host: omega::host {
                     os = darwin
@@ -260,7 +287,7 @@ mod tests {
 
         assert_eq!(report.trust_roots.len(), 1);
         assert_eq!(report.targets.len(), 1);
-        assert_eq!(report.trusted_contracts.len(), 2);
+        assert_eq!(report.trusted_contracts.len(), 3);
         assert_eq!(report.unresolved_trusts.len(), 2);
         assert_eq!(report.unchecked_policies.len(), 1);
 
@@ -271,7 +298,7 @@ mod tests {
 
         let (_, root) = report.trust_roots.iter().next().expect("trust root");
         assert_eq!(root.name, "compiler_slice_index");
-        assert_eq!(root.checked_references, 2);
+        assert_eq!(root.checked_references, 3);
         assert_eq!(root.unchecked_references, 0);
 
         assert!(report.trusted_contracts.iter().any(|(_, contract)| {

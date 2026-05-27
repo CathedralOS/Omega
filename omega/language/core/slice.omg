@@ -29,24 +29,30 @@ trust compiler_slice_range {
 trust compiler_slice_length {
 }
 
-operator Slice::Length<T>(items: &[T]) -> usize;
+operator Slice::Length<T>(items: &[T]) -> usize
+trust compiler_slice_length;
 
 operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
-    index < items.len;
+    index < items.len
+trust compiler_slice_index;
 
 operator Slice::tail<T>(items: &[T]) -> &[T]
 requires
-    items.len > 0;
+    items.len > 0
+trust compiler_slice_tail;
 
 operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
-    start <= items.len;
+    start <= items.len
+trust compiler_slice_from;
 
 operator Slice::to<T>(items: &[T], end: usize) -> &[T]
 requires
-    end <= items.len;
+    end <= items.len
+trust compiler_slice_to;
 
 operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
 requires
-    start <= end && end <= items.len;
+    start <= end && end <= items.len
+trust compiler_slice_range;

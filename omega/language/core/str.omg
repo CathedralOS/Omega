@@ -20,10 +20,14 @@ trust compiler_str_view_length {
 trust compiler_str_view_bytes {
 }
 
-operator String::Length(text: String) -> usize;
+operator String::Length(text: String) -> usize
+trust compiler_string_length;
 
-operator String::as_view(text: &String) -> &str;
+operator String::as_view(text: &String) -> &str
+trust compiler_string_as_view;
 
-operator StrView::Length(text: &str) -> usize;
+operator StrView::Length(text: &str) -> usize
+trust compiler_str_view_length;
 
-operator StrView::bytes(text: &str) -> &[u8];
+operator StrView::bytes(text: &str) -> &[u8]
+trust compiler_str_view_bytes;
