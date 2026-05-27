@@ -114,15 +114,15 @@ meaning, without needing access to pointer descriptor internals.
   - `decreases entries -> Slice::Length` is accepted by the termination
     checker for the first shrinking-subslice self-loop shape
   - non-empty slice guards now prove the shrinking tail subslice used by the
-    pending `Slice::Length` termination canary; the remaining failure is
-    runtime dispatch encoding for the guarded recursive state call
+    `Slice::Length` termination canary
+  - runtime dispatch guard emission now handles guarded termination edges, so
+    the shrinking-slice `Slice::Length` canary compiles end-to-end
   - checker recognition of builtin ranking names is isolated behind a small
     internal ranking-order model
   - `Nat::Descending` and `Slice::Length` have temporary core declaration homes
     via operator declarations
   Current pending canary:
   - `canaries/pending/termination/custom_ranking_order_unimplemented`
-  - `canaries/pending/slices/termination_slice_length_compile`
   Next target:
   - replace temporary operator-like ranking declarations with dedicated ranking
     or measure declaration syntax once selected

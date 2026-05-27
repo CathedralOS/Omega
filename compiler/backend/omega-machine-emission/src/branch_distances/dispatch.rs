@@ -28,26 +28,32 @@ pub(crate) fn byte_distance_to_case_end(
     Ok(target as isize - branch_program_counter as isize)
 }
 
-pub(crate) fn byte_distance_to_next_state_write_end(
+pub(crate) fn byte_distance_to_next_dispatch_action_end(
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(0);
     };
-    let Some(state_write) = machine_instructions
+    let Some(dispatch_action) = machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| matches!(instruction.kind, MachineInstructionKind::DispatchStateWrite))
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                MachineInstructionKind::DispatchStateWrite
+                    | MachineInstructionKind::DispatchTerminate
+            )
+        })
     else {
         return Err(Diagnostic::error(format!(
-            "cannot encode dispatch guard at byte {}: missing guarded state write",
+            "cannot encode dispatch guard at byte {}: missing guarded dispatch action",
             current.offset
         )));
     };
 
     let branch_program_counter = current.offset + 16;
-    let target = state_write.offset + state_write.byte_width;
+    let target = dispatch_action.offset + dispatch_action.byte_width;
     Ok(target as isize - branch_program_counter as isize)
 }
 

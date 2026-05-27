@@ -2887,6 +2887,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_nested_subslice_dynamic_index_exit",
     "slices/runtime_nested_subslice_fixed_index_exit",
     "slices/runtime_subslice_range_pointer_exit",
+    "slices/termination_slice_length_compile",
     "slices/termination_slice_len_distance_compile",
     "slices/runtime_slice_index_copy_dispatch_exit",
     "slices/runtime_slice_index_copy_exit",
@@ -3000,12 +3001,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "termination/custom_ranking_order_unimplemented",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "cannot prove decreases clause",
-        },
-    },
-    PendingCanary {
-        path: "slices/termination_slice_length_compile",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "missing guarded state write",
         },
     },
     PendingCanary {
