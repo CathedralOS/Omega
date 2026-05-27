@@ -1,0 +1,13 @@
+trust compiler_slice_index {
+}
+
+operator Slice::index<T>(items: &[T], index: usize) -> T
+requires
+    index < items.len
+trust compiler_slice_index;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -16,8 +16,11 @@ trust compiler_array_as_slice {
 trust compiler_array_as_mut_slice {
 }
 
-operator Array::Length<T>(items: Array<T>) -> usize;
+operator Array::Length<T>(items: Array<T>) -> usize
+trust compiler_array_length;
 
-operator Array::as_slice<T>(items: &Array<T>) -> &[T];
+operator Array::as_slice<T>(items: &Array<T>) -> &[T]
+trust compiler_array_as_slice;
 
-operator Array::as_mut_slice<T>(items: &mut Array<T>) -> &mut [T];
+operator Array::as_mut_slice<T>(items: &mut Array<T>) -> &mut [T]
+trust compiler_array_as_mut_slice;

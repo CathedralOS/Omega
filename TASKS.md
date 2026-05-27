@@ -27,6 +27,8 @@ meaning, without needing access to pointer descriptor internals.
     declarations through the current operator declaration surface
   - `Array`, `Vec`, and current text surfaces now expose initial browsable
     length/view operator contracts and primitive trust roots
+  - core operators can now name their trusted primitive root through operator
+    `trust` contracts instead of relying only on nearby trust declarations
   Next target:
   - replace comment-only sketches with parser-supported declarations as syntax
     becomes available
@@ -59,6 +61,8 @@ meaning, without needing access to pointer descriptor internals.
   - require trusted implementation bindings to reference registered roots
   - promote trust-root usage counts into stricter registry validation once
     implementation-binding syntax exists
+  - include operator trust contracts in registry validation and unresolved-root
+    diagnostics
   - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
   - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
 

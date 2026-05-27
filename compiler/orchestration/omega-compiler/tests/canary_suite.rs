@@ -2993,6 +2993,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/str_core_surface",
     "core/vec_core_surface",
     "operators/core_operator_declaration_surface",
+    "operators/core_operator_trust_contract_surface",
     "operators/domain_operator_declaration_surface",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
