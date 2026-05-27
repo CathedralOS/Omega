@@ -17,6 +17,7 @@ meaning, without needing access to pointer descriptor internals.
   Landed:
   - initial browsable modules for `Slice`, `Vec`, `Array`, and text direction
     under `omega/language/core`
+  - initial browsable `Ptr` primitive-boundary module under `omega/language/core`
   - initial browsable `Nat::Descending` home for termination ranking docs
   - import canaries for the first core collection/text module surfaces
   - `Slice` core source now exposes index and subslice-style operator contracts
@@ -42,6 +43,7 @@ meaning, without needing access to pointer descriptor internals.
   - syntax trust reports now emit trust roots, target trust policies, trusted contracts, unresolved trusts, and unchecked policies
   - the pipeline shell includes the Trust artifact when present
   - core `Slice` declares the first language-authored primitive trust roots for indexing, subslicing, and length ranking
+  - core `Ptr` declares initial primitive trust roots for offset, read, write, and pointer-range operations
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
