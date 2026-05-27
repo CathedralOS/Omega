@@ -138,13 +138,15 @@ meaning, without needing access to pointer descriptor internals.
     reject when outside the proven slice length
   - literal start-only, end-only, and bounded subslice forms now have pass/fail
     canary coverage
+  - dynamic start bounds such as `view[self.start..]` now reject until the
+    compiler has a real proof that the bound is within the current view
   - obvious literal indexes over fixed-array-derived slice views now reject
     when outside the proven length
   - obvious literal indexes over fixed-array locals now use the same length
     proof path and reject when outside bounds
   Next target:
-  - require proof that dynamic `view[start..]`, `view[..end]`, and
-    `view[start..end]` are valid for the current view
+  - require proof-backed acceptance, not blanket rejection, for dynamic
+    `view[start..]`, `view[..end]`, and `view[start..end]`
   - decide how inclusive/exclusive range forms spell and lower
   - connect range validity facts to indexing validity facts instead of duplicating proof logic
 

@@ -182,6 +182,11 @@ fn check_range_index(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((start, end)) = literal_range_bounds(program, range) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot prove subslice range `{}` is within slice length {}",
+            program.expression_table.display_name(index),
+            length
+        )));
         return;
     };
 
