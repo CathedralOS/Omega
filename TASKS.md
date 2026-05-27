@@ -191,9 +191,11 @@ meaning, without needing access to pointer descriptor internals.
     `entries[1..]`, matching the slice-shrinking loop pattern
   - minimum-length guards such as `entries.len >= 2` and `2 <= entries.len`
     now prove literal indexes and tail subslices within that known prefix
+  - unknown-length subslice diagnostics now distinguish subslice range proof
+    failures from element-index proof failures
   Next target:
-  - add range-bound diagnostics that distinguish invalid element indexes from
-    invalid exclusive range bounds
+  - add range-bound diagnostics that distinguish start-bound, end-bound, and
+    ordering failures inside subslice proofs
   - moved dynamic machine-owned indexed mutable-call runtime coverage to
     pending until guards/contracts can prove the machine field index in range
   - moved append-style storage mutation coverage to pending until bounded

@@ -301,7 +301,7 @@ fn check_unknown_length_slice_index(
                 return;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove range `{}` is within unknown slice length",
+                "cannot prove subslice range `{}` is within unknown slice length",
                 program.expression_table.display_name(index)
             )));
         }
