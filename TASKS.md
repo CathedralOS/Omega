@@ -124,6 +124,8 @@ meaning, without needing access to pointer descriptor internals.
   - custom ranking names must now resolve to declared operator-like ranking
     views returning `usize`; undeclared names reject instead of being accepted
     as magic strings
+  - custom ranking declarations now have canary coverage for unknown names,
+    non-`usize` returns, and wrong arity
   - `decreases power -> Card::PowerOrder` now compiles for the first declared
     custom natural-ranking countdown shape
   - `decreases card.power -> Card::PowerOrder` now proves the first
