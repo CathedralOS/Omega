@@ -121,6 +121,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     TypeReferenceUseKind::Storage,
                     &format!("domain `{}` target type", domain.name),
                 );
+                collect_domain_operators(&mut report, syntax_trees, domain);
             }
             Item::Invariant(invariant) => {
                 insert_declaration(&mut report, &invariant.name, TypeDeclarationKind::Invariant);
@@ -236,6 +237,28 @@ fn collect_machine(
 
     for state in syntax_trees.items.state_handles(machine.states) {
         collect_state(report, syntax_trees, machine, *state);
+    }
+}
+
+fn collect_domain_operators(
+    report: &mut TypeSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    domain: &omega_syntax_trees::item::DomainDefinition,
+) {
+    for operator in syntax_trees.items.operators(domain.operators) {
+        let operator_name = operator_name(syntax_trees, operator.name);
+        insert_declaration(
+            report,
+            &format!("{}::{}", domain.name, operator_name),
+            TypeDeclarationKind::Operator,
+        );
+        collect_state_parts(
+            report,
+            syntax_trees,
+            operator.parameters,
+            operator.return_type,
+            &format!("domain `{}` operator `{operator_name}`", domain.name),
+        );
     }
 }
 
@@ -508,12 +531,33 @@ mod tests {
         let target_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("String")));
+        let operator_name = syntax_trees
+            .items
+            .insert_identifier_path_members([Identifier::generated("normalize")]);
+        let parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("value"),
+                type_reference: target_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
+        let operator = syntax_trees.items.append_operator(OperatorDefinition {
+            name: operator_name,
+            type_parameters: HandleSpan::empty(),
+            parameters: HandleSpan::from_parts(parameter, 1),
+            return_type: target_type,
+            contracts: HandleSpan::empty(),
+            token_count: 1,
+        });
 
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
             facts: omega_core::arena::HandleSpan::empty(),
-            operators: omega_core::arena::HandleSpan::empty(),
+            operators: HandleSpan::from_parts(operator, 1),
             body_token_count: 3,
         }));
 
@@ -524,6 +568,13 @@ mod tests {
                 declaration.name == "NonEmpty" && declaration.kind == TypeDeclarationKind::Domain
             }),
             "domain declaration should be recorded"
+        );
+        assert!(
+            report.declarations.iter().any(|(_, declaration)| {
+                declaration.name == "NonEmpty::normalize"
+                    && declaration.kind == TypeDeclarationKind::Operator
+            }),
+            "domain operator declaration should be recorded"
         );
         assert!(
             report.references.iter().any(|(_, reference)| {

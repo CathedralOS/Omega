@@ -66,6 +66,8 @@ meaning, without needing access to pointer descriptor internals.
     name-resolution report and source symbol table
   - root operator declarations are now first-class declarations in the early
     type-surface report
+  - domain-owned operator declarations are now surfaced in early name and type
+    reports
   - duplicate root operator declarations reject with a focused diagnostic
   Next target:
   - lower operator names into symbols and validate ambiguous operator
@@ -84,6 +86,8 @@ meaning, without needing access to pointer descriptor internals.
   - compile canary for a domain-scoped operator signature
   - domain operator declarations are preserved as domain-owned declarations
     through typed trees
+  - domain operator declarations appear as domain-owned entries in early
+    semantic reports
   - duplicate domain operator declarations reject with a focused diagnostic
   Next target:
   - define the first semantic domain-operator representation
