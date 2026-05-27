@@ -377,10 +377,13 @@ meaning, without needing access to pointer descriptor internals.
     rejects for both slice and string views
   - derived subslice aliases now rebase their borrow loan through the source
     view, so owner mutation under a live `tail = view[1..]` alias rejects
+  - fixed integer indexes are now checked against fixed subslice-range loan
+    segments, allowing provably disjoint owner writes such as index `0` while
+    `view[1..]` remains live
   - borrow diagnostics now print indexed places with source expression labels
     instead of internal expression arena indexes
   Next target:
-  - distinguish disjoint fixed windows where provable
+  - distinguish more disjoint fixed windows and bounded range/range cases where provable
   - ensure `Vec` mutation/reallocation is rejected while borrowed views exist
   - add canaries for array, slice, and future vec aliasing cases
 
