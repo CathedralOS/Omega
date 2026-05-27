@@ -209,6 +209,9 @@ meaning, without needing access to pointer descriptor internals.
     `let index = room.exit_count`
   - indexed field read/modify/write through an unknown-length slice parameter
     now compiles when `requires index < exits.len` proves the index
+  - call-site contract checking can now structurally prove obvious literal
+    field/count facts such as `rooms[0].exit_count < rooms[0].exits.len`,
+    promoting append-style storage mutation coverage to runtime pass
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index
@@ -220,8 +223,6 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - thread those refined subslice diagnostics through future operator-contract
     errors once `Slice::from/to/range` contracts drive checking directly
-  - moved append-style storage mutation coverage to pending until call-site
-    contract checking can prove `rooms[from_index].exit_count < rooms[from_index].exits.len`
   - broaden state-argument fact propagation to recursive/cyclic control-flow
     paths instead of the current conservative direct-call/transition seed pass
   - extend guard facts into state-call argument propagation for recursive and
