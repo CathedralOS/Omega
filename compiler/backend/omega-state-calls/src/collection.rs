@@ -518,6 +518,28 @@ fn collect_expression_state_calls_in_table(
                 calls,
             );
         }
+        ExpressionNode::Range(range) => {
+            collect_expression_state_calls_in_table(
+                context,
+                machine,
+                source_key,
+                statement_index,
+                call_ordinal,
+                role,
+                range.start,
+                calls,
+            );
+            collect_expression_state_calls_in_table(
+                context,
+                machine,
+                source_key,
+                statement_index,
+                call_ordinal,
+                role,
+                range.end,
+                calls,
+            );
+        }
         ExpressionNode::Member(member) => collect_expression_state_calls_in_table(
             context,
             machine,

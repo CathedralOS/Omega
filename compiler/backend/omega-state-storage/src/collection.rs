@@ -585,6 +585,10 @@ fn expression_uses_symbol_mutably(
             expression_uses_symbol_mutably(expressions, indexed.collection, symbol, local_name)
                 || expression_uses_symbol_mutably(expressions, indexed.index, symbol, local_name)
         }
+        ExpressionNode::Range(range) => {
+            expression_uses_symbol_mutably(expressions, range.start, symbol, local_name)
+                || expression_uses_symbol_mutably(expressions, range.end, symbol, local_name)
+        }
         ExpressionNode::Member(member) => {
             expression_uses_symbol_mutably(expressions, member.receiver, symbol, local_name)
         }
@@ -645,6 +649,10 @@ fn expression_references_symbol(
         ExpressionNode::Indexed(indexed) => {
             expression_references_symbol(expressions, indexed.collection, symbol, local_name)
                 || expression_references_symbol(expressions, indexed.index, symbol, local_name)
+        }
+        ExpressionNode::Range(range) => {
+            expression_references_symbol(expressions, range.start, symbol, local_name)
+                || expression_references_symbol(expressions, range.end, symbol, local_name)
         }
         ExpressionNode::Member(member) => {
             expression_references_symbol(expressions, member.receiver, symbol, local_name)

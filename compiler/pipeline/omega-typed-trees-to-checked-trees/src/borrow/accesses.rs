@@ -98,6 +98,32 @@ fn collect_read_accesses(
                 );
             }
         }
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                collect_read_accesses(
+                    range.start,
+                    program,
+                    access_segments,
+                    argument_accesses,
+                    accesses,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                );
+            }
+            if range.end.is_valid() {
+                collect_read_accesses(
+                    range.end,
+                    program,
+                    access_segments,
+                    argument_accesses,
+                    accesses,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                );
+            }
+        }
         ExpressionNode::Binary(binary) => {
             collect_read_accesses(
                 binary.left,
@@ -294,6 +320,7 @@ pub(crate) fn borrow_access_place(
             });
             Some(place)
         }
+        ExpressionNode::Range(_) => None,
         ExpressionNode::Mutable(inner) => borrow_access_place(
             program,
             state_symbol,

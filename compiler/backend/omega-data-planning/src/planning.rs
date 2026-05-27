@@ -147,6 +147,10 @@ fn estimate_static_string_expression_capacity(
                 estimate_static_string_expression_capacity(expressions, *element, capacity);
             }
         }
+        ExpressionNode::Range(range) => {
+            estimate_static_string_expression_capacity(expressions, range.start, capacity);
+            estimate_static_string_expression_capacity(expressions, range.end, capacity);
+        }
         ExpressionNode::Binary(binary) => {
             estimate_static_string_expression_capacity(expressions, binary.left, capacity);
             estimate_static_string_expression_capacity(expressions, binary.right, capacity);

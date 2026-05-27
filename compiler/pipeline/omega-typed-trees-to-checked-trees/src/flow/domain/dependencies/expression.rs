@@ -35,6 +35,24 @@ pub(super) fn collect_dependency_paths_from_expression(
                 dependencies,
             );
         }
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                collect_dependency_paths_from_expression(
+                    program,
+                    range.start,
+                    self_type_symbol,
+                    dependencies,
+                );
+            }
+            if range.end.is_valid() {
+                collect_dependency_paths_from_expression(
+                    program,
+                    range.end,
+                    self_type_symbol,
+                    dependencies,
+                );
+            }
+        }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 collect_dependency_paths_from_expression(

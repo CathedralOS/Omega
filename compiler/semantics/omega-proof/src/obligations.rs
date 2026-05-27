@@ -1011,6 +1011,21 @@ fn expression_constraints(
             let right = expression_constraints(program, machine, state, binary.right);
             derived_binary_constraints(binary.operator, &left, &right)
         }
+        ExpressionNode::Range(range) => {
+            let mut constraints = ConstraintBuffer::new();
+            if range.start.is_valid() {
+                constraints.extend(expression_constraints(
+                    program,
+                    machine,
+                    state,
+                    range.start,
+                ));
+            }
+            if range.end.is_valid() {
+                constraints.extend(expression_constraints(program, machine, state, range.end));
+            }
+            constraints
+        }
         ExpressionNode::Call(call) => {
             if let Some(constraints) =
                 derived_builtin_call_constraints(program, machine, state, call)

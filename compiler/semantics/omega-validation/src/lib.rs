@@ -482,6 +482,7 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Name(_) => true,
+        ExpressionNode::Range(_) => false,
         ExpressionNode::Mutable(inner) => is_boolean_fact_expression(program, *inner),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
@@ -2743,6 +2744,7 @@ fn expression_type_name_handle(program: &TypedTrees, argument: ExpressionHandle)
             expression_type_name_handle(program, *inner_expression)
         }
         ExpressionNode::Name(_) => "named value",
+        ExpressionNode::Range(_) => "range expression",
         ExpressionNode::StructLiteral(_) => "struct literal",
         ExpressionNode::String(_) => "String",
     }

@@ -532,6 +532,10 @@ fn collect_expression_calls(
         ExpressionNode::Mutable(inner) => {
             collect_expression_calls(program, *inner, statement_index, call_ordinal, calls);
         }
+        ExpressionNode::Range(range) => {
+            collect_expression_calls(program, range.start, statement_index, call_ordinal, calls);
+            collect_expression_calls(program, range.end, statement_index, call_ordinal, calls);
+        }
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
                 .expression_table

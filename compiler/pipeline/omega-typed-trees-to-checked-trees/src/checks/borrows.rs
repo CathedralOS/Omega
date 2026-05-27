@@ -251,6 +251,7 @@ fn mutable_argument_root_name(
         omega_checked_trees::expression::ExpressionNode::Indexed(indexed) => {
             mutable_argument_root_name(program, indexed.collection)
         }
+        omega_checked_trees::expression::ExpressionNode::Range(_) => None,
         omega_checked_trees::expression::ExpressionNode::Member(member) => {
             match program.expression_table.expression(member.receiver) {
                 omega_checked_trees::expression::ExpressionNode::Name(path) => {

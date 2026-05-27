@@ -236,6 +236,22 @@ fn simple_local_binding_value_from_table(
                 index: simple_local_binding_value_from_table(table, indexed.index)?,
             })))
         }
+        ExpressionNode::Range(range) => Some(Expression::Range(Box::new(
+            omega_checked_trees::expression::RangeExpression {
+                start: range
+                    .start
+                    .is_valid()
+                    .then(|| simple_local_binding_value_from_table(table, range.start))
+                    .flatten()
+                    .map(Box::new),
+                end: range
+                    .end
+                    .is_valid()
+                    .then(|| simple_local_binding_value_from_table(table, range.end))
+                    .flatten()
+                    .map(Box::new),
+            },
+        ))),
         ExpressionNode::Call(call) => Some(Expression::Call(Box::new(CallExpression {
             receiver: call.receiver.is_valid().then(|| {
                 simple_local_binding_value_from_table(table, call.receiver).map(Box::new)
@@ -332,6 +348,28 @@ fn simplify_expression_with_bindings(
                 preserve_call_locals,
             ),
         })),
+        Expression::Range(range) => {
+            Expression::Range(Box::new(omega_checked_trees::expression::RangeExpression {
+                start: range.start.as_ref().map(|start| {
+                    Box::new(simplify_expression_with_bindings(
+                        program,
+                        machine,
+                        start,
+                        bindings,
+                        preserve_call_locals,
+                    ))
+                }),
+                end: range.end.as_ref().map(|end| {
+                    Box::new(simplify_expression_with_bindings(
+                        program,
+                        machine,
+                        end,
+                        bindings,
+                        preserve_call_locals,
+                    ))
+                }),
+            }))
+        }
         Expression::Member(member) => Expression::Member(Box::new(MemberExpression {
             receiver: simplify_expression_with_bindings(
                 program,

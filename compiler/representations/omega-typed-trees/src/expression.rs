@@ -20,6 +20,7 @@ pub enum Expression {
     Member(Box<MemberExpression>),
     Mutable(Box<Expression>),
     Name(NamePath),
+    Range(Box<RangeExpression>),
     StructLiteral(StructLiteral),
     String(Arc<str>),
 }
@@ -309,6 +310,19 @@ impl ExpressionTable {
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,
                 }))
+            }
+            ExpressionNode::Range(range) => {
+                let start = range
+                    .start
+                    .is_valid()
+                    .then(|| self.copy_from(source, range.start))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let end = range
+                    .end
+                    .is_valid()
+                    .then(|| self.copy_from(source, range.end))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
             }
             ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
@@ -965,6 +979,19 @@ impl ExpressionTable {
                     symbol: path.symbol,
                 }))
             }
+            ExpressionNode::Range(range) => {
+                let start = range
+                    .start
+                    .is_valid()
+                    .then(|| self.insert_copy(range.start))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let end = range
+                    .end
+                    .is_valid()
+                    .then(|| self.insert_copy(range.end))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+            }
             ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.copy_own_struct_literal_fields(struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
@@ -1107,6 +1134,19 @@ impl ExpressionTable {
                     symbol: path.symbol(),
                 }))
             }
+            Expression::Range(range) => {
+                let start = range
+                    .start
+                    .as_ref()
+                    .map(|start| self.insert_tree(start))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let end = range
+                    .end
+                    .as_ref()
+                    .map(|end| self.insert_tree(end))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+            }
             Expression::StructLiteral(struct_literal) => {
                 let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
@@ -1171,6 +1211,16 @@ impl ExpressionTable {
                 path.head_symbol,
                 path.symbol,
             )),
+            ExpressionNode::Range(range) => Expression::Range(Box::new(RangeExpression {
+                start: range
+                    .start
+                    .is_valid()
+                    .then(|| Box::new(self.to_tree(range.start))),
+                end: range
+                    .end
+                    .is_valid()
+                    .then(|| Box::new(self.to_tree(range.end))),
+            })),
             ExpressionNode::StructLiteral(struct_literal) => {
                 Expression::StructLiteral(StructLiteral {
                     type_name: struct_literal.type_name.clone(),
@@ -1292,6 +1342,7 @@ pub enum ExpressionNode {
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(TableNamePath),
+    Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
     String(Arc<str>),
 }
@@ -1319,6 +1370,18 @@ pub struct TableCastExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableRangeExpression {
+    pub start: ExpressionHandle,
+    pub end: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RangeExpression {
+    pub start: Option<Box<Expression>>,
+    pub end: Option<Box<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1687,6 +1750,7 @@ impl Expression {
             }
             Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
             Expression::Name(path) => display_name_path(path, "::"),
+            Expression::Range(range) => range.display_name(),
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => format!("{value:?}"),
         }
@@ -1719,8 +1783,29 @@ impl ExpressionNode {
             }
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
             Self::Name(path) => display_name_path(table.name_path_members(path.members), "::"),
+            Self::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
+                (true, true) => format!(
+                    "{}..{}",
+                    table.display_name(range.start),
+                    table.display_name(range.end)
+                ),
+                (true, false) => format!("{}..", table.display_name(range.start)),
+                (false, true) => format!("..{}", table.display_name(range.end)),
+                (false, false) => "..".to_string(),
+            },
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{value:?}"),
+        }
+    }
+}
+
+impl RangeExpression {
+    pub fn display_name(&self) -> String {
+        match (&self.start, &self.end) {
+            (Some(start), Some(end)) => format!("{}..{}", start.display_name(), end.display_name()),
+            (Some(start), None) => format!("{}..", start.display_name()),
+            (None, Some(end)) => format!("..{}", end.display_name()),
+            (None, None) => "..".to_string(),
         }
     }
 }

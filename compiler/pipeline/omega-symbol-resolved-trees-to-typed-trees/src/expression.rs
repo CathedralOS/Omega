@@ -218,8 +218,38 @@ fn lower_expression_handle_from_table_with_self_substitution(
             let path = lower_table_name_path_node_into_table(source, target, path);
             Ok(target.insert(typed::expression::ExpressionNode::Name(path)))
         }
-        resolved::expression::ExpressionNode::Range(_) => {
-            Err(Diagnostic::error("slice ranges are not implemented yet"))
+        resolved::expression::ExpressionNode::Range(range) => {
+            let start = range
+                .start
+                .is_valid()
+                .then(|| {
+                    lower_expression_handle_from_table_with_self_substitution(
+                        program,
+                        source,
+                        target,
+                        range.start,
+                        self_substitution,
+                    )
+                })
+                .transpose()?
+                .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+            let end = range
+                .end
+                .is_valid()
+                .then(|| {
+                    lower_expression_handle_from_table_with_self_substitution(
+                        program,
+                        source,
+                        target,
+                        range.end,
+                        self_substitution,
+                    )
+                })
+                .transpose()?
+                .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+            Ok(target.insert(typed::expression::ExpressionNode::Range(
+                typed::expression::TableRangeExpression { start, end },
+            )))
         }
         resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
             let fields = lower_struct_literal_field_span_from_table(

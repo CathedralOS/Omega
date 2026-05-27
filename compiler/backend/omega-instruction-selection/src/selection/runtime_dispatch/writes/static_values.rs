@@ -125,6 +125,7 @@ pub(super) fn resolve_runtime_static_integer_value(
                 static_values,
             )
         }
+        Expression::Range(_) => None,
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::ArrayLiteral(_)
         | Expression::Binary(_)
@@ -155,6 +156,7 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
             let key = PlaceKey::from_expression_handle(expressions, expression)?;
             static_values.get(&key)
         }
+        ExpressionNode::Range(_) => None,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Call(_)
@@ -180,6 +182,7 @@ fn resolve_runtime_resolved_static_integer_value(
                 static_values.get(&key)
             })
         }
+        Expression::Range(_) => None,
         Expression::Mutable(_)
         | Expression::ArrayLiteral(_)
         | Expression::Binary(_)

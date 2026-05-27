@@ -118,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_slice_range_surface_during_typed_lowering() {
+    fn lowers_slice_range_surface_into_typed_trees() {
         let source = r#"
         data Main {}
 
@@ -136,15 +136,14 @@ mod tests {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let resolved_program =
             lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
-        let diagnostic = lower_symbol_resolved_trees(&resolved_program)
-            .expect_err("typed lowering should reject slice ranges for now");
+        let typed_trees =
+            lower_symbol_resolved_trees(&resolved_program).expect("typed lowering should succeed");
 
         assert!(
-            diagnostic
-                .message
-                .contains("slice ranges are not implemented yet"),
-            "unexpected typed lowering diagnostic: {}",
-            diagnostic.message
+            typed_trees
+                .machines()
+                .first()
+                .is_some_and(|machine| !typed_trees.machine_states(machine).is_empty())
         );
     }
 

@@ -53,6 +53,34 @@ pub(super) fn find_call_site_in_expression<'program>(
                 current_ordinal,
             )
         }),
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid()
+                && let Some(call_site) = find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    range.start,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                )
+            {
+                return Some(call_site);
+            }
+            range.end.is_valid().then(|| {
+                find_call_site_in_expression(
+                    program,
+                    machine,
+                    state,
+                    range.end,
+                    current_statement_index,
+                    target_statement_index,
+                    target_call_ordinal,
+                    current_ordinal,
+                )
+            })?
+        }
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) = call_receiver_parts(program, call.receiver);
             let is_machine_call = resolve_state_call_target(
