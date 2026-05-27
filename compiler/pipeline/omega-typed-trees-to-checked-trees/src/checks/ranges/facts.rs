@@ -194,6 +194,73 @@ impl<'field> RangeFacts<'field> {
         self.integer_fields.clear();
     }
 
+    pub(super) fn alias_collection(&mut self, original: &str, alias: &str) {
+        if original == alias {
+            return;
+        }
+
+        for (_, index) in self
+            .proven_indexes
+            .clone()
+            .into_iter()
+            .filter(|(collection, _)| collection == original)
+        {
+            self.prove_index(alias.to_owned(), index);
+        }
+        for (_, bound) in self
+            .proven_range_bounds
+            .clone()
+            .into_iter()
+            .filter(|(collection, _)| collection == original)
+        {
+            self.prove_range_bound(alias.to_owned(), bound);
+        }
+        if let Some(minimum_length) = self.minimum_length(original) {
+            self.prove_minimum_length(alias.to_owned(), minimum_length);
+        }
+    }
+
+    pub(super) fn alias_index(&mut self, original: &str, alias: &str) {
+        if original == alias {
+            return;
+        }
+
+        for (collection, _) in self
+            .proven_indexes
+            .clone()
+            .into_iter()
+            .filter(|(_, index)| index == original)
+        {
+            self.prove_index(collection, alias.to_owned());
+        }
+        for (collection, _) in self
+            .proven_range_bounds
+            .clone()
+            .into_iter()
+            .filter(|(_, bound)| bound == original)
+        {
+            self.prove_range_bound(collection, alias.to_owned());
+        }
+        for (lower, upper) in self
+            .proven_orderings
+            .clone()
+            .into_iter()
+            .filter(|(lower, upper)| lower == original || upper == original)
+        {
+            let lower = if lower == original {
+                alias.to_owned()
+            } else {
+                lower
+            };
+            let upper = if upper == original {
+                alias.to_owned()
+            } else {
+                upper
+            };
+            self.prove_at_most(lower, upper);
+        }
+    }
+
     pub(super) fn prove_index(&mut self, collection: String, index: String) {
         if !self
             .proven_indexes

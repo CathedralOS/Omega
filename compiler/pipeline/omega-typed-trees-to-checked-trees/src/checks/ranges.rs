@@ -87,6 +87,7 @@ fn check_statement(
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
+                seed_local_alias_facts(program, facts, assignment.value, name);
             } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
             {
                 let next_integer = expression_integer_value(program, facts, assignment.value);
@@ -115,6 +116,12 @@ fn check_statement(
                 .or_else(|| fixed_array_type_length(program, local.type_reference));
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
+            seed_local_alias_facts(
+                program,
+                facts,
+                local.initial_value,
+                Some(local.name.as_str()),
+            );
         }
         StatementNode::Transition(transition) => {
             let (target_facts, continuation_facts) = match transition.guard {
@@ -188,6 +195,43 @@ fn expression_member_name(
         return None;
     };
     Some((member.member_symbol, Some(member.member.as_str())))
+}
+
+fn seed_local_alias_facts(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    value: ExpressionHandle,
+    local_name: Option<&str>,
+) {
+    if !value.is_valid() {
+        return;
+    }
+    let Some(local_name) = local_name else {
+        return;
+    };
+    let Some(source) = alias_source_label(program, value) else {
+        return;
+    };
+
+    facts.alias_collection(&source, local_name);
+    facts.alias_index(&source, local_name);
+}
+
+fn alias_source_label(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call)
+            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
+        {
+            Some(program.expression_table.display_name(call.receiver))
+        }
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            Some(program.expression_table.display_name(expression))
+        }
+        _ => None,
+    }
 }
 
 fn check_transition_target(
