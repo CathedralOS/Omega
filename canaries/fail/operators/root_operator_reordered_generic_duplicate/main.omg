@@ -1,0 +1,9 @@
+operator Quantity::combine<T, U>(left: T, right: U) -> T;
+
+operator Quantity::combine<A, B>(left: B, right: A) -> B;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
