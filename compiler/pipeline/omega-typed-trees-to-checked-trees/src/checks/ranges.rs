@@ -192,7 +192,7 @@ fn check_expression(
                     diagnostics,
                 );
             } else if expression_is_slice(program, machine, state, indexed.collection) {
-                check_unknown_length_slice_index(program, facts, indexed.index, diagnostics);
+                check_unknown_length_slice_index(program, indexed.index, diagnostics);
             }
             check_expression(
                 program,
@@ -274,7 +274,6 @@ fn check_index(
 
 fn check_unknown_length_slice_index(
     program: &omega_typed_trees::TypedTrees,
-    facts: &RangeFacts<'_>,
     index: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -285,13 +284,12 @@ fn check_unknown_length_slice_index(
                 program.expression_table.display_name(index)
             )));
         }
-        _ if expression_integer_value(program, facts, index).is_none() => {
+        _ => {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove index `{}` is within unknown slice length",
                 program.expression_table.display_name(index)
             )));
         }
-        _ => {}
     }
 }
 

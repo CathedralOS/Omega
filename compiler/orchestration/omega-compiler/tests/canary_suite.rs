@@ -2946,6 +2946,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/invalid_slice_literal_index_unchecked",
     "slices/invalid_slice_reassigned_local_index_unchecked",
     "slices/slice_parameter_index_unproven",
+    "slices/slice_parameter_literal_index_unproven",
     "slices/slice_parameter_subslice_unproven",
     "slices/termination_slice_length_order_unimplemented",
     "domains/domain_import_cycle",

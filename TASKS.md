@@ -164,12 +164,14 @@ meaning, without needing access to pointer descriptor internals.
     unknown now reject instead of compiling unchecked
   - direct state-call arguments now seed conservative parameter length/integer
     facts, so `choose(view[1..3], 1)` can prove the callee's dynamic index
+  - literal indexes over slice parameters whose current length is unknown now
+    reject unless another fact proves the slice has enough elements
   Next target:
   - expand proof-backed acceptance for dynamic `view[start..]`,
     `view[..end]`, and `view[start..end]` beyond literal local constants
-  - stop silently accepting literal indexes and ranges into slice parameters
-    whose current length is unknown; these need either caller-provided slice
-    facts or local guard facts
+  - stop silently accepting literal ranges into slice parameters whose current
+    length is unknown; these need either caller-provided slice facts or local
+    guard facts
   - known-length slices/fixed arrays now reject dynamic indexes unless the
     index expression itself is proven in range
   - machine `requires` facts that mention an indexed expression now seed the
