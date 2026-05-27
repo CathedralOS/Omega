@@ -9,6 +9,9 @@ machine Main::main(
     &mut self,
     exits: &mut [Exit],
     index: usize
-) {
+)
+requires
+    index < exits.len
+{
     exits[index].count = exits[index].count + 1;
 }
