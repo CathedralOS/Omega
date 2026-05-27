@@ -3029,6 +3029,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/termination_cycle_missing_decreases",
     "termination/custom_ranking_field_stalled_decrease",
     "termination/custom_ranking_order_non_numeric",
+    "termination/custom_ranking_order_parameter_mismatch",
     "termination/custom_ranking_order_unknown",
     "termination/custom_ranking_order_wrong_arity",
     "slices/dynamic_subslice_bounded_unproven",

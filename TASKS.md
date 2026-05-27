@@ -125,7 +125,7 @@ meaning, without needing access to pointer descriptor internals.
     views returning `usize`; undeclared names reject instead of being accepted
     as magic strings
   - custom ranking declarations now have canary coverage for unknown names,
-    non-`usize` returns, and wrong arity
+    non-`usize` returns, wrong arity, and parameter/decreases type mismatch
   - `decreases power -> Card::PowerOrder` now compiles for the first declared
     custom natural-ranking countdown shape
   - `decreases card.power -> Card::PowerOrder` now proves the first
