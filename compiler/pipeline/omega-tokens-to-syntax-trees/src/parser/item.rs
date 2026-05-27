@@ -88,7 +88,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_contextual("operator") {
         let input = input.take_contextual("operator")?;
-        let (item, rest) = parse_operator_definition(input)?;
+        let (item, rest) = parse_operator_definition(syntax_trees, input)?;
         return Ok((Item::Operator(item), rest));
     }
 

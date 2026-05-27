@@ -48,7 +48,7 @@ impl SymbolResolvedTreesSnapshot {
                 operators: symbol_resolved_trees
                     .operators
                     .iter()
-                    .map(operator_snapshot)
+                    .map(|operator| operator_snapshot(symbol_resolved_trees, operator))
                     .collect(),
                 platforms: symbol_resolved_trees
                     .platforms
@@ -114,11 +114,34 @@ pub struct ResolvedTableSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorDefinitionSnapshot {
+    pub name: Vec<String>,
+    pub type_parameters: Vec<String>,
+    pub parameter_count: usize,
+    pub has_return_type: bool,
+    pub contract_count: usize,
+    pub is_intrinsic: bool,
     pub token_count: usize,
 }
 
-fn operator_snapshot(operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
+fn operator_snapshot(
+    program: &SymbolResolvedTrees,
+    operator: &OperatorDefinition,
+) -> OperatorDefinitionSnapshot {
     OperatorDefinitionSnapshot {
+        name: program
+            .operator_path_members(operator.name)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        type_parameters: program
+            .data_type_parameters(operator.type_parameters)
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
+        parameter_count: program.state_parameters(operator.parameters).len(),
+        has_return_type: operator.return_type.is_some(),
+        contract_count: program.signature_contracts(operator.contracts).len(),
+        is_intrinsic: operator.is_intrinsic,
         token_count: operator.token_count,
     }
 }

@@ -16,6 +16,7 @@ pub struct TypedTrees {
     pub domain_definitions: Arena<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     pub domain_path_members: Arena<crate::name::Identifier>,
+    pub operator_path_members: Arena<crate::name::Identifier>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub root_machines: HandleSpan<machine::Machine>,
@@ -128,6 +129,49 @@ impl TypedTrees {
 
     pub fn operators(&self) -> &[crate::operator::OperatorDefinition] {
         self.operators.span_or_empty(self.root_operators)
+    }
+
+    pub fn push_operator_path_member(
+        &mut self,
+        operator: &mut crate::operator::OperatorDefinition,
+        member: crate::name::Identifier,
+    ) {
+        self.operator_path_members
+            .append_to_span(&mut operator.name, member);
+    }
+
+    pub fn push_operator_type_parameter(
+        &mut self,
+        operator: &mut crate::operator::OperatorDefinition,
+        parameter: data::TypeParameter,
+    ) {
+        self.data_type_parameters
+            .append_to_span(&mut operator.type_parameters, parameter);
+    }
+
+    pub fn push_operator_parameter(
+        &mut self,
+        operator: &mut crate::operator::OperatorDefinition,
+        parameter: signature::StateParameter,
+    ) {
+        self.state_parameters
+            .append_to_span(&mut operator.parameters, parameter);
+    }
+
+    pub fn push_operator_contract(
+        &mut self,
+        operator: &mut crate::operator::OperatorDefinition,
+        contract: signature::SignatureContract,
+    ) {
+        self.signature_contracts
+            .append_to_span(&mut operator.contracts, contract);
+    }
+
+    pub fn operator_path_members(
+        &self,
+        span: HandleSpan<crate::name::Identifier>,
+    ) -> &[crate::name::Identifier] {
+        self.operator_path_members.span_or_empty(span)
     }
 
     pub fn platforms(&self) -> &[platform::Platform] {

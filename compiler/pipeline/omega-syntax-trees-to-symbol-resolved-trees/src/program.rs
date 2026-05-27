@@ -194,7 +194,21 @@ mod tests {
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
         assert_eq!(program.operators.len(), 1);
-        assert!(program.operators[0].token_count > 0);
+        let operator = &program.operators[0];
+        assert_eq!(
+            program
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            ["Slice", "index"]
+        );
+        assert_eq!(program.data_type_parameters(operator.type_parameters).len(), 1);
+        assert_eq!(program.state_parameters(operator.parameters).len(), 2);
+        assert!(operator.return_type.is_some());
+        assert_eq!(program.signature_contracts(operator.contracts).len(), 1);
+        assert!(operator.is_intrinsic);
+        assert!(operator.token_count > 0);
     }
 
     #[test]

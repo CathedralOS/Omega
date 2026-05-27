@@ -134,7 +134,7 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
     ))
 }
 
-fn parse_type_parameters<'tokens, 'source>(
+pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {

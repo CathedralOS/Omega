@@ -118,7 +118,24 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
-        Item::Operator(_) => {}
+        Item::Operator(operator) => {
+            count_identifier_members(
+                syntax_trees.items.identifier_path_members(operator.name),
+                counts,
+            );
+            for parameter in syntax_trees.items.type_parameters(operator.type_parameters) {
+                count_identifier(&parameter.name, counts);
+            }
+            for parameter in syntax_trees.items.state_parameters(operator.parameters) {
+                count_state_parameter(syntax_trees, *parameter, counts);
+            }
+            if operator.return_type.is_valid() {
+                count_type_reference_handle(syntax_trees, operator.return_type, counts);
+            }
+            for contract in syntax_trees.items.capability_contracts(operator.contracts) {
+                count_contract(syntax_trees, contract, counts);
+            }
+        }
         Item::TrustDefinition(trust_definition) => {
             count_identifier(&trust_definition.name, counts);
         }

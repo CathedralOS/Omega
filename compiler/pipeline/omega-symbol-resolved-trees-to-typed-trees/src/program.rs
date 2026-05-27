@@ -42,7 +42,7 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for operator in &symbol_resolved_trees.operators {
-        let operator = lower_operator_definition(operator);
+        let operator = lower_operator_definition(&mut lowerer, operator)?;
         lowerer.typed_trees.push_operator(operator);
     }
 
@@ -212,7 +212,39 @@ mod tests {
             lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
 
         assert_eq!(typed_trees.operators().len(), 1);
-        assert!(typed_trees.operators()[0].token_count > 0);
+        let operator = &typed_trees.operators()[0];
+        assert_eq!(
+            typed_trees
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            ["Slice", "index"]
+        );
+        assert_eq!(
+            typed_trees
+                .data_type_parameters
+                .span_or_empty(operator.type_parameters)
+                .len(),
+            1
+        );
+        assert_eq!(
+            typed_trees
+                .state_parameters
+                .span_or_empty(operator.parameters)
+                .len(),
+            2
+        );
+        assert!(operator.return_type.is_valid());
+        assert_eq!(
+            typed_trees
+                .signature_contracts
+                .span_or_empty(operator.contracts)
+                .len(),
+            1
+        );
+        assert!(operator.is_intrinsic);
+        assert!(operator.token_count > 0);
     }
 
     #[test]

@@ -43,7 +43,7 @@ fn parse_domain_body<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("operator") {
             input = input.take_contextual("operator")?;
-            let (_, rest) = parse_operator_definition(input)?;
+            let (_, rest) = parse_operator_definition(syntax_trees, input)?;
             input = rest;
             continue;
         }
