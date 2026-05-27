@@ -19,6 +19,8 @@ meaning, without needing access to pointer descriptor internals.
     under `omega/language/core`
   - initial browsable `Nat::Descending` home for termination ranking docs
   - import canaries for the first core collection/text module surfaces
+  - `Slice` core source now exposes intrinsic index and subslice-style operator
+    contracts with proof obligations
   Next target:
   - expose proof/order names such as `Slice::Length` from that core surface
   - replace comment-only sketches with parser-supported declarations as syntax
