@@ -1,0 +1,26 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> usize {
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> self.walk(view, 0)
+    }
+}
+
+machine Main::walk(&mut self, entries: &[Entry], index: usize)
+terminates
+decreases entries.len - index
+-> usize
+{
+    transition index < entries.len {
+        true -> self.walk(entries, index + 1)
+        false -> index
+    }
+}

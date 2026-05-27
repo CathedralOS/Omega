@@ -308,19 +308,9 @@ fn parameter_matched_by_expression<'program>(
     state: &'program omega_typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<&'program omega_typed_trees::signature::StateParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let parameter_name = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()
-        .map(|member| member.as_str())
-        .unwrap_or_default();
-
     program.state_parameters(state).iter().find(|parameter| {
         !parameter.is_self
-            && (parameter.symbol == path.symbol || parameter.name.as_str() == parameter_name)
+            && expression_matches_parameter(program, expression, parameter)
     })
 }
 
@@ -419,7 +409,7 @@ fn guard_is_index_below_limit(
     };
     matches!(binary.operator, BinaryOperator::Less)
         && expression_is_parameter(program, binary.left, index_parameter)
-        && expression_is_parameter(program, binary.right, limit_parameter)
+        && expression_matches_parameter_measure(program, binary.right, limit_parameter)
 }
 
 fn expression_is_parameter(
@@ -437,4 +427,26 @@ fn expression_is_parameter(
             .name_path_members(path.members)
             .last()
             .is_some_and(|member| member.as_str() == parameter.name.as_str())
+}
+
+fn expression_matches_parameter(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+) -> bool {
+    expression_is_parameter(program, expression, parameter)
+        || matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(member)
+                if member.member.as_str() == "len"
+                    && expression_is_parameter(program, member.receiver, parameter)
+        )
+}
+
+fn expression_matches_parameter_measure(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+) -> bool {
+    expression_matches_parameter(program, expression, parameter)
 }
