@@ -60,6 +60,8 @@ meaning, without needing access to pointer descriptor internals.
     typed trees
   - operator declarations now carry name path, type parameters, parameters,
     return type, and contracts through typed trees
+  - root and domain-owned operator declarations now receive symbols through
+    resolved and typed trees
   - duplicate root operator declarations reject with a focused diagnostic
   Next target:
   - lower operator names into symbols and validate ambiguous operator
