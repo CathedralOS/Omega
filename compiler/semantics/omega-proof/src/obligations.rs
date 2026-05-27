@@ -1014,12 +1014,7 @@ fn expression_constraints(
         ExpressionNode::Range(range) => {
             let mut constraints = ConstraintBuffer::new();
             if range.start.is_valid() {
-                constraints.extend(expression_constraints(
-                    program,
-                    machine,
-                    state,
-                    range.start,
-                ));
+                constraints.extend(expression_constraints(program, machine, state, range.start));
             }
             if range.end.is_valid() {
                 constraints.extend(expression_constraints(program, machine, state, range.end));

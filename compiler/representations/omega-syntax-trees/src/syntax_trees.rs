@@ -140,7 +140,9 @@ impl SyntaxTrees {
                 constraints: self.copy_constraint_span(other, invariant.constraints),
             }),
             Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
-            Item::Operator(operator) => Item::Operator(self.copy_operator_definition(other, operator)),
+            Item::Operator(operator) => {
+                Item::Operator(self.copy_operator_definition(other, operator))
+            }
             Item::Export(export_item) => Item::Export(crate::item::ExportItem {
                 path: self.copy_item_identifier_span(other, export_item.path),
                 alias: export_item.alias.clone(),

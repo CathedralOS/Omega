@@ -511,10 +511,7 @@ impl ArtifactWriter {
             for (_, root) in trust_report.trust_roots.iter() {
                 output.push_str(&format!(
                     "- trust `{}` body tokens {} checked refs {} unchecked refs {}\n",
-                    root.name,
-                    root.token_count,
-                    root.checked_references,
-                    root.unchecked_references
+                    root.name, root.token_count, root.checked_references, root.unchecked_references
                 ));
             }
         }

@@ -215,8 +215,7 @@ impl<'source> Lexer<'source> {
             let next_after_dot = self.peek_nth_character(1);
             if next_after_dot.is_some_and(|next| next.is_ascii_digit())
                 || next_after_dot.is_none()
-                || next_after_dot
-                    .is_some_and(|next| next != '.' && !is_identifier_start(next))
+                || next_after_dot.is_some_and(|next| next != '.' && !is_identifier_start(next))
             {
                 is_float = true;
                 if let Some((dot_index, dot)) = self.chars.next() {

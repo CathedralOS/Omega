@@ -3,9 +3,7 @@ mod facts;
 use facts::{SliceLengthFacts, fixed_array_field_lengths, fixed_array_type_length};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
-use omega_typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(crate) fn check_indexed_accesses(
     program: &omega_typed_trees::TypedTrees,
@@ -53,7 +51,9 @@ fn check_statement(
             if let Some(length) = expression_indexable_length(program, facts, local.initial_value)
                 .or_else(|| fixed_array_type_length(program, local.type_reference))
             {
-                facts.locals.push((local.symbol, local.name.to_string(), length));
+                facts
+                    .locals
+                    .push((local.symbol, local.name.to_string(), length));
             }
         }
         StatementNode::Transition(transition) => {
@@ -134,7 +134,10 @@ fn check_expression(
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program.expression_table.struct_fields(struct_literal.fields) {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
                 check_expression(program, facts, field.value, diagnostics);
             }
         }
@@ -164,7 +167,9 @@ fn check_index(
                 )));
             }
         }
-        ExpressionNode::Range(range) => check_range_index(program, index, range, length, diagnostics),
+        ExpressionNode::Range(range) => {
+            check_range_index(program, index, range, length, diagnostics)
+        }
         _ => {}
     }
 }
@@ -183,7 +188,9 @@ fn check_range_index(
     let invalid = start < 0
         || end.is_some_and(|end| end < 0 || start > end)
         || usize::try_from(start).map_or(true, |start| start > length)
-        || end.and_then(|end| usize::try_from(end).ok()).is_some_and(|end| end > length);
+        || end
+            .and_then(|end| usize::try_from(end).ok())
+            .is_some_and(|end| end > length);
 
     if invalid {
         diagnostics.push(Diagnostic::error(format!(
@@ -199,7 +206,8 @@ fn literal_range_bounds(
     range: &TableRangeExpression,
 ) -> Option<(i64, Option<i64>)> {
     let start = if range.start.is_valid() {
-        let ExpressionNode::Integer(start) = program.expression_table.expression(range.start) else {
+        let ExpressionNode::Integer(start) = program.expression_table.expression(range.start)
+        else {
             return None;
         };
         *start
@@ -257,11 +265,7 @@ fn range_result_length(
     };
     let (start, end) = literal_range_bounds(program, range)?;
     let start = usize::try_from(start).ok()?;
-    let end = end
-        .map(usize::try_from)
-        .transpose()
-        .ok()?
-        .unwrap_or(length);
+    let end = end.map(usize::try_from).transpose().ok()?.unwrap_or(length);
     if start > end || end > length {
         return None;
     }

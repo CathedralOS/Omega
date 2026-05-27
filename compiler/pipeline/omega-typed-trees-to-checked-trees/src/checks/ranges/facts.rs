@@ -74,9 +74,12 @@ impl<'field> SliceLengthFacts<'field> {
             return Some(length);
         }
 
-        self.locals.iter().rev().find_map(|(_, local_name, length)| {
-            name.is_some_and(|name| name == local_name)
-                .then_some(*length)
-        })
+        self.locals
+            .iter()
+            .rev()
+            .find_map(|(_, local_name, length)| {
+                name.is_some_and(|name| name == local_name)
+                    .then_some(*length)
+            })
     }
 }

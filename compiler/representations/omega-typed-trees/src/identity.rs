@@ -206,7 +206,10 @@ fn count_operator(
     {
         count_declaration_name(&parameter.name, counts);
     }
-    for parameter in typed_trees.state_parameters.span_or_empty(operator.parameters) {
+    for parameter in typed_trees
+        .state_parameters
+        .span_or_empty(operator.parameters)
+    {
         count_declaration_name(&parameter.name, counts);
         count_type_reference_handle(
             &typed_trees.type_reference_table,
@@ -215,7 +218,11 @@ fn count_operator(
         );
     }
     if operator.return_type.is_valid() {
-        count_type_reference_handle(&typed_trees.type_reference_table, operator.return_type, counts);
+        count_type_reference_handle(
+            &typed_trees.type_reference_table,
+            operator.return_type,
+            counts,
+        );
     }
 }
 

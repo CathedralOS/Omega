@@ -470,35 +470,40 @@ mod tests {
             .insert(TypeReferenceNode::Slice {
                 element_type: generic_type,
             });
-        let borrowed_slice_type = syntax_trees.type_references.insert(TypeReferenceNode::Reference {
-            referee: slice_type,
-            is_mutable: false,
-        });
+        let borrowed_slice_type =
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::Reference {
+                    referee: slice_type,
+                    is_mutable: false,
+                });
         let index_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("usize")));
-        let items_parameter =
-            syntax_trees
-                .items
-                .insert_state_parameter_node(StateParameterNode {
-                    name: Identifier::generated("items"),
-                    type_reference: borrowed_slice_type,
-                    is_const: false,
-                    is_mutable: false,
-                    is_self: false,
-                });
-        let items_parameter = syntax_trees.items.append_state_parameter_handle(items_parameter);
-        let index_parameter =
-            syntax_trees
-                .items
-                .insert_state_parameter_node(StateParameterNode {
-                    name: Identifier::generated("index"),
-                    type_reference: index_type,
-                    is_const: false,
-                    is_mutable: false,
-                    is_self: false,
-                });
-        let _index_parameter = syntax_trees.items.append_state_parameter_handle(index_parameter);
+        let items_parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("items"),
+                type_reference: borrowed_slice_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let items_parameter = syntax_trees
+            .items
+            .append_state_parameter_handle(items_parameter);
+        let index_parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("index"),
+                type_reference: index_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let _index_parameter = syntax_trees
+            .items
+            .append_state_parameter_handle(index_parameter);
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
             name,
             type_parameters: HandleSpan::from_parts(type_parameter, 1),

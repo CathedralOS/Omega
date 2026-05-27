@@ -515,8 +515,7 @@ fn expression_uses_local_name(
                 || expression_uses_local_name(program, indexed.index, local_name)
         }
         omega_typed_trees::expression::ExpressionNode::Range(range) => {
-            (range.start.is_valid()
-                && expression_uses_local_name(program, range.start, local_name))
+            (range.start.is_valid() && expression_uses_local_name(program, range.start, local_name))
                 || (range.end.is_valid()
                     && expression_uses_local_name(program, range.end, local_name))
         }

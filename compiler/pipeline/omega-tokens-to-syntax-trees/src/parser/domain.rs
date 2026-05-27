@@ -36,15 +36,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
 fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<
-    'tokens,
-    'source,
-    (
-        HandleSpan<ProofFact>,
-        HandleSpan<OperatorDefinition>,
-        usize,
-    ),
-> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<ProofFact>, HandleSpan<OperatorDefinition>, usize)> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
     let mut facts = HandleSpan::empty();

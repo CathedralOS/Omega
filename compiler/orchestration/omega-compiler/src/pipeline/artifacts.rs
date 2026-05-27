@@ -41,12 +41,7 @@ pub(super) fn write_pipeline_shell(options: &CompileOptions) -> Result<(), Vec<D
             "target-operations",
             "09_target_operations.html",
         ),
-        (
-            "10",
-            "Trust",
-            "trust",
-            "10_trust.html",
-        ),
+        ("10", "Trust", "trust", "10_trust.html"),
         (
             "11",
             "Assigned Target Operations",

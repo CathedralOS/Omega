@@ -58,19 +58,17 @@ fn state_has_proven_supported_self_loop(
     order: RankingOrder,
 ) -> bool {
     match order {
-        RankingOrder::NatDescending => {
-            match program.expression_table.expression(decreases) {
-                ExpressionNode::Name(_) => {
-                    state_has_proven_countdown_self_loop(program, state, decreases)
-                }
-                ExpressionNode::Binary(binary)
-                    if matches!(binary.operator, BinaryOperator::Subtract) =>
-                {
-                    state_has_proven_distance_self_loop(program, state, *binary)
-                }
-                _ => false,
+        RankingOrder::NatDescending => match program.expression_table.expression(decreases) {
+            ExpressionNode::Name(_) => {
+                state_has_proven_countdown_self_loop(program, state, decreases)
             }
-        }
+            ExpressionNode::Binary(binary)
+                if matches!(binary.operator, BinaryOperator::Subtract) =>
+            {
+                state_has_proven_distance_self_loop(program, state, *binary)
+            }
+            _ => false,
+        },
         RankingOrder::SliceLength => {
             state_has_proven_slice_length_self_loop(program, state, decreases)
         }
