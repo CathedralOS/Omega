@@ -185,11 +185,15 @@ trust compiler_str_view_range;
 
 operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
 trust compiler_vec_allocate;
+
+operator String::with_capacity(capacity: usize) -> String
+trust compiler_string_allocate;
 ```
 
 The proof checker owns `start <= items.len`. The trusted primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
-For allocation-facing contracts such as `Vec::with_capacity`, the public core
+For allocation-facing contracts such as `Vec::with_capacity` and
+`String::with_capacity`, the public core
 declaration owns the source meaning while the trusted primitive owns allocator
 and buffer initialization details.
 
