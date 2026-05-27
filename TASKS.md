@@ -166,12 +166,11 @@ meaning, without needing access to pointer descriptor internals.
     facts, so `choose(view[1..3], 1)` can prove the callee's dynamic index
   - literal indexes over slice parameters whose current length is unknown now
     reject unless another fact proves the slice has enough elements
+  - literal ranges over slice parameters whose current length is unknown now
+    reject unless another fact proves the requested window
   Next target:
   - expand proof-backed acceptance for dynamic `view[start..]`,
     `view[..end]`, and `view[start..end]` beyond literal local constants
-  - stop silently accepting literal ranges into slice parameters whose current
-    length is unknown; these need either caller-provided slice facts or local
-    guard facts
   - known-length slices/fixed arrays now reject dynamic indexes unless the
     index expression itself is proven in range
   - machine `requires` facts that mention an indexed expression now seed the
