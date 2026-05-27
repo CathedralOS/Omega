@@ -133,8 +133,10 @@ meaning, without needing access to pointer descriptor internals.
   - support multiple named orders for the same data shape
   - add custom ranking projections/orders for user-defined structs
   - broaden termination checking beyond narrow direct self-recursion toward SCC/cycle reasoning
-  - teach runtime dispatch emission to encode the guarded shrinking-slice
-    recursive state call, then promote the pending `Slice::Length` canary
+  - add a runtime exit canary for shrinking-slice recursion once runtime
+    dispatch reliably executes the descriptor update instead of hanging
+  - teach runtime value lowering for machine-call results such as
+    `let result = self.walk(view)`
 
 ## Data, Ranges, And Collections
 
