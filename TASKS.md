@@ -102,6 +102,9 @@ meaning, without needing access to pointer descriptor internals.
     duplicate ambiguous call signatures
   - generic root operator duplicate checks now alpha-normalize type parameter
     names, so `<T>` and `<U>` cannot bypass duplicate signature detection
+  - generic root operator duplicate checks now canonicalize type parameters by
+    first use, so reordered generic parameter declarations cannot create
+    ambiguous duplicate candidates
   Next target:
   - use operator symbols during overload resolution and validate ambiguous
     operator declarations by signature and context
@@ -128,6 +131,9 @@ meaning, without needing access to pointer descriptor internals.
     as duplicate ambiguous call signatures
   - generic domain operator duplicate checks now alpha-normalize type parameter
     names, so `<T>` and `<U>` cannot bypass duplicate signature detection
+  - generic domain operator duplicate checks now canonicalize type parameters
+    by first use, so reordered generic parameter declarations cannot create
+    ambiguous duplicate candidates
   Next target:
   - define the first semantic domain-operator representation
   - validate ambiguous domain operator candidates by signature, receiver, and
