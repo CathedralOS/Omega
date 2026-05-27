@@ -195,6 +195,8 @@ meaning, without needing access to pointer descriptor internals.
     now prove the same non-empty index and tail-subslice facts
   - false branches of `entries.len == 0` now prove the same non-empty slice
     facts for head/tail access
+  - boolean equality guard facts now work symmetrically for `condition == true`
+    and `true == condition` spellings
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index
