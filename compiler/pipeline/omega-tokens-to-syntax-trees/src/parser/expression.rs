@@ -344,8 +344,18 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
 
         if input.at_punctuation(PunctuationKind::LeftBracket) {
             input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
+            if input.at_punctuation(PunctuationKind::DotDot) {
+                return Err(
+                    input.error_here("slice ranges are not implemented yet; `[..]` indexing is unsupported")
+                );
+            }
             let (index, rest) =
                 parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+            if rest.at_punctuation(PunctuationKind::DotDot) {
+                return Err(rest.error_here(
+                    "slice ranges are not implemented yet; use plain indexing for now",
+                ));
+            }
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
             expression =
                 syntax_trees

@@ -9,6 +9,7 @@ pub enum PunctuationKind {
     ColonColon,
     Comma,
     Dot,
+    DotDot,
     Equal,
     EqualEqual,
     Exclamation,
@@ -41,6 +42,7 @@ impl PunctuationKind {
         &[
             ("::", Self::ColonColon),
             ("->", Self::Arrow),
+            ("..", Self::DotDot),
             ("==", Self::EqualEqual),
             ("!=", Self::ExclamationEqual),
             ("<<", Self::LessLess),
@@ -85,6 +87,7 @@ impl PunctuationKind {
             "::" => Self::ColonColon,
             "," => Self::Comma,
             "." => Self::Dot,
+            ".." => Self::DotDot,
             "=" => Self::Equal,
             "==" => Self::EqualEqual,
             "!" => Self::Exclamation,
