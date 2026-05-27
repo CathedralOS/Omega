@@ -1,0 +1,20 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+    index: usize;
+}
+
+machine Main::main(&mut self) -> i32 {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> choose(view, self.index)
+    }
+
+    state choose(&mut self, entries: &[Entry], index: usize) -> i32 {
+        let chosen: Entry = entries[index];
+        chosen.value
+    }
+}

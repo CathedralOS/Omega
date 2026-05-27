@@ -1,0 +1,20 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+    start: usize;
+}
+
+machine Main::main(&mut self) -> usize {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> choose(view, self.start)
+    }
+
+    state choose(&mut self, entries: &[Entry], start: usize) -> usize {
+        let tail: &[Entry] = entries[start..];
+        tail.len
+    }
+}
