@@ -18,9 +18,10 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   - direct countdown recursion proves
   - arithmetic bounded-distance recursion proves
   - slice-backed bounded-distance recursion proves
+  - explicit `decreases value -> Nat::Descending` now parses/lowers/checks for the currently supported countdown and bounded-distance shapes
   Next implementation steps:
   - replace the prototype surface with `terminates { ... }`
-  - parse/check `decreases value -> OrderOrMeasure`
+  - broaden explicit `decreases value -> OrderOrMeasure` beyond `Nat::Descending`
   - keep bare `decreases value` only for unambiguous builtin cases
   - migrate current arithmetic-facing proof logic behind named builtin ranking views instead of exposing `limit - index` as primary UX
   - make canaries follow the new surface instead of the prototype spelling
@@ -40,7 +41,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   - cycle/SCC coverage beyond the current narrow direct recursion shapes
   Immediate blockers:
   - migrate the prototype away from bare arithmetic-facing `decreases expr`
-  - actual shrinking-slice surface is still missing, so `decreases items` cannot yet ride on subslicing
+  - `decreases entries -> Slice::Length` now parses but is not yet semantically supported
+  - actual shrinking-slice surface is still missing, so plain `decreases items` cannot yet ride on subslicing
 
 - [ ] Domain operators and proof-aware operator resolution
   The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.
