@@ -165,9 +165,14 @@ meaning, without needing access to pointer descriptor internals.
     `view[..end]`, and `view[start..end]` beyond literal local constants
   - stop silently skipping indexes into slice parameters whose current length is
     unknown; these need either caller-provided slice facts or local guard facts
-  - stop accepting dynamic indexes into known-length slices/fixed arrays unless
-    the index expression itself is proven in range; see
-    `canaries/pending/slices/known_length_dynamic_index_unproven`
+  - known-length slices/fixed arrays now reject dynamic indexes unless the
+    index expression itself is proven in range
+  - machine `requires` facts that mention an indexed expression now seed the
+    matching in-body index proof, preserving contract-backed indexed reads
+  - moved dynamic machine-owned indexed mutable-call runtime coverage to
+    pending until guards/contracts can prove the machine field index in range
+  - moved append-style storage mutation coverage to pending until bounded
+    fields or guards can prove `exit_count < exits.len`
   - promote `canaries/pending/slices/slice_parameter_index_unproven` and
     `canaries/pending/slices/slice_parameter_subslice_unproven` once unknown
     slice parameter accesses require proof instead of compiling unchecked
