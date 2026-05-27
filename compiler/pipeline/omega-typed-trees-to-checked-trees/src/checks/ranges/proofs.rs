@@ -23,10 +23,7 @@ pub(super) fn unknown_length_range_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     match (range.start.is_valid(), range.end.is_valid()) {
-        (true, false) => facts.index_is_proven(
-            &collection_label,
-            &program.expression_table.display_name(range.start),
-        ),
+        (true, false) => range_bound_is_proven(program, facts, &collection_label, range.start),
         (false, true) => range_end_is_proven(program, facts, &collection_label, range.end),
         (true, true) => {
             let start_label = program.expression_table.display_name(range.start);
@@ -48,7 +45,15 @@ fn range_end_is_proven(
     collection_label: &str,
     end: ExpressionHandle,
 ) -> bool {
-    let end_label = program.expression_table.display_name(end);
-    facts.index_is_proven(collection_label, &end_label)
-        || facts.is_length_of(&end_label, collection_label)
+    range_bound_is_proven(program, facts, collection_label, end)
+}
+
+fn range_bound_is_proven(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection_label: &str,
+    bound: ExpressionHandle,
+) -> bool {
+    let bound_label = program.expression_table.display_name(bound);
+    facts.range_bound_is_proven(collection_label, &bound_label)
 }

@@ -67,6 +67,10 @@ fn seed_less_than_len_fact(
         program.expression_table.display_name(member.receiver),
         program.expression_table.display_name(index),
     );
+    facts.prove_range_bound(
+        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(index),
+    );
 }
 
 fn seed_length_equality_fact(
@@ -95,9 +99,9 @@ fn seed_length_equality_side(
         return false;
     }
 
-    facts.prove_length_of(
-        program.expression_table.display_name(value),
+    facts.prove_range_bound(
         program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(value),
     );
     true
 }
