@@ -1,6 +1,6 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 22;
+pub const BUILTIN_TYPE_COUNT: usize = 23;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
@@ -93,6 +93,7 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
             SymbolKind::BuiltinType,
             SymbolNameRef::Static(BuiltinType::Real.name()),
         ),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("str")),
     ]
 }
 
