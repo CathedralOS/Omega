@@ -103,4 +103,20 @@ impl<'field> SliceLengthFacts<'field> {
                     .then_some(*value)
             })
     }
+
+    pub(super) fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
+        self.locals
+            .retain(|(local, local_name, _)| !local_matches(*local, local_name, symbol, name));
+        self.integer_locals
+            .retain(|(local, local_name, _)| !local_matches(*local, local_name, symbol, name));
+    }
+}
+
+fn local_matches(
+    candidate_symbol: SymbolHandle,
+    candidate_name: &str,
+    symbol: SymbolHandle,
+    name: Option<&str>,
+) -> bool {
+    candidate_symbol == symbol || name.is_some_and(|name| name == candidate_name)
 }

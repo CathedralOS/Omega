@@ -37,6 +37,21 @@ fn check_statement(
         StatementNode::Assignment(assignment) => {
             check_expression(program, facts, assignment.target, diagnostics);
             check_expression(program, facts, assignment.value, diagnostics);
+            if let Some((symbol, name)) = expression_name(program, assignment.target) {
+                let next_length = expression_indexable_length(program, facts, assignment.value);
+                let next_integer = expression_integer_value(program, facts, assignment.value);
+                facts.forget_local(symbol, name);
+                if let Some(length) = next_length {
+                    facts
+                        .locals
+                        .push((symbol, name.unwrap_or_default().to_owned(), length));
+                }
+                if let Some(value) = next_integer {
+                    facts
+                        .integer_locals
+                        .push((symbol, name.unwrap_or_default().to_owned(), value));
+                }
+            }
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
@@ -240,16 +255,29 @@ fn expression_integer_value(
 ) -> Option<i64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
-        ExpressionNode::Name(path) => facts.local_integer(
-            path.symbol,
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-                .map(|name| name.as_str()),
-        ),
+        ExpressionNode::Name(_) => {
+            let (symbol, name) = expression_name(program, expression)?;
+            facts.local_integer(symbol, name)
+        }
         _ => None,
     }
+}
+
+fn expression_name(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(omega_core::symbols::SymbolHandle, Option<&str>)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    Some((
+        path.symbol,
+        program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .map(|name| name.as_str()),
+    ))
 }
 
 fn expression_indexable_length(
