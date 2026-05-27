@@ -2515,6 +2515,70 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     }
 }
 
+#[test]
+fn pending_canaries_reproduce_known_gaps() {
+    for canary in ACTIVE_PENDING_CANARIES {
+        match canary.expectation {
+            PendingCanaryExpectation::UnexpectedlyCompiles => {
+                let canary_dir = pending_canary(canary.path);
+                let main_path = canary_dir.join("main.omg");
+                let options = CompileOptions {
+                    root_path: main_path.clone(),
+                    build_dir: None,
+                    target_name: None,
+                    write_output: false,
+                };
+
+                if let Err(diagnostics) = compile(options) {
+                    panic!(
+                        "pending canary {} no longer reproduces its compile-acceptance gap; promote it to fail/pass and update the suite.\ndiagnostics:\n{}",
+                        canary_dir.display(),
+                        diagnostics
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    );
+                }
+            }
+            PendingCanaryExpectation::CompilesAndExits { current_exit, desired_exit } => {
+                let canary_dir = pending_canary(canary.path);
+                let main_path = canary_dir.join("main.omg");
+                let build_dir = std::env::temp_dir().join(format!(
+                    "omega-pending-{}-{}",
+                    canary.path.replace('/', "-"),
+                    std::process::id()
+                ));
+                let _ = fs::remove_dir_all(&build_dir);
+
+                compile(CompileOptions {
+                    root_path: main_path,
+                    build_dir: Some(build_dir.clone()),
+                    target_name: None,
+                    write_output: true,
+                })
+                .expect("pending runtime canary should still compile");
+
+                let output = Command::new(build_dir.join(executable_name()))
+                    .output()
+                    .expect("pending runtime canary should still run");
+
+                assert_eq!(
+                    output.status.code(),
+                    Some(current_exit),
+                    "pending canary {} no longer matches its known wrong runtime result. If it now reaches the desired exit {}, promote it to pass; otherwise update the expectation. got {:?}\nstderr:\n{}",
+                    canary_dir.display(),
+                    desired_exit,
+                    output.status.code(),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+
+                let _ = fs::remove_dir_all(&build_dir);
+            }
+        }
+    }
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -2529,6 +2593,10 @@ fn pass_canary(path: &str) -> PathBuf {
 
 fn fail_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/fail").join(path)
+}
+
+fn pending_canary(path: &str) -> PathBuf {
+    repo_root().join("canaries/pending").join(path)
 }
 
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -2728,4 +2796,29 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_parameter_mismatch",
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
+];
+
+#[derive(Clone, Copy)]
+enum PendingCanaryExpectation {
+    UnexpectedlyCompiles,
+    CompilesAndExits { current_exit: i32, desired_exit: i32 },
+}
+
+struct PendingCanary {
+    path: &'static str,
+    expectation: PendingCanaryExpectation,
+}
+
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "slices/invalid_subslice_bounds_unchecked",
+        expectation: PendingCanaryExpectation::UnexpectedlyCompiles,
+    },
+    PendingCanary {
+        path: "slices/runtime_subslice_range_len_wrong",
+        expectation: PendingCanaryExpectation::CompilesAndExits {
+            current_exit: 204,
+            desired_exit: 203,
+        },
+    },
 ];
