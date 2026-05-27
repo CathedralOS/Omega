@@ -2829,6 +2829,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_non_boolean_fact",
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
+    "operators/domain_operator_duplicate",
+    "operators/root_operator_duplicate",
     "calls/runtime_helper_ordering_return",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
