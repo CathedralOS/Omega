@@ -150,6 +150,20 @@ trust compiler_slice_from;
 The proof checker owns `start <= items.len`. The trusted primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
 
+Operator declarations form overload sets by call signature. The call signature
+is the operator path plus parameter types; return type alone does not create a
+distinct overload. Generic signatures are compared modulo type parameter names,
+so these two declarations describe the same candidate and must be rejected as a
+duplicate:
+
+```omega
+operator Slice::index<T>(items: &[T], index: usize) -> T;
+operator Slice::index<U>(items: &[U], index: usize) -> U;
+```
+
+Distinct parameter types may coexist as an overload set, but resolution must
+eventually choose one unique candidate from operand types and proof context.
+
 ## Numeric Semantics
 
 Machine numbers and proof numbers are different kinds of values.
