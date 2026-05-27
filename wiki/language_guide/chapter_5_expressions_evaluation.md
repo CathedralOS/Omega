@@ -60,9 +60,50 @@ not as syntax with a completely separate meaning model. In that sense,
 `left + right` is conceptually like a call to the appropriate add/concat
 operation for the operand meaning in scope.
 
+This model also applies to privileged syntax. `items[index]` should be
+understood as an indexing operator, not as raw pointer syntax. `items[1..]`
+should be understood as a range-slice operator. Those operators may have
+compiler-intrinsic implementations for core types, but they should still have a
+semantic home that users and tools can inspect.
+
 This chapter only defines ordinary evaluation. Domain-sensitive operator
 resolution, if Omega adopts it, belongs to the domains chapter because it
 depends on proved semantic facts rather than raw expression syntax.
+
+## Core Collections And Views
+
+Omega should distinguish user-facing core concepts from the low-level carriers
+the compiler uses to lower them.
+
+Likely core collection and text concepts:
+
+- `Array[T; N]`: fixed-size owned inline storage.
+- `Vec[T]`: owned dynamic contiguous storage.
+- `Slice[T]`: borrowed contiguous view over elements.
+- `Str`: owned string/text storage.
+- `StrView`: borrowed string/text view.
+
+The exact surface spelling may stay Rust-like for a while:
+
+```omega
+let fixed: [Item; 4];
+let view: &[Item] = fixed.as_slice();
+let text: String;
+```
+
+But semantically, `Array`, `Vec`, and `Slice` should be visible core concepts,
+not just implicit compiler behavior. `Array` and `Vec` are owners. `Slice` is
+the common borrowed view they can produce. Likewise, an owned string can produce
+a string view.
+
+The implementation can still use privileged internal carriers. A slice view is
+likely lowered as a descriptor such as pointer plus length. A vector is likely
+lowered as an owned buffer with pointer, length, and capacity. Those carriers
+belong near the trusted/primitive layer, while the public proof and operator
+surface belongs to core concepts such as `Slice`.
+
+This means names such as `Slice::Length` should be browsable and documented as
+core semantic declarations even if their implementation is compiler-intrinsic.
 
 ## Indexing And Slices
 
@@ -75,13 +116,14 @@ let first: InventoryItem = items[0];
 
 Working interpretation:
 
-- `items[index]` means "index into this slice/view/array place."
+- `items[index]` resolves to the appropriate indexing operator for the
+  collection or view.
 - The compiler must prove the index is in bounds for the accessed view.
 - Fixed arrays and slice views can use the same `[]` surface while obtaining
   the proof from different sources.
 - `items[0]` is valid when the current facts prove the view is non-empty.
-- Slice ranges such as `items[1..]` create a new slice view with a narrower
-  extent and updated facts.
+- Slice ranges such as `items[1..]` resolve to a range-slice operator that
+  creates a new view with a narrower extent and updated facts.
 
 Omega loops often look like repeated transitions over either:
 
@@ -89,7 +131,9 @@ Omega loops often look like repeated transitions over either:
 - a shrinking slice window where `[0]` remains valid until the window is empty.
 
 The important point is that indexing is not magical pointer syntax. It is a
-normal operation guarded by proof of a valid range.
+normal operation guarded by proof of a valid range. For built-in core
+collections, the operator body may be intrinsic, but the signature, obligations,
+and named measures should still be visible as part of the core language surface.
 
 ## Numeric Semantics
 

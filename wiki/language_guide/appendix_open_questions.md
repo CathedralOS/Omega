@@ -44,6 +44,12 @@ This page tracks design pressure that is not fully nailed down yet.
   `terminates { decreases value -> OrderOrMeasure; }` shape?
 - Which built-in ranking views should be automatic, and when should
   libraries/domains be allowed to provide named custom orders or measures?
+- What exact source form should core operator declarations use for `[]`,
+  subslicing, arithmetic, and string concatenation?
+- Which core semantic types should be browsable source declarations, and which
+  primitive carriers should remain compiler-managed? Current direction:
+  `Array`, `Vec`, `Slice`, `Str`, and `StrView` are public core concepts;
+  `Ptr` and descriptor-like carriers sit at the low-level boundary.
 - How should Omega express and prove sequence-wide domains over runtime text,
   such as `String::Utf8` or `String::NoNul`, without turning ordinary string
   handling into a byte-level proof tax?

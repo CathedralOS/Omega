@@ -105,6 +105,26 @@ require a specific machine signature without inventing a trait name.
 
 This is useful when the requirement is local and obvious.
 
+## Operator Requirements
+
+Operators can be modeled as named requirements too, similar to how Rust maps
+operator syntax to traits such as `Add` or `Index`.
+
+Omega should probably use that idea without making ordinary traits carry the
+whole proof story. For example, the source expression:
+
+```omega
+let item: Item = items[index];
+```
+
+can resolve to an indexing operator requirement on the collection/view type.
+For core types such as `Slice`, that operator may have a compiler-intrinsic
+implementation, but it still has a visible signature and contract.
+
+Domain-sensitive operator resolution is a layer above this. A proved domain may
+select an operator meaning only when the domain context makes the result unique.
+That belongs to the domains/proof model, not to runtime trait dispatch.
+
 ## Trait Bundles
 
 When a surface is reused, give it a name.

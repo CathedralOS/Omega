@@ -303,6 +303,63 @@ quantities. For example, `String::Utf8` and `String::NoNul` may want `+` to
 resolve through concatenation while preserving whichever domains the operation
 can soundly guarantee.
 
+## Operator Definitions And Domain Contexts
+
+Operator overloading should be trait-like in spirit but proof-aware in
+resolution.
+
+Rust maps a fixed operator spelling such as `+` or `[]` to a trait method such
+as `Add::add` or `Index::index`. Omega wants a similar semantic home for
+operators, but with one extra axis: the current proof context may determine
+which operator meaning is available.
+
+Working model:
+
+- Operator spellings are fixed by the language.
+- Core types such as `Slice`, `Array`, `Vec`, `Str`, and `StrView` can expose
+  operator definitions with compiler-intrinsic bodies.
+- User/library types can expose ordinary operator definitions when the language
+  supports that surface.
+- Domains may provide or select operator meanings when the value is proven to
+  be in that domain.
+- Resolution must be static and unambiguous.
+
+For slices, this means the source form:
+
+```omega
+let value: Item = items[index];
+let tail: &[Item] = items[1..];
+```
+
+can be modeled as calls to core slice operators whose contracts require bounds
+proofs. The compiler may lower those operator bodies through internal pointer
+and descriptor machinery, but the user-facing meaning belongs to `Slice`.
+
+For domain-sensitive quantities, the same spelling can resolve through a domain
+context:
+
+```omega
+machine add_degrees(value: i32, delta: i32) -> i32
+requires value in i32::Degrees
+{
+    value + delta
+}
+```
+
+Here the ordinary integer `+` is not automatically replaced. The domain fact
+`value in i32::Degrees` participates in resolution only if it exposes a unique
+operator meaning for this expression.
+
+Ambiguity is an error:
+
+```omega
+requires value in Angle::Degrees & Angle::Turns
+```
+
+If both domains expose different `+` meanings for the same expression, the
+program must choose a clearer operation or narrow the proof context before using
+operator syntax.
+
 Not every domain needs this power. Some ideas, especially arithmetic policy
 concepts such as `wrapping` or `checked`, may turn out to fit better as a
 separate evaluation-mode concept than as ordinary value domains. The important

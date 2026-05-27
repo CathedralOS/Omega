@@ -335,9 +335,27 @@ builtin slice &mut [T, I]
 ```
 
 The exact declaration syntax is provisional. The important point is that
-`&[T]` and `&mut [T]` are built-in borrowed slice-view types, not user-defined
-machines. They expose proof-visible facts such as `len`, and they define the
-invariant names that callers may attach to that slice view.
+`&[T]` and `&mut [T]` are built-in borrowed slice-view types with a core
+semantic surface, not ordinary user-defined machines. They expose proof-visible
+facts such as `len`, and they define the invariant names that callers may
+attach to that slice view.
+
+The public semantic name should be short and browsable, such as `Slice`, even
+if the compiler lowers it through a private descriptor such as pointer plus
+length. Users should be able to navigate to names like `Slice::Length` and
+read the ordering or measure the proof checker uses. They should not need to
+inspect the raw pointer carrier used by code generation.
+
+The same split likely applies to other core collection and text concepts:
+
+- `Array` owns fixed-size inline storage and can borrow as `Slice`.
+- `Vec` owns dynamic contiguous storage and can borrow as `Slice`.
+- `Str` owns text storage.
+- `StrView` is the borrowed text view, even if the early syntax stays close to
+  Rust conventions.
+- Low-level carriers such as `Ptr` or buffer descriptors may exist in core or
+  a primitive layer, but they are the boundary where trusted/compiler-managed
+  representation begins.
 
 This sketch needs more design work, but the direction is important:
 
@@ -349,6 +367,8 @@ This sketch needs more design work, but the direction is important:
 - Safe Omega source does not expose raw pointer fields for ordinary slices or
   vectors. Address-level representation belongs to compiler/runtime lowering
   and explicit trusted boundary modeling, not the normal surface language.
+- Core operators such as slice indexing and subslicing should have visible
+  signatures and contracts even when their bodies are compiler intrinsics.
 
 Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
 extra invariant parameters.
