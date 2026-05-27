@@ -6,6 +6,7 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::invariant::parse_invariant_definition;
 use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
+use crate::parser::operator::parse_operator_definition;
 use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
@@ -85,6 +86,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Library(item), rest));
     }
 
+    if input.at_contextual("operator") {
+        let input = input.take_contextual("operator")?;
+        let (item, rest) = parse_operator_definition(input)?;
+        return Ok((Item::Operator(item), rest));
+    }
+
     if input.at_keyword(KeywordKind::Platform) {
         let input = input.take_keyword(KeywordKind::Platform, "platform")?;
         let (item, rest) = parse_platform(syntax_trees, input)?;
@@ -114,6 +121,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`capability`",
         "`invariant`",
         "`library`",
+        "`operator`",
         "`platform`",
         "`trait`",
         "`boundary trait`",

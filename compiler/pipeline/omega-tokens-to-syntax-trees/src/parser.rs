@@ -11,6 +11,7 @@ mod invariant;
 mod item;
 mod library;
 mod machine;
+mod operator;
 mod platform;
 mod proof_fact;
 mod state;
@@ -75,7 +76,9 @@ mod tests {
         let source = r#"
         machine Game::new() -> Game {
             let game: Game;
-            -> game;
+            transition {
+                _ -> game
+            }
         }
         "#;
 
@@ -98,7 +101,9 @@ mod tests {
             }
 
             state running(&mut self) {
-                -> 0;
+                transition {
+                    _ -> 0
+                }
             }
         }
         "#;

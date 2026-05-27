@@ -118,6 +118,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
+        Item::Operator(_) => {}
         Item::TrustDefinition(trust_definition) => {
             count_identifier(&trust_definition.name, counts);
         }

@@ -65,6 +65,9 @@ pub enum ItemSnapshot {
         calling_convention: IdentifierSnapshot,
         functions: Vec<LibraryFunctionSnapshot>,
     },
+    Operator {
+        token_count: usize,
+    },
     Export {
         path: Vec<IdentifierSnapshot>,
         alias: Option<IdentifierSnapshot>,
@@ -471,6 +474,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|function| snapshot_library_function(syntax_trees, function))
                 .collect(),
+        },
+        Item::Operator(value) => ItemSnapshot::Operator {
+            token_count: value.token_count,
         },
         Item::Export(value) => ItemSnapshot::Export {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
