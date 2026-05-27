@@ -43,7 +43,7 @@ pub(super) struct RangeFacts<'field> {
     integer_locals: Vec<(SymbolHandle, String, i64)>,
     proven_indexes: Vec<(String, String)>,
     proven_orderings: Vec<(String, String)>,
-    proven_lengths: Vec<(String, String)>,
+    proven_range_bounds: Vec<(String, String)>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -54,7 +54,7 @@ impl<'field> RangeFacts<'field> {
             integer_locals: Vec::new(),
             proven_indexes: Vec::new(),
             proven_orderings: Vec::new(),
-            proven_lengths: Vec::new(),
+            proven_range_bounds: Vec::new(),
         }
     }
 
@@ -174,23 +174,23 @@ impl<'field> RangeFacts<'field> {
             .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
     }
 
-    pub(super) fn prove_length_of(&mut self, length: String, collection: String) {
+    pub(super) fn prove_range_bound(&mut self, collection: String, bound: String) {
         if !self
-            .proven_lengths
+            .proven_range_bounds
             .iter()
-            .any(|(known_length, known_collection)| {
-                known_length == &length && known_collection == &collection
+            .any(|(known_collection, known_bound)| {
+                known_collection == &collection && known_bound == &bound
             })
         {
-            self.proven_lengths.push((length, collection));
+            self.proven_range_bounds.push((collection, bound));
         }
     }
 
-    pub(super) fn is_length_of(&self, length: &str, collection: &str) -> bool {
-        self.proven_lengths
+    pub(super) fn range_bound_is_proven(&self, collection: &str, bound: &str) -> bool {
+        self.proven_range_bounds
             .iter()
-            .any(|(known_length, known_collection)| {
-                known_length == length && known_collection == collection
+            .any(|(known_collection, known_bound)| {
+                known_collection == collection && known_bound == bound
             })
     }
 
