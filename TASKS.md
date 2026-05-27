@@ -84,15 +84,13 @@ meaning, without needing access to pointer descriptor internals.
     diagnostics
   - unresolved imported-library trust contracts now reject unless they use a
     declared trust root or the built-in `host` trust
+  - unresolved target trust-policy references now reject with focused
+    diagnostics instead of remaining report-only
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
   - promote trust-root usage counts into stricter registry validation once
     implementation-binding syntax exists
-  - turn unresolved target trust-policy references from report-only facts into
-    focused diagnostics once package/toolchain trust policy is explicit
-  - promote `canaries/pending/trust/target_unknown_trust_unrejected` once
-    target trust-policy validation is selected
   - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
   - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
 

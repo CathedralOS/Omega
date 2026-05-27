@@ -21,7 +21,10 @@ fn validate_unresolved_trusts(report: &TrustReport) -> Result<(), Vec<Diagnostic
 
 fn unresolved_trust_diagnostic(unresolved: &UnresolvedTrustReference) -> Option<Diagnostic> {
     if unresolved.capability == "target" {
-        return None;
+        return Some(Diagnostic::error(format!(
+            "unresolved target trust `{}` for target `{}`",
+            unresolved.trust_level, unresolved.state
+        )));
     }
     if let Some(context) = operator_trust_diagnostic_context(unresolved) {
         return Some(Diagnostic::error(format!(
@@ -70,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn validation_leaves_target_policy_references_report_only_for_now() {
+    fn validation_rejects_unresolved_target_policy_references() {
         let mut report = TrustReport::default();
         report.unresolved_trusts.insert(UnresolvedTrustReference {
             capability: "target".to_owned(),
@@ -78,6 +81,13 @@ mod tests {
             trust_level: "missing_target_root".to_owned(),
         });
 
-        validate_trust_report(&report).expect("target trust policy is still report-only");
+        let diagnostics = validate_trust_report(&report).expect_err("unresolved target trust");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(combined.contains("unresolved target trust `missing_target_root`"));
     }
 }
