@@ -28,6 +28,8 @@ meaning, without needing access to pointer descriptor internals.
     declarations through the current operator declaration surface
   - `Array`, `Vec`, and current text surfaces now expose initial browsable
     length/view operator contracts and primitive trust roots
+  - `Array` and `Vec` now expose browsable index operator contracts with
+    bounds proof obligations and primitive trust roots
   - core operators can now name their trusted primitive root through operator
     `trust` contracts instead of relying only on nearby trust declarations
   - `Ptr` core source now exposes browsable primitive-boundary operator
