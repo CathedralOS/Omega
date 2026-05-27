@@ -2,6 +2,7 @@ mod mutation;
 mod slice_descriptors;
 mod static_values;
 mod storage_copy;
+mod subslice_copy;
 
 use super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
@@ -424,7 +425,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         static_values,
     )
     .or_else(|| {
-        storage_copy::runtime_fixed_array_subslice_indexed_source_copy_in_table(
+        subslice_copy::runtime_fixed_array_subslice_indexed_source_copy_in_table(
             input,
             dispatch_index,
             target_source_key,
