@@ -5,8 +5,8 @@ use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, FloatLiteral,
     TableBinaryExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
-    TableMemberExpression, TableMembershipExpression, TableNamePath, TableStructLiteral,
-    TableStructLiteralField,
+    TableMemberExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
+    TableStructLiteral, TableStructLiteralField,
 };
 use omega_syntax_trees as syntax;
 use omega_syntax_trees::SyntaxTrees;
@@ -174,6 +174,21 @@ fn lower_expression_node_into_table(
                 head_symbol: SymbolHandle::invalid(),
                 symbol: SymbolHandle::invalid(),
             })))
+        }
+        syntax::expression::ExpressionNode::Range(range) => {
+            let start = range
+                .start
+                .is_valid()
+                .then(|| lower_expression_into_table(syntax_trees, expressions, range.start))
+                .transpose()?
+                .unwrap_or_else(ExpressionHandle::invalid);
+            let end = range
+                .end
+                .is_valid()
+                .then(|| lower_expression_into_table(syntax_trees, expressions, range.end))
+                .transpose()?
+                .unwrap_or_else(ExpressionHandle::invalid);
+            Ok(expressions.insert(ExpressionNode::Range(TableRangeExpression { start, end })))
         }
         syntax::expression::ExpressionNode::SelfValue => {
             let mut members = HandleSpan::empty();

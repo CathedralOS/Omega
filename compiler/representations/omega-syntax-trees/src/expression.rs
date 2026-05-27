@@ -122,6 +122,7 @@ pub enum ExpressionNode {
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(HandleSpan<Identifier>),
+    Range(TableRangeExpression),
     SelfValue,
     StructLiteral(TableStructLiteral),
     String(SourceText),
@@ -150,6 +151,12 @@ pub struct TableCastExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableRangeExpression {
+    pub start: ExpressionHandle,
+    pub end: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -253,6 +260,16 @@ impl ExpressionNode {
             }
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
             Self::Name(path) => display_identifier_path(table.identifier_path_members(*path), "::"),
+            Self::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
+                (true, true) => format!(
+                    "{}..{}",
+                    table.display_name(range.start),
+                    table.display_name(range.end)
+                ),
+                (true, false) => format!("{}..", table.display_name(range.start)),
+                (false, true) => format!("..{}", table.display_name(range.end)),
+                (false, false) => "..".to_owned(),
+            },
             Self::SelfValue => "self".to_owned(),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{:?}", value.as_str()),

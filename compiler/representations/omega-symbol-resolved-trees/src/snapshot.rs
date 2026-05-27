@@ -320,6 +320,10 @@ pub enum ExpressionSnapshot {
     Name {
         path: Vec<String>,
     },
+    Range {
+        start: Option<Box<ExpressionSnapshot>>,
+        end: Option<Box<ExpressionSnapshot>>,
+    },
     StructLiteral {
         type_name: String,
         fields: Vec<StructLiteralFieldSnapshot>,
@@ -794,6 +798,16 @@ fn table_expression_snapshot(
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
+        },
+        ExpressionNode::Range(range) => ExpressionSnapshot::Range {
+            start: range
+                .start
+                .is_valid()
+                .then(|| Box::new(table_expression_snapshot(program, range.start))),
+            end: range
+                .end
+                .is_valid()
+                .then(|| Box::new(table_expression_snapshot(program, range.end))),
         },
         ExpressionNode::StructLiteral(struct_literal) => ExpressionSnapshot::StructLiteral {
             type_name: struct_literal.type_name.to_string(),

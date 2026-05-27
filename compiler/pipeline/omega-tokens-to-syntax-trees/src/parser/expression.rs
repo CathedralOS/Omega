@@ -6,7 +6,7 @@ use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableCastExpression, TableIndexedExpression, TableMemberExpression, TableMembershipExpression,
-    TableStructLiteral, TableStructLiteralField,
+    TableRangeExpression, TableStructLiteral, TableStructLiteralField,
 };
 use omega_syntax_trees::identifier::Identifier;
 use omega_tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
@@ -344,18 +344,7 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
 
         if input.at_punctuation(PunctuationKind::LeftBracket) {
             input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-            if input.at_punctuation(PunctuationKind::DotDot) {
-                return Err(
-                    input.error_here("slice ranges are not implemented yet; `[..]` indexing is unsupported")
-                );
-            }
-            let (index, rest) =
-                parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
-            if rest.at_punctuation(PunctuationKind::DotDot) {
-                return Err(rest.error_here(
-                    "slice ranges are not implemented yet; use plain indexing for now",
-                ));
-            }
+            let (index, rest) = parse_index_or_range_expression_handle(syntax_trees, input)?;
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
             expression =
                 syntax_trees
@@ -403,6 +392,52 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
     }
 
     Ok((expression, input))
+}
+
+fn parse_index_or_range_expression_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    if input.at_punctuation(PunctuationKind::DotDot) {
+        let input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+        let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
+            (ExpressionHandle::invalid(), input)
+        } else {
+            let (end, input) =
+                parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+            (end, input)
+        };
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Range(TableRangeExpression {
+                    start: ExpressionHandle::invalid(),
+                    end,
+                })),
+            input,
+        ));
+    }
+
+    let (start, input) =
+        parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+    if !input.at_punctuation(PunctuationKind::DotDot) {
+        return Ok((start, input));
+    }
+
+    let input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+    let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
+        (ExpressionHandle::invalid(), input)
+    } else {
+        let (end, input) =
+            parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
+        (end, input)
+    };
+    Ok((
+        syntax_trees
+            .expressions
+            .insert(ExpressionNode::Range(TableRangeExpression { start, end })),
+        input,
+    ))
 }
 
 fn parse_primary_expression_handle<'tokens, 'source>(

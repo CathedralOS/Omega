@@ -765,6 +765,12 @@ impl SyntaxTrees {
             ExpressionNode::Name(path) => {
                 ExpressionNode::Name(self.copy_expression_identifier_span(other, *path))
             }
+            ExpressionNode::Range(range) => {
+                ExpressionNode::Range(crate::expression::TableRangeExpression {
+                    start: self.copy_expression_handle(other, range.start),
+                    end: self.copy_expression_handle(other, range.end),
+                })
+            }
             ExpressionNode::SelfValue => ExpressionNode::SelfValue,
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
