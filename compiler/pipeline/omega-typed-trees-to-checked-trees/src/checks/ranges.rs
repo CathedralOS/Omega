@@ -292,7 +292,11 @@ fn check_unknown_length_slice_index(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.expression_table.expression(index) {
-        ExpressionNode::Range(_) => {
+        ExpressionNode::Range(range) => {
+            let collection_label = program.expression_table.display_name(collection);
+            if unknown_length_range_is_proven(program, facts, &collection_label, range) {
+                return;
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove range `{}` is within unknown slice length",
                 program.expression_table.display_name(index)
@@ -309,6 +313,35 @@ fn check_unknown_length_slice_index(
                 index_label
             )));
         }
+    }
+}
+
+fn unknown_length_range_is_proven(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection_label: &str,
+    range: &TableRangeExpression,
+) -> bool {
+    match (range.start.is_valid(), range.end.is_valid()) {
+        (true, false) => facts.index_is_proven(
+            collection_label,
+            &program.expression_table.display_name(range.start),
+        ),
+        (false, true) => facts.index_is_proven(
+            collection_label,
+            &program.expression_table.display_name(range.end),
+        ),
+        (true, true) => {
+            let Some(start) = expression_integer_value(program, facts, range.start) else {
+                return false;
+            };
+            start == 0
+                && facts.index_is_proven(
+                    collection_label,
+                    &program.expression_table.display_name(range.end),
+                )
+        }
+        (false, false) => true,
     }
 }
 

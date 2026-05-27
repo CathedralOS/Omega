@@ -170,6 +170,8 @@ meaning, without needing access to pointer descriptor internals.
     reject unless another fact proves the requested window
   - simple guarded transition facts of the form `index < entries.len` now prove
     `entries[index]` on that guarded target path
+  - the same `< entries.len` guard now proves start-only subslice bounds such
+    as `entries[start..]` on the guarded target path
   Next target:
   - expand proof-backed acceptance for dynamic `view[start..]`,
     `view[..end]`, and `view[start..end]` beyond literal local constants
@@ -185,8 +187,8 @@ meaning, without needing access to pointer descriptor internals.
     machine parameters can carry slice length/index facts
   - broaden state-argument fact propagation to recursive/cyclic control-flow
     paths instead of the current conservative direct-call/transition seed pass
-  - extend guard facts from fixed indexing into subslice/range bounds and
-    state-call argument propagation
+  - extend guard facts into end-only and bounded subslice windows, including
+    `start <= end` proof for bounded ranges
   - decide how inclusive/exclusive range forms spell and lower
   - connect range validity facts to indexing validity facts instead of duplicating proof logic
 
