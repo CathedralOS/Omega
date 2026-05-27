@@ -162,6 +162,8 @@ meaning, without needing access to pointer descriptor internals.
     state-call parameter, covering dynamic reads after `view[1..3]`
   - end-only literal subslices now have runtime descriptor coverage through a
     state-call parameter, covering dynamic reads after `view[..2]`
+  - literal subslice descriptors now compose nested fixed-array-backed windows,
+    covering dynamic reads after `view[1..][..2]`
   Next target:
   - generalize subslice descriptor pointer offsets beyond the fixed-array alias
     copy special case
