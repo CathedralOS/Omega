@@ -191,6 +191,8 @@ meaning, without needing access to pointer descriptor internals.
     `entries[1..]`, matching the slice-shrinking loop pattern
   - minimum-length guards such as `entries.len >= 2` and `2 <= entries.len`
     now prove literal indexes and tail subslices within that known prefix
+  - nonzero-length guards such as `entries.len != 0` and `0 != entries.len`
+    now prove the same non-empty index and tail-subslice facts
   - unknown-length subslice diagnostics now distinguish subslice range proof
     failures from element-index proof failures
   - subslice diagnostics now identify whether the missing proof is the start

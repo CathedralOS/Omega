@@ -45,11 +45,14 @@ pub(super) fn seed_guard_facts(
                 seed_guard_facts(program, facts, binary.left);
             }
         }
+        BinaryOperator::NotEqual => {
+            seed_length_not_zero_fact(program, facts, binary.left, binary.right);
+            seed_length_not_zero_fact(program, facts, binary.right, binary.left);
+        }
         BinaryOperator::Add
         | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply
-        | BinaryOperator::NotEqual
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
@@ -97,6 +100,18 @@ fn seed_minimum_length_fact(
 
     let collection = program.expression_table.display_name(member.receiver);
     facts.prove_minimum_length(collection, minimum_length);
+}
+
+fn seed_length_not_zero_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    possible_length: ExpressionHandle,
+    possible_zero: ExpressionHandle,
+) {
+    if expression_integer_value(program, facts, possible_zero) != Some(0) {
+        return;
+    }
+    seed_minimum_length_fact(program, facts, possible_length, 1);
 }
 
 fn seed_less_than_len_fact(
