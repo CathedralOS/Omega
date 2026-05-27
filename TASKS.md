@@ -110,13 +110,15 @@ meaning, without needing access to pointer descriptor internals.
   Current prototype:
   - `terminates { ... }` parses and checks for direct recursive shapes
   - `decreases value -> Nat::Descending` works for countdown and bounded-distance shapes
-  - `decreases entries -> Slice::Length` works for the first shrinking-subslice self-loop shape
+  - `decreases entries -> Slice::Length` is accepted by the termination
+    checker for the first shrinking-subslice self-loop shape
   - checker recognition of builtin ranking names is isolated behind a small
     internal ranking-order model
   - `Nat::Descending` and `Slice::Length` have temporary core declaration homes
     via operator declarations
   Current pending canary:
   - `canaries/pending/termination/custom_ranking_order_unimplemented`
+  - `canaries/pending/slices/termination_slice_length_compile`
   Next target:
   - replace temporary operator-like ranking declarations with dedicated ranking
     or measure declaration syntax once selected
@@ -127,6 +129,8 @@ meaning, without needing access to pointer descriptor internals.
   - support multiple named orders for the same data shape
   - add custom ranking projections/orders for user-defined structs
   - broaden termination checking beyond narrow direct self-recursion toward SCC/cycle reasoning
+  - teach runtime dispatch emission to encode the guarded shrinking-slice
+    recursive state call, then promote the pending `Slice::Length` canary
 
 ## Data, Ranges, And Collections
 
