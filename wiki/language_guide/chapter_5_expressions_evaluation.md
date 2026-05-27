@@ -182,10 +182,16 @@ operator StrView::range(text: &str, start: usize, end: usize) -> &str
 requires
     start <= end && end <= text.len
 trust compiler_str_view_range;
+
+operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
+trust compiler_vec_allocate;
 ```
 
 The proof checker owns `start <= items.len`. The trusted primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
+For allocation-facing contracts such as `Vec::with_capacity`, the public core
+declaration owns the source meaning while the trusted primitive owns allocator
+and buffer initialization details.
 
 Operator declarations form overload sets by call signature. The call signature
 is the operator path plus parameter types; return type alone does not create a
