@@ -1,0 +1,7 @@
+use omega::language::core::ptr;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

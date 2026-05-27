@@ -1,0 +1,22 @@
+// Core pointer primitive surface.
+//
+// `Ptr` is not intended to be ordinary application-facing data. It names the
+// low-level compiler/runtime boundary that safe core views such as `Slice`,
+// `Array`, `Vec`, and future text views lower through after proof checking.
+//
+// Public core types should expose contracts over views and owners. The trust
+// roots below are the implementation authorities for the unsafe representation
+// work beneath those contracts.
+
+trust compiler_ptr_offset {
+}
+
+trust compiler_ptr_read {
+}
+
+trust compiler_ptr_write {
+}
+
+trust compiler_ptr_range {
+}
+

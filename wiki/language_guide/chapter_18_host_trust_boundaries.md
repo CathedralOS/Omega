@@ -405,6 +405,11 @@ root name is not a general-purpose user escape hatch: it must come from the
 toolchain, core package, target configuration, or an explicitly whitelisted
 audited provider, and it should appear in the build trust report.
 
+`omega::language::core::ptr` is the natural home for pointer-level primitive
+trust roots. Safe source should generally work through owners and views, but the
+language still needs a browsable place to audit names such as pointer offset,
+read/write, and pointer-range construction.
+
 ## Blocking Boundaries
 
 Imported entries that can block must say what can unblock them, or they must be
