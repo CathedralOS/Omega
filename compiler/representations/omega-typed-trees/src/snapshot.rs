@@ -144,7 +144,10 @@ pub struct OperatorDefinitionSnapshot {
     pub token_count: usize,
 }
 
-fn operator_snapshot(program: &TypedTrees, operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
+fn operator_snapshot(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+) -> OperatorDefinitionSnapshot {
     OperatorDefinitionSnapshot {
         has_symbol: operator.symbol.is_valid(),
         name: program
@@ -158,7 +161,10 @@ fn operator_snapshot(program: &TypedTrees, operator: &OperatorDefinition) -> Ope
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        parameter_count: program.state_parameters.span_or_empty(operator.parameters).len(),
+        parameter_count: program
+            .state_parameters
+            .span_or_empty(operator.parameters)
+            .len(),
         has_return_type: operator.return_type.is_valid(),
         contract_count: program
             .signature_contracts

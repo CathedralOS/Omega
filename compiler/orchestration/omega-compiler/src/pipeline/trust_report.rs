@@ -92,10 +92,9 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
                         .as_ref()
                         .map(|host| identifier_path_name(syntax, host.provider))
                         .unwrap_or_else(|| "none".to_owned()),
-                    host_settings: target
-                        .host
-                        .as_ref()
-                        .map_or(0, |host| syntax.items.target_host_settings(host.settings).len()),
+                    host_settings: target.host.as_ref().map_or(0, |host| {
+                        syntax.items.target_host_settings(host.settings).len()
+                    }),
                     checked_trusts: policies
                         .iter()
                         .filter(|policy| matches!(policy.mode, TrustMode::Checked))
@@ -278,11 +277,17 @@ mod tests {
         assert!(report.trusted_contracts.iter().any(|(_, contract)| {
             contract.trust_level == "compiler_slice_index" && contract.resolved
         }));
-        assert!(report.unresolved_trusts.iter().any(|(_, trust)| {
-            trust.trust_level == "missing_contract_root"
-        }));
-        assert!(report.unresolved_trusts.iter().any(|(_, trust)| {
-            trust.trust_level == "missing_target_root"
-        }));
+        assert!(
+            report
+                .unresolved_trusts
+                .iter()
+                .any(|(_, trust)| { trust.trust_level == "missing_contract_root" })
+        );
+        assert!(
+            report
+                .unresolved_trusts
+                .iter()
+                .any(|(_, trust)| { trust.trust_level == "missing_target_root" })
+        );
     }
 }

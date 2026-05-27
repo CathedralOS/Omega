@@ -86,7 +86,13 @@ fn build_symbol_table(
     }
     for domain in &program.domain_definitions {
         if let Some(domain_symbol) = root_children.next() {
-            insert_domain_symbol_children(&mut builder, program, domain_symbol, domain, has_sources);
+            insert_domain_symbol_children(
+                &mut builder,
+                program,
+                domain_symbol,
+                domain,
+                has_sources,
+            );
         }
     }
     for data_definition in &program.data_definitions {
@@ -761,10 +767,7 @@ fn assign_operator_symbols(
     operator: &mut omega_symbol_resolved_trees::operator::OperatorDefinition,
 ) {
     operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
-    let mut operator_children = symbols
-        .child_handles(operator.symbol)
-        .into_iter()
-        .flatten();
+    let mut operator_children = symbols.child_handles(operator.symbol).into_iter().flatten();
 
     for type_parameter in data_type_parameters.span_mut_or_empty(operator.type_parameters) {
         type_parameter.symbol =
@@ -774,7 +777,8 @@ fn assign_operator_symbols(
         .span_or_empty(operator.type_parameters)
         .to_vec();
     for parameter in state_parameters.span_mut_or_empty(operator.parameters) {
-        parameter.symbol = next_child_of_kind(&mut operator_children, symbols, SymbolKind::Parameter);
+        parameter.symbol =
+            next_child_of_kind(&mut operator_children, symbols, SymbolKind::Parameter);
         assign_type_reference_symbol_with_locals(
             symbols,
             child_type_references,

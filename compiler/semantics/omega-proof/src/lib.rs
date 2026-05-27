@@ -595,9 +595,12 @@ mod tests {
         let report = build_proof_surface_report(&syntax_trees);
 
         assert_eq!(report.contracts.len(), 2);
-        assert!(report.contracts.iter().all(|(_, contract)| {
-            contract.owner == "operator `Slice::index`"
-        }));
+        assert!(
+            report
+                .contracts
+                .iter()
+                .all(|(_, contract)| { contract.owner == "operator `Slice::index`" })
+        );
     }
 
     #[test]

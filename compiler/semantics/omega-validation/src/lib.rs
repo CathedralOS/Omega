@@ -1311,12 +1311,7 @@ fn validate_data_field_types(
 }
 
 fn validate_operator_declarations(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    validate_duplicate_operator_names(
-        program,
-        "root",
-        program.operators(),
-        diagnostics,
-    );
+    validate_duplicate_operator_names(program, "root", program.operators(), diagnostics);
 
     for domain in program.domain_definitions() {
         validate_duplicate_operator_names(

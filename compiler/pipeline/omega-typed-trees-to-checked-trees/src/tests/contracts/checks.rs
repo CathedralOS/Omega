@@ -339,9 +339,8 @@ fn accepts_exit_ensures_boolean_expression_from_domain_fact_across_disjoint_muta
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
-        "exit boolean ensures should be preserved across disjoint mutating call",
-    );
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("exit boolean ensures should be preserved across disjoint mutating call");
 }
 
 #[test]
@@ -423,7 +422,7 @@ fn rejects_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_after_
 
 #[test]
 fn accepts_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
-{
+ {
     let source = r#"
         data Item {
             value: i32;
@@ -895,9 +894,8 @@ fn accepts_requires_boolean_expression_from_domain_fact_across_disjoint_mutating
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
-        "requires boolean expression should be preserved across disjoint mutating call",
-    );
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("requires boolean expression should be preserved across disjoint mutating call");
 }
 
 #[test]
@@ -993,7 +991,7 @@ fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_muta
 
 #[test]
 fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
-{
+ {
     let source = r#"
         data Item {
             value: i32;
@@ -1090,7 +1088,7 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
 
 #[test]
 fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
-{
+ {
     let source = r#"
         data Item {
             value: i32;
@@ -1179,13 +1177,15 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
         diagnostic
             .message
             .contains("cannot prove ensures contract for exit from Main::main")
-            && diagnostic.message.contains("self.items[self.index].value > 0")
+            && diagnostic
+                .message
+                .contains("self.items[self.index].value > 0")
     }));
 }
 
 #[test]
 fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
-{
+ {
     let source = r#"
         data Item {
             value: i32;

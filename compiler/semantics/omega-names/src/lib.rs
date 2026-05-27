@@ -824,7 +824,9 @@ fn collect_expression(
         }
         ExpressionNode::Membership(membership) => {
             collect_expression(report, syntax_trees, membership.value, owner, context);
-            let path_members = syntax_trees.items.identifier_path_members(membership.domain);
+            let path_members = syntax_trees
+                .items
+                .identifier_path_members(membership.domain);
             let symbol = context.resolve_identifier_members(&report.symbols, path_members);
             insert_reference_from_members(
                 report,
@@ -1075,9 +1077,11 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             .collect::<Vec<_>>();
         let root_children = self.builder.insert_children(
             root,
-            builtin_type_symbols()
-                .into_iter()
-                .chain(symbolized_items.iter().map(|(_, seed)| seed.as_symbol_seed())),
+            builtin_type_symbols().into_iter().chain(
+                symbolized_items
+                    .iter()
+                    .map(|(_, seed)| seed.as_symbol_seed()),
+            ),
         );
         let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
@@ -1498,20 +1502,23 @@ fn root_item_symbol_seed<'syntax>(
             SymbolKind::HostCapability,
             &capability.name,
         )),
-        Item::Data(data_definition) => {
-            Some(RootSymbolSeed::Identifier(SymbolKind::Data, &data_definition.name))
-        }
+        Item::Data(data_definition) => Some(RootSymbolSeed::Identifier(
+            SymbolKind::Data,
+            &data_definition.name,
+        )),
         Item::Domain(domain) => Some(RootSymbolSeed::Identifier(SymbolKind::Domain, &domain.name)),
-        Item::Invariant(invariant) => {
-            Some(RootSymbolSeed::Identifier(SymbolKind::Invariant, &invariant.name))
-        }
+        Item::Invariant(invariant) => Some(RootSymbolSeed::Identifier(
+            SymbolKind::Invariant,
+            &invariant.name,
+        )),
         Item::Library(library) => library
             .name
             .as_ref()
             .map(|name| RootSymbolSeed::Identifier(SymbolKind::Import, name)),
-        Item::Machine(machine) => {
-            Some(RootSymbolSeed::Identifier(SymbolKind::Machine, &machine.name))
-        }
+        Item::Machine(machine) => Some(RootSymbolSeed::Identifier(
+            SymbolKind::Machine,
+            &machine.name,
+        )),
         Item::Operator(operator) => Some(RootSymbolSeed::Name(
             SymbolKind::Operator,
             operator_name(syntax_trees, operator.name),
@@ -1570,8 +1577,8 @@ mod tests {
     use omega_syntax_trees::expression::{ExpressionNode, TableCallExpression};
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
-        DataDefinition, DataField, DataMember, DomainDefinition, Item, Machine,
-        OperatorDefinition, State, StateParameterNode, TypeParameter, UseItem,
+        DataDefinition, DataField, DataMember, DomainDefinition, Item, Machine, OperatorDefinition,
+        State, StateParameterNode, TypeParameter, UseItem,
     };
     use omega_syntax_trees::statement::{
         StatementNode, TableAssignment, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -1597,35 +1604,40 @@ mod tests {
             .insert(TypeReferenceNode::Slice {
                 element_type: generic_type,
             });
-        let borrowed_slice_type = syntax_trees.type_references.insert(TypeReferenceNode::Reference {
-            referee: slice_type,
-            is_mutable: false,
-        });
+        let borrowed_slice_type =
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::Reference {
+                    referee: slice_type,
+                    is_mutable: false,
+                });
         let index_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("usize")));
-        let items_parameter =
-            syntax_trees
-                .items
-                .insert_state_parameter_node(StateParameterNode {
-                    name: Identifier::generated("items"),
-                    type_reference: borrowed_slice_type,
-                    is_const: false,
-                    is_mutable: false,
-                    is_self: false,
-                });
-        let items_parameter = syntax_trees.items.append_state_parameter_handle(items_parameter);
-        let index_parameter =
-            syntax_trees
-                .items
-                .insert_state_parameter_node(StateParameterNode {
-                    name: Identifier::generated("index"),
-                    type_reference: index_type,
-                    is_const: false,
-                    is_mutable: false,
-                    is_self: false,
-                });
-        let _index_parameter = syntax_trees.items.append_state_parameter_handle(index_parameter);
+        let items_parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("items"),
+                type_reference: borrowed_slice_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let items_parameter = syntax_trees
+            .items
+            .append_state_parameter_handle(items_parameter);
+        let index_parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("index"),
+                type_reference: index_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let _index_parameter = syntax_trees
+            .items
+            .append_state_parameter_handle(index_parameter);
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
             name,
             type_parameters: HandleSpan::from_parts(type_parameter, 1),
@@ -1656,13 +1668,19 @@ mod tests {
             .symbols
             .find_child_by_name(definition.symbol, "T")
             .expect("operator type parameter should get a symbol");
-        assert_eq!(report.symbols.get(type_parameter).kind, SymbolKind::TypeParameter);
+        assert_eq!(
+            report.symbols.get(type_parameter).kind,
+            SymbolKind::TypeParameter
+        );
 
         let value_parameter = report
             .symbols
             .find_child_by_name(definition.symbol, "items")
             .expect("operator value parameter should get a symbol");
-        assert_eq!(report.symbols.get(value_parameter).kind, SymbolKind::Parameter);
+        assert_eq!(
+            report.symbols.get(value_parameter).kind,
+            SymbolKind::Parameter
+        );
     }
 
     #[test]
@@ -1680,10 +1698,15 @@ mod tests {
         let (_, definition) = report
             .definitions
             .iter()
-            .find(|(_, definition)| report.symbols.name(definition.symbol) == "compiler_slice_index")
+            .find(|(_, definition)| {
+                report.symbols.name(definition.symbol) == "compiler_slice_index"
+            })
             .expect("trust definition should be collected");
         assert_eq!(definition.kind, ResolvedDefinitionKind::Trust);
-        assert_eq!(report.symbols.get(definition.symbol).kind, SymbolKind::Trust);
+        assert_eq!(
+            report.symbols.get(definition.symbol).kind,
+            SymbolKind::Trust
+        );
     }
 
     #[test]
@@ -1735,7 +1758,10 @@ mod tests {
             .symbols
             .find_child_by_name(domain_symbol, "normalize")
             .expect("domain operator should get a child symbol");
-        assert_eq!(report.symbols.get(operator_symbol).kind, SymbolKind::Operator);
+        assert_eq!(
+            report.symbols.get(operator_symbol).kind,
+            SymbolKind::Operator
+        );
         assert!(
             report.definitions.iter().any(|(_, definition)| {
                 definition.symbol == operator_symbol
