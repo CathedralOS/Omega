@@ -1,0 +1,14 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+    end: usize;
+}
+
+machine Main::main(&mut self) -> usize {
+    let view: &[Entry] = self.entries.as_slice();
+    let prefix: &[Entry] = view[..self.end];
+    prefix.len
+}
