@@ -1,0 +1,25 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) -> i32 {
+    transition {
+        _ -> 0
+    }
+
+    state choose(&mut self, entries: &[Entry]) -> i32 {
+        transition entries.len == 0 {
+            true -> 0
+            false -> accept(entries[0].value)
+        }
+    }
+
+    state accept(&mut self, value: i32) -> i32 {
+        transition {
+            _ -> value
+        }
+    }
+}

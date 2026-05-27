@@ -40,11 +40,14 @@ pub(super) fn seed_guard_facts(
         }
         BinaryOperator::Equal => {
             seed_length_equality_fact(program, facts, binary.left, binary.right);
-            if matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Boolean(true)
-            ) {
-                seed_guard_facts(program, facts, binary.left);
+            match program.expression_table.expression(binary.right) {
+                ExpressionNode::Boolean(true) => {
+                    seed_guard_facts(program, facts, binary.left);
+                }
+                ExpressionNode::Boolean(false) => {
+                    seed_negated_guard_facts(program, facts, binary.left);
+                }
+                _ => {}
             }
         }
         BinaryOperator::NotEqual => {
@@ -59,6 +62,21 @@ pub(super) fn seed_guard_facts(
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
         | BinaryOperator::Subtract => {}
+    }
+}
+
+fn seed_negated_guard_facts(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    guard: ExpressionHandle,
+) {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return;
+    };
+
+    if binary.operator == BinaryOperator::Equal {
+        seed_length_not_zero_fact(program, facts, binary.left, binary.right);
+        seed_length_not_zero_fact(program, facts, binary.right, binary.left);
     }
 }
 

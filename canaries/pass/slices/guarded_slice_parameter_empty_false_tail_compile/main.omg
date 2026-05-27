@@ -1,0 +1,25 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) -> usize {
+    transition {
+        _ -> 0
+    }
+
+    state choose(&mut self, entries: &[Entry]) -> usize {
+        transition entries.len == 0 {
+            true -> 0
+            false -> length(entries[1..])
+        }
+    }
+
+    state length(&mut self, entries: &[Entry]) -> usize {
+        transition {
+            _ -> entries.len
+        }
+    }
+}
