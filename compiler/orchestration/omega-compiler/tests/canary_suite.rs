@@ -1,4 +1,5 @@
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, CompileReport, compile};
+use omega_core::diagnostics::Diagnostic;
 use std::fs;
 #[cfg(not(windows))]
 use std::io::Write;
@@ -2740,18 +2741,11 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 #[test]
 fn pending_canaries_reproduce_known_gaps() {
     for canary in ACTIVE_PENDING_CANARIES {
+        let canary_dir = pending_canary(canary.path);
+        let result = compile_canary_without_output(&canary_dir);
         match canary.expectation {
             PendingCanaryExpectation::CurrentlyRejects { fragment } => {
-                let canary_dir = pending_canary(canary.path);
-                let main_path = canary_dir.join("main.omg");
-                let options = CompileOptions {
-                    root_path: main_path.clone(),
-                    build_dir: None,
-                    target_name: None,
-                    write_output: false,
-                };
-
-                let diagnostics = match compile(options) {
+                let diagnostics = match result {
                     Ok(report) => {
                         panic!(
                             "pending canary {} no longer rejects. Promote it to pass/fail and update the suite: {}",
@@ -2776,16 +2770,7 @@ fn pending_canaries_reproduce_known_gaps() {
                 );
             }
             PendingCanaryExpectation::CurrentlyCompiles => {
-                let canary_dir = pending_canary(canary.path);
-                let main_path = canary_dir.join("main.omg");
-                let options = CompileOptions {
-                    root_path: main_path.clone(),
-                    build_dir: None,
-                    target_name: None,
-                    write_output: false,
-                };
-
-                if let Err(diagnostics) = compile(options) {
+                if let Err(diagnostics) = result {
                     let combined = diagnostics
                         .iter()
                         .map(ToString::to_string)
@@ -2800,6 +2785,15 @@ fn pending_canaries_reproduce_known_gaps() {
             }
         }
     }
+}
+
+fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile(CompileOptions {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: None,
+        target_name: None,
+        write_output: false,
+    })
 }
 
 fn repo_root() -> PathBuf {
