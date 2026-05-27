@@ -234,6 +234,7 @@ mod tests {
                 .len(),
             2
         );
+        assert!(operator.symbol.is_valid());
         assert!(operator.return_type.is_valid());
         assert_eq!(
             typed_trees
@@ -275,6 +276,7 @@ mod tests {
         let operators = typed_trees.domain_operators(domain);
 
         assert_eq!(operators.len(), 1);
+        assert!(operators[0].symbol.is_valid());
         assert_eq!(
             typed_trees
                 .operator_path_members(operators[0].name)

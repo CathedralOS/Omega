@@ -207,6 +207,7 @@ mod tests {
             1
         );
         assert_eq!(program.state_parameters(operator.parameters).len(), 2);
+        assert!(operator.symbol.is_valid());
         assert!(operator.return_type.is_some());
         assert_eq!(program.signature_contracts(operator.contracts).len(), 1);
         assert!(operator.token_count > 0);
@@ -239,6 +240,7 @@ mod tests {
         let operators = program.operator_definitions(domain.operators);
 
         assert_eq!(operators.len(), 1);
+        assert!(operators[0].symbol.is_valid());
         assert_eq!(
             program
                 .operator_path_members(operators[0].name)

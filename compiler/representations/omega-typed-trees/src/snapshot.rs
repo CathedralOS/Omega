@@ -135,6 +135,7 @@ pub struct TypedTableSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorDefinitionSnapshot {
+    pub has_symbol: bool,
     pub name: Vec<String>,
     pub type_parameters: Vec<String>,
     pub parameter_count: usize,
@@ -145,6 +146,7 @@ pub struct OperatorDefinitionSnapshot {
 
 fn operator_snapshot(program: &TypedTrees, operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
     OperatorDefinitionSnapshot {
+        has_symbol: operator.symbol.is_valid(),
         name: program
             .operator_path_members(operator.name)
             .iter()

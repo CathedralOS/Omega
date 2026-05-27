@@ -12,6 +12,7 @@ pub(crate) fn lower_operator_definition(
     operator: &syntax::item::OperatorDefinition,
 ) -> Result<omega_symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
     Ok(omega_symbol_resolved_trees::operator::OperatorDefinition {
+        symbol: Default::default(),
         name: lower_operator_name(lowerer, syntax_trees, operator.name),
         type_parameters: lower_type_parameters(lowerer, syntax_trees, operator.type_parameters),
         parameters: lower_state_parameters(lowerer, syntax_trees, operator.parameters)?,
