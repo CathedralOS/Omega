@@ -151,6 +151,8 @@ meaning, without needing access to pointer descriptor internals.
     when outside the proven length
   - local literal integer facts now prove equivalent fixed indexes, covering
     `let index: usize = 1; view[index]`, and reject if the fact is out of range
+  - direct local assignment now refreshes range-checker facts so stale local
+    index/range facts cannot prove later slice access
   - obvious literal indexes over fixed-array locals now use the same length
     proof path and reject when outside bounds
   Next target:
