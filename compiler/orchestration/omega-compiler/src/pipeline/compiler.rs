@@ -2,7 +2,7 @@ use crate::pipeline::artifacts::{
     remove_stale_phase_diagrams, write_backend_report, write_checked_snapshot,
     write_control_flow_snapshot, write_emission_plan, write_pipeline_index, write_pipeline_shell,
     write_resolved_snapshot, write_state_graph_snapshot, write_syntax_snapshot, write_timings,
-    write_typed_snapshot,
+    write_trust_report, write_typed_snapshot,
 };
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
@@ -43,6 +43,7 @@ impl Compiler {
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;
+        write_trust_report(&self.options, &syntax.syntax_trees)?;
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         write_resolved_snapshot(&self.options, &resolved)?;
