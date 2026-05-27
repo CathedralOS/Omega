@@ -1,0 +1,8 @@
+data Main {
+}
+
+machine Main::main(&mut self) -> u32 {
+    let values: [u32; 4] = [1, 2, 3, 4];
+    let value: u32 = values[9];
+    value
+}

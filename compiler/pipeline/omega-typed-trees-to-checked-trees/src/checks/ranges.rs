@@ -1,6 +1,6 @@
 mod facts;
 
-use facts::{SliceLengthFacts, fixed_array_field_lengths};
+use facts::{SliceLengthFacts, fixed_array_field_lengths, fixed_array_type_length};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 use omega_typed_trees::statement::{
@@ -50,7 +50,9 @@ fn check_statement(
         }
         StatementNode::LocalData(local) => {
             check_expression(program, facts, local.initial_value, diagnostics);
-            if let Some(length) = expression_slice_length(program, facts, local.initial_value) {
+            if let Some(length) = expression_indexable_length(program, facts, local.initial_value)
+                .or_else(|| fixed_array_type_length(program, local.type_reference))
+            {
                 facts.locals.push((local.symbol, local.name.to_string(), length));
             }
         }
@@ -113,7 +115,7 @@ fn check_expression(
         }
         ExpressionNode::Cast(cast) => check_expression(program, facts, cast.value, diagnostics),
         ExpressionNode::Indexed(indexed) => {
-            if let Some(length) = expression_slice_length(program, facts, indexed.collection) {
+            if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
                 check_index(program, indexed.index, length, diagnostics);
             }
             check_expression(program, facts, indexed.collection, diagnostics);
@@ -215,7 +217,7 @@ fn literal_range_bounds(
     Some((start, end))
 }
 
-fn expression_slice_length(
+fn expression_indexable_length(
     program: &omega_typed_trees::TypedTrees,
     facts: &SliceLengthFacts<'_>,
     expression: ExpressionHandle,
@@ -227,8 +229,11 @@ fn expression_slice_length(
             fixed_array_expression_length(program, facts, call.receiver)
         }
         ExpressionNode::Indexed(indexed) => {
-            let length = expression_slice_length(program, facts, indexed.collection)?;
+            let length = expression_indexable_length(program, facts, indexed.collection)?;
             range_result_length(program, indexed.index, length)
+        }
+        ExpressionNode::Member(member) => {
+            facts.field_length(member.member_symbol, Some(member.member.as_str()))
         }
         ExpressionNode::Name(path) => facts.local_length(
             path.symbol,

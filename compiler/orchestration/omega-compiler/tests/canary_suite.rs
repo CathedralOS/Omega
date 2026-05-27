@@ -2801,6 +2801,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/bare_state_arrow_transition",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",
+    "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/invalid_subslice_bounded_end_unchecked",
     "slices/invalid_subslice_bounded_order_unchecked",
     "slices/invalid_subslice_bounds_unchecked",
