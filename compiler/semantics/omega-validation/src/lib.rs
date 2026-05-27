@@ -30,6 +30,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 
     for machine in program.machines() {
@@ -1307,6 +1308,61 @@ fn validate_data_field_types(
             );
         }
     }
+}
+
+fn validate_operator_declarations(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    validate_duplicate_operator_names(
+        program,
+        "root",
+        program.operators(),
+        diagnostics,
+    );
+
+    for domain in program.domain_definitions() {
+        validate_duplicate_operator_names(
+            program,
+            domain.name.as_str(),
+            program.domain_operators(domain),
+            diagnostics,
+        );
+    }
+}
+
+fn validate_duplicate_operator_names(
+    program: &TypedTrees,
+    owner: &str,
+    operators: &[omega_typed_trees::operator::OperatorDefinition],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (operator_index, operator) in operators.iter().enumerate() {
+        let name = operator_name(program, operator);
+        if operators[..operator_index]
+            .iter()
+            .any(|previous| operator_name(program, previous) == name)
+        {
+            if owner == "root" {
+                diagnostics.push(Diagnostic::error(format!(
+                    "duplicate operator declaration `{name}`"
+                )));
+            } else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "domain `{owner}` has duplicate operator `{name}`"
+                )));
+            }
+        }
+    }
+}
+
+fn operator_name(
+    program: &TypedTrees,
+    operator: &omega_typed_trees::operator::OperatorDefinition,
+) -> String {
+    program
+        .operator_path_members(operator.name)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::")
 }
 
 fn validate_data_shape(
