@@ -5,6 +5,7 @@ use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::name::Identifier;
+use crate::operator::OperatorDefinition;
 use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
@@ -43,6 +44,7 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|machine| machine_snapshot(program, machine))
                     .collect(),
+                operators: program.operators().iter().map(operator_snapshot).collect(),
                 platforms: program
                     .platforms()
                     .iter()
@@ -61,6 +63,7 @@ impl TypedTreesSnapshot {
                 domain_definition_count: program.domain_definitions.len(),
                 invariant_definition_count: program.invariant_definitions.len(),
                 machine_count: program.machines.len(),
+                operator_count: program.operators.len(),
                 machine_contained_object_count: program.machine_contained_objects.len(),
                 machine_owned_data_count: program.machine_owned_data.len(),
                 machine_state_count: program.machine_states.len(),
@@ -95,6 +98,7 @@ pub struct TypedRootsSnapshot {
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
+    pub operators: Vec<OperatorDefinitionSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
 }
@@ -107,6 +111,7 @@ pub struct TypedTableSnapshot {
     pub domain_definition_count: usize,
     pub invariant_definition_count: usize,
     pub machine_count: usize,
+    pub operator_count: usize,
     pub machine_contained_object_count: usize,
     pub machine_owned_data_count: usize,
     pub machine_state_count: usize,
@@ -122,6 +127,17 @@ pub struct TypedTableSnapshot {
     pub transition_target_count: usize,
     pub type_reference_count: usize,
     pub type_constraint_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OperatorDefinitionSnapshot {
+    pub token_count: usize,
+}
+
+fn operator_snapshot(operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
+    OperatorDefinitionSnapshot {
+        token_count: operator.token_count,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -179,6 +179,25 @@ mod tests {
     }
 
     #[test]
+    fn preserves_operator_declarations() {
+        let source = r#"
+        operator Slice::index<T>(items: &[T], index: usize) -> T
+        requires
+            index < items.len
+        intrinsic;
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+        assert_eq!(program.operators.len(), 1);
+        assert!(program.operators[0].token_count > 0);
+    }
+
+    #[test]
     fn lowers_machine_contract_clauses() {
         let source = r#"
         machine distinct_indices(i: usize, j: usize)

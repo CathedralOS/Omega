@@ -4,6 +4,7 @@ use crate::domain::{DomainDefinition, ProofFact};
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
+use crate::operator::OperatorDefinition;
 use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
@@ -43,6 +44,11 @@ impl SymbolResolvedTreesSnapshot {
                     .machines
                     .iter()
                     .map(|machine| machine_snapshot(symbol_resolved_trees, machine))
+                    .collect(),
+                operators: symbol_resolved_trees
+                    .operators
+                    .iter()
+                    .map(operator_snapshot)
                     .collect(),
                 platforms: symbol_resolved_trees
                     .platforms
@@ -93,6 +99,7 @@ pub struct SymbolResolvedRootsSnapshot {
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
+    pub operators: Vec<OperatorDefinitionSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
 }
@@ -103,6 +110,17 @@ pub struct ResolvedTableSnapshot {
     pub expression_count: usize,
     pub statement_count: usize,
     pub type_reference_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OperatorDefinitionSnapshot {
+    pub token_count: usize,
+}
+
+fn operator_snapshot(operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
+    OperatorDefinitionSnapshot {
+        token_count: operator.token_count,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -5,6 +5,7 @@ mod invariant;
 mod item;
 mod machine;
 mod name;
+mod operator;
 mod platform;
 mod program;
 mod state;

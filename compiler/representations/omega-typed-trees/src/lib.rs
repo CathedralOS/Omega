@@ -5,6 +5,7 @@ pub mod identity;
 pub mod invariant;
 pub mod machine;
 pub mod name;
+pub mod operator;
 pub mod platform;
 pub mod signature;
 pub mod snapshot;

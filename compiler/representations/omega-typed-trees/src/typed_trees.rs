@@ -20,6 +20,8 @@ pub struct TypedTrees {
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub root_machines: HandleSpan<machine::Machine>,
     pub machines: Arena<machine::Machine>,
+    pub root_operators: HandleSpan<crate::operator::OperatorDefinition>,
+    pub operators: Arena<crate::operator::OperatorDefinition>,
     pub machine_contained_objects: Arena<machine::ContainedObject>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
@@ -117,6 +119,15 @@ impl TypedTrees {
     pub fn push_platform(&mut self, platform: platform::Platform) {
         self.platforms
             .append_to_span(&mut self.root_platforms, platform);
+    }
+
+    pub fn push_operator(&mut self, operator: crate::operator::OperatorDefinition) {
+        self.operators
+            .append_to_span(&mut self.root_operators, operator);
+    }
+
+    pub fn operators(&self) -> &[crate::operator::OperatorDefinition] {
+        self.operators.span_or_empty(self.root_operators)
     }
 
     pub fn platforms(&self) -> &[platform::Platform] {

@@ -39,9 +39,11 @@ meaning, without needing access to pointer descriptor internals.
   Landed:
   - root-level operator declarations parse as inert declaration surface
   - compile canary for a core-style intrinsic operator signature
+  - operator declaration placeholders are preserved through symbol-resolved and
+    typed trees
   Next target:
-  - preserve operator declarations through symbol-resolved/typed trees instead
-    of ignoring them after parsing
+  - replace placeholder token counts with operator names, type parameters,
+    signatures, contracts, and intrinsic/body mode
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
   - support compiler-intrinsic operator bodies for core types without hiding their signatures and proof obligations
@@ -56,7 +58,8 @@ meaning, without needing access to pointer descriptor internals.
   - compile canary for a domain-scoped intrinsic operator signature
   Next target:
   - define the first semantic domain-operator representation
-  - preserve domain operator declarations past parsing
+  - preserve domain operator declarations as domain-owned declarations instead
+    of generic top-level placeholders
   - prove that only facts in the current context can select domain operator meanings
   - reject ambiguous domain-provided operator candidates
   - keep dispatch compile-time only, with no hidden runtime domain tags
