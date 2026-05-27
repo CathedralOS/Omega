@@ -195,6 +195,8 @@ meaning, without needing access to pointer descriptor internals.
     now prove the same non-empty index and tail-subslice facts
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
+  - machine `requires` clauses now cover the same successor-bound slice index
+    proof path
   - unknown-length subslice diagnostics now distinguish subslice range proof
     failures from element-index proof failures
   - subslice diagnostics now identify whether the missing proof is the start
