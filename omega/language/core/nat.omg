@@ -11,3 +11,5 @@
 // - `decreases value -> Nat::Descending` spells the ranking explicitly
 // - custom numeric-like domains can define their own named rankings instead of
 //   pretending every ordering belongs directly to the data type
+
+operator Nat::Descending(value: usize) -> usize;

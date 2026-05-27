@@ -22,8 +22,9 @@ meaning, without needing access to pointer descriptor internals.
   - import canaries for the first core collection/text module surfaces
   - `Slice` core source now exposes index and subslice-style operator contracts
     with proof obligations
+  - `Slice::Length` and `Nat::Descending` now have explicit browsable core
+    declarations through the current operator declaration surface
   Next target:
-  - expose proof/order names such as `Slice::Length` from that core surface
   - replace comment-only sketches with parser-supported declarations as syntax
     becomes available
   - decide which names are public core and which are primitive/compiler-only
@@ -112,10 +113,13 @@ meaning, without needing access to pointer descriptor internals.
   - `decreases entries -> Slice::Length` works for the first shrinking-subslice self-loop shape
   - checker recognition of builtin ranking names is isolated behind a small
     internal ranking-order model
+  - `Nat::Descending` and `Slice::Length` have temporary core declaration homes
+    via operator declarations
   Current pending canary:
   - `canaries/pending/termination/custom_ranking_order_unimplemented`
   Next target:
-  - move `Nat::Descending` and `Slice::Length` from checker-known strings toward visible core declarations
+  - replace temporary operator-like ranking declarations with dedicated ranking
+    or measure declaration syntax once selected
   - decide how order/measure declarations represent "rank this value by this view"
   - support builtin/default inference for plain `decreases value` only when unambiguous
   - replace arithmetic-facing proof UX such as `limit - index` with named bounded-distance rankings

@@ -23,6 +23,8 @@ trust compiler_slice_from {
 trust compiler_slice_length {
 }
 
+operator Slice::Length<T>(items: &[T]) -> usize;
+
 operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
     index < items.len;
