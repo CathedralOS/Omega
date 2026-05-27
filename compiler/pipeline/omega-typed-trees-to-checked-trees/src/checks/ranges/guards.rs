@@ -27,10 +27,12 @@ pub(super) fn seed_guard_facts(
         }
         BinaryOperator::LessOrEqual => {
             seed_length_at_least_fact(program, facts, binary.right, binary.left);
+            seed_successor_at_most_len_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
         }
         BinaryOperator::GreaterOrEqual => {
             seed_length_at_least_fact(program, facts, binary.left, binary.right);
+            seed_successor_at_most_len_fact(program, facts, binary.right, binary.left);
         }
         BinaryOperator::And => {
             seed_guard_facts(program, facts, binary.left);
@@ -135,6 +137,54 @@ fn seed_less_than_len_fact(
         program.expression_table.display_name(member.receiver),
         program.expression_table.display_name(index),
     );
+}
+
+fn seed_successor_at_most_len_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    possible_successor: ExpressionHandle,
+    upper_bound: ExpressionHandle,
+) {
+    let Some(index) = positive_offset_base(program, facts, possible_successor) else {
+        return;
+    };
+
+    let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
+        return;
+    };
+    if member.member.as_str() != "len" {
+        return;
+    }
+
+    facts.prove_index(
+        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(index),
+    );
+    facts.prove_range_bound(
+        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(index),
+    );
+}
+
+fn positive_offset_base(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Add {
+        return None;
+    }
+
+    if expression_integer_value(program, facts, binary.right).is_some_and(|offset| offset > 0) {
+        return Some(binary.left);
+    }
+    if expression_integer_value(program, facts, binary.left).is_some_and(|offset| offset > 0) {
+        return Some(binary.right);
+    }
+    None
 }
 
 fn seed_length_equality_fact(
