@@ -380,6 +380,9 @@ meaning, without needing access to pointer descriptor internals.
   - fixed integer indexes are now checked against fixed subslice-range loan
     segments, allowing provably disjoint owner writes such as index `0` while
     `view[1..]` remains live
+  - mutable element reborrows can now be derived from a live mutable slice
+    parent, while same-index and unknown-index mutable reborrow conflicts stay
+    rejected
   - borrow diagnostics now print indexed places with source expression labels
     instead of internal expression arena indexes
   Next target:
