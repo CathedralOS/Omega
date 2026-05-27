@@ -204,6 +204,9 @@ meaning, without needing access to pointer descriptor internals.
   - dynamic machine-owned indexed mutable-call runtime coverage now compiles
     and runs, proving machine field index initializers can support mutable
     indexed call arguments
+  - `requires room.exit_count < room.exits.len` now survives local aliasing
+    through `let exits = room.exits.as_mut_slice()` and
+    `let index = room.exit_count`
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index
@@ -215,8 +218,8 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - thread those refined subslice diagnostics through future operator-contract
     errors once `Slice::from/to/range` contracts drive checking directly
-  - moved append-style storage mutation coverage to pending until bounded
-    fields or guards can prove `exit_count < exits.len`
+  - moved append-style storage mutation coverage to pending until call-site
+    contract checking can prove `rooms[from_index].exit_count < rooms[from_index].exits.len`
   - moved storage alias dynamic-index mutation coverage to pending until
     machine parameters can carry slice length/index facts
   - broaden state-argument fact propagation to recursive/cyclic control-flow

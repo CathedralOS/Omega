@@ -2917,6 +2917,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/guarded_slice_parameter_successor_index_compile",
     "slices/guarded_slice_parameter_successor_tail_compile",
     "slices/machine_field_index_initializer_compile",
+    "slices/requires_field_count_alias_index_compile",
     "slices/requires_slice_parameter_bounded_subslice_compile",
     "slices/requires_slice_parameter_index_compile",
     "slices/requires_slice_parameter_successor_index_compile",
@@ -3052,7 +3053,7 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "storage/runtime_dispatch_helper_local_alias_add_exit",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove index",
+            fragment: "cannot prove requires contract",
         },
     },
     PendingCanary {

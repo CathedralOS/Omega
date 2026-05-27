@@ -54,7 +54,10 @@ machine Main::append_exit(
     &mut self,
     room: &mut Room,
     destination: u32
-) {
+)
+requires
+    room.exit_count < room.exits.len
+{
     let exits: &mut [Exit] = room.exits.as_mut_slice();
     let index: usize = room.exit_count;
 

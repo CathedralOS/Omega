@@ -1,0 +1,24 @@
+data Exit {
+    destination: u32;
+}
+
+data Room {
+    exits: [Exit; 4];
+    exit_count: usize;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
+
+machine Main::append_exit(&mut self, room: &mut Room, destination: u32)
+requires
+    room.exit_count < room.exits.len
+{
+    let exits: &mut [Exit] = room.exits.as_mut_slice();
+    let index: usize = room.exit_count;
+
+    exits[index] = Exit { destination: destination };
+}
