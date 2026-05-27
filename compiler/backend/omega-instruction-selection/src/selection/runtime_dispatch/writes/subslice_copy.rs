@@ -108,38 +108,15 @@ fn literal_fixed_array_subslice_index_source(
         return None;
     };
     let element_index = literal_usize(&indexed_element.index)?;
-    let Expression::Indexed(subslice) = &indexed_element.collection else {
-        return None;
-    };
-    let (subslice_start, subslice_end) = literal_range_bounds(&subslice.index)?;
-    let Expression::Call(call) = &subslice.collection else {
-        return None;
-    };
-    if !call.receiver.is_some()
-        || !call.arguments.is_empty()
-        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
-    {
-        return None;
-    }
-
-    let receiver = call.receiver.as_deref()?;
-    let source_place = resolve_runtime_storage_place(
+    let source = literal_fixed_array_slice_source(
         input,
         dispatch_index,
         value_source_key,
         source_machine,
         source_state,
-        receiver,
+        &indexed_element.collection,
     )?;
-    let source_length =
-        resolve_fixed_array_length(input, dispatch_index, value_source_key, receiver)?;
-    fixed_array_subslice_index_source_place(
-        source_place,
-        source_length,
-        subslice_start,
-        subslice_end,
-        element_index,
-    )
+    fixed_array_index_source_place(source, element_index)
 }
 
 fn literal_fixed_array_subslice_index_source_in_table(
@@ -153,70 +130,167 @@ fn literal_fixed_array_subslice_index_source_in_table(
         return None;
     };
     let element_index = literal_usize_in_table(expressions, indexed_element.index)?;
-    let ExpressionNode::Indexed(subslice) = expressions.expression(indexed_element.collection)
-    else {
-        return None;
-    };
-    let (subslice_start, subslice_end) =
-        literal_range_bounds_in_table(expressions, subslice.index)?;
-    let ExpressionNode::Call(call) = expressions.expression(subslice.collection) else {
-        return None;
-    };
-    if !call.receiver.is_valid()
-        || !call.arguments.is_empty()
-        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
-    {
-        return None;
-    }
-
-    let source_place = resolve_runtime_storage_place_in_table(
+    let source = literal_fixed_array_slice_source_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
-        call.receiver,
+        indexed_element.collection,
     )?;
-    let source_length = resolve_fixed_array_length_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    )?;
-    fixed_array_subslice_index_source_place(
-        source_place,
-        source_length,
-        subslice_start,
-        subslice_end,
-        element_index,
-    )
+    fixed_array_index_source_place(source, element_index)
 }
 
-fn fixed_array_subslice_index_source_place(
-    source_place: RuntimeStoragePlace,
-    source_length: usize,
-    subslice_start: usize,
-    subslice_end: Option<usize>,
+struct FixedArraySliceSource {
+    place: RuntimeStoragePlace,
+    length: usize,
+    element_byte_size: usize,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn literal_fixed_array_slice_source(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    value: &Expression,
+) -> Option<FixedArraySliceSource> {
+    match value {
+        Expression::Call(call)
+            if call.receiver.is_some()
+                && call.arguments.is_empty()
+                && (call.target.as_str() == "as_slice"
+                    || call.target.as_str() == "as_mut_slice") =>
+        {
+            let receiver = call.receiver.as_deref()?;
+            let place = resolve_runtime_storage_place(
+                input,
+                dispatch_index,
+                value_source_key,
+                source_machine,
+                source_state,
+                receiver,
+            )?;
+            let length =
+                resolve_fixed_array_length(input, dispatch_index, value_source_key, receiver)?;
+            fixed_array_slice_source(place, length)
+        }
+        Expression::Indexed(subslice) => {
+            let (start, end) = literal_range_bounds(&subslice.index)?;
+            let source = literal_fixed_array_slice_source(
+                input,
+                dispatch_index,
+                value_source_key,
+                source_machine,
+                source_state,
+                &subslice.collection,
+            )?;
+            fixed_array_subslice_source(source, start, end)
+        }
+        _ => None,
+    }
+}
+
+fn literal_fixed_array_slice_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    value: ExpressionHandle,
+) -> Option<FixedArraySliceSource> {
+    match expressions.expression(value) {
+        ExpressionNode::Call(call)
+            if call.receiver.is_valid()
+                && call.arguments.is_empty()
+                && (call.target.as_str() == "as_slice"
+                    || call.target.as_str() == "as_mut_slice") =>
+        {
+            let place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                call.receiver,
+            )?;
+            let length = resolve_fixed_array_length_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                call.receiver,
+            )?;
+            fixed_array_slice_source(place, length)
+        }
+        ExpressionNode::Indexed(subslice) => {
+            let (start, end) = literal_range_bounds_in_table(expressions, subslice.index)?;
+            let source = literal_fixed_array_slice_source_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                subslice.collection,
+            )?;
+            fixed_array_subslice_source(source, start, end)
+        }
+        _ => None,
+    }
+}
+
+fn fixed_array_slice_source(
+    place: RuntimeStoragePlace,
+    length: usize,
+) -> Option<FixedArraySliceSource> {
+    if length == 0 || place.byte_count % length != 0 {
+        return None;
+    }
+    let element_byte_size = place.byte_count / length;
+    Some(FixedArraySliceSource {
+        place,
+        length,
+        element_byte_size,
+    })
+}
+
+fn fixed_array_subslice_source(
+    source: FixedArraySliceSource,
+    start: usize,
+    end: Option<usize>,
+) -> Option<FixedArraySliceSource> {
+    let end = end.unwrap_or(source.length);
+    if start > end || end > source.length {
+        return None;
+    }
+    let length = end - start;
+    let byte_offset = source
+        .place
+        .byte_offset
+        .checked_add(start.checked_mul(source.element_byte_size)?)?;
+    Some(FixedArraySliceSource {
+        place: RuntimeStoragePlace {
+            region: source.place.region,
+            byte_offset,
+            byte_count: length.checked_mul(source.element_byte_size)?,
+        },
+        length,
+        element_byte_size: source.element_byte_size,
+    })
+}
+
+fn fixed_array_index_source_place(
+    source: FixedArraySliceSource,
     element_index: usize,
 ) -> Option<RuntimeStoragePlace> {
-    if source_length == 0 || source_place.byte_count % source_length != 0 {
+    if element_index >= source.length {
         return None;
     }
-
-    let end = subslice_end.unwrap_or(source_length);
-    let absolute_index = subslice_start.checked_add(element_index)?;
-    if subslice_start > end || end > source_length || absolute_index >= end {
-        return None;
-    }
-
-    let element_byte_size = source_place.byte_count / source_length;
-    let byte_offset = source_place
+    let byte_offset = source
+        .place
         .byte_offset
-        .checked_add(absolute_index.checked_mul(element_byte_size)?)?;
+        .checked_add(element_index.checked_mul(source.element_byte_size)?)?;
     Some(RuntimeStoragePlace {
-        region: source_place.region,
+        region: source.place.region,
         byte_offset,
-        byte_count: element_byte_size,
+        byte_count: source.element_byte_size,
     })
 }
 
