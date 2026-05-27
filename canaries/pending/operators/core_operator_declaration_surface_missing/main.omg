@@ -1,0 +1,10 @@
+operator Slice::index<T>(items: &[T], index: usize) -> T
+requires
+    index < items.len
+intrinsic;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
