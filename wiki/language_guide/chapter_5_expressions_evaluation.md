@@ -123,6 +123,8 @@ Working interpretation:
 - Fixed arrays, vectors, and slice views can use the same `[]` surface while
   obtaining the proof from different sources.
 - `items[0]` is valid when the current facts prove the view is non-empty.
+- Mutable indexing has the same bounds proof obligation, plus the ordinary
+  borrow-checking obligation that the selected element is uniquely writable.
 - Slice ranges such as `items[1..]` resolve to a range-slice operator that
   creates a new view with a narrower extent and updated facts.
 
@@ -150,6 +152,11 @@ operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
 requires
     index < items.len
 trust compiler_vec_index;
+
+operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+requires
+    index < items.len
+trust compiler_slice_index_mut;
 
 operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
