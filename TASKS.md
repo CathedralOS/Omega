@@ -42,6 +42,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   Immediate blockers:
   - migrate the prototype away from bare arithmetic-facing `decreases expr`
   - runtime subslice descriptor semantics are still wrong for simple `tail.len` probes, so shrinking-slice proofs are ahead of runtime slice behavior
+  - invalid subslice bounds like `view[9..]` are still accepted instead of requiring a proof-backed bounds check
   - plain `decreases items` still needs builtin/default ranking inference rather than only explicit `-> Slice::Length`
 
 - [ ] Domain operators and proof-aware operator resolution
@@ -69,6 +70,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   The basic slice ladder is now in good shape; the next work should move from “individual seams compile/run” toward stronger semantic support.
   Next target:
   - runtime subslice/range descriptor semantics beyond the current compile/proof surface
+  - proof-backed rejection of invalid subslice bounds
   - plain shrinking-slice ergonomics after `decreases value -> Slice::Length`
   - stronger proof vocabulary around slice windows and non-empty views
   - more complex alias/proof interactions over slice-backed structures
