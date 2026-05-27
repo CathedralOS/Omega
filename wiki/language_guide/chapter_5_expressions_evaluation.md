@@ -94,7 +94,8 @@ let text: String;
 But semantically, `Array`, `Vec`, and `Slice` should be visible core concepts,
 not just implicit compiler behavior. `Array` and `Vec` are owners. `Slice` is
 the common borrowed view they can produce. Likewise, an owned string can produce
-a string view.
+a string view. The borrowed text spelling `&str` is the current source-facing
+view type name, backed by the core `StrView` semantic surface.
 
 The implementation can still use privileged internal carriers. A slice view is
 likely lowered as a descriptor such as pointer plus length. A vector is likely

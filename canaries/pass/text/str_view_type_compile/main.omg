@@ -1,0 +1,9 @@
+use omega::language::core::str;
+
+data Main {
+    text: String;
+}
+
+machine Main::main(&mut self) {
+    let view: &str = self.text.as_view();
+}
