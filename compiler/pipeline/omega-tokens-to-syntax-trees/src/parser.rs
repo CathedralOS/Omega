@@ -290,6 +290,31 @@ mod tests {
     }
 
     #[test]
+    fn rejects_slice_range_indexing_with_explicit_diagnostic() {
+        let source = r#"
+        data Main {}
+
+        machine Main::main(&mut self) -> usize {
+            let values: [usize; 4] = [1, 2, 3, 4];
+            let view: &[usize] = values.as_slice();
+            let tail: &[usize] = view[1..];
+            tail.len
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error =
+            parse_syntax_trees(&tokens).expect_err("parse should reject slice range indexing");
+        assert!(
+            error.message.contains("slice ranges are not implemented yet"),
+            "unexpected parse error: {}",
+            error.message
+        );
+    }
+
+    #[test]
     fn parses_trait_machine_contract_clauses() {
         let source = r#"
         boundary trait Filesystem {
