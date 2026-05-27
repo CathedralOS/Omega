@@ -396,6 +396,29 @@ The same split likely applies to other core collection and text concepts:
   a primitive layer, but they are the boundary where trusted/compiler-managed
   representation begins.
 
+Working private carrier model:
+
+- `Slice<T>` / `&[T]` lowers to a descriptor containing a primitive element
+  pointer plus a length.
+- `&mut [T]` uses the same descriptor shape, plus the type/borrow checker owns
+  the uniqueness and writable-region facts.
+- `StrView` / `&str` lowers to a byte pointer plus byte length, with a
+  text-domain fact that the bytes are valid text for the selected encoding.
+- `Array<T, N>` owns inline storage and can produce a slice descriptor whose
+  base points at the first element and whose length is `N`.
+- `Vec<T>` owns a growable buffer carrier with base pointer, length, capacity,
+  and allocator/runtime provenance.
+- `String` uses the same owned-buffer shape as `Vec<u8>` plus text-domain
+  facts; borrowed text views are descriptors over its initialized bytes.
+- `Ptr<T>` and pointer-range construction are primitive-boundary concepts, not
+  ordinary fields users manipulate through safe collection APIs.
+
+This keeps the magic boundary narrow. Core declarations expose contracts such
+as `Slice::range`, `Vec::with_capacity`, or `String::push_str`; private
+carriers and trusted primitive roots implement the descriptor rewrite, pointer
+offset, allocation, and initialization details after the proof obligations are
+satisfied.
+
 This sketch needs more design work, but the direction is important:
 
 - Callers name exported invariants.

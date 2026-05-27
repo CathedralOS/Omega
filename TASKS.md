@@ -56,9 +56,12 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Private primitive and compiler-handoff layer
   Make the boundary explicit where compiler-managed representation begins.
+  Landed:
+  - documented the working private carrier model for slice views, string
+    views, arrays, vectors, owned strings, and pointer-boundary concepts
   Next target:
   - decide whether `Ptr`, `RawBuffer`, or slice/string descriptors are source-visible primitives or compiler-private concepts
-  - document the runtime carrier shapes for slice views, string views, arrays, and vectors
+  - turn the documented carrier model into one implementation-owned runtime representation path
   - keep safe source away from raw pointer fields while still giving host/ABI code a truthful low-level model
   - audit places where slice/string descriptor logic is spread across backend stages and identify a single representation owner
 
