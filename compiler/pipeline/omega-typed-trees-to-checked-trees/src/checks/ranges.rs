@@ -1,10 +1,11 @@
+mod facts;
+
+use facts::{SliceLengthFacts, fixed_array_field_lengths};
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 use omega_typed_trees::statement::{
     StatementNode, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn check_subslice_ranges(
     program: &omega_typed_trees::TypedTrees,
@@ -259,85 +260,5 @@ fn fixed_array_expression_length(
                 .map(|name| name.as_str()),
         ),
         _ => None,
-    }
-}
-
-fn fixed_array_field_lengths(
-    program: &omega_typed_trees::TypedTrees,
-) -> Vec<(SymbolHandle, String, usize)> {
-    let mut fields = Vec::new();
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
-                continue;
-            };
-            let Some(length) = fixed_array_type_length(program, field.type_reference) else {
-                continue;
-            };
-            fields.push((field.symbol, field.name.to_string(), length));
-        }
-    }
-    fields
-}
-
-fn fixed_array_type_length(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<usize> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray { length, .. } => Some(*length),
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => fixed_array_type_length(program, *referee),
-        TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Unit => None,
-    }
-}
-
-struct SliceLengthFacts<'field> {
-    fields: &'field [(SymbolHandle, String, usize)],
-    locals: Vec<(SymbolHandle, String, usize)>,
-}
-
-impl<'field> SliceLengthFacts<'field> {
-    fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
-        Self {
-            fields,
-            locals: Vec::new(),
-        }
-    }
-
-    fn field_length(&self, symbol: SymbolHandle, name: Option<&str>) -> Option<usize> {
-        if let Some(length) = self
-            .fields
-            .iter()
-            .find_map(|(field, _, length)| (*field == symbol).then_some(*length))
-        {
-            return Some(length);
-        }
-
-        self.fields.iter().find_map(|(_, field_name, length)| {
-            name.is_some_and(|name| name == field_name)
-                .then_some(*length)
-        })
-    }
-
-    fn local_length(&self, symbol: SymbolHandle, name: Option<&str>) -> Option<usize> {
-        if let Some(length) = self
-            .locals
-            .iter()
-            .rev()
-            .find_map(|(local, _, length)| (*local == symbol).then_some(*length))
-        {
-            return Some(length);
-        }
-
-        self.locals.iter().rev().find_map(|(_, local_name, length)| {
-            name.is_some_and(|name| name == local_name)
-                .then_some(*length)
-        })
     }
 }
