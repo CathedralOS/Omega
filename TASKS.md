@@ -147,10 +147,14 @@ meaning, without needing access to pointer descriptor internals.
     the compiler has a real proof that the bound is within the current view
   - local literal integer facts now prove equivalent subslice bounds, covering
     `let start: usize = 1; view[start..]`
+  - local integer facts now fold simple integer arithmetic for range proofs,
+    covering bounds such as `let end: usize = start + width`
   - obvious literal indexes over fixed-array-derived slice views now reject
     when outside the proven length
   - local literal integer facts now prove equivalent fixed indexes, covering
     `let index: usize = 1; view[index]`, and reject if the fact is out of range
+  - folded local integer index facts now prove or reject fixed indexes,
+    covering `let index: usize = 3 + 6; view[index]`
   - direct local assignment now refreshes range-checker facts so stale local
     index/range facts cannot prove later slice access
   - obvious literal indexes over fixed-array locals now use the same length

@@ -2,7 +2,9 @@ mod facts;
 
 use facts::{SliceLengthFacts, fixed_array_field_lengths, fixed_array_type_length};
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
+use omega_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
+};
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(crate) fn check_indexed_accesses(
@@ -254,12 +256,37 @@ fn expression_integer_value(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let left = expression_integer_value(program, facts, binary.left)?;
+            let right = expression_integer_value(program, facts, binary.right)?;
+            folded_integer_binary(left, binary.operator, right)
+        }
         ExpressionNode::Integer(value) => Some(*value),
         ExpressionNode::Name(_) => {
             let (symbol, name) = expression_name(program, expression)?;
             facts.local_integer(symbol, name)
         }
         _ => None,
+    }
+}
+
+fn folded_integer_binary(left: i64, operator: BinaryOperator, right: i64) -> Option<i64> {
+    match operator {
+        BinaryOperator::Add => left.checked_add(right),
+        BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),
+        BinaryOperator::Modulo => (right != 0).then(|| left.checked_rem(right)).flatten(),
+        BinaryOperator::Multiply => left.checked_mul(right),
+        BinaryOperator::Subtract => left.checked_sub(right),
+        BinaryOperator::And
+        | BinaryOperator::Equal
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => None,
     }
 }
 
