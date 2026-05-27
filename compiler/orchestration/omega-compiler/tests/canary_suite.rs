@@ -2744,6 +2744,20 @@ fn pending_canaries_reproduce_known_gaps() {
         let canary_dir = pending_canary(canary.path);
         let result = compile_canary_without_output(&canary_dir);
         match canary.expectation {
+            PendingCanaryExpectation::CurrentlyAccepts => {
+                if let Err(diagnostics) = result {
+                    let combined = diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    panic!(
+                        "pending canary {} now rejects. Promote it to fail and update the suite.\nactual diagnostics:\n{}",
+                        canary_dir.display(),
+                        combined
+                    );
+                }
+            }
             PendingCanaryExpectation::CurrentlyRejects { fragment } => {
                 let diagnostics = match result {
                     Ok(report) => {
@@ -3080,6 +3094,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
 enum PendingCanaryExpectation {
+    CurrentlyAccepts,
     CurrentlyRejects { fragment: &'static str },
 }
 
@@ -3089,9 +3104,15 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
-    path: "termination/custom_ranking_struct_view_unimplemented",
-    expectation: PendingCanaryExpectation::CurrentlyRejects {
-        fragment: "cannot prove decreases clause",
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "termination/custom_ranking_struct_view_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove decreases clause",
+        },
     },
-}];
+    PendingCanary {
+        path: "operators/operator_unknown_trust_unrejected",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];
