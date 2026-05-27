@@ -94,6 +94,8 @@ meaning, without needing access to pointer descriptor internals.
     reports
   - operator contracts now contribute to the early proof-surface report
   - duplicate root operator declarations reject with a focused diagnostic
+  - root and domain operators with the same name but distinct parameter
+    signatures are now accepted as overload-set declarations
   Next target:
   - use operator symbols during overload resolution and validate ambiguous
     operator declarations by signature and context
@@ -114,6 +116,8 @@ meaning, without needing access to pointer descriptor internals.
   - domain operator declarations appear as domain-owned entries in early
     semantic reports
   - duplicate domain operator declarations reject with a focused diagnostic
+  - domain operators with the same name but distinct parameter signatures are
+    accepted as overload-set declarations
   Next target:
   - define the first semantic domain-operator representation
   - validate ambiguous domain operator candidates by signature, receiver, and

@@ -1330,11 +1330,12 @@ fn validate_duplicate_operator_names(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (operator_index, operator) in operators.iter().enumerate() {
-        let name = operator_name(program, operator);
+        let signature = operator_signature_key(program, operator);
         if operators[..operator_index]
             .iter()
-            .any(|previous| operator_name(program, previous) == name)
+            .any(|previous| operator_signature_key(program, previous) == signature)
         {
+            let name = operator_name(program, operator);
             if owner == "root" {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate operator declaration `{name}`"
@@ -1346,6 +1347,19 @@ fn validate_duplicate_operator_names(
             }
         }
     }
+}
+
+fn operator_signature_key(
+    program: &TypedTrees,
+    operator: &omega_typed_trees::operator::OperatorDefinition,
+) -> String {
+    let parameter_types = program
+        .operator_parameters(operator)
+        .iter()
+        .map(|parameter| program.display_type_reference(parameter.type_reference))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{}({parameter_types})", operator_name(program, operator))
 }
 
 fn operator_name(
