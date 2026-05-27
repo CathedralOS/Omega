@@ -510,8 +510,11 @@ impl ArtifactWriter {
         } else {
             for (_, root) in trust_report.trust_roots.iter() {
                 output.push_str(&format!(
-                    "- trust `{}` body tokens {}\n",
-                    root.name, root.token_count
+                    "- trust `{}` body tokens {} checked refs {} unchecked refs {}\n",
+                    root.name,
+                    root.token_count,
+                    root.checked_references,
+                    root.unchecked_references
                 ));
             }
         }
@@ -878,6 +881,8 @@ pub struct TrustTarget {
 pub struct TrustRoot {
     pub name: String,
     pub token_count: usize,
+    pub checked_references: usize,
+    pub unchecked_references: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

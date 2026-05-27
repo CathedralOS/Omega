@@ -46,10 +46,13 @@ meaning, without needing access to pointer descriptor internals.
   - core `Ptr` declares initial primitive trust roots for offset, read, write, and pointer-range operations
   - trust definitions now receive dedicated `Trust` symbols in the early name
     surface instead of being hidden as generic objects
+  - trust artifacts now show checked and unchecked reference counts per trust
+    root
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
-  - report every trusted primitive root used by a build in the trust artifact
+  - promote trust-root usage counts into stricter registry validation once
+    implementation-binding syntax exists
   - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
   - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
 

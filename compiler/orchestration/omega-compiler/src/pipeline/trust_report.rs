@@ -10,7 +10,7 @@ use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
     CapabilityContractKind, CapabilityMember, Item, TrustLevel, TrustMode,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub(super) fn write_trust_report(
     options: &CompileOptions,
@@ -25,15 +25,15 @@ pub(super) fn write_trust_report(
 
 fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
     let mut report = TrustReport::default();
+    let mut root_declarations = Vec::new();
     let mut roots = HashSet::new();
+    let mut checked_root_uses = HashMap::<String, usize>::new();
+    let mut unchecked_root_uses = HashMap::<String, usize>::new();
 
     for item in syntax.root_items() {
         if let Item::TrustDefinition(trust) = item {
             roots.insert(trust.name.to_string());
-            report.trust_roots.insert(TrustRoot {
-                name: trust.name.to_string(),
-                token_count: trust.token_count,
-            });
+            root_declarations.push((trust.name.to_string(), trust.token_count));
         }
     }
 
@@ -47,6 +47,7 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
                     collect_trusted_contracts(
                         &mut report,
                         &roots,
+                        &mut checked_root_uses,
                         capability.name.as_str(),
                         state.signature.name.as_str(),
                         syntax.items.capability_contracts(state.contracts),
@@ -63,6 +64,7 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
                     for trust in syntax.items.trust_levels(function.trusts) {
                         let trust_level = trust_level_name(trust);
                         let resolved = trust_resolves(trust, &roots);
+                        record_trust_use(trust, &roots, &mut checked_root_uses);
                         report.trusted_contracts.insert(TrustedContract {
                             capability: library_name.clone(),
                             state: function.signature.name.to_string(),
@@ -112,6 +114,14 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
                             name: trust_name.clone(),
                         });
                     }
+                    if roots.contains(&trust_name) {
+                        let root_uses = if matches!(policy.mode, TrustMode::Unchecked) {
+                            &mut unchecked_root_uses
+                        } else {
+                            &mut checked_root_uses
+                        };
+                        *root_uses.entry(trust_name.clone()).or_insert(0) += 1;
+                    }
                     if trust_name != "host" && !roots.contains(&trust_name) {
                         report.unresolved_trusts.insert(UnresolvedTrustReference {
                             capability: "target".to_owned(),
@@ -125,12 +135,22 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
         }
     }
 
+    for (name, token_count) in root_declarations {
+        report.trust_roots.insert(TrustRoot {
+            checked_references: checked_root_uses.get(&name).copied().unwrap_or(0),
+            unchecked_references: unchecked_root_uses.get(&name).copied().unwrap_or(0),
+            name,
+            token_count,
+        });
+    }
+
     report
 }
 
 fn collect_trusted_contracts(
     report: &mut TrustReport,
     roots: &HashSet<String>,
+    checked_root_uses: &mut HashMap<String, usize>,
     capability: &str,
     state: &str,
     contracts: &[omega_syntax_trees::item::CapabilityContract],
@@ -150,6 +170,7 @@ fn collect_trusted_contracts(
         };
         let trust_level = trust_level_name(trust);
         let resolved = trust_resolves(trust, roots);
+        record_trust_use(trust, roots, checked_root_uses);
         report.trusted_contracts.insert(TrustedContract {
             capability: capability.to_owned(),
             state: state.to_owned(),
@@ -165,6 +186,19 @@ fn collect_trusted_contracts(
                 trust_level,
             });
         }
+    }
+}
+
+fn record_trust_use(
+    trust: &TrustLevel,
+    roots: &HashSet<String>,
+    root_uses: &mut HashMap<String, usize>,
+) {
+    let TrustLevel::Named(name) = trust else {
+        return;
+    };
+    if roots.contains(name.as_str()) {
+        *root_uses.entry(name.to_string()).or_insert(0) += 1;
     }
 }
 
@@ -235,6 +269,11 @@ mod tests {
         assert_eq!(target.checked_trusts, 1);
         assert_eq!(target.unchecked_trusts, 1);
         assert_eq!(target.host_provider, "omega::host");
+
+        let (_, root) = report.trust_roots.iter().next().expect("trust root");
+        assert_eq!(root.name, "compiler_slice_index");
+        assert_eq!(root.checked_references, 2);
+        assert_eq!(root.unchecked_references, 0);
 
         assert!(report.trusted_contracts.iter().any(|(_, contract)| {
             contract.trust_level == "compiler_slice_index" && contract.resolved
