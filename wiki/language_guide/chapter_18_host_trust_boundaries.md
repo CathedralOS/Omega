@@ -9,6 +9,45 @@ targets may jump through firmware tables. The shared concept is not "Unix
 syscall." The shared concept is an imported boundary whose implementation is
 not Omega code.
 
+## Trust Roots
+
+A `trust` declaration names an authority the compiler may accept for facts it
+cannot prove from ordinary Omega source.
+
+```omega
+trust compiler_slice_index {
+}
+```
+
+The declaration does not implement behavior by itself. It creates an auditable
+root that a boundary contract, target policy, library binding, or core operator
+can reference.
+
+Core operators use the same shape. Their public contracts stay visible, while
+the unsafe primitive lowering is attributed to a named compiler/runtime root:
+
+```omega
+operator Slice::index<T>(items: &[T], index: usize) -> T
+requires
+    index < items.len
+trust compiler_slice_index;
+```
+
+Working interpretation:
+
+- `requires` remains a proof obligation for callers.
+- `trust compiler_slice_index` says the operator's implementation and any
+  unproved guarantee are accepted through that named root.
+- The trust report records root declarations, trusted references, unresolved
+  references, and target policies.
+- A root should be declared in core/toolchain/host source, not invented by
+  ordinary application code as a way to bypass proof checking.
+
+This is the current boundary between browsable core semantics and private
+compiler machinery. Users should be able to inspect `Slice::index` and see the
+proof contract. They should not need to inspect the private descriptor, pointer,
+or codegen mechanism used after the contract is proved.
+
 ## Boundary Traits
 
 A boundary trait names callable behavior whose implementation crosses out of

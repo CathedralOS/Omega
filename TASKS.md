@@ -56,13 +56,15 @@ meaning, without needing access to pointer descriptor internals.
     surface instead of being hidden as generic objects
   - trust artifacts now show checked and unchecked reference counts per trust
     root
+  - operator declarations now accept `trust` contracts and the trust report
+    counts root/domain operator trusted references
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
   - promote trust-root usage counts into stricter registry validation once
     implementation-binding syntax exists
-  - include operator trust contracts in registry validation and unresolved-root
-    diagnostics
+  - turn unresolved operator trust references from report-only facts into
+    focused diagnostics once package/toolchain trust policy is explicit
   - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
   - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
 
