@@ -1,0 +1,9 @@
+// Core text surface.
+//
+// The long-term model is an owned text value plus a borrowed text view. The
+// exact public names may remain Rust-like (`String` and `str`) or move toward
+// `Str` and `StrView`; either way, text views should mirror Slice proof shapes
+// while carrying text-specific domains such as valid encoding and no-NUL.
+//
+// Runtime builders and host IO should lower through the private representation
+// layer, not through ad hoc string special cases.

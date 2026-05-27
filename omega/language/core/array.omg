@@ -1,0 +1,8 @@
+// Core Array surface.
+//
+// Fixed-size arrays are owned contiguous storage with a compile-time length.
+// They should eventually expose Slice-producing borrow operators and length
+// facts that the proof checker can use for safe indexing and subslicing.
+//
+// The element layout is backend-owned, but the array's proof-facing length and
+// view conversion contracts belong in this module.

@@ -1,0 +1,9 @@
+// Core Vec surface.
+//
+// Vec is the growable owner for contiguous storage. It should eventually expose
+// source-visible contracts for length, capacity, allocation, push/pop, and
+// borrowing as Slice views.
+//
+// The allocation buffer and reallocation mechanics are compiler/runtime
+// internals; the visible contracts belong here so slices derived from Vec can
+// participate in borrow checking and proof obligations.
