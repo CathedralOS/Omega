@@ -20,13 +20,25 @@ trust compiler_slice_index_mut {
 trust compiler_slice_tail {
 }
 
+trust compiler_slice_tail_mut {
+}
+
 trust compiler_slice_from {
+}
+
+trust compiler_slice_from_mut {
 }
 
 trust compiler_slice_to {
 }
 
+trust compiler_slice_to_mut {
+}
+
 trust compiler_slice_range {
+}
+
+trust compiler_slice_range_mut {
 }
 
 trust compiler_slice_length {
@@ -50,17 +62,37 @@ requires
     items.len > 0
 trust compiler_slice_tail;
 
+operator Slice::tail_mut<T>(items: &mut [T]) -> &mut [T]
+requires
+    items.len > 0
+trust compiler_slice_tail_mut;
+
 operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
     start <= items.len
 trust compiler_slice_from;
+
+operator Slice::from_mut<T>(items: &mut [T], start: usize) -> &mut [T]
+requires
+    start <= items.len
+trust compiler_slice_from_mut;
 
 operator Slice::to<T>(items: &[T], end: usize) -> &[T]
 requires
     end <= items.len
 trust compiler_slice_to;
 
+operator Slice::to_mut<T>(items: &mut [T], end: usize) -> &mut [T]
+requires
+    end <= items.len
+trust compiler_slice_to_mut;
+
 operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
 requires
     start <= end && end <= items.len
 trust compiler_slice_range;
+
+operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
+requires
+    start <= end && end <= items.len
+trust compiler_slice_range_mut;
