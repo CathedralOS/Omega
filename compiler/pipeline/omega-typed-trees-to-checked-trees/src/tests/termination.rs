@@ -44,7 +44,7 @@ fn accepts_terminating_countdown_machine_with_decreases() {
 
     machine Main::countdown(&mut self, remaining: usize)
     terminates {
-        decreases remaining;
+        decreases remaining -> Nat::Descending;
     }
     {
         transition remaining > 0 {
@@ -75,7 +75,7 @@ fn accepts_terminating_distance_machine_with_decreases() {
 
     machine Main::walk(&mut self, limit: usize, index: usize)
     terminates {
-        decreases limit - index;
+        decreases limit - index -> Nat::Descending;
     }
     -> usize
     {
@@ -114,7 +114,7 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
 
     machine Main::walk(&mut self, entries: &[Entry], index: usize)
     terminates {
-        decreases entries.len - index;
+        decreases entries.len - index -> Nat::Descending;
     }
     -> usize
     {
@@ -146,7 +146,7 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
 
     machine Main::countdown(&mut self, remaining: usize)
     terminates {
-        decreases remaining;
+        decreases remaining -> Nat::Descending;
     }
     {
         transition remaining > 0 {
@@ -189,7 +189,7 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
 
     machine Main::walk(&mut self, entries: &[Entry], index: usize)
     terminates {
-        decreases entries.len - index;
+        decreases entries.len - index -> Nat::Descending;
     }
     -> usize
     {

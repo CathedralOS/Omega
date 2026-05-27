@@ -20,6 +20,7 @@ pub(crate) fn lower_machine(
         satisfies: omega_core::arena::HandleSpan::empty(),
         terminates: machine.terminates,
         decreases: omega_core::arena::HandleSpan::empty(),
+        decrease_order: omega_core::arena::HandleSpan::empty(),
         effects: omega_core::arena::HandleSpan::empty(),
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
@@ -85,6 +86,15 @@ pub(crate) fn lower_machine(
         .typed_trees
         .expression_table
         .insert_expression_handles(decreases);
+    for member in lowerer
+        .source_trees
+        .machine_decrease_order(machine.decrease_order)
+    {
+        lowerer.typed_trees.signature_effects.append_to_span(
+            &mut typed_machine.decrease_order,
+            crate::name::lower_name(member),
+        );
+    }
 
     for effect in lowerer.source_trees.machine_effects(machine) {
         let effect = crate::name::lower_name(effect);

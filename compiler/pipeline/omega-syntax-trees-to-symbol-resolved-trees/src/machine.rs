@@ -16,6 +16,8 @@ pub(crate) fn lower_machine_into(
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
+    let decrease_order =
+        lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
@@ -31,12 +33,32 @@ pub(crate) fn lower_machine_into(
             satisfies,
             terminates: machine.terminates,
             decreases,
+            decrease_order,
             effects,
             contracts,
             states,
         },
     });
     Ok(())
+}
+
+fn lower_machine_decrease_order(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    order: HandleSpan<syntax::identifier::Identifier>,
+) -> HandleSpan<omega_symbol_resolved_trees::name::DiagnosticName> {
+    let mut lowered = HandleSpan::empty();
+
+    for member in syntax_trees.items.identifier_path_members(order) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_effects
+            .append_to_span(&mut lowered, crate::name::lower_name(member));
+    }
+
+    lowered
 }
 
 fn lower_machine_decreases(

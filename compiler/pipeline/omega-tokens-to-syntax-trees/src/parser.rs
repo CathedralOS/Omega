@@ -225,7 +225,7 @@ mod tests {
         let source = r#"
         machine walk(items: &[Item], remaining: usize)
         terminates {
-            decreases remaining;
+            decreases remaining -> Nat::Descending;
         }
         {
         }
@@ -250,6 +250,13 @@ mod tests {
                 .expression_handles(machine.decreases)
                 .len(),
             1
+        );
+        assert_eq!(
+            parsed
+                .items
+                .identifier_path_members(machine.decrease_order)
+                .len(),
+            2
         );
     }
 

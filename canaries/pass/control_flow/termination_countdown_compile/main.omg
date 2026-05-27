@@ -11,7 +11,7 @@ machine Main::main(&mut self) -> i32 {
 
 machine Main::countdown(&mut self, remaining: usize)
 terminates {
-    decreases remaining;
+    decreases remaining -> Nat::Descending;
 }
 {
     transition remaining > 0 {

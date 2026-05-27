@@ -22,6 +22,7 @@ pub struct MachineStorage {
     pub satisfies: HandleSpan<TraitConformance>,
     pub terminates: bool,
     pub decreases: HandleSpan<ExpressionHandle>,
+    pub decrease_order: HandleSpan<DiagnosticName>,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,

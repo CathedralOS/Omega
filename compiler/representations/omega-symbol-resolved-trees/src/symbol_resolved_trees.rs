@@ -158,6 +158,16 @@ impl SymbolResolvedTrees {
         self.signature_effects(machine.effects)
     }
 
+    pub fn machine_decrease_order(
+        &self,
+        span: HandleSpan<crate::name::DiagnosticName>,
+    ) -> &[crate::name::DiagnosticName] {
+        self.tables
+            .declarations
+            .signature_effects
+            .span_or_empty(span)
+    }
+
     pub fn machine_contracts(
         &self,
         machine: &crate::machine::Machine,

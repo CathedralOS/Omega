@@ -138,12 +138,23 @@ fn machine_has_proven_supported_decrease(
     if decreases.len() != 1 {
         return false;
     }
+    let decrease_order = program.machine_decrease_order(machine.decrease_order);
+    if !decrease_order.is_empty() && !is_nat_descending_order(decrease_order) {
+        return false;
+    }
 
     program
         .machine_states(machine)
         .iter()
         .filter(|state| state_has_direct_self_loop(program, state))
         .all(|state| state_has_proven_supported_self_loop(program, state, decreases[0]))
+}
+
+fn is_nat_descending_order(order: &[omega_typed_trees::name::Identifier]) -> bool {
+    matches!(
+        order,
+        [head, tail] if head.as_str() == "Nat" && tail.as_str() == "Descending"
+    )
 }
 
 fn state_has_direct_self_loop(
@@ -246,7 +257,8 @@ fn state_has_proven_distance_self_loop(
     state: &omega_typed_trees::state::State,
     decreases: omega_typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    let Some(limit_parameter) = parameter_matched_by_expression(program, state, decreases.left) else {
+    let Some(limit_parameter) = parameter_matched_by_expression(program, state, decreases.left)
+    else {
         return false;
     };
     let Some(index_parameter) = parameter_matched_by_expression(program, state, decreases.right)
@@ -309,8 +321,7 @@ fn parameter_matched_by_expression<'program>(
     expression: ExpressionHandle,
 ) -> Option<&'program omega_typed_trees::signature::StateParameter> {
     program.state_parameters(state).iter().find(|parameter| {
-        !parameter.is_self
-            && expression_matches_parameter(program, expression, parameter)
+        !parameter.is_self && expression_matches_parameter(program, expression, parameter)
     })
 }
 

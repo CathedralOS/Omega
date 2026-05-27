@@ -37,6 +37,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         satisfies: Default::default(),
         terminates: false,
         decreases: Default::default(),
+        decrease_order: Default::default(),
         effects: Default::default(),
         contracts: Default::default(),
         states: Default::default(),
