@@ -2987,6 +2987,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/std_option_storage_write",
     "collections/std_option_surface",
     "core/array_core_surface",
+    "core/collections_text_core_surface",
     "core/nat_core_surface",
     "core/slice_core_surface",
     "core/str_core_surface",

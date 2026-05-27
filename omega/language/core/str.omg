@@ -7,3 +7,23 @@
 //
 // Runtime builders and host IO should lower through the private representation
 // layer, not through ad hoc string special cases.
+
+trust compiler_string_length {
+}
+
+trust compiler_string_as_view {
+}
+
+trust compiler_str_view_length {
+}
+
+trust compiler_str_view_bytes {
+}
+
+operator String::Length(text: String) -> usize;
+
+operator String::as_view(text: &String) -> &str;
+
+operator StrView::Length(text: &str) -> usize;
+
+operator StrView::bytes(text: &str) -> &[u8];
