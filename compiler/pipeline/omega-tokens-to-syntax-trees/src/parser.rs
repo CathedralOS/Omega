@@ -290,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_slice_range_indexing_with_explicit_diagnostic() {
+    fn parses_slice_range_indexing_into_range_expression() {
         let source = r#"
         data Main {}
 
@@ -305,13 +305,45 @@ mod tests {
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
-        let error =
-            parse_syntax_trees(&tokens).expect_err("parse should reject slice range indexing");
-        assert!(
-            error.message.contains("slice ranges are not implemented yet"),
-            "unexpected parse error: {}",
-            error.message
+        let parsed = parse_syntax_trees(&tokens).expect("parse should accept slice range surface");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+        let state_handle = parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state");
+        let state = parsed.items.state(state_handle);
+        let statement_handle = parsed
+            .items
+            .statements(state.statements)
+            .get(2)
+            .copied()
+            .expect("tail local");
+        let statement = parsed.statements.statement(statement_handle);
+        let StatementNode::LocalData(local) = statement else {
+            panic!("expected local data statement");
+        };
+        let ExpressionNode::Indexed(indexed) = parsed.expressions.expression(local.initial_value)
+        else {
+            panic!("expected indexed initializer");
+        };
+        let ExpressionNode::Range(range) = parsed.expressions.expression(indexed.index) else {
+            panic!("expected range index expression");
+        };
+        assert_eq!(
+            parsed.expressions.display_name(indexed.index),
+            "1..",
+            "unexpected range display"
         );
+        assert!(range.start.is_valid(), "expected explicit range start");
+        assert!(!range.end.is_valid(), "expected open-ended range");
     }
 
     #[test]

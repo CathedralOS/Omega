@@ -376,6 +376,14 @@ fn count_expression_node(
                 count_expression_path_member(name, counts);
             }
         }
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                count_expression_handle(table, range.start, counts);
+            }
+            if range.end.is_valid() {
+                count_expression_handle(table, range.end, counts);
+            }
+        }
         ExpressionNode::StructLiteral(struct_literal) => {
             count_struct_literal_name(&struct_literal.type_name, counts);
             for field in table.struct_fields(struct_literal.fields) {

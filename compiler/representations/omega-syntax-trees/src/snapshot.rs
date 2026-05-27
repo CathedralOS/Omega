@@ -369,6 +369,10 @@ pub enum ExpressionSnapshot {
     Name {
         path: Vec<IdentifierSnapshot>,
     },
+    Range {
+        start: Option<Box<ExpressionSnapshot>>,
+        end: Option<Box<ExpressionSnapshot>>,
+    },
     SelfValue,
     StructLiteral {
         type_name: IdentifierSnapshot,
@@ -993,6 +997,16 @@ fn snapshot_expression_handle(
             path: snapshot_identifier_slice(
                 syntax_trees.expressions.identifier_path_members(*path),
             ),
+        },
+        ExpressionNode::Range(range) => ExpressionSnapshot::Range {
+            start: range
+                .start
+                .is_valid()
+                .then(|| Box::new(snapshot_expression_handle(syntax_trees, range.start))),
+            end: range
+                .end
+                .is_valid()
+                .then(|| Box::new(snapshot_expression_handle(syntax_trees, range.end))),
         },
         ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {

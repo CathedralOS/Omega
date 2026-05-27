@@ -812,6 +812,14 @@ fn assign_proof_expression_membership_symbols(
             );
             assign_proof_expression_membership_symbols(symbols, expression_table, indexed.index);
         }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                assign_proof_expression_membership_symbols(symbols, expression_table, range.start);
+            }
+            if range.end.is_valid() {
+                assign_proof_expression_membership_symbols(symbols, expression_table, range.end);
+            }
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
             assign_proof_expression_membership_symbols(symbols, expression_table, membership.value);
             let name = expression_table
@@ -1207,6 +1215,30 @@ fn assign_expression_table_symbols(
                 child_type_references,
                 indexed.index,
             );
+        }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                assign_expression_table_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    range.start,
+                );
+            }
+            if range.end.is_valid() {
+                assign_expression_table_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    range.end,
+                );
+            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
             assign_expression_table_symbols(
@@ -1635,6 +1667,9 @@ fn resolve_expression_table_receiver_symbol(
                 receiver,
             );
             symbol
+        }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Range(_) => {
+            SymbolHandle::invalid()
         }
         _ => SymbolHandle::invalid(),
     }

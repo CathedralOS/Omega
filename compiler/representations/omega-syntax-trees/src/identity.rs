@@ -387,6 +387,14 @@ fn count_expression_handle(
                 count_identifier(member, counts);
             }
         }
+        crate::expression::ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                count_expression_handle(syntax_trees, range.start, counts);
+            }
+            if range.end.is_valid() {
+                count_expression_handle(syntax_trees, range.end, counts);
+            }
+        }
         crate::expression::ExpressionNode::SelfValue => {}
         crate::expression::ExpressionNode::StructLiteral(struct_literal) => {
             count_identifier(&struct_literal.type_name, counts);
