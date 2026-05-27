@@ -365,6 +365,7 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Domain(_) => "domain",
         Item::Export(_) => "export",
         Item::Machine(_) | Item::Platform(_) => "machine",
+        Item::Operator(_) => "operator",
         Item::Trait(_) => "trait",
         _ => "state",
     }
@@ -401,6 +402,9 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .map(|name| name.as_str())
                 .unwrap_or("<anon>");
             format!("library {name}\nfunctions: {}", value.functions.len())
+        }
+        Item::Operator(value) => {
+            format!("operator\ntokens: {}", value.token_count)
         }
         Item::Machine(value) => {
             let state_handles = syntax.items.state_handles(value.states);

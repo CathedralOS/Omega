@@ -120,7 +120,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     );
                 }
             }
-            Item::Use(_) | Item::Export(_) => {}
+            Item::Use(_) | Item::Export(_) | Item::Operator(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Platform(platform) => collect_platform(&mut report, syntax_trees, platform),
             Item::Trait(trait_definition) => {

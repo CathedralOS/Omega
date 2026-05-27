@@ -16,6 +16,7 @@ pub enum Item {
     Domain(DomainDefinition),
     Invariant(InvariantDefinition),
     Library(LibraryDefinition),
+    Operator(OperatorDefinition),
     Export(ExportItem),
     TrustDefinition(TrustDefinition),
     Use(UseItem),
@@ -102,6 +103,11 @@ impl Default for LibraryFunction {
             trusts: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OperatorDefinition {
+    pub token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

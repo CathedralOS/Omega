@@ -2786,6 +2786,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/slice_core_surface",
     "core/str_core_surface",
     "core/vec_core_surface",
+    "operators/core_operator_declaration_surface",
+    "operators/domain_operator_declaration_surface",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
@@ -2850,18 +2852,6 @@ struct PendingCanary {
 }
 
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "operators/core_operator_declaration_surface_missing",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `operator`",
-        },
-    },
-    PendingCanary {
-        path: "operators/domain_operator_declaration_surface_missing",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, `,`, or end of proof facts",
-        },
-    },
     PendingCanary {
         path: "termination/custom_ranking_order_unimplemented",
         expectation: PendingCanaryExpectation::CurrentlyRejects {

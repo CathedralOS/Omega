@@ -36,9 +36,12 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Operator declarations and overload resolution
   Operators should have visible semantic homes instead of being anonymous parser/backend special cases.
-  Current pending canaries:
-  - `canaries/pending/operators/core_operator_declaration_surface_missing`
+  Landed:
+  - root-level operator declarations parse as inert declaration surface
+  - compile canary for a core-style intrinsic operator signature
   Next target:
+  - preserve operator declarations through symbol-resolved/typed trees instead
+    of ignoring them after parsing
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
   - support compiler-intrinsic operator bodies for core types without hiding their signatures and proof obligations
@@ -47,10 +50,13 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Domain-specific operator overloads
   Domain facts should be able to participate in operator resolution when the meaning is unique.
-  Current pending canary:
-  - `canaries/pending/operators/domain_operator_declaration_surface_missing`
+  Landed:
+  - domain bodies can contain inert operator declaration surface without being
+    mistaken for proof facts
+  - compile canary for a domain-scoped intrinsic operator signature
   Next target:
-  - define the first concrete domain-operator surface
+  - define the first semantic domain-operator representation
+  - preserve domain operator declarations past parsing
   - prove that only facts in the current context can select domain operator meanings
   - reject ambiguous domain-provided operator candidates
   - keep dispatch compile-time only, with no hidden runtime domain tags
