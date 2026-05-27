@@ -32,6 +32,36 @@ pub(super) fn collect_expression_borrow_calls(
                 );
             }
         }
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    range.start,
+                    access_segments,
+                    argument_accesses,
+                    calls,
+                    state_calls,
+                );
+            }
+            if range.end.is_valid() {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    range.end,
+                    access_segments,
+                    argument_accesses,
+                    calls,
+                    state_calls,
+                );
+            }
+        }
         ExpressionNode::Binary(binary) => {
             collect_expression_borrow_calls(
                 program,

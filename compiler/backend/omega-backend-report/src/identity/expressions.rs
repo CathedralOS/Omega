@@ -65,6 +65,10 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
             count_control_flow_expression_strings(table, indexed.collection, storage);
             count_control_flow_expression_strings(table, indexed.index, storage);
         }
+        ExpressionNode::Range(range) => {
+            count_control_flow_expression_strings(table, range.start, storage);
+            count_control_flow_expression_strings(table, range.end, storage);
+        }
         ExpressionNode::Member(member) => {
             count_control_flow_expression_strings(table, member.receiver, storage);
             storage.count_program_name_identity(&member.member);

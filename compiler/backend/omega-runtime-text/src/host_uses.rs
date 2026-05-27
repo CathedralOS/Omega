@@ -116,6 +116,7 @@ fn classify_runtime_text_source(
         }
         ExpressionNode::Binary(_) => RuntimeTextSource::GeneratedString,
         ExpressionNode::Mutable(_) => RuntimeTextSource::MutablePlace,
+        ExpressionNode::Range(_) => RuntimeTextSource::OtherExpression,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)

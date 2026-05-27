@@ -456,6 +456,10 @@ fn expression_uses_symbol(
             expression_uses_symbol(program, indexed.collection, symbol)
                 || expression_uses_symbol(program, indexed.index, symbol)
         }
+        omega_typed_trees::expression::ExpressionNode::Range(range) => {
+            (range.start.is_valid() && expression_uses_symbol(program, range.start, symbol))
+                || (range.end.is_valid() && expression_uses_symbol(program, range.end, symbol))
+        }
         omega_typed_trees::expression::ExpressionNode::Member(member) => {
             expression_uses_symbol(program, member.receiver, symbol)
         }
@@ -509,6 +513,12 @@ fn expression_uses_local_name(
         omega_typed_trees::expression::ExpressionNode::Indexed(indexed) => {
             expression_uses_local_name(program, indexed.collection, local_name)
                 || expression_uses_local_name(program, indexed.index, local_name)
+        }
+        omega_typed_trees::expression::ExpressionNode::Range(range) => {
+            (range.start.is_valid()
+                && expression_uses_local_name(program, range.start, local_name))
+                || (range.end.is_valid()
+                    && expression_uses_local_name(program, range.end, local_name))
         }
         omega_typed_trees::expression::ExpressionNode::Member(member) => {
             expression_uses_local_name(program, member.receiver, local_name)

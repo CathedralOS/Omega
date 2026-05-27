@@ -197,6 +197,7 @@ fn classify_runtime_text_builder_segment(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)
+        | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
     }
 }
@@ -238,6 +239,7 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
                 && is_runtime_text_segment_like(table, binary.right)
         }
         ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
+        ExpressionNode::Range(_) => false,
         ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
@@ -264,6 +266,7 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
         | ExpressionNode::Integer(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Name(_)
+        | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_) => false,
     }
 }
@@ -289,6 +292,7 @@ fn classify_runtime_text_write(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)
+        | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_) => RuntimeTextWriteKind::OtherExpression,
     }
 }

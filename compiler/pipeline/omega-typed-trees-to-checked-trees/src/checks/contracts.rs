@@ -648,6 +648,25 @@ fn instantiate_domain_expression_label(
             instantiate_domain_expression_label(program, indexed.collection, base_label),
             instantiate_domain_expression_label(program, indexed.index, base_label),
         ),
+        omega_typed_trees::expression::ExpressionNode::Range(range) => match (
+            range.start.is_valid(),
+            range.end.is_valid(),
+        ) {
+            (true, true) => format!(
+                "{}..{}",
+                instantiate_domain_expression_label(program, range.start, base_label),
+                instantiate_domain_expression_label(program, range.end, base_label),
+            ),
+            (true, false) => format!(
+                "{}..",
+                instantiate_domain_expression_label(program, range.start, base_label)
+            ),
+            (false, true) => format!(
+                "..{}",
+                instantiate_domain_expression_label(program, range.end, base_label)
+            ),
+            (false, false) => "..".to_owned(),
+        },
         omega_typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
         omega_typed_trees::expression::ExpressionNode::Member(member) => format!(
             "{}.{}",
@@ -803,6 +822,53 @@ fn instantiate_call_contract_expression_label(
                 indexed.index,
             )
         ),
+        omega_typed_trees::expression::ExpressionNode::Range(range) => match (
+            range.start.is_valid(),
+            range.end.is_valid(),
+        ) {
+            (true, true) => format!(
+                "{}..{}",
+                instantiate_call_contract_expression_label(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    range.start,
+                ),
+                instantiate_call_contract_expression_label(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    range.end,
+                ),
+            ),
+            (true, false) => format!(
+                "{}..",
+                instantiate_call_contract_expression_label(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    range.start,
+                )
+            ),
+            (false, true) => format!(
+                "..{}",
+                instantiate_call_contract_expression_label(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    call_site,
+                    target_state,
+                    range.end,
+                )
+            ),
+            (false, false) => "..".to_owned(),
+        },
         omega_typed_trees::expression::ExpressionNode::Integer(value) => value.to_string(),
         omega_typed_trees::expression::ExpressionNode::Member(member) => format!(
             "{}.{}",

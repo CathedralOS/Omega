@@ -34,6 +34,34 @@ fn rejects_terminating_recursive_machine_without_decreases() {
 }
 
 #[test]
+fn rejects_slice_range_surface_during_checked_lowering() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) -> usize {
+        let values: [usize; 4] = [1, 2, 3, 4];
+        let view: &[usize] = values.as_slice();
+        let tail: &[usize] = view[1..];
+        tail.len
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("checked lowering should reject ranges");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("slice ranges are not implemented yet"))
+    );
+}
+
+#[test]
 fn accepts_terminating_countdown_machine_with_decreases() {
     let source = r#"
     data Main {}

@@ -93,6 +93,22 @@ fn collect_static_string_expression_data(
                 );
             }
         }
+        ExpressionNode::Range(range) => {
+            collect_static_string_expression_data(
+                expressions,
+                range.start,
+                source_key,
+                source_statement,
+                data_plan,
+            );
+            collect_static_string_expression_data(
+                expressions,
+                range.end,
+                source_key,
+                source_statement,
+                data_plan,
+            );
+        }
         ExpressionNode::Binary(binary) => {
             collect_static_string_expression_data(
                 expressions,

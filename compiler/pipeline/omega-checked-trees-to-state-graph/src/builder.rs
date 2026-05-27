@@ -345,6 +345,10 @@ fn copied_expression_capacity(
             capacity.saturating_add_assign(copied_expression_capacity(program, indexed.collection));
             capacity.saturating_add_assign(copied_expression_capacity(program, indexed.index));
         }
+        ExpressionNode::Range(range) => {
+            capacity.saturating_add_assign(copied_expression_capacity(program, range.start));
+            capacity.saturating_add_assign(copied_expression_capacity(program, range.end));
+        }
         ExpressionNode::Member(member) => {
             capacity.saturating_add_assign(copied_expression_capacity(program, member.receiver));
         }
