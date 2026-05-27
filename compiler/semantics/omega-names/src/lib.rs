@@ -227,11 +227,22 @@ fn build_resolve_report_with_optional_sources(
                     domain.name.as_str(),
                     ResolvedDefinitionKind::Domain,
                 );
+                let domain_symbol = report
+                    .symbols
+                    .find_child_by_name(report.symbols.root(), domain.name.as_str())
+                    .unwrap_or_else(SymbolHandle::invalid);
                 collect_type_reference(
                     &mut report,
                     syntax_trees,
                     domain.target_type,
                     &format!("domain `{}` target type", domain.name),
+                );
+                collect_domain_operator_definitions(
+                    &mut report,
+                    syntax_trees,
+                    domain.name.as_str(),
+                    domain_symbol,
+                    domain.operators,
                 );
             }
             Item::Invariant(invariant) => {
@@ -371,6 +382,46 @@ fn insert_definition(report: &mut ResolveReport, name: &str, kind: ResolvedDefin
     report
         .definitions
         .insert(ResolvedDefinition { kind, symbol });
+}
+
+fn insert_child_definition(
+    report: &mut ResolveReport,
+    parent: SymbolHandle,
+    name: &str,
+    kind: ResolvedDefinitionKind,
+) {
+    let symbol = report
+        .symbols
+        .find_child_by_name(parent, name)
+        .unwrap_or_else(SymbolHandle::invalid);
+    report
+        .definitions
+        .insert(ResolvedDefinition { kind, symbol });
+}
+
+fn collect_domain_operator_definitions(
+    report: &mut ResolveReport,
+    syntax_trees: &SyntaxTrees,
+    domain_name: &str,
+    domain_symbol: SymbolHandle,
+    operators: HandleSpan<omega_syntax_trees::item::OperatorDefinition>,
+) {
+    for operator in syntax_trees.items.operators(operators) {
+        let operator_name = operator_name(syntax_trees, operator.name);
+        insert_child_definition(
+            report,
+            domain_symbol,
+            &operator_name,
+            ResolvedDefinitionKind::Operator,
+        );
+        collect_state_signature_parts(
+            report,
+            syntax_trees,
+            operator.parameters,
+            operator.return_type,
+            &format!("domain `{domain_name}` operator `{operator_name}`"),
+        );
+    }
 }
 
 fn collect_machine_references(
@@ -1068,6 +1119,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Data(data_definition) => {
                 self.insert_data_children(parent, data_definition.members, 0);
             }
+            Item::Domain(domain) => {
+                self.insert_domain_children(parent, domain);
+            }
             Item::Library(library) => {
                 self.insert_library_children(parent, library.functions);
             }
@@ -1083,8 +1137,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Domain(_)
-            | Item::Export(_)
+            Item::Export(_)
             | Item::Invariant(_)
             | Item::Target(_)
             | Item::TrustDefinition(_)
@@ -1146,6 +1199,29 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             if let DataMember::Field(field) = member {
                 self.insert_type_children(child, field.type_reference, member_depth + 1);
             }
+        }
+    }
+
+    fn insert_domain_children(
+        &mut self,
+        parent: SymbolHandle,
+        domain: &'syntax omega_syntax_trees::item::DomainDefinition,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let operators = syntax_trees.items.operators(domain.operators);
+        let operator_names = operators
+            .iter()
+            .map(|operator| operator_name(syntax_trees, operator.name))
+            .collect::<Vec<_>>();
+        let children = self.builder.insert_children(
+            parent,
+            operator_names
+                .iter()
+                .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+        );
+
+        for (child, operator) in SymbolTableBuilder::child_handles(children).zip(operators.iter()) {
+            self.insert_operator_children(child, operator);
         }
     }
 
@@ -1386,6 +1462,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Data(data_definition) => {
                 self.insert_data_children(parent, data_definition.members, depth + 1);
             }
+            Item::Domain(domain) => {
+                self.insert_domain_children(parent, domain);
+            }
             Item::Library(library) => {
                 self.insert_library_children(parent, library.functions);
             }
@@ -1401,8 +1480,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Domain(_)
-            | Item::Export(_)
+            Item::Export(_)
             | Item::Invariant(_)
             | Item::Target(_)
             | Item::TrustDefinition(_)
@@ -1593,12 +1671,33 @@ mod tests {
         let target_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("String")));
+        let operator_name = syntax_trees
+            .items
+            .insert_identifier_path_members([Identifier::generated("normalize")]);
+        let parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("value"),
+                type_reference: target_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
+        let operator = syntax_trees.items.append_operator(OperatorDefinition {
+            name: operator_name,
+            type_parameters: HandleSpan::empty(),
+            parameters: HandleSpan::from_parts(parameter, 1),
+            return_type: target_type,
+            contracts: HandleSpan::empty(),
+            token_count: 1,
+        });
 
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
             facts: omega_core::arena::HandleSpan::empty(),
-            operators: omega_core::arena::HandleSpan::empty(),
+            operators: HandleSpan::from_parts(operator, 1),
             body_token_count: 3,
         }));
 
@@ -1610,6 +1709,19 @@ mod tests {
             .find(|(_, definition)| report.symbols.name(definition.symbol) == "NonEmpty")
             .expect("domain definition should be collected");
         assert_eq!(definition.kind, ResolvedDefinitionKind::Domain);
+        let domain_symbol = definition.symbol;
+        let operator_symbol = report
+            .symbols
+            .find_child_by_name(domain_symbol, "normalize")
+            .expect("domain operator should get a child symbol");
+        assert_eq!(report.symbols.get(operator_symbol).kind, SymbolKind::Operator);
+        assert!(
+            report.definitions.iter().any(|(_, definition)| {
+                definition.symbol == operator_symbol
+                    && definition.kind == ResolvedDefinitionKind::Operator
+            }),
+            "domain operator definition should be collected"
+        );
         assert!(
             report.references.iter().any(|(_, reference)| {
                 report.reference_name(reference) == "String"
