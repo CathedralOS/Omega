@@ -2867,6 +2867,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/guarded_slice_parameter_end_subslice_compile",
     "slices/guarded_slice_parameter_end_equals_len_subslice_compile",
     "slices/guarded_slice_parameter_index_compile",
+    "slices/guarded_slice_parameter_nonempty_index_compile",
+    "slices/guarded_slice_parameter_nonempty_tail_compile",
     "slices/guarded_slice_parameter_start_equals_len_subslice_compile",
     "slices/guarded_slice_parameter_subslice_compile",
     "slices/requires_slice_parameter_bounded_subslice_compile",
@@ -3001,7 +3003,7 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "slices/termination_slice_length_compile",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove range",
+            fragment: "missing guarded state write",
         },
     },
     PendingCanary {

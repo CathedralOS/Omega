@@ -113,6 +113,9 @@ meaning, without needing access to pointer descriptor internals.
   - `decreases value -> Nat::Descending` works for countdown and bounded-distance shapes
   - `decreases entries -> Slice::Length` is accepted by the termination
     checker for the first shrinking-subslice self-loop shape
+  - non-empty slice guards now prove the shrinking tail subslice used by the
+    pending `Slice::Length` termination canary; the remaining failure is
+    runtime dispatch encoding for the guarded recursive state call
   - checker recognition of builtin ranking names is isolated behind a small
     internal ranking-order model
   - `Nat::Descending` and `Slice::Length` have temporary core declaration homes
@@ -182,6 +185,8 @@ meaning, without needing access to pointer descriptor internals.
     `start == entries.len` proves an empty tail slice but not `entries[start]`
   - machine `requires` boolean guards now seed the same range/index facts as
     transition guards, covering slice parameter indexes and bounded windows
+  - non-empty guards such as `entries.len > 0` now prove `entries[0]` and
+    `entries[1..]`, matching the slice-shrinking loop pattern
   Next target:
   - add range-bound diagnostics that distinguish invalid element indexes from
     invalid exclusive range bounds
