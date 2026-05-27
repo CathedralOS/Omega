@@ -145,6 +145,8 @@ meaning, without needing access to pointer descriptor internals.
     `let start: usize = 1; view[start..]`
   - obvious literal indexes over fixed-array-derived slice views now reject
     when outside the proven length
+  - local literal integer facts now prove equivalent fixed indexes, covering
+    `let index: usize = 1; view[index]`, and reject if the fact is out of range
   - obvious literal indexes over fixed-array locals now use the same length
     proof path and reject when outside bounds
   Next target:
