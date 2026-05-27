@@ -369,6 +369,11 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Borrow checking over views
   Slice and string views make overlap reasoning central.
+  Current pending canary:
+  - `canaries/pending/borrow/slice_view_invalidated_by_owner_write_unimplemented`
+    captures the currently accepted gap where an immutable slice view is used
+    after mutating the owning array through a disjoint-looking path the checker
+    does not yet invalidate
   Next target:
   - conservatively detect overlap between parent slices and subslices
   - distinguish disjoint fixed windows where provable

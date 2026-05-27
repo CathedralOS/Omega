@@ -1,0 +1,15 @@
+data Entry {
+    value: u32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+
+    self.entries[0].value = 7;
+
+    let first: Entry = view[0];
+}
