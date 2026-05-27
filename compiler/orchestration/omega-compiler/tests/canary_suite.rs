@@ -1281,6 +1281,36 @@ fn runtime_slice_len_transition_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_subslice_range_len_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_range_len_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice range len canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice range len canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(203),
+        "expected runtime subslice range len canary to materialize the shortened descriptor length and exit 203, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_fixed_index_guard_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_fixed_index_guard_exit");
     let main_path = canary.join("main.omg");
@@ -2553,7 +2583,10 @@ fn pending_canaries_reproduce_known_gaps() {
                     combined
                 );
             }
-            PendingCanaryExpectation::CompilesAndExits { current_exit, desired_exit } => {
+            PendingCanaryExpectation::CompilesAndExits {
+                current_exit,
+                desired_exit,
+            } => {
                 let canary_dir = pending_canary(canary.path);
                 let main_path = canary_dir.join("main.omg");
                 let build_dir = std::env::temp_dir().join(format!(
@@ -2744,6 +2777,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_mutable_slice_element_write_exit",
     "slices/subslice_literal_bounds_compile",
     "slices/subslice_range_surface_compile",
+    "slices/runtime_subslice_range_len_exit",
     "slices/termination_slice_len_distance_compile",
     "slices/termination_slice_length_compile",
     "slices/runtime_slice_index_copy_dispatch_exit",
@@ -2828,8 +2862,13 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 
 #[derive(Clone, Copy)]
 enum PendingCanaryExpectation {
-    CurrentlyRejects { fragment: &'static str },
-    CompilesAndExits { current_exit: i32, desired_exit: i32 },
+    CurrentlyRejects {
+        fragment: &'static str,
+    },
+    CompilesAndExits {
+        current_exit: i32,
+        desired_exit: i32,
+    },
 }
 
 struct PendingCanary {
@@ -2845,10 +2884,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "slices/runtime_subslice_range_len_wrong",
+        path: "slices/runtime_subslice_range_pointer_wrong",
         expectation: PendingCanaryExpectation::CompilesAndExits {
-            current_exit: 204,
-            desired_exit: 203,
+            current_exit: 206,
+            desired_exit: 205,
         },
     },
 ];
