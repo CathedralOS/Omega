@@ -71,7 +71,7 @@ fn seed_boolean_equality_guard_facts(
     }
 }
 
-fn seed_negated_guard_facts(
+pub(super) fn seed_negated_guard_facts(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
