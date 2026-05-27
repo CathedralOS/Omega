@@ -71,8 +71,8 @@ meaning, without needing access to pointer descriptor internals.
   - operator contracts now contribute to the early proof-surface report
   - duplicate root operator declarations reject with a focused diagnostic
   Next target:
-  - lower operator names into symbols and validate ambiguous operator
-    declarations by signature and context
+  - use operator symbols during overload resolution and validate ambiguous
+    operator declarations by signature and context
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
   - design trusted implementation bindings for core operators without hiding their signatures and proof obligations
@@ -92,8 +92,8 @@ meaning, without needing access to pointer descriptor internals.
   - duplicate domain operator declarations reject with a focused diagnostic
   Next target:
   - define the first semantic domain-operator representation
-  - attach domain operator declarations to symbols and validate duplicate or
-    ambiguous domain operator candidates
+  - validate ambiguous domain operator candidates by signature, receiver, and
+    proof context
   - prove that only facts in the current context can select domain operator meanings
   - reject ambiguous domain-provided operator candidates
   - keep dispatch compile-time only, with no hidden runtime domain tags
