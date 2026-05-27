@@ -14,6 +14,9 @@ meaning, without needing access to pointer descriptor internals.
 - [ ] Core semantic surface
   Create source-visible declarations for the core concepts that are currently
   mostly compiler knowledge.
+  Current pending canaries:
+  - `canaries/pending/core/slice_core_surface_missing`
+  - `canaries/pending/core/vec_core_surface_missing`
   Next target:
   - define the shape of `omega/language/core`
   - sketch `Array`, `Vec`, `Slice`, `Str`, and `StrView` as core declarations
@@ -31,6 +34,8 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Operator declarations and overload resolution
   Operators should have visible semantic homes instead of being anonymous parser/backend special cases.
+  Current pending canaries:
+  - `canaries/pending/operators/core_operator_declaration_surface_missing`
   Next target:
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
@@ -40,6 +45,8 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Domain-specific operator overloads
   Domain facts should be able to participate in operator resolution when the meaning is unique.
+  Current pending canary:
+  - `canaries/pending/operators/domain_operator_declaration_surface_missing`
   Next target:
   - define the first concrete domain-operator surface
   - prove that only facts in the current context can select domain operator meanings
@@ -53,6 +60,8 @@ meaning, without needing access to pointer descriptor internals.
   - `terminates { ... }` parses and checks for direct recursive shapes
   - `decreases value -> Nat::Descending` works for countdown and bounded-distance shapes
   - `decreases entries -> Slice::Length` works for the first shrinking-subslice self-loop shape
+  Current pending canary:
+  - `canaries/pending/termination/custom_ranking_order_unimplemented`
   Next target:
   - move `Nat::Descending` and `Slice::Length` from checker-known strings toward visible core declarations
   - decide how order/measure declarations represent "rank this value by this view"

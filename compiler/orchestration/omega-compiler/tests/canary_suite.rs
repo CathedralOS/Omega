@@ -2541,6 +2541,40 @@ fn pending_canaries_reproduce_known_gaps() {
                     );
                 }
             }
+            PendingCanaryExpectation::CurrentlyRejects { fragment } => {
+                let canary_dir = pending_canary(canary.path);
+                let main_path = canary_dir.join("main.omg");
+                let options = CompileOptions {
+                    root_path: main_path.clone(),
+                    build_dir: None,
+                    target_name: None,
+                    write_output: false,
+                };
+
+                let diagnostics = match compile(options) {
+                    Ok(report) => {
+                        panic!(
+                            "pending canary {} no longer rejects. Promote it to pass/fail and update the suite: {}",
+                            canary_dir.display(),
+                            report.summary()
+                        )
+                    }
+                    Err(diagnostics) => diagnostics,
+                };
+                let combined = diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                assert!(
+                    combined.contains(fragment),
+                    "pending canary {} rejected differently than expected. expected fragment {:?}\nactual diagnostics:\n{}",
+                    canary_dir.display(),
+                    fragment,
+                    combined
+                );
+            }
             PendingCanaryExpectation::CompilesAndExits { current_exit, desired_exit } => {
                 let canary_dir = pending_canary(canary.path);
                 let main_path = canary_dir.join("main.omg");
@@ -2801,6 +2835,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 #[derive(Clone, Copy)]
 enum PendingCanaryExpectation {
     UnexpectedlyCompiles,
+    CurrentlyRejects { fragment: &'static str },
     CompilesAndExits { current_exit: i32, desired_exit: i32 },
 }
 
@@ -2810,6 +2845,36 @@ struct PendingCanary {
 }
 
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "core/slice_core_surface_missing",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "omega/language/core/slice.omg",
+        },
+    },
+    PendingCanary {
+        path: "core/vec_core_surface_missing",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "omega/language/core/vec.omg",
+        },
+    },
+    PendingCanary {
+        path: "operators/core_operator_declaration_surface_missing",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "found identifier `operator`",
+        },
+    },
+    PendingCanary {
+        path: "operators/domain_operator_declaration_surface_missing",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "expected `;`, `,`, or end of proof facts",
+        },
+    },
+    PendingCanary {
+        path: "termination/custom_ranking_order_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove decreases clause",
+        },
+    },
     PendingCanary {
         path: "slices/invalid_subslice_bounds_unchecked",
         expectation: PendingCanaryExpectation::UnexpectedlyCompiles,
