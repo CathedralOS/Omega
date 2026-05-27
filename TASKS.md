@@ -7,24 +7,30 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
 - [ ] Termination proofs
   Add an opt-in termination proof surface that can be claimed at roots such as `Main::main`, then enforced transitively through the reachable call/state graph.
   Current position:
-  - `terminates` and `decreases expr` now parse and lower through syntax/resolved/typed trees
+  - the prototype parses `terminates` plus bare `decreases expr` through syntax/resolved/typed trees
   - checked-tree validation now rejects direct terminating recursive cycles with no `decreases`
   - direct countdown-style self recursion like `remaining > 0` then `self.countdown(remaining - 1)` now proves
-  - bounded-distance recursion like `decreases limit - index` with `index < limit` then `index + 1` now proves
-  - slice-backed distance recursion like `decreases entries.len - index` with `index < entries.len` now proves
+  - bounded-distance recursion in the current prototype like `decreases limit - index` with `index < limit` then `index + 1` now proves
+  - slice-backed distance recursion in the current prototype like `decreases entries.len - index` with `index < entries.len` now proves
   - current canary coverage is compile-proof focused, not full runtime-shape coverage yet
-  Initial target:
+  Language direction:
   - `terminates`
-  - `decreases expr`
-  - builtin well-founded measures for naturals, bounded distances, and slice lengths
+  - nested progress clauses under `terminates`
+  - `decreases value -> OrderOrMeasure`
+  - builtin ranking views for naturals, bounded distances, and slice lengths
+  - plain `decreases value` only when builtin/default ranking is unambiguous
+  Immediate implementation target:
+  - migrate the prototype away from bare arithmetic-facing `decreases expr`
+  - teach the checker/parser a `terminates { ... }` block form
+  - treat `->` as ranking-view selection, not "toward a bound"
   First useful canaries:
-  - terminating index-carrying loop with `decreases limit - index`
-  - terminating slice loop with `decreases items.len`
-  - eventually shrinking-slice loop with `decreases items`
+  - terminating index-carrying loop with a named bounded-distance ranking view
+  - terminating slice loop with `decreases items -> Slice::Length`
+  - eventually shrinking-slice loop with plain `decreases items`
   Later:
   - lexicographic rankings
-  - custom ranking projections for user-defined structs
-  - possible sugar such as `increases x -> bound`
+  - custom ranking projections/orders for user-defined structs
+  - named multiple orders for the same data type
 
 - [ ] Domain operators and proof-aware operator resolution
   The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.

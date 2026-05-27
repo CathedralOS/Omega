@@ -26,10 +26,10 @@ This page tracks design pressure that is not fully nailed down yet.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
 - Termination should be an explicit proof claim such as `terminates`, with
-  `decreases ...` as the primary ranking surface. A terminating root like
-  `Main::main` should implicitly require every reachable recursive/cyclic path
-  to prove progress through a well-founded metric such as naturals, bounded
-  distances, or shrinking slices.
+  nested progress clauses such as `decreases value -> OrderOrMeasure`. A
+  terminating root like `Main::main` should implicitly require every reachable
+  recursive/cyclic path to prove progress through a well-founded ranking view
+  such as naturals, slice length, or a named domain/type-specific order.
 - Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
 - A machine enters at the top of its body. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
@@ -40,12 +40,10 @@ This page tracks design pressure that is not fully nailed down yet.
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond
   explicit `when` clauses and executable domain bodies?
-- What exact surface syntax should termination use: only `decreases`, or also
-  sugar such as `increases x -> bound` that lowers to a decrease on remaining
-  distance?
-- Which built-in values should automatically count as well-founded ranking
-  metrics, and when should libraries/domains be allowed to provide custom
-  ranking projections?
+- How much explicit sugar should Omega support beyond the core
+  `terminates { decreases value -> OrderOrMeasure; }` shape?
+- Which built-in ranking views should be automatic, and when should
+  libraries/domains be allowed to provide named custom orders or measures?
 - How should Omega express and prove sequence-wide domains over runtime text,
   such as `String::Utf8` or `String::NoNul`, without turning ordinary string
   handling into a byte-level proof tax?

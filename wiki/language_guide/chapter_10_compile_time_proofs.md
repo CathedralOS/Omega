@@ -167,22 +167,44 @@ cycle in the reachable machine/state graph.
 Working direction:
 
 ```omega
-machine walk(items: &[Nat]) terminates
-decreases items
+machine walk(items: &[Nat])
+terminates {
+    decreases items -> Slice::Length;
+}
 {
 }
 ```
 
 The key idea is a ranking argument:
 
-- choose a metric
-- prove it belongs to a well-founded ordering
-- prove every recursive or cyclic step makes that metric strictly smaller
+- choose a value to track
+- choose a well-founded ranking view for that value
+- prove every recursive or cyclic step makes that ranked value strictly smaller
 
 This is a natural fit for proof-oriented helper vocabulary. The language can
 provide built-in well-founded measures for common cases such as naturals and
 slice lengths, while libraries may later help express richer rankings such as
-lexicographic tuples or domain-provided measures.
+lexicographic tuples or domain/type-provided orders.
+
+Working direction for the surface:
+
+- put progress clauses under `terminates`
+- keep `decreases` / `increases` as the user-facing proof words
+- use `->` to select the ranking view/order
+
+Examples:
+
+```omega
+terminates {
+    decreases items -> Slice::Length;
+}
+```
+
+```omega
+terminates {
+    decreases card -> Card::PowerOrder;
+}
+```
 
 The important design boundary is that `terminates` is not an effect. It is a
 proof claim over control flow.
