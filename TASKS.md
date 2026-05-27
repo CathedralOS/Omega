@@ -96,6 +96,8 @@ meaning, without needing access to pointer descriptor internals.
   - duplicate root operator declarations reject with a focused diagnostic
   - root and domain operators with the same name but distinct parameter
     signatures are now accepted as overload-set declarations
+  - root operator declarations that differ only by return type still reject as
+    duplicate ambiguous call signatures
   Next target:
   - use operator symbols during overload resolution and validate ambiguous
     operator declarations by signature and context
@@ -118,6 +120,8 @@ meaning, without needing access to pointer descriptor internals.
   - duplicate domain operator declarations reject with a focused diagnostic
   - domain operators with the same name but distinct parameter signatures are
     accepted as overload-set declarations
+  - domain operator declarations that differ only by return type still reject
+    as duplicate ambiguous call signatures
   Next target:
   - define the first semantic domain-operator representation
   - validate ambiguous domain operator candidates by signature, receiver, and
