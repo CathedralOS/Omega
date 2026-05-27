@@ -8,6 +8,7 @@ mod project;
 pub mod source;
 mod stage;
 mod stages;
+mod trust_report;
 mod timing;
 
 pub use compile_options::CompileOptions;

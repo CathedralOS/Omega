@@ -2,7 +2,7 @@ use crate::pipeline::artifacts::{
     remove_stale_phase_diagrams, write_backend_report, write_checked_snapshot,
     write_control_flow_snapshot, write_emission_plan, write_pipeline_index, write_pipeline_shell,
     write_resolved_snapshot, write_state_graph_snapshot, write_syntax_snapshot, write_timings,
-    write_trust_report, write_typed_snapshot,
+    write_typed_snapshot,
 };
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
@@ -14,6 +14,7 @@ use crate::pipeline::stages::{
     typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
+use crate::pipeline::trust_report::write_trust_report;
 use omega_artifacts::build_backend_surface_report;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
