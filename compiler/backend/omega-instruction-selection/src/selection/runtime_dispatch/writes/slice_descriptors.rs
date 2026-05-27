@@ -329,40 +329,66 @@ fn fixed_array_slice_source_in_table(
     expressions: &ExpressionTable,
     collection: ExpressionHandle,
 ) -> Option<FixedArraySliceSource> {
-    let ExpressionNode::Call(call) = expressions.expression(collection) else {
-        return None;
-    };
-    if !call.receiver.is_valid()
-        || !call.arguments.is_empty()
-        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
-    {
-        return None;
-    }
+    match expressions.expression(collection) {
+        ExpressionNode::Call(call)
+            if call.receiver.is_valid()
+                && call.arguments.is_empty()
+                && (call.target.as_str() == "as_slice"
+                    || call.target.as_str() == "as_mut_slice") =>
+        {
+            let place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                call.receiver,
+            )?;
+            let length = resolve_fixed_array_length_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                call.receiver,
+            )?;
+            if length == 0 || place.byte_count % length != 0 {
+                return None;
+            }
+            let element_byte_size = place.byte_count / length;
 
-    let place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    )?;
-    let length = resolve_fixed_array_length_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
-        call.receiver,
-    )?;
-    if length == 0 || place.byte_count % length != 0 {
-        return None;
-    }
-    let element_byte_size = place.byte_count / length;
+            Some(FixedArraySliceSource {
+                place,
+                length,
+                element_byte_size,
+            })
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
+                return None;
+            };
+            let source = fixed_array_slice_source_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                indexed.collection,
+            )?;
+            let (start, length) = literal_subslice_bounds(expressions, range, source.length)?;
+            let byte_offset = start
+                .checked_mul(source.element_byte_size)
+                .and_then(|offset| source.place.byte_offset.checked_add(offset))?;
 
-    Some(FixedArraySliceSource {
-        place,
-        length,
-        element_byte_size,
-    })
+            Some(FixedArraySliceSource {
+                place: RuntimeStoragePlace {
+                    region: source.place.region,
+                    byte_offset,
+                    byte_count: length.checked_mul(source.element_byte_size)?,
+                },
+                length,
+                element_byte_size: source.element_byte_size,
+            })
+        }
+        _ => None,
+    }
 }
 
 fn literal_subslice_bounds(
