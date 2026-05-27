@@ -2711,6 +2711,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/bare_state_arrow_transition",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",
+    "slices/termination_slice_length_order_unimplemented",
     "slices/subslice_range_surface_unimplemented",
     "domains/domain_import_cycle",
     "domains/domain_import_unknown",
