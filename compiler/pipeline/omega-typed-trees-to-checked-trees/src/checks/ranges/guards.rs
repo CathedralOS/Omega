@@ -18,15 +18,19 @@ pub(super) fn seed_guard_facts(
 
     match binary.operator {
         BinaryOperator::Less => {
-            seed_non_empty_length_fact(program, facts, binary.right, binary.left);
+            seed_length_greater_than_fact(program, facts, binary.right, binary.left);
             seed_less_than_len_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
         }
         BinaryOperator::Greater => {
-            seed_non_empty_length_fact(program, facts, binary.left, binary.right);
+            seed_length_greater_than_fact(program, facts, binary.left, binary.right);
         }
         BinaryOperator::LessOrEqual => {
+            seed_length_at_least_fact(program, facts, binary.right, binary.left);
             seed_at_most_fact(program, facts, binary.left, binary.right);
+        }
+        BinaryOperator::GreaterOrEqual => {
+            seed_length_at_least_fact(program, facts, binary.left, binary.right);
         }
         BinaryOperator::And => {
             seed_guard_facts(program, facts, binary.left);
@@ -43,7 +47,6 @@ pub(super) fn seed_guard_facts(
         }
         BinaryOperator::Add
         | BinaryOperator::Divide
-        | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply
         | BinaryOperator::NotEqual
@@ -54,16 +57,36 @@ pub(super) fn seed_guard_facts(
     }
 }
 
-fn seed_non_empty_length_fact(
+fn seed_length_greater_than_fact(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     possible_length: ExpressionHandle,
-    possible_zero: ExpressionHandle,
+    possible_lower_bound: ExpressionHandle,
 ) {
-    if expression_integer_value(program, facts, possible_zero) != Some(0) {
+    let Some(lower_bound) = expression_integer_value(program, facts, possible_lower_bound) else {
         return;
-    }
+    };
+    seed_minimum_length_fact(program, facts, possible_length, lower_bound + 1);
+}
 
+fn seed_length_at_least_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    possible_length: ExpressionHandle,
+    possible_lower_bound: ExpressionHandle,
+) {
+    let Some(lower_bound) = expression_integer_value(program, facts, possible_lower_bound) else {
+        return;
+    };
+    seed_minimum_length_fact(program, facts, possible_length, lower_bound);
+}
+
+fn seed_minimum_length_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    possible_length: ExpressionHandle,
+    minimum_length: i64,
+) {
     let ExpressionNode::Member(member) = program.expression_table.expression(possible_length)
     else {
         return;
@@ -73,8 +96,7 @@ fn seed_non_empty_length_fact(
     }
 
     let collection = program.expression_table.display_name(member.receiver);
-    facts.prove_index(collection.clone(), "0".to_string());
-    facts.prove_range_bound(collection, "1".to_string());
+    facts.prove_minimum_length(collection, minimum_length);
 }
 
 fn seed_less_than_len_fact(

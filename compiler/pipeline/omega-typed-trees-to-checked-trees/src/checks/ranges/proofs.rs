@@ -9,10 +9,11 @@ pub(super) fn unknown_length_index_is_proven(
     collection: ExpressionHandle,
     index: ExpressionHandle,
 ) -> bool {
-    facts.index_is_proven(
-        &program.expression_table.display_name(collection),
-        &program.expression_table.display_name(index),
-    )
+    let collection_label = program.expression_table.display_name(collection);
+    let index_label = program.expression_table.display_name(index);
+    facts.index_is_proven(&collection_label, &index_label)
+        || expression_integer_value(program, facts, index)
+            .is_some_and(|index| facts.index_value_is_proven(&collection_label, index))
 }
 
 pub(super) fn unknown_length_range_is_proven(
@@ -56,4 +57,6 @@ fn range_bound_is_proven(
 ) -> bool {
     let bound_label = program.expression_table.display_name(bound);
     facts.range_bound_is_proven(collection_label, &bound_label)
+        || expression_integer_value(program, facts, bound)
+            .is_some_and(|bound| facts.range_bound_value_is_proven(collection_label, bound))
 }

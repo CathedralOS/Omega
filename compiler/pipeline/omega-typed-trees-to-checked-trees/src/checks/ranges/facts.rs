@@ -44,6 +44,7 @@ pub(super) struct RangeFacts<'field> {
     proven_indexes: Vec<(String, String)>,
     proven_orderings: Vec<(String, String)>,
     proven_range_bounds: Vec<(String, String)>,
+    minimum_lengths: Vec<(String, i64)>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -55,6 +56,7 @@ impl<'field> RangeFacts<'field> {
             proven_indexes: Vec::new(),
             proven_orderings: Vec::new(),
             proven_range_bounds: Vec::new(),
+            minimum_lengths: Vec::new(),
         }
     }
 
@@ -158,6 +160,13 @@ impl<'field> RangeFacts<'field> {
             })
     }
 
+    pub(super) fn index_value_is_proven(&self, collection: &str, index: i64) -> bool {
+        index >= 0
+            && self
+                .minimum_length(collection)
+                .is_some_and(|length| index < length)
+    }
+
     pub(super) fn prove_at_most(&mut self, lower: String, upper: String) {
         if !self
             .proven_orderings
@@ -194,11 +203,43 @@ impl<'field> RangeFacts<'field> {
             })
     }
 
+    pub(super) fn range_bound_value_is_proven(&self, collection: &str, bound: i64) -> bool {
+        bound >= 0
+            && self
+                .minimum_length(collection)
+                .is_some_and(|length| bound <= length)
+    }
+
+    pub(super) fn prove_minimum_length(&mut self, collection: String, minimum_length: i64) {
+        if minimum_length <= 0 {
+            return;
+        }
+
+        if let Some((_, known_minimum)) = self
+            .minimum_lengths
+            .iter_mut()
+            .find(|(known_collection, _)| known_collection == &collection)
+        {
+            *known_minimum = (*known_minimum).max(minimum_length);
+            return;
+        }
+
+        self.minimum_lengths.push((collection, minimum_length));
+    }
+
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
         self.locals
             .retain(|(local, local_name, _)| !local_matches(*local, local_name, symbol, name));
         self.integer_locals
             .retain(|(local, local_name, _)| !local_matches(*local, local_name, symbol, name));
+    }
+
+    fn minimum_length(&self, collection: &str) -> Option<i64> {
+        self.minimum_lengths
+            .iter()
+            .find_map(|(known_collection, minimum_length)| {
+                (known_collection == collection).then_some(*minimum_length)
+            })
     }
 }
 

@@ -187,6 +187,8 @@ meaning, without needing access to pointer descriptor internals.
     transition guards, covering slice parameter indexes and bounded windows
   - non-empty guards such as `entries.len > 0` now prove `entries[0]` and
     `entries[1..]`, matching the slice-shrinking loop pattern
+  - minimum-length guards such as `entries.len >= 2` and `2 <= entries.len`
+    now prove literal indexes and tail subslices within that known prefix
   Next target:
   - add range-bound diagnostics that distinguish invalid element indexes from
     invalid exclusive range bounds
