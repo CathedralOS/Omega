@@ -1,3 +1,6 @@
+mod evaluator;
+
+use evaluator::call_site_proves_boolean_contract_expression;
 use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -184,7 +187,14 @@ fn call_entry_contexts_prove_boolean_contract_expression(
             target_state,
             expression,
         )
-    })
+    }) || call_site_proves_boolean_contract_expression(
+        program,
+        state_flow,
+        call_flow,
+        &call_site,
+        target_state,
+        expression,
+    )
 }
 
 fn semantic_contexts_prove_contract_fact(

@@ -1968,6 +1968,39 @@ fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
+    let canary = pass_canary("storage/runtime_dispatch_helper_local_alias_add_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dispatch-helper-local-alias-add-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime dispatch helper local alias add canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime dispatch helper local alias add canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(181),
+        "expected runtime dispatch helper local alias add canary to preserve append_exit mutation through local slice alias and exit 181, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_slice_alias_indexed_field_write_exit");
     let main_path = canary.join("main.omg");
@@ -2846,6 +2879,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/runtime_machine_owned_indexed_integer_write_exit",
     "storage/runtime_machine_owned_indexed_nested_exit_write_exit",
     "storage/runtime_machine_owned_indexed_struct_copy_exit",
+    "storage/runtime_dispatch_helper_local_alias_add_exit",
     "storage/requires_slice_indexed_alias_field_binary_compile",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
@@ -3044,17 +3078,9 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "termination/custom_ranking_order_unimplemented",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove decreases clause",
-        },
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
+    path: "termination/custom_ranking_order_unimplemented",
+    expectation: PendingCanaryExpectation::CurrentlyRejects {
+        fragment: "cannot prove decreases clause",
     },
-    PendingCanary {
-        path: "storage/runtime_dispatch_helper_local_alias_add_exit",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove requires contract",
-        },
-    },
-];
+}];
