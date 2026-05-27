@@ -193,6 +193,8 @@ meaning, without needing access to pointer descriptor internals.
     now prove literal indexes and tail subslices within that known prefix
   - nonzero-length guards such as `entries.len != 0` and `0 != entries.len`
     now prove the same non-empty index and tail-subslice facts
+  - false branches of `entries.len == 0` now prove the same non-empty slice
+    facts for head/tail access
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index
