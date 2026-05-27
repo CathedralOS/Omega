@@ -327,10 +327,7 @@ fn unknown_length_range_is_proven(
             collection_label,
             &program.expression_table.display_name(range.start),
         ),
-        (false, true) => facts.index_is_proven(
-            collection_label,
-            &program.expression_table.display_name(range.end),
-        ),
+        (false, true) => range_end_is_proven(program, facts, collection_label, range.end),
         (true, true) => {
             let start_label = program.expression_table.display_name(range.start);
             let end_label = program.expression_table.display_name(range.end);
@@ -338,10 +335,21 @@ fn unknown_length_range_is_proven(
                 .is_some_and(|start| start == 0)
                 || facts.at_most_is_proven(&start_label, &end_label);
 
-            start_is_at_most_end && facts.index_is_proven(collection_label, &end_label)
+            start_is_at_most_end && range_end_is_proven(program, facts, collection_label, range.end)
         }
         (false, false) => true,
     }
+}
+
+fn range_end_is_proven(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection_label: &str,
+    end: ExpressionHandle,
+) -> bool {
+    let end_label = program.expression_table.display_name(end);
+    facts.index_is_proven(collection_label, &end_label)
+        || facts.is_length_of(&end_label, collection_label)
 }
 
 fn seed_guard_facts(
@@ -370,6 +378,7 @@ fn seed_guard_facts(
             seed_guard_facts(program, facts, binary.right);
         }
         omega_typed_trees::expression::BinaryOperator::Equal => {
+            seed_length_equality_fact(program, facts, binary.left, binary.right);
             if matches!(
                 program.expression_table.expression(binary.right),
                 ExpressionNode::Boolean(true)
@@ -398,6 +407,39 @@ fn seed_less_than_len_fact(
         program.expression_table.display_name(member.receiver),
         program.expression_table.display_name(index),
     );
+}
+
+fn seed_length_equality_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) {
+    if seed_length_equality_side(program, facts, left, right) {
+        return;
+    }
+    seed_length_equality_side(program, facts, right, left);
+}
+
+fn seed_length_equality_side(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    value: ExpressionHandle,
+    possible_length: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Member(member) = program.expression_table.expression(possible_length)
+    else {
+        return false;
+    };
+    if member.member.as_str() != "len" {
+        return false;
+    }
+
+    facts.prove_length_of(
+        program.expression_table.display_name(value),
+        program.expression_table.display_name(member.receiver),
+    );
+    true
 }
 
 fn seed_at_most_fact(
