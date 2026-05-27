@@ -229,7 +229,7 @@ fn insert_fixed_machine_instruction_bytes(
                 *byte_offset,
                 *byte_size,
                 *expected_value,
-                branch_distances::byte_distance_to_next_state_write_end(
+                branch_distances::byte_distance_to_next_dispatch_action_end(
                     laid_out_instructions,
                     machine_instruction_index,
                 )?,
