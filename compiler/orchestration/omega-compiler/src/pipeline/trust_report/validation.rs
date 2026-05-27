@@ -44,3 +44,40 @@ fn operator_trust_diagnostic_context(unresolved: &UnresolvedTrustReference) -> O
         .strip_prefix("domain operator ")
         .map(|_| "domain operator")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::validate_trust_report;
+    use omega_artifacts::{TrustReport, UnresolvedTrustReference};
+
+    #[test]
+    fn validation_rejects_unresolved_trusted_contracts() {
+        let mut report = TrustReport::default();
+        report.unresolved_trusts.insert(UnresolvedTrustReference {
+            capability: "TestHost".to_owned(),
+            state: "host_write".to_owned(),
+            trust_level: "missing_host_write_contract".to_owned(),
+        });
+
+        let diagnostics = validate_trust_report(&report).expect_err("unresolved library trust");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(combined.contains("unresolved trust `missing_host_write_contract`"));
+    }
+
+    #[test]
+    fn validation_leaves_target_policy_references_report_only_for_now() {
+        let mut report = TrustReport::default();
+        report.unresolved_trusts.insert(UnresolvedTrustReference {
+            capability: "target".to_owned(),
+            state: "native".to_owned(),
+            trust_level: "missing_target_root".to_owned(),
+        });
+
+        validate_trust_report(&report).expect("target trust policy is still report-only");
+    }
+}
