@@ -153,13 +153,13 @@ meaning, without needing access to pointer descriptor internals.
   Landed:
   - literal subslices over fixed-array-backed `as_slice` views now materialize a
     shortened runtime descriptor length, covering `view[1..].len`
-  Current pending gaps:
-  - `canaries/pending/slices/runtime_subslice_range_pointer_wrong`
+  - literal fixed-index reads through literal subslice aliases now copy from the
+    adjusted backing array offset, covering `tail[0]` after `view[1..]`
   Next target:
-  - fix indexed reads through subslice aliases so `tail[0]` after `view[1..]`
-    reads from the adjusted descriptor base
-  - ensure subslice pointer offsets are carried through alias resolution and
-    fixed-index copy lowering, not only descriptor length guards
+  - generalize subslice descriptor pointer offsets beyond the fixed-array alias
+    copy special case
+  - support dynamic indexes through subslice descriptors, not just literal
+    fixed-index copies
   - support start-only, end-only, and bounded subslice descriptors
   - ensure descriptor writes/reads have one clear backend representation path
   - promote pending subslice canaries to pass/fail suites when fixed
