@@ -172,11 +172,11 @@ meaning, without needing access to pointer descriptor internals.
     `entries[index]` on that guarded target path
   - the same `< entries.len` guard now proves start-only subslice bounds such
     as `entries[start..]` on the guarded target path
+  - `< entries.len` guards also prove end-only subslice bounds such as
+    `entries[..end]` on the guarded target path
   Next target:
-  - expand proof-backed acceptance for dynamic `view[start..]`,
-    `view[..end]`, and `view[start..end]` beyond literal local constants
-  - known-length slices/fixed arrays now reject dynamic indexes unless the
-    index expression itself is proven in range
+  - expand proof-backed acceptance for dynamic bounded windows such as
+    `view[start..end]` beyond literal local constants
   - machine `requires` facts that mention an indexed expression now seed the
     matching in-body index proof, preserving contract-backed indexed reads
   - moved dynamic machine-owned indexed mutable-call runtime coverage to
@@ -187,8 +187,8 @@ meaning, without needing access to pointer descriptor internals.
     machine parameters can carry slice length/index facts
   - broaden state-argument fact propagation to recursive/cyclic control-flow
     paths instead of the current conservative direct-call/transition seed pass
-  - extend guard facts into end-only and bounded subslice windows, including
-    `start <= end` proof for bounded ranges
+  - extend guard facts into bounded subslice windows, including `start <= end`
+    proof for bounded ranges
   - decide how inclusive/exclusive range forms spell and lower
   - connect range validity facts to indexing validity facts instead of duplicating proof logic
 
