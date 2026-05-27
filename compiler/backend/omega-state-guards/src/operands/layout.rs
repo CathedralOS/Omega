@@ -4,7 +4,7 @@ use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
+use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
 use omega_runtime_storage::RuntimeStoragePlan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,6 +210,10 @@ fn runtime_frame_operand_layout(
 
     let (byte_offset, layout) = if suffix.is_empty() {
         (root_byte_offset, root_layout)
+    } else if let Some(member_layout) =
+        runtime_slice_descriptor_member_layout(slot, root_byte_offset, root_layout, suffix)
+    {
+        member_layout
     } else {
         resolve_nested_slot_layout(layouts, root_byte_offset, root_type_symbol, suffix)?
     };
@@ -219,6 +223,42 @@ fn runtime_frame_operand_layout(
         byte_offset,
         layout,
     })
+}
+
+fn runtime_slice_descriptor_member_layout(
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    root_byte_offset: usize,
+    root_layout: TypeLayout,
+    suffix: GuardPathSuffix<'_, '_>,
+) -> Option<(usize, TypeLayout)> {
+    if !is_slice_descriptor(&slot.type_descriptor) || root_layout.size % 2 != 0 {
+        return None;
+    }
+
+    let mut segments = suffix.iter();
+    let (member, _, _) = segments.next()?;
+    if segments.next().is_some() || member.as_str() != "len" {
+        return None;
+    }
+
+    let pointer_size = root_layout.size / 2;
+    Some((
+        root_byte_offset.checked_add(pointer_size)?,
+        TypeLayout {
+            size: pointer_size,
+            alignment: root_layout.alignment,
+        },
+    ))
+}
+
+fn is_slice_descriptor(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Reference { referee, .. } => {
+            matches!(referee.as_ref(), TypeLayoutDescriptor::Slice { .. })
+        }
+        TypeLayoutDescriptor::Constrained { base_type } => is_slice_descriptor(base_type),
+        _ => false,
+    }
 }
 
 fn resolve_nested_slot_layout(

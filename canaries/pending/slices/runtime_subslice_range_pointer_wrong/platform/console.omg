@@ -1,0 +1,3 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}

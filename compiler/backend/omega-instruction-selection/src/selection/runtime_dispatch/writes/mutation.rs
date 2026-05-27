@@ -6,7 +6,7 @@ use omega_abstract_operations::{
 };
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-    TableCallExpression, TableNamePath,
+    TableCallExpression, TableNamePath, TableRangeExpression,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
@@ -379,6 +379,19 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         return false;
     }
 
+    if emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        slot,
+        value,
+        selected_instructions,
+        statement_index,
+    ) {
+        return true;
+    }
+
     let ExpressionNode::Call(call) = expressions.expression(value) else {
         return false;
     };
@@ -554,6 +567,142 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         source_statement: statement_index,
     });
     true
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    selected_instructions: &mut SelectedInstructionSink,
+    statement_index: usize,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = expressions.expression(value) else {
+        return false;
+    };
+    let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
+        return false;
+    };
+    let Some(source) = fixed_array_slice_source_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        indexed.collection,
+    ) else {
+        return false;
+    };
+    let Some((start, length)) = literal_subslice_bounds(expressions, range, source.length) else {
+        return false;
+    };
+    let Some(source_offset) = start
+        .checked_mul(source.element_byte_size)
+        .and_then(|offset| source.place.byte_offset.checked_add(offset))
+    else {
+        return false;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: source.place.region,
+            source_offset,
+            target_offset: slot.byte_offset,
+        },
+        source_key: value_source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
+            byte_size: input.runtime_abi.pointer_size,
+            value: length as i64,
+        },
+        source_key: value_source_key,
+        source_statement: statement_index,
+    });
+    true
+}
+
+struct FixedArraySliceSource {
+    place: super::super::super::storage_places::RuntimeStoragePlace,
+    length: usize,
+    element_byte_size: usize,
+}
+
+fn fixed_array_slice_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    collection: ExpressionHandle,
+) -> Option<FixedArraySliceSource> {
+    let ExpressionNode::Call(call) = expressions.expression(collection) else {
+        return None;
+    };
+    if !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return None;
+    }
+
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    )?;
+    let length = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    )?;
+    if length == 0 || place.byte_count % length != 0 {
+        return None;
+    }
+    let element_byte_size = place.byte_count / length;
+
+    Some(FixedArraySliceSource {
+        place,
+        length,
+        element_byte_size,
+    })
+}
+
+fn literal_subslice_bounds(
+    expressions: &ExpressionTable,
+    range: &TableRangeExpression,
+    source_length: usize,
+) -> Option<(usize, usize)> {
+    let start = if range.start.is_valid() {
+        let ExpressionNode::Integer(start) = expressions.expression(range.start) else {
+            return None;
+        };
+        usize::try_from(*start).ok()?
+    } else {
+        0
+    };
+    let end = if range.end.is_valid() {
+        let ExpressionNode::Integer(end) = expressions.expression(range.end) else {
+            return None;
+        };
+        usize::try_from(*end).ok()?
+    } else {
+        source_length
+    };
+
+    if start > end || end > source_length {
+        return None;
+    }
+
+    Some((start, end - start))
 }
 
 #[allow(clippy::too_many_arguments)]
