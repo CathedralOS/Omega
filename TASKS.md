@@ -58,12 +58,13 @@ meaning, without needing access to pointer descriptor internals.
     root
   - operator declarations now accept `trust` contracts and the trust report
     counts root/domain operator trusted references
+  - unresolved operator trust roots now reject with focused diagnostics
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
   - promote trust-root usage counts into stricter registry validation once
     implementation-binding syntax exists
-  - turn unresolved operator trust references from report-only facts into
+  - turn unresolved library/target trust references from report-only facts into
     focused diagnostics once package/toolchain trust policy is explicit
   - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
   - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
@@ -369,8 +370,6 @@ meaning, without needing access to pointer descriptor internals.
   Current pending canaries:
   - `canaries/pending/termination/custom_ranking_struct_view_unimplemented`
     should become a pass when ranking views can project through declared bodies
-  - `canaries/pending/operators/operator_unknown_trust_unrejected` should
-    become a fail once unregistered operator trust roots are diagnostics
   Next target:
   - promote pending canaries quickly when fixed
   - add pending canaries for serious known gaps instead of leaving them as ad hoc run probes

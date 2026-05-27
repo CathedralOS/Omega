@@ -16,10 +16,13 @@ pub(super) fn write_trust_report(
     options: &CompileOptions,
     syntax: &SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
+    let report = build_trust_report(syntax);
+    validate_operator_trusts(&report)?;
+
     let writer =
         ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
     writer
-        .write_trust_report(&build_trust_report(syntax))
+        .write_trust_report(&report)
         .map_err(|diagnostic| vec![diagnostic])
 }
 
@@ -166,6 +169,37 @@ fn build_trust_report(syntax: &SyntaxTrees) -> TrustReport {
     }
 
     report
+}
+
+fn validate_operator_trusts(report: &TrustReport) -> Result<(), Vec<Diagnostic>> {
+    let diagnostics = report
+        .unresolved_trusts
+        .iter()
+        .filter_map(|(_, unresolved)| {
+            operator_trust_diagnostic_context(unresolved).map(|context| {
+                Diagnostic::error(format!(
+                    "unresolved operator trust `{}` for {} `{}`",
+                    unresolved.trust_level, context, unresolved.state
+                ))
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn operator_trust_diagnostic_context(unresolved: &UnresolvedTrustReference) -> Option<&str> {
+    if unresolved.capability == "operator" {
+        return Some("operator");
+    }
+    unresolved
+        .capability
+        .strip_prefix("domain operator ")
+        .map(|_| "domain operator")
 }
 
 fn collect_trusted_contracts(
