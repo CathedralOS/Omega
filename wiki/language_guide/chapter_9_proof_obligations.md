@@ -128,9 +128,15 @@ Likely built-in ranking shapes:
 - named domain/type-specific ranking orders such as `Card::PowerOrder`
 - lexicographic tuples of decreasing metrics
 
+`Slice::Length` is a named ranking view, not a runtime field lookup and not a
+domain membership predicate by itself. It means "rank this slice by its current
+length using the well-founded natural-number order." The name should be visible
+through the core `Slice` surface so users can discover what the termination
+checker is using.
+
 For slices, `decreases items -> Slice::Length` naturally means each back-edge
 must operate on a strictly smaller remaining view, usually by carrying a
-narrower slice window.
+narrower slice window such as `items[1..]`.
 
 `increases` and `decreases` are still useful as the user-facing proof words, but
 the working direction is to make `->` consistently select the ranking view

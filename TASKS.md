@@ -48,8 +48,17 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
 - [ ] Domain operators and proof-aware operator resolution
   The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.
   Next target:
+  - define a visible operator declaration model for core operators such as indexing and subslicing
   - define the first concrete operator-resolution surface driven by proved domains
   - keep ambiguity rules strict and compile-time only
+
+- [ ] Core collection/string semantic surface
+  Make the compiler's built-in collection and text concepts browsable without pretending their low-level representation is ordinary source code.
+  Next target:
+  - sketch `Array`, `Vec`, `Slice`, `Str`, and `StrView` as core semantic declarations
+  - expose names such as `Slice::Length` from that core surface instead of leaving them as checker-only strings
+  - decide where low-level carriers such as `Ptr` and descriptor shapes live
+  - keep safe indexing/subslicing contracts visible even when operator bodies are compiler intrinsics
 
 - [ ] Proof-checking depth beyond current domain coverage
   We have broad coverage now for domains flowing through calls, exits, mutation invalidation, indexing, and boolean implications.

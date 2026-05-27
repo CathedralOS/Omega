@@ -183,8 +183,9 @@ The key idea is a ranking argument:
 
 This is a natural fit for proof-oriented helper vocabulary. The language can
 provide built-in well-founded measures for common cases such as naturals and
-slice lengths, while libraries may later help express richer rankings such as
-lexicographic tuples or domain/type-provided orders.
+slice lengths. Names such as `Slice::Length` should come from the browsable core
+semantic surface for slices, while libraries may later help express richer
+rankings such as lexicographic tuples or domain/type-provided orders.
 
 Working direction for the surface:
 
