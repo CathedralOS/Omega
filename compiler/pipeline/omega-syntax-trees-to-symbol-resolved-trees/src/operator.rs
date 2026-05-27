@@ -21,7 +21,6 @@ pub(crate) fn lower_operator_definition(
             .then(|| lower_type_reference_handle(lowerer, syntax_trees, operator.return_type))
             .transpose()?,
         contracts: lower_signature_contracts(lowerer, syntax_trees, operator.contracts)?,
-        is_intrinsic: operator.is_intrinsic,
         token_count: operator.token_count,
     })
 }

@@ -317,7 +317,8 @@ Working model:
 
 - Operator spellings are fixed by the language.
 - Core types such as `Slice`, `Array`, `Vec`, `Str`, and `StrView` can expose
-  operator definitions with compiler-intrinsic bodies.
+  operator definitions whose implementations are bound to trusted primitive
+  compiler/runtime operations below the public core surface.
 - User/library types can expose ordinary operator definitions when the language
   supports that surface.
 - Domains may provide or select operator meanings when the value is proven to

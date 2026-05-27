@@ -9,6 +9,5 @@ pub struct OperatorDefinition {
     pub parameters: HandleSpan<crate::signature::StateParameter>,
     pub return_type: Option<TypeReference>,
     pub contracts: HandleSpan<crate::signature::SignatureContract>,
-    pub is_intrinsic: bool,
     pub token_count: usize,
 }

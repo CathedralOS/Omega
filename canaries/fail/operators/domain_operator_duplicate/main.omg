@@ -5,8 +5,8 @@ data Quantity {
 domain Quantity::Additive {
     self.value >= 0;
 
-    operator add(left: Quantity, right: Quantity) -> Quantity intrinsic;
-    operator add(left: Quantity, right: Quantity) -> Quantity intrinsic;
+    operator add(left: Quantity, right: Quantity) -> Quantity;
+    operator add(left: Quantity, right: Quantity) -> Quantity;
 }
 
 data Main {

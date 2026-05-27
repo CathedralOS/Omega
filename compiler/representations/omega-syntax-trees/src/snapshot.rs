@@ -119,7 +119,6 @@ pub struct OperatorSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub contracts: Vec<CapabilityContractSnapshot>,
-    pub is_intrinsic: bool,
     pub token_count: usize,
 }
 
@@ -636,7 +635,6 @@ fn snapshot_operator(
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, operator.return_type),
         contracts: snapshot_capability_contracts(syntax_trees, operator.contracts),
-        is_intrinsic: operator.is_intrinsic,
         token_count: operator.token_count,
     }
 }

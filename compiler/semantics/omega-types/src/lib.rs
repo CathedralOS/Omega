@@ -154,6 +154,13 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             }
             Item::Export(_) | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
+            Item::Operator(operator) => collect_state_parts(
+                &mut report,
+                syntax_trees,
+                operator.parameters,
+                operator.return_type,
+                "operator declaration",
+            ),
             Item::Platform(platform) => {
                 insert_declaration(&mut report, &platform.name, TypeDeclarationKind::Platform);
 

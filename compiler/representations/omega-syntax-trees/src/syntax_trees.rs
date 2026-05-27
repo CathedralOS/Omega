@@ -208,7 +208,6 @@ impl SyntaxTrees {
             parameters: self.copy_state_parameter_handle_span(other, operator.parameters),
             return_type: self.copy_type_reference_handle(other, operator.return_type),
             contracts: self.copy_capability_contract_span(other, operator.contracts),
-            is_intrinsic: operator.is_intrinsic,
             token_count: operator.token_count,
         }
     }

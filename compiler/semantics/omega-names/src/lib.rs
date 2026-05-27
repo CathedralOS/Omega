@@ -284,6 +284,15 @@ fn build_resolve_report_with_optional_sources(
                 );
                 collect_machine_references(&mut report, syntax_trees, machine);
             }
+            Item::Operator(operator) => {
+                collect_state_signature_parts(
+                    &mut report,
+                    syntax_trees,
+                    operator.parameters,
+                    operator.return_type,
+                    "operator declaration",
+                );
+            }
             Item::Platform(platform) => {
                 insert_definition(
                     &mut report,
@@ -756,6 +765,18 @@ fn collect_expression(
             collect_expression(report, syntax_trees, indexed.collection, owner, context);
             collect_expression(report, syntax_trees, indexed.index, owner, context);
         }
+        ExpressionNode::Membership(membership) => {
+            collect_expression(report, syntax_trees, membership.value, owner, context);
+            let path_members = syntax_trees.items.identifier_path_members(membership.domain);
+            let symbol = context.resolve_identifier_members(&report.symbols, path_members);
+            insert_reference_from_members(
+                report,
+                path_members,
+                ResolvedReferenceKind::Type,
+                owner,
+                symbol,
+            );
+        }
         ExpressionNode::Member(member) => {
             collect_expression(report, syntax_trees, member.receiver, owner, context);
         }
@@ -772,6 +793,14 @@ fn collect_expression(
                 owner,
                 symbol,
             );
+        }
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                collect_expression(report, syntax_trees, range.start, owner, context);
+            }
+            if range.end.is_valid() {
+                collect_expression(report, syntax_trees, range.end, owner, context);
+            }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
             let symbol = resolve_global_name(report, struct_literal.type_name.as_str());
@@ -1032,6 +1061,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Domain(_)
             | Item::Export(_)
             | Item::Invariant(_)
+            | Item::Operator(_)
             | Item::Target(_)
             | Item::TrustDefinition(_)
             | Item::Use(_) => {}
@@ -1312,6 +1342,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Domain(_)
             | Item::Export(_)
             | Item::Invariant(_)
+            | Item::Operator(_)
             | Item::Target(_)
             | Item::TrustDefinition(_)
             | Item::Use(_) => {}
@@ -1347,7 +1378,7 @@ fn item_symbol_seed(item: &Item) -> Option<SymbolSeed<'_>> {
             SymbolKind::Object,
             &trust_definition.name,
         )),
-        Item::Export(_) | Item::Use(_) => None,
+        Item::Export(_) | Item::Operator(_) | Item::Use(_) => None,
     }
 }
 
@@ -1363,7 +1394,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
         Item::TrustDefinition(trust_definition) => Some(trust_definition.name.as_str()),
-        Item::Export(_) | Item::Use(_) => None,
+        Item::Export(_) | Item::Operator(_) | Item::Use(_) => None,
     }
 }
 

@@ -18,7 +18,6 @@ pub(crate) fn lower_operator_definition(
             .transpose()?
             .unwrap_or_else(omega_typed_trees::types::TypeReferenceHandle::invalid),
         contracts: Default::default(),
-        is_intrinsic: operator.is_intrinsic,
         token_count: operator.token_count,
     };
 
@@ -28,7 +27,10 @@ pub(crate) fn lower_operator_definition(
             .push_operator_path_member(&mut typed_operator, crate::name::lower_name(member));
     }
 
-    for parameter in lowerer.source_trees.data_type_parameters(operator.type_parameters) {
+    for parameter in lowerer
+        .source_trees
+        .data_type_parameters(operator.type_parameters)
+    {
         lowerer.typed_trees.push_operator_type_parameter(
             &mut typed_operator,
             omega_typed_trees::data::TypeParameter {

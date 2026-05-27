@@ -1,12 +1,10 @@
 operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
-    index < items.len
-intrinsic;
+    index < items.len;
 
 operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
-    index < items.len
-intrinsic;
+    index < items.len;
 
 data Main {
 }

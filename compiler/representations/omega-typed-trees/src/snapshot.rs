@@ -140,7 +140,6 @@ pub struct OperatorDefinitionSnapshot {
     pub parameter_count: usize,
     pub has_return_type: bool,
     pub contract_count: usize,
-    pub is_intrinsic: bool,
     pub token_count: usize,
 }
 
@@ -163,7 +162,6 @@ fn operator_snapshot(program: &TypedTrees, operator: &OperatorDefinition) -> Ope
             .signature_contracts
             .span_or_empty(operator.contracts)
             .len(),
-        is_intrinsic: operator.is_intrinsic,
         token_count: operator.token_count,
     }
 }

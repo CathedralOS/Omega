@@ -183,8 +183,7 @@ mod tests {
         let source = r#"
         operator Slice::index<T>(items: &[T], index: usize) -> T
         requires
-            index < items.len
-        intrinsic;
+            index < items.len;
         "#;
 
         let tokens = Lexer::new(source)
@@ -203,11 +202,13 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["Slice", "index"]
         );
-        assert_eq!(program.data_type_parameters(operator.type_parameters).len(), 1);
+        assert_eq!(
+            program.data_type_parameters(operator.type_parameters).len(),
+            1
+        );
         assert_eq!(program.state_parameters(operator.parameters).len(), 2);
         assert!(operator.return_type.is_some());
         assert_eq!(program.signature_contracts(operator.contracts).len(), 1);
-        assert!(operator.is_intrinsic);
         assert!(operator.token_count > 0);
     }
 
@@ -221,7 +222,7 @@ mod tests {
         domain Quantity::Additive {
             self.value >= 0;
 
-            operator add(left: Quantity, right: Quantity) -> Quantity intrinsic;
+            operator add(left: Quantity, right: Quantity) -> Quantity;
         }
         "#;
 
