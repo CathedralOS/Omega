@@ -6,6 +6,7 @@ use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_values::simplify_state_expression;
 
+mod argument_materialization;
 mod branches;
 mod edges;
 mod guards;
