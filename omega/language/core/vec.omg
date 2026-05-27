@@ -17,6 +17,9 @@ trust compiler_vec_capacity {
 trust compiler_vec_index {
 }
 
+trust compiler_vec_index_mut {
+}
+
 trust compiler_vec_as_slice {
 }
 
@@ -42,6 +45,11 @@ operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
 requires
     index < items.len
 trust compiler_vec_index;
+
+operator Vec::index_mut<T>(items: &mut Vec<T>, index: usize) -> &mut T
+requires
+    index < items.len
+trust compiler_vec_index_mut;
 
 operator Vec::as_slice<T>(items: &Vec<T>) -> &[T]
 trust compiler_vec_as_slice;

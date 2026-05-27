@@ -30,6 +30,8 @@ meaning, without needing access to pointer descriptor internals.
     length/view operator contracts and primitive trust roots
   - `Array` and `Vec` now expose browsable index operator contracts with
     bounds proof obligations and primitive trust roots
+  - `Slice`, `Array`, and `Vec` now expose mutable index operator contracts
+    with the same bounds proof obligations and distinct primitive trust roots
   - core operators can now name their trusted primitive root through operator
     `trust` contracts instead of relying only on nearby trust declarations
   - `Ptr` core source now exposes browsable primitive-boundary operator
