@@ -1,0 +1,11 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self, entries: &[Entry]) -> usize {
+    let tail: &[Entry] = entries[1..];
+    tail.len
+}
