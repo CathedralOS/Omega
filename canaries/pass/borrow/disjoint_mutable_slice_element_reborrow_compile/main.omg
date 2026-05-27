@@ -1,0 +1,16 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut [Entry] = self.entries.as_mut_slice();
+    let left: &mut Entry = &mut view[0];
+    let right: &mut Entry = &mut view[1];
+
+    left = Entry { value: 1 };
+    right = Entry { value: 2 };
+}

@@ -51,14 +51,16 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                 .iter()
                 .enumerate()
             {
-                if let Some((owner_symbol, owner_name, place, kind)) = statement_borrow_loan(
-                    program,
-                    state,
-                    statement_index,
-                    machine.symbol,
-                    statement,
-                    &state_loan_trackers,
-                ) {
+                if let Some((owner_symbol, owner_name, place, source_owner_symbol, kind)) =
+                    statement_borrow_loan(
+                        program,
+                        state,
+                        statement_index,
+                        machine.symbol,
+                        statement,
+                        &state_loan_trackers,
+                    )
+                {
                     let loan_segments = access_segments.insert_many(place.segments.clone());
                     let handle = loans.append_to_span(
                         &mut loans_span,
@@ -66,6 +68,7 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                             statement_index,
                             last_use_statement_index: statement_index,
                             owner_symbol,
+                            source_owner_symbol,
                             root_symbol: place.root_symbol,
                             segments: loan_segments,
                             kind,
@@ -134,6 +137,7 @@ fn statement_borrow_loan(
     SymbolHandle,
     Identifier,
     accesses::BorrowAccessPlace,
+    SymbolHandle,
     omega_checked_trees::BorrowAccessKind,
 )> {
     match statement {
@@ -178,10 +182,14 @@ fn statement_borrow_loan(
                 _ => None,
             }?;
 
+            let (place, source_owner_symbol) =
+                rebase_borrow_place_through_local_loan(place, loan_trackers);
+
             Some((
                 local_data.symbol,
                 local_data.name.clone(),
-                rebase_borrow_place_through_local_loan(place, loan_trackers),
+                place,
+                source_owner_symbol,
                 if local_is_mutable_reference {
                     omega_checked_trees::BorrowAccessKind::Mutable
                 } else {
@@ -244,13 +252,13 @@ fn helper_call_borrow_loan_place(
 fn rebase_borrow_place_through_local_loan(
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
-) -> accesses::BorrowAccessPlace {
+) -> (accesses::BorrowAccessPlace, SymbolHandle) {
     let Some(source_loan) = loan_trackers
         .iter()
         .rev()
         .find(|loan| loan.owner_symbol == place.root_symbol)
     else {
-        return place;
+        return (place, SymbolHandle::invalid());
     };
 
     let mut rebased_segments = Vec::with_capacity(
@@ -263,10 +271,13 @@ fn rebase_borrow_place_through_local_loan(
     rebased_segments.extend(source_loan.place.segments.iter().copied());
     rebased_segments.extend(place.segments.iter().copied());
 
-    accesses::BorrowAccessPlace {
-        root_symbol: source_loan.place.root_symbol,
-        segments: rebased_segments,
-    }
+    (
+        accesses::BorrowAccessPlace {
+            root_symbol: source_loan.place.root_symbol,
+            segments: rebased_segments,
+        },
+        source_loan.owner_symbol,
+    )
 }
 
 fn is_reference_type(

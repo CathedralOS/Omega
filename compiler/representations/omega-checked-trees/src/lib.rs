@@ -85,6 +85,7 @@ pub struct BorrowLoanFact {
     pub statement_index: usize,
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
+    pub source_owner_symbol: SymbolHandle,
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
     pub kind: BorrowAccessKind,

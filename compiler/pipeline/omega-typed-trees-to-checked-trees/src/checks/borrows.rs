@@ -83,6 +83,11 @@ fn check_statement_borrows(
                 {
                     continue;
                 }
+                if loan.source_owner_symbol == active_loan.owner_symbol
+                    && active_loan.kind == BorrowAccessKind::Mutable
+                {
+                    continue;
+                }
 
                 if !borrow_loan_overlaps_loan(program, facts, loan, active_loan) {
                     continue;
