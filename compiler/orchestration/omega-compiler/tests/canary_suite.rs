@@ -2931,6 +2931,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_mutable_slice_element_write_compile",
     "slices/runtime_mutable_slice_element_write_exit",
     "slices/subslice_literal_bounds_compile",
+    "slices/subslice_local_bound_facts_compile",
     "slices/subslice_range_surface_compile",
     "slices/runtime_subslice_range_len_exit",
     "slices/runtime_subslice_bounded_dynamic_index_exit",

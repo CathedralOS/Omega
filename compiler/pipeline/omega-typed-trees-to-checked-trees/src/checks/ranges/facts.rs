@@ -39,6 +39,7 @@ pub(super) fn fixed_array_type_length(
 pub(super) struct SliceLengthFacts<'field> {
     fields: &'field [(SymbolHandle, String, usize)],
     pub(super) locals: Vec<(SymbolHandle, String, usize)>,
+    pub(super) integer_locals: Vec<(SymbolHandle, String, i64)>,
 }
 
 impl<'field> SliceLengthFacts<'field> {
@@ -46,6 +47,7 @@ impl<'field> SliceLengthFacts<'field> {
         Self {
             fields,
             locals: Vec::new(),
+            integer_locals: Vec::new(),
         }
     }
 
@@ -80,6 +82,25 @@ impl<'field> SliceLengthFacts<'field> {
             .find_map(|(_, local_name, length)| {
                 name.is_some_and(|name| name == local_name)
                     .then_some(*length)
+            })
+    }
+
+    pub(super) fn local_integer(&self, symbol: SymbolHandle, name: Option<&str>) -> Option<i64> {
+        if let Some(value) = self
+            .integer_locals
+            .iter()
+            .rev()
+            .find_map(|(local, _, value)| (*local == symbol).then_some(*value))
+        {
+            return Some(value);
+        }
+
+        self.integer_locals
+            .iter()
+            .rev()
+            .find_map(|(_, local_name, value)| {
+                name.is_some_and(|name| name == local_name)
+                    .then_some(*value)
             })
     }
 }

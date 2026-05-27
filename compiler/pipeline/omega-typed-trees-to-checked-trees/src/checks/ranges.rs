@@ -55,6 +55,11 @@ fn check_statement(
                     .locals
                     .push((local.symbol, local.name.to_string(), length));
             }
+            if let Some(value) = expression_integer_value(program, facts, local.initial_value) {
+                facts
+                    .integer_locals
+                    .push((local.symbol, local.name.to_string(), value));
+            }
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
@@ -116,7 +121,7 @@ fn check_expression(
         ExpressionNode::Cast(cast) => check_expression(program, facts, cast.value, diagnostics),
         ExpressionNode::Indexed(indexed) => {
             if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
-                check_index(program, indexed.index, length, diagnostics);
+                check_index(program, facts, indexed.index, length, diagnostics);
             }
             check_expression(program, facts, indexed.collection, diagnostics);
             check_expression(program, facts, indexed.index, diagnostics);
@@ -151,14 +156,21 @@ fn check_expression(
 
 fn check_index(
     program: &omega_typed_trees::TypedTrees,
+    facts: &SliceLengthFacts<'_>,
     index: ExpressionHandle,
     length: usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.expression_table.expression(index) {
-        ExpressionNode::Integer(index_value) => {
-            let valid = *index_value >= 0
-                && usize::try_from(*index_value).is_ok_and(|index| index < length);
+        ExpressionNode::Range(range) => {
+            check_range_index(program, facts, index, range, length, diagnostics)
+        }
+        _ => {
+            let Some(index_value) = expression_integer_value(program, facts, index) else {
+                return;
+            };
+            let valid =
+                index_value >= 0 && usize::try_from(index_value).is_ok_and(|index| index < length);
             if !valid {
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot prove index `{}` is within length {}",
@@ -167,21 +179,18 @@ fn check_index(
                 )));
             }
         }
-        ExpressionNode::Range(range) => {
-            check_range_index(program, index, range, length, diagnostics)
-        }
-        _ => {}
     }
 }
 
 fn check_range_index(
     program: &omega_typed_trees::TypedTrees,
+    facts: &SliceLengthFacts<'_>,
     index: ExpressionHandle,
     range: &TableRangeExpression,
     length: usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some((start, end)) = literal_range_bounds(program, range) else {
+    let Some((start, end)) = provable_range_bounds(program, facts, range) else {
         diagnostics.push(Diagnostic::error(format!(
             "cannot prove subslice range `{}` is within slice length {}",
             program.expression_table.display_name(index),
@@ -206,28 +215,41 @@ fn check_range_index(
     }
 }
 
-fn literal_range_bounds(
+fn provable_range_bounds(
     program: &omega_typed_trees::TypedTrees,
+    facts: &SliceLengthFacts<'_>,
     range: &TableRangeExpression,
 ) -> Option<(i64, Option<i64>)> {
     let start = if range.start.is_valid() {
-        let ExpressionNode::Integer(start) = program.expression_table.expression(range.start)
-        else {
-            return None;
-        };
-        *start
+        expression_integer_value(program, facts, range.start)?
     } else {
         0
     };
     let end = if range.end.is_valid() {
-        let ExpressionNode::Integer(end) = program.expression_table.expression(range.end) else {
-            return None;
-        };
-        Some(*end)
+        Some(expression_integer_value(program, facts, range.end)?)
     } else {
         None
     };
     Some((start, end))
+}
+
+fn expression_integer_value(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &SliceLengthFacts<'_>,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Name(path) => facts.local_integer(
+            path.symbol,
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .last()
+                .map(|name| name.as_str()),
+        ),
+        _ => None,
+    }
 }
 
 fn expression_indexable_length(
@@ -243,7 +265,7 @@ fn expression_indexable_length(
         }
         ExpressionNode::Indexed(indexed) => {
             let length = expression_indexable_length(program, facts, indexed.collection)?;
-            range_result_length(program, indexed.index, length)
+            range_result_length(program, facts, indexed.index, length)
         }
         ExpressionNode::Member(member) => {
             facts.field_length(member.member_symbol, Some(member.member.as_str()))
@@ -262,13 +284,14 @@ fn expression_indexable_length(
 
 fn range_result_length(
     program: &omega_typed_trees::TypedTrees,
+    facts: &SliceLengthFacts<'_>,
     index: ExpressionHandle,
     length: usize,
 ) -> Option<usize> {
     let ExpressionNode::Range(range) = program.expression_table.expression(index) else {
         return None;
     };
-    let (start, end) = literal_range_bounds(program, range)?;
+    let (start, end) = provable_range_bounds(program, facts, range)?;
     let start = usize::try_from(start).ok()?;
     let end = end.map(usize::try_from).transpose().ok()?.unwrap_or(length);
     if start > end || end > length {
