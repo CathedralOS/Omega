@@ -29,6 +29,7 @@ pub enum TypeDeclarationKind {
     Invariant,
     Library,
     Machine,
+    Operator,
     Platform,
     State,
     Target,
@@ -154,13 +155,20 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             }
             Item::Export(_) | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
-            Item::Operator(operator) => collect_state_parts(
-                &mut report,
-                syntax_trees,
-                operator.parameters,
-                operator.return_type,
-                "operator declaration",
-            ),
+            Item::Operator(operator) => {
+                insert_declaration(
+                    &mut report,
+                    &operator_name(syntax_trees, operator.name),
+                    TypeDeclarationKind::Operator,
+                );
+                collect_state_parts(
+                    &mut report,
+                    syntax_trees,
+                    operator.parameters,
+                    operator.return_type,
+                    "operator declaration",
+                );
+            }
             Item::Platform(platform) => {
                 insert_declaration(&mut report, &platform.name, TypeDeclarationKind::Platform);
 
@@ -395,14 +403,104 @@ fn insert_reference(
     });
 }
 
+fn operator_name(
+    syntax_trees: &SyntaxTrees,
+    name: omega_core::arena::HandleSpan<omega_syntax_trees::identifier::Identifier>,
+) -> String {
+    syntax_trees
+        .items
+        .identifier_path_members(name)
+        .iter()
+        .map(omega_syntax_trees::identifier::Identifier::as_str)
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{TypeDeclarationKind, TypeReferenceUseKind, build_type_surface_report};
     use omega_core::arena::HandleSpan;
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{DomainDefinition, Item, Machine, State, StateParameterNode};
+    use omega_syntax_trees::item::{
+        DomainDefinition, Item, Machine, OperatorDefinition, State, StateParameterNode,
+        TypeParameter,
+    };
     use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+    #[test]
+    fn collects_operator_declarations_and_signature_types() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+
+        let name = syntax_trees.items.insert_identifier_path_members([
+            Identifier::generated("Slice"),
+            Identifier::generated("index"),
+        ]);
+        let type_parameter = syntax_trees.items.append_type_parameter(TypeParameter {
+            name: Identifier::generated("T"),
+        });
+        let generic_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("T")));
+        let slice_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Slice {
+                element_type: generic_type,
+            });
+        let borrowed_slice_type = syntax_trees.type_references.insert(TypeReferenceNode::Reference {
+            referee: slice_type,
+            is_mutable: false,
+        });
+        let index_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("usize")));
+        let items_parameter =
+            syntax_trees
+                .items
+                .insert_state_parameter_node(StateParameterNode {
+                    name: Identifier::generated("items"),
+                    type_reference: borrowed_slice_type,
+                    is_const: false,
+                    is_mutable: false,
+                    is_self: false,
+                });
+        let items_parameter = syntax_trees.items.append_state_parameter_handle(items_parameter);
+        let index_parameter =
+            syntax_trees
+                .items
+                .insert_state_parameter_node(StateParameterNode {
+                    name: Identifier::generated("index"),
+                    type_reference: index_type,
+                    is_const: false,
+                    is_mutable: false,
+                    is_self: false,
+                });
+        let _index_parameter = syntax_trees.items.append_state_parameter_handle(index_parameter);
+        syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            name,
+            type_parameters: HandleSpan::from_parts(type_parameter, 1),
+            parameters: HandleSpan::from_parts(items_parameter, 2),
+            return_type: generic_type,
+            contracts: HandleSpan::empty(),
+            token_count: 1,
+        }));
+
+        let report = build_type_surface_report(&syntax_trees);
+
+        assert!(
+            report.declarations.iter().any(|(_, declaration)| {
+                declaration.name == "Slice::index"
+                    && declaration.kind == TypeDeclarationKind::Operator
+            }),
+            "operator declaration should be recorded"
+        );
+        assert!(report.references.iter().any(|(_, reference)| {
+            reference.name == "usize" && reference.kind == TypeReferenceUseKind::Parameter
+        }));
+        assert!(report.references.iter().any(|(_, reference)| {
+            reference.name == "T" && reference.kind == TypeReferenceUseKind::ReturnType
+        }));
+    }
 
     #[test]
     fn collects_domain_declarations_and_target_types() {
@@ -487,6 +585,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),

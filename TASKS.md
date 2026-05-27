@@ -64,6 +64,8 @@ meaning, without needing access to pointer descriptor internals.
     resolved and typed trees
   - root operator declarations are now first-class definitions in the early
     name-resolution report and source symbol table
+  - root operator declarations are now first-class declarations in the early
+    type-surface report
   - duplicate root operator declarations reject with a focused diagnostic
   Next target:
   - lower operator names into symbols and validate ambiguous operator
