@@ -54,9 +54,7 @@ fn accepts_terminating_countdown_machine_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
+    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
@@ -244,7 +242,9 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
