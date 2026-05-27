@@ -3083,6 +3083,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "operators/domain_operator_unknown_trust",
     "operators/operator_unknown_trust",
     "operators/root_operator_duplicate",
+    "calls/imported_library_unknown_trust",
     "calls/runtime_helper_ordering_return",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
