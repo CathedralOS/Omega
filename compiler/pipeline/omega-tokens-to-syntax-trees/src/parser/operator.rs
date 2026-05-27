@@ -4,9 +4,7 @@ use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, OperatorDefinition,
-};
+use omega_syntax_trees::item::{CapabilityContract, CapabilityContractKind, OperatorDefinition};
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_operator_definition<'tokens, 'source>(
@@ -22,7 +20,6 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let contracts = parse_operator_contracts(syntax_trees, &mut input)?;
 
-    input = input.take_contextual("intrinsic")?;
     input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     let token_count = body_start_tokens.saturating_sub(input.tokens.len());
 
@@ -33,7 +30,6 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
             parameters,
             return_type,
             contracts,
-            is_intrinsic: true,
             token_count,
         },
         input,
@@ -55,12 +51,15 @@ fn parse_operator_contracts<'tokens, 'source>(
             *input = input.take_contextual("ensures")?;
             CapabilityContractKind::Ensures
         };
-        let ((facts, token_count), rest) = parse_proof_facts_until(syntax_trees, *input, |input| {
-            input.at_contextual("requires")
-                || input.at_contextual("ensures")
-                || input.at_contextual("intrinsic")
-                || input.tokens.is_empty()
-        })?;
+        let ((facts, token_count), rest) =
+            parse_proof_facts_until(syntax_trees, *input, |input| {
+                input.at_punctuation(PunctuationKind::Semicolon)
+                    || input.at_punctuation(PunctuationKind::RightBrace)
+                    || input.at_contextual("requires")
+                    || input.at_contextual("ensures")
+                    || input.at_contextual("operator")
+                    || input.tokens.is_empty()
+            })?;
         *input = rest;
 
         let handle = syntax_trees

@@ -40,7 +40,7 @@ For ordinary Omega code, users should not have to write every contract
 explicitly. The compiler knows the contracts for assignment, arithmetic, field
 access, transitions, borrows, cleanup, and similar language operations.
 
-For boundary code, contracts must be explicit. Host APIs, inline assembly, target intrinsics, and trusted packages sit at the edge of Omega's semantic world. The compiler cannot honestly infer their behavior unless the toolchain or author supplies a contract.
+For boundary code, contracts must be explicit. Host APIs, inline assembly, target-specific primitive operations, and trusted packages sit at the edge of Omega's semantic world. The compiler cannot honestly infer their behavior unless the toolchain or author supplies a contract.
 
 Likely obligations:
 

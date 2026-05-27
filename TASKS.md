@@ -19,8 +19,8 @@ meaning, without needing access to pointer descriptor internals.
     under `omega/language/core`
   - initial browsable `Nat::Descending` home for termination ranking docs
   - import canaries for the first core collection/text module surfaces
-  - `Slice` core source now exposes intrinsic index and subslice-style operator
-    contracts with proof obligations
+  - `Slice` core source now exposes index and subslice-style operator contracts
+    with proof obligations
   Next target:
   - expose proof/order names such as `Slice::Length` from that core surface
   - replace comment-only sketches with parser-supported declarations as syntax
@@ -36,22 +36,31 @@ meaning, without needing access to pointer descriptor internals.
   - keep safe source away from raw pointer fields while still giving host/ABI code a truthful low-level model
   - audit places where slice/string descriptor logic is spread across backend stages and identify a single representation owner
 
+- [ ] Trusted primitive registry
+  Core contracts need an auditable implementation authority without inventing ad hoc keywords on every declaration.
+  Next target:
+  - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
+  - require trusted implementation bindings to reference registered roots
+  - report every trusted primitive root used by a build in the trust artifact
+  - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
+  - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
+
 - [ ] Operator declarations and overload resolution
   Operators should have visible semantic homes instead of being anonymous parser/backend special cases.
   Landed:
   - root-level operator declarations parse as inert declaration surface
-  - compile canary for a core-style intrinsic operator signature
+  - compile canary for a core-style operator contract signature
   - operator declaration placeholders are preserved through symbol-resolved and
     typed trees
   - operator declarations now carry name path, type parameters, parameters,
-    return type, contracts, and intrinsic mode through typed trees
+    return type, and contracts through typed trees
   - duplicate root operator declarations reject with a focused diagnostic
   Next target:
   - lower operator names into symbols and validate ambiguous operator
     declarations by signature and context
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
-  - support compiler-intrinsic operator bodies for core types without hiding their signatures and proof obligations
+  - design trusted implementation bindings for core operators without hiding their signatures and proof obligations
   - decide how ordinary trait-like operator requirements relate to existing `trait` machine requirements
   - add ambiguity diagnostics before adding broad overload power
 
@@ -60,7 +69,7 @@ meaning, without needing access to pointer descriptor internals.
   Landed:
   - domain bodies can contain inert operator declaration surface without being
     mistaken for proof facts
-  - compile canary for a domain-scoped intrinsic operator signature
+  - compile canary for a domain-scoped operator signature
   - domain operator declarations are preserved as domain-owned declarations
     through typed trees
   - duplicate domain operator declarations reject with a focused diagnostic
@@ -129,7 +138,7 @@ meaning, without needing access to pointer descriptor internals.
   `Array` and `Vec` should be owners that can produce `Slice` views.
   Next target:
   - make fixed arrays visible as `Array[T; N]` or an equivalent core concept
-  - define `Array::as_slice` / `Array::as_mut_slice` as visible operator/machine contracts, even if intrinsic
+  - define `Array::as_slice` / `Array::as_mut_slice` as visible operator/machine contracts backed by trusted primitive lowering where needed
   - design `Vec[T]` as owned dynamic storage with length and capacity
   - define how `Vec` borrowing prevents reallocation or mutation that would invalidate active slices
   - add first `Vec` allocation/storage canaries once allocator support exists
@@ -159,7 +168,7 @@ meaning, without needing access to pointer descriptor internals.
   - quantified or sequence-style facts for text/slice invariants
   - reusable proof lemmas for length, bounds, and window transformations
   - better diagnostics when a proof-backed operator is missing a required fact
-  - trusted proof boundaries for host/core intrinsics
+  - trusted proof boundaries for host/core primitive implementations
 
 - [ ] Borrow checking over views
   Slice and string views make overlap reasoning central.

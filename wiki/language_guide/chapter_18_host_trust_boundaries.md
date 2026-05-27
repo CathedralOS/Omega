@@ -368,7 +368,8 @@ This sketch needs more design work, but the direction is important:
   vectors. Address-level representation belongs to compiler/runtime lowering
   and explicit trusted boundary modeling, not the normal surface language.
 - Core operators such as slice indexing and subslicing should have visible
-  signatures and contracts even when their bodies are compiler intrinsics.
+  signatures and contracts; their implementations may be bound to explicitly
+  trusted compiler/runtime primitives below the public core surface.
 
 Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
 extra invariant parameters.
@@ -395,6 +396,14 @@ For ordinary Omega code, the compiler should know the contracts for
 assignments, arithmetic, borrows, transitions, calls, and field access. For
 imported libraries and syscall surfaces, the contract must be declared or
 imported from an audited package.
+
+Core primitives use the same discipline. A public declaration such as a slice
+indexing operator should state the visible contract. The implementation should
+then bind to a registered trusted primitive root such as slice indexing,
+descriptor construction, pointer offset, allocation, or target ABI lowering. The
+root name is not a general-purpose user escape hatch: it must come from the
+toolchain, core package, target configuration, or an explicitly whitelisted
+audited provider, and it should appear in the build trust report.
 
 ## Blocking Boundaries
 

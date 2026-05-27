@@ -182,6 +182,6 @@ The `where` spelling is provisional. It lines up with the idea that assembly blo
 - Target-specific instructions may require target-feature contracts.
 - Assembly should be unavailable in safe/proven builds unless all obligations are discharged or explicitly trusted.
 - The compiler should prefer parsed, restricted, contract-emitting assembly over arbitrary textual assembly.
-- Manual contracts are for unknown instructions, target intrinsics, or proof gaps, not a replacement for compiler-known instruction contracts.
+- Manual contracts are for unknown instructions, target-specific primitive operations, or proof gaps, not a replacement for compiler-known instruction contracts.
 
 Omega can still emit machine bytes directly. Inline assembly is about letting users request specific low-level operations while preserving the compiler's ability to reason about the program.

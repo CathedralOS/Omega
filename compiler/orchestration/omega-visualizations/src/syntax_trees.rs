@@ -412,10 +412,9 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .collect::<Vec<_>>()
                 .join("::");
             format!(
-                "operator {name}\nparameters: {}\ncontracts: {}\nintrinsic: {}\ntokens: {}",
+                "operator {name}\nparameters: {}\ncontracts: {}\ntokens: {}",
                 value.parameters.len(),
                 contract_summary(syntax, value.contracts),
-                value.is_intrinsic,
                 value.token_count,
             )
         }

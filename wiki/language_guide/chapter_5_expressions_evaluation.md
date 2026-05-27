@@ -62,9 +62,9 @@ operation for the operand meaning in scope.
 
 This model also applies to privileged syntax. `items[index]` should be
 understood as an indexing operator, not as raw pointer syntax. `items[1..]`
-should be understood as a range-slice operator. Those operators may have
-compiler-intrinsic implementations for core types, but they should still have a
-semantic home that users and tools can inspect.
+should be understood as a range-slice operator. Those operators should have a
+semantic home that users and tools can inspect, while their trusted primitive
+implementation is bound through the compiler/runtime layer.
 
 This chapter only defines ordinary evaluation. Domain-sensitive operator
 resolution, if Omega adopts it, belongs to the domains chapter because it
@@ -103,7 +103,8 @@ belong near the trusted/primitive layer, while the public proof and operator
 surface belongs to core concepts such as `Slice`.
 
 This means names such as `Slice::Length` should be browsable and documented as
-core semantic declarations even if their implementation is compiler-intrinsic.
+core semantic declarations even if their runtime representation is compiler
+managed.
 
 ## Indexing And Slices
 
@@ -132,8 +133,9 @@ Omega loops often look like repeated transitions over either:
 
 The important point is that indexing is not magical pointer syntax. It is a
 normal operation guarded by proof of a valid range. For built-in core
-collections, the operator body may be intrinsic, but the signature, obligations,
-and named measures should still be visible as part of the core language surface.
+collections, the operator contract and named measures should be visible as part
+of the core language surface; the low-level pointer/descriptor work belongs to a
+trusted primitive implementation layer below that surface.
 
 ## Numeric Semantics
 

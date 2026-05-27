@@ -198,8 +198,7 @@ mod tests {
         let source = r#"
         operator Slice::index<T>(items: &[T], index: usize) -> T
         requires
-            index < items.len
-        intrinsic;
+            index < items.len;
         "#;
 
         let tokens = Lexer::new(source)
@@ -243,7 +242,6 @@ mod tests {
                 .len(),
             1
         );
-        assert!(operator.is_intrinsic);
         assert!(operator.token_count > 0);
     }
 
@@ -257,7 +255,7 @@ mod tests {
         domain Quantity::Additive {
             self.value >= 0;
 
-            operator add(left: Quantity, right: Quantity) -> Quantity intrinsic;
+            operator add(left: Quantity, right: Quantity) -> Quantity;
         }
         "#;
 

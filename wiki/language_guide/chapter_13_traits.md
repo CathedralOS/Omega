@@ -118,8 +118,9 @@ let item: Item = items[index];
 ```
 
 can resolve to an indexing operator requirement on the collection/view type.
-For core types such as `Slice`, that operator may have a compiler-intrinsic
-implementation, but it still has a visible signature and contract.
+For core types such as `Slice`, that operator still has a visible signature and
+contract, even when the implementation is bound to a trusted compiler/runtime
+primitive below the public core surface.
 
 Domain-sensitive operator resolution is a layer above this. A proved domain may
 select an operator meaning only when the domain context makes the result unique.
