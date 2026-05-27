@@ -20,6 +20,8 @@ pub struct MachineStorage {
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
+    pub terminates: bool,
+    pub decreases: HandleSpan<ExpressionHandle>,
     pub effects: HandleSpan<DiagnosticName>,
     pub contracts: HandleSpan<SignatureContract>,
     pub states: HandleSpan<Handle<State>>,

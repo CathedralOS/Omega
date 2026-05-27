@@ -1,4 +1,5 @@
 use crate::parser::context::StateKind;
+use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{
@@ -28,7 +29,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let ((effects, contracts), next) = parse_machine_clauses(syntax_trees, next)?;
+    let ((terminates, decreases, effects, contracts), next) =
+        parse_machine_clauses(syntax_trees, next)?;
     input = next;
     let MachinePath {
         name,
@@ -110,6 +112,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
             name,
             attached_data,
             satisfies,
+            terminates,
+            decreases,
             effects,
             contracts,
             states,
@@ -121,18 +125,49 @@ pub(super) fn parse_machine<'tokens, 'source>(
 fn parse_machine_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (HandleSpan<Identifier>, HandleSpan<CapabilityContract>)> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        bool,
+        HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
+        HandleSpan<Identifier>,
+        HandleSpan<CapabilityContract>,
+    ),
+> {
+    let mut terminates = false;
+    let mut decreases = HandleSpan::empty();
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::LeftBrace) {
+        if input.at_contextual("terminates") {
+            input = input.take_contextual("terminates")?;
+            terminates = true;
+            continue;
+        }
+
+        if input.at_contextual("decreases") {
+            input = input.take_contextual("decreases")?;
+            let (expression, rest) =
+                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            input = rest;
+            decreases = syntax_trees
+                .expressions
+                .insert_expression_handles([expression]);
+
+            continue;
+        }
+
         if input.at_contextual("effects") {
             input = input.take_contextual("effects")?;
             while !input.at_punctuation(PunctuationKind::LeftBrace)
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
+                && !input.at_contextual("terminates")
+                && !input.at_contextual("decreases")
                 && !input.at_contextual("where")
                 && !input.at_contextual("satisfies")
             {
@@ -166,6 +201,8 @@ fn parse_machine_clauses<'tokens, 'source>(
                     input.at_punctuation(PunctuationKind::LeftBrace)
                         || input.at_contextual("requires")
                         || input.at_contextual("ensures")
+                        || input.at_contextual("terminates")
+                        || input.at_contextual("decreases")
                         || input.at_contextual("effects")
                         || input.at_contextual("where")
                         || input.at_contextual("satisfies")
@@ -202,7 +239,7 @@ fn parse_machine_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
-    Ok(((effects, contracts), input))
+    Ok(((terminates, decreases, effects, contracts), input))
 }
 
 fn parse_satisfies_traits<'tokens, 'source>(

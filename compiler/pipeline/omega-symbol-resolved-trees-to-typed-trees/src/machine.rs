@@ -18,6 +18,8 @@ pub(crate) fn lower_machine(
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
+        terminates: machine.terminates,
+        decreases: omega_core::arena::HandleSpan::empty(),
         effects: omega_core::arena::HandleSpan::empty(),
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
@@ -67,6 +69,22 @@ pub(crate) fn lower_machine(
             },
         );
     }
+
+    let mut decreases = Vec::new();
+    for decrease in lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.decreases)
+    {
+        let decrease = lower_expression_handle(lowerer, *decrease)?;
+        decreases.push(decrease);
+    }
+    typed_machine.decreases = lowerer
+        .typed_trees
+        .expression_table
+        .insert_expression_handles(decreases);
 
     for effect in lowerer.source_trees.machine_effects(machine) {
         let effect = crate::name::lower_name(effect);

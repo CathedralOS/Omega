@@ -1,5 +1,6 @@
 mod borrows;
 mod contracts;
+mod termination;
 
 use omega_core::diagnostics::Diagnostic;
 
@@ -15,6 +16,10 @@ pub(crate) fn check_checked_facts(
 
     if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(program, facts) {
         diagnostics.append(&mut contract_diagnostics);
+    }
+
+    if let Err(mut termination_diagnostics) = termination::check_machine_termination(program) {
+        diagnostics.append(&mut termination_diagnostics);
     }
 
     if diagnostics.is_empty() {

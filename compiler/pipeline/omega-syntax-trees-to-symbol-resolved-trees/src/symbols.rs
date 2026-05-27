@@ -699,6 +699,8 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             contains,
             owned_data,
             satisfies: _,
+            terminates: _,
+            decreases: _,
             effects: _,
             contracts: _,
             states,

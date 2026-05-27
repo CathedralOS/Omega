@@ -221,6 +221,38 @@ mod tests {
     }
 
     #[test]
+    fn parses_machine_termination_clauses() {
+        let source = r#"
+        machine walk(items: &[Item], remaining: usize)
+        terminates
+        decreases remaining
+        {
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("machine root item");
+
+        assert!(machine.terminates);
+        assert_eq!(
+            parsed
+                .expressions
+                .expression_handles(machine.decreases)
+                .len(),
+            1
+        );
+    }
+
+    #[test]
     fn rejects_bare_arrow_transition_in_explicit_state_body() {
         let source = r#"
         machine Main::main(&mut self) {

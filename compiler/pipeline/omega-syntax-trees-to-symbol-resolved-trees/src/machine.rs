@@ -1,3 +1,4 @@
+use crate::expression::lower_expression_into_table;
 use crate::program::Lowerer;
 use crate::state::{lower_signature_contracts, lower_signature_effects, lower_state_node};
 use omega_core::arena::{Handle, HandleSpan};
@@ -14,6 +15,7 @@ pub(crate) fn lower_machine_into(
 ) -> Result<(), Diagnostic> {
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
+    let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
@@ -27,12 +29,38 @@ pub(crate) fn lower_machine_into(
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies,
+            terminates: machine.terminates,
+            decreases,
             effects,
             contracts,
             states,
         },
     });
     Ok(())
+}
+
+fn lower_machine_decreases(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    decreases: HandleSpan<syntax::expression::ExpressionHandle>,
+) -> Result<HandleSpan<omega_symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
+    let mut expressions = Vec::new();
+
+    for expression in syntax_trees.expressions.expression_handles(decreases) {
+        let expression = lower_expression_into_table(
+            syntax_trees,
+            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+            *expression,
+        )?;
+        expressions.push(expression);
+    }
+
+    Ok(lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert_expression_handles(expressions))
 }
 
 fn lower_machine_trait_conformances(
