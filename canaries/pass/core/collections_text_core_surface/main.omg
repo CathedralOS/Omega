@@ -1,0 +1,9 @@
+use omega::language::core::array;
+use omega::language::core::str;
+use omega::language::core::vec;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

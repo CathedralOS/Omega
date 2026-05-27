@@ -7,3 +7,40 @@
 // The allocation buffer and reallocation mechanics are compiler/runtime
 // internals; the visible contracts belong here so slices derived from Vec can
 // participate in borrow checking and proof obligations.
+
+trust compiler_vec_length {
+}
+
+trust compiler_vec_capacity {
+}
+
+trust compiler_vec_as_slice {
+}
+
+trust compiler_vec_as_mut_slice {
+}
+
+trust compiler_vec_push {
+}
+
+trust compiler_vec_pop {
+}
+
+trust compiler_vec_allocate {
+}
+
+operator Vec::Length<T>(items: &Vec<T>) -> usize;
+
+operator Vec::Capacity<T>(items: &Vec<T>) -> usize;
+
+operator Vec::as_slice<T>(items: &Vec<T>) -> &[T];
+
+operator Vec::as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T];
+
+operator Vec::push<T>(items: &mut Vec<T>, value: T) -> ()
+requires
+    items.len < items.capacity;
+
+operator Vec::pop<T>(items: &mut Vec<T>) -> Option<T>
+requires
+    items.len > 0;

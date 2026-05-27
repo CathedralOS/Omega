@@ -25,9 +25,13 @@ meaning, without needing access to pointer descriptor internals.
     with proof obligations
   - `Slice::Length` and `Nat::Descending` now have explicit browsable core
     declarations through the current operator declaration surface
+  - `Array`, `Vec`, and current text surfaces now expose initial browsable
+    length/view operator contracts and primitive trust roots
   Next target:
   - replace comment-only sketches with parser-supported declarations as syntax
     becomes available
+  - replace provisional `Array<T>` surface spelling with fixed-length array
+    syntax once const-generic array declarations exist
   - decide which names are public core and which are primitive/compiler-only
   - add canaries that import or reference core names directly once syntax exists
 
