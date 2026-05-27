@@ -20,6 +20,12 @@ trust compiler_str_view_length {
 trust compiler_str_view_bytes {
 }
 
+trust compiler_str_view_byte {
+}
+
+trust compiler_str_view_range {
+}
+
 operator String::Length(text: String) -> usize
 trust compiler_string_length;
 
@@ -31,3 +37,13 @@ trust compiler_str_view_length;
 
 operator StrView::bytes(text: &str) -> &[u8]
 trust compiler_str_view_bytes;
+
+operator StrView::byte(text: &str, index: usize) -> u8
+requires
+    index < text.len
+trust compiler_str_view_byte;
+
+operator StrView::range(text: &str, start: usize, end: usize) -> &str
+requires
+    start <= end && end <= text.len
+trust compiler_str_view_range;
