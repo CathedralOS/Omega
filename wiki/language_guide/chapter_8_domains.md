@@ -326,7 +326,9 @@ Working model:
 - Resolution must be static and unambiguous.
 - Operator declarations with the same name may form an overload set only when
   their parameter types differ. Return-only overloads and alpha-equivalent
-  generic duplicates are ambiguous and should reject before resolution.
+  generic duplicates are ambiguous and should reject before resolution. Generic
+  comparison is structural, so reordered type parameter declarations do not
+  manufacture a distinct candidate.
 
 For slices, this means the source form:
 
