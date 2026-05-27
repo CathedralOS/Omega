@@ -363,6 +363,14 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Maintain three honest canary categories
   `pass` means supported, `fail` means rejected as intended, and `pending` means the desired language behavior is known but implementation is still behind.
+  Landed:
+  - pending canaries can now track both currently-rejecting future passes and
+    currently-accepting future rejects
+  Current pending canaries:
+  - `canaries/pending/termination/custom_ranking_struct_view_unimplemented`
+    should become a pass when ranking views can project through declared bodies
+  - `canaries/pending/operators/operator_unknown_trust_unrejected` should
+    become a fail once unregistered operator trust roots are diagnostics
   Next target:
   - promote pending canaries quickly when fixed
   - add pending canaries for serious known gaps instead of leaving them as ad hoc run probes
