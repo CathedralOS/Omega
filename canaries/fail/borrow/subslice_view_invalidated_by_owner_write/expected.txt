@@ -1,0 +1,1 @@
+mutates `self.entries[1].value` while local borrow `tail` is still active

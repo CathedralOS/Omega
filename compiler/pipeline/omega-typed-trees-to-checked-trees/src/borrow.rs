@@ -14,6 +14,7 @@ struct StateLoanTracker {
     handle: Handle<omega_checked_trees::BorrowLoanFact>,
     owner_symbol: SymbolHandle,
     owner_name: Identifier,
+    place: accesses::BorrowAccessPlace,
 }
 
 pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
@@ -50,13 +51,15 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                 .iter()
                 .enumerate()
             {
-                if let Some((owner_symbol, owner_name, place)) = statement_borrow_loan(
+                if let Some((owner_symbol, owner_name, place, kind)) = statement_borrow_loan(
                     program,
                     state,
                     statement_index,
                     machine.symbol,
                     statement,
+                    &state_loan_trackers,
                 ) {
+                    let loan_segments = access_segments.insert_many(place.segments.clone());
                     let handle = loans.append_to_span(
                         &mut loans_span,
                         omega_checked_trees::BorrowLoanFact {
@@ -64,13 +67,15 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
                             last_use_statement_index: statement_index,
                             owner_symbol,
                             root_symbol: place.root_symbol,
-                            segments: access_segments.insert_many(place.segments),
+                            segments: loan_segments,
+                            kind,
                         },
                     );
                     state_loan_trackers.push(StateLoanTracker {
                         handle,
                         owner_symbol,
                         owner_name,
+                        place,
                     });
                 }
                 let mut call_ordinal = 0usize;
@@ -124,7 +129,13 @@ fn statement_borrow_loan(
     statement_index: usize,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
-) -> Option<(SymbolHandle, Identifier, accesses::BorrowAccessPlace)> {
+    loan_trackers: &[StateLoanTracker],
+) -> Option<(
+    SymbolHandle,
+    Identifier,
+    accesses::BorrowAccessPlace,
+    omega_checked_trees::BorrowAccessKind,
+)> {
     match statement {
         StatementNode::LocalData(local_data) => {
             if !is_reference_type(program, local_data.type_reference) {
@@ -157,10 +168,26 @@ fn statement_borrow_loan(
                         call,
                     )
                 }
+                omega_checked_trees::expression::ExpressionNode::Indexed(_) => borrow_access_place(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    local_data.initial_value,
+                    machine_symbol,
+                ),
                 _ => None,
             }?;
 
-            Some((local_data.symbol, local_data.name.clone(), place))
+            Some((
+                local_data.symbol,
+                local_data.name.clone(),
+                rebase_borrow_place_through_local_loan(place, loan_trackers),
+                if local_is_mutable_reference {
+                    omega_checked_trees::BorrowAccessKind::Mutable
+                } else {
+                    omega_checked_trees::BorrowAccessKind::Read
+                },
+            ))
         }
         StatementNode::Assignment(_)
         | StatementNode::Call(_)
@@ -212,6 +239,34 @@ fn helper_call_borrow_loan_place(
         call.receiver,
         machine_symbol,
     )
+}
+
+fn rebase_borrow_place_through_local_loan(
+    place: accesses::BorrowAccessPlace,
+    loan_trackers: &[StateLoanTracker],
+) -> accesses::BorrowAccessPlace {
+    let Some(source_loan) = loan_trackers
+        .iter()
+        .rev()
+        .find(|loan| loan.owner_symbol == place.root_symbol)
+    else {
+        return place;
+    };
+
+    let mut rebased_segments = Vec::with_capacity(
+        source_loan
+            .place
+            .segments
+            .len()
+            .saturating_add(place.segments.len()),
+    );
+    rebased_segments.extend(source_loan.place.segments.iter().copied());
+    rebased_segments.extend(place.segments.iter().copied());
+
+    accesses::BorrowAccessPlace {
+        root_symbol: source_loan.place.root_symbol,
+        segments: rebased_segments,
+    }
 }
 
 fn is_reference_type(

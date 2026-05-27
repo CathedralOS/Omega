@@ -79,6 +79,11 @@ fn check_statement_borrows(
                 .borrow_loan_constraints(statement.entry_constraints)
             {
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
+                if loan.kind == BorrowAccessKind::Read && active_loan.kind == BorrowAccessKind::Read
+                {
+                    continue;
+                }
+
                 if !borrow_loan_overlaps_loan(program, facts, loan, active_loan) {
                     continue;
                 }
