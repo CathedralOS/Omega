@@ -1077,22 +1077,68 @@ fn validate_type_reference_handle(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
 ) {
+    validate_type_reference_handle_with_context(
+        program,
+        type_reference,
+        symbols,
+        diagnostics,
+        owner,
+        false,
+    );
+}
+
+fn validate_type_reference_handle_with_context(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: TypeReferenceOwner<'_>,
+    allow_bare_str: bool,
+) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            validate_type_reference_handle(program, *referee, symbols, diagnostics, owner);
+            validate_type_reference_handle_with_context(
+                program,
+                *referee,
+                symbols,
+                diagnostics,
+                owner,
+                type_reference_is_named_str(program, *referee),
+            );
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_type_reference_handle(program, *base_type, symbols, diagnostics, owner);
+            validate_type_reference_handle_with_context(
+                program,
+                *base_type,
+                symbols,
+                diagnostics,
+                owner,
+                allow_bare_str,
+            );
             validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            validate_type_reference_handle(program, *element_type, symbols, diagnostics, owner);
+            validate_type_reference_handle_with_context(
+                program,
+                *element_type,
+                symbols,
+                diagnostics,
+                owner,
+                false,
+            );
         }
         TypeReferenceNode::Slice { element_type } => {
-            validate_type_reference_handle(program, *element_type, symbols, diagnostics, owner);
+            validate_type_reference_handle_with_context(
+                program,
+                *element_type,
+                symbols,
+                diagnostics,
+                owner,
+                false,
+            );
         }
         TypeReferenceNode::Generic {
             base_name,
@@ -1119,6 +1165,13 @@ fn validate_type_reference_handle(
             }
         }
         TypeReferenceNode::Named { name, .. } => {
+            if name.as_str() == "str" && !allow_bare_str {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses unsized text view type `str` by value; use `&str`"
+                )));
+                return;
+            }
+
             if !symbols.has_type(name) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown data type `{name}`"
@@ -1127,6 +1180,13 @@ fn validate_type_reference_handle(
         }
         TypeReferenceNode::Unit => {}
     }
+}
+
+fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Named { name, .. } if name.as_str() == "str"
+    )
 }
 
 fn validate_type_constraints_node(

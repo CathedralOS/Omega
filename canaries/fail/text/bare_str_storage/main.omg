@@ -1,0 +1,6 @@
+data Main {
+    text: str;
+}
+
+machine Main::main(&mut self) {
+}

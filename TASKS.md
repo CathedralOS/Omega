@@ -46,6 +46,8 @@ meaning, without needing access to pointer descriptor internals.
     text growth has a browsable core surface
   - `str` is now a builtin type name, allowing user source to spell borrowed
     text views such as `&str` instead of only core declarations using them
+  - bare storage `str` now rejects early with a validation diagnostic directing
+    users to `&str`
   - core operators can now name their trusted primitive root through operator
     `trust` contracts instead of relying only on nearby trust declarations
   - `Ptr` core source now exposes browsable primitive-boundary operator
