@@ -146,6 +146,13 @@ fn parse_machine_clauses<'tokens, 'source>(
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
             terminates = true;
+            if starts_termination_clause_block(input) {
+                let (block_decreases, rest) = parse_termination_clause_block(syntax_trees, input)?;
+                input = rest;
+                if !block_decreases.is_empty() {
+                    decreases = block_decreases;
+                }
+            }
             continue;
         }
 
@@ -240,6 +247,50 @@ fn parse_machine_clauses<'tokens, 'source>(
         HandleSpan::from_parts(contract_start, contract_count)
     };
     Ok(((terminates, decreases, effects, contracts), input))
+}
+
+fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
+    if !input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty() {
+        return false;
+    }
+
+    let rest = Input::new(input.source_id, &input.tokens[1..]);
+    rest.tokens.first().is_some_and(|token| {
+        matches!(token.punctuation(), Some(PunctuationKind::RightBrace))
+            || matches!(token.lexeme.as_str(), "decreases" | "increases")
+    })
+}
+
+fn parse_termination_clause_block<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<omega_syntax_trees::expression::ExpressionHandle>> {
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut decreases = HandleSpan::empty();
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        if input.at_contextual("decreases") {
+            input = input.take_contextual("decreases")?;
+            let (expression, rest) =
+                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            decreases = syntax_trees
+                .expressions
+                .insert_expression_handles([expression]);
+            continue;
+        }
+
+        if input.at_contextual("increases") {
+            return Err(input.error_here(
+                "`increases` termination clauses are not implemented yet; use `decreases` for now",
+            ));
+        }
+
+        return Err(input.expected_one_of_here(&["`decreases`", "`}`"]));
+    }
+
+    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    Ok((decreases, input))
 }
 
 fn parse_satisfies_traits<'tokens, 'source>(
