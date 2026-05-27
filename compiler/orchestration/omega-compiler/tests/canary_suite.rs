@@ -3003,6 +3003,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/array_core_surface",
     "core/collections_text_core_surface",
     "core/nat_core_surface",
+    "core/ptr_core_surface",
     "core/slice_core_surface",
     "core/str_core_surface",
     "core/vec_core_surface",

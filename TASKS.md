@@ -19,7 +19,8 @@ meaning, without needing access to pointer descriptor internals.
     under `omega/language/core`
   - initial browsable `Ptr` primitive-boundary module under `omega/language/core`
   - initial browsable `Nat::Descending` home for termination ranking docs
-  - import canaries for the first core collection/text module surfaces
+  - import canaries for the first core collection/text and pointer primitive
+    module surfaces
   - `Slice` core source now exposes index and subslice-style operator contracts
     for start-only, end-only, and bounded range windows
     with proof obligations
