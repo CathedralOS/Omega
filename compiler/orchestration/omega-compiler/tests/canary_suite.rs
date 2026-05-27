@@ -3112,9 +3112,15 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
-    path: "termination/custom_ranking_struct_view_unimplemented",
-    expectation: PendingCanaryExpectation::CurrentlyRejects {
-        fragment: "cannot prove decreases clause",
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "termination/custom_ranking_struct_view_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove decreases clause",
+        },
     },
-}];
+    PendingCanary {
+        path: "trust/target_unknown_trust_unrejected",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];
