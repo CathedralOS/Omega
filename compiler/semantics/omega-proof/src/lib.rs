@@ -95,6 +95,18 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     domain.target_type,
                     &format!("domain `{}` target type", domain.name),
                 );
+                for operator in syntax_trees.items.operators(domain.operators) {
+                    collect_operator(
+                        &mut report,
+                        syntax_trees,
+                        operator,
+                        &format!(
+                            "domain `{}` operator `{}`",
+                            domain.name,
+                            operator_name(syntax_trees, operator.name)
+                        ),
+                    );
+                }
             }
             Item::Invariant(invariant) => {
                 report.invariants.insert(InvariantSurface {
@@ -120,7 +132,15 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     );
                 }
             }
-            Item::Use(_) | Item::Export(_) | Item::Operator(_) => {}
+            Item::Use(_) | Item::Export(_) => {}
+            Item::Operator(operator) => {
+                collect_operator(
+                    &mut report,
+                    syntax_trees,
+                    operator,
+                    &format!("operator `{}`", operator_name(syntax_trees, operator.name)),
+                );
+            }
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Platform(platform) => collect_platform(&mut report, syntax_trees, platform),
             Item::Trait(trait_definition) => {
@@ -145,6 +165,22 @@ fn collect_machine(report: &mut ProofSurfaceReport, syntax_trees: &SyntaxTrees, 
         let state = syntax_trees.items.state(*state);
         collect_state_node(report, syntax_trees, machine, state);
     }
+}
+
+fn collect_operator(
+    report: &mut ProofSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    operator: &omega_syntax_trees::item::OperatorDefinition,
+    owner: &str,
+) {
+    collect_contracts(report, syntax_trees, operator.contracts, owner);
+    collect_signature_parts(
+        report,
+        syntax_trees,
+        operator.parameters,
+        operator.return_type,
+        owner,
+    );
 }
 
 fn collect_state_node(
@@ -464,6 +500,19 @@ fn constraint_handle_name(
     output
 }
 
+fn operator_name(
+    syntax_trees: &SyntaxTrees,
+    name: omega_core::arena::HandleSpan<omega_syntax_trees::identifier::Identifier>,
+) -> String {
+    syntax_trees
+        .items
+        .identifier_path_members(name)
+        .iter()
+        .map(omega_syntax_trees::identifier::Identifier::as_str)
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 #[cfg(test)]
 mod tests {
     use omega_core::arena::HandleSpan;
@@ -471,7 +520,7 @@ mod tests {
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
         CapabilityContract, CapabilityContractKind, DomainDefinition, InvariantDefinition, Item,
-        Machine, State, StateParameterNode,
+        Machine, OperatorDefinition, State, StateParameterNode,
     };
     use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -501,6 +550,54 @@ mod tests {
         assert_eq!(domain.fact_count, 0);
         assert_eq!(domain.membership_fact_count, 0);
         assert_eq!(domain.body_token_count, 3);
+    }
+
+    #[test]
+    fn collects_operator_contract_surface() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let operator_name = syntax_trees.items.insert_identifier_path_members([
+            Identifier::generated("Slice"),
+            Identifier::generated("index"),
+        ]);
+        let requires = syntax_trees
+            .items
+            .append_capability_contract(CapabilityContract {
+                kind: CapabilityContractKind::Requires,
+                facts: HandleSpan::empty(),
+                token_count: 3,
+            });
+        let ensures = syntax_trees
+            .items
+            .append_capability_contract(CapabilityContract {
+                kind: CapabilityContractKind::Ensures,
+                facts: HandleSpan::empty(),
+                token_count: 3,
+            });
+        let return_type = syntax_trees
+            .type_references
+            .insert_named(Identifier::generated("T"));
+        syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            name: operator_name,
+            type_parameters: HandleSpan::empty(),
+            parameters: HandleSpan::empty(),
+            return_type,
+            contracts: HandleSpan::from_parts(
+                requires,
+                ensures
+                    .arena_index()
+                    .checked_sub(requires.arena_index())
+                    .expect("contracts should be contiguous")
+                    + 1,
+            ),
+            token_count: 1,
+        }));
+
+        let report = build_proof_surface_report(&syntax_trees);
+
+        assert_eq!(report.contracts.len(), 2);
+        assert!(report.contracts.iter().all(|(_, contract)| {
+            contract.owner == "operator `Slice::index`"
+        }));
     }
 
     #[test]
@@ -546,6 +643,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
@@ -587,6 +687,9 @@ mod tests {
             name: Identifier::generated("distinct_indices"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::from_parts(
                 requires,
