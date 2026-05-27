@@ -68,6 +68,7 @@ meaning, without needing access to pointer descriptor internals.
     type-surface report
   - domain-owned operator declarations are now surfaced in early name and type
     reports
+  - operator contracts now contribute to the early proof-surface report
   - duplicate root operator declarations reject with a focused diagnostic
   Next target:
   - lower operator names into symbols and validate ambiguous operator
