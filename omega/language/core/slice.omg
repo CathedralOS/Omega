@@ -11,3 +11,18 @@
 //   private descriptor primitive.
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
+
+operator Slice::index<T>(items: &[T], index: usize) -> T
+requires
+    index < items.len
+intrinsic;
+
+operator Slice::tail<T>(items: &[T]) -> &[T]
+requires
+    items.len > 0
+intrinsic;
+
+operator Slice::from<T>(items: &[T], start: usize) -> &[T]
+requires
+    start <= items.len
+intrinsic;
