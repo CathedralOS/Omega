@@ -3085,4 +3085,8 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "slices/slice_parameter_subslice_unproven",
         expectation: PendingCanaryExpectation::CurrentlyCompiles,
     },
+    PendingCanary {
+        path: "slices/known_length_dynamic_index_unproven",
+        expectation: PendingCanaryExpectation::CurrentlyCompiles,
+    },
 ];
