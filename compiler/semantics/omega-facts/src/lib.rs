@@ -1303,6 +1303,7 @@ mod tests {
             name: Identifier::generated("Player::Alive"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::from_parts(fact, 2),
+            operators: HandleSpan::empty(),
             body_token_count: 2,
         });
         program.push_domain_definition(DomainDefinition {
@@ -1310,6 +1311,7 @@ mod tests {
             name: Identifier::generated("Player::Valid"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
+            operators: HandleSpan::empty(),
             body_token_count: 0,
         });
 
@@ -1384,6 +1386,7 @@ mod tests {
             name: Identifier::generated("Player::Alive"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::from_parts(membership, 1),
+            operators: HandleSpan::empty(),
             body_token_count: 1,
         });
         program.push_domain_definition(DomainDefinition {
@@ -1391,6 +1394,7 @@ mod tests {
             name: Identifier::generated("Player::Valid"),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
+            operators: HandleSpan::empty(),
             body_token_count: 0,
         });
 

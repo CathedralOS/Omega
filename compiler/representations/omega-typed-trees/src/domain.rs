@@ -9,6 +9,7 @@ pub struct DomainDefinition {
     pub name: Identifier,
     pub target_type: TypeReferenceHandle,
     pub facts: HandleSpan<ProofFact>,
+    pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,
 }
 
@@ -19,6 +20,7 @@ impl Default for DomainDefinition {
             name: Identifier::default(),
             target_type: TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
+            operators: HandleSpan::empty(),
             body_token_count: 0,
         }
     }

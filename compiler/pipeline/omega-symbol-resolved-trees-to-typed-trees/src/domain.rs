@@ -2,6 +2,7 @@ use crate::expression::{
     lower_expression_handle_from_table, lower_expression_handle_from_table_in_program,
 };
 use crate::name::lower_name;
+use crate::operator::lower_operator_definition;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use omega_core::arena::HandleSpan;
@@ -14,14 +15,23 @@ pub(crate) fn lower_domain_definition(
     domain: &resolved::domain::DomainDefinition,
 ) -> Result<typed::domain::DomainDefinition, Diagnostic> {
     let facts = lower_proof_facts(lowerer, domain.facts)?;
-
-    Ok(typed::domain::DomainDefinition {
+    let mut typed_domain = typed::domain::DomainDefinition {
         symbol: domain.symbol,
         name: lower_name(&domain.name),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
         facts,
+        operators: Default::default(),
         body_token_count: domain.body_token_count,
-    })
+    };
+
+    for operator in lowerer.source_trees.operator_definitions(domain.operators) {
+        let operator = lower_operator_definition(lowerer, operator)?;
+        lowerer
+            .typed_trees
+            .push_domain_operator(&mut typed_domain, operator);
+    }
+
+    Ok(typed_domain)
 }
 
 pub(crate) fn lower_proof_facts(

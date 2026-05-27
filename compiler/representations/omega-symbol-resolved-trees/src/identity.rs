@@ -60,6 +60,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             expression_table,
             &mut counts,
         );
+        for operator in program.operator_definitions(domain.operators) {
+            count_operator(program, operator, &mut counts);
+        }
     }
 
     for data_definition in &program.data_definitions {
@@ -185,32 +188,38 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     }
 
     for operator in &program.operators {
-        for member in program.operator_path_members(operator.name) {
-            count_declaration_name(member, &mut counts);
-        }
-        for parameter in program.data_type_parameters(operator.type_parameters) {
-            count_declaration_name(&parameter.name, &mut counts);
-        }
-        for parameter in program.state_parameters(operator.parameters) {
-            count_declaration_name(&parameter.name, &mut counts);
-            count_type_reference(
-                &parameter.type_reference,
-                child_type_references,
-                expression_table,
-                &mut counts,
-            );
-        }
-        if let Some(return_type) = &operator.return_type {
-            count_type_reference(
-                return_type,
-                child_type_references,
-                expression_table,
-                &mut counts,
-            );
-        }
+        count_operator(program, operator, &mut counts);
     }
 
     counts
+}
+
+fn count_operator(
+    program: &SymbolResolvedTrees,
+    operator: &crate::operator::OperatorDefinition,
+    counts: &mut IdentityStorageCounts,
+) {
+    let child_type_references = &program.tables.declarations.child_type_references;
+    let expression_table = &program.tables.bodies.expressions;
+
+    for member in program.operator_path_members(operator.name) {
+        count_declaration_name(member, counts);
+    }
+    for parameter in program.data_type_parameters(operator.type_parameters) {
+        count_declaration_name(&parameter.name, counts);
+    }
+    for parameter in program.state_parameters(operator.parameters) {
+        count_declaration_name(&parameter.name, counts);
+        count_type_reference(
+            &parameter.type_reference,
+            child_type_references,
+            expression_table,
+            counts,
+        );
+    }
+    if let Some(return_type) = &operator.return_type {
+        count_type_reference(return_type, child_type_references, expression_table, counts);
+    }
 }
 
 fn count_statement_node(

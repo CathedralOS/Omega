@@ -57,6 +57,9 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
             domain.target_type,
             &mut counts,
         );
+        for operator in typed_trees.domain_operators(domain) {
+            count_operator(typed_trees, operator, &mut counts);
+        }
     }
 
     for data_definition in typed_trees.data_definitions() {
@@ -183,33 +186,37 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
     }
 
     for operator in typed_trees.operators() {
-        for member in typed_trees.operator_path_members(operator.name) {
-            count_declaration_name(member, &mut counts);
-        }
-        for parameter in typed_trees
-            .data_type_parameters
-            .span_or_empty(operator.type_parameters)
-        {
-            count_declaration_name(&parameter.name, &mut counts);
-        }
-        for parameter in typed_trees.state_parameters.span_or_empty(operator.parameters) {
-            count_declaration_name(&parameter.name, &mut counts);
-            count_type_reference_handle(
-                &typed_trees.type_reference_table,
-                parameter.type_reference,
-                &mut counts,
-            );
-        }
-        if operator.return_type.is_valid() {
-            count_type_reference_handle(
-                &typed_trees.type_reference_table,
-                operator.return_type,
-                &mut counts,
-            );
-        }
+        count_operator(typed_trees, operator, &mut counts);
     }
 
     counts
+}
+
+fn count_operator(
+    typed_trees: &TypedTrees,
+    operator: &crate::operator::OperatorDefinition,
+    counts: &mut IdentityStorageCounts,
+) {
+    for member in typed_trees.operator_path_members(operator.name) {
+        count_declaration_name(member, counts);
+    }
+    for parameter in typed_trees
+        .data_type_parameters
+        .span_or_empty(operator.type_parameters)
+    {
+        count_declaration_name(&parameter.name, counts);
+    }
+    for parameter in typed_trees.state_parameters.span_or_empty(operator.parameters) {
+        count_declaration_name(&parameter.name, counts);
+        count_type_reference_handle(
+            &typed_trees.type_reference_table,
+            parameter.type_reference,
+            counts,
+        );
+    }
+    if operator.return_type.is_valid() {
+        count_type_reference_handle(&typed_trees.type_reference_table, operator.return_type, counts);
+    }
 }
 
 fn count_statement_node(

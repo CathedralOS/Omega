@@ -58,10 +58,12 @@ meaning, without needing access to pointer descriptor internals.
   - domain bodies can contain inert operator declaration surface without being
     mistaken for proof facts
   - compile canary for a domain-scoped intrinsic operator signature
+  - domain operator declarations are preserved as domain-owned declarations
+    through typed trees
   Next target:
   - define the first semantic domain-operator representation
-  - preserve domain operator declarations as domain-owned declarations instead
-    of generic top-level placeholders
+  - attach domain operator declarations to symbols and validate duplicate or
+    ambiguous domain operator candidates
   - prove that only facts in the current context can select domain operator meanings
   - reject ambiguous domain-provided operator candidates
   - keep dispatch compile-time only, with no hidden runtime domain tags

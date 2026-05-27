@@ -299,6 +299,7 @@ pub struct DomainDefinition {
     pub name: Identifier,
     pub target_type: crate::types::TypeReferenceHandle,
     pub facts: HandleSpan<ProofFact>,
+    pub operators: HandleSpan<OperatorDefinition>,
     pub body_token_count: usize,
 }
 
@@ -308,6 +309,7 @@ impl Default for DomainDefinition {
             name: Identifier::generated(""),
             target_type: crate::types::TypeReferenceHandle::invalid(),
             facts: HandleSpan::empty(),
+            operators: HandleSpan::empty(),
             body_token_count: 0,
         }
     }
@@ -414,6 +416,7 @@ struct DeclarationStorage {
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
+    operators: Arena<OperatorDefinition>,
     proof_facts: Arena<ProofFact>,
     target_host_settings: Arena<TargetHostSetting>,
     trust_policies: Arena<TrustPolicy>,
@@ -493,6 +496,10 @@ impl ItemTable {
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
         self.declaration_storage.data_members.span_or_empty(span)
+    }
+
+    pub fn operators(&self, span: HandleSpan<OperatorDefinition>) -> &[OperatorDefinition] {
+        self.declaration_storage.operators.span_or_empty(span)
     }
 
     pub fn proof_facts(&self, span: HandleSpan<ProofFact>) -> &[ProofFact] {
@@ -632,6 +639,10 @@ impl ItemTable {
         self.declaration_storage.data_members.append(member)
     }
 
+    pub fn append_operator(&mut self, operator: OperatorDefinition) -> Handle<OperatorDefinition> {
+        self.declaration_storage.operators.append(operator)
+    }
+
     pub fn append_proof_fact(&mut self, fact: ProofFact) -> Handle<ProofFact> {
         self.declaration_storage.proof_facts.append(fact)
     }
@@ -732,6 +743,7 @@ impl DeclarationStorage {
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
+            operators: Arena::new(),
             proof_facts: Arena::new(),
             target_host_settings: Arena::new(),
             trust_policies: Arena::new(),

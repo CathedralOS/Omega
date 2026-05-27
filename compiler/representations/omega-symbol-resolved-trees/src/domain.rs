@@ -9,6 +9,7 @@ pub struct DomainDefinition {
     pub name: DiagnosticName,
     pub target_type: TypeReference,
     pub facts: HandleSpan<ProofFact>,
+    pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,
 }
 

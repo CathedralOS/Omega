@@ -170,6 +170,7 @@ pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
     pub facts: Vec<ProofFactSnapshot>,
+    pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
 }
 
@@ -460,6 +461,11 @@ fn domain_definition_snapshot(
         name: domain.name.to_string(),
         target_type: type_reference_snapshot(program, &domain.target_type),
         facts: domain_fact_snapshots(program, domain.facts),
+        operators: program
+            .operator_definitions(domain.operators)
+            .iter()
+            .map(|operator| operator_snapshot(program, operator))
+            .collect(),
         body_token_count: domain.body_token_count,
     }
 }

@@ -408,6 +408,7 @@ mod tests {
             name: Identifier::generated("NonEmpty"),
             target_type,
             facts: omega_core::arena::HandleSpan::empty(),
+            operators: omega_core::arena::HandleSpan::empty(),
             body_token_count: 3,
         }));
 

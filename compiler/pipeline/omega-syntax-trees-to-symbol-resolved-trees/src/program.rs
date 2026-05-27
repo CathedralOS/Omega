@@ -212,6 +212,44 @@ mod tests {
     }
 
     #[test]
+    fn preserves_domain_operator_declarations() {
+        let source = r#"
+        data Quantity {
+            value: i32;
+        }
+
+        domain Quantity::Additive {
+            self.value >= 0;
+
+            operator add(left: Quantity, right: Quantity) -> Quantity intrinsic;
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+        let domain = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == "Quantity::Additive")
+            .expect("domain should lower");
+        let operators = program.operator_definitions(domain.operators);
+
+        assert_eq!(operators.len(), 1);
+        assert_eq!(
+            program
+                .operator_path_members(operators[0].name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            ["add"]
+        );
+        assert_eq!(program.proof_facts(domain.facts).len(), 1);
+    }
+
+    #[test]
     fn lowers_machine_contract_clauses() {
         let source = r#"
         machine distinct_indices(i: usize, j: usize)

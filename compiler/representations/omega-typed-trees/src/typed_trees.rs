@@ -89,8 +89,24 @@ impl TypedTrees {
             .append_to_span(&mut self.root_domains, domain_definition);
     }
 
+    pub fn push_domain_operator(
+        &mut self,
+        domain: &mut domain::DomainDefinition,
+        operator: crate::operator::OperatorDefinition,
+    ) {
+        self.operators
+            .append_to_span(&mut domain.operators, operator);
+    }
+
     pub fn domain_definitions(&self) -> &[domain::DomainDefinition] {
         self.domain_definitions.span_or_empty(self.root_domains)
+    }
+
+    pub fn domain_operators(
+        &self,
+        domain: &domain::DomainDefinition,
+    ) -> &[crate::operator::OperatorDefinition] {
+        self.operators.span_or_empty(domain.operators)
     }
 
     pub fn proof_facts(&self, domain: &domain::DomainDefinition) -> &[domain::ProofFact] {
