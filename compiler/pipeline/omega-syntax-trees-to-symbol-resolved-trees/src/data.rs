@@ -1,3 +1,4 @@
+use crate::expression::lower_expression_into_table;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
@@ -83,6 +84,18 @@ fn lower_data_member(
                 syntax_trees,
                 field.type_reference,
             )?,
+            initial_value: field
+                .initial_value
+                .is_valid()
+                .then(|| {
+                    lower_expression_into_table(
+                        syntax_trees,
+                        &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+                        field.initial_value,
+                    )
+                })
+                .transpose()?
+                .unwrap_or_else(omega_symbol_resolved_trees::expression::ExpressionHandle::invalid),
         })),
         syntax::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
             symbol: SymbolHandle::invalid(),

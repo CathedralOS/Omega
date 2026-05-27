@@ -199,6 +199,11 @@ meaning, without needing access to pointer descriptor internals.
     and `true == condition` spellings
   - internal transition continuation range checks now receive negated guard
     facts instead of incorrectly reusing true-branch facts
+  - machine-owned integer field initializers now seed range facts for field
+    indexes, and direct reassignment refreshes those facts
+  - dynamic machine-owned indexed mutable-call runtime coverage now compiles
+    and runs, proving machine field index initializers can support mutable
+    indexed call arguments
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index
@@ -210,8 +215,6 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - thread those refined subslice diagnostics through future operator-contract
     errors once `Slice::from/to/range` contracts drive checking directly
-  - moved dynamic machine-owned indexed mutable-call runtime coverage to
-    pending until guards/contracts can prove the machine field index in range
   - moved append-style storage mutation coverage to pending until bounded
     fields or guards can prove `exit_count < exits.len`
   - moved storage alias dynamic-index mutation coverage to pending until
