@@ -114,7 +114,7 @@ fn check_expression(
         ExpressionNode::Cast(cast) => check_expression(program, facts, cast.value, diagnostics),
         ExpressionNode::Indexed(indexed) => {
             if let Some(length) = expression_slice_length(program, facts, indexed.collection) {
-                check_range_index(program, indexed.index, length, diagnostics);
+                check_index(program, indexed.index, length, diagnostics);
             }
             check_expression(program, facts, indexed.collection, diagnostics);
             check_expression(program, facts, indexed.index, diagnostics);
@@ -144,15 +144,36 @@ fn check_expression(
     }
 }
 
-fn check_range_index(
+fn check_index(
     program: &omega_typed_trees::TypedTrees,
     index: ExpressionHandle,
     length: usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::Range(range) = program.expression_table.expression(index) else {
-        return;
-    };
+    match program.expression_table.expression(index) {
+        ExpressionNode::Integer(index_value) => {
+            let valid = *index_value >= 0
+                && usize::try_from(*index_value).is_ok_and(|index| index < length);
+            if !valid {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove slice index `{}` is within slice length {}",
+                    program.expression_table.display_name(index),
+                    length
+                )));
+            }
+        }
+        ExpressionNode::Range(range) => check_range_index(program, index, range, length, diagnostics),
+        _ => {}
+    }
+}
+
+fn check_range_index(
+    program: &omega_typed_trees::TypedTrees,
+    index: ExpressionHandle,
+    range: &TableRangeExpression,
+    length: usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let Some((start, end)) = literal_range_bounds(program, range) else {
         return;
     };
