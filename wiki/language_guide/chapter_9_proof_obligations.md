@@ -94,8 +94,10 @@ Termination should be a separate proof claim, not an effect.
 Working direction:
 
 ```omega
-machine walk(items: &[Item]) terminates
-decreases items
+machine walk(items: &[Item])
+terminates {
+    decreases items -> Slice::Length;
+}
 {
 }
 ```
@@ -108,35 +110,56 @@ The intended meaning is:
 - A terminating root such as `Main::main` should force every reachable cycle to
   justify progress, rather than requiring unrelated leaf machines to all carry
   standalone termination annotations by default.
-- `decreases expr` supplies a ranking metric that must move strictly downward on
-  recursive or cyclic back-edges.
+- Progress clauses belong under `terminates` because they are consumed by the
+  termination checker, not by the ordinary pre/postcondition checker.
+- `decreases value -> OrderOrMeasure` means "prove recursive or cyclic
+  back-edges make `value` strictly smaller under this selected ranking view."
+- Plain `decreases value` should remain available when the ranking is builtin or
+  otherwise unambiguous.
 
 The important semantic piece is a well-founded ordering. A decrease metric is
 accepted only when the compiler knows how to compare successive values in a
 well-founded way.
 
-Likely built-in decrease shapes:
+Likely built-in ranking shapes:
 
 - natural numbers or bounded integers
-- distances such as `limit - index`
-- slice/view extents such as `items`
+- slice/view extents such as `items` under `Slice::Length`
+- named domain/type-specific ranking orders such as `Card::PowerOrder`
 - lexicographic tuples of decreasing metrics
 
-For slices, `decreases items` naturally means each back-edge must operate on a
-strictly smaller remaining view, usually by carrying a narrower slice window.
+For slices, `decreases items -> Slice::Length` naturally means each back-edge
+must operate on a strictly smaller remaining view, usually by carrying a
+narrower slice window.
 
-`increases`-style surface syntax may still be useful as sugar:
+`increases` and `decreases` are still useful as the user-facing proof words, but
+the working direction is to make `->` consistently select the ranking view
+rather than overloading it to mean "toward a bound."
+
+For example:
 
 ```omega
-machine walk(index: usize, limit: usize) terminates
-increases index -> limit
+machine weaken(card: Card)
+terminates {
+    decreases card -> Card::PowerOrder;
+}
 {
 }
 ```
 
-But the proof model underneath is still a well-founded decrease on "remaining
-distance to the bound." The core obligation is a ranking function, not merely a
-monotone update.
+and:
+
+```omega
+machine walk(items: &[Item])
+terminates {
+    decreases items -> Slice::Length;
+}
+{
+}
+```
+
+The core obligation is still a ranking proof. The surface just names the value
+being tracked plus the ranking view being used.
 
 ## Example
 
