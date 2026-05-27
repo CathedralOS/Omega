@@ -193,9 +193,11 @@ meaning, without needing access to pointer descriptor internals.
     now prove literal indexes and tail subslices within that known prefix
   - unknown-length subslice diagnostics now distinguish subslice range proof
     failures from element-index proof failures
+  - subslice diagnostics now identify whether the missing proof is the start
+    bound, end bound, or start/end ordering
   Next target:
-  - add range-bound diagnostics that distinguish start-bound, end-bound, and
-    ordering failures inside subslice proofs
+  - thread those refined subslice diagnostics through future operator-contract
+    errors once `Slice::from/to/range` contracts drive checking directly
   - moved dynamic machine-owned indexed mutable-call runtime coverage to
     pending until guards/contracts can prove the machine field index in range
   - moved append-style storage mutation coverage to pending until bounded
