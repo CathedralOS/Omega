@@ -39,7 +39,8 @@ use super::static_values::{
     resolve_runtime_static_integer_value_in_table, set_runtime_static_value,
     set_runtime_static_value_in_table,
 };
-use super::storage_copy::{runtime_fixed_array_subslice_indexed_source_copy, runtime_storage_copy};
+use super::storage_copy::runtime_storage_copy;
+use super::subslice_copy::runtime_fixed_array_subslice_indexed_source_copy;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
