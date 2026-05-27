@@ -2519,28 +2519,6 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 fn pending_canaries_reproduce_known_gaps() {
     for canary in ACTIVE_PENDING_CANARIES {
         match canary.expectation {
-            PendingCanaryExpectation::UnexpectedlyCompiles => {
-                let canary_dir = pending_canary(canary.path);
-                let main_path = canary_dir.join("main.omg");
-                let options = CompileOptions {
-                    root_path: main_path.clone(),
-                    build_dir: None,
-                    target_name: None,
-                    write_output: false,
-                };
-
-                if let Err(diagnostics) = compile(options) {
-                    panic!(
-                        "pending canary {} no longer reproduces its compile-acceptance gap; promote it to fail/pass and update the suite.\ndiagnostics:\n{}",
-                        canary_dir.display(),
-                        diagnostics
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    );
-                }
-            }
             PendingCanaryExpectation::CurrentlyRejects { fragment } => {
                 let canary_dir = pending_canary(canary.path);
                 let main_path = canary_dir.join("main.omg");
@@ -2822,6 +2800,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/bare_state_arrow_transition",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",
+    "slices/invalid_subslice_bounds_unchecked",
     "slices/termination_slice_length_order_unimplemented",
     "domains/domain_import_cycle",
     "domains/domain_import_unknown",
@@ -2843,7 +2822,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 
 #[derive(Clone, Copy)]
 enum PendingCanaryExpectation {
-    UnexpectedlyCompiles,
     CurrentlyRejects { fragment: &'static str },
     CompilesAndExits { current_exit: i32, desired_exit: i32 },
 }
@@ -2859,10 +2837,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "cannot prove decreases clause",
         },
-    },
-    PendingCanary {
-        path: "slices/invalid_subslice_bounds_unchecked",
-        expectation: PendingCanaryExpectation::UnexpectedlyCompiles,
     },
     PendingCanary {
         path: "slices/runtime_subslice_range_len_wrong",
