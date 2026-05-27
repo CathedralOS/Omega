@@ -1,108 +1,188 @@
 # Tasks
 
-Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary ladder, and the current language-design push.
+Compiler/runtime work surfaced by the canary ladder, the dungeon sample, and
+the current language-design push.
 
-## High Priority
+The major direction is now clearer: Omega needs a small set of browsable core
+semantic concepts, plus a deliberately private compiler/runtime layer where
+the unsafe representation work happens. Users should be able to navigate to
+`Slice::Length` or an indexing operator contract and understand the language
+meaning, without needing access to pointer descriptor internals.
 
-- [ ] Termination proofs
-  Add an opt-in termination proof surface that can be claimed at roots such as `Main::main`, then enforced transitively through the reachable call/state graph.
-  Language direction:
-  - `terminates`
-  - nested progress clauses under `terminates`
-  - `decreases value -> OrderOrMeasure`
-  - builtin ranking views for naturals, bounded distances, and slice lengths
-  - plain `decreases value` only when builtin/default ranking is unambiguous
-  Prototype already landed:
-  - bare `terminates` plus bare `decreases expr` parse/lower through syntax/resolved/typed trees
-  - checked-tree validation rejects direct terminating recursive cycles with no `decreases`
-  - direct countdown recursion proves
-  - arithmetic bounded-distance recursion proves
-  - slice-backed bounded-distance recursion proves
-  - explicit `decreases value -> Nat::Descending` now parses/lowers/checks for the currently supported countdown and bounded-distance shapes
-  - explicit `decreases entries -> Slice::Length` now proves for the first shrinking-subslice self-loop shape
-  Next implementation steps:
-  - broaden explicit `decreases value -> OrderOrMeasure` beyond `Nat::Descending`
-  - keep bare `decreases value` only for unambiguous builtin cases
-  - migrate current arithmetic-facing proof logic behind named builtin ranking views instead of exposing `limit - index` as primary UX
-  - make canaries follow the new surface instead of the prototype spelling
-  First builtin ranking views:
-  - `Nat::Descending`
-  - bounded distance to a limit/bound
-  - `Slice::Length`
-  Canary ladder:
-  - terminating countdown loop with builtin descending natural order
-  - terminating index-carrying loop with named bounded-distance order
-  - terminating slice loop with `decreases items -> Slice::Length`
-  - shrinking-slice loop with plain `decreases items`
-  Then:
-  - lexicographic rankings
-  - named multiple orders for the same data type
-  - custom ranking projections/orders for user-defined structs
-  - cycle/SCC coverage beyond the current narrow direct recursion shapes
-  Immediate blockers:
-  - migrate the prototype away from bare arithmetic-facing `decreases expr`
-  - runtime subslice descriptor semantics are still wrong for simple `tail.len` probes, so shrinking-slice proofs are ahead of runtime slice behavior
-  - invalid subslice bounds like `view[9..]` are still accepted instead of requiring a proof-backed bounds check
-  - plain `decreases items` still needs builtin/default ranking inference rather than only explicit `-> Slice::Length`
+## Architecture Tracks
 
-- [ ] Domain operators and proof-aware operator resolution
-  The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.
+- [ ] Core semantic surface
+  Create source-visible declarations for the core concepts that are currently
+  mostly compiler knowledge.
   Next target:
-  - define a visible operator declaration model for core operators such as indexing and subslicing
-  - define the first concrete operator-resolution surface driven by proved domains
-  - keep ambiguity rules strict and compile-time only
+  - define the shape of `omega/language/core`
+  - sketch `Array`, `Vec`, `Slice`, `Str`, and `StrView` as core declarations
+  - expose proof/order names such as `Slice::Length` from that core surface
+  - decide which names are public core and which are primitive/compiler-only
+  - add canaries that import or reference core names directly once syntax exists
 
-- [ ] Core collection/string semantic surface
-  Make the compiler's built-in collection and text concepts browsable without pretending their low-level representation is ordinary source code.
+- [ ] Private primitive and compiler-handoff layer
+  Make the boundary explicit where compiler-managed representation begins.
   Next target:
-  - sketch `Array`, `Vec`, `Slice`, `Str`, and `StrView` as core semantic declarations
-  - expose names such as `Slice::Length` from that core surface instead of leaving them as checker-only strings
-  - decide where low-level carriers such as `Ptr` and descriptor shapes live
-  - keep safe indexing/subslicing contracts visible even when operator bodies are compiler intrinsics
+  - decide whether `Ptr`, `RawBuffer`, or slice/string descriptors are source-visible primitives or compiler-private concepts
+  - document the runtime carrier shapes for slice views, string views, arrays, and vectors
+  - keep safe source away from raw pointer fields while still giving host/ABI code a truthful low-level model
+  - audit places where slice/string descriptor logic is spread across backend stages and identify a single representation owner
 
-- [ ] Proof-checking depth beyond current domain coverage
-  We have broad coverage now for domains flowing through calls, exits, mutation invalidation, indexing, and boolean implications.
+- [ ] Operator declarations and overload resolution
+  Operators should have visible semantic homes instead of being anonymous parser/backend special cases.
   Next target:
-  - deeper proof shapes that are not just more symmetry
-  - quantified/sequence-style facts
-  - termination-ranking proof facts
-  - custom well-founded projections
+  - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
+  - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
+  - support compiler-intrinsic operator bodies for core types without hiding their signatures and proof obligations
+  - decide how ordinary trait-like operator requirements relate to existing `trait` machine requirements
+  - add ambiguity diagnostics before adding broad overload power
+
+- [ ] Domain-specific operator overloads
+  Domain facts should be able to participate in operator resolution when the meaning is unique.
+  Next target:
+  - define the first concrete domain-operator surface
+  - prove that only facts in the current context can select domain operator meanings
+  - reject ambiguous domain-provided operator candidates
+  - keep dispatch compile-time only, with no hidden runtime domain tags
+  - add canaries for both successful domain-selected operators and ambiguity errors
+
+- [ ] Measures, orderings, and rankings
+  Termination and richer proofs need named well-founded views, not ad hoc checker strings.
+  Current prototype:
+  - `terminates { ... }` parses and checks for direct recursive shapes
+  - `decreases value -> Nat::Descending` works for countdown and bounded-distance shapes
+  - `decreases entries -> Slice::Length` works for the first shrinking-subslice self-loop shape
+  Next target:
+  - move `Nat::Descending` and `Slice::Length` from checker-known strings toward visible core declarations
+  - decide how order/measure declarations represent "rank this value by this view"
+  - support builtin/default inference for plain `decreases value` only when unambiguous
+  - replace arithmetic-facing proof UX such as `limit - index` with named bounded-distance rankings
+  - add lexicographic ranking support
+  - support multiple named orders for the same data shape
+  - add custom ranking projections/orders for user-defined structs
+  - broaden termination checking beyond narrow direct self-recursion toward SCC/cycle reasoning
+
+## Data, Ranges, And Collections
+
+- [ ] Ranges as proof-backed operators
+  Range syntax now exists through syntax, resolved, typed, and checked trees,
+  but bounds validity is not generally enforced.
+  Next target:
+  - require proof that `view[start..]`, `view[..end]`, and `view[start..end]` are valid for the current view
+  - reject obvious invalid subslices such as `view[9..]` over a proven 4-element view
+  - add fail canaries once invalid subslices reject instead of remaining pending
+  - decide how inclusive/exclusive range forms spell and lower
+  - connect range validity facts to indexing validity facts instead of duplicating proof logic
+
+- [ ] Slice runtime descriptor semantics
+  Proof and syntax are now ahead of runtime for subslices.
+  Current pending gaps:
+  - `canaries/pending/slices/runtime_subslice_range_len_wrong`
+  - `canaries/pending/slices/invalid_subslice_bounds_unchecked`
+  Next target:
+  - fix `view[1..]` materialization so `tail.len` and pointer offset are correct at runtime
+  - support start-only, end-only, and bounded subslice descriptors
+  - ensure descriptor writes/reads have one clear backend representation path
+  - promote pending subslice canaries to pass/fail suites when fixed
+
+- [ ] Slice proof vocabulary
+  Slices should become a first-class proof object, not just a runtime descriptor.
+  Next target:
+  - represent non-empty facts, length facts, and window-shrinking facts explicitly
+  - prove `items[0]` from non-empty views
+  - prove `items[1..]` is shorter under `items.len > 0`
+  - carry prefix/suffix/window facts across transitions
+  - ensure alias and borrow facts understand subslice overlap conservatively
+
+- [ ] Array and Vec integration
+  `Array` and `Vec` should be owners that can produce `Slice` views.
+  Next target:
+  - make fixed arrays visible as `Array[T; N]` or an equivalent core concept
+  - define `Array::as_slice` / `Array::as_mut_slice` as visible operator/machine contracts, even if intrinsic
+  - design `Vec[T]` as owned dynamic storage with length and capacity
+  - define how `Vec` borrowing prevents reallocation or mutation that would invalidate active slices
+  - add first `Vec` allocation/storage canaries once allocator support exists
+
+- [ ] Str and StrView direction
+  Text should follow the same owner/view split as collections.
+  Next target:
+  - decide whether current `String` remains the public owned text name or evolves toward `Str`
+  - define `StrView` or equivalent borrowed text view semantics
+  - decide whether string views are byte slices with text domains or their own core view type
+  - expose string/text measures and domains such as length, non-empty, UTF-8, and no-NUL from a browsable core surface
+  - connect runtime text builders and string comparisons to this semantic model
+
+## Proof And Domains
+
+- [ ] Domains as reusable semantic states
+  The executable domain surface is now much healthier.
+  Next target:
+  - keep strengthening domain fact preservation and invalidation for nested/indexed places
+  - add richer sequence/window facts once ranges and slices have proper proof objects
+  - decide how domains expose operator meanings without becoming runtime tags
+  - keep domain unions/intersections executable only when their bodies are runtime-checkable
+
+- [ ] Proof-checking depth
+  Current coverage is broad for calls, exits, mutations, indexing, and boolean implications, but still mostly first-order and local.
+  Next target:
+  - quantified or sequence-style facts for text/slice invariants
+  - reusable proof lemmas for length, bounds, and window transformations
+  - better diagnostics when a proof-backed operator is missing a required fact
+  - trusted proof boundaries for host/core intrinsics
+
+- [ ] Borrow checking over views
+  Slice and string views make overlap reasoning central.
+  Next target:
+  - conservatively detect overlap between parent slices and subslices
+  - distinguish disjoint fixed windows where provable
+  - ensure `Vec` mutation/reallocation is rejected while borrowed views exist
+  - add canaries for array, slice, and future vec aliasing cases
+
+## Runtime And Backend
+
+- [ ] Runtime text and IO confidence
+  Runtime string/text support is real but still ahead of the final semantic model.
+  Next target:
+  - multi-step text flows with richer transitions
+  - host/runtime confidence around real console interaction paths
+  - align text storage, text builders, and future `Str`/`StrView` semantics
 
 - [ ] Persistent machine/state mutation confidence
-  Make writes in one state reliably observable in later states and transitions, with regression coverage for room/event flags, counters, and re-entry behavior.
-  Remaining target:
-  - keep extending confidence on broader multi-edge/full-package flows
-  - continue strengthening generator-style nested storage updates
-  - keep pushing toward the remaining generic dungeon-sample blockers rather than only isolated micro-shapes
-
-- [ ] Slices as a first-class proof/runtime feature
-  The basic slice ladder is now in good shape; the next work should move from “individual seams compile/run” toward stronger semantic support.
+  Writes in one state should reliably be observable in later states and transitions.
   Next target:
-  - runtime subslice/range descriptor semantics beyond the current compile/proof surface
-  - proof-backed rejection of invalid subslice bounds
-  - plain shrinking-slice ergonomics after `decreases value -> Slice::Length`
-  - stronger proof vocabulary around slice windows and non-empty views
-  - more complex alias/proof interactions over slice-backed structures
+  - broader multi-edge/full-package flows
+  - generator-style nested storage updates
+  - dungeon-sample blockers rather than only isolated micro-shapes
 
-- [ ] Runtime text and `read_line` confidence
-  Stabilize mutable runtime text/string handling and keep broadening real IO coverage.
+- [ ] Backend representation ownership
+  A lot of slice/string/storage behavior is encoded across selection, runtime storage, state values, and ISA lowering.
   Next target:
-  - multi-step text flows with richer state transitions
-  - more host/runtime confidence around real console interaction paths
-
-## Backend Quality
+  - identify one representation model for fat descriptors and pointer-based carriers
+  - reduce duplicate descriptor assumptions across backend crates
+  - keep backend reports explicit about descriptor writes, pointer offsets, and lengths
+  - add focused pending canaries before turning any runtime gap into a false pass
 
 - [ ] Strengthen assigned-target allocation
   Evolve the current assigned-home model into a more mature register/stack allocation story with clearer register classes, spill behavior, and post-assignment cleanup.
 
 - [ ] Reduce host/runtime special-case lowering
-  Keep shrinking the bring-up-era special handling around stdin/stdout/process calls so host/runtime lowering feels like a real subsystem instead of a narrow happy path.
+  Keep shrinking bring-up-era special handling around stdin/stdout/process calls so host/runtime lowering feels like a real subsystem instead of a narrow happy path.
 
-## Language Guide
+## Canaries And Tooling
 
-- [ ] Continue guide reorganization past the front half
-  The front-half sequencing is much cleaner now.
+- [ ] Maintain three honest canary categories
+  `pass` means supported, `fail` means rejected as intended, and `pending` means the desired language behavior is known but implementation is still behind.
   Next target:
-  - traits/modules/host-boundaries sequence
-  - keeping advanced chapters from assuming concepts that have not been introduced yet
-  - pulling speculative topics into clearer “working direction” sections when needed
+  - promote pending canaries quickly when fixed
+  - add pending canaries for serious known gaps instead of leaving them as ad hoc run probes
+  - keep fail canaries focused on intended diagnostics
+  - avoid letting compile-only pass canaries imply runtime support
+
+- [ ] Language guide and core docs
+  The guide now captures the high-level direction, but the actual core source surface is still missing.
+  Next target:
+  - add a dedicated guide section or chapter for core semantic types once syntax stabilizes
+  - keep traits/modules/host-boundaries sequencing coherent
+  - add navigable core docs alongside `omega/language/core` once declarations exist
+  - keep speculative topics clearly labeled as working direction
