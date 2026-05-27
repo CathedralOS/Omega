@@ -155,11 +155,12 @@ meaning, without needing access to pointer descriptor internals.
     shortened runtime descriptor length, covering `view[1..].len`
   - literal fixed-index reads through literal subslice aliases now copy from the
     adjusted backing array offset, covering `tail[0]` after `view[1..]`
+  - state-call argument materialization now resolves prior local slice aliases
+    before writing descriptors, covering dynamic `tail[index]` reads after
+    `view[1..]`
   Next target:
   - generalize subslice descriptor pointer offsets beyond the fixed-array alias
     copy special case
-  - support dynamic indexes through subslice descriptors, not just literal
-    fixed-index copies
   - support start-only, end-only, and bounded subslice descriptors
   - ensure descriptor writes/reads have one clear backend representation path
   - promote pending subslice canaries to pass/fail suites when fixed

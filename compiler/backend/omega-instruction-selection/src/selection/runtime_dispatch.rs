@@ -261,6 +261,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     edge,
                     dispatch_case.key,
+                    runtime_aliases.bindings(),
+                    &runtime_alias_expressions,
                     runtime_value_operands,
                     selected_instructions,
                 );
