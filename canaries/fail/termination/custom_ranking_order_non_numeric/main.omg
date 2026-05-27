@@ -1,0 +1,24 @@
+data Card {
+    power: usize;
+}
+
+operator Card::PowerOrder(power: usize) -> bool;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let value: usize = self.weaken(3);
+}
+
+machine Main::weaken(&mut self, power: usize)
+terminates {
+    decreases power -> Card::PowerOrder;
+}
+-> usize
+{
+    transition power > 0 {
+        true -> self.weaken(power - 1)
+        false -> power
+    }
+}
