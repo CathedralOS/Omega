@@ -197,6 +197,8 @@ meaning, without needing access to pointer descriptor internals.
     facts for head/tail access
   - boolean equality guard facts now work symmetrically for `condition == true`
     and `true == condition` spellings
+  - internal transition continuation range checks now receive negated guard
+    facts instead of incorrectly reusing true-branch facts
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index

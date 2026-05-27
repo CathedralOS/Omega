@@ -14,7 +14,7 @@ use expressions::{
     provable_range_bounds,
 };
 use facts::{RangeFacts, fixed_array_field_lengths, fixed_array_type_length};
-use guards::seed_guard_facts;
+use guards::{seed_guard_facts, seed_negated_guard_facts};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 use omega_typed_trees::machine::Machine;
@@ -111,14 +111,16 @@ fn check_statement(
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
         }
         StatementNode::Transition(transition) => {
-            let target_facts = match transition.guard {
+            let (target_facts, continuation_facts) = match transition.guard {
                 TransitionGuardNode::When(guard) => {
                     check_expression(program, machine, state, facts, guard, diagnostics);
                     let mut guarded_facts = facts.clone();
                     seed_guard_facts(program, &mut guarded_facts, guard);
-                    guarded_facts
+                    let mut negated_facts = facts.clone();
+                    seed_negated_guard_facts(program, &mut negated_facts, guard);
+                    (guarded_facts, negated_facts)
                 }
-                TransitionGuardNode::Always => facts.clone(),
+                TransitionGuardNode::Always => (facts.clone(), facts.clone()),
             };
             check_transition_target(
                 program,
@@ -132,7 +134,7 @@ fn check_statement(
                 program,
                 machine,
                 state,
-                &target_facts,
+                &continuation_facts,
                 transition.continuation,
                 diagnostics,
             );
