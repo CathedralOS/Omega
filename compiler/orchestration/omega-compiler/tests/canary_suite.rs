@@ -2846,6 +2846,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/termination_countdown_compile",
     "control_flow/termination_index_distance_compile",
+    "termination/custom_ranking_order_compile",
     "domains/contracts_domain_membership_surface",
     "domains/executable_domain_membership_expression_exit",
     "domains/executable_domain_membership_intersection_guard_exit",
@@ -3025,6 +3026,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/bare_state_arrow_transition",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",
+    "termination/custom_ranking_order_unknown",
     "slices/dynamic_subslice_bounded_unproven",
     "slices/dynamic_subslice_end_unproven",
     "slices/dynamic_subslice_start_unproven",
@@ -3069,18 +3071,15 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 ];
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 enum PendingCanaryExpectation {
     CurrentlyRejects { fragment: &'static str },
 }
 
+#[allow(dead_code)]
 struct PendingCanary {
     path: &'static str,
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
-    path: "termination/custom_ranking_order_unimplemented",
-    expectation: PendingCanaryExpectation::CurrentlyRejects {
-        fragment: "cannot prove decreases clause",
-    },
-}];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];

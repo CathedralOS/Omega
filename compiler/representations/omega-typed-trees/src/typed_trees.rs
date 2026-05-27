@@ -174,6 +174,13 @@ impl TypedTrees {
             .append_to_span(&mut operator.parameters, parameter);
     }
 
+    pub fn operator_parameters(
+        &self,
+        operator: &crate::operator::OperatorDefinition,
+    ) -> &[signature::StateParameter] {
+        self.state_parameters.span_or_empty(operator.parameters)
+    }
+
     pub fn push_operator_contract(
         &mut self,
         operator: &mut crate::operator::OperatorDefinition,
