@@ -13,6 +13,9 @@ trust compiler_array_length {
 trust compiler_array_index {
 }
 
+trust compiler_array_index_mut {
+}
+
 trust compiler_array_as_slice {
 }
 
@@ -26,6 +29,11 @@ operator Array::index<T>(items: &Array<T>, index: usize) -> T
 requires
     index < items.len
 trust compiler_array_index;
+
+operator Array::index_mut<T>(items: &mut Array<T>, index: usize) -> &mut T
+requires
+    index < items.len
+trust compiler_array_index_mut;
 
 operator Array::as_slice<T>(items: &Array<T>) -> &[T]
 trust compiler_array_as_slice;

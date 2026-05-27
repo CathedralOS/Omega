@@ -14,6 +14,9 @@
 trust compiler_slice_index {
 }
 
+trust compiler_slice_index_mut {
+}
+
 trust compiler_slice_tail {
 }
 
@@ -36,6 +39,11 @@ operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
     index < items.len
 trust compiler_slice_index;
+
+operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+requires
+    index < items.len
+trust compiler_slice_index_mut;
 
 operator Slice::tail<T>(items: &[T]) -> &[T]
 requires
