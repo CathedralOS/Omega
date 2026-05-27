@@ -1,148 +1,81 @@
 # Tasks
 
-Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
+Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary ladder, and the current language-design push.
 
 ## High Priority
 
-- [ ] Runtime guard lowering for common state expressions
-  Support runtime lowering for simple state-field comparisons and conjunctions like `room == 1 && used == 0` without forcing sample-level staging hacks.
-  Progress:
-  - conjunction guard emission now works in the full dungeon package `enter_room` dispatch path
-  - the direct `enter_room` form reaches `Ambush Hall` correctly in native execution and now has a non-ignored regression in `canary_suite`
+- [ ] Termination proofs
+  Add an opt-in termination proof surface that can be claimed at roots such as `Main::main`, then enforced transitively through the reachable call/state graph.
+  Initial target:
+  - `terminates`
+  - `decreases expr`
+  - builtin well-founded measures for naturals, bounded distances, and slice lengths
+  First useful canaries:
+  - terminating index-carrying loop with `decreases limit - index`
+  - terminating slice loop with `decreases items.len`
+  - eventually shrinking-slice loop with `decreases items`
+  Later:
+  - lexicographic rankings
+  - custom ranking projections for user-defined structs
+  - possible sugar such as `increases x -> bound`
+
+- [ ] Domain operators and proof-aware operator resolution
+  The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.
+  Current position:
   - executable domain membership expressions now work for direct and imported positive checks
-    - `canaries/pass/domains/executable_domain_membership_expression_exit`
-    - `canaries/pass/domains/executable_imported_domain_membership_exit`
-    - imported-domain false-branch guards now run too:
-      - `canaries/pass/domains/executable_imported_domain_membership_guard_exit`
-    - executable domain intersections and unions now run directly in transition guards too:
-      - `canaries/pass/domains/executable_domain_membership_intersection_guard_exit`
-      - `canaries/pass/domains/executable_domain_membership_union_guard_exit`
-    - executable domain unions now work in local bool values too:
-      - `canaries/pass/domains/executable_domain_membership_union_value_exit`
-    - executable domain intersections now work in local bool values too:
-      - `canaries/pass/domains/executable_domain_membership_intersection_value_exit`
-    - imported executable domain unions now work in local bool values too:
-      - `canaries/pass/domains/executable_imported_domain_membership_union_value_exit`
-    - imported executable domain unions now run directly in transition guards too:
-      - `canaries/pass/domains/executable_imported_domain_membership_union_guard_exit`
-    - imported executable domain intersections now work in local bool values too:
-      - `canaries/pass/domains/executable_imported_domain_membership_intersection_value_exit`
-    - imported executable domain intersections now run directly in transition guards too:
-      - `canaries/pass/domains/executable_imported_domain_membership_intersection_guard_exit`
-    - call-site requires unions are now proved from either preserved branch too:
-      - `canaries/pass/domains/call_requires_domain_union_left_branch_preserved`
-      - `canaries/pass/domains/call_requires_domain_union_right_branch_preserved`
-      - `canaries/fail/domains/call_requires_domain_union_unproven`
-    - direct boolean requires over call parameters are now also proved from preserved domain facts:
-      - `canaries/pass/domains/call_requires_boolean_expression_from_domain_fact`
-      - `canaries/pass/domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call`
-      - `canaries/pass/domains/call_requires_boolean_union_expression_from_domain_fact`
-      - `canaries/pass/domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call`
-      - `canaries/pass/domains/call_requires_scalar_member_expression_from_domain_fact`
-      - `canaries/pass/domains/call_requires_fixed_indexed_scalar_member_expression_from_domain_fact`
-      - `canaries/pass/domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact`
-      - mutating-call invalidation is now pinned too:
-        - `canaries/fail/domains/call_requires_boolean_expression_invalidated_by_mutating_call`
-        - `canaries/fail/domains/call_requires_dynamic_indexed_boolean_expression_invalidated_by_mutating_call`
-        - `canaries/fail/domains/call_requires_fixed_indexed_boolean_expression_invalidated_by_mutating_call`
-    - exit ensures unions are now proved from either preserved branch too:
-      - `canaries/pass/domains/exit_ensures_domain_union_left_branch_preserved`
-      - `canaries/pass/domains/exit_ensures_domain_union_right_branch_preserved`
-      - `canaries/fail/domains/exit_ensures_domain_union_unproven`
-    - direct boolean ensures over exit state are now also proved from preserved domain facts:
-      - `canaries/pass/domains/exit_ensures_boolean_expression_from_domain_fact`
-      - `canaries/pass/domains/exit_ensures_boolean_expression_preserved_across_disjoint_mutating_call`
-      - `canaries/pass/domains/exit_ensures_boolean_union_expression_from_domain_fact`
-      - `canaries/pass/domains/exit_ensures_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call`
-      - `canaries/pass/domains/exit_ensures_fixed_indexed_scalar_member_expression_from_domain_fact`
-      - `canaries/pass/domains/exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fact`
-      - mutating-call invalidation is now pinned too:
-        - `canaries/fail/domains/exit_ensures_boolean_expression_invalidated_by_mutating_call`
-        - `canaries/fail/domains/exit_ensures_dynamic_indexed_boolean_expression_invalidated_by_mutating_call`
-        - `canaries/fail/domains/exit_ensures_fixed_indexed_boolean_expression_invalidated_by_mutating_call`
-  - boolean `or` guard dispatch now runs:
-    - `canaries/pass/control_flow/runtime_boolean_or_guard_exit`
-  - local boolean `or` values now lower and run too:
-    - `canaries/pass/control_flow/runtime_local_boolean_or_value_exit`
-  - computed local boolean conjunction values now lower and run:
-    - `canaries/pass/control_flow/runtime_local_boolean_conjunction_value_exit`
-  - scalar local comparison values now lower and run too:
-    - `canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit`
-  - local boolean values initialized from string equality now lower and run:
-    - `canaries/pass/control_flow/runtime_local_string_comparison_value_exit`
-  - local bool values can now cross a transition boundary even when the source state first guards on a string comparison:
-    - `canaries/pass/control_flow/runtime_boolean_transition_argument_after_string_guard_exit`
-  Remaining visible gap:
-  - broader conjunction-heavy runtime-dispatch states still need continued coverage beyond this fixed dungeon path
-  - keep extending coverage for more complex boolean normalization shapes beyond the now-covered plain `or` family
-    - simple negated guards are covered and work:
-      - `canaries/pass/control_flow/runtime_negated_boolean_place_guard_exit`
-      - `canaries/pass/control_flow/runtime_negated_comparison_guard_exit`
-  - keep extending coverage for computed boolean values that cross more complex transition boundaries and helper-call shapes
+  - imported false-branch guard execution now works
+  - direct and imported domain unions/intersections now run in both guard and value forms
+  - contract-side domain unions are now proved for both call `requires` and exit `ensures`
+  Next target:
+  - define the first concrete operator-resolution surface driven by proved domains
+  - keep ambiguity rules strict and compile-time only
+
+- [ ] Proof-checking depth beyond current domain coverage
+  We have broad coverage now for domains flowing through calls, exits, mutation invalidation, indexing, and boolean implications.
+  Current position:
+  - boolean/scalar facts derived from domains are covered on call and exit paths
+  - fixed-index and dynamic-index domain-derived facts are covered
+  - mutation invalidation for same-place and disjoint-place cases is covered
+  Next target:
+  - deeper proof shapes that are not just more symmetry
+  - quantified/sequence-style facts
+  - termination-ranking proof facts
+  - custom well-founded projections
 
 - [ ] Persistent machine/state mutation confidence
   Make writes in one state reliably observable in later states and transitions, with regression coverage for room/event flags, counters, and re-entry behavior.
-  Progress:
-  - executable re-entry coverage now exists for spent-fountain and cleared-ambush flows
-  - full-package direct `enter_room` dispatch now works without staged helper states in `dungeon_crawler_cli`
-  - local mutable slice alias writes now compile in both straight-line and state-body forms
-  - runnable exit-code probes now cover straight-line and state-body mutable slice alias writes too
-  - runnable slice-index probes now cover dynamic reads and dynamic local copies in both straight-line and state-body forms
-  - slice descriptors for `&[T]` now survive local storage and transition-argument materialization as full fat descriptors
-    - `canaries/pass/slices/runtime_slice_len_transition_exit`
-  - alias-indexed machine-owned string writes through slice views now run too
-    - `canaries/pass/text/runtime_slice_alias_indexed_string_field_concat_exit`
-  - indexed borrow overlap checks now distinguish obviously disjoint fixed indices from potentially aliasing ones
-    - `canaries/pass/borrows/borrow_disjoint_fixed_index_call_mut`
-    - `canaries/pass/borrows/borrow_disjoint_fixed_index_mut`
-    - `canaries/fail/borrows/borrow_same_fixed_index_call_mut`
-    - `canaries/fail/borrows/borrow_same_fixed_index_mut`
-    - `canaries/fail/borrows/borrow_same_fixed_index_slice_alias_mut`
-    - `canaries/fail/borrows/borrow_unknown_index_pair_mut`
-  - indexed domain invalidation now has parser-safe canary coverage
-    - `canaries/pass/domains/indexed_domain_requires_preserved_across_disjoint_field_mutation`
-    - `canaries/fail/domains/indexed_domain_requires_invalidated_by_same_index_mutation`
-    - `canaries/fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation`
-  Remaining gap:
-  - keep extending confidence on other multi-edge/full-package dispatch shapes
-  - continue strengthening richer nested storage updates for generator-style code
-  - keep pushing beyond the now-covered indexed write/copy seams into the remaining generic dungeon sample blockers
-  - fixed-index transitioned slice guards now run correctly
-    - `canaries/pass/slices/runtime_slice_fixed_index_guard_exit`
-  - transitioned whole-element fixed-index slice copies now run correctly too
-    - `canaries/pass/slices/runtime_slice_index_transition_exit`
-  - local bool values derived from slice-length comparisons now run correctly too
-    - `canaries/pass/slices/runtime_local_slice_len_comparison_value_exit`
-  - iterative transitioned indexed reads now run correctly
-    - `canaries/pass/slices/runtime_slice_iteration_exit`
-    - fat slice descriptors are now preserved, direct fixed-index guard reads are healthy, whole-element `entries[0]` local copies are healthy, and iterative `entries[index]` loops now execute correctly across transition boundaries
-  - richer room-style struct copy/readback is now covered in the active pass suite:
-    - `canaries/pass/storage/runtime_machine_owned_indexed_nested_room_copy_exit`
-  - mutable state-call parameters and caller-local indexed writes are now covered at compile time:
-    - machine-owned targets:
-      - `canaries/pass/calls/runtime_mutable_machine_owned_parameter_write_exit`
-      - `canaries/pass/calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit`
-      - `canaries/pass/calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit`
-    - caller-local frame targets:
-      - `canaries/pass/calls/runtime_mutable_local_parameter_write_compile`
-      - `canaries/pass/calls/runtime_mutable_local_parameter_write_exit`
-      - `canaries/pass/calls/runtime_mutable_parameter_read_modify_write_exit`
-      - `canaries/pass/calls/runtime_mutable_local_indexed_parameter_write_exit`
-      - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_compile`
-      - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_exit`
-      - `canaries/pass/storage/runtime_dispatch_local_index_binary_write_exit`
-      - `canaries/pass/storage/runtime_slice_alias_indexed_field_write_exit`
-  - helper-expanded local slice alias mutation now runs end-to-end:
-    - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_exit`
-    - direct aliased read/modify/write like `room.exit_count = room.exit_count + 1` and helper-expanded local slice alias mutation both run, so this storage seam is no longer open
+  Current position:
+  - direct full-package `enter_room` dispatch works in the sample
+  - helper-expanded local slice alias mutation now runs end-to-end
+  - direct aliased read/modify/write now runs
+  - richer machine-owned indexed nested room copy/readback is covered
+  Remaining target:
+  - keep extending confidence on broader multi-edge/full-package flows
+  - continue strengthening generator-style nested storage updates
+  - keep pushing toward the remaining generic dungeon-sample blockers rather than only isolated micro-shapes
 
-- [ ] Runtime text and `read_line` cleanup
-  Stabilize mutable runtime text/string handling and remove the fragile feel around input/output buffer lowering, especially on macOS.
-  Progress:
-  - direct stdin-driven command branching now has runnable pass coverage:
-    - `canaries/pass/text/runtime_stdin_command_branch_exit`
-  - repeated `read_line` calls now have runnable pass coverage asserting one logical line per read:
-    - `canaries/pass/text/runtime_stdin_line_buffering_exit`
+- [ ] Slices as a first-class proof/runtime feature
+  The basic slice ladder is now in good shape; the next work should move from “individual seams compile/run” toward stronger semantic support.
+  Current position:
+  - fat slice descriptors survive locals and transition arguments
+  - fixed-index and dynamic-index slice reads/copies run across transitions
+  - iterative transitioned slice loops run
+  - local and alias-based indexed slice writes are covered
+  Next target:
+  - termination/ranking support for shrinking-slice loops
+  - stronger proof vocabulary around slice windows and non-empty views
+  - more complex alias/proof interactions over slice-backed structures
+
+- [ ] Runtime text and `read_line` confidence
+  Stabilize mutable runtime text/string handling and keep broadening real IO coverage.
+  Current position:
+  - local string-comparison bool lowering is healthy
+  - string concat and indexed string-field writes are covered
+  - stdin-driven command branching has runnable pass coverage
+  - repeated `read_line` buffering has runnable pass coverage
+  Next target:
+  - multi-step text flows with richer state transitions
+  - more host/runtime confidence around real console interaction paths
 
 ## Backend Quality
 
@@ -152,45 +85,60 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample.
 - [ ] Reduce host/runtime special-case lowering
   Keep shrinking the bring-up-era special handling around stdin/stdout/process calls so host/runtime lowering feels like a real subsystem instead of a narrow happy path.
 
-## Suggested First Crunch
+## Language Guide
 
-- [x] Add focused canaries for runtime guard/state persistence
-  Cover:
-  - room/event consumed flags surviving leave/re-enter flows
-  - simple numeric/boolean machine fields used in later transition guards
-  - conjunction/disjunction guard cases that currently force staged dispatch
-  Landed:
-  - `canaries/pass/dungeon/runtime_room_use_reentry_guard`
-  - `canaries/pass/dungeon/runtime_room_use_reentry_exit`
-  - `canaries/pass/dungeon/runtime_enemy_clear_reentry_guard`
-  - `canaries/pass/dungeon/runtime_enemy_clear_reentry_exit`
-  - `canaries/pass/dungeon/runtime_boolean_helper_guard_dispatch`
-  - `canaries/pass/dungeon/runtime_direct_boolean_conjunction_dispatch`
-  - `canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit`
+- [ ] Continue guide reorganization past the front half
+  The front-half sequencing is much cleaner now.
+  Next target:
+  - traits/modules/host-boundaries sequence
+  - keeping advanced chapters from assuming concepts that have not been introduced yet
+  - pulling speculative topics into clearer “working direction” sections when needed
+
+## Useful Landed Checkpoints
+
+- [x] Executable domain membership in direct/imported guard and value forms
+  Key canaries:
+  - `canaries/pass/domains/executable_domain_membership_expression_exit`
+  - `canaries/pass/domains/executable_imported_domain_membership_exit`
+  - `canaries/pass/domains/executable_imported_domain_membership_guard_exit`
+  - `canaries/pass/domains/executable_domain_membership_union_guard_exit`
+  - `canaries/pass/domains/executable_domain_membership_intersection_guard_exit`
+  - `canaries/pass/domains/executable_domain_membership_union_value_exit`
+  - `canaries/pass/domains/executable_domain_membership_intersection_value_exit`
+  - `canaries/pass/domains/executable_imported_domain_membership_union_guard_exit`
+  - `canaries/pass/domains/executable_imported_domain_membership_union_value_exit`
+  - `canaries/pass/domains/executable_imported_domain_membership_intersection_guard_exit`
+  - `canaries/pass/domains/executable_imported_domain_membership_intersection_value_exit`
+
+- [x] Slice runtime ladder
+  Key canaries:
+  - `canaries/pass/slices/runtime_slice_len_transition_exit`
+  - `canaries/pass/slices/runtime_slice_fixed_index_guard_exit`
+  - `canaries/pass/slices/runtime_slice_index_transition_exit`
+  - `canaries/pass/slices/runtime_local_slice_len_comparison_value_exit`
+  - `canaries/pass/slices/runtime_slice_iteration_exit`
+
+- [x] Indexed mutation/call-write ladder
+  Key canaries:
+  - `canaries/pass/calls/runtime_mutable_machine_owned_parameter_write_exit`
+  - `canaries/pass/calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit`
+  - `canaries/pass/calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit`
+  - `canaries/pass/calls/runtime_mutable_local_parameter_write_exit`
+  - `canaries/pass/calls/runtime_mutable_local_indexed_parameter_write_exit`
+  - `canaries/pass/calls/runtime_mutable_parameter_read_modify_write_exit`
+  - `canaries/pass/storage/runtime_dispatch_helper_local_alias_add_exit`
+  - `canaries/pass/storage/runtime_slice_alias_indexed_field_write_exit`
+
+- [x] Runtime boolean/string transition-value fixes
+  Key canaries:
   - `canaries/pass/control_flow/runtime_local_boolean_conjunction_value_exit`
+  - `canaries/pass/control_flow/runtime_local_boolean_or_value_exit`
   - `canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit`
-  - `canaries/pass/slices/runtime_mutable_slice_element_write_compile`
-  - `canaries/pass/slices/runtime_mutable_slice_element_write_exit`
-  - `canaries/pass/slices/runtime_dispatch_mutable_slice_element_write_compile`
-  - `canaries/pass/slices/runtime_dispatch_mutable_slice_element_write_exit`
-  - `canaries/pass/slices/runtime_slice_index_read_exit`
-  - `canaries/pass/slices/runtime_slice_index_read_dispatch_exit`
-  - `canaries/pass/slices/runtime_slice_index_copy_exit`
-  - `canaries/pass/slices/runtime_slice_index_copy_dispatch_exit`
-  - `canaries/pass/dungeon/runtime_ordered_room_dispatch_after_call_exit`
-  - `canaries/pass/dungeon/runtime_ordered_room_dispatch_exit`
-  - `canaries/pass/dungeon/runtime_ordered_room_dispatch_game_shape_exit`
-  - `canaries/pass/dungeon/runtime_ordered_room_dispatch_large_machine_exit`
-  - `canaries/pass/dungeon/runtime_ordered_room_dispatch_loop_exit`
-  - `canaries/pass/dungeon/runtime_ordered_room_dispatch_real_show_states_exit`
-  - `canaries/pass/dungeon/runtime_multi_room_reentry_exit`
-  - native scripted dungeon smoke in `compiler/orchestration/omega-compiler/tests/canary_suite.rs`
+  - `canaries/pass/control_flow/runtime_local_string_comparison_value_exit`
+  - `canaries/pass/control_flow/runtime_boolean_transition_argument_after_string_guard_exit`
 
-- [ ] Replace sample workarounds once compiler support lands
-  Progress:
-  - removed dungeon-crawler pseudo-room-history indices
-  - sample now uses real room ids plus persisted boolean consumed/defeated flags
-  - removed staged `enter_room` helper-view states now that the direct full-package path is proven
-  - removed additional helper-view staging in `look`, `help`, `use`, and `fight` where direct guarded dispatch now works cleanly
-  Remaining gap:
-  - continue trimming remaining sample-side staging only where it is clearly masking real compiler gaps
+- [x] Docs cleanup for dead invariant syntax and front-half guide structure
+  Landed:
+  - dead `Type[...]`/`range<...>` cleanup across samples/canaries/docs
+  - guide front-half restructure
+  - termination-proof design note in the proof chapters
