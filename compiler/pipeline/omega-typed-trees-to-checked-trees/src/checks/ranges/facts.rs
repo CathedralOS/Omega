@@ -42,6 +42,7 @@ pub(super) struct RangeFacts<'field> {
     locals: Vec<(SymbolHandle, String, usize)>,
     integer_locals: Vec<(SymbolHandle, String, i64)>,
     proven_indexes: Vec<(String, String)>,
+    proven_orderings: Vec<(String, String)>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -51,6 +52,7 @@ impl<'field> RangeFacts<'field> {
             locals: Vec::new(),
             integer_locals: Vec::new(),
             proven_indexes: Vec::new(),
+            proven_orderings: Vec::new(),
         }
     }
 
@@ -152,6 +154,22 @@ impl<'field> RangeFacts<'field> {
             .any(|(known_collection, known_index)| {
                 known_collection == collection && known_index == index
             })
+    }
+
+    pub(super) fn prove_at_most(&mut self, lower: String, upper: String) {
+        if !self
+            .proven_orderings
+            .iter()
+            .any(|(known_lower, known_upper)| known_lower == &lower && known_upper == &upper)
+        {
+            self.proven_orderings.push((lower, upper));
+        }
+    }
+
+    pub(super) fn at_most_is_proven(&self, lower: &str, upper: &str) -> bool {
+        self.proven_orderings
+            .iter()
+            .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
     }
 
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {

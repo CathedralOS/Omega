@@ -332,14 +332,13 @@ fn unknown_length_range_is_proven(
             &program.expression_table.display_name(range.end),
         ),
         (true, true) => {
-            let Some(start) = expression_integer_value(program, facts, range.start) else {
-                return false;
-            };
-            start == 0
-                && facts.index_is_proven(
-                    collection_label,
-                    &program.expression_table.display_name(range.end),
-                )
+            let start_label = program.expression_table.display_name(range.start);
+            let end_label = program.expression_table.display_name(range.end);
+            let start_is_at_most_end = expression_integer_value(program, facts, range.start)
+                .is_some_and(|start| start == 0)
+                || facts.at_most_is_proven(&start_label, &end_label);
+
+            start_is_at_most_end && facts.index_is_proven(collection_label, &end_label)
         }
         (false, false) => true,
     }
@@ -361,6 +360,14 @@ fn seed_guard_facts(
     match binary.operator {
         omega_typed_trees::expression::BinaryOperator::Less => {
             seed_less_than_len_fact(program, facts, binary.left, binary.right);
+            seed_at_most_fact(program, facts, binary.left, binary.right);
+        }
+        omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
+            seed_at_most_fact(program, facts, binary.left, binary.right);
+        }
+        omega_typed_trees::expression::BinaryOperator::And => {
+            seed_guard_facts(program, facts, binary.left);
+            seed_guard_facts(program, facts, binary.right);
         }
         omega_typed_trees::expression::BinaryOperator::Equal => {
             if matches!(
@@ -390,6 +397,18 @@ fn seed_less_than_len_fact(
     facts.prove_index(
         program.expression_table.display_name(member.receiver),
         program.expression_table.display_name(index),
+    );
+}
+
+fn seed_at_most_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    lower: ExpressionHandle,
+    upper: ExpressionHandle,
+) {
+    facts.prove_at_most(
+        program.expression_table.display_name(lower),
+        program.expression_table.display_name(upper),
     );
 }
 
