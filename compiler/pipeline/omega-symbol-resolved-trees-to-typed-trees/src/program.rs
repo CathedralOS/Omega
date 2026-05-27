@@ -118,6 +118,37 @@ mod tests {
     }
 
     #[test]
+    fn rejects_slice_range_surface_during_typed_lowering() {
+        let source = r#"
+        data Main {}
+
+        machine Main::main(&mut self) -> usize {
+            let values: [usize; 4] = [1, 2, 3, 4];
+            let view: &[usize] = values.as_slice();
+            let tail: &[usize] = view[1..];
+            tail.len
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved_program =
+            lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+        let diagnostic = lower_symbol_resolved_trees(&resolved_program)
+            .expect_err("typed lowering should reject slice ranges for now");
+
+        assert!(
+            diagnostic
+                .message
+                .contains("slice ranges are not implemented yet"),
+            "unexpected typed lowering diagnostic: {}",
+            diagnostic.message
+        );
+    }
+
+    #[test]
     fn lowers_domain_definitions() {
         let source = r#"
         domain Player::Valid {
