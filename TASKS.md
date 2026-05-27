@@ -193,6 +193,8 @@ meaning, without needing access to pointer descriptor internals.
     now prove literal indexes and tail subslices within that known prefix
   - nonzero-length guards such as `entries.len != 0` and `0 != entries.len`
     now prove the same non-empty index and tail-subslice facts
+  - successor guards such as `index + 1 <= entries.len` now prove
+    `entries[index]` and `entries[index..]`
   - unknown-length subslice diagnostics now distinguish subslice range proof
     failures from element-index proof failures
   - subslice diagnostics now identify whether the missing proof is the start
