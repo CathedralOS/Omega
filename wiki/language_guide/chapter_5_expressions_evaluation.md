@@ -120,8 +120,8 @@ Working interpretation:
 - `items[index]` resolves to the appropriate indexing operator for the
   collection or view.
 - The compiler must prove the index is in bounds for the accessed view.
-- Fixed arrays and slice views can use the same `[]` surface while obtaining
-  the proof from different sources.
+- Fixed arrays, vectors, and slice views can use the same `[]` surface while
+  obtaining the proof from different sources.
 - `items[0]` is valid when the current facts prove the view is non-empty.
 - Slice ranges such as `items[1..]` resolve to a range-slice operator that
   creates a new view with a narrower extent and updated facts.
@@ -141,6 +141,16 @@ The visible core declaration should therefore look like a normal contract plus a
 named trust root:
 
 ```omega
+operator Array::index<T>(items: &Array<T>, index: usize) -> T
+requires
+    index < items.len
+trust compiler_array_index;
+
+operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+requires
+    index < items.len
+trust compiler_vec_index;
+
 operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
     start <= items.len
