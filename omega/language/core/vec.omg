@@ -14,6 +14,9 @@ trust compiler_vec_length {
 trust compiler_vec_capacity {
 }
 
+trust compiler_vec_index {
+}
+
 trust compiler_vec_as_slice {
 }
 
@@ -34,6 +37,11 @@ trust compiler_vec_length;
 
 operator Vec::Capacity<T>(items: &Vec<T>) -> usize
 trust compiler_vec_capacity;
+
+operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+requires
+    index < items.len
+trust compiler_vec_index;
 
 operator Vec::as_slice<T>(items: &Vec<T>) -> &[T]
 trust compiler_vec_as_slice;
