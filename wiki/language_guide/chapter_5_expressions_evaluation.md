@@ -128,6 +128,10 @@ Working interpretation:
   element or view is uniquely writable.
 - Slice ranges such as `items[1..]` resolve to a range-slice operator that
   creates a new view with a narrower extent and updated facts.
+- Text views expose byte-oriented operations such as `StrView::byte` and
+  `StrView::range`; character or grapheme indexing must be a separate semantic
+  operation because UTF-8 byte positions are not the same as user-visible
+  characters.
 
 Omega loops often look like repeated transitions over either:
 
@@ -168,6 +172,16 @@ operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
     start <= items.len
 trust compiler_slice_from;
+
+operator StrView::byte(text: &str, index: usize) -> u8
+requires
+    index < text.len
+trust compiler_str_view_byte;
+
+operator StrView::range(text: &str, start: usize, end: usize) -> &str
+requires
+    start <= end && end <= text.len
+trust compiler_str_view_range;
 ```
 
 The proof checker owns `start <= items.len`. The trusted primitive owns the
