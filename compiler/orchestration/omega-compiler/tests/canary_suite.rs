@@ -2775,6 +2775,29 @@ fn pending_canaries_reproduce_known_gaps() {
                     combined
                 );
             }
+            PendingCanaryExpectation::CurrentlyCompiles => {
+                let canary_dir = pending_canary(canary.path);
+                let main_path = canary_dir.join("main.omg");
+                let options = CompileOptions {
+                    root_path: main_path.clone(),
+                    build_dir: None,
+                    target_name: None,
+                    write_output: false,
+                };
+
+                if let Err(diagnostics) = compile(options) {
+                    let combined = diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    panic!(
+                        "pending canary {} no longer compiles. Promote it to pass/fail and update the suite.\nactual diagnostics:\n{}",
+                        canary_dir.display(),
+                        combined
+                    );
+                }
+            }
         }
     }
 }
@@ -3033,6 +3056,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 #[derive(Clone, Copy)]
 enum PendingCanaryExpectation {
     CurrentlyRejects { fragment: &'static str },
+    CurrentlyCompiles,
 }
 
 struct PendingCanary {
@@ -3052,5 +3076,13 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "missing guarded state write",
         },
+    },
+    PendingCanary {
+        path: "slices/slice_parameter_index_unproven",
+        expectation: PendingCanaryExpectation::CurrentlyCompiles,
+    },
+    PendingCanary {
+        path: "slices/slice_parameter_subslice_unproven",
+        expectation: PendingCanaryExpectation::CurrentlyCompiles,
     },
 ];

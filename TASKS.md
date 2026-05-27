@@ -165,6 +165,9 @@ meaning, without needing access to pointer descriptor internals.
     `view[..end]`, and `view[start..end]` beyond literal local constants
   - stop silently skipping indexes into slice parameters whose current length is
     unknown; these need either caller-provided slice facts or local guard facts
+  - promote `canaries/pending/slices/slice_parameter_index_unproven` and
+    `canaries/pending/slices/slice_parameter_subslice_unproven` once unknown
+    slice parameter accesses require proof instead of compiling unchecked
   - carry state-call argument facts into state parameters, so calls like
     `choose(view[1..3], 1)` can prove the callee's `entries[index]`
   - extract simple guard facts such as `index < entries.len` and apply them to
