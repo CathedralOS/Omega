@@ -62,3 +62,32 @@ fn accepts_terminating_countdown_machine_with_decreases() {
 
     lower_typed_trees(typed).expect("termination check should succeed");
 }
+
+#[test]
+fn accepts_terminating_distance_machine_with_decreases() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.walk(4, 0);
+    }
+
+    machine Main::walk(&mut self, limit: usize, index: usize)
+    terminates
+    decreases limit - index
+    -> usize
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("termination distance proof should succeed");
+}

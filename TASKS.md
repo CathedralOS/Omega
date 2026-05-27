@@ -10,6 +10,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   - `terminates` and `decreases expr` now parse and lower through syntax/resolved/typed trees
   - checked-tree validation now rejects direct terminating recursive cycles with no `decreases`
   - direct countdown-style self recursion like `remaining > 0` then `self.countdown(remaining - 1)` now proves
+  - bounded-distance recursion like `decreases limit - index` with `index < limit` then `index + 1` now proves
   - current canary coverage is compile-proof focused, not full runtime-shape coverage yet
   Initial target:
   - `terminates`

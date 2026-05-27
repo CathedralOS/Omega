@@ -1,0 +1,19 @@
+data Main {
+}
+
+machine Main::main(&mut self) -> usize {
+    transition {
+        _ -> self.walk(4, 0)
+    }
+}
+
+machine Main::walk(&mut self, limit: usize, index: usize)
+terminates
+decreases limit - index
+-> usize
+{
+    transition index < limit {
+        true -> self.walk(limit, index + 1)
+        false -> index
+    }
+}

@@ -25,7 +25,7 @@ pub(crate) fn check_machine_termination(
             continue;
         }
 
-        if !machine_has_proven_countdown_decrease(program, machine) {
+        if !machine_has_proven_supported_decrease(program, machine) {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove decreases clause for terminating machine {}",
                 machine_name(program, machine.symbol)
@@ -128,7 +128,7 @@ fn target_state_index(
         .position(|state| state.symbol == target_symbol)
 }
 
-fn machine_has_proven_countdown_decrease(
+fn machine_has_proven_supported_decrease(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
 ) -> bool {
@@ -143,7 +143,7 @@ fn machine_has_proven_countdown_decrease(
         .machine_states(machine)
         .iter()
         .filter(|state| state_has_direct_self_loop(program, state))
-        .all(|state| state_has_proven_countdown_self_loop(program, state, decreases[0]))
+        .all(|state| state_has_proven_supported_self_loop(program, state, decreases[0]))
 }
 
 fn state_has_direct_self_loop(
@@ -169,6 +169,20 @@ fn state_has_direct_self_loop(
                 state.symbol,
             )
         })
+}
+
+fn state_has_proven_supported_self_loop(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    decreases: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(decreases) {
+        ExpressionNode::Name(_) => state_has_proven_countdown_self_loop(program, state, decreases),
+        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
+            state_has_proven_distance_self_loop(program, state, *binary)
+        }
+        _ => false,
+    }
 }
 
 fn state_has_proven_countdown_self_loop(
@@ -227,6 +241,89 @@ fn state_has_proven_countdown_self_loop(
         })
 }
 
+fn state_has_proven_distance_self_loop(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    decreases: omega_typed_trees::expression::TableBinaryExpression,
+) -> bool {
+    let Some(limit_parameter) = parameter_matched_by_expression(program, state, decreases.left) else {
+        return false;
+    };
+    let Some(index_parameter) = parameter_matched_by_expression(program, state, decreases.right)
+    else {
+        return false;
+    };
+    let non_self_parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let Some(limit_index) = non_self_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == limit_parameter.symbol)
+    else {
+        return false;
+    };
+    let Some(index_index) = non_self_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == index_parameter.symbol)
+    else {
+        return false;
+    };
+
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return false;
+            };
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                return false;
+            };
+            let target = program.statement_table.transition_target(transition.target);
+            let TransitionTargetNode::Named { path, arguments } = target else {
+                return false;
+            };
+            if path.symbol != state.symbol {
+                return false;
+            }
+            let arguments = program.statement_table.expression_handles(*arguments);
+            let Some(limit_argument) = arguments.get(limit_index).copied() else {
+                return false;
+            };
+            let Some(index_argument) = arguments.get(index_index).copied() else {
+                return false;
+            };
+
+            guard_is_index_below_limit(program, guard, index_parameter, limit_parameter)
+                && expression_is_parameter(program, limit_argument, limit_parameter)
+                && argument_is_parameter_plus_one(program, index_argument, index_parameter)
+        })
+}
+
+fn parameter_matched_by_expression<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    state: &'program omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<&'program omega_typed_trees::signature::StateParameter> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let parameter_name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()
+        .map(|member| member.as_str())
+        .unwrap_or_default();
+
+    program.state_parameters(state).iter().find(|parameter| {
+        !parameter.is_self
+            && (parameter.symbol == path.symbol || parameter.name.as_str() == parameter_name)
+    })
+}
+
 fn branch_targets_state(
     target: &TransitionTargetNode,
     state_symbol: omega_core::symbols::SymbolHandle,
@@ -280,6 +377,49 @@ fn argument_is_parameter_minus_one(
             program.expression_table.expression(binary.right),
             ExpressionNode::Integer(1)
         )
+}
+
+fn argument_is_parameter_plus_one(
+    program: &omega_typed_trees::TypedTrees,
+    argument: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {
+        return false;
+    };
+    matches!(binary.operator, BinaryOperator::Add)
+        && expression_is_parameter(program, binary.left, parameter)
+        && matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Integer(1)
+        )
+}
+
+fn guard_is_index_below_limit(
+    program: &omega_typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+    index_parameter: &omega_typed_trees::signature::StateParameter,
+    limit_parameter: &omega_typed_trees::signature::StateParameter,
+) -> bool {
+    let normalized = match program.expression_table.expression(guard) {
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::Equal)
+                && matches!(
+                    program.expression_table.expression(binary.right),
+                    ExpressionNode::Boolean(true)
+                ) =>
+        {
+            binary.left
+        }
+        _ => guard,
+    };
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
+        return false;
+    };
+    matches!(binary.operator, BinaryOperator::Less)
+        && expression_is_parameter(program, binary.left, index_parameter)
+        && expression_is_parameter(program, binary.right, limit_parameter)
 }
 
 fn expression_is_parameter(
