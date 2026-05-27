@@ -1,0 +1,14 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self, entries: &[Entry], index: usize) -> i32
+requires
+    index + 1 <= entries.len
+{
+    let chosen: Entry = entries[index];
+    chosen.value
+}
