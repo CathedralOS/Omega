@@ -127,15 +127,19 @@ fn statement_borrow_loan(
 ) -> Option<(SymbolHandle, Identifier, accesses::BorrowAccessPlace)> {
     match statement {
         StatementNode::LocalData(local_data) => {
-            if !is_mutable_reference_type(program, local_data.type_reference) {
+            if !is_reference_type(program, local_data.type_reference) {
                 return None;
             }
 
+            let local_is_mutable_reference =
+                is_mutable_reference_type(program, local_data.type_reference);
             let place = match program
                 .expression_table
                 .expression(local_data.initial_value)
             {
-                omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression) => {
+                omega_checked_trees::expression::ExpressionNode::Mutable(inner_expression)
+                    if local_is_mutable_reference =>
+                {
                     borrow_access_place(
                         program,
                         state.symbol,
@@ -176,7 +180,10 @@ fn helper_call_borrow_loan_place(
         return None;
     }
 
-    if call.target.as_str() == "as_mut_slice" {
+    if matches!(
+        call.target.as_str(),
+        "as_slice" | "as_mut_slice" | "as_view"
+    ) {
         return borrow_access_place(
             program,
             state_symbol,
@@ -189,12 +196,12 @@ fn helper_call_borrow_loan_place(
     let Some(target_state) = find_state(program, call.target_symbol) else {
         return None;
     };
-    let receiver_is_mutable = program
+    let receiver_is_self = program
         .state_parameters(target_state)
         .iter()
-        .any(|parameter| parameter.is_self && parameter.is_mutable);
+        .any(|parameter| parameter.is_self);
 
-    if !receiver_is_mutable || !is_mutable_reference_type(program, target_state.return_type) {
+    if !receiver_is_self || !is_reference_type(program, target_state.return_type) {
         return None;
     }
 
@@ -205,6 +212,23 @@ fn helper_call_borrow_loan_place(
         call.receiver,
         machine_symbol,
     )
+}
+
+fn is_reference_type(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_typed_trees::types::TypeReferenceNode::Reference { .. } => true,
+        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            is_reference_type(program, *base_type)
+        }
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Named { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Unit => false,
+    }
 }
 
 fn is_mutable_reference_type(
