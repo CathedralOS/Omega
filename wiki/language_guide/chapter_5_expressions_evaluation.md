@@ -137,6 +137,19 @@ collections, the operator contract and named measures should be visible as part
 of the core language surface; the low-level pointer/descriptor work belongs to a
 trusted primitive implementation layer below that surface.
 
+The visible core declaration should therefore look like a normal contract plus a
+named trust root:
+
+```omega
+operator Slice::from<T>(items: &[T], start: usize) -> &[T]
+requires
+    start <= items.len
+trust compiler_slice_from;
+```
+
+The proof checker owns `start <= items.len`. The trusted primitive owns the
+descriptor/pointer rewrite that actually constructs the narrower view.
+
 ## Numeric Semantics
 
 Machine numbers and proof numbers are different kinds of values.
