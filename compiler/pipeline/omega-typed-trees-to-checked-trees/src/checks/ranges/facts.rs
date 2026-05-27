@@ -38,8 +38,8 @@ pub(super) fn fixed_array_type_length(
 
 pub(super) struct RangeFacts<'field> {
     fields: &'field [(SymbolHandle, String, usize)],
-    pub(super) locals: Vec<(SymbolHandle, String, usize)>,
-    pub(super) integer_locals: Vec<(SymbolHandle, String, i64)>,
+    locals: Vec<(SymbolHandle, String, usize)>,
+    integer_locals: Vec<(SymbolHandle, String, i64)>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -104,7 +104,34 @@ impl<'field> RangeFacts<'field> {
             })
     }
 
-    pub(super) fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
+    pub(super) fn define_local(
+        &mut self,
+        symbol: SymbolHandle,
+        name: impl Into<String>,
+        length: Option<usize>,
+        integer: Option<i64>,
+    ) {
+        let name = name.into();
+        if let Some(length) = length {
+            self.locals.push((symbol, name.clone(), length));
+        }
+        if let Some(value) = integer {
+            self.integer_locals.push((symbol, name, value));
+        }
+    }
+
+    pub(super) fn assign_local(
+        &mut self,
+        symbol: SymbolHandle,
+        name: Option<&str>,
+        length: Option<usize>,
+        integer: Option<i64>,
+    ) {
+        self.forget_local(symbol, name);
+        self.define_local(symbol, name.unwrap_or_default().to_owned(), length, integer);
+    }
+
+    fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
         self.locals
             .retain(|(local, local_name, _)| !local_matches(*local, local_name, symbol, name));
         self.integer_locals

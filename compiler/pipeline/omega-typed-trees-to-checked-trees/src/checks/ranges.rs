@@ -44,17 +44,7 @@ fn check_statement(
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
-                facts.forget_local(symbol, name);
-                if let Some(length) = next_length {
-                    facts
-                        .locals
-                        .push((symbol, name.unwrap_or_default().to_owned(), length));
-                }
-                if let Some(value) = next_integer {
-                    facts
-                        .integer_locals
-                        .push((symbol, name.unwrap_or_default().to_owned(), value));
-                }
+                facts.assign_local(symbol, name, next_length, next_integer);
             }
         }
         StatementNode::Call(call) => {
@@ -70,14 +60,11 @@ fn check_statement(
             if let Some(length) = expression_indexable_length(program, facts, local.initial_value)
                 .or_else(|| fixed_array_type_length(program, local.type_reference))
             {
-                facts
-                    .locals
-                    .push((local.symbol, local.name.to_string(), length));
-            }
-            if let Some(value) = expression_integer_value(program, facts, local.initial_value) {
-                facts
-                    .integer_locals
-                    .push((local.symbol, local.name.to_string(), value));
+                facts.define_local(local.symbol, local.name.to_string(), Some(length), None);
+            } else if let Some(value) =
+                expression_integer_value(program, facts, local.initial_value)
+            {
+                facts.define_local(local.symbol, local.name.to_string(), None, Some(value));
             }
         }
         StatementNode::Transition(transition) => {
