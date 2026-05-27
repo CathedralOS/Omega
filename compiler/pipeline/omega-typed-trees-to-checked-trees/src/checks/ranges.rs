@@ -34,6 +34,7 @@ pub(crate) fn check_indexed_accesses(
         let state_argument_facts = collect_state_argument_facts(program, &field_lengths, machine);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
+            seed_field_integer_facts(program, &mut facts, machine);
             seed_machine_requires(program, &mut facts, machine);
             seed_state_argument_facts(&mut facts, state, &state_argument_facts);
             for statement in program.statement_table.statements(state.statement_nodes) {
@@ -86,12 +87,17 @@ fn check_statement(
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
+            } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
+            {
+                let next_integer = expression_integer_value(program, facts, assignment.value);
+                facts.assign_field_integer(symbol, name, next_integer);
             }
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
                 check_expression(program, machine, state, facts, *argument, diagnostics);
             }
+            facts.forget_field_integers();
         }
         StatementNode::Expression(expression) => {
             check_expression(program, machine, state, facts, *expression, diagnostics);
@@ -140,6 +146,48 @@ fn check_statement(
             );
         }
     }
+}
+
+fn seed_field_integer_facts(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    machine: &Machine,
+) {
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                continue;
+            };
+            if !field.initial_value.is_valid() {
+                continue;
+            }
+            let Some(integer) = expression_integer_value(program, facts, field.initial_value)
+            else {
+                continue;
+            };
+            facts.define_field_integer(field.symbol, field.name.to_string(), integer);
+        }
+    }
+
+    for owned in program.machine_owned_data(machine) {
+        if !owned.initial_value.is_valid() {
+            continue;
+        }
+        let Some(integer) = expression_integer_value(program, facts, owned.initial_value) else {
+            continue;
+        };
+        facts.define_field_integer(owned.symbol, owned.name.to_string(), integer);
+    }
+}
+
+fn expression_member_name(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(omega_core::symbols::SymbolHandle, Option<&str>)> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    Some((member.member_symbol, Some(member.member.as_str())))
 }
 
 fn check_transition_target(

@@ -77,6 +77,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                         expression_table,
                         &mut counts,
                     );
+                    if field.initial_value.is_valid() {
+                        count_expression_handle(expression_table, field.initial_value, &mut counts);
+                    }
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }

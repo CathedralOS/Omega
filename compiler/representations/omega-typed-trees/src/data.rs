@@ -83,6 +83,7 @@ pub struct DataField {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
+    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 impl Default for DataField {
@@ -91,6 +92,7 @@ impl Default for DataField {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_reference: TypeReferenceHandle::invalid(),
+            initial_value: crate::expression::ExpressionHandle::invalid(),
         }
     }
 }

@@ -187,6 +187,7 @@ pub enum DataMemberSnapshot {
     Field {
         name: String,
         type_reference: TypeReferenceSnapshot,
+        initial_value: Option<ExpressionSnapshot>,
     },
     Variant {
         name: String,
@@ -475,6 +476,7 @@ fn data_member_snapshot(program: &TypedTrees, member: &DataMember) -> DataMember
         DataMember::Field(field) => DataMemberSnapshot::Field {
             name: field.name.to_string(),
             type_reference: type_reference_snapshot(program, field.type_reference),
+            initial_value: expression_snapshot_option(program, field.initial_value),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: variant.name.to_string(),

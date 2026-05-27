@@ -73,6 +73,13 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
                         field.type_reference,
                         &mut counts,
                     );
+                    if field.initial_value.is_valid() {
+                        count_expression_handle(
+                            &typed_trees.expression_table,
+                            field.initial_value,
+                            &mut counts,
+                        );
+                    }
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }

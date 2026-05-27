@@ -31,6 +31,10 @@ pub(super) fn expression_integer_value(
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<i64> {
+    if !expression.is_valid() {
+        return None;
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let left = expression_integer_value(program, facts, binary.left)?;
@@ -41,6 +45,9 @@ pub(super) fn expression_integer_value(
         ExpressionNode::Name(_) => {
             let (symbol, name) = expression_name(program, expression)?;
             facts.local_integer(symbol, name)
+        }
+        ExpressionNode::Member(member) => {
+            facts.field_integer(member.member_symbol, Some(member.member.as_str()))
         }
         _ => None,
     }
@@ -68,6 +75,10 @@ pub(super) fn expression_indexable_length(
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
+    if !expression.is_valid() {
+        return None;
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call)
             if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>

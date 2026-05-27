@@ -1,0 +1,13 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2] = [Entry { value: 1 }, Entry { value: 2 }];
+    index: usize = 0;
+}
+
+machine Main::main(&mut self) -> i32 {
+    let chosen: Entry = self.entries[self.index];
+    chosen.value
+}

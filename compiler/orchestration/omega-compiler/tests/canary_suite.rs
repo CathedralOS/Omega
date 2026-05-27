@@ -1901,6 +1901,40 @@ fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs(
 }
 
 #[test]
+fn runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_runs() {
+    let canary =
+        pass_canary("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-dynamic-indexed-machine-owned-parameter-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable dynamic indexed machine-owned parameter write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable dynamic indexed machine-owned parameter write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(175),
+        "expected runtime mutable dynamic indexed machine-owned parameter write canary to preserve writes through machine-owned collection + dynamic indexed mutable call parameters and exit 175, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
     let main_path = canary.join("main.omg");
@@ -2836,6 +2870,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
     "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
+    "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
     "dungeon/runtime_boolean_helper_guard_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_exit",
@@ -2881,6 +2916,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/guarded_slice_parameter_symmetric_true_guard_compile",
     "slices/guarded_slice_parameter_successor_index_compile",
     "slices/guarded_slice_parameter_successor_tail_compile",
+    "slices/machine_field_index_initializer_compile",
     "slices/requires_slice_parameter_bounded_subslice_compile",
     "slices/requires_slice_parameter_index_compile",
     "slices/requires_slice_parameter_successor_index_compile",
@@ -2958,6 +2994,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/dynamic_subslice_start_unproven",
     "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/known_length_dynamic_index_unproven",
+    "slices/machine_field_index_reassigned_unproven",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",
@@ -3010,12 +3047,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "termination/custom_ranking_order_unimplemented",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "cannot prove decreases clause",
-        },
-    },
-    PendingCanary {
-        path: "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove index",
         },
     },
     PendingCanary {
