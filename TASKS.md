@@ -72,6 +72,8 @@ meaning, without needing access to pointer descriptor internals.
     implementation-binding syntax exists
   - turn unresolved target trust-policy references from report-only facts into
     focused diagnostics once package/toolchain trust policy is explicit
+  - promote `canaries/pending/trust/target_unknown_trust_unrejected` once
+    target trust-policy validation is selected
   - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
   - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
 
@@ -384,6 +386,8 @@ meaning, without needing access to pointer descriptor internals.
   Current pending canaries:
   - `canaries/pending/termination/custom_ranking_struct_view_unimplemented`
     should become a pass when ranking views can project through declared bodies
+  - `canaries/pending/trust/target_unknown_trust_unrejected` should become a
+    fail once target trust-policy references are no longer report-only
   Next target:
   - promote pending canaries quickly when fixed
   - add pending canaries for serious known gaps instead of leaving them as ad hoc run probes

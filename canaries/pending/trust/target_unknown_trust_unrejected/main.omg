@@ -1,0 +1,9 @@
+target native {
+    trust missing_target_root
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
