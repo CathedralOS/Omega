@@ -8,8 +8,9 @@ machine Main::main(&mut self) -> usize {
 }
 
 machine Main::walk(&mut self, limit: usize, index: usize)
-terminates
-decreases limit - index
+terminates {
+    decreases limit - index;
+}
 -> usize
 {
     transition index < limit {

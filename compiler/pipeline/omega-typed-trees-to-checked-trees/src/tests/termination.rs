@@ -43,8 +43,9 @@ fn accepts_terminating_countdown_machine_with_decreases() {
     }
 
     machine Main::countdown(&mut self, remaining: usize)
-    terminates
-    decreases remaining
+    terminates {
+        decreases remaining;
+    }
     {
         transition remaining > 0 {
             true -> self.countdown(remaining - 1)
@@ -73,8 +74,9 @@ fn accepts_terminating_distance_machine_with_decreases() {
     }
 
     machine Main::walk(&mut self, limit: usize, index: usize)
-    terminates
-    decreases limit - index
+    terminates {
+        decreases limit - index;
+    }
     -> usize
     {
         transition index < limit {
@@ -84,7 +86,9 @@ fn accepts_terminating_distance_machine_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
@@ -109,8 +113,9 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: usize)
-    terminates
-    decreases entries.len - index
+    terminates {
+        decreases entries.len - index;
+    }
     -> usize
     {
         transition index < entries.len {
@@ -120,7 +125,9 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
@@ -138,8 +145,9 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     }
 
     machine Main::countdown(&mut self, remaining: usize)
-    terminates
-    decreases remaining
+    terminates {
+        decreases remaining;
+    }
     {
         transition remaining > 0 {
             true -> self.countdown(remaining)
@@ -148,15 +156,19 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
-    assert!(diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause")));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
+    );
 }
 
 #[test]
@@ -176,8 +188,9 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     }
 
     machine Main::walk(&mut self, entries: &[Entry], index: usize)
-    terminates
-    decreases entries.len - index
+    terminates {
+        decreases entries.len - index;
+    }
     -> usize
     {
         transition index < entries.len {
@@ -187,13 +200,17 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
 
-    assert!(diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause")));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
+    );
 }

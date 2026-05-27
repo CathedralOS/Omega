@@ -224,8 +224,9 @@ mod tests {
     fn parses_machine_termination_clauses() {
         let source = r#"
         machine walk(items: &[Item], remaining: usize)
-        terminates
-        decreases remaining
+        terminates {
+            decreases remaining;
+        }
         {
         }
         "#;

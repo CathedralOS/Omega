@@ -10,8 +10,9 @@ machine Main::main(&mut self) -> i32 {
 }
 
 machine Main::countdown(&mut self, remaining: usize)
-terminates
-decreases remaining
+terminates {
+    decreases remaining;
+}
 {
     transition remaining > 0 {
         true -> self.countdown(remaining - 1)
