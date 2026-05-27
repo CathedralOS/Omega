@@ -139,7 +139,7 @@ meaning, without needing access to pointer descriptor internals.
   - literal start-only, end-only, and bounded subslice forms now have pass/fail
     canary coverage
   - obvious literal indexes over fixed-array-derived slice views now reject
-    when outside the proven slice length
+    when outside the proven length
   - obvious literal indexes over fixed-array locals now use the same length
     proof path and reject when outside bounds
   Next target:

@@ -19,7 +19,7 @@ pub(crate) fn check_checked_facts(
         diagnostics.append(&mut contract_diagnostics);
     }
 
-    if let Err(mut range_diagnostics) = ranges::check_subslice_ranges(program) {
+    if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(program) {
         diagnostics.append(&mut range_diagnostics);
     }
 

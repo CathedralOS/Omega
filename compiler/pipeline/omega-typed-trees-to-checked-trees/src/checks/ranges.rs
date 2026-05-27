@@ -7,7 +7,7 @@ use omega_typed_trees::statement::{
     StatementNode, TransitionGuardNode, TransitionTargetNode,
 };
 
-pub(crate) fn check_subslice_ranges(
+pub(crate) fn check_indexed_accesses(
     program: &omega_typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let field_lengths = fixed_array_field_lengths(program);
@@ -158,7 +158,7 @@ fn check_index(
                 && usize::try_from(*index_value).is_ok_and(|index| index < length);
             if !valid {
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove slice index `{}` is within slice length {}",
+                    "cannot prove index `{}` is within length {}",
                     program.expression_table.display_name(index),
                     length
                 )));
