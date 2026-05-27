@@ -5,9 +5,10 @@ use omega_checked_trees::expression::{
 use omega_control_flow::StateKey;
 
 use super::super::super::storage_places::{
-    RuntimeStoragePlace, resolve_fixed_array_length, resolve_fixed_array_length_in_table,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    RuntimeStoragePlace, resolve_fixed_array_length, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table,
 };
+use super::fixed_array_slices::{FixedArraySliceSource, literal_fixed_array_slice_source_in_table};
 use omega_abstract_operations::SelectedInstructionKind;
 
 #[allow(clippy::too_many_arguments)]
@@ -140,12 +141,6 @@ fn literal_fixed_array_subslice_index_source_in_table(
     fixed_array_index_source_place(source, element_index)
 }
 
-struct FixedArraySliceSource {
-    place: RuntimeStoragePlace,
-    length: usize,
-    element_byte_size: usize,
-}
-
 #[allow(clippy::too_many_arguments)]
 fn literal_fixed_array_slice_source(
     input: &InstructionSelectionInput<'_>,
@@ -184,51 +179,6 @@ fn literal_fixed_array_slice_source(
                 source_machine,
                 source_state,
                 &subslice.collection,
-            )?;
-            fixed_array_subslice_source(source, start, end)
-        }
-        _ => None,
-    }
-}
-
-fn literal_fixed_array_slice_source_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    value_source_key: StateKey,
-    expressions: &ExpressionTable,
-    value: ExpressionHandle,
-) -> Option<FixedArraySliceSource> {
-    match expressions.expression(value) {
-        ExpressionNode::Call(call)
-            if call.receiver.is_valid()
-                && call.arguments.is_empty()
-                && (call.target.as_str() == "as_slice"
-                    || call.target.as_str() == "as_mut_slice") =>
-        {
-            let place = resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index,
-                value_source_key,
-                expressions,
-                call.receiver,
-            )?;
-            let length = resolve_fixed_array_length_in_table(
-                input,
-                dispatch_index,
-                value_source_key,
-                expressions,
-                call.receiver,
-            )?;
-            fixed_array_slice_source(place, length)
-        }
-        ExpressionNode::Indexed(subslice) => {
-            let (start, end) = literal_range_bounds_in_table(expressions, subslice.index)?;
-            let source = literal_fixed_array_slice_source_in_table(
-                input,
-                dispatch_index,
-                value_source_key,
-                expressions,
-                subslice.collection,
             )?;
             fixed_array_subslice_source(source, start, end)
         }
@@ -305,26 +255,6 @@ fn literal_range_bounds(range: &Expression) -> Option<(usize, Option<usize>)> {
     let end = match range.end.as_deref() {
         Some(end) => Some(literal_usize(end)?),
         None => None,
-    };
-    Some((start, end))
-}
-
-fn literal_range_bounds_in_table(
-    expressions: &ExpressionTable,
-    range: ExpressionHandle,
-) -> Option<(usize, Option<usize>)> {
-    let ExpressionNode::Range(range) = expressions.expression(range) else {
-        return None;
-    };
-    let start = if range.start.is_valid() {
-        literal_usize_in_table(expressions, range.start)?
-    } else {
-        0
-    };
-    let end = if range.end.is_valid() {
-        Some(literal_usize_in_table(expressions, range.end)?)
-    } else {
-        None
     };
     Some((start, end))
 }
