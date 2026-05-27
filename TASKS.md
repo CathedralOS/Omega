@@ -121,8 +121,11 @@ meaning, without needing access to pointer descriptor internals.
     internal ranking-order model
   - `Nat::Descending` and `Slice::Length` have temporary core declaration homes
     via operator declarations
-  Current pending canary:
-  - `canaries/pending/termination/custom_ranking_order_unimplemented`
+  - custom ranking names must now resolve to declared operator-like ranking
+    views returning `usize`; undeclared names reject instead of being accepted
+    as magic strings
+  - `decreases power -> Card::PowerOrder` now compiles for the first declared
+    custom natural-ranking countdown shape
   Next target:
   - replace temporary operator-like ranking declarations with dedicated ranking
     or measure declaration syntax once selected
@@ -131,7 +134,8 @@ meaning, without needing access to pointer descriptor internals.
   - replace arithmetic-facing proof UX such as `limit - index` with named bounded-distance rankings
   - add lexicographic ranking support
   - support multiple named orders for the same data shape
-  - add custom ranking projections/orders for user-defined structs
+  - extend custom ranking projections/orders beyond direct numeric parameters
+    to user-defined structs such as `decreases card -> Card::PowerOrder`
   - broaden termination checking beyond narrow direct self-recursion toward SCC/cycle reasoning
   - add a runtime exit canary for shrinking-slice recursion once runtime
     dispatch reliably executes the descriptor update instead of hanging
