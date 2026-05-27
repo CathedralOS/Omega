@@ -1,0 +1,24 @@
+use platform::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.countdown(4);
+    71
+}
+
+machine Main::countdown(&mut self, remaining: usize)
+terminates
+decreases remaining
+{
+    transition remaining > 0 {
+        true -> self.countdown(remaining - 1)
+        false -> done()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(71);
+    }
+}

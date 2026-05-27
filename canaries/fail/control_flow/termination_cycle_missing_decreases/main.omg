@@ -1,0 +1,15 @@
+data Main {
+}
+
+machine Main::main(&mut self) -> usize {
+    self.countdown(2)
+}
+
+machine Main::countdown(&mut self, remaining: usize) -> usize
+terminates
+{
+    transition remaining > 0 {
+        true -> self.countdown(remaining - 1)
+        false -> 0
+    }
+}
