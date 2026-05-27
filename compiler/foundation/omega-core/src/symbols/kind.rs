@@ -21,6 +21,7 @@ pub enum SymbolKind {
     Platform,
     HostCapability,
     Object,
+    Trust,
     Function,
     Section,
     Import,

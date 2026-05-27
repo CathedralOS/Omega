@@ -1526,7 +1526,7 @@ fn root_item_symbol_seed<'syntax>(
         )),
         Item::Target(target) => Some(RootSymbolSeed::Identifier(SymbolKind::Object, &target.name)),
         Item::TrustDefinition(trust_definition) => Some(RootSymbolSeed::Identifier(
-            SymbolKind::Object,
+            SymbolKind::Trust,
             &trust_definition.name,
         )),
         Item::Export(_) | Item::Use(_) => None,
@@ -1663,6 +1663,27 @@ mod tests {
             .find_child_by_name(definition.symbol, "items")
             .expect("operator value parameter should get a symbol");
         assert_eq!(report.symbols.get(value_parameter).kind, SymbolKind::Parameter);
+    }
+
+    #[test]
+    fn collects_trust_definitions_as_trust_symbols() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        syntax_trees.push_root_item(Item::TrustDefinition(
+            omega_syntax_trees::item::TrustDefinition {
+                name: Identifier::generated("compiler_slice_index"),
+                token_count: 1,
+            },
+        ));
+
+        let report = build_resolve_report_without_sources(&syntax_trees);
+
+        let (_, definition) = report
+            .definitions
+            .iter()
+            .find(|(_, definition)| report.symbols.name(definition.symbol) == "compiler_slice_index")
+            .expect("trust definition should be collected");
+        assert_eq!(definition.kind, ResolvedDefinitionKind::Trust);
+        assert_eq!(report.symbols.get(definition.symbol).kind, SymbolKind::Trust);
     }
 
     #[test]

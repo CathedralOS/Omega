@@ -44,6 +44,8 @@ meaning, without needing access to pointer descriptor internals.
   - the pipeline shell includes the Trust artifact when present
   - core `Slice` declares the first language-authored primitive trust roots for indexing, subslicing, and length ranking
   - core `Ptr` declares initial primitive trust roots for offset, read, write, and pointer-range operations
+  - trust definitions now receive dedicated `Trust` symbols in the early name
+    surface instead of being hidden as generic objects
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
