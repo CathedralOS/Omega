@@ -324,6 +324,9 @@ Working model:
 - Domains may provide or select operator meanings when the value is proven to
   be in that domain.
 - Resolution must be static and unambiguous.
+- Operator declarations with the same name may form an overload set only when
+  their parameter types differ. Return-only overloads and alpha-equivalent
+  generic duplicates are ambiguous and should reject before resolution.
 
 For slices, this means the source form:
 
