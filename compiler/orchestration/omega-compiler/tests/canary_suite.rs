@@ -2662,6 +2662,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_multi_room_reentry_exit",
     "slices/runtime_mutable_slice_element_write_compile",
     "slices/runtime_mutable_slice_element_write_exit",
+    "slices/termination_slice_len_distance_compile",
     "slices/runtime_slice_index_copy_dispatch_exit",
     "slices/runtime_slice_index_copy_exit",
     "slices/runtime_slice_index_read_dispatch_exit",

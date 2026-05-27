@@ -91,3 +91,39 @@ fn accepts_terminating_distance_machine_with_decreases() {
 
     lower_typed_trees(typed).expect("termination distance proof should succeed");
 }
+
+#[test]
+fn accepts_terminating_slice_distance_machine_with_decreases() {
+    let source = r#"
+    data Entry {
+        value: i32;
+    }
+
+    data Main {
+        entries: [Entry; 4];
+    }
+
+    machine Main::main(&mut self) {
+        let view: &[Entry] = self.entries.as_slice();
+        let value: usize = self.walk(view, 0);
+    }
+
+    machine Main::walk(&mut self, entries: &[Entry], index: usize)
+    terminates
+    decreases entries.len - index
+    -> usize
+    {
+        transition index < entries.len {
+            true -> self.walk(entries, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("termination slice distance proof should succeed");
+}
