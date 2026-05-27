@@ -165,6 +165,14 @@ impl TypedTrees {
             .append_to_span(&mut operator.type_parameters, parameter);
     }
 
+    pub fn operator_type_parameters(
+        &self,
+        operator: &crate::operator::OperatorDefinition,
+    ) -> &[data::TypeParameter] {
+        self.data_type_parameters
+            .span_or_empty(operator.type_parameters)
+    }
+
     pub fn push_operator_parameter(
         &mut self,
         operator: &mut crate::operator::OperatorDefinition,

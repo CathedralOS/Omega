@@ -100,6 +100,8 @@ meaning, without needing access to pointer descriptor internals.
     signatures are now accepted as overload-set declarations
   - root operator declarations that differ only by return type still reject as
     duplicate ambiguous call signatures
+  - generic root operator duplicate checks now alpha-normalize type parameter
+    names, so `<T>` and `<U>` cannot bypass duplicate signature detection
   Next target:
   - use operator symbols during overload resolution and validate ambiguous
     operator declarations by signature and context
@@ -124,6 +126,8 @@ meaning, without needing access to pointer descriptor internals.
     accepted as overload-set declarations
   - domain operator declarations that differ only by return type still reject
     as duplicate ambiguous call signatures
+  - generic domain operator duplicate checks now alpha-normalize type parameter
+    names, so `<T>` and `<U>` cannot bypass duplicate signature detection
   Next target:
   - define the first semantic domain-operator representation
   - validate ambiguous domain operator candidates by signature, receiver, and
