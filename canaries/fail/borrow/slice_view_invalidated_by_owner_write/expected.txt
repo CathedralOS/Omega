@@ -1,0 +1,1 @@
+mutates `self.entries[0].value` while local borrow `view` is still active

@@ -371,14 +371,12 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Borrow checking over views
   Slice and string views make overlap reasoning central.
-  Current pending canary:
-  - `canaries/pending/borrow/slice_view_invalidated_by_owner_write_unimplemented`
-    captures the currently accepted gap where an immutable slice view is used
-    after mutating the owning array through a disjoint-looking path the checker
-    does not yet invalidate
-  - `canaries/pending/borrow/string_view_invalidated_by_owner_write_unimplemented`
-    captures the matching text-view gap where a borrowed `&str` remains usable
-    after mutating the owning `String`
+  Landed:
+  - immutable view-producing helpers such as `as_slice` and `as_view` now
+    create local borrow loans, so owner mutation before the view's last use
+    rejects for both slice and string views
+  - borrow diagnostics now print indexed places with source expression labels
+    instead of internal expression arena indexes
   Next target:
   - conservatively detect overlap between parent slices and subslices
   - distinguish disjoint fixed windows where provable
@@ -428,8 +426,6 @@ meaning, without needing access to pointer descriptor internals.
   Current pending canaries:
   - `canaries/pending/termination/custom_ranking_struct_view_unimplemented`
     should become a pass when ranking views can project through declared bodies
-  - `canaries/pending/trust/target_unknown_trust_unrejected` should become a
-    fail once target trust-policy references are no longer report-only
   Next target:
   - promote pending canaries quickly when fixed
   - add pending canaries for serious known gaps instead of leaving them as ad hoc run probes

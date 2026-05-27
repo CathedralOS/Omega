@@ -3,7 +3,9 @@ use omega_checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStat
 use omega_core::diagnostics::Diagnostic;
 
 use crate::flow::statement_mutated_place;
-use crate::labels::{borrow_access_label, call_target_label, symbol_name};
+use crate::labels::{
+    borrow_access_label, call_target_label, canonical_place_label_from_parts, symbol_name,
+};
 use crate::semantic_calls::{
     call_site_argument_expressions, find_call_site, find_state_in_machine,
 };
@@ -495,28 +497,5 @@ fn canonical_place_label(
     program: &omega_typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
 ) -> String {
-    let mut label = match place.root {
-        omega_facts::PlaceRoot::Unknown => "<unknown>".to_owned(),
-        omega_facts::PlaceRoot::Symbol(symbol) => symbol_name(program, symbol),
-        omega_facts::PlaceRoot::Expression(expression) => {
-            format!("expr#{}", expression.arena_index())
-        }
-        omega_facts::PlaceRoot::TypeReference(type_reference) => {
-            format!("type#{}", type_reference.arena_index())
-        }
-    };
-    for segment in &place.segments {
-        match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
-                label.push('.');
-                label.push_str(&symbol_name(program, *symbol));
-            }
-            omega_facts::PlaceSegment::Index { expression } => {
-                label.push('[');
-                label.push_str(&expression.arena_index().to_string());
-                label.push(']');
-            }
-        }
-    }
-    label
+    canonical_place_label_from_parts(program, place.root, &place.segments)
 }
