@@ -57,15 +57,10 @@ fn check_statement(
         }
         StatementNode::LocalData(local) => {
             check_expression(program, facts, local.initial_value, diagnostics);
-            if let Some(length) = expression_indexable_length(program, facts, local.initial_value)
-                .or_else(|| fixed_array_type_length(program, local.type_reference))
-            {
-                facts.define_local(local.symbol, local.name.to_string(), Some(length), None);
-            } else if let Some(value) =
-                expression_integer_value(program, facts, local.initial_value)
-            {
-                facts.define_local(local.symbol, local.name.to_string(), None, Some(value));
-            }
+            let length = expression_indexable_length(program, facts, local.initial_value)
+                .or_else(|| fixed_array_type_length(program, local.type_reference));
+            let integer = expression_integer_value(program, facts, local.initial_value);
+            facts.define_local(local.symbol, local.name.to_string(), length, integer);
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
