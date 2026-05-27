@@ -44,6 +44,7 @@ pub enum ResolvedDefinitionKind {
     Invariant,
     Library,
     Machine,
+    Operator,
     Platform,
     Target,
     Trait,
@@ -285,6 +286,11 @@ fn build_resolve_report_with_optional_sources(
                 collect_machine_references(&mut report, syntax_trees, machine);
             }
             Item::Operator(operator) => {
+                insert_definition(
+                    &mut report,
+                    &operator_name(syntax_trees, operator.name),
+                    ResolvedDefinitionKind::Operator,
+                );
                 collect_state_signature_parts(
                     &mut report,
                     syntax_trees,
@@ -972,6 +978,21 @@ struct SourceSymbolTableBuilder<'syntax> {
     builder: SymbolTableBuilder,
 }
 
+#[derive(Debug)]
+enum RootSymbolSeed<'syntax> {
+    Identifier(SymbolKind, &'syntax Identifier),
+    Name(SymbolKind, String),
+}
+
+impl RootSymbolSeed<'_> {
+    fn as_symbol_seed(&self) -> SymbolSeed<'_> {
+        match self {
+            Self::Identifier(kind, identifier) => source_symbol_seed(*kind, identifier),
+            Self::Name(kind, name) => (*kind, SymbolNameRef::Borrowed(name.as_str())),
+        }
+    }
+}
+
 fn source_symbol_seed(kind: SymbolKind, identifier: &Identifier) -> SymbolSeed<'_> {
     if has_source_name(identifier.source_span()) {
         (kind, SymbolNameRef::Source(identifier.source_span()))
@@ -997,11 +1018,15 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             .builder
             .insert_root(SymbolKind::Root, SymbolNameRef::Static("program"));
         let syntax_trees = self.syntax_trees;
+        let symbolized_items = syntax_trees
+            .root_items()
+            .filter_map(|item| root_item_symbol_seed(syntax_trees, item).map(|seed| (item, seed)))
+            .collect::<Vec<_>>();
         let root_children = self.builder.insert_children(
             root,
             builtin_type_symbols()
                 .into_iter()
-                .chain(syntax_trees.root_items().filter_map(item_symbol_seed)),
+                .chain(symbolized_items.iter().map(|(_, seed)| seed.as_symbol_seed())),
         );
         let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
@@ -1010,10 +1035,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
                 self.insert_builtin_type_children(builtin_symbol, builtin_type);
             }
         }
-        for item in syntax_trees.root_items() {
-            if item_symbol_seed(item).is_none() {
-                continue;
-            }
+        for (item, _) in symbolized_items {
             if let Some(item_symbol) = root_children.next() {
                 self.insert_item_children(item_symbol, item);
             }
@@ -1052,6 +1074,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Machine(machine) => {
                 self.insert_machine_children(parent, machine.states);
             }
+            Item::Operator(operator) => {
+                self.insert_operator_children(parent, operator);
+            }
             Item::Platform(platform) => {
                 self.insert_platform_children(parent, platform.states);
             }
@@ -1061,7 +1086,6 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Domain(_)
             | Item::Export(_)
             | Item::Invariant(_)
-            | Item::Operator(_)
             | Item::Target(_)
             | Item::TrustDefinition(_)
             | Item::Use(_) => {}
@@ -1183,6 +1207,41 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
         for (child, signature) in SymbolTableBuilder::child_handles(children).zip(signatures.iter())
         {
             self.insert_state_signature_children(child, *signature);
+        }
+    }
+
+    fn insert_operator_children(
+        &mut self,
+        parent: SymbolHandle,
+        operator: &'syntax omega_syntax_trees::item::OperatorDefinition,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let type_parameters = syntax_trees.items.type_parameters(operator.type_parameters);
+        let parameters = syntax_trees.items.state_parameters(operator.parameters);
+        let children = self.builder.insert_children(
+            parent,
+            type_parameters
+                .iter()
+                .map(|parameter| source_symbol_seed(SymbolKind::TypeParameter, &parameter.name))
+                .chain(parameters.iter().map(|parameter| {
+                    let parameter = syntax_trees.items.state_parameter(*parameter);
+                    source_symbol_seed(SymbolKind::Parameter, &parameter.name)
+                })),
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+
+        for _ in type_parameters {
+            let Some(_) = children.next() else {
+                return;
+            };
+        }
+
+        for parameter in parameters {
+            let Some(parameter_symbol) = children.next() else {
+                return;
+            };
+            let parameter = syntax_trees.items.state_parameter(*parameter);
+            self.insert_type_children(parameter_symbol, parameter.type_reference, 0);
         }
     }
 
@@ -1333,6 +1392,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Machine(machine) => {
                 self.insert_machine_children(parent, machine.states);
             }
+            Item::Operator(operator) => {
+                self.insert_operator_children(parent, operator);
+            }
             Item::Platform(platform) => {
                 self.insert_platform_children(parent, platform.states);
             }
@@ -1342,7 +1404,6 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Domain(_)
             | Item::Export(_)
             | Item::Invariant(_)
-            | Item::Operator(_)
             | Item::Target(_)
             | Item::TrustDefinition(_)
             | Item::Use(_) => {}
@@ -1350,35 +1411,47 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
     }
 }
 
-fn item_symbol_seed(item: &Item) -> Option<SymbolSeed<'_>> {
+fn root_item_symbol_seed<'syntax>(
+    syntax_trees: &'syntax SyntaxTrees,
+    item: &'syntax Item,
+) -> Option<RootSymbolSeed<'syntax>> {
     match item {
-        Item::Capability(capability) => Some(source_symbol_seed(
+        Item::Capability(capability) => Some(RootSymbolSeed::Identifier(
             SymbolKind::HostCapability,
             &capability.name,
         )),
         Item::Data(data_definition) => {
-            Some(source_symbol_seed(SymbolKind::Data, &data_definition.name))
+            Some(RootSymbolSeed::Identifier(SymbolKind::Data, &data_definition.name))
         }
-        Item::Domain(domain) => Some(source_symbol_seed(SymbolKind::Domain, &domain.name)),
+        Item::Domain(domain) => Some(RootSymbolSeed::Identifier(SymbolKind::Domain, &domain.name)),
         Item::Invariant(invariant) => {
-            Some(source_symbol_seed(SymbolKind::Invariant, &invariant.name))
+            Some(RootSymbolSeed::Identifier(SymbolKind::Invariant, &invariant.name))
         }
         Item::Library(library) => library
             .name
             .as_ref()
-            .map(|name| source_symbol_seed(SymbolKind::Import, name)),
-        Item::Machine(machine) => Some(source_symbol_seed(SymbolKind::Machine, &machine.name)),
-        Item::Platform(platform) => Some(source_symbol_seed(SymbolKind::Platform, &platform.name)),
-        Item::Trait(trait_definition) => Some(source_symbol_seed(
+            .map(|name| RootSymbolSeed::Identifier(SymbolKind::Import, name)),
+        Item::Machine(machine) => {
+            Some(RootSymbolSeed::Identifier(SymbolKind::Machine, &machine.name))
+        }
+        Item::Operator(operator) => Some(RootSymbolSeed::Name(
+            SymbolKind::Operator,
+            operator_name(syntax_trees, operator.name),
+        )),
+        Item::Platform(platform) => Some(RootSymbolSeed::Identifier(
+            SymbolKind::Platform,
+            &platform.name,
+        )),
+        Item::Trait(trait_definition) => Some(RootSymbolSeed::Identifier(
             SymbolKind::Trait,
             &trait_definition.name,
         )),
-        Item::Target(target) => Some(source_symbol_seed(SymbolKind::Object, &target.name)),
-        Item::TrustDefinition(trust_definition) => Some(source_symbol_seed(
+        Item::Target(target) => Some(RootSymbolSeed::Identifier(SymbolKind::Object, &target.name)),
+        Item::TrustDefinition(trust_definition) => Some(RootSymbolSeed::Identifier(
             SymbolKind::Object,
             &trust_definition.name,
         )),
-        Item::Export(_) | Item::Operator(_) | Item::Use(_) => None,
+        Item::Export(_) | Item::Use(_) => None,
     }
 }
 
@@ -1398,23 +1471,121 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
     }
 }
 
+fn operator_name(syntax_trees: &SyntaxTrees, name: HandleSpan<Identifier>) -> String {
+    syntax_trees
+        .items
+        .identifier_path_members(name)
+        .iter()
+        .map(Identifier::as_str)
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report_without_sources,
     };
     use omega_core::arena::HandleSpan;
+    use omega_core::symbols::SymbolKind;
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::expression::{ExpressionNode, TableCallExpression};
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
-        DataDefinition, DataField, DataMember, DomainDefinition, Item, Machine, State,
-        StateParameterNode, UseItem,
+        DataDefinition, DataField, DataMember, DomainDefinition, Item, Machine,
+        OperatorDefinition, State, StateParameterNode, TypeParameter, UseItem,
     };
     use omega_syntax_trees::statement::{
         StatementNode, TableAssignment, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
     use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    #[test]
+    fn collects_root_operator_definitions_as_symbols() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+
+        let name = syntax_trees.items.insert_identifier_path_members([
+            Identifier::generated("Slice"),
+            Identifier::generated("index"),
+        ]);
+        let type_parameter = syntax_trees.items.append_type_parameter(TypeParameter {
+            name: Identifier::generated("T"),
+        });
+        let generic_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("T")));
+        let slice_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Slice {
+                element_type: generic_type,
+            });
+        let borrowed_slice_type = syntax_trees.type_references.insert(TypeReferenceNode::Reference {
+            referee: slice_type,
+            is_mutable: false,
+        });
+        let index_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("usize")));
+        let items_parameter =
+            syntax_trees
+                .items
+                .insert_state_parameter_node(StateParameterNode {
+                    name: Identifier::generated("items"),
+                    type_reference: borrowed_slice_type,
+                    is_const: false,
+                    is_mutable: false,
+                    is_self: false,
+                });
+        let items_parameter = syntax_trees.items.append_state_parameter_handle(items_parameter);
+        let index_parameter =
+            syntax_trees
+                .items
+                .insert_state_parameter_node(StateParameterNode {
+                    name: Identifier::generated("index"),
+                    type_reference: index_type,
+                    is_const: false,
+                    is_mutable: false,
+                    is_self: false,
+                });
+        let _index_parameter = syntax_trees.items.append_state_parameter_handle(index_parameter);
+        syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            name,
+            type_parameters: HandleSpan::from_parts(type_parameter, 1),
+            parameters: HandleSpan::from_parts(items_parameter, 2),
+            return_type: generic_type,
+            contracts: HandleSpan::empty(),
+            token_count: 1,
+        }));
+
+        let report = build_resolve_report_without_sources(&syntax_trees);
+
+        let (_, definition) = report
+            .definitions
+            .iter()
+            .find(|(_, definition)| report.symbols.name(definition.symbol) == "Slice::index")
+            .expect("root operator definition should be collected");
+        assert_eq!(definition.kind, ResolvedDefinitionKind::Operator);
+        assert_eq!(
+            report.symbols.get(definition.symbol).kind,
+            SymbolKind::Operator
+        );
+        assert!(report.references.iter().any(|(_, reference)| {
+            report.reference_name(reference) == "usize"
+                && reference.kind == ResolvedReferenceKind::Type
+        }));
+
+        let type_parameter = report
+            .symbols
+            .find_child_by_name(definition.symbol, "T")
+            .expect("operator type parameter should get a symbol");
+        assert_eq!(report.symbols.get(type_parameter).kind, SymbolKind::TypeParameter);
+
+        let value_parameter = report
+            .symbols
+            .find_child_by_name(definition.symbol, "items")
+            .expect("operator value parameter should get a symbol");
+        assert_eq!(report.symbols.get(value_parameter).kind, SymbolKind::Parameter);
+    }
 
     #[test]
     fn collects_domain_definitions_and_target_type_references() {
@@ -1518,6 +1689,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(entry_state, 2),
@@ -1622,6 +1796,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(entry_state, 1),
