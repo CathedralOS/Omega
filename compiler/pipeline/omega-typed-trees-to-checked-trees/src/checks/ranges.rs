@@ -1,14 +1,19 @@
 mod expressions;
 mod facts;
+mod state_arguments;
 
 use expressions::{
-    expression_indexable_length, expression_integer_value, expression_name, provable_range_bounds,
+    expression_indexable_length, expression_integer_value, expression_is_slice, expression_name,
+    provable_range_bounds,
 };
 use facts::{RangeFacts, fixed_array_field_lengths, fixed_array_type_length};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::SignatureContractKind;
+use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use state_arguments::{collect_state_argument_facts, seed_state_argument_facts};
 
 pub(crate) fn check_indexed_accesses(
     program: &omega_typed_trees::TypedTrees,
@@ -17,11 +22,20 @@ pub(crate) fn check_indexed_accesses(
     let mut diagnostics = Vec::new();
 
     for machine in program.machines() {
+        let state_argument_facts = collect_state_argument_facts(program, &field_lengths, machine);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
             seed_machine_requires(program, &mut facts, machine);
+            seed_state_argument_facts(&mut facts, state, &state_argument_facts);
             for statement in program.statement_table.statements(state.statement_nodes) {
-                check_statement(program, &mut facts, statement, &mut diagnostics);
+                check_statement(
+                    program,
+                    machine,
+                    state,
+                    &mut facts,
+                    statement,
+                    &mut diagnostics,
+                );
             }
         }
     }
@@ -35,14 +49,30 @@ pub(crate) fn check_indexed_accesses(
 
 fn check_statement(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &mut RangeFacts<'_>,
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
         StatementNode::Assignment(assignment) => {
-            check_expression(program, facts, assignment.target, diagnostics);
-            check_expression(program, facts, assignment.value, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                facts,
+                assignment.target,
+                diagnostics,
+            );
+            check_expression(
+                program,
+                machine,
+                state,
+                facts,
+                assignment.value,
+                diagnostics,
+            );
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
@@ -51,14 +81,21 @@ fn check_statement(
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
-                check_expression(program, facts, *argument, diagnostics);
+                check_expression(program, machine, state, facts, *argument, diagnostics);
             }
         }
         StatementNode::Expression(expression) => {
-            check_expression(program, facts, *expression, diagnostics);
+            check_expression(program, machine, state, facts, *expression, diagnostics);
         }
         StatementNode::LocalData(local) => {
-            check_expression(program, facts, local.initial_value, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                facts,
+                local.initial_value,
+                diagnostics,
+            );
             let length = expression_indexable_length(program, facts, local.initial_value)
                 .or_else(|| fixed_array_type_length(program, local.type_reference));
             let integer = expression_integer_value(program, facts, local.initial_value);
@@ -66,16 +103,32 @@ fn check_statement(
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
-                check_expression(program, facts, guard, diagnostics);
+                check_expression(program, machine, state, facts, guard, diagnostics);
             }
-            check_transition_target(program, facts, transition.target, diagnostics);
-            check_transition_target(program, facts, transition.continuation, diagnostics);
+            check_transition_target(
+                program,
+                machine,
+                state,
+                facts,
+                transition.target,
+                diagnostics,
+            );
+            check_transition_target(
+                program,
+                machine,
+                state,
+                facts,
+                transition.continuation,
+                diagnostics,
+            );
         }
     }
 }
 
 fn check_transition_target(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     target: omega_typed_trees::statement::TransitionTargetHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -87,16 +140,20 @@ fn check_transition_target(
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
-                check_expression(program, facts, *argument, diagnostics);
+                check_expression(program, machine, state, facts, *argument, diagnostics);
             }
         }
-        TransitionTargetNode::Value(value) => check_expression(program, facts, *value, diagnostics),
+        TransitionTargetNode::Value(value) => {
+            check_expression(program, machine, state, facts, *value, diagnostics)
+        }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
 }
 
 fn check_expression(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -108,20 +165,22 @@ fn check_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                check_expression(program, facts, *value, diagnostics);
+                check_expression(program, machine, state, facts, *value, diagnostics);
             }
         }
         ExpressionNode::Binary(binary) => {
-            check_expression(program, facts, binary.left, diagnostics);
-            check_expression(program, facts, binary.right, diagnostics);
+            check_expression(program, machine, state, facts, binary.left, diagnostics);
+            check_expression(program, machine, state, facts, binary.right, diagnostics);
         }
         ExpressionNode::Call(call) => {
-            check_expression(program, facts, call.receiver, diagnostics);
+            check_expression(program, machine, state, facts, call.receiver, diagnostics);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                check_expression(program, facts, *argument, diagnostics);
+                check_expression(program, machine, state, facts, *argument, diagnostics);
             }
         }
-        ExpressionNode::Cast(cast) => check_expression(program, facts, cast.value, diagnostics),
+        ExpressionNode::Cast(cast) => {
+            check_expression(program, machine, state, facts, cast.value, diagnostics)
+        }
         ExpressionNode::Indexed(indexed) => {
             if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
                 check_index(
@@ -132,20 +191,31 @@ fn check_expression(
                     length,
                     diagnostics,
                 );
+            } else if expression_is_slice(program, machine, state, indexed.collection) {
+                check_unknown_length_slice_index(program, facts, indexed.index, diagnostics);
             }
-            check_expression(program, facts, indexed.collection, diagnostics);
-            check_expression(program, facts, indexed.index, diagnostics);
+            check_expression(
+                program,
+                machine,
+                state,
+                facts,
+                indexed.collection,
+                diagnostics,
+            );
+            check_expression(program, machine, state, facts, indexed.index, diagnostics);
         }
         ExpressionNode::Member(member) => {
-            check_expression(program, facts, member.receiver, diagnostics);
+            check_expression(program, machine, state, facts, member.receiver, diagnostics);
         }
-        ExpressionNode::Mutable(inner) => check_expression(program, facts, *inner, diagnostics),
+        ExpressionNode::Mutable(inner) => {
+            check_expression(program, machine, state, facts, *inner, diagnostics)
+        }
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
-                check_expression(program, facts, range.start, diagnostics);
+                check_expression(program, machine, state, facts, range.start, diagnostics);
             }
             if range.end.is_valid() {
-                check_expression(program, facts, range.end, diagnostics);
+                check_expression(program, machine, state, facts, range.end, diagnostics);
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -153,7 +223,7 @@ fn check_expression(
                 .expression_table
                 .struct_fields(struct_literal.fields)
             {
-                check_expression(program, facts, field.value, diagnostics);
+                check_expression(program, machine, state, facts, field.value, diagnostics);
             }
         }
         ExpressionNode::Boolean(_)
@@ -199,6 +269,29 @@ fn check_index(
                 )));
             }
         }
+    }
+}
+
+fn check_unknown_length_slice_index(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    index: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match program.expression_table.expression(index) {
+        ExpressionNode::Range(_) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot prove range `{}` is within unknown slice length",
+                program.expression_table.display_name(index)
+            )));
+        }
+        _ if expression_integer_value(program, facts, index).is_none() => {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot prove index `{}` is within unknown slice length",
+                program.expression_table.display_name(index)
+            )));
+        }
+        _ => {}
     }
 }
 

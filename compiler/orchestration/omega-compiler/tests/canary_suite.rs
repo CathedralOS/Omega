@@ -2702,20 +2702,6 @@ fn pending_canaries_reproduce_known_gaps() {
                     combined
                 );
             }
-            PendingCanaryExpectation::CurrentlyCompiles => {
-                if let Err(diagnostics) = result {
-                    let combined = diagnostics
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    panic!(
-                        "pending canary {} no longer compiles. Promote it to pass/fail and update the suite.\nactual diagnostics:\n{}",
-                        canary_dir.display(),
-                        combined
-                    );
-                }
-            }
         }
     }
 }
@@ -2869,7 +2855,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_nested_branch_value",
     "slices/runtime_dispatch_mutable_slice_element_write_compile",
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
-    "storage/runtime_indexed_alias_field_binary",
     "arithmetic/runtime_modulo_value",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
@@ -2960,6 +2945,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/invalid_subslice_end_bounds_unchecked",
     "slices/invalid_slice_literal_index_unchecked",
     "slices/invalid_slice_reassigned_local_index_unchecked",
+    "slices/slice_parameter_index_unproven",
+    "slices/slice_parameter_subslice_unproven",
     "slices/termination_slice_length_order_unimplemented",
     "domains/domain_import_cycle",
     "domains/domain_import_unknown",
@@ -2982,7 +2969,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 #[derive(Clone, Copy)]
 enum PendingCanaryExpectation {
     CurrentlyRejects { fragment: &'static str },
-    CurrentlyCompiles,
 }
 
 struct PendingCanary {
@@ -3000,16 +2986,8 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "slices/termination_slice_length_compile",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "missing guarded state write",
+            fragment: "cannot prove range",
         },
-    },
-    PendingCanary {
-        path: "slices/slice_parameter_index_unproven",
-        expectation: PendingCanaryExpectation::CurrentlyCompiles,
-    },
-    PendingCanary {
-        path: "slices/slice_parameter_subslice_unproven",
-        expectation: PendingCanaryExpectation::CurrentlyCompiles,
     },
     PendingCanary {
         path: "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
@@ -3019,6 +2997,12 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "storage/runtime_dispatch_helper_local_alias_add_exit",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove index",
+        },
+    },
+    PendingCanary {
+        path: "storage/runtime_indexed_alias_field_binary",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "cannot prove index",
         },
