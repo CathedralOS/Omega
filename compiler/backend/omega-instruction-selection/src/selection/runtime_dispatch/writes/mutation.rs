@@ -39,7 +39,7 @@ use super::static_values::{
     resolve_runtime_static_integer_value_in_table, set_runtime_static_value,
     set_runtime_static_value_in_table,
 };
-use super::storage_copy::runtime_storage_copy;
+use super::storage_copy::{runtime_fixed_array_subslice_indexed_source_copy, runtime_storage_copy};
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
@@ -1382,7 +1382,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    if let Some(copy) = runtime_storage_copy(
+    if let Some(copy) = runtime_fixed_array_subslice_indexed_source_copy(
         input,
         dispatch_index,
         target_source_key,
@@ -1391,7 +1391,19 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         source_state,
         resolved_target,
         &resolved_value.expression,
-    ) {
+    )
+    .or_else(|| {
+        runtime_storage_copy(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+            &resolved_value.expression,
+        )
+    }) {
         selected_instructions.push(SelectedInstruction {
             kind: copy,
             source_key: operation_source_key,

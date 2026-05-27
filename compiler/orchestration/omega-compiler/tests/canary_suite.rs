@@ -1311,6 +1311,38 @@ fn runtime_subslice_range_len_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_subslice_range_pointer_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_range_pointer_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-pointer-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice range pointer canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice range pointer canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(205),
+        "expected runtime subslice range pointer canary to offset the descriptor pointer and exit 205, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_fixed_index_guard_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_fixed_index_guard_exit");
     let main_path = canary.join("main.omg");
@@ -2583,43 +2615,6 @@ fn pending_canaries_reproduce_known_gaps() {
                     combined
                 );
             }
-            PendingCanaryExpectation::CompilesAndExits {
-                current_exit,
-                desired_exit,
-            } => {
-                let canary_dir = pending_canary(canary.path);
-                let main_path = canary_dir.join("main.omg");
-                let build_dir = std::env::temp_dir().join(format!(
-                    "omega-pending-{}-{}",
-                    canary.path.replace('/', "-"),
-                    std::process::id()
-                ));
-                let _ = fs::remove_dir_all(&build_dir);
-
-                compile(CompileOptions {
-                    root_path: main_path,
-                    build_dir: Some(build_dir.clone()),
-                    target_name: None,
-                    write_output: true,
-                })
-                .expect("pending runtime canary should still compile");
-
-                let output = Command::new(build_dir.join(executable_name()))
-                    .output()
-                    .expect("pending runtime canary should still run");
-
-                assert_eq!(
-                    output.status.code(),
-                    Some(current_exit),
-                    "pending canary {} no longer matches its known wrong runtime result. If it now reaches the desired exit {}, promote it to pass; otherwise update the expectation. got {:?}\nstderr:\n{}",
-                    canary_dir.display(),
-                    desired_exit,
-                    output.status.code(),
-                    String::from_utf8_lossy(&output.stderr)
-                );
-
-                let _ = fs::remove_dir_all(&build_dir);
-            }
         }
     }
 }
@@ -2778,6 +2773,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/subslice_literal_bounds_compile",
     "slices/subslice_range_surface_compile",
     "slices/runtime_subslice_range_len_exit",
+    "slices/runtime_subslice_range_pointer_exit",
     "slices/termination_slice_len_distance_compile",
     "slices/termination_slice_length_compile",
     "slices/runtime_slice_index_copy_dispatch_exit",
@@ -2862,13 +2858,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
 
 #[derive(Clone, Copy)]
 enum PendingCanaryExpectation {
-    CurrentlyRejects {
-        fragment: &'static str,
-    },
-    CompilesAndExits {
-        current_exit: i32,
-        desired_exit: i32,
-    },
+    CurrentlyRejects { fragment: &'static str },
 }
 
 struct PendingCanary {
@@ -2876,18 +2866,9 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "termination/custom_ranking_order_unimplemented",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove decreases clause",
-        },
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
+    path: "termination/custom_ranking_order_unimplemented",
+    expectation: PendingCanaryExpectation::CurrentlyRejects {
+        fragment: "cannot prove decreases clause",
     },
-    PendingCanary {
-        path: "slices/runtime_subslice_range_pointer_wrong",
-        expectation: PendingCanaryExpectation::CompilesAndExits {
-            current_exit: 206,
-            desired_exit: 205,
-        },
-    },
-];
+}];
