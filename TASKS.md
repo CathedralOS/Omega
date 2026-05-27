@@ -162,6 +162,12 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - expand proof-backed acceptance for dynamic `view[start..]`,
     `view[..end]`, and `view[start..end]` beyond literal local constants
+  - stop silently skipping indexes into slice parameters whose current length is
+    unknown; these need either caller-provided slice facts or local guard facts
+  - carry state-call argument facts into state parameters, so calls like
+    `choose(view[1..3], 1)` can prove the callee's `entries[index]`
+  - extract simple guard facts such as `index < entries.len` and apply them to
+    guarded transition targets before dynamic indexing/slicing
   - decide how inclusive/exclusive range forms spell and lower
   - connect range validity facts to indexing validity facts instead of duplicating proof logic
 
