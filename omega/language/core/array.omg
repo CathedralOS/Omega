@@ -22,7 +22,7 @@ trust compiler_array_as_slice {
 trust compiler_array_as_mut_slice {
 }
 
-operator Array::Length<T>(items: Array<T>) -> usize
+operator Array::Length<T>(items: &Array<T>) -> usize
 trust compiler_array_length;
 
 operator Array::index<T>(items: &Array<T>, index: usize) -> T

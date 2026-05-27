@@ -35,7 +35,7 @@ trust compiler_str_view_byte {
 trust compiler_str_view_range {
 }
 
-operator String::Length(text: String) -> usize
+operator String::Length(text: &String) -> usize
 trust compiler_string_length;
 
 operator String::Capacity(text: &String) -> usize

@@ -28,6 +28,8 @@ meaning, without needing access to pointer descriptor internals.
     declarations through the current operator declaration surface
   - `Array`, `Vec`, and current text surfaces now expose initial browsable
     length/view operator contracts and primitive trust roots
+  - owner length contracts now use borrowed receivers for `Array`, `Vec`, and
+    `String` instead of consuming the owner
   - `Array` and `Vec` now expose browsable index operator contracts with
     bounds proof obligations and primitive trust roots
   - `Slice`, `Array`, and `Vec` now expose mutable index operator contracts
@@ -391,6 +393,9 @@ meaning, without needing access to pointer descriptor internals.
 
 - [ ] Backend representation ownership
   A lot of slice/string/storage behavior is encoded across selection, runtime storage, state values, and ISA lowering.
+  Landed:
+  - split string literal mutation and text comparison selection out of the
+    general runtime mutation writer into a focused string write module
   Next target:
   - identify one representation model for fat descriptors and pointer-based carriers
   - reduce duplicate descriptor assumptions across backend crates
