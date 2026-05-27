@@ -19,7 +19,7 @@ pub(super) fn fixed_array_field_lengths(
     fields
 }
 
-fn fixed_array_type_length(
+pub(super) fn fixed_array_type_length(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {

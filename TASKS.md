@@ -140,6 +140,8 @@ meaning, without needing access to pointer descriptor internals.
     canary coverage
   - obvious literal indexes over fixed-array-derived slice views now reject
     when outside the proven slice length
+  - obvious literal indexes over fixed-array locals now use the same length
+    proof path and reject when outside bounds
   Next target:
   - require proof that dynamic `view[start..]`, `view[..end]`, and
     `view[start..end]` are valid for the current view
