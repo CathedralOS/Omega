@@ -16,17 +16,19 @@ pub(super) fn machine_has_proven_supported_decrease(
     if decreases.len() != 1 {
         return false;
     }
-    let decrease_order = program.machine_decrease_order(machine.decrease_order);
-
-    let Some(order) = RankingOrder::from_path(program, decrease_order) else {
-        return false;
-    };
-
     program
         .machine_states(machine)
         .iter()
         .filter(|state| patterns::state_has_direct_self_loop(program, state))
-        .all(|state| state_has_proven_supported_self_loop(program, state, decreases[0], order))
+        .all(|state| {
+            let decrease_order = program.machine_decrease_order(machine.decrease_order);
+            let Some(order) = RankingOrder::from_path(program, state, decreases[0], decrease_order)
+            else {
+                return false;
+            };
+
+            state_has_proven_supported_self_loop(program, state, decreases[0], order)
+        })
 }
 
 fn state_has_proven_supported_self_loop(
