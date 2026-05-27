@@ -87,6 +87,7 @@ pub struct BorrowLoanFact {
     pub owner_symbol: SymbolHandle,
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub kind: BorrowAccessKind,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

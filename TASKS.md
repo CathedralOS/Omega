@@ -375,10 +375,11 @@ meaning, without needing access to pointer descriptor internals.
   - immutable view-producing helpers such as `as_slice` and `as_view` now
     create local borrow loans, so owner mutation before the view's last use
     rejects for both slice and string views
+  - derived subslice aliases now rebase their borrow loan through the source
+    view, so owner mutation under a live `tail = view[1..]` alias rejects
   - borrow diagnostics now print indexed places with source expression labels
     instead of internal expression arena indexes
   Next target:
-  - conservatively detect overlap between parent slices and subslices
   - distinguish disjoint fixed windows where provable
   - ensure `Vec` mutation/reallocation is rejected while borrowed views exist
   - add canaries for array, slice, and future vec aliasing cases
