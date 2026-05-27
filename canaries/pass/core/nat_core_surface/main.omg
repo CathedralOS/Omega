@@ -1,0 +1,7 @@
+use omega::language::core::nat;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,4 +1,5 @@
 mod graph;
+mod order;
 mod ranking;
 
 use crate::labels::machine_name;

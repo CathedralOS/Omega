@@ -1,0 +1,13 @@
+// Core natural-number ranking surface.
+//
+// `Nat::Descending` is the default well-founded ranking for unsigned natural
+// values in termination proofs. The checker still recognizes the name
+// internally today, but the semantic home should be browsable here alongside
+// other core rankings.
+//
+// Planned public surface:
+// - plain `decreases value` resolves here when the value has an unambiguous
+//   natural-number ranking
+// - `decreases value -> Nat::Descending` spells the ranking explicitly
+// - custom numeric-like domains can define their own named rankings instead of
+//   pretending every ordering belongs directly to the data type

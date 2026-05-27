@@ -17,6 +17,7 @@ meaning, without needing access to pointer descriptor internals.
   Landed:
   - initial browsable modules for `Slice`, `Vec`, `Array`, and text direction
     under `omega/language/core`
+  - initial browsable `Nat::Descending` home for termination ranking docs
   - import canaries for the first core collection/text module surfaces
   Next target:
   - expose proof/order names such as `Slice::Length` from that core surface
@@ -61,6 +62,8 @@ meaning, without needing access to pointer descriptor internals.
   - `terminates { ... }` parses and checks for direct recursive shapes
   - `decreases value -> Nat::Descending` works for countdown and bounded-distance shapes
   - `decreases entries -> Slice::Length` works for the first shrinking-subslice self-loop shape
+  - checker recognition of builtin ranking names is isolated behind a small
+    internal ranking-order model
   Current pending canary:
   - `canaries/pending/termination/custom_ranking_order_unimplemented`
   Next target:
