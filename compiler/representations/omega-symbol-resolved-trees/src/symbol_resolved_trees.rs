@@ -1,4 +1,6 @@
-use crate::{data, domain, expression, signature, snapshot, state, statement, tables, types};
+use crate::{
+    data, domain, expression, operator, signature, snapshot, state, statement, tables, types,
+};
 use omega_core::arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use omega_core::diagnostics::PhaseSnapshot;
 use omega_core::symbols::SymbolTable;
@@ -17,6 +19,7 @@ pub struct SymbolResolvedRoots {
     pub domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
     pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
     pub machines: OrderedRootArena<crate::machine::Machine>,
+    pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub platforms: OrderedRootArena<crate::platform::Platform>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
 }

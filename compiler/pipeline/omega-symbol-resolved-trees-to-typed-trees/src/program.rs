@@ -2,6 +2,7 @@ use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
+use crate::operator::lower_operator_definition;
 use crate::platform::lower_platform;
 use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
@@ -38,6 +39,11 @@ pub fn lower_symbol_resolved_trees(
     for machine in &symbol_resolved_trees.machines {
         let machine = lower_machine(&mut lowerer, machine)?;
         lowerer.typed_trees.push_machine(machine);
+    }
+
+    for operator in &symbol_resolved_trees.operators {
+        let operator = lower_operator_definition(operator);
+        lowerer.typed_trees.push_operator(operator);
     }
 
     for platform in &symbol_resolved_trees.platforms {
@@ -185,6 +191,28 @@ mod tests {
         assert!(membership.domain_symbol.is_valid());
         assert!(domain.body_token_count >= 3);
         assert!(domain.target_type.is_valid());
+    }
+
+    #[test]
+    fn preserves_operator_declarations() {
+        let source = r#"
+        operator Slice::index<T>(items: &[T], index: usize) -> T
+        requires
+            index < items.len
+        intrinsic;
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved_program =
+            lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+        let typed_trees =
+            lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+
+        assert_eq!(typed_trees.operators().len(), 1);
+        assert!(typed_trees.operators()[0].token_count > 0);
     }
 
     #[test]

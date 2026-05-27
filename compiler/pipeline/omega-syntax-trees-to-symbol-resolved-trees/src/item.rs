@@ -2,6 +2,7 @@ use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine_into;
+use crate::operator::lower_operator_definition;
 use crate::platform::lower_platform;
 use crate::program::Lowerer;
 use crate::trait_definition::lower_trait_definition;
@@ -48,10 +49,13 @@ pub(crate) fn lower_item(
             let trait_definition = lower_trait_definition(lowerer, syntax_trees, trait_definition)?;
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
+        syntax::item::Item::Operator(operator) => {
+            let operator = lower_operator_definition(operator);
+            lowerer.symbol_resolved_trees.operators.push(operator);
+        }
         syntax::item::Item::Capability(_)
         | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
-        | syntax::item::Item::Operator(_)
         | syntax::item::Item::Target(_)
         | syntax::item::Item::TrustDefinition(_)
         | syntax::item::Item::Use(_) => {}
