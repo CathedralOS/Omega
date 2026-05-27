@@ -29,7 +29,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let ((terminates, decreases, effects, contracts), next) =
+    let ((terminates, decreases, decrease_order, effects, contracts), next) =
         parse_machine_clauses(syntax_trees, next)?;
     input = next;
     let MachinePath {
@@ -114,6 +114,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             satisfies,
             terminates,
             decreases,
+            decrease_order,
             effects,
             contracts,
             states,
@@ -132,11 +133,13 @@ fn parse_machine_clauses<'tokens, 'source>(
         bool,
         HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
         HandleSpan<Identifier>,
+        HandleSpan<Identifier>,
         HandleSpan<CapabilityContract>,
     ),
 > {
     let mut terminates = false;
     let mut decreases = HandleSpan::empty();
+    let mut decrease_order = HandleSpan::empty();
     let mut effect_start = Handle::invalid();
     let mut effect_count = 0u32;
     let mut contract_start = Handle::invalid();
@@ -147,23 +150,23 @@ fn parse_machine_clauses<'tokens, 'source>(
             input = input.take_contextual("terminates")?;
             terminates = true;
             if starts_termination_clause_block(input) {
-                let (block_decreases, rest) = parse_termination_clause_block(syntax_trees, input)?;
+                let ((block_decreases, block_order), rest) =
+                    parse_termination_clause_block(syntax_trees, input)?;
                 input = rest;
                 if !block_decreases.is_empty() {
                     decreases = block_decreases;
+                    decrease_order = block_order;
                 }
             }
             continue;
         }
 
         if input.at_contextual("decreases") {
-            input = input.take_contextual("decreases")?;
-            let (expression, rest) =
-                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            let ((clause_decreases, clause_order), rest) =
+                parse_decreases_clause(syntax_trees, input)?;
             input = rest;
-            decreases = syntax_trees
-                .expressions
-                .insert_expression_handles([expression]);
+            decreases = clause_decreases;
+            decrease_order = clause_order;
 
             continue;
         }
@@ -246,7 +249,10 @@ fn parse_machine_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(contract_start, contract_count)
     };
-    Ok(((terminates, decreases, effects, contracts), input))
+    Ok((
+        (terminates, decreases, decrease_order, effects, contracts),
+        input,
+    ))
 }
 
 fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
@@ -264,19 +270,25 @@ fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
 fn parse_termination_clause_block<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<omega_syntax_trees::expression::ExpressionHandle>> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
+        HandleSpan<Identifier>,
+    ),
+> {
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut decreases = HandleSpan::empty();
+    let mut decrease_order = HandleSpan::empty();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("decreases") {
-            input = input.take_contextual("decreases")?;
-            let (expression, rest) =
-                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            let ((clause_decreases, clause_order), rest) =
+                parse_decreases_clause(syntax_trees, input)?;
             input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            decreases = syntax_trees
-                .expressions
-                .insert_expression_handles([expression]);
+            decreases = clause_decreases;
+            decrease_order = clause_order;
             continue;
         }
 
@@ -290,7 +302,38 @@ fn parse_termination_clause_block<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((decreases, input))
+    Ok(((decreases, decrease_order), input))
+}
+
+fn parse_decreases_clause<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
+        HandleSpan<Identifier>,
+    ),
+> {
+    let input = input.take_contextual("decreases")?;
+    let (expression, mut rest) =
+        parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+    let decreases = syntax_trees
+        .expressions
+        .insert_expression_handles([expression]);
+    let mut decrease_order = HandleSpan::empty();
+
+    if rest.at_punctuation(PunctuationKind::Arrow) {
+        rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
+        let (order, next) = parse_path_handle_span(rest, |member| {
+            syntax_trees.items.append_identifier_path_member(member)
+        })?;
+        decrease_order = order;
+        rest = next;
+    }
+
+    Ok(((decreases, decrease_order), rest))
 }
 
 fn parse_satisfies_traits<'tokens, 'source>(

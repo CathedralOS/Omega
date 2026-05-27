@@ -335,6 +335,7 @@ pub struct Machine {
     pub satisfies: HandleSpan<Identifier>,
     pub terminates: bool,
     pub decreases: HandleSpan<crate::expression::ExpressionHandle>,
+    pub decrease_order: HandleSpan<Identifier>,
     pub effects: HandleSpan<Identifier>,
     pub contracts: HandleSpan<CapabilityContract>,
     pub states: HandleSpan<StateHandle>,

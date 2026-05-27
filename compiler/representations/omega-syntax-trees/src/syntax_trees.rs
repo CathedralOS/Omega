@@ -201,6 +201,7 @@ impl SyntaxTrees {
             satisfies: self.copy_item_identifier_span(other, machine.satisfies),
             terminates: machine.terminates,
             decreases: self.copy_expression_handle_list(other, machine.decreases),
+            decrease_order: self.copy_item_identifier_span(other, machine.decrease_order),
             effects: self.copy_item_identifier_span(other, machine.effects),
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),

@@ -176,6 +176,7 @@ pub struct MachineSnapshot {
     pub attached_data: Option<String>,
     pub terminates: bool,
     pub decreases: Vec<ExpressionSnapshot>,
+    pub decrease_order: Vec<String>,
     pub effects: Vec<String>,
     pub contracts: Vec<SignatureContractSnapshot>,
     pub contains: Vec<ContainedObjectSnapshot>,
@@ -487,6 +488,11 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .expression_handles(machine.decreases)
             .iter()
             .map(|handle| expression_snapshot(program, *handle))
+            .collect(),
+        decrease_order: program
+            .machine_decrease_order(machine.decrease_order)
+            .iter()
+            .map(ToString::to_string)
             .collect(),
         effects: program
             .machine_effects(machine)

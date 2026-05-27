@@ -256,6 +256,13 @@ impl TypedTrees {
         self.signature_effects.span_or_empty(machine.effects)
     }
 
+    pub fn machine_decrease_order(
+        &self,
+        span: HandleSpan<crate::name::Identifier>,
+    ) -> &[crate::name::Identifier] {
+        self.signature_effects.span_or_empty(span)
+    }
+
     pub fn push_machine_contract(
         &mut self,
         machine: &mut machine::Machine,

@@ -81,6 +81,7 @@ pub enum ItemSnapshot {
         attached_data: Option<IdentifierSnapshot>,
         terminates: bool,
         decreases: Vec<ExpressionSnapshot>,
+        decrease_order: Vec<IdentifierSnapshot>,
         effects: Vec<IdentifierSnapshot>,
         contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
@@ -488,6 +489,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
+            decrease_order: snapshot_identifier_slice(
+                syntax_trees
+                    .items
+                    .identifier_path_members(value.decrease_order),
+            ),
             effects: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.effects),
             ),

@@ -701,6 +701,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             satisfies: _,
             terminates: _,
             decreases: _,
+            decrease_order: _,
             effects: _,
             contracts: _,
             states,
