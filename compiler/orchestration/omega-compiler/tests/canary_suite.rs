@@ -3080,6 +3080,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
     "operators/domain_operator_duplicate",
+    "operators/domain_operator_unknown_trust",
     "operators/operator_unknown_trust",
     "operators/root_operator_duplicate",
     "calls/runtime_helper_ordering_return",

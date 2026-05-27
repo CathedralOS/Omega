@@ -58,7 +58,8 @@ meaning, without needing access to pointer descriptor internals.
     root
   - operator declarations now accept `trust` contracts and the trust report
     counts root/domain operator trusted references
-  - unresolved operator trust roots now reject with focused diagnostics
+  - unresolved root and domain operator trust roots now reject with focused
+    diagnostics
   Next target:
   - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
   - require trusted implementation bindings to reference registered roots
