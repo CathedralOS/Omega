@@ -19,8 +19,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   - arithmetic bounded-distance recursion proves
   - slice-backed bounded-distance recursion proves
   - explicit `decreases value -> Nat::Descending` now parses/lowers/checks for the currently supported countdown and bounded-distance shapes
+  - explicit `decreases entries -> Slice::Length` now proves for the first shrinking-subslice self-loop shape
   Next implementation steps:
-  - replace the prototype surface with `terminates { ... }`
   - broaden explicit `decreases value -> OrderOrMeasure` beyond `Nat::Descending`
   - keep bare `decreases value` only for unambiguous builtin cases
   - migrate current arithmetic-facing proof logic behind named builtin ranking views instead of exposing `limit - index` as primary UX
@@ -41,9 +41,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   - cycle/SCC coverage beyond the current narrow direct recursion shapes
   Immediate blockers:
   - migrate the prototype away from bare arithmetic-facing `decreases expr`
-  - `decreases entries -> Slice::Length` now parses but is not yet semantically supported
-  - slice ranges/subslices now parse into syntax/resolved expression trees, but still fail intentionally during typed lowering
-  - actual shrinking-slice semantics are still missing, so plain `decreases items` cannot yet ride on subslicing
+  - runtime subslice descriptor semantics are still wrong for simple `tail.len` probes, so shrinking-slice proofs are ahead of runtime slice behavior
+  - plain `decreases items` still needs builtin/default ranking inference rather than only explicit `-> Slice::Length`
 
 - [ ] Domain operators and proof-aware operator resolution
   The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.
@@ -69,8 +68,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
 - [ ] Slices as a first-class proof/runtime feature
   The basic slice ladder is now in good shape; the next work should move from “individual seams compile/run” toward stronger semantic support.
   Next target:
-  - actual subslice/range semantics beyond the current syntax/resolved surface
-  - termination/ranking support for shrinking-slice loops
+  - runtime subslice/range descriptor semantics beyond the current compile/proof surface
+  - plain shrinking-slice ergonomics after `decreases value -> Slice::Length`
   - stronger proof vocabulary around slice windows and non-empty views
   - more complex alias/proof interactions over slice-backed structures
 
