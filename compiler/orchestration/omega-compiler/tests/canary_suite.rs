@@ -1471,6 +1471,38 @@ fn runtime_nested_subslice_dynamic_index_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_subslice_fixed_index_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_nested_subslice_fixed_index_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-nested-subslice-fixed-index-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime nested subslice fixed index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime nested subslice fixed index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(215),
+        "expected runtime nested subslice fixed index canary to copy from the composed window and exit 215, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_fixed_index_guard_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_fixed_index_guard_exit");
     let main_path = canary.join("main.omg");
@@ -2905,6 +2937,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_subslice_dynamic_index_exit",
     "slices/runtime_subslice_end_dynamic_index_exit",
     "slices/runtime_nested_subslice_dynamic_index_exit",
+    "slices/runtime_nested_subslice_fixed_index_exit",
     "slices/runtime_subslice_range_pointer_exit",
     "slices/termination_slice_len_distance_compile",
     "slices/termination_slice_length_compile",

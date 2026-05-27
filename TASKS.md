@@ -164,6 +164,8 @@ meaning, without needing access to pointer descriptor internals.
     state-call parameter, covering dynamic reads after `view[..2]`
   - literal subslice descriptors now compose nested fixed-array-backed windows,
     covering dynamic reads after `view[1..][..2]`
+  - fixed-index local copies now compose nested fixed-array-backed windows,
+    covering `let chosen = view[1..][..2][1]`
   Next target:
   - generalize subslice descriptor pointer offsets beyond the fixed-array alias
     copy special case
