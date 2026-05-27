@@ -107,6 +107,12 @@ impl Default for LibraryFunction {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
+    pub name: HandleSpan<Identifier>,
+    pub type_parameters: HandleSpan<TypeParameter>,
+    pub parameters: HandleSpan<StateParameterHandle>,
+    pub return_type: crate::types::TypeReferenceHandle,
+    pub contracts: HandleSpan<CapabilityContract>,
+    pub is_intrinsic: bool,
     pub token_count: usize,
 }
 

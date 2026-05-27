@@ -44,7 +44,11 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|machine| machine_snapshot(program, machine))
                     .collect(),
-                operators: program.operators().iter().map(operator_snapshot).collect(),
+                operators: program
+                    .operators()
+                    .iter()
+                    .map(|operator| operator_snapshot(program, operator))
+                    .collect(),
                 platforms: program
                     .platforms()
                     .iter()
@@ -131,11 +135,35 @@ pub struct TypedTableSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorDefinitionSnapshot {
+    pub name: Vec<String>,
+    pub type_parameters: Vec<String>,
+    pub parameter_count: usize,
+    pub has_return_type: bool,
+    pub contract_count: usize,
+    pub is_intrinsic: bool,
     pub token_count: usize,
 }
 
-fn operator_snapshot(operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
+fn operator_snapshot(program: &TypedTrees, operator: &OperatorDefinition) -> OperatorDefinitionSnapshot {
     OperatorDefinitionSnapshot {
+        name: program
+            .operator_path_members(operator.name)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        type_parameters: program
+            .data_type_parameters
+            .span_or_empty(operator.type_parameters)
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
+        parameter_count: program.state_parameters.span_or_empty(operator.parameters).len(),
+        has_return_type: operator.return_type.is_valid(),
+        contract_count: program
+            .signature_contracts
+            .span_or_empty(operator.contracts)
+            .len(),
+        is_intrinsic: operator.is_intrinsic,
         token_count: operator.token_count,
     }
 }

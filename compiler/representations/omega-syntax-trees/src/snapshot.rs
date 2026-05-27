@@ -66,6 +66,12 @@ pub enum ItemSnapshot {
         functions: Vec<LibraryFunctionSnapshot>,
     },
     Operator {
+        name: Vec<IdentifierSnapshot>,
+        type_parameters: Vec<TypeParameterSnapshot>,
+        parameters: Vec<StateParameterSnapshot>,
+        return_type: TypeReferenceSnapshot,
+        contracts: Vec<CapabilityContractSnapshot>,
+        is_intrinsic: bool,
         token_count: usize,
     },
     Export {
@@ -476,6 +482,29 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
         },
         Item::Operator(value) => ItemSnapshot::Operator {
+            name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
+            type_parameters: syntax_trees
+                .items
+                .type_parameters(value.type_parameters)
+                .iter()
+                .map(|parameter| TypeParameterSnapshot {
+                    name: snapshot_identifier(&parameter.name),
+                })
+                .collect(),
+            parameters: syntax_trees
+                .items
+                .state_parameters(value.parameters)
+                .iter()
+                .map(|handle| {
+                    snapshot_state_parameter(
+                        syntax_trees,
+                        syntax_trees.items.state_parameter(*handle),
+                    )
+                })
+                .collect(),
+            return_type: snapshot_type_reference_handle(syntax_trees, value.return_type),
+            contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
+            is_intrinsic: value.is_intrinsic,
             token_count: value.token_count,
         },
         Item::Export(value) => ItemSnapshot::Export {

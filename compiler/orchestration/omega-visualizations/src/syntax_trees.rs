@@ -404,7 +404,20 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             format!("library {name}\nfunctions: {}", value.functions.len())
         }
         Item::Operator(value) => {
-            format!("operator\ntokens: {}", value.token_count)
+            let name = syntax
+                .items
+                .identifier_path_members(value.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "operator {name}\nparameters: {}\ncontracts: {}\nintrinsic: {}\ntokens: {}",
+                value.parameters.len(),
+                contract_summary(syntax, value.contracts),
+                value.is_intrinsic,
+                value.token_count,
+            )
         }
         Item::Machine(value) => {
             let state_handles = syntax.items.state_handles(value.states);

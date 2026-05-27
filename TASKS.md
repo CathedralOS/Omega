@@ -41,9 +41,11 @@ meaning, without needing access to pointer descriptor internals.
   - compile canary for a core-style intrinsic operator signature
   - operator declaration placeholders are preserved through symbol-resolved and
     typed trees
+  - operator declarations now carry name path, type parameters, parameters,
+    return type, contracts, and intrinsic mode through typed trees
   Next target:
-  - replace placeholder token counts with operator names, type parameters,
-    signatures, contracts, and intrinsic/body mode
+  - lower operator names into symbols and validate duplicate/ambiguous operator
+    declarations
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
   - support compiler-intrinsic operator bodies for core types without hiding their signatures and proof obligations

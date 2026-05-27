@@ -27,7 +27,7 @@ pub(crate) fn lower_data_definition(
     })
 }
 
-fn lower_type_parameters(
+pub(crate) fn lower_type_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     type_parameters: HandleSpan<syntax::item::TypeParameter>,

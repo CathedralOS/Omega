@@ -105,7 +105,43 @@ impl SymbolResolvedTreeTables {
             );
         }
 
+        for operator in &roots.operators {
+            tables.insert_operator(
+                operator,
+                state_parameters,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
+
         tables
+    }
+
+    fn insert_operator(
+        &mut self,
+        operator: &crate::operator::OperatorDefinition,
+        state_parameters: &Arena<StateParameter>,
+        child_type_references: &Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
+        source_expressions: &ExpressionTable,
+    ) {
+        for parameter in state_parameters.span_or_empty(operator.parameters) {
+            self.insert_type_reference(
+                &parameter.type_reference,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
+        if let Some(return_type) = &operator.return_type {
+            self.insert_type_reference(
+                return_type,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
     }
 
     fn insert_data_definition(

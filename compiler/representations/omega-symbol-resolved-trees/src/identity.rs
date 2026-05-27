@@ -184,6 +184,32 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_type_constraint(constraint, expression_table, &mut counts);
     }
 
+    for operator in &program.operators {
+        for member in program.operator_path_members(operator.name) {
+            count_declaration_name(member, &mut counts);
+        }
+        for parameter in program.data_type_parameters(operator.type_parameters) {
+            count_declaration_name(&parameter.name, &mut counts);
+        }
+        for parameter in program.state_parameters(operator.parameters) {
+            count_declaration_name(&parameter.name, &mut counts);
+            count_type_reference(
+                &parameter.type_reference,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
+        }
+        if let Some(return_type) = &operator.return_type {
+            count_type_reference(
+                return_type,
+                child_type_references,
+                expression_table,
+                &mut counts,
+            );
+        }
+    }
+
     counts
 }
 

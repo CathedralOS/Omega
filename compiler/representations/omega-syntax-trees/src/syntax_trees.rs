@@ -8,10 +8,10 @@ use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
     DomainDefinition, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
-    Platform, ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle,
-    StateParameterNode, StateSignature, StateSignatureHandle, TargetDefinition, TargetHost,
-    TargetHostSetting, TargetHostSettingValue, TraitDefinition, TrustDefinition, TrustLevel,
-    TrustMode, TrustPolicy, TypeParameter, UseItem,
+    OperatorDefinition, Platform, ProofFact, ProofMembershipFact, State, StateHandle,
+    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
+    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
+    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -139,7 +139,7 @@ impl SyntaxTrees {
                 constraints: self.copy_constraint_span(other, invariant.constraints),
             }),
             Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
-            Item::Operator(operator) => Item::Operator(operator.clone()),
+            Item::Operator(operator) => Item::Operator(self.copy_operator_definition(other, operator)),
             Item::Export(export_item) => Item::Export(crate::item::ExportItem {
                 path: self.copy_item_identifier_span(other, export_item.path),
                 alias: export_item.alias.clone(),
@@ -193,6 +193,22 @@ impl SyntaxTrees {
             path: library.path.clone(),
             calling_convention: library.calling_convention.clone(),
             functions: self.copy_library_function_span(other, library.functions),
+        }
+    }
+
+    fn copy_operator_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        operator: &OperatorDefinition,
+    ) -> OperatorDefinition {
+        OperatorDefinition {
+            name: self.copy_item_identifier_span(other, operator.name),
+            type_parameters: self.copy_type_parameter_span(other, operator.type_parameters),
+            parameters: self.copy_state_parameter_handle_span(other, operator.parameters),
+            return_type: self.copy_type_reference_handle(other, operator.return_type),
+            contracts: self.copy_capability_contract_span(other, operator.contracts),
+            is_intrinsic: operator.is_intrinsic,
+            token_count: operator.token_count,
         }
     }
 

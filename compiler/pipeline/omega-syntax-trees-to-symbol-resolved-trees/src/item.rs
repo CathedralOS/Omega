@@ -50,7 +50,7 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
         syntax::item::Item::Operator(operator) => {
-            let operator = lower_operator_definition(operator);
+            let operator = lower_operator_definition(lowerer, syntax_trees, operator)?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
         syntax::item::Item::Capability(_)
