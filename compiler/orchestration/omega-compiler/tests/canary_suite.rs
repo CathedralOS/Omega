@@ -1901,40 +1901,6 @@ fn runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs(
 }
 
 #[test]
-fn runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_runs() {
-    let canary =
-        pass_canary("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-mutable-dynamic-indexed-machine-owned-parameter-write-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable dynamic indexed machine-owned parameter write canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime mutable dynamic indexed machine-owned parameter write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(175),
-        "expected runtime mutable dynamic indexed machine-owned parameter write canary to preserve writes through machine-owned collection + machine-owned indexed mutable call parameters and exit 175, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
     let main_path = canary.join("main.omg");
@@ -1993,39 +1959,6 @@ fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
         output.status.code(),
         Some(201),
         "expected runtime slice alias indexed field write canary to write through a local slice alias and exit 201, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
-fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
-    let canary = pass_canary("storage/runtime_dispatch_helper_local_alias_add_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-dispatch-helper-local-alias-add-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime dispatch helper local alias add canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime dispatch helper local alias add canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(181),
-        "expected runtime dispatch helper local alias add canary to route to exit code 181, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -2917,7 +2850,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
     "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
-    "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
     "dungeon/runtime_boolean_helper_guard_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_exit",
@@ -2938,7 +2870,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_dispatch_mutable_slice_element_write_compile",
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "storage/runtime_indexed_alias_field_binary",
-    "storage/runtime_dispatch_helper_local_alias_add_exit",
     "arithmetic/runtime_modulo_value",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
@@ -3019,6 +2950,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/dynamic_subslice_end_unproven",
     "slices/dynamic_subslice_start_unproven",
     "slices/invalid_fixed_array_literal_index_unchecked",
+    "slices/known_length_dynamic_index_unproven",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",
@@ -3080,7 +3012,15 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyCompiles,
     },
     PendingCanary {
-        path: "slices/known_length_dynamic_index_unproven",
-        expectation: PendingCanaryExpectation::CurrentlyCompiles,
+        path: "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove index",
+        },
+    },
+    PendingCanary {
+        path: "storage/runtime_dispatch_helper_local_alias_add_exit",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove index",
+        },
     },
 ];

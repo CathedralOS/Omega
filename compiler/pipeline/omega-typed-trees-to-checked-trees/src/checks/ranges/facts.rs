@@ -40,6 +40,7 @@ pub(super) struct RangeFacts<'field> {
     fields: &'field [(SymbolHandle, String, usize)],
     locals: Vec<(SymbolHandle, String, usize)>,
     integer_locals: Vec<(SymbolHandle, String, i64)>,
+    proven_indexes: Vec<(String, String)>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -48,6 +49,7 @@ impl<'field> RangeFacts<'field> {
             fields,
             locals: Vec::new(),
             integer_locals: Vec::new(),
+            proven_indexes: Vec::new(),
         }
     }
 
@@ -129,6 +131,26 @@ impl<'field> RangeFacts<'field> {
     ) {
         self.forget_local(symbol, name);
         self.define_local(symbol, name.unwrap_or_default().to_owned(), length, integer);
+    }
+
+    pub(super) fn prove_index(&mut self, collection: String, index: String) {
+        if !self
+            .proven_indexes
+            .iter()
+            .any(|(known_collection, known_index)| {
+                known_collection == &collection && known_index == &index
+            })
+        {
+            self.proven_indexes.push((collection, index));
+        }
+    }
+
+    pub(super) fn index_is_proven(&self, collection: &str, index: &str) -> bool {
+        self.proven_indexes
+            .iter()
+            .any(|(known_collection, known_index)| {
+                known_collection == collection && known_index == index
+            })
     }
 
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {

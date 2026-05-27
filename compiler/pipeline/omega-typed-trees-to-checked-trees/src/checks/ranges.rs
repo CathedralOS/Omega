@@ -7,6 +7,7 @@ use expressions::{
 use facts::{RangeFacts, fixed_array_field_lengths, fixed_array_type_length};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
+use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(crate) fn check_indexed_accesses(
@@ -18,6 +19,7 @@ pub(crate) fn check_indexed_accesses(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
+            seed_machine_requires(program, &mut facts, machine);
             for statement in program.statement_table.statements(state.statement_nodes) {
                 check_statement(program, &mut facts, statement, &mut diagnostics);
             }
@@ -122,7 +124,14 @@ fn check_expression(
         ExpressionNode::Cast(cast) => check_expression(program, facts, cast.value, diagnostics),
         ExpressionNode::Indexed(indexed) => {
             if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
-                check_index(program, facts, indexed.index, length, diagnostics);
+                check_index(
+                    program,
+                    facts,
+                    indexed.collection,
+                    indexed.index,
+                    length,
+                    diagnostics,
+                );
             }
             check_expression(program, facts, indexed.collection, diagnostics);
             check_expression(program, facts, indexed.index, diagnostics);
@@ -158,6 +167,7 @@ fn check_expression(
 fn check_index(
     program: &omega_typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
     index: ExpressionHandle,
     length: usize,
     diagnostics: &mut Vec<Diagnostic>,
@@ -168,6 +178,15 @@ fn check_index(
         }
         _ => {
             let Some(index_value) = expression_integer_value(program, facts, index) else {
+                let collection_label = program.expression_table.display_name(collection);
+                let index_label = program.expression_table.display_name(index);
+                if facts.index_is_proven(&collection_label, &index_label) {
+                    return;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove index `{}` is within length {}",
+                    index_label, length
+                )));
                 return;
             };
             let valid =
@@ -180,6 +199,86 @@ fn check_index(
                 )));
             }
         }
+    }
+}
+
+fn seed_machine_requires(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    machine: &omega_typed_trees::machine::Machine,
+) {
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            match fact {
+                omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                    seed_index_proofs_from_expression(program, facts, *expression);
+                }
+                omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                    seed_index_proofs_from_expression(program, facts, membership.value);
+                }
+            }
+        }
+    }
+}
+
+fn seed_index_proofs_from_expression(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    expression: ExpressionHandle,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                seed_index_proofs_from_expression(program, facts, *value);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            seed_index_proofs_from_expression(program, facts, binary.left);
+            seed_index_proofs_from_expression(program, facts, binary.right);
+        }
+        ExpressionNode::Call(call) => {
+            seed_index_proofs_from_expression(program, facts, call.receiver);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                seed_index_proofs_from_expression(program, facts, *argument);
+            }
+        }
+        ExpressionNode::Cast(cast) => seed_index_proofs_from_expression(program, facts, cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            facts.prove_index(
+                program.expression_table.display_name(indexed.collection),
+                program.expression_table.display_name(indexed.index),
+            );
+            seed_index_proofs_from_expression(program, facts, indexed.collection);
+            seed_index_proofs_from_expression(program, facts, indexed.index);
+        }
+        ExpressionNode::Member(member) => {
+            seed_index_proofs_from_expression(program, facts, member.receiver);
+        }
+        ExpressionNode::Mutable(inner) => seed_index_proofs_from_expression(program, facts, *inner),
+        ExpressionNode::Range(range) => {
+            seed_index_proofs_from_expression(program, facts, range.start);
+            seed_index_proofs_from_expression(program, facts, range.end);
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
+                seed_index_proofs_from_expression(program, facts, field.value);
+            }
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
     }
 }
 
