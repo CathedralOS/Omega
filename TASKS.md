@@ -36,6 +36,8 @@ meaning, without needing access to pointer descriptor internals.
     same bounds proof obligations and distinct primitive trust roots
   - `StrView` now exposes byte and byte-range view contracts with bounds proof
     obligations and distinct primitive trust roots
+  - `Vec` now exposes an initial allocation-facing `with_capacity` contract
+    backed by the existing vector allocation primitive trust root
   - core operators can now name their trusted primitive root through operator
     `trust` contracts instead of relying only on nearby trust declarations
   - `Ptr` core source now exposes browsable primitive-boundary operator
