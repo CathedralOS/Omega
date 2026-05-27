@@ -2846,6 +2846,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "storage/runtime_machine_owned_indexed_integer_write_exit",
     "storage/runtime_machine_owned_indexed_nested_exit_write_exit",
     "storage/runtime_machine_owned_indexed_struct_copy_exit",
+    "storage/requires_slice_indexed_alias_field_binary_compile",
     "text/runtime_alias_string_write",
     "text/runtime_alias_text_builder_write",
     "text/runtime_string_concat_membership_exit",
@@ -3054,12 +3055,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "storage/runtime_dispatch_helper_local_alias_add_exit",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "cannot prove requires contract",
-        },
-    },
-    PendingCanary {
-        path: "storage/runtime_indexed_alias_field_binary",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot prove index",
         },
     },
 ];

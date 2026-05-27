@@ -207,6 +207,8 @@ meaning, without needing access to pointer descriptor internals.
   - `requires room.exit_count < room.exits.len` now survives local aliasing
     through `let exits = room.exits.as_mut_slice()` and
     `let index = room.exit_count`
+  - indexed field read/modify/write through an unknown-length slice parameter
+    now compiles when `requires index < exits.len` proves the index
   - successor guards such as `index + 1 <= entries.len` now prove
     `entries[index]` and `entries[index..]`
   - machine `requires` clauses now cover the same successor-bound slice index
@@ -220,8 +222,6 @@ meaning, without needing access to pointer descriptor internals.
     errors once `Slice::from/to/range` contracts drive checking directly
   - moved append-style storage mutation coverage to pending until call-site
     contract checking can prove `rooms[from_index].exit_count < rooms[from_index].exits.len`
-  - moved storage alias dynamic-index mutation coverage to pending until
-    machine parameters can carry slice length/index facts
   - broaden state-argument fact propagation to recursive/cyclic control-flow
     paths instead of the current conservative direct-call/transition seed pass
   - extend guard facts into state-call argument propagation for recursive and
