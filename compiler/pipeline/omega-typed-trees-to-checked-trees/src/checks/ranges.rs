@@ -311,19 +311,33 @@ impl<'field> SliceLengthFacts<'field> {
     }
 
     fn field_length(&self, symbol: SymbolHandle, name: Option<&str>) -> Option<usize> {
-        self.fields
+        if let Some(length) = self
+            .fields
             .iter()
-            .find_map(|(field, field_name, length)| {
-                (*field == symbol || name.is_some_and(|name| name == field_name)).then_some(*length)
-            })
+            .find_map(|(field, _, length)| (*field == symbol).then_some(*length))
+        {
+            return Some(length);
+        }
+
+        self.fields.iter().find_map(|(_, field_name, length)| {
+            name.is_some_and(|name| name == field_name)
+                .then_some(*length)
+        })
     }
 
     fn local_length(&self, symbol: SymbolHandle, name: Option<&str>) -> Option<usize> {
-        self.locals
+        if let Some(length) = self
+            .locals
             .iter()
             .rev()
-            .find_map(|(local, local_name, length)| {
-                (*local == symbol || name.is_some_and(|name| name == local_name)).then_some(*length)
-            })
+            .find_map(|(local, _, length)| (*local == symbol).then_some(*length))
+        {
+            return Some(length);
+        }
+
+        self.locals.iter().rev().find_map(|(_, local_name, length)| {
+            name.is_some_and(|name| name == local_name)
+                .then_some(*length)
+        })
     }
 }
