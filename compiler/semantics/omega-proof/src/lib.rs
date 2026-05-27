@@ -488,6 +488,7 @@ mod tests {
             name: Identifier::generated("NonEmpty"),
             target_type,
             facts: HandleSpan::empty(),
+            operators: HandleSpan::empty(),
             body_token_count: 3,
         }));
 

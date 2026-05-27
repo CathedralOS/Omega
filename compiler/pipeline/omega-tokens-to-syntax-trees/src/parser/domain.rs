@@ -4,7 +4,7 @@ use crate::parser::proof_fact::parse_proof_facts_until;
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{DomainDefinition, ProofFact};
+use omega_syntax_trees::item::{DomainDefinition, OperatorDefinition, ProofFact};
 use omega_syntax_trees::types::TypeReferenceNode;
 use omega_tokens::PunctuationKind;
 
@@ -19,13 +19,14 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         .type_references
         .insert(TypeReferenceNode::Named(target_name.clone()));
     let name = Identifier::generated(format!("{target_name}::{domain_name}"));
-    let ((facts, body_token_count), input) = parse_domain_body(syntax_trees, input)?;
+    let ((facts, operators, body_token_count), input) = parse_domain_body(syntax_trees, input)?;
 
     Ok((
         DomainDefinition {
             name,
             target_type,
             facts,
+            operators,
             body_token_count,
         },
         input,
@@ -35,15 +36,26 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
 fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (HandleSpan<ProofFact>, usize)> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        HandleSpan<ProofFact>,
+        HandleSpan<OperatorDefinition>,
+        usize,
+    ),
+> {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
     let mut facts = HandleSpan::empty();
+    let mut operators = HandleSpan::empty();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("operator") {
             input = input.take_contextual("operator")?;
-            let (_, rest) = parse_operator_definition(syntax_trees, input)?;
+            let (operator, rest) = parse_operator_definition(syntax_trees, input)?;
+            let handle = syntax_trees.items.append_operator(operator);
+            operators.push_contiguous(handle);
             input = rest;
             continue;
         }
@@ -58,7 +70,7 @@ fn parse_domain_body<'tokens, 'source>(
     let body_token_count = body_start_tokens.saturating_sub(input.tokens.len());
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
 
-    Ok(((facts, body_token_count), input))
+    Ok(((facts, operators, body_token_count), input))
 }
 
 fn merge_contiguous_fact_spans(

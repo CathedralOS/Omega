@@ -45,6 +45,7 @@ impl SymbolResolvedTreeTables {
             machine_states,
             platform_state_signatures,
             trait_machine_signatures,
+            operator_definitions,
             state_parameters,
             statement_path_members,
             state_statements,
@@ -68,6 +69,15 @@ impl SymbolResolvedTreeTables {
                 type_constraints,
                 source_expressions,
             );
+            for operator in operator_definitions.span_or_empty(domain_definition.operators) {
+                tables.insert_operator(
+                    operator,
+                    state_parameters,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                );
+            }
         }
 
         for platform in &roots.platforms {

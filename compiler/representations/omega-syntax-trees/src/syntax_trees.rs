@@ -132,6 +132,7 @@ impl SyntaxTrees {
                 name: domain.name.clone(),
                 target_type: self.copy_type_reference_handle(other, domain.target_type),
                 facts: self.copy_domain_fact_span(other, domain.facts),
+                operators: self.copy_operator_definition_span(other, domain.operators),
                 body_token_count: domain.body_token_count,
             }),
             Item::Invariant(invariant) => Item::Invariant(crate::item::InvariantDefinition {
@@ -210,6 +211,18 @@ impl SyntaxTrees {
             is_intrinsic: operator.is_intrinsic,
             token_count: operator.token_count,
         }
+    }
+
+    fn copy_operator_definition_span(
+        &mut self,
+        other: &SyntaxTrees,
+        span: HandleSpan<OperatorDefinition>,
+    ) -> HandleSpan<OperatorDefinition> {
+        self.copy_mapped_span(
+            other.items.operators(span),
+            |this, operator| this.copy_operator_definition(other, operator),
+            |this, operator| this.items.append_operator(operator),
+        )
     }
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {

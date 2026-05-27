@@ -53,6 +53,7 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         target_type: TypeReferenceSnapshot,
         facts: Vec<ProofFactSnapshot>,
+        operators: Vec<OperatorSnapshot>,
         body_token_count: usize,
     },
     Invariant {
@@ -66,13 +67,7 @@ pub enum ItemSnapshot {
         functions: Vec<LibraryFunctionSnapshot>,
     },
     Operator {
-        name: Vec<IdentifierSnapshot>,
-        type_parameters: Vec<TypeParameterSnapshot>,
-        parameters: Vec<StateParameterSnapshot>,
-        return_type: TypeReferenceSnapshot,
-        contracts: Vec<CapabilityContractSnapshot>,
-        is_intrinsic: bool,
-        token_count: usize,
+        operator: OperatorSnapshot,
     },
     Export {
         path: Vec<IdentifierSnapshot>,
@@ -115,6 +110,17 @@ pub enum ItemSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypeParameterSnapshot {
     pub name: IdentifierSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OperatorSnapshot {
+    pub name: Vec<IdentifierSnapshot>,
+    pub type_parameters: Vec<TypeParameterSnapshot>,
+    pub parameters: Vec<StateParameterSnapshot>,
+    pub return_type: TypeReferenceSnapshot,
+    pub contracts: Vec<CapabilityContractSnapshot>,
+    pub is_intrinsic: bool,
+    pub token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -459,6 +465,12 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             name: snapshot_identifier(&value.name),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
             facts: snapshot_proof_facts(syntax_trees, value.facts),
+            operators: syntax_trees
+                .items
+                .operators(value.operators)
+                .iter()
+                .map(|operator| snapshot_operator(syntax_trees, operator))
+                .collect(),
             body_token_count: value.body_token_count,
         },
         Item::Invariant(value) => ItemSnapshot::Invariant {
@@ -482,30 +494,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
         },
         Item::Operator(value) => ItemSnapshot::Operator {
-            name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
-            type_parameters: syntax_trees
-                .items
-                .type_parameters(value.type_parameters)
-                .iter()
-                .map(|parameter| TypeParameterSnapshot {
-                    name: snapshot_identifier(&parameter.name),
-                })
-                .collect(),
-            parameters: syntax_trees
-                .items
-                .state_parameters(value.parameters)
-                .iter()
-                .map(|handle| {
-                    snapshot_state_parameter(
-                        syntax_trees,
-                        syntax_trees.items.state_parameter(*handle),
-                    )
-                })
-                .collect(),
-            return_type: snapshot_type_reference_handle(syntax_trees, value.return_type),
-            contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
-            is_intrinsic: value.is_intrinsic,
-            token_count: value.token_count,
+            operator: snapshot_operator(syntax_trees, value),
         },
         Item::Export(value) => ItemSnapshot::Export {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
@@ -620,6 +609,35 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 })
                 .collect(),
         },
+    }
+}
+
+fn snapshot_operator(
+    syntax_trees: &SyntaxTrees,
+    operator: &crate::item::OperatorDefinition,
+) -> OperatorSnapshot {
+    OperatorSnapshot {
+        name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(operator.name)),
+        type_parameters: syntax_trees
+            .items
+            .type_parameters(operator.type_parameters)
+            .iter()
+            .map(|parameter| TypeParameterSnapshot {
+                name: snapshot_identifier(&parameter.name),
+            })
+            .collect(),
+        parameters: syntax_trees
+            .items
+            .state_parameters(operator.parameters)
+            .iter()
+            .map(|handle| {
+                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
+            })
+            .collect(),
+        return_type: snapshot_type_reference_handle(syntax_trees, operator.return_type),
+        contracts: snapshot_capability_contracts(syntax_trees, operator.contracts),
+        is_intrinsic: operator.is_intrinsic,
+        token_count: operator.token_count,
     }
 }
 

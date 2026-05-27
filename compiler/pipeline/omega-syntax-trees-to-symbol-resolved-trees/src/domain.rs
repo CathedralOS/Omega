@@ -1,5 +1,6 @@
 use crate::expression::lower_expression_into_table;
 use crate::name::lower_name;
+use crate::operator::lower_operator_definition;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
@@ -13,14 +14,39 @@ pub(crate) fn lower_domain_definition(
     domain: &syntax::item::DomainDefinition,
 ) -> Result<DomainDefinition, Diagnostic> {
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
+    let operators = lower_domain_operators(lowerer, syntax_trees, domain.operators)?;
 
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
         facts,
+        operators,
         body_token_count: domain.body_token_count,
     })
+}
+
+fn lower_domain_operators(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    operators: omega_core::arena::HandleSpan<syntax::item::OperatorDefinition>,
+) -> Result<
+    omega_core::arena::HandleSpan<omega_symbol_resolved_trees::operator::OperatorDefinition>,
+    Diagnostic,
+> {
+    let mut span = omega_core::arena::HandleSpan::empty();
+
+    for operator in syntax_trees.items.operators(operators) {
+        let operator = lower_operator_definition(lowerer, syntax_trees, operator)?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .operator_definitions
+            .append_to_span(&mut span, operator);
+    }
+
+    Ok(span)
 }
 
 pub(crate) fn lower_proof_facts(
