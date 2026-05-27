@@ -2574,6 +2574,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/composite_range_guard_dispatch",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/termination_countdown_compile",
+    "control_flow/termination_index_distance_compile",
     "domains/contracts_domain_membership_surface",
     "domains/executable_domain_membership_expression_exit",
     "domains/executable_domain_membership_intersection_guard_exit",
