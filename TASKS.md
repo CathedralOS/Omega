@@ -130,6 +130,9 @@ meaning, without needing access to pointer descriptor internals.
     custom natural-ranking countdown shape
   - `decreases card.power -> Card::PowerOrder` now proves the first
     user-defined struct field countdown shape, with a stalled-field fail canary
+  Current pending canary:
+  - `canaries/pending/termination/custom_ranking_struct_view_unimplemented`
+    captures the desired future `decreases card -> Card::PowerOrder` projection
   Next target:
   - replace temporary operator-like ranking declarations with dedicated ranking
     or measure declaration syntax once selected
