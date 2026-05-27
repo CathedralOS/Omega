@@ -374,6 +374,9 @@ meaning, without needing access to pointer descriptor internals.
     captures the currently accepted gap where an immutable slice view is used
     after mutating the owning array through a disjoint-looking path the checker
     does not yet invalidate
+  - `canaries/pending/borrow/string_view_invalidated_by_owner_write_unimplemented`
+    captures the matching text-view gap where a borrowed `&str` remains usable
+    after mutating the owning `String`
   Next target:
   - conservatively detect overlap between parent slices and subslices
   - distinguish disjoint fixed windows where provable

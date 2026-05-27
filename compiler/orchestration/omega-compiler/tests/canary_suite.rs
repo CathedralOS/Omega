@@ -3127,4 +3127,8 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "borrow/slice_view_invalidated_by_owner_write_unimplemented",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
+    PendingCanary {
+        path: "borrow/string_view_invalidated_by_owner_write_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
 ];
