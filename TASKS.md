@@ -160,11 +160,16 @@ meaning, without needing access to pointer descriptor internals.
     index/range facts cannot prove later slice access
   - obvious literal indexes over fixed-array locals now use the same length
     proof path and reject when outside bounds
+  - dynamic indexes and ranges over slice parameters whose current length is
+    unknown now reject instead of compiling unchecked
+  - direct state-call arguments now seed conservative parameter length/integer
+    facts, so `choose(view[1..3], 1)` can prove the callee's dynamic index
   Next target:
   - expand proof-backed acceptance for dynamic `view[start..]`,
     `view[..end]`, and `view[start..end]` beyond literal local constants
-  - stop silently skipping indexes into slice parameters whose current length is
-    unknown; these need either caller-provided slice facts or local guard facts
+  - stop silently accepting literal indexes and ranges into slice parameters
+    whose current length is unknown; these need either caller-provided slice
+    facts or local guard facts
   - known-length slices/fixed arrays now reject dynamic indexes unless the
     index expression itself is proven in range
   - machine `requires` facts that mention an indexed expression now seed the
@@ -173,11 +178,10 @@ meaning, without needing access to pointer descriptor internals.
     pending until guards/contracts can prove the machine field index in range
   - moved append-style storage mutation coverage to pending until bounded
     fields or guards can prove `exit_count < exits.len`
-  - promote `canaries/pending/slices/slice_parameter_index_unproven` and
-    `canaries/pending/slices/slice_parameter_subslice_unproven` once unknown
-    slice parameter accesses require proof instead of compiling unchecked
-  - carry state-call argument facts into state parameters, so calls like
-    `choose(view[1..3], 1)` can prove the callee's `entries[index]`
+  - moved storage alias dynamic-index mutation coverage to pending until
+    machine parameters can carry slice length/index facts
+  - broaden state-argument fact propagation to recursive/cyclic control-flow
+    paths instead of the current conservative direct-call/transition seed pass
   - extract simple guard facts such as `index < entries.len` and apply them to
     guarded transition targets before dynamic indexing/slicing
   - decide how inclusive/exclusive range forms spell and lower
