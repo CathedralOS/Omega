@@ -1,0 +1,16 @@
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator combine(left: i32, right: i32) -> i32;
+    operator combine(left: i32, right: i32) -> usize;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
