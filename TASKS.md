@@ -160,10 +160,11 @@ meaning, without needing access to pointer descriptor internals.
     `view[1..]`
   - bounded literal subslices now have runtime descriptor coverage through a
     state-call parameter, covering dynamic reads after `view[1..3]`
+  - end-only literal subslices now have runtime descriptor coverage through a
+    state-call parameter, covering dynamic reads after `view[..2]`
   Next target:
   - generalize subslice descriptor pointer offsets beyond the fixed-array alias
     copy special case
-  - add runtime coverage for end-only descriptor reads such as `view[..2]`
   - generalize start-only/end-only/bounded descriptors beyond literal fixed-array-backed views
   - ensure descriptor writes/reads have one clear backend representation path
   - promote pending subslice canaries to pass/fail suites when fixed
