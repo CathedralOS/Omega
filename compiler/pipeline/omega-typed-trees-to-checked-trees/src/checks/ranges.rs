@@ -330,6 +330,7 @@ fn seed_machine_requires(
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
                 omega_typed_trees::domain::ProofFact::Expression(expression) => {
+                    seed_guard_facts(program, facts, *expression);
                     seed_index_proofs_from_expression(program, facts, *expression);
                 }
                 omega_typed_trees::domain::ProofFact::Membership(membership) => {

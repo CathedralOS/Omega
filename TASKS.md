@@ -180,11 +180,11 @@ meaning, without needing access to pointer descriptor internals.
     upper bound without treating it as a valid element index
   - range-bound facts are now distinct from element-index facts, so
     `start == entries.len` proves an empty tail slice but not `entries[start]`
+  - machine `requires` boolean guards now seed the same range/index facts as
+    transition guards, covering slice parameter indexes and bounded windows
   Next target:
   - add range-bound diagnostics that distinguish invalid element indexes from
     invalid exclusive range bounds
-  - machine `requires` facts that mention an indexed expression now seed the
-    matching in-body index proof, preserving contract-backed indexed reads
   - moved dynamic machine-owned indexed mutable-call runtime coverage to
     pending until guards/contracts can prove the machine field index in range
   - moved append-style storage mutation coverage to pending until bounded
