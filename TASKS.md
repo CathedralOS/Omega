@@ -176,9 +176,11 @@ meaning, without needing access to pointer descriptor internals.
     `entries[..end]` on the guarded target path
   - guarded bounded subslices now require both `end < entries.len` and
     `start <= end`, covering `entries[start..end]`
+  - guarded subslices now accept `end == entries.len` as a valid exclusive
+    upper bound without treating it as a valid element index
   Next target:
-  - support `end == entries.len` as a valid exclusive upper bound for guarded
-    subslices, not just `end < entries.len`
+  - add first-class range-bound facts instead of representing range ends
+    through index and length-equality side facts
   - machine `requires` facts that mention an indexed expression now seed the
     matching in-body index proof, preserving contract-backed indexed reads
   - moved dynamic machine-owned indexed mutable-call runtime coverage to

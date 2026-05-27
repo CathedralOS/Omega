@@ -43,6 +43,7 @@ pub(super) struct RangeFacts<'field> {
     integer_locals: Vec<(SymbolHandle, String, i64)>,
     proven_indexes: Vec<(String, String)>,
     proven_orderings: Vec<(String, String)>,
+    proven_lengths: Vec<(String, String)>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -53,6 +54,7 @@ impl<'field> RangeFacts<'field> {
             integer_locals: Vec::new(),
             proven_indexes: Vec::new(),
             proven_orderings: Vec::new(),
+            proven_lengths: Vec::new(),
         }
     }
 
@@ -170,6 +172,26 @@ impl<'field> RangeFacts<'field> {
         self.proven_orderings
             .iter()
             .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
+    }
+
+    pub(super) fn prove_length_of(&mut self, length: String, collection: String) {
+        if !self
+            .proven_lengths
+            .iter()
+            .any(|(known_length, known_collection)| {
+                known_length == &length && known_collection == &collection
+            })
+        {
+            self.proven_lengths.push((length, collection));
+        }
+    }
+
+    pub(super) fn is_length_of(&self, length: &str, collection: &str) -> bool {
+        self.proven_lengths
+            .iter()
+            .any(|(known_length, known_collection)| {
+                known_length == length && known_collection == collection
+            })
     }
 
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
