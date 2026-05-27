@@ -4,7 +4,7 @@ mod facts;
 use expressions::{
     expression_indexable_length, expression_integer_value, expression_name, provable_range_bounds,
 };
-use facts::{SliceLengthFacts, fixed_array_field_lengths, fixed_array_type_length};
+use facts::{RangeFacts, fixed_array_field_lengths, fixed_array_type_length};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -17,7 +17,7 @@ pub(crate) fn check_indexed_accesses(
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let mut facts = SliceLengthFacts::new(&field_lengths);
+            let mut facts = RangeFacts::new(&field_lengths);
             for statement in program.statement_table.statements(state.statement_nodes) {
                 check_statement(program, &mut facts, statement, &mut diagnostics);
             }
@@ -33,7 +33,7 @@ pub(crate) fn check_indexed_accesses(
 
 fn check_statement(
     program: &omega_typed_trees::TypedTrees,
-    facts: &mut SliceLengthFacts<'_>,
+    facts: &mut RangeFacts<'_>,
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -92,7 +92,7 @@ fn check_statement(
 
 fn check_transition_target(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     target: omega_typed_trees::statement::TransitionTargetHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -113,7 +113,7 @@ fn check_transition_target(
 
 fn check_expression(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -175,7 +175,7 @@ fn check_expression(
 
 fn check_index(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     index: ExpressionHandle,
     length: usize,
     diagnostics: &mut Vec<Diagnostic>,
@@ -203,7 +203,7 @@ fn check_index(
 
 fn check_range_index(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     index: ExpressionHandle,
     range: &TableRangeExpression,
     length: usize,

@@ -3,11 +3,11 @@ use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
 };
 
-use super::facts::SliceLengthFacts;
+use super::facts::RangeFacts;
 
 pub(super) fn provable_range_bounds(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
 ) -> Option<(i64, Option<i64>)> {
     let start = if range.start.is_valid() {
@@ -25,7 +25,7 @@ pub(super) fn provable_range_bounds(
 
 pub(super) fn expression_integer_value(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<i64> {
     match program.expression_table.expression(expression) {
@@ -62,7 +62,7 @@ pub(super) fn expression_name(
 
 pub(super) fn expression_indexable_length(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     match program.expression_table.expression(expression) {
@@ -112,7 +112,7 @@ fn folded_integer_binary(left: i64, operator: BinaryOperator, right: i64) -> Opt
 
 fn range_result_length(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     index: ExpressionHandle,
     length: usize,
 ) -> Option<usize> {
@@ -130,7 +130,7 @@ fn range_result_length(
 
 fn fixed_array_expression_length(
     program: &omega_typed_trees::TypedTrees,
-    facts: &SliceLengthFacts<'_>,
+    facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     match program.expression_table.expression(expression) {

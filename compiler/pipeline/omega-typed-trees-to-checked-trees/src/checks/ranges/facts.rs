@@ -36,13 +36,13 @@ pub(super) fn fixed_array_type_length(
     }
 }
 
-pub(super) struct SliceLengthFacts<'field> {
+pub(super) struct RangeFacts<'field> {
     fields: &'field [(SymbolHandle, String, usize)],
     pub(super) locals: Vec<(SymbolHandle, String, usize)>,
     pub(super) integer_locals: Vec<(SymbolHandle, String, i64)>,
 }
 
-impl<'field> SliceLengthFacts<'field> {
+impl<'field> RangeFacts<'field> {
     pub(super) fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
         Self {
             fields,
