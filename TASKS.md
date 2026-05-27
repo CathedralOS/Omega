@@ -30,6 +30,8 @@ meaning, without needing access to pointer descriptor internals.
     length/view operator contracts and primitive trust roots
   - core operators can now name their trusted primitive root through operator
     `trust` contracts instead of relying only on nearby trust declarations
+  - `Ptr` core source now exposes browsable primitive-boundary operator
+    contracts for offset, read, write, and pointer-range construction
   Next target:
   - replace comment-only sketches with parser-supported declarations as syntax
     becomes available
