@@ -11,10 +11,16 @@
 trust compiler_string_length {
 }
 
+trust compiler_string_capacity {
+}
+
 trust compiler_string_as_view {
 }
 
 trust compiler_string_allocate {
+}
+
+trust compiler_string_push_str {
 }
 
 trust compiler_str_view_length {
@@ -32,11 +38,19 @@ trust compiler_str_view_range {
 operator String::Length(text: String) -> usize
 trust compiler_string_length;
 
+operator String::Capacity(text: &String) -> usize
+trust compiler_string_capacity;
+
 operator String::as_view(text: &String) -> &str
 trust compiler_string_as_view;
 
 operator String::with_capacity(capacity: usize) -> String
 trust compiler_string_allocate;
+
+operator String::push_str(text: &mut String, value: &str) -> ()
+requires
+    text.len + value.len <= text.capacity
+trust compiler_string_push_str;
 
 operator StrView::Length(text: &str) -> usize
 trust compiler_str_view_length;

@@ -40,6 +40,8 @@ meaning, without needing access to pointer descriptor internals.
     backed by the existing vector allocation primitive trust root
   - `String` now exposes an initial allocation-facing `with_capacity` contract
     backed by a dedicated string allocation primitive trust root
+  - `String` now exposes capacity and `push_str` mutation contracts so owned
+    text growth has a browsable core surface
   - core operators can now name their trusted primitive root through operator
     `trust` contracts instead of relying only on nearby trust declarations
   - `Ptr` core source now exposes browsable primitive-boundary operator

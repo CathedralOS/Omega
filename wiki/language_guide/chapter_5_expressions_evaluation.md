@@ -188,6 +188,11 @@ trust compiler_vec_allocate;
 
 operator String::with_capacity(capacity: usize) -> String
 trust compiler_string_allocate;
+
+operator String::push_str(text: &mut String, value: &str) -> ()
+requires
+    text.len + value.len <= text.capacity
+trust compiler_string_push_str;
 ```
 
 The proof checker owns `start <= items.len`. The trusted primitive owns the
@@ -196,6 +201,9 @@ For allocation-facing contracts such as `Vec::with_capacity` and
 `String::with_capacity`, the public core
 declaration owns the source meaning while the trusted primitive owns allocator
 and buffer initialization details.
+Mutating growth operations such as `String::push_str` have both a capacity proof
+obligation and a borrow-checking obligation: the string must be uniquely
+writable, and any active text view borrowed from it must not be invalidated.
 
 Operator declarations form overload sets by call signature. The call signature
 is the operator path plus parameter types; return type alone does not create a
