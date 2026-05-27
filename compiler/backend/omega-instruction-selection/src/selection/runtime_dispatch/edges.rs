@@ -3,13 +3,19 @@ use super::guards::{
     select_runtime_dispatch_expression_guard_conjuncts_in_table,
     select_runtime_dispatch_expression_guard_in_table,
 };
-use super::writes::select_runtime_frame_slot_value_write_in_table;
+use super::writes::{
+    emit_runtime_frame_slot_slice_descriptor_write_in_table,
+    select_runtime_frame_slot_value_write_in_table,
+};
 use crate::InstructionSelectionInput;
+use crate::selection::bindings::{
+    RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
+};
 use crate::selection::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
@@ -28,6 +34,8 @@ pub(super) fn select_runtime_dispatch_edge(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -51,6 +59,8 @@ pub(super) fn select_runtime_dispatch_edge(
                 edge.statement_index,
                 edge.target_dispatch_index,
                 edge.target_arguments,
+                aliases,
+                alias_expressions,
                 runtime_value_operands,
                 selected_instructions,
             );
@@ -323,6 +333,8 @@ fn select_runtime_dispatch_argument_materialization(
     statement_index: usize,
     target_dispatch_index: u32,
     arguments: omega_core::arena::HandleSpan<ExpressionHandle>,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -337,6 +349,12 @@ fn select_runtime_dispatch_argument_materialization(
     let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
     let static_values =
         super::writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    let mut resolved_argument_expressions = ExpressionTable::with_expression_capacity(
+        target_arguments
+            .len()
+            .saturating_add(alias_expressions.expression_count())
+            .saturating_add(4),
+    );
 
     for (parameter_index, parameter) in input
         .control_flow
@@ -351,11 +369,47 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         };
 
+        resolved_argument_expressions.clear();
+        let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+            alias_expressions,
+            aliases,
+            &mut resolved_argument_expressions,
+        );
+        let copied_argument = resolved_argument_expressions.copy_from(expressions, argument);
+        let resolved_argument = resolve_runtime_alias_binding_handle(
+            copied_argument,
+            source_key,
+            copied_aliases.bindings(),
+            &mut resolved_argument_expressions,
+        );
+        let argument_source_key = resolved_argument.source_key;
+        let argument = resolve_prior_local_initializers_in_table(
+            input,
+            argument_source_key,
+            statement_index,
+            &mut resolved_argument_expressions,
+            resolved_argument.expression,
+        );
+        let expressions = &resolved_argument_expressions;
+
+        if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+            input,
+            source_dispatch_index,
+            argument_source_key,
+            statement_index,
+            expressions,
+            slot,
+            argument,
+            selected_instructions,
+        ) {
+            continue;
+        }
+
         if matches!(expressions.expression(argument), ExpressionNode::Call(_))
             && let Some(place) = resolve_runtime_transition_argument_call_result_place(
                 input,
                 source_dispatch_index,
-                source_key,
+                argument_source_key,
                 statement_index,
             )
         {
@@ -378,7 +432,7 @@ fn select_runtime_dispatch_argument_materialization(
 
         if emit_runtime_fixed_array_slice_argument_materialization(
             input,
-            source_key,
+            argument_source_key,
             statement_index,
             source_dispatch_index,
             expressions,
@@ -389,15 +443,19 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
-        if let Some(initial_value) =
-            source_local_initial_value(input, source_key, statement_index, expressions, argument)
-        {
+        if let Some(initial_value) = source_local_initial_value(
+            input,
+            argument_source_key,
+            statement_index,
+            expressions,
+            argument,
+        ) {
             if emit_runtime_fixed_array_slice_argument_materialization(
                 input,
-                source_key,
+                argument_source_key,
                 statement_index,
                 source_dispatch_index,
-                expressions,
+                &input.program.expression_table,
                 initial_value,
                 slot,
                 selected_instructions,
@@ -409,7 +467,7 @@ fn select_runtime_dispatch_argument_materialization(
         if let Some(place) = resolve_runtime_storage_place_in_table(
             input,
             source_dispatch_index,
-            source_key,
+            argument_source_key,
             expressions,
             argument,
         ) {
@@ -430,20 +488,23 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
-        if let Some(initial_value) =
-            source_local_initial_value(input, source_key, statement_index, expressions, argument)
-            && let Some(kind) = select_runtime_frame_slot_value_write_in_table(
-                input,
-                source_dispatch_index,
-                source_key,
-                statement_index,
-                &input.program.expression_table,
-                slot,
-                initial_value,
-                &static_values,
-                runtime_value_operands,
-            )
-        {
+        if let Some(initial_value) = source_local_initial_value(
+            input,
+            argument_source_key,
+            statement_index,
+            expressions,
+            argument,
+        ) && let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+            input,
+            source_dispatch_index,
+            argument_source_key,
+            statement_index,
+            &input.program.expression_table,
+            slot,
+            initial_value,
+            &static_values,
+            runtime_value_operands,
+        ) {
             selected_instructions.push(SelectedInstruction {
                 kind,
                 source_key,
@@ -473,7 +534,7 @@ fn select_runtime_dispatch_argument_materialization(
         if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
             input,
             source_dispatch_index,
-            source_key,
+            argument_source_key,
             statement_index,
             expressions,
             slot,
@@ -593,6 +654,164 @@ fn source_local_initial_value(
         });
 
     result
+}
+
+fn resolve_prior_local_initializers_in_table(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &mut ExpressionTable,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    match expressions.expression(expression).clone() {
+        ExpressionNode::Name(_) => {
+            let Some(initial_value) = source_local_initial_value(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                expression,
+            ) else {
+                return expression;
+            };
+            let copied = expressions.copy_from(&input.program.expression_table, initial_value);
+            resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                copied,
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                indexed.collection,
+            );
+            let index = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                indexed.index,
+            );
+            if collection == indexed.collection && index == indexed.index {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Indexed(
+                    omega_checked_trees::expression::TableIndexedExpression { collection, index },
+                ))
+            }
+        }
+        ExpressionNode::Range(range) => {
+            let start = if range.start.is_valid() {
+                resolve_prior_local_initializers_in_table(
+                    input,
+                    source_key,
+                    statement_index,
+                    expressions,
+                    range.start,
+                )
+            } else {
+                range.start
+            };
+            let end = if range.end.is_valid() {
+                resolve_prior_local_initializers_in_table(
+                    input,
+                    source_key,
+                    statement_index,
+                    expressions,
+                    range.end,
+                )
+            } else {
+                range.end
+            };
+            if start == range.start && end == range.end {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Range(
+                    omega_checked_trees::expression::TableRangeExpression { start, end },
+                ))
+            }
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = if call.receiver.is_valid() {
+                resolve_prior_local_initializers_in_table(
+                    input,
+                    source_key,
+                    statement_index,
+                    expressions,
+                    call.receiver,
+                )
+            } else {
+                call.receiver
+            };
+            let arguments = expressions.reserve_expression_handles(call.arguments.count());
+            let mut changed = receiver != call.receiver;
+            for offset in 0..call.arguments.count() {
+                let argument = expressions.expression_handle_at_offset(call.arguments, offset);
+                let resolved_argument = resolve_prior_local_initializers_in_table(
+                    input,
+                    source_key,
+                    statement_index,
+                    expressions,
+                    argument,
+                );
+                changed |= resolved_argument != argument;
+                expressions.set_expression_handle_at_offset(arguments, offset, resolved_argument);
+            }
+            if !changed {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Call(
+                    omega_checked_trees::expression::TableCallExpression {
+                        receiver,
+                        target_symbol: call.target_symbol,
+                        target: call.target,
+                        arguments,
+                    },
+                ))
+            }
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                member.receiver,
+            );
+            if receiver == member.receiver {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Member(
+                    omega_checked_trees::expression::TableMemberExpression {
+                        receiver,
+                        member_symbol: member.member_symbol,
+                        member: member.member,
+                    },
+                ))
+            }
+        }
+        ExpressionNode::Mutable(inner) => {
+            let resolved = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                inner,
+            );
+            if resolved == inner {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Mutable(resolved))
+            }
+        }
+        _ => expression,
+    }
 }
 
 fn local_root_identity(
