@@ -1,6 +1,8 @@
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+use super::order::RankingOrder;
+
 pub(super) fn machine_has_proven_supported_decrease(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
@@ -13,11 +15,7 @@ pub(super) fn machine_has_proven_supported_decrease(
     }
     let decrease_order = program.machine_decrease_order(machine.decrease_order);
 
-    let proof_kind = if decrease_order.is_empty() || is_nat_descending_order(decrease_order) {
-        SupportedDecreaseKind::NatDescending
-    } else if is_slice_length_order(decrease_order) {
-        SupportedDecreaseKind::SliceLength
-    } else {
+    let Some(order) = RankingOrder::from_path(decrease_order) else {
         return false;
     };
 
@@ -25,27 +23,7 @@ pub(super) fn machine_has_proven_supported_decrease(
         .machine_states(machine)
         .iter()
         .filter(|state| state_has_direct_self_loop(program, state))
-        .all(|state| state_has_proven_supported_self_loop(program, state, decreases[0], proof_kind))
-}
-
-#[derive(Clone, Copy)]
-enum SupportedDecreaseKind {
-    NatDescending,
-    SliceLength,
-}
-
-fn is_nat_descending_order(order: &[omega_typed_trees::name::Identifier]) -> bool {
-    matches!(
-        order,
-        [head, tail] if head.as_str() == "Nat" && tail.as_str() == "Descending"
-    )
-}
-
-fn is_slice_length_order(order: &[omega_typed_trees::name::Identifier]) -> bool {
-    matches!(
-        order,
-        [head, tail] if head.as_str() == "Slice" && tail.as_str() == "Length"
-    )
+        .all(|state| state_has_proven_supported_self_loop(program, state, decreases[0], order))
 }
 
 fn state_has_direct_self_loop(
@@ -77,10 +55,10 @@ fn state_has_proven_supported_self_loop(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
     decreases: ExpressionHandle,
-    proof_kind: SupportedDecreaseKind,
+    order: RankingOrder,
 ) -> bool {
-    match proof_kind {
-        SupportedDecreaseKind::NatDescending => {
+    match order {
+        RankingOrder::NatDescending => {
             match program.expression_table.expression(decreases) {
                 ExpressionNode::Name(_) => {
                     state_has_proven_countdown_self_loop(program, state, decreases)
@@ -93,7 +71,7 @@ fn state_has_proven_supported_self_loop(
                 _ => false,
             }
         }
-        SupportedDecreaseKind::SliceLength => {
+        RankingOrder::SliceLength => {
             state_has_proven_slice_length_self_loop(program, state, decreases)
         }
     }
