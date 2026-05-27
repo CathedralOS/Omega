@@ -41,6 +41,9 @@ trust compiler_vec_length;
 operator Vec::Capacity<T>(items: &Vec<T>) -> usize
 trust compiler_vec_capacity;
 
+operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
+trust compiler_vec_allocate;
+
 operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
 requires
     index < items.len
