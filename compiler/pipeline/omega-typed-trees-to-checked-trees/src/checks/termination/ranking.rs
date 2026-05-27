@@ -63,6 +63,9 @@ fn state_has_proven_supported_self_loop(
                 ExpressionNode::Name(_) => {
                     state_has_proven_countdown_self_loop(program, state, decreases)
                 }
+                ExpressionNode::Member(_) => {
+                    state_has_proven_member_countdown_self_loop(program, state, decreases)
+                }
                 ExpressionNode::Binary(binary)
                     if matches!(binary.operator, BinaryOperator::Subtract) =>
                 {
@@ -75,6 +78,53 @@ fn state_has_proven_supported_self_loop(
             state_has_proven_slice_length_self_loop(program, state, decreases)
         }
     }
+}
+
+fn state_has_proven_member_countdown_self_loop(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    decreases: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Member(member) = program.expression_table.expression(decreases) else {
+        return false;
+    };
+    let Some((parameter, argument_index)) =
+        parameter_and_argument_index_matched_by_expression(program, state, member.receiver)
+    else {
+        return false;
+    };
+
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            let StatementNode::Transition(transition) = statement else {
+                return false;
+            };
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                return false;
+            };
+            let target = program.statement_table.transition_target(transition.target);
+            let TransitionTargetNode::Named { path, arguments } = target else {
+                return false;
+            };
+            if path.symbol != state.symbol {
+                return false;
+            }
+            let arguments = program.statement_table.expression_handles(*arguments);
+            let Some(argument) = arguments.get(argument_index).copied() else {
+                return false;
+            };
+
+            guard_is_positive_parameter_member(program, guard, parameter, member.member.as_str())
+                && argument_rebuilds_parameter_with_member_minus_one(
+                    program,
+                    argument,
+                    parameter,
+                    member.member.as_str(),
+                )
+        })
 }
 
 fn state_has_proven_slice_length_self_loop(
@@ -254,6 +304,25 @@ fn parameter_matched_by_expression<'program>(
     })
 }
 
+fn parameter_and_argument_index_matched_by_expression<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    state: &'program omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<(
+    &'program omega_typed_trees::signature::StateParameter,
+    usize,
+)> {
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .find_map(|(index, parameter)| {
+            expression_matches_parameter(program, expression, parameter)
+                .then_some((parameter, index))
+        })
+}
+
 fn branch_targets_state(
     target: &TransitionTargetNode,
     state_symbol: omega_core::symbols::SymbolHandle,
@@ -298,6 +367,24 @@ fn guard_is_non_empty_slice(
         )
 }
 
+fn guard_is_positive_parameter_member(
+    program: &omega_typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+    member_name: &str,
+) -> bool {
+    let normalized = normalize_boolean_guard(program, guard);
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
+        return false;
+    };
+    matches!(binary.operator, BinaryOperator::Greater)
+        && expression_is_parameter_member(program, binary.left, parameter, member_name)
+        && matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Integer(0)
+        )
+}
+
 fn argument_is_parameter_minus_one(
     program: &omega_typed_trees::TypedTrees,
     argument: ExpressionHandle,
@@ -324,6 +411,50 @@ fn argument_is_parameter_plus_one(
     };
     matches!(binary.operator, BinaryOperator::Add)
         && expression_is_parameter(program, binary.left, parameter)
+        && matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Integer(1)
+        )
+}
+
+fn argument_rebuilds_parameter_with_member_minus_one(
+    program: &omega_typed_trees::TypedTrees,
+    argument: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+    member_name: &str,
+) -> bool {
+    let ExpressionNode::StructLiteral(struct_literal) =
+        program.expression_table.expression(argument)
+    else {
+        return false;
+    };
+
+    program
+        .expression_table
+        .struct_fields(struct_literal.fields)
+        .iter()
+        .any(|field| {
+            field.name.as_str() == member_name
+                && argument_is_parameter_member_minus_one(
+                    program,
+                    field.value,
+                    parameter,
+                    member_name,
+                )
+        })
+}
+
+fn argument_is_parameter_member_minus_one(
+    program: &omega_typed_trees::TypedTrees,
+    argument: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+    member_name: &str,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {
+        return false;
+    };
+    matches!(binary.operator, BinaryOperator::Subtract)
+        && expression_is_parameter_member(program, binary.left, parameter, member_name)
         && matches!(
             program.expression_table.expression(binary.right),
             ExpressionNode::Integer(1)
@@ -402,6 +533,20 @@ fn expression_is_parameter(
             .name_path_members(path.members)
             .last()
             .is_some_and(|member| member.as_str() == parameter.name.as_str())
+}
+
+fn expression_is_parameter_member(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    parameter: &omega_typed_trees::signature::StateParameter,
+    member_name: &str,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(member)
+            if member.member.as_str() == member_name
+                && expression_is_parameter(program, member.receiver, parameter)
+    )
 }
 
 fn expression_matches_parameter(

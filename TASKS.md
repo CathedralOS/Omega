@@ -126,6 +126,8 @@ meaning, without needing access to pointer descriptor internals.
     as magic strings
   - `decreases power -> Card::PowerOrder` now compiles for the first declared
     custom natural-ranking countdown shape
+  - `decreases card.power -> Card::PowerOrder` now proves the first
+    user-defined struct field countdown shape, with a stalled-field fail canary
   Next target:
   - replace temporary operator-like ranking declarations with dedicated ranking
     or measure declaration syntax once selected
@@ -134,8 +136,8 @@ meaning, without needing access to pointer descriptor internals.
   - replace arithmetic-facing proof UX such as `limit - index` with named bounded-distance rankings
   - add lexicographic ranking support
   - support multiple named orders for the same data shape
-  - extend custom ranking projections/orders beyond direct numeric parameters
-    to user-defined structs such as `decreases card -> Card::PowerOrder`
+  - extend custom ranking projections/orders from explicit field expressions to
+    full user-defined struct views such as `decreases card -> Card::PowerOrder`
   - broaden termination checking beyond narrow direct self-recursion toward SCC/cycle reasoning
   - add a runtime exit canary for shrinking-slice recursion once runtime
     dispatch reliably executes the descriptor update instead of hanging
