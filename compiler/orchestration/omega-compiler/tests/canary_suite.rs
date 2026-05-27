@@ -3127,4 +3127,8 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "trust/target_unknown_trust_unrejected",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
+    PendingCanary {
+        path: "borrow/slice_view_invalidated_by_owner_write_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
 ];
