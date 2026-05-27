@@ -1,0 +1,13 @@
+// Core slice surface.
+//
+// Slices are compiler-managed views over contiguous storage. The concrete
+// pointer/length carrier is intentionally private to the compiler/runtime
+// handoff, but the semantic names that proofs and operators refer to should
+// live here.
+//
+// Planned public surface:
+// - Slice::Length ranks a slice by its current length for termination proofs.
+// - index and subslice operators require bounds proofs before lowering to the
+//   private descriptor primitive.
+// - mutable views carry the same overlap and borrow obligations as their
+//   source owner.

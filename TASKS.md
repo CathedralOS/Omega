@@ -14,13 +14,14 @@ meaning, without needing access to pointer descriptor internals.
 - [ ] Core semantic surface
   Create source-visible declarations for the core concepts that are currently
   mostly compiler knowledge.
-  Current pending canaries:
-  - `canaries/pending/core/slice_core_surface_missing`
-  - `canaries/pending/core/vec_core_surface_missing`
+  Landed:
+  - initial browsable modules for `Slice`, `Vec`, `Array`, and text direction
+    under `omega/language/core`
+  - import canaries for the first core collection/text module surfaces
   Next target:
-  - define the shape of `omega/language/core`
-  - sketch `Array`, `Vec`, `Slice`, `Str`, and `StrView` as core declarations
   - expose proof/order names such as `Slice::Length` from that core surface
+  - replace comment-only sketches with parser-supported declarations as syntax
+    becomes available
   - decide which names are public core and which are primitive/compiler-only
   - add canaries that import or reference core names directly once syntax exists
 

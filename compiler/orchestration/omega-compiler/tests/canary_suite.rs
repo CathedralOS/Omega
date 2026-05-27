@@ -2781,6 +2781,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_transition_argument_call_value",
     "collections/std_option_storage_write",
     "collections/std_option_surface",
+    "core/array_core_surface",
+    "core/slice_core_surface",
+    "core/str_core_surface",
+    "core/vec_core_surface",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
@@ -2845,18 +2849,6 @@ struct PendingCanary {
 }
 
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "core/slice_core_surface_missing",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "omega/language/core/slice.omg",
-        },
-    },
-    PendingCanary {
-        path: "core/vec_core_surface_missing",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "omega/language/core/vec.omg",
-        },
-    },
     PendingCanary {
         path: "operators/core_operator_declaration_surface_missing",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
