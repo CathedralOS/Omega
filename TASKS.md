@@ -133,10 +133,12 @@ meaning, without needing access to pointer descriptor internals.
 - [ ] Ranges as proof-backed operators
   Range syntax now exists through syntax, resolved, typed, and checked trees,
   but bounds validity is not generally enforced.
+  Landed:
+  - obvious literal subslice ranges over fixed-array-derived slice views now
+    reject when outside the proven slice length
   Next target:
-  - require proof that `view[start..]`, `view[..end]`, and `view[start..end]` are valid for the current view
-  - reject obvious invalid subslices such as `view[9..]` over a proven 4-element view
-  - add fail canaries once invalid subslices reject instead of remaining pending
+  - require proof that dynamic `view[start..]`, `view[..end]`, and
+    `view[start..end]` are valid for the current view
   - decide how inclusive/exclusive range forms spell and lower
   - connect range validity facts to indexing validity facts instead of duplicating proof logic
 
@@ -144,7 +146,6 @@ meaning, without needing access to pointer descriptor internals.
   Proof and syntax are now ahead of runtime for subslices.
   Current pending gaps:
   - `canaries/pending/slices/runtime_subslice_range_len_wrong`
-  - `canaries/pending/slices/invalid_subslice_bounds_unchecked`
   Next target:
   - fix `view[1..]` materialization so `tail.len` and pointer offset are correct at runtime
   - support start-only, end-only, and bounded subslice descriptors
