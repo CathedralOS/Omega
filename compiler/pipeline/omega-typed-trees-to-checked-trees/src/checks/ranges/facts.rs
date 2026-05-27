@@ -36,6 +36,7 @@ pub(super) fn fixed_array_type_length(
     }
 }
 
+#[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
     fields: &'field [(SymbolHandle, String, usize)],
     locals: Vec<(SymbolHandle, String, usize)>,

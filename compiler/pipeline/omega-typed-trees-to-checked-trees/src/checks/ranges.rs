@@ -102,14 +102,20 @@ fn check_statement(
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
         }
         StatementNode::Transition(transition) => {
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                check_expression(program, machine, state, facts, guard, diagnostics);
-            }
+            let target_facts = match transition.guard {
+                TransitionGuardNode::When(guard) => {
+                    check_expression(program, machine, state, facts, guard, diagnostics);
+                    let mut guarded_facts = facts.clone();
+                    seed_guard_facts(program, &mut guarded_facts, guard);
+                    guarded_facts
+                }
+                TransitionGuardNode::Always => facts.clone(),
+            };
             check_transition_target(
                 program,
                 machine,
                 state,
-                facts,
+                &target_facts,
                 transition.target,
                 diagnostics,
             );
@@ -117,7 +123,7 @@ fn check_statement(
                 program,
                 machine,
                 state,
-                facts,
+                &target_facts,
                 transition.continuation,
                 diagnostics,
             );
@@ -192,7 +198,13 @@ fn check_expression(
                     diagnostics,
                 );
             } else if expression_is_slice(program, machine, state, indexed.collection) {
-                check_unknown_length_slice_index(program, indexed.index, diagnostics);
+                check_unknown_length_slice_index(
+                    program,
+                    facts,
+                    indexed.collection,
+                    indexed.index,
+                    diagnostics,
+                );
             }
             check_expression(
                 program,
@@ -274,6 +286,8 @@ fn check_index(
 
 fn check_unknown_length_slice_index(
     program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
     index: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -285,12 +299,65 @@ fn check_unknown_length_slice_index(
             )));
         }
         _ => {
+            let collection_label = program.expression_table.display_name(collection);
+            let index_label = program.expression_table.display_name(index);
+            if facts.index_is_proven(&collection_label, &index_label) {
+                return;
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove index `{}` is within unknown slice length",
-                program.expression_table.display_name(index)
+                index_label
             )));
         }
     }
+}
+
+fn seed_guard_facts(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    guard: ExpressionHandle,
+) {
+    if !guard.is_valid() {
+        return;
+    }
+
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return;
+    };
+
+    match binary.operator {
+        omega_typed_trees::expression::BinaryOperator::Less => {
+            seed_less_than_len_fact(program, facts, binary.left, binary.right);
+        }
+        omega_typed_trees::expression::BinaryOperator::Equal => {
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) {
+                seed_guard_facts(program, facts, binary.left);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn seed_less_than_len_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    index: ExpressionHandle,
+    upper_bound: ExpressionHandle,
+) {
+    let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
+        return;
+    };
+    if member.member.as_str() != "len" {
+        return;
+    }
+
+    facts.prove_index(
+        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(index),
+    );
 }
 
 fn seed_machine_requires(
