@@ -42,7 +42,8 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
   Immediate blockers:
   - migrate the prototype away from bare arithmetic-facing `decreases expr`
   - `decreases entries -> Slice::Length` now parses but is not yet semantically supported
-  - actual shrinking-slice surface is still missing, so plain `decreases items` cannot yet ride on subslicing
+  - slice ranges/subslices now parse into syntax/resolved expression trees, but still fail intentionally during typed lowering
+  - actual shrinking-slice semantics are still missing, so plain `decreases items` cannot yet ride on subslicing
 
 - [ ] Domain operators and proof-aware operator resolution
   The executable domain surface is now much healthier; the next step is turning the domain-operator idea into a real compiler feature rather than just documentation.
@@ -68,7 +69,7 @@ Compiler/runtime work surfaced by the `dungeon_crawler_cli` sample, the canary l
 - [ ] Slices as a first-class proof/runtime feature
   The basic slice ladder is now in good shape; the next work should move from “individual seams compile/run” toward stronger semantic support.
   Next target:
-  - actual subslice/range surface
+  - actual subslice/range semantics beyond the current syntax/resolved surface
   - termination/ranking support for shrinking-slice loops
   - stronger proof vocabulary around slice windows and non-empty views
   - more complex alias/proof interactions over slice-backed structures
