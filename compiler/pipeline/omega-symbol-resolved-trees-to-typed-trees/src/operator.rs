@@ -8,6 +8,7 @@ pub(crate) fn lower_operator_definition(
     operator: &omega_symbol_resolved_trees::operator::OperatorDefinition,
 ) -> Result<omega_typed_trees::operator::OperatorDefinition, Diagnostic> {
     let mut typed_operator = omega_typed_trees::operator::OperatorDefinition {
+        symbol: operator.symbol,
         name: Default::default(),
         type_parameters: Default::default(),
         parameters: Default::default(),

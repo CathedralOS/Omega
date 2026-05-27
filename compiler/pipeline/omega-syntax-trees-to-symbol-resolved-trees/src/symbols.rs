@@ -24,6 +24,11 @@ fn build_symbol_table(
     sources: Option<Arc<SourceMap>>,
 ) -> SymbolTable {
     let has_sources = sources.is_some();
+    let root_operator_names = program
+        .operators
+        .iter()
+        .map(|operator| operator_symbol_name(program, operator))
+        .collect::<Vec<_>>();
     let mut builder = SymbolTableBuilder::with_sources(sources);
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let root_children =
@@ -53,6 +58,11 @@ fn build_symbol_table(
                     }),
                 )
                 .chain(
+                    root_operator_names
+                        .iter()
+                        .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+                )
+                .chain(
                     program.platforms.iter().map(|platform| {
                         symbol_seed(SymbolKind::Platform, &platform.name, has_sources)
                     }),
@@ -74,8 +84,10 @@ fn build_symbol_table(
     for _ in &program.invariant_definitions {
         let _ = root_children.next();
     }
-    for _ in &program.domain_definitions {
-        let _ = root_children.next();
+    for domain in &program.domain_definitions {
+        if let Some(domain_symbol) = root_children.next() {
+            insert_domain_symbol_children(&mut builder, program, domain_symbol, domain, has_sources);
+        }
     }
     for data_definition in &program.data_definitions {
         if let Some(data_symbol) = root_children.next() {
@@ -95,6 +107,17 @@ fn build_symbol_table(
                 program,
                 machine_symbol,
                 machine,
+                has_sources,
+            );
+        }
+    }
+    for operator in &program.operators {
+        if let Some(operator_symbol) = root_children.next() {
+            insert_operator_symbol_children(
+                &mut builder,
+                program,
+                operator_symbol,
+                operator,
                 has_sources,
             );
         }
@@ -163,6 +186,56 @@ fn insert_data_symbol_children(
                     }
                 },
             )),
+    );
+}
+
+fn insert_domain_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
+    domain_symbol: SymbolHandle,
+    domain: &omega_symbol_resolved_trees::domain::DomainDefinition,
+    has_sources: bool,
+) {
+    let operator_names = program
+        .operator_definitions(domain.operators)
+        .iter()
+        .map(|operator| operator_symbol_name(program, operator))
+        .collect::<Vec<_>>();
+    let domain_children = builder.insert_children(
+        domain_symbol,
+        operator_names
+            .iter()
+            .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+    );
+
+    for (operator_symbol, operator) in SymbolTableBuilder::child_handles(domain_children)
+        .zip(program.operator_definitions(domain.operators).iter())
+    {
+        insert_operator_symbol_children(builder, program, operator_symbol, operator, has_sources);
+    }
+}
+
+fn insert_operator_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
+    operator_symbol: SymbolHandle,
+    operator: &omega_symbol_resolved_trees::operator::OperatorDefinition,
+    has_sources: bool,
+) {
+    builder.insert_children(
+        operator_symbol,
+        program
+            .data_type_parameters(operator.type_parameters)
+            .iter()
+            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .chain(
+                program
+                    .state_parameters(operator.parameters)
+                    .iter()
+                    .map(|parameter| {
+                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
+                    }),
+            ),
     );
 }
 
@@ -343,6 +416,18 @@ fn symbol_seed<'name>(
     }
 }
 
+fn operator_symbol_name(
+    program: &SymbolResolvedTrees,
+    operator: &omega_symbol_resolved_trees::operator::OperatorDefinition,
+) -> String {
+    program
+        .operator_path_members(operator.name)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let mut root_children = symbols.child_handles(symbols.root()).into_iter().flatten();
 
@@ -357,9 +442,28 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
     });
 
-    program.domain_definitions.for_each_mut(|domain| {
-        domain.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Domain);
-    });
+    {
+        let roots = &mut program.roots;
+        let declarations = &mut program.tables.declarations;
+        let operator_definitions = &mut declarations.operator_definitions;
+        let data_type_parameters = &mut declarations.data_type_parameters;
+        let state_parameters = &mut declarations.state_parameters;
+        let child_type_references = &mut declarations.child_type_references;
+        roots.domain_definitions.for_each_mut(|domain| {
+            domain.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Domain);
+            let mut domain_children = symbols.child_handles(domain.symbol).into_iter().flatten();
+            for operator in operator_definitions.span_mut_or_empty(domain.operators) {
+                assign_operator_symbols(
+                    symbols,
+                    &mut domain_children,
+                    data_type_parameters,
+                    state_parameters,
+                    child_type_references,
+                    operator,
+                );
+            }
+        });
+    }
 
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
@@ -511,6 +615,21 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     });
 
     let declarations = &mut program.tables.declarations;
+    let data_type_parameters = &mut declarations.data_type_parameters;
+    let state_parameters = &mut declarations.state_parameters;
+    let child_type_references = &mut declarations.child_type_references;
+    program.roots.operators.for_each_mut(|operator| {
+        assign_operator_symbols(
+            symbols,
+            &mut root_children,
+            data_type_parameters,
+            state_parameters,
+            child_type_references,
+            operator,
+        );
+    });
+
+    let declarations = &mut program.tables.declarations;
     let platform_state_signatures = &mut declarations.platform_state_signatures;
     let state_parameters = &mut declarations.state_parameters;
     let child_type_references = &mut declarations.child_type_references;
@@ -631,6 +750,46 @@ fn inherited_field_count<'data>(
                 .count()
         })
         .unwrap_or(0)
+}
+
+fn assign_operator_symbols(
+    symbols: &SymbolTable,
+    siblings: &mut impl Iterator<Item = SymbolHandle>,
+    data_type_parameters: &mut Arena<omega_symbol_resolved_trees::data::TypeParameter>,
+    state_parameters: &mut Arena<omega_symbol_resolved_trees::signature::StateParameter>,
+    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    operator: &mut omega_symbol_resolved_trees::operator::OperatorDefinition,
+) {
+    operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
+    let mut operator_children = symbols
+        .child_handles(operator.symbol)
+        .into_iter()
+        .flatten();
+
+    for type_parameter in data_type_parameters.span_mut_or_empty(operator.type_parameters) {
+        type_parameter.symbol =
+            next_child_of_kind(&mut operator_children, symbols, SymbolKind::TypeParameter);
+    }
+    let local_type_parameters = data_type_parameters
+        .span_or_empty(operator.type_parameters)
+        .to_vec();
+    for parameter in state_parameters.span_mut_or_empty(operator.parameters) {
+        parameter.symbol = next_child_of_kind(&mut operator_children, symbols, SymbolKind::Parameter);
+        assign_type_reference_symbol_with_locals(
+            symbols,
+            child_type_references,
+            &local_type_parameters,
+            &mut parameter.type_reference,
+        );
+    }
+    if let Some(return_type) = &mut operator.return_type {
+        assign_type_reference_symbol_with_locals(
+            symbols,
+            child_type_references,
+            &local_type_parameters,
+            return_type,
+        );
+    }
 }
 
 fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
