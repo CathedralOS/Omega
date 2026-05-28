@@ -61,7 +61,7 @@ Use this rule when a pass starts to sprawl:
 
 This table is intentionally blunt. Each cell says the main relationship between
 the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
-`scheduled`, `lowered`, `assigned`, `encoded`, or `final`.
+`scheduled`, `lowered`, `assigned`, `encoded`, `artifact`, or `final`.
 
 | Stage | Places | Values | Facts | Loans | Moves | Drops | Calls | Transitions | Effects | Boundaries |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -76,8 +76,7 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target op |
 | Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned |
 | Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction |
-| Machine Instructions To Object File | encoded | encoded | debug/artifact | none | encoded | encoded | relocation | relocation | artifact | relocation/import |
-| Object File To Final Image | final | final | debug/artifact | none | final | final | final | final | final artifact | final import/runtime |
+| Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact |
 
 Current deliberate gaps:
 
@@ -101,5 +100,4 @@ Current deliberate gaps:
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)
-- [Machine Instructions To Object File](stages/machine_instructions_to_object_file.md)
-- [Object File To Final Image](stages/object_file_to_final_image.md)
+- [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
