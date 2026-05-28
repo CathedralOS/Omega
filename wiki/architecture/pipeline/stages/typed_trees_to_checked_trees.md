@@ -47,6 +47,29 @@ Must not own:
 - Rewriting checked obligations into backend convenience data without preserving
   the original semantic evidence.
 
+## Implementation Map
+
+The stage should stay organized around semantic nouns instead of pass history.
+Current ownership is:
+
+- `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
+  places, `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs`
+  owns borrow call-site discovery, and `borrow/last_uses.rs` owns loan last-use
+  scanning.
+- `flow.rs` assembles checked flow facts. `flow/context.rs` owns the mutable
+  arena bundle, `flow/constraints.rs` materializes borrow constraints,
+  `flow/borrow_lifetimes.rs` owns loan activation/weakening rules,
+  `flow/transfers.rs` owns statement fact transfers, and `flow/calls.rs` owns
+  call entry/requires/ensures/effect/invalidation flow facts.
+- `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
+  place should invalidate facts there, not ad hoc in proof or borrow code.
+- `flow/place/*` owns canonical place construction, comparison, and type/member
+  resolution used by proof, borrow, and invalidation checks.
+- `proof/*`, `checks/contracts/*`, `checks/ranges/*`, and
+  `checks/termination/*` should remain proof/checking modules. They should
+  consume checked facts and emit diagnostics, not invent new durable semantic
+  representations.
+
 ## Known Gaps
 
 - Add durable value identity so proof, borrow, allocation, and lowering can talk
