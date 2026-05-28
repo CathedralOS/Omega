@@ -8,11 +8,20 @@ use omega_control_flow::{
     StateContractFactRef, StateContractSummary, StateFlow, StateKey, StateParameterFlow,
     TransitionExpressionRefs, TransitionFlow,
 };
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::{
     ContainedGraph, MachineGraph, MachineOwnedDataGraph, StateGraph, StateNode, StateParameterNode,
     TransitionEdge,
+};
+
+use crate::handles::{
+    remap_borrow_activation_span, remap_borrow_argument_access_span, remap_borrow_call_span,
+    remap_borrow_loan_handle, remap_borrow_loan_span, remap_borrow_weakening_span,
+    remap_borrow_writable_root_span, remap_contained_span, remap_contract_call_span,
+    remap_contract_exit_span, remap_contract_fact_ref_span, remap_expression_span,
+    remap_operation_span, remap_owned_data_span, remap_parameter_span, remap_state_span,
+    remap_transition_span,
 };
 
 pub(crate) fn build_control_flow_plan(
@@ -848,210 +857,6 @@ fn remap_transition_owned(transition: TransitionEdge) -> TransitionFlow {
             guard: transition.expressions.guard,
         },
     }
-}
-
-fn remap_contained_span(
-    contained: HandleSpan<omega_state_graph::ContainedGraph>,
-) -> HandleSpan<ContainedFlow> {
-    HandleSpan::from_parts(remap_contained_handle(contained.start()), contained.count())
-}
-
-fn remap_contained_handle(
-    handle: Handle<omega_state_graph::ContainedGraph>,
-) -> Handle<ContainedFlow> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_owned_data_span(
-    owned_data: HandleSpan<omega_state_graph::MachineOwnedDataGraph>,
-) -> HandleSpan<MachineOwnedDataFlow> {
-    HandleSpan::from_parts(
-        remap_owned_data_handle(owned_data.start()),
-        owned_data.count(),
-    )
-}
-
-fn remap_owned_data_handle(
-    handle: Handle<omega_state_graph::MachineOwnedDataGraph>,
-) -> Handle<MachineOwnedDataFlow> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_parameter_span(
-    parameters: HandleSpan<omega_state_graph::StateParameterNode>,
-) -> HandleSpan<StateParameterFlow> {
-    HandleSpan::from_parts(
-        remap_parameter_handle(parameters.start()),
-        parameters.count(),
-    )
-}
-
-fn remap_parameter_handle(
-    handle: Handle<omega_state_graph::StateParameterNode>,
-) -> Handle<StateParameterFlow> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_state_span(states: HandleSpan<omega_state_graph::StateNode>) -> HandleSpan<StateFlow> {
-    HandleSpan::from_parts(remap_state_handle(states.start()), states.count())
-}
-
-fn remap_state_handle(handle: Handle<omega_state_graph::StateNode>) -> Handle<StateFlow> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_operation_span(
-    operations: HandleSpan<omega_state_graph::Operation>,
-) -> HandleSpan<Operation> {
-    HandleSpan::from_parts(
-        remap_operation_handle(operations.start()),
-        operations.count(),
-    )
-}
-
-fn remap_operation_handle(handle: Handle<omega_state_graph::Operation>) -> Handle<Operation> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_transition_span(
-    transitions: HandleSpan<omega_state_graph::TransitionEdge>,
-) -> HandleSpan<TransitionFlow> {
-    HandleSpan::from_parts(
-        remap_transition_handle(transitions.start()),
-        transitions.count(),
-    )
-}
-
-fn remap_borrow_writable_root_span(
-    roots: HandleSpan<omega_state_graph::StateBorrowWritableRoot>,
-) -> HandleSpan<StateBorrowWritableRoot> {
-    HandleSpan::from_parts(
-        remap_borrow_writable_root_handle(roots.start()),
-        roots.count(),
-    )
-}
-
-fn remap_borrow_writable_root_handle(
-    handle: Handle<omega_state_graph::StateBorrowWritableRoot>,
-) -> Handle<StateBorrowWritableRoot> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_borrow_argument_access_span(
-    accesses: HandleSpan<omega_state_graph::StateBorrowArgumentAccess>,
-) -> HandleSpan<StateBorrowArgumentAccess> {
-    HandleSpan::from_parts(
-        remap_borrow_argument_access_handle(accesses.start()),
-        accesses.count(),
-    )
-}
-
-fn remap_borrow_argument_access_handle(
-    handle: Handle<omega_state_graph::StateBorrowArgumentAccess>,
-) -> Handle<StateBorrowArgumentAccess> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_borrow_call_span(
-    calls: HandleSpan<omega_state_graph::StateBorrowCall>,
-) -> HandleSpan<StateBorrowCall> {
-    HandleSpan::from_parts(remap_borrow_call_handle(calls.start()), calls.count())
-}
-
-fn remap_borrow_call_handle(
-    handle: Handle<omega_state_graph::StateBorrowCall>,
-) -> Handle<StateBorrowCall> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_borrow_loan_span(
-    loans: HandleSpan<omega_state_graph::StateBorrowLoan>,
-) -> HandleSpan<StateBorrowLoan> {
-    HandleSpan::from_parts(remap_borrow_loan_handle(loans.start()), loans.count())
-}
-
-fn remap_borrow_loan_handle(
-    handle: Handle<omega_state_graph::StateBorrowLoan>,
-) -> Handle<StateBorrowLoan> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_borrow_activation_span(
-    activations: HandleSpan<omega_state_graph::StateBorrowActivation>,
-) -> HandleSpan<StateBorrowActivation> {
-    HandleSpan::from_parts(
-        remap_borrow_activation_handle(activations.start()),
-        activations.count(),
-    )
-}
-
-fn remap_borrow_activation_handle(
-    handle: Handle<omega_state_graph::StateBorrowActivation>,
-) -> Handle<StateBorrowActivation> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_borrow_weakening_span(
-    weakenings: HandleSpan<omega_state_graph::StateBorrowWeakening>,
-) -> HandleSpan<StateBorrowWeakening> {
-    HandleSpan::from_parts(
-        remap_borrow_weakening_handle(weakenings.start()),
-        weakenings.count(),
-    )
-}
-
-fn remap_borrow_weakening_handle(
-    handle: Handle<omega_state_graph::StateBorrowWeakening>,
-) -> Handle<StateBorrowWeakening> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_contract_fact_ref_span(
-    refs: HandleSpan<omega_state_graph::StateContractFactRef>,
-) -> HandleSpan<StateContractFactRef> {
-    HandleSpan::from_parts(remap_contract_fact_ref_handle(refs.start()), refs.count())
-}
-
-fn remap_contract_fact_ref_handle(
-    handle: Handle<omega_state_graph::StateContractFactRef>,
-) -> Handle<StateContractFactRef> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_contract_call_span(
-    calls: HandleSpan<omega_state_graph::StateContractCall>,
-) -> HandleSpan<StateContractCall> {
-    HandleSpan::from_parts(remap_contract_call_handle(calls.start()), calls.count())
-}
-
-fn remap_contract_call_handle(
-    handle: Handle<omega_state_graph::StateContractCall>,
-) -> Handle<StateContractCall> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_contract_exit_span(
-    exits: HandleSpan<omega_state_graph::StateContractExit>,
-) -> HandleSpan<StateContractExit> {
-    HandleSpan::from_parts(remap_contract_exit_handle(exits.start()), exits.count())
-}
-
-fn remap_contract_exit_handle(
-    handle: Handle<omega_state_graph::StateContractExit>,
-) -> Handle<StateContractExit> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_transition_handle(
-    handle: Handle<omega_state_graph::TransitionEdge>,
-) -> Handle<TransitionFlow> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_expression_span(
-    expressions: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
-) -> HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
-    HandleSpan::from_parts(expressions.start(), expressions.count())
 }
 
 fn remap_transition_target(
