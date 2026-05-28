@@ -1,6 +1,6 @@
 # Assigned Target Operations To Machine Instructions
 
-[Pipeline](../pipeline.md) | Previous: [Target Operations To Assigned Target Operations](target_operations_to_assigned_target_operations.md) | Next: [Machine Instructions To Object File](machine_instructions_to_object_file.md)
+[Pipeline](../pipeline.md) | Previous: [Target Operations To Assigned Target Operations](target_operations_to_assigned_target_operations.md) | Next: [Target Operations To Machine Program](target_operations_to_machine_program.md)
 
 This stage converts assigned target operations into symbolic ISA instructions without final object encoding.
 
