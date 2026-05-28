@@ -8,6 +8,7 @@ use crate::{
 mod builder;
 mod common;
 mod constraints;
+mod context;
 mod domain;
 mod mutation;
 mod place;
@@ -22,6 +23,7 @@ use common::{
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
+use context::FlowBuildContext;
 pub(crate) use domain::build_domain_facts;
 use domain::filter_contexts_after_place_mutations;
 use mutation::call_may_mutate_contract_state;

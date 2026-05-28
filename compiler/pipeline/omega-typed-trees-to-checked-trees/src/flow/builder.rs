@@ -33,63 +33,6 @@ pub(crate) fn build_flow_facts(
     ctx.finish()
 }
 
-struct FlowBuildContext {
-    state_mutation_summary_cache: StateMutationSummaryCache,
-    semantic_context_refs: omega_core::arena::Arena<FlowSemanticContextRef>,
-    constraint_refs: omega_core::arena::Arena<FlowConstraintRef>,
-    invalidation_segments: omega_core::arena::Arena<omega_facts::PlaceSegment>,
-    invalidations: omega_core::arena::Arena<FlowInvalidationFact>,
-    borrow_activations: omega_core::arena::Arena<FlowBorrowActivationFact>,
-    borrow_weakenings: omega_core::arena::Arena<FlowBorrowWeakeningFact>,
-    statements: omega_core::arena::Arena<FlowStatementFact>,
-    calls: omega_core::arena::Arena<FlowCallFact>,
-    exits: omega_core::arena::Arena<FlowExitFact>,
-    states: omega_core::arena::Arena<FlowStateFact>,
-}
-
-impl FlowBuildContext {
-    fn new(borrow: &BorrowFacts, proof: &ProofFacts, semantic: &FactPlan) -> Self {
-        Self {
-            state_mutation_summary_cache: StateMutationSummaryCache::default(),
-            semantic_context_refs: omega_core::arena::Arena::with_capacity(
-                semantic.contexts.len().saturating_mul(2),
-            ),
-            constraint_refs: omega_core::arena::Arena::with_capacity(
-                semantic
-                    .contexts
-                    .len()
-                    .saturating_mul(3)
-                    .saturating_add(borrow.states.len())
-                    .saturating_add(borrow.calls.len())
-                    .saturating_add(borrow.loans.len()),
-            ),
-            invalidation_segments: omega_core::arena::Arena::default(),
-            invalidations: omega_core::arena::Arena::default(),
-            borrow_activations: omega_core::arena::Arena::default(),
-            borrow_weakenings: omega_core::arena::Arena::default(),
-            statements: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
-            calls: omega_core::arena::Arena::with_capacity(borrow.calls.len()),
-            exits: omega_core::arena::Arena::with_capacity(proof.contract_exits.len()),
-            states: omega_core::arena::Arena::with_capacity(borrow.states.len()),
-        }
-    }
-
-    fn finish(self) -> FlowFacts {
-        FlowFacts {
-            semantic_context_refs: self.semantic_context_refs,
-            constraint_refs: self.constraint_refs,
-            invalidation_segments: self.invalidation_segments,
-            invalidations: self.invalidations,
-            borrow_activations: self.borrow_activations,
-            borrow_weakenings: self.borrow_weakenings,
-            statements: self.statements,
-            calls: self.calls,
-            exits: self.exits,
-            states: self.states,
-        }
-    }
-}
-
 fn build_state_flow_fact(
     program: &omega_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
