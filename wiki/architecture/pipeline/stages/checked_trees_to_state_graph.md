@@ -73,7 +73,8 @@ preservation:
 - `machine_metadata.rs` projects machine owned data, contained machines, and
   direct/reached effect bits into graph metadata.
 - `capacity.rs` estimates graph arena sizes; it should stay about allocation
-  planning, not semantic ownership.
+  planning, not semantic ownership. `capacity/expressions.rs` owns copied
+  expression-table sizing for those allocation estimates.
 
 ## Known Gaps
 
