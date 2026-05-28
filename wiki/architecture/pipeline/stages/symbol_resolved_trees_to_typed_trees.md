@@ -54,6 +54,9 @@ The implementation should make typed semantic surfaces visible by file:
   typed boolean fact expressions.
 - `expression/name_paths.rs` lowers typed name-path members and preserves the
   head/final symbol handles needed by later place and call checks.
+- `expression/spans.rs` owns recursive expression-handle and struct-field span
+  lowering into the typed expression table.
+- `expression/operators.rs` owns resolved-to-typed operator-kind mapping.
 - `type_reference.rs` owns type-reference shape lowering for reference, slice,
   constrained, generic, fixed-array, named, self, and unit type surfaces.
 - `type_reference/constraints.rs` owns typed constraint lowering, including
