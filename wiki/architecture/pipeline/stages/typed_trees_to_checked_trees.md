@@ -78,9 +78,10 @@ Current ownership is:
   owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
   indexed/subslice validation, while `checks/ranges/facts.rs`,
   `checks/ranges/guards.rs`, `checks/ranges/proofs.rs`,
-  `checks/ranges/requirements.rs`, and `checks/ranges/state_arguments.rs` own
-  range fact storage, guard-derived facts, proof lookups, requires-derived
-  proof seeding, and transition argument facts.
+  `checks/ranges/requirements.rs`, `checks/ranges/state_arguments.rs`, and
+  `checks/ranges/types.rs` own range fact storage, guard-derived facts, proof
+  lookups, requires-derived proof seeding, transition argument facts, and
+  expression type/slice classification.
 - `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
   owns expression traversal that discovers nested state calls.
