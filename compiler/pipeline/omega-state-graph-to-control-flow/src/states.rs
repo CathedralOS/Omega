@@ -1,0 +1,82 @@
+use omega_control_flow::{StateFlow, StateParameterFlow};
+use omega_core::arena::Arena;
+use omega_state_graph::{StateGraph, StateNode, StateParameterNode};
+
+use crate::borrows::remap_borrow_summary;
+use crate::contracts::remap_contract_summary;
+use crate::handles::{remap_operation_span, remap_parameter_span, remap_transition_span};
+use crate::transitions::remap_state_key;
+
+pub(crate) fn remap_states(
+    state_graph: &StateGraph,
+) -> (Arena<StateFlow>, Arena<StateParameterFlow>) {
+    let mut states = Arena::with_capacity(state_graph.states.len());
+    let mut state_parameters = Arena::with_capacity(state_graph.state_parameters.len());
+
+    for (_, state) in state_graph.states.iter() {
+        states.append(remap_state(state_graph, state, &mut state_parameters));
+    }
+
+    (states, state_parameters)
+}
+
+pub(crate) fn remap_state_owned(state: StateNode) -> StateFlow {
+    StateFlow {
+        key: remap_state_key(state.key),
+        name: state.name,
+        index: state.index,
+        direct_effects: state.direct_effects,
+        reached_effects: state.reached_effects,
+        parameters: remap_parameter_span(state.parameters),
+        contracts: remap_contract_summary(&state.contracts),
+        borrow: remap_borrow_summary(&state.borrow),
+        operations: remap_operation_span(state.operations),
+        transitions: remap_transition_span(state.transitions),
+    }
+}
+
+pub(crate) fn remap_parameter_owned(parameter: StateParameterNode) -> StateParameterFlow {
+    StateParameterFlow {
+        symbol: parameter.symbol,
+        name: parameter.name,
+        type_reference: parameter.type_reference,
+        type_symbol: parameter.type_symbol,
+        type_name: parameter.type_name,
+        is_mutable_reference: parameter.is_mutable_reference,
+    }
+}
+
+fn remap_state(
+    state_graph: &StateGraph,
+    state: &StateNode,
+    state_parameters: &mut Arena<StateParameterFlow>,
+) -> StateFlow {
+    StateFlow {
+        key: remap_state_key(state.key),
+        name: state.name.clone(),
+        index: state.index,
+        direct_effects: state.direct_effects,
+        reached_effects: state.reached_effects,
+        parameters: state_parameters.insert_many(
+            state_graph
+                .state_parameters(state)
+                .iter()
+                .map(remap_parameter),
+        ),
+        contracts: remap_contract_summary(&state.contracts),
+        borrow: remap_borrow_summary(&state.borrow),
+        operations: remap_operation_span(state.operations),
+        transitions: remap_transition_span(state.transitions),
+    }
+}
+
+fn remap_parameter(parameter: &StateParameterNode) -> StateParameterFlow {
+    StateParameterFlow {
+        symbol: parameter.symbol,
+        name: parameter.name.clone(),
+        type_reference: parameter.type_reference,
+        type_symbol: parameter.type_symbol,
+        type_name: parameter.type_name.clone(),
+        is_mutable_reference: parameter.is_mutable_reference,
+    }
+}
