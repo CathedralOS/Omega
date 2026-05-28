@@ -1,13 +1,18 @@
 # Control Flow To Abstract Operations
 
+[Pipeline](../pipeline.md) | Previous: [State Graph To Control Flow](state_graph_to_control_flow.md) | Next: [Abstract Operations To Target Operations](abstract_operations_to_target_operations.md)
+
+This stage starts backend lowering by converting checked control flow into target-independent operations.
+
+## Stage Contract
+
 Input: `ControlFlow`.
 
 Output: target-independent abstract operations.
 
-Primary responsibility: lower checked control flow into explicit operations with
-virtual registers and target-independent storage/value actions.
+Primary responsibility: lower checked control flow into explicit operations with virtual registers and target-independent storage/value actions.
 
-Semantic nouns:
+## Semantic Ownership
 
 - Places: lower toward abstract storage references.
 - Values: become abstract operands, temporaries, constants, or virtual registers.
@@ -20,7 +25,10 @@ Semantic nouns:
 - Effects: attach to operations.
 - Boundary edges: become abstract runtime/host/compiler calls.
 
+## Ownership Rules
+
 Must not own: target register assignment or machine instruction selection.
 
-Known gaps: currently some runtime lowering decisions are still too tangled with
-later backend stages.
+## Known Gaps
+
+Currently some runtime lowering decisions are still too tangled with later backend stages.

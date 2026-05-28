@@ -1,13 +1,18 @@
 # Target Operations To Assigned Target Operations
 
+[Pipeline](../pipeline.md) | Previous: [Abstract Operations To Target Operations](abstract_operations_to_target_operations.md) | Next: [Assigned Target Operations To Machine Instructions](assigned_target_operations_to_machine_instructions.md)
+
+This stage assigns physical homes such as registers, stack slots, spills, and calling-convention locations.
+
+## Stage Contract
+
 Input: target-aware operations.
 
 Output: assigned target operations.
 
-Primary responsibility: decide physical registers, stack slots, spill homes, and
-calling-convention homes.
+Primary responsibility: decide physical registers, stack slots, spill homes, and calling-convention homes.
 
-Semantic nouns:
+## Semantic Ownership
 
 - Places: become concrete homes or memory locations.
 - Values: become assigned registers, stack slots, immediates, or symbols.
@@ -20,7 +25,10 @@ Semantic nouns:
 - Effects: remain operation metadata.
 - Boundary edges: receive physical ABI placement.
 
+## Ownership Rules
+
 Must not own: object encoding or final bytes.
 
-Known gaps: register allocation and stack assignment should stay here, not leak
-back into target-aware operation construction.
+## Known Gaps
+
+Register allocation and stack assignment should stay here, not leak back into target-aware operation construction.
