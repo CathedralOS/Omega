@@ -12,6 +12,7 @@ mod common;
 mod constraints;
 mod context;
 mod domain;
+mod exits;
 mod mutation;
 mod place;
 mod transfers;
@@ -31,6 +32,7 @@ use constraints::{
 use context::FlowBuildContext;
 pub(crate) use domain::build_domain_facts;
 use domain::filter_contexts_after_place_mutations;
+use exits::append_state_exit_facts;
 use mutation::call_may_mutate_contract_state;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
