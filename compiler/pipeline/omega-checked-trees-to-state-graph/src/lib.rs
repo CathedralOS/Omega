@@ -10,6 +10,7 @@ mod capacity;
 mod contracts;
 mod facts;
 mod machine_metadata;
+mod merge;
 mod remap;
 mod segments;
 mod states;
