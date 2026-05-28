@@ -12,23 +12,44 @@ Output: target-independent abstract operations.
 
 Primary responsibility: lower checked control flow into explicit operations with virtual registers and target-independent storage/value actions.
 
+## Implementation Map
+
+- `lib.rs` owns the public stage entrypoint only.
+- `lowering.rs` owns `AbstractOperationLoweringInput` and adapts the current
+  control-flow/runtime planning bundle into instruction-selection input.
+- The actual operation construction currently happens in
+  `omega-instruction-selection`; this is a transitional boundary, not the
+  desired long-term split.
+
 ## Semantic Ownership
 
-- Places: lower toward abstract storage references.
-- Values: become abstract operands, temporaries, constants, or virtual registers.
-- Facts: mostly diagnostic/proven metadata.
-- Loans: should be already validated; may remain as assertions.
-- Moves: become explicit abstract copies/transfers or no-ops.
-- Drops: become abstract cleanup/deallocation calls or no-ops.
-- Calls: become abstract call operations.
-- Transitions: become branches, jumps, returns, exits, and block edges.
-- Effects: attach to operations.
-- Boundary edges: become abstract runtime/host/compiler calls.
+- Places: should lower toward abstract storage references, but much of that
+  policy still lives beyond this adapter.
+- Values: should become abstract operands, temporaries, constants, or virtual
+  registers.
+- Facts: preserved as diagnostic/proven metadata; not re-proved here.
+- Loans: already validated; may remain as assertions or metadata.
+- Moves: should become explicit abstract copies/transfers or no-ops once durable
+  move events exist upstream.
+- Drops: should become abstract cleanup/deallocation calls or no-ops once durable
+  drop events exist upstream.
+- Calls: should become abstract call operations.
+- Transitions: should become branches, jumps, returns, exits, and block edges.
+- Effects: should attach to abstract operations for later reporting/lowering.
+- Boundary edges: should become abstract runtime/host/compiler calls.
 
 ## Ownership Rules
 
-Must not own: target register assignment or machine instruction selection.
+- Must preserve checked/control-flow evidence while adapting into backend
+  planning inputs.
+- Must not own semantic proof discharge, borrow validation, target register
+  assignment, machine instruction selection, object encoding, or final image
+  policy.
+- Must not hide long-term abstract-operation construction inside opaque adapter
+  plumbing.
 
 ## Known Gaps
 
-Currently some runtime lowering decisions are still too tangled with later backend stages.
+This stage is not yet a true representation-to-representation lowering pass.
+Runtime and instruction-selection policy still owns too much of the abstract
+operation construction that should eventually live here.
