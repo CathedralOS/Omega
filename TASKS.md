@@ -80,7 +80,7 @@ meaning, without needing access to pointer descriptor internals.
   - the pipeline shell includes the Boundary artifact when present
   - core `Slice`, `Array`, `Vec`, `String`, `StrView`, and `Ptr` declare their
     compiler/runtime-backed edges with `boundary operator`
-  - imported libraries, capability contracts, and target policies use
+  - imported libraries, authority contracts, and target policies use
     `boundary` clauses consistently
   - the old top-level boundary-root declaration surface was removed
   - the legacy authority syntax, docs, canaries, and report names were removed

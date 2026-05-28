@@ -34,8 +34,8 @@ Every stage document should answer:
 - Calls: invocations of machines, states, operators, helpers, or imported
   boundary entries.
 - Transitions: control and argument transfers between states or exits.
-- Effects: externally visible capability behavior such as allocation, IO,
-  process exit, or host interaction.
+- Effects: externally visible behavior classes such as allocation, IO, process
+  exit, or host interaction.
 - Boundary edges: points where Omega accepts a declared contract from
   compiler/runtime/host/toolchain code.
 

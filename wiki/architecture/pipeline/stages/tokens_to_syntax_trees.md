@@ -23,7 +23,7 @@ Primary responsibility: parse source structure without resolving meaning.
 - Calls: syntactic call expressions/statements.
 - Transitions: syntactic transition statements and targets.
 - Effects: effect clauses as names.
-- Boundary edges: parsed `boundary` traits, operators, capability contracts, library entries, and target policies.
+- Boundary edges: parsed `boundary` traits, operators, authority contracts, library entries, and target policies.
 
 ## Ownership Rules
 

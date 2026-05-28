@@ -1,4 +1,4 @@
-# Chapter 18: Host Libraries And Boundaries
+# Chapter 18: Capabilities, Effects, And Boundaries
 
 Omega should model host and compiler boundaries explicitly.
 
@@ -14,7 +14,7 @@ not Omega code.
 `boundary` marks a surface where ordinary Omega proof stops and an audited
 provider begins. There is no separate top-level root declaration: the boundary
 is carried by the construct that crosses the edge, such as an operator,
-library entry, capability contract, trait, or target policy.
+library entry, authority contract, trait, or target policy.
 
 Core operators keep their public contracts visible while primitive lowering
 stays behind the compiler/runtime boundary:
@@ -30,7 +30,7 @@ Working interpretation:
 - `requires` remains a proof obligation for callers.
 - `boundary operator` says implementation lowering is accepted from the
   compiler/runtime provider for that operator.
-- The boundary report records boundary operators, library/capability boundary
+- The boundary report records boundary operators, library/authority boundary
   clauses, target policies, and unchecked policies.
 - Ordinary application code should not be able to mint new host/compiler
   providers as a proof escape hatch.
@@ -50,7 +50,7 @@ surface, dynamic loader, or other boundary edge.
 
 `boundary` is not a synonym for "has effects." These are separate axes:
 
-- `effects` names what externally visible capability behavior can happen.
+- `effects` names what externally visible behavior class can happen.
 - `export` names what symbols belong to an artifact/API surface.
 - `boundary` names where ordinary Omega proof stops and boundary provider
   guarantees begin.
@@ -81,8 +81,8 @@ Working interpretation:
 - `requires` clauses are obligations the caller must prove before crossing the
   boundary.
 - `ensures` clauses are guarantees accepted from the boundary implementation.
-- `effects` clauses are auditable capabilities such as filesystem, process,
-  stdin, stdout, network, thread, clock, or device access.
+- `effects` clauses are auditable behavior classes such as filesystem,
+  process, stdin, stdout, network, thread, clock, or device access.
 - Build policy decides which boundary providers are allowed for a target.
 - Safe application packages cannot silently create new host boundaries. A
   provider must come from the toolchain, target configuration, or an explicitly
@@ -175,16 +175,16 @@ from the machines it can call.
 Effect declarations are policy surfaces, not required noise on every machine:
 
 - Boundary traits must declare effects. They are the boundary edge where
-  externally visible capabilities enter the program.
+  externally visible behavior enters the program.
 - Exported library APIs should declare effects. This makes the public contract
   stable and lets callers reject libraries that unexpectedly grow filesystem,
-  network, process, dynamic-link, or other host capabilities.
+  network, process, dynamic-link, or other host behavior.
 - Private/internal machines may omit effects. The compiler infers and reports
   their reached effects from their bodies and callees.
 - Executable entry points may omit effects in normal development builds. The
   final executable manifest still records the union of effects reachable from
   the entry point so an OS, loader, store, or build policy can prompt, deny, or
-  audit the requested capabilities.
+  audit the requested behavior classes and authority flows.
 
 When a concrete machine declares an `effects` block, that block is a ceiling
 for the machine's reached effects. Omitting the block means "infer and report
@@ -207,9 +207,9 @@ Grep::search
 ```
 
 A stricter release, OS, or audited build can require an explicit checked-in
-capability manifest for executable entry points. That requirement belongs to
-build policy. It does not mean ordinary application authors must manually
-thread every reached effect through `main` while iterating locally.
+effect and authority manifest for executable entry points. That requirement
+belongs to build policy. It does not mean ordinary application authors must
+manually thread every reached effect through `main` while iterating locally.
 
 The compiler can represent standard effects as a compact bitset because the
 standard vocabulary is finite and stable for a given toolchain. Names remain
@@ -224,20 +224,20 @@ This gives each layer the shape it needs:
   intersection.
 - Optimizers can use the propagated bitsets as reordering, inlining, and
   scheduling facts.
-- Executables can carry a named capability manifest plus any loader-native
-  bitset encoding needed by the target OS.
+- Executables can carry named effect and authority manifests plus any
+  loader-native bitset encoding needed by the target OS.
 
 The list should stay intentionally small. More specific host details belong in
-boundary provider metadata, not in effect names. For example, `stdout_io` is
-enough for the language-level capability report; whether the implementation
-uses Darwin `libSystem`, Linux `write`, Windows console APIs, or a firmware
-UART is a provider detail.
+boundary provider metadata and authority-flow facts, not in effect names. For
+example, `stdout_io` is enough for the language-level effect report; whether
+the implementation uses Darwin `libSystem`, Linux `write`, Windows console
+APIs, or a firmware UART is a provider detail.
 
 Unknown effects should be rejected in normal safe builds once the compiler has
 a complete standard vocabulary. Toolchain or firmware authors can extend the
 vocabulary only through explicitly boundary target configuration.
 
-Console capability should use the same shape:
+Console boundaries should use the same shape:
 
 ```omega
 boundary trait Console {
