@@ -64,8 +64,10 @@ Current ownership is:
   borrow and mutation conflicts, `checks/borrows/overlap.rs` owns place/index
   overlap policy, and `checks/borrows/details.rs` owns diagnostic lifetime
   explanations.
-- `flow.rs` assembles checked flow facts. `flow/context.rs` owns the mutable
-  arena bundle, `flow/constraints.rs` materializes borrow constraints,
+- `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
+  machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
+  entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
+  bundle, `flow/constraints.rs` materializes borrow constraints,
   `flow/borrow_lifetimes.rs` owns loan activation/weakening rules,
   `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
   activation, mutation invalidation, and transfer propagation,
