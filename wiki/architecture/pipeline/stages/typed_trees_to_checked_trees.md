@@ -55,8 +55,10 @@ Current ownership is:
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
   collection, `borrow/accesses/place.rs` owns contextual place resolution,
   `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs` owns
-  borrow call-site discovery, and `borrow/last_uses.rs` owns loan last-use
-  scanning.
+  borrow call-site discovery, `borrow/tracker.rs` owns per-state loan tracker
+  state, `borrow/last_uses.rs` owns loan last-use updates, and
+  `borrow/last_uses/usage.rs` owns statement/expression usage traversal for
+  last-use detection.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow legality, `checks/borrows/statements.rs` owns local
   borrow and mutation conflicts, `checks/borrows/overlap.rs` owns place/index
