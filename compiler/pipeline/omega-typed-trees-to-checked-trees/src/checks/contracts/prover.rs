@@ -2,8 +2,12 @@ use omega_checked_trees::{FlowCallFact, FlowStateFact};
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace};
 
+use super::domains::{
+    prove_boolean_expression_via_context_domain_membership,
+    prove_instantiated_boolean_expression_via_context_domain_membership,
+};
 use super::evaluator::call_site_proves_boolean_contract_expression;
-use super::labels::{domain_proves_expression_label, instantiate_call_contract_expression_label};
+use super::labels::instantiate_call_contract_expression_label;
 use super::places::{expression_is_boolean_place_like, expression_place_matches};
 use crate::labels::canonical_place_label;
 
@@ -297,104 +301,5 @@ fn direct_context_proves_instantiated_boolean_expression(
                     semantic,
                     semantic.places.get(candidate_place),
                 )))
-    })
-}
-
-fn prove_boolean_expression_via_context_domain_membership(
-    program: &omega_typed_trees::TypedTrees,
-    semantic: &omega_facts::FactPlan,
-    context: &omega_facts::FactContext,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-) -> bool {
-    let candidate_label = program.expression_table.display_name(expression);
-
-    semantic.context_view(context).facts().any(|fact| {
-        let (domain_symbol, value, place) = match fact.payload {
-            FactPayload::DomainMembership {
-                domain_symbol,
-                value,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain_symbol,
-                value,
-                ..
-            } => {
-                let FactPlace::Place(place) = fact.place else {
-                    return false;
-                };
-                (domain_symbol, value, place)
-            }
-            _ => return false,
-        };
-        let canonical_base_label =
-            canonical_place_label(program, semantic, semantic.places.get(place));
-        let display_base_label = program.expression_table.display_name(value);
-        domain_proves_expression_label(
-            program,
-            domain_symbol,
-            &canonical_base_label,
-            &candidate_label,
-        ) || domain_proves_expression_label(
-            program,
-            domain_symbol,
-            &display_base_label,
-            &candidate_label,
-        )
-    })
-}
-
-fn prove_instantiated_boolean_expression_via_context_domain_membership(
-    program: &omega_typed_trees::TypedTrees,
-    semantic: &omega_facts::FactPlan,
-    context: &omega_facts::FactContext,
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    call_site: &crate::CallSite<'_>,
-    target_state: &omega_typed_trees::state::State,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-) -> bool {
-    let candidate_label = instantiate_call_contract_expression_label(
-        program,
-        caller_state_symbol,
-        statement_index,
-        call_site,
-        target_state,
-        expression,
-    );
-
-    semantic.context_view(context).facts().any(|fact| {
-        let (domain_symbol, value, place) = match fact.payload {
-            FactPayload::DomainMembership {
-                domain_symbol,
-                value,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain_symbol,
-                value,
-                ..
-            } => {
-                let FactPlace::Place(place) = fact.place else {
-                    return false;
-                };
-                (domain_symbol, value, place)
-            }
-            _ => return false,
-        };
-        let canonical_base_label =
-            canonical_place_label(program, semantic, semantic.places.get(place));
-        let display_base_label = program.expression_table.display_name(value);
-        domain_proves_expression_label(
-            program,
-            domain_symbol,
-            &canonical_base_label,
-            &candidate_label,
-        ) || domain_proves_expression_label(
-            program,
-            domain_symbol,
-            &display_base_label,
-            &candidate_label,
-        )
     })
 }
