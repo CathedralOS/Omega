@@ -1,12 +1,16 @@
 use crate::parse_error::ParseError;
 use crate::parser::diagnostics;
+use crate::parser::input::delimited::{
+    find_top_level_punctuation, skip_delimited_block_after_open,
+};
+use crate::parser::input::literals::{parse_integer_literal, validate_float_literal};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::Identifier;
-use omega_tokens::{
-    FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase, PunctuationKind, Token,
-    TokenKind, TokenText,
-};
+use omega_tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
+
+mod delimited;
+mod literals;
 
 pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
@@ -171,9 +175,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         delimiter: PunctuationKind,
         message: &str,
     ) -> Result<(Self, Self), ParseError> {
-        let split_index = self
-            .find_top_level_punctuation(delimiter)
-            .ok_or_else(|| self.error_here(message))?;
+        let split_index =
+            find_top_level_punctuation(self, delimiter).ok_or_else(|| self.error_here(message))?;
         let (prefix_tokens, rest_tokens) = self.tokens.split_at(split_index);
         Ok((
             Self::new(self.source_id, prefix_tokens),
@@ -182,111 +185,29 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(super) fn skip_braced_block(self) -> Result<(usize, Self), ParseError> {
-        let mut input = self.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        let mut depth = 1usize;
-        let mut token_count = 0usize;
-
-        while depth > 0 {
-            let (token, rest) = input.expect_token()?;
-            input = rest;
-
-            match token.punctuation() {
-                Some(PunctuationKind::LeftBrace) => depth += 1,
-                Some(PunctuationKind::RightBrace) => depth -= 1,
-                _ => {}
-            }
-
-            if depth > 0 {
-                token_count += 1;
-            }
-        }
-
-        Ok((token_count, input))
+        let input = self.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+        skip_delimited_block_after_open(
+            input,
+            PunctuationKind::LeftBrace,
+            PunctuationKind::RightBrace,
+        )
     }
 
     pub(super) fn skip_parenthesized_tokens_after_open(self) -> Result<(usize, Self), ParseError> {
-        let mut input = self;
-        let mut depth = 1usize;
-        let mut token_count = 0usize;
-
-        while depth > 0 {
-            let (token, rest) = input.expect_token()?;
-            input = rest;
-
-            match token.punctuation() {
-                Some(PunctuationKind::LeftParen) => depth += 1,
-                Some(PunctuationKind::RightParen) => depth -= 1,
-                _ => {}
-            }
-
-            if depth > 0 {
-                token_count += 1;
-            }
-        }
-
-        Ok((token_count, input))
+        skip_delimited_block_after_open(
+            self,
+            PunctuationKind::LeftParen,
+            PunctuationKind::RightParen,
+        )
     }
 
     pub(super) fn skip_bracketed_block(self) -> Result<(usize, Self), ParseError> {
-        let mut input = self.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-        let mut depth = 1usize;
-        let mut token_count = 0usize;
-
-        while depth > 0 {
-            let (token, rest) = input.expect_token()?;
-            input = rest;
-
-            match token.punctuation() {
-                Some(PunctuationKind::LeftBracket) => depth += 1,
-                Some(PunctuationKind::RightBracket) => depth -= 1,
-                _ => {}
-            }
-
-            if depth > 0 {
-                token_count += 1;
-            }
-        }
-
-        Ok((token_count, input))
-    }
-
-    fn find_top_level_punctuation(self, delimiter: PunctuationKind) -> Option<usize> {
-        let mut paren_depth = 0usize;
-        let mut bracket_depth = 0usize;
-        let mut brace_depth = 0usize;
-
-        for (index, token) in self.tokens.iter().enumerate() {
-            match token.punctuation() {
-                Some(PunctuationKind::LeftParen) => paren_depth += 1,
-                Some(PunctuationKind::RightParen) => paren_depth = paren_depth.saturating_sub(1),
-                Some(PunctuationKind::LeftBracket) => bracket_depth += 1,
-                Some(PunctuationKind::RightBracket) => {
-                    bracket_depth = bracket_depth.saturating_sub(1)
-                }
-                Some(PunctuationKind::LeftBrace) => {
-                    if delimiter == PunctuationKind::LeftBrace
-                        && paren_depth == 0
-                        && bracket_depth == 0
-                        && brace_depth == 0
-                    {
-                        return Some(index);
-                    }
-                    brace_depth += 1;
-                }
-                Some(PunctuationKind::RightBrace) => brace_depth = brace_depth.saturating_sub(1),
-                Some(punctuation)
-                    if punctuation == delimiter
-                        && paren_depth == 0
-                        && bracket_depth == 0
-                        && brace_depth == 0 =>
-                {
-                    return Some(index);
-                }
-                _ => {}
-            }
-        }
-
-        None
+        let input = self.take_punctuation(PunctuationKind::LeftBracket, "[")?;
+        skip_delimited_block_after_open(
+            input,
+            PunctuationKind::LeftBracket,
+            PunctuationKind::RightBracket,
+        )
     }
 }
 
@@ -306,46 +227,6 @@ fn skip_non_semantic_tokens<'tokens, 'source>(
         index += 1;
     }
     &tokens[index..]
-}
-
-fn parse_integer_literal(text: &str, kind: IntegerLiteralKind) -> Result<i64, &'static str> {
-    if kind.empty_digits {
-        return Err("invalid integer literal");
-    }
-    if kind.has_suffix {
-        return Err("integer literal suffixes are not supported yet");
-    }
-
-    let (radix, body) = match kind.base {
-        NumericBase::Binary => (
-            2,
-            text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")),
-        ),
-        NumericBase::Octal => (
-            8,
-            text.strip_prefix("0o").or_else(|| text.strip_prefix("0O")),
-        ),
-        NumericBase::Decimal => (10, Some(text)),
-        NumericBase::Hexadecimal => (
-            16,
-            text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")),
-        ),
-    };
-
-    let body = body.ok_or("invalid integer literal")?;
-    let normalized: String = body.chars().filter(|character| *character != '_').collect();
-    i64::from_str_radix(&normalized, radix).map_err(|_| "invalid integer literal")
-}
-
-fn validate_float_literal(kind: FloatLiteralKind) -> Result<(), &'static str> {
-    if kind.empty_exponent {
-        return Err("invalid float literal");
-    }
-    if kind.has_suffix {
-        return Err("float literal suffixes are not supported yet");
-    }
-
-    Ok(())
 }
 
 pub(super) fn parse_path_handle_span<'tokens, 'source>(
