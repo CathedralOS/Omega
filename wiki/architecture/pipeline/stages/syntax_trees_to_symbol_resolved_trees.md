@@ -63,14 +63,19 @@ The implementation should stay split by identity task:
 - `symbols/domain_facts.rs` stamps domain/proof fact references.
 - `symbols/statements.rs` walks machine states and stamps statement-local calls,
   locals, transition targets, and statement-owned expression references.
+- `symbols/expressions.rs` walks expression tables and stamps expression-local
+  names, members, calls, domain membership, and nested expression children.
 - `symbols/expression_paths.rs` resolves expression receiver/member paths,
   indexed receiver paths, and call receivers inside expression tables.
-- `symbols.rs` should continue shrinking toward orchestration plus the remaining
-  expression walker, transition target, and call-target stamping seams.
+- `symbols/targets.rs` resolves transition targets and call target symbols after
+  receiver identity is known.
+- `symbols.rs` owns only pass sequencing and publication of the final symbol
+  table onto `SymbolResolvedTrees`.
 
 ## Known Gaps
 
-The remaining `symbols.rs` expression walker and call-target resolver still mix
-tree traversal with call lookup policy. Keep splitting symbol-table construction,
-lookup, and reference stamping so later phases can rely on handles without
-inheriting string identity or resolver control flow.
+The symbol-resolution implementation is now split by task, but several modules
+still have policy-heavy functions. Keep pressure on `symbols/top_level.rs`,
+`symbols/expression_paths.rs`, and `symbols/targets.rs` so lookup policy remains
+separable from tree traversal and later phases can rely on handles without
+inheriting string identity.
