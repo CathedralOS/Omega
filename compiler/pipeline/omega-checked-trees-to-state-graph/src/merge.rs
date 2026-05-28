@@ -3,12 +3,13 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     MachineGraph, Operation, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
     StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateContractCall,
-    StateContractExit, StateContractFactRef, StateGraph, StateNode, StateParameterNode,
-    TransitionEdge,
+    StateContractExit, StateContractFactRef, StateDropEvent, StateGraph, StateMoveEvent, StateNode,
+    StateParameterNode, TransitionEdge,
 };
 
 use crate::borrows::remap_state_borrow_summary;
 use crate::contracts::remap_state_contract_summary;
+use crate::ownership::remap_state_ownership_summary;
 use crate::remap::{append_remapped_operations, append_remapped_transitions};
 
 pub(crate) fn merge_machine_graph(
@@ -35,6 +36,9 @@ pub(crate) fn merge_machine_graph(
         borrow_loans,
         borrow_activations,
         borrow_weakenings,
+        ownership_segments,
+        move_events,
+        drop_events,
         operations,
         transitions,
     } = source;
@@ -54,6 +58,9 @@ pub(crate) fn merge_machine_graph(
         &borrow_loans,
         &borrow_activations,
         &borrow_weakenings,
+        &ownership_segments,
+        &move_events,
+        &drop_events,
         &operations,
         &transitions,
     );
@@ -93,6 +100,9 @@ fn append_remapped_states(
     source_borrow_loans: &Arena<StateBorrowLoan>,
     source_borrow_activations: &Arena<StateBorrowActivation>,
     source_borrow_weakenings: &Arena<StateBorrowWeakening>,
+    source_ownership_segments: &Arena<omega_facts::PlaceSegment>,
+    source_move_events: &Arena<StateMoveEvent>,
+    source_drop_events: &Arena<StateDropEvent>,
     source_operations: &Arena<Operation>,
     source_transitions: &Arena<TransitionEdge>,
 ) -> HandleSpan<StateNode> {
@@ -136,6 +146,13 @@ fn append_remapped_states(
             source_borrow_weakenings,
             &state.borrow,
         );
+        let ownership = remap_state_ownership_summary(
+            target,
+            source_ownership_segments,
+            source_move_events,
+            source_drop_events,
+            &state.ownership,
+        );
         target.states.append_to_span(
             &mut remapped_states,
             StateNode {
@@ -147,6 +164,7 @@ fn append_remapped_states(
                 parameters,
                 contracts,
                 borrow,
+                ownership,
                 operations,
                 transitions,
             },

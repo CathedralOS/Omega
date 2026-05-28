@@ -24,6 +24,9 @@ pub struct ControlFlowPlan {
     pub borrow_loans: Arena<StateBorrowLoan>,
     pub borrow_activations: Arena<StateBorrowActivation>,
     pub borrow_weakenings: Arena<StateBorrowWeakening>,
+    pub ownership_segments: Arena<omega_facts::PlaceSegment>,
+    pub move_events: Arena<StateMoveEvent>,
+    pub drop_events: Arena<StateDropEvent>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<TransitionFlow>,
 }
@@ -241,6 +244,7 @@ pub struct StateFlow {
     pub parameters: HandleSpan<StateParameterFlow>,
     pub contracts: StateContractSummary,
     pub borrow: StateBorrowSummary,
+    pub ownership: StateOwnershipSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
 }
@@ -256,6 +260,7 @@ impl Default for StateFlow {
             parameters: HandleSpan::empty(),
             contracts: StateContractSummary::default(),
             borrow: StateBorrowSummary::default(),
+            ownership: StateOwnershipSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
         }
@@ -464,6 +469,44 @@ pub struct StateBorrowSummary {
     pub active_loans: HandleSpan<StateBorrowLoan>,
     pub activations: HandleSpan<StateBorrowActivation>,
     pub weakenings: HandleSpan<StateBorrowWeakening>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateOwnershipEventSource {
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+    },
+}
+
+impl Default for StateOwnershipEventSource {
+    fn default() -> Self {
+        Self::Statement { statement_index: 0 }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateMoveEvent {
+    pub source: StateOwnershipEventSource,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateDropEvent {
+    pub source: StateOwnershipEventSource,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateOwnershipSummary {
+    pub moves: HandleSpan<StateMoveEvent>,
+    pub drops: HandleSpan<StateDropEvent>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

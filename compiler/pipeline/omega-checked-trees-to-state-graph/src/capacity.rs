@@ -27,6 +27,9 @@ pub(crate) struct StateGraphCapacity {
     borrow_loans: usize,
     borrow_activations: usize,
     borrow_weakenings: usize,
+    ownership_segments: usize,
+    move_events: usize,
+    drop_events: usize,
     operations: usize,
     transitions: usize,
 }
@@ -52,6 +55,9 @@ impl StateGraphCapacity {
             borrow_loans: program.facts.borrow.loans.len(),
             borrow_activations: program.facts.flow.borrow_activations.len(),
             borrow_weakenings: program.facts.flow.borrow_weakenings.len(),
+            ownership_segments: program.facts.flow.ownership_segments.len(),
+            move_events: program.facts.flow.moves.len(),
+            drop_events: program.facts.flow.drops.len(),
             operations: program.statement_table.statement_count(),
             transitions: program.statement_table.transition_target_count(),
         };
@@ -96,6 +102,9 @@ impl StateGraphCapacity {
             borrow_loans: program.facts.borrow.loans.len(),
             borrow_activations: program.facts.flow.borrow_activations.len(),
             borrow_weakenings: program.facts.flow.borrow_weakenings.len(),
+            ownership_segments: program.facts.flow.ownership_segments.len(),
+            move_events: program.facts.flow.moves.len(),
+            drop_events: program.facts.flow.drops.len(),
             operations: statement_capacity,
             transitions: statement_capacity,
         }
@@ -121,6 +130,9 @@ impl StateGraphCapacity {
             self.borrow_loans,
             self.borrow_activations,
             self.borrow_weakenings,
+            self.ownership_segments,
+            self.move_events,
+            self.drop_events,
             self.operations,
             self.transitions,
         )

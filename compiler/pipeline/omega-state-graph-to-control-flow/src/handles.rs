@@ -1,8 +1,8 @@
 use omega_control_flow::{
     ContainedFlow, MachineOwnedDataFlow, Operation, StateBorrowActivation,
     StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan, StateBorrowWeakening,
-    StateBorrowWritableRoot, StateContractCall, StateContractExit, StateContractFactRef, StateFlow,
-    StateParameterFlow, TransitionFlow,
+    StateBorrowWritableRoot, StateContractCall, StateContractExit, StateContractFactRef,
+    StateDropEvent, StateFlow, StateMoveEvent, StateParameterFlow, TransitionFlow,
 };
 use omega_core::arena::{Handle, HandleSpan};
 
@@ -90,6 +90,18 @@ pub(crate) fn remap_borrow_weakening_span(
     weakenings: HandleSpan<omega_state_graph::StateBorrowWeakening>,
 ) -> HandleSpan<StateBorrowWeakening> {
     remap_span(weakenings)
+}
+
+pub(crate) fn remap_move_event_span(
+    moves: HandleSpan<omega_state_graph::StateMoveEvent>,
+) -> HandleSpan<StateMoveEvent> {
+    remap_span(moves)
+}
+
+pub(crate) fn remap_drop_event_span(
+    drops: HandleSpan<omega_state_graph::StateDropEvent>,
+) -> HandleSpan<StateDropEvent> {
+    remap_span(drops)
 }
 
 pub(crate) fn remap_contract_fact_ref_span(

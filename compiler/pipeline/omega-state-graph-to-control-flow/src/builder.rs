@@ -19,6 +19,9 @@ use crate::machines::{
     remap_contained_owned, remap_machine_owned, remap_machines, remap_owned_data_owned,
 };
 use crate::operations::{remap_operation_owned, remap_operations};
+use crate::ownership::{
+    remap_drop_event_owned, remap_drop_events, remap_move_event_owned, remap_move_events,
+};
 use crate::states::{remap_parameter_owned, remap_state_owned, remap_states};
 use crate::transitions::{remap_transition_owned, remap_transitions};
 
@@ -47,6 +50,9 @@ pub(crate) fn build_control_flow_plan(
         borrow_loans: remap_borrow_loans(state_graph),
         borrow_activations: remap_borrow_activations(state_graph),
         borrow_weakenings: remap_borrow_weakenings(state_graph),
+        ownership_segments: state_graph.ownership_segments.clone(),
+        move_events: remap_move_events(state_graph),
+        drop_events: remap_drop_events(state_graph),
         operations: remap_operations(state_graph),
         transitions: remap_transitions(state_graph),
     })
@@ -74,6 +80,9 @@ pub(crate) fn build_control_flow_plan_owned(
         borrow_loans,
         borrow_activations,
         borrow_weakenings,
+        ownership_segments,
+        move_events,
+        drop_events,
         operations,
         transitions,
     } = state_graph;
@@ -97,6 +106,9 @@ pub(crate) fn build_control_flow_plan_owned(
         borrow_loans: borrow_loans.map(remap_borrow_loan_owned),
         borrow_activations: borrow_activations.map(remap_borrow_activation_owned),
         borrow_weakenings: borrow_weakenings.map(remap_borrow_weakening_owned),
+        ownership_segments,
+        move_events: move_events.map(remap_move_event_owned),
+        drop_events: drop_events.map(remap_drop_event_owned),
         operations: operations.map(remap_operation_owned),
         transitions: transitions.map(remap_transition_owned),
     })

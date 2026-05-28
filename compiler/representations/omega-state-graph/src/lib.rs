@@ -31,6 +31,9 @@ pub struct StateGraph {
     pub borrow_loans: Arena<StateBorrowLoan>,
     pub borrow_activations: Arena<StateBorrowActivation>,
     pub borrow_weakenings: Arena<StateBorrowWeakening>,
+    pub ownership_segments: Arena<omega_facts::PlaceSegment>,
+    pub move_events: Arena<StateMoveEvent>,
+    pub drop_events: Arena<StateDropEvent>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<TransitionEdge>,
 }
@@ -55,6 +58,9 @@ impl StateGraph {
         borrow_loan_capacity: usize,
         borrow_activation_capacity: usize,
         borrow_weakening_capacity: usize,
+        ownership_segment_capacity: usize,
+        move_event_capacity: usize,
+        drop_event_capacity: usize,
         operation_capacity: usize,
         transition_capacity: usize,
     ) -> Self {
@@ -77,6 +83,9 @@ impl StateGraph {
             borrow_loans: Arena::with_capacity(borrow_loan_capacity),
             borrow_activations: Arena::with_capacity(borrow_activation_capacity),
             borrow_weakenings: Arena::with_capacity(borrow_weakening_capacity),
+            ownership_segments: Arena::with_capacity(ownership_segment_capacity),
+            move_events: Arena::with_capacity(move_event_capacity),
+            drop_events: Arena::with_capacity(drop_event_capacity),
             operations: Arena::with_capacity(operation_capacity),
             transitions: Arena::with_capacity(transition_capacity),
         }
@@ -219,6 +228,7 @@ pub struct StateNode {
     pub parameters: HandleSpan<StateParameterNode>,
     pub contracts: StateContractSummary,
     pub borrow: StateBorrowSummary,
+    pub ownership: StateOwnershipSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionEdge>,
 }
@@ -234,6 +244,7 @@ impl Default for StateNode {
             parameters: HandleSpan::empty(),
             contracts: StateContractSummary::default(),
             borrow: StateBorrowSummary::default(),
+            ownership: StateOwnershipSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
         }
@@ -442,6 +453,44 @@ pub struct StateBorrowSummary {
     pub active_loans: HandleSpan<StateBorrowLoan>,
     pub activations: HandleSpan<StateBorrowActivation>,
     pub weakenings: HandleSpan<StateBorrowWeakening>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateOwnershipEventSource {
+    Statement {
+        statement_index: usize,
+    },
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        target_symbol: SymbolHandle,
+    },
+}
+
+impl Default for StateOwnershipEventSource {
+    fn default() -> Self {
+        Self::Statement { statement_index: 0 }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateMoveEvent {
+    pub source: StateOwnershipEventSource,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateDropEvent {
+    pub source: StateOwnershipEventSource,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateOwnershipSummary {
+    pub moves: HandleSpan<StateMoveEvent>,
+    pub drops: HandleSpan<StateDropEvent>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
