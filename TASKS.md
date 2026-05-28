@@ -11,6 +11,29 @@ meaning, without needing access to pointer descriptor internals.
 
 ## Architecture Tracks
 
+- [ ] Pipeline semantic ownership boundaries
+  Keep pipeline stages organized around the nouns they truly own: places,
+  values, facts, loans, moves, drops, calls, transitions, effects, and boundary
+  edges.
+  Landed:
+  - pipeline architecture docs now define the ownership rule for when a stage
+    owns a semantic noun versus merely preserving or lowering it
+  - pipeline architecture docs now include a central semantic ownership matrix
+    across all durable pipeline stages
+  - the syntax-to-symbol-resolved stage doc now explicitly says it owns symbol
+    identity only and must not typecheck, prove, borrow-check, or schedule flow
+  Next target:
+  - normalize the remaining stage pages to use the same compact ownership table
+    format where prose is currently vague
+  - make moves and drops first-class checked-tree facts/events instead of
+    implicit lowering behavior
+  - define durable value identity in checked trees so proof, borrow,
+    allocation, and lowering can talk about values as clearly as places
+  - make boundary edges as queryable in checked/control-flow representations as
+    calls, effects, and contracts
+  - keep splitting overloaded pipeline files when a helper starts owning a noun
+    outside that stage's documented responsibility
+
 - [ ] Core semantic surface
   Create source-visible declarations for the core concepts that are currently
   mostly compiler knowledge.

@@ -39,6 +39,55 @@ Every stage document should answer:
 - Boundary edges: points where Omega accepts a declared contract from
   compiler/runtime/host/toolchain code.
 
+## Ownership Rule
+
+The stage that first creates durable, queryable data for a noun owns that noun's
+semantic meaning. Later stages preserve, refine, schedule, lower, encode, or
+report that data. Earlier stages may parse or carry syntax for the noun, but
+they should not make semantic decisions about it.
+
+Use this rule when a pass starts to sprawl:
+
+- If it discovers identity, it belongs near symbol resolution.
+- If it decides type/signature compatibility, it belongs near typing.
+- If it proves obligations, records facts, creates loans, or validates effects,
+  it belongs near checked trees.
+- If it schedules already-checked events into graph/control form, it belongs in
+  graph or control-flow lowering.
+- If it chooses storage, ABI, instruction, relocation, or image form, it belongs
+  in the backend lowering stages.
+
+## Semantic Ownership Matrix
+
+This table is intentionally blunt. Each cell says the main relationship between
+the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
+`scheduled`, `lowered`, `assigned`, `encoded`, or `final`.
+
+| Stage | Places | Values | Facts | Loans | Moves | Drops | Calls | Transitions | Effects | Boundaries |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Source Files To Tokens | none | none | none | none | none | none | none | none | none | token |
+| Tokens To Syntax Trees | syntax | syntax | syntax | none | none | none | syntax | syntax | syntax | syntax |
+| Syntax Trees To Symbol Resolved Trees | identity | identity | identity | none | none | none | identity | identity | identity | identity |
+| Symbol Resolved Trees To Typed Trees | typed | typed | typed | type surface | planned | planned | typed | typed | typed | typed |
+| Typed Trees To Checked Trees | checked | checked | checked | checked | checked gap | checked gap | checked | checked | checked | checked |
+| Checked Trees To State Graph | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | graph | scheduled | scheduled |
+| State Graph To Control Flow | lowered | lowered | preserved | preserved | lowered | lowered | control flow | control flow | preserved | control flow |
+| Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | abstract op |
+| Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target op |
+| Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned |
+| Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction |
+| Machine Instructions To Object File | encoded | encoded | debug/artifact | none | encoded | encoded | relocation | relocation | artifact | relocation/import |
+| Object File To Final Image | final | final | debug/artifact | none | final | final | final | final | final artifact | final import/runtime |
+
+Current deliberate gaps:
+
+- Moves and drops are not durable enough yet. They should become checked-tree
+  facts/events before graph and control-flow lowering.
+- Values are still weaker than places in checked trees. We need a durable value
+  identity/story that survives proof, borrow, allocation, and lowering work.
+- Boundary edges are visible, but the checked representation should make
+  compiler/runtime/host trust edges as queryable as calls and effects.
+
 ## Stages
 
 - [Source Files To Tokens](stages/source_files_to_tokens.md)
