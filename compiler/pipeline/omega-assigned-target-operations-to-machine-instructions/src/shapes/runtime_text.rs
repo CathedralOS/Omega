@@ -1,4 +1,126 @@
+use omega_assigned_target_operations::SelectedInstructionKind;
 use omega_machine_instructions::MachineInstructionKind;
+
+pub(super) fn selected_runtime_text_kind(
+    kind: &SelectedInstructionKind,
+) -> Option<MachineInstructionKind> {
+    match kind {
+        SelectedInstructionKind::CompareRuntimeTextLiteral { .. } => {
+            Some(runtime_text_literal_compare_kind())
+        }
+        SelectedInstructionKind::CompareRuntimeTextStorage {
+            source_offset,
+            operator,
+            ..
+        } => Some(runtime_text_storage_compare_kind(*source_offset, *operator)),
+        SelectedInstructionKind::WriteRuntimeTextLiteral { .. } => {
+            Some(runtime_text_literal_write_kind())
+        }
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment { byte_offset, .. } => {
+            Some(runtime_text_literal_segment_write_kind(*byte_offset))
+        }
+        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+            buffer_offset,
+            source_offset,
+            target_offset,
+            length_delta,
+            ..
+        } => Some(runtime_text_stored_suffix_append_kind(
+            *buffer_offset,
+            *source_offset,
+            *target_offset,
+            *length_delta,
+        )),
+        SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
+            Some(runtime_text_buffer_materialize_kind(*target_offset))
+        }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => Some(runtime_text_buffer_materialize_to_runtime_pointee_kind(
+            *pointer_byte_offset,
+            *field_byte_offset,
+        )),
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => Some(
+            runtime_text_buffer_materialize_to_runtime_frame_indexed_kind(
+                *descriptor_offset,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+            ),
+        ),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+            source_offset,
+            target_offset,
+            ..
+        } => Some(runtime_text_stored_place_append_kind(
+            *source_offset,
+            *target_offset,
+        )),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => Some(runtime_text_stored_place_append_to_runtime_pointee_kind(
+            *source_offset,
+            *pointer_byte_offset,
+            *field_byte_offset,
+        )),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => Some(
+            runtime_text_stored_place_append_to_runtime_frame_indexed_kind(
+                *source_offset,
+                *descriptor_offset,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+            ),
+        ),
+        SelectedInstructionKind::AppendRuntimeTextLiteral { target_offset, .. } => {
+            Some(runtime_text_literal_append_kind(*target_offset))
+        }
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => Some(runtime_text_literal_append_to_runtime_pointee_kind(
+            *pointer_byte_offset,
+            *field_byte_offset,
+        )),
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => Some(runtime_text_literal_append_to_runtime_frame_indexed_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+        )),
+        SelectedInstructionKind::ReadRuntimeTextLine {
+            target_offset,
+            byte_capacity,
+            ..
+        } => Some(runtime_text_line_read_kind(*target_offset, *byte_capacity)),
+        _ => None,
+    }
+}
 
 pub(super) fn runtime_text_literal_compare_kind() -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralCompare
