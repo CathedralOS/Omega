@@ -57,8 +57,10 @@ The implementation should stay split by identity task:
   names.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.
 - `symbols/top_level.rs` stamps declaration symbols for roots, data members,
-  machines, states, platforms, traits, operators, and inherited attached-data
-  fields.
+  data members, platforms, traits, and operators.
+  `symbols/top_level/machines.rs` owns machine symbol stamping, including
+  contained objects, owned data, state parameters, state locals, trait
+  conformances, and inherited attached-data field offsets.
 - `symbols/type_references.rs` stamps type-reference symbols.
 - `symbols/scoped_paths.rs` resolves machine/state-scoped name paths for places,
   calls, indexed paths, and transition targets.
