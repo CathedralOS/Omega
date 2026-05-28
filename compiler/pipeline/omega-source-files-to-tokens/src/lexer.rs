@@ -2,6 +2,7 @@ use std::iter::Peekable;
 use std::str::CharIndices;
 
 use crate::LexError;
+use crate::lexer::strings::decode_string_literal;
 use omega_core::Span;
 use omega_tokens::{
     CommentKind, KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
@@ -76,7 +77,7 @@ impl<'source> Lexer<'source> {
         let lexeme = match token.kind {
             TokenKind::StringLiteral => {
                 let raw = &self.source[token.span.start..token.span.end];
-                let value = self.decode_string_literal(raw, token.span.start)?;
+                let value = decode_string_literal(raw, token.span.start)?;
                 TokenText::owned(value)
             }
             _ => TokenText::source(&self.source[token.span.start..token.span.end]),
