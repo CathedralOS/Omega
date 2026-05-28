@@ -75,6 +75,8 @@ The implementation should stay split by identity task:
   names, members, calls, domain membership, and nested expression children.
 - `symbols/expression_paths.rs` resolves expression receiver/member paths,
   indexed receiver paths, and call receivers inside expression tables.
+- `symbols/expression_paths/stamping.rs` owns writing resolved receiver
+  head/final symbols back into expression-table nodes.
 - `symbols/targets.rs` resolves transition targets and call target symbols after
   receiver identity is known.
 - `symbols.rs` owns only pass sequencing and publication of the final symbol
