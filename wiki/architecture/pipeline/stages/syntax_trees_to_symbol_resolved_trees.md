@@ -59,7 +59,7 @@ The implementation should stay split by identity task:
   names.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.
 - `symbols/top_level.rs` stamps declaration symbols for roots, data members,
-  data members, platforms, traits, and operators.
+  platforms, traits, and operators.
   `symbols/top_level/machines.rs` owns machine symbol stamping, including
   contained objects, owned data, state parameters, state locals, trait
   conformances, and inherited attached-data field offsets.
@@ -77,15 +77,17 @@ The implementation should stay split by identity task:
   indexed receiver paths, and call receivers inside expression tables.
 - `symbols/expression_paths/stamping.rs` owns writing resolved receiver
   head/final symbols back into expression-table nodes.
-- `symbols/targets.rs` resolves transition targets and call target symbols after
-  receiver identity is known.
+- `symbols/targets.rs` owns only target-resolution exports.
+  `symbols/targets/transitions.rs` stamps transition targets, while
+  `symbols/targets/calls.rs` resolves call target symbols after receiver
+  identity is known.
 - `symbols.rs` owns only pass sequencing and publication of the final symbol
   table onto `SymbolResolvedTrees`.
 
 ## Known Gaps
 
 The symbol-resolution implementation is now split by task, but several modules
-still have policy-heavy functions. Keep pressure on `symbols/top_level.rs`,
-`symbols/expression_paths.rs`, and `symbols/targets.rs` so lookup policy remains
-separable from tree traversal and later phases can rely on handles without
-inheriting string identity.
+still have policy-heavy functions. Keep pressure on `symbols/top_level.rs` and
+`symbols/expression_paths.rs` so lookup policy remains separable from tree
+traversal and later phases can rely on handles without inheriting string
+identity.
