@@ -3,10 +3,11 @@ use omega_calling_conventions::{HostAbiPlan, HostCapability, HostOperation, Host
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    InstructionOperand, InstructionOperandKind, RuntimeTextReadSource, TargetOperation,
-    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetValueOperand,
+    InstructionOperand, InstructionOperandKind, TargetOperation, TargetOperationFunction,
+    TargetOperationKind, TargetOperationPlan, TargetValueOperand,
 };
 
+use crate::host;
 use crate::remap;
 
 pub(crate) fn build_target_operation_plan(
@@ -48,36 +49,7 @@ pub(crate) fn build_target_operation_plan(
         });
     }
 
-    for (instruction_key, instruction) in abstract_operations.instructions.iter() {
-        let omega_abstract_operations::AbstractOperationKind::ReadRuntimeTextLine { .. } =
-            &instruction.kind
-        else {
-            continue;
-        };
-
-        let TargetOperationKind::ReadRuntimeTextLine {
-            source: RuntimeTextReadSource::HostOperation { operation_key },
-            ..
-        } = &target_operations
-            .instructions
-            .get(remap::instruction_handle(instruction_key))
-            .kind
-        else {
-            continue;
-        };
-
-        if target_operations.host_binding(*operation_key).is_some() {
-            continue;
-        }
-
-        if let Some((_, binding)) = host_abi
-            .bindings
-            .iter()
-            .find(|(_, binding)| binding.operation_key == *operation_key)
-        {
-            target_operations.host_bindings.insert(binding.clone());
-        }
-    }
+    host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);
 
     target_operations
 }
@@ -103,7 +75,7 @@ fn translate_instruction_kind(
             operands,
         } => {
             let operation_key =
-                resolve_host_operation_key(host_calls, instruction, *operation_ordinal);
+                host::resolve_operation_key(host_calls, instruction, *operation_ordinal);
             TargetOperationKind::HostOperation {
                 operation_key,
                 operands: remap::operand_span(*operands),
@@ -250,37 +222,4 @@ fn translate_runtime_value_operand(
             right: remap::runtime_value_handle(*right),
         },
     }
-}
-
-fn resolve_host_operation_key(
-    host_calls: &HostCallPlan,
-    instruction: &omega_abstract_operations::AbstractOperation,
-    operation_ordinal: u16,
-) -> omega_calling_conventions::HostOperationKey {
-    let Some((_, host_call)) = host_calls.calls.iter().find(|(_, host_call)| {
-        host_call.source_key == instruction.source_key
-            && host_call.statement_index == instruction.source_statement
-    }) else {
-        panic!(
-            "missing host call for abstract host operation at {:?} statement {}",
-            instruction.source_key, instruction.source_statement
-        );
-    };
-
-    let Some(operations) = host_calls.operations.span(host_call.operations) else {
-        panic!(
-            "missing lowered host operations for abstract host operation at {:?} statement {}",
-            instruction.source_key, instruction.source_statement
-        );
-    };
-
-    let ordinal = usize::from(operation_ordinal);
-    let Some(operation) = operations.get(ordinal) else {
-        panic!(
-            "host operation ordinal {} out of range at {:?} statement {}",
-            operation_ordinal, instruction.source_key, instruction.source_statement
-        );
-    };
-
-    operation.operation_key
 }
