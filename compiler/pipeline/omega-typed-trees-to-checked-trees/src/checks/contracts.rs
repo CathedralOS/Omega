@@ -1,3 +1,4 @@
+mod direct;
 mod domains;
 mod evaluator;
 mod labels;
