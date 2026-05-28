@@ -2,13 +2,16 @@ mod dispatch;
 mod host;
 mod runtime_storage;
 mod runtime_text;
+mod validation;
 
 use omega_assigned_target_operations::{
-    AssignedValueHomeKind, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::MachineInstructionKind;
+
+use validation::ensure_runtime_value_homes;
 
 pub(super) fn lower_machine_instruction_kind(
     assigned_target_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,
@@ -526,74 +529,4 @@ pub(super) fn lower_machine_instruction_kind(
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall => MachineInstructionKind::NoOp,
     })
-}
-
-fn ensure_runtime_value_homes(
-    assigned_target_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,
-    selected_instruction_handle: Handle<omega_assigned_target_operations::SelectedInstruction>,
-    kind: &SelectedInstructionKind,
-) -> Result<(), Diagnostic> {
-    let selected_instruction = assigned_target_operations
-        .instructions
-        .get(selected_instruction_handle);
-    for handle in [
-        first_runtime_value_handle(kind),
-        second_runtime_value_handle(kind),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        let home_handle = assigned_target_operations.runtime_value_home_handle(handle);
-        if !home_handle.is_valid() {
-            return Err(Diagnostic::error(format!(
-                "missing assigned value home for {:?} in {:?} statement {}",
-                handle, selected_instruction.source_key, selected_instruction.source_statement
-            )));
-        }
-        let home = assigned_target_operations
-            .runtime_value_home(handle)
-            .expect("validated assigned runtime value home should exist");
-
-        if matches!(
-            assigned_target_operations
-                .runtime_value_operand(handle)
-                .expect("validated assigned runtime value operand should exist")
-                .kind,
-            omega_assigned_target_operations::RuntimeValueOperand::Binary { .. }
-        ) && !matches!(home, AssignedValueHomeKind::ScratchRegister { .. })
-        {
-            return Err(Diagnostic::error(format!(
-                "binary runtime value {:?} in {:?} statement {} must lower through a scratch register home",
-                handle, selected_instruction.source_key, selected_instruction.source_statement
-            )));
-        }
-    }
-
-    Ok(())
-}
-
-fn first_runtime_value_handle(
-    kind: &SelectedInstructionKind,
-) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
-    match kind {
-        SelectedInstructionKind::CompareRuntimeValues { left, .. }
-        | SelectedInstructionKind::WriteRuntimeStorageBinary { left, .. }
-        | SelectedInstructionKind::WriteRuntimePointeeBinary { left, .. }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { left, .. } => Some(*left),
-        _ => None,
-    }
-}
-
-fn second_runtime_value_handle(
-    kind: &SelectedInstructionKind,
-) -> Option<omega_assigned_target_operations::RuntimeValueOperandHandle> {
-    match kind {
-        SelectedInstructionKind::CompareRuntimeValues { right, .. }
-        | SelectedInstructionKind::WriteRuntimeStorageBinary { right, .. }
-        | SelectedInstructionKind::WriteRuntimePointeeBinary { right, .. }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
-        SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { right, .. } => Some(*right),
-        _ => None,
-    }
 }
