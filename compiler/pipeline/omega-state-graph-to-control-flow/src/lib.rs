@@ -9,6 +9,7 @@ mod facts;
 mod handles;
 mod machines;
 mod operations;
+mod states;
 mod transitions;
 
 pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPlan, Diagnostic> {
