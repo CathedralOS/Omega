@@ -8,11 +8,11 @@ use super::diagnostics::{
     unknown_length_range_failure,
 };
 use super::expressions::{
-    expression_indexable_length, expression_integer_value, expression_is_slice,
-    provable_range_bounds,
+    expression_indexable_length, expression_integer_value, provable_range_bounds,
 };
 use super::facts::RangeFacts;
 use super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
+use super::types::expression_is_slice;
 
 pub(super) fn check_expression(
     program: &omega_typed_trees::TypedTrees,
