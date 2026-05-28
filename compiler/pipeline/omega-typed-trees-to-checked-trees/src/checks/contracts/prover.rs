@@ -4,6 +4,7 @@ use omega_facts::{FactPayload, FactPlace};
 
 use super::evaluator::call_site_proves_boolean_contract_expression;
 use super::labels::{domain_proves_expression_label, instantiate_call_contract_expression_label};
+use super::places::{expression_is_boolean_place_like, expression_place_matches};
 use crate::labels::canonical_place_label;
 
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
@@ -297,32 +298,6 @@ fn direct_context_proves_instantiated_boolean_expression(
                     semantic.places.get(candidate_place),
                 )))
     })
-}
-
-pub(super) fn expression_is_boolean_place_like(
-    program: &omega_typed_trees::TypedTrees,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        omega_typed_trees::expression::ExpressionNode::Mutable(inner) => {
-            expression_is_boolean_place_like(program, *inner)
-        }
-        omega_typed_trees::expression::ExpressionNode::Name(_)
-        | omega_typed_trees::expression::ExpressionNode::Member(_)
-        | omega_typed_trees::expression::ExpressionNode::Indexed(_) => true,
-        _ => false,
-    }
-}
-
-fn expression_place_matches(
-    program: &omega_typed_trees::TypedTrees,
-    semantic: &omega_facts::FactPlan,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-    candidate_place: omega_facts::PlaceHandle,
-) -> bool {
-    let candidate_label =
-        canonical_place_label(program, semantic, semantic.places.get(candidate_place));
-    program.expression_table.display_name(expression) == candidate_label
 }
 
 fn prove_boolean_expression_via_context_domain_membership(
