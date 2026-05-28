@@ -1,14 +1,15 @@
 mod evaluator;
 mod labels;
+mod places;
 mod prover;
 
 use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace};
+use places::expression_is_boolean_place_like;
 use prover::{
-    call_entry_contexts_prove_boolean_contract_expression, expression_is_boolean_place_like,
-    semantic_contexts_prove_contract_fact,
+    call_entry_contexts_prove_boolean_contract_expression, semantic_contexts_prove_contract_fact,
 };
 
 use crate::labels::{
