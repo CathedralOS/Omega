@@ -4,7 +4,7 @@ This guide is a chaptered sketch of Omega's language direction.
 
 The syntax is not final. These chapters exist so language ideas can be organized, challenged, and eventually turned into parser/compiler work.
 
-Compiler architecture notes live in [Architecture](../architecture/README.md).
+Compiler architecture notes live in [Architecture](../architecture/architecture.md).
 
 Suggested reading path:
 
