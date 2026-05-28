@@ -53,8 +53,11 @@ Must not own:
 The implementation should keep graph scheduling separate from evidence
 preservation:
 
-- `builder.rs` orchestrates per-machine graph construction and worker-local graph
-  merging.
+- `builder.rs` orchestrates per-machine graph construction and worker
+  scheduling.
+- `merge.rs` owns worker-local graph merging and remapping of state-local
+  contract, borrow, operation, transition, and metadata spans into the final
+  graph.
 - `segments.rs` splits checked state statements into graph segments.
   `segments/branching.rs` owns branch-call topology detection and recursive
   branch-flow discovery. `segments/operations.rs` owns graph operation kind
@@ -69,8 +72,8 @@ preservation:
   graph-shaped summaries; they should not revalidate proof or borrow legality.
   `borrows/remap.rs` owns borrow-summary arena remapping when worker-local graph
   fragments are merged.
-- `remap.rs` remaps worker-local operations, transitions, and expressions into
-  the final graph arena.
+- `remap.rs` owns narrow operation/transition/expression remap helpers used by
+  graph merging.
 - `machine_metadata.rs` projects machine owned data, contained machines, and
   direct/reached effect bits into graph metadata.
 - `capacity.rs` estimates graph arena sizes; it should stay about allocation
