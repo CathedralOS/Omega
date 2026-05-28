@@ -1,9 +1,11 @@
 mod builder;
 mod checks;
 mod context;
+mod facts;
 mod invariants;
 mod labels;
 mod lookup;
+mod validation;
 
 use omega_checked_trees::CheckedTrees;
 
