@@ -83,6 +83,9 @@ Current ownership is:
   owns exit/ensures flow facts.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
+  `flow/domain/dependencies/expression.rs` owns dependency expression
+  traversal, while `flow/domain/dependencies/expression/relative.rs` owns
+  relative `self` place projection and member resolution for dependency paths.
   `flow/domain/invalidation.rs` owns context filtering, while
   `flow/domain/invalidation/matching.rs` owns mutation/dependency overlap
   policy.
