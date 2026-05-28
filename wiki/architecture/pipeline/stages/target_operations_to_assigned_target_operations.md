@@ -12,23 +12,30 @@ Output: assigned target operations.
 
 Primary responsibility: decide physical registers, stack slots, spill homes, and calling-convention homes.
 
+## Implementation Map
+
+- `builder.rs` owns copying target operation arenas into assigned target operation arenas and selecting assigned homes for value operands.
+- `registers.rs` owns architecture-specific scratch register selection until real allocation replaces the current fixed policy.
+
 ## Semantic Ownership
 
-- Places: become concrete homes or memory locations.
-- Values: become assigned registers, stack slots, immediates, or symbols.
-- Facts: diagnostic metadata only.
-- Loans: prior-stage invariant only.
-- Moves: become assigned copies or spills.
-- Drops: become assigned cleanup operations.
-- Calls: receive physical ABI placement.
-- Transitions: receive concrete branch/linkage operands where possible.
-- Effects: remain operation metadata.
-- Boundary edges: receive physical ABI placement.
+- Places: become concrete stack/runtime homes or target-addressable memory shapes.
+- Values: receive assigned homes such as immediates, stack slots, runtime storage, runtime pointees, indexed runtime-frame locations, or scratch registers.
+- Facts: diagnostic metadata only; this stage does not discharge proof obligations.
+- Loans: prior-stage invariant only; borrow state is not rechecked here.
+- Moves: become assigned copies, spills, or already-legal value transfers.
+- Drops: become assigned cleanup operations only if already explicit in target operations.
+- Calls: receive physical ABI placement when represented by target operation metadata.
+- Transitions: receive concrete branch/linkage operands where possible, without changing control-flow shape.
+- Effects: remain operation metadata attached to already-authorized operations.
+- Boundary edges: receive physical ABI placement and assigned host-call operands.
 
 ## Ownership Rules
 
-Must not own: object encoding or final bytes.
+- Must not own object encoding, final bytes, semantic validation, proof discharge, or borrow checking.
+- Must keep register/stack assignment policy here instead of leaking it backward into target operation construction.
+- Must preserve target operation ordering unless a later allocator explicitly owns reordering.
 
 ## Known Gaps
 
-Register allocation and stack assignment should stay here, not leak back into target-aware operation construction.
+Current scratch register assignment is fixed and minimal. Real register allocation, spill insertion, and full stack-frame assignment should grow here or in narrow modules immediately under this stage.
