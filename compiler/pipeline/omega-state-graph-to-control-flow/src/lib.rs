@@ -2,6 +2,7 @@ use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::StateGraph;
 
+mod borrows;
 mod builder;
 mod contracts;
 mod handles;
