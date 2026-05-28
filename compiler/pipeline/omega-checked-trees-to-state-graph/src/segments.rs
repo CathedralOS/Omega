@@ -1,5 +1,6 @@
 mod branching;
 mod operations;
+mod parameters;
 
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
@@ -12,6 +13,7 @@ use omega_state_graph::{Operation, StateGraph, StateKey, StateParameterNode};
 
 use self::branching::BranchCallTargetResolver;
 use self::operations::{operation_expression_refs, operation_kind};
+use self::parameters::state_parameters_for_segment;
 
 #[derive(Debug, Clone)]
 pub(super) struct StateSegment {
@@ -225,48 +227,6 @@ pub(super) fn segment_has_unconditional_transition(
 
 fn segment_name(state_name: &Identifier, _segment_index: usize) -> Identifier {
     state_name.clone()
-}
-
-fn state_parameters_for_segment(
-    state_graph: &mut StateGraph,
-    program: &CheckedTrees,
-    state: &State,
-    segment_index: usize,
-) -> HandleSpan<StateParameterNode> {
-    if segment_index > 0 {
-        return HandleSpan::empty();
-    }
-
-    let mut parameters = HandleSpan::empty();
-    for parameter in program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-    {
-        state_graph.state_parameters.append_to_span(
-            &mut parameters,
-            StateParameterNode {
-                symbol: parameter.symbol,
-                name: parameter.name.clone(),
-                type_reference: parameter.type_reference,
-                type_symbol: program.type_reference_symbol(parameter.type_reference),
-                type_name: Identifier::generated(
-                    program.display_type_reference(parameter.type_reference),
-                ),
-                is_mutable_reference: matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    omega_checked_trees::types::TypeReferenceNode::Reference {
-                        is_mutable: true,
-                        ..
-                    }
-                ),
-            },
-        );
-    }
-
-    parameters
 }
 
 pub(super) fn copy_statement_expression_span(
