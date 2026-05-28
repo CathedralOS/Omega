@@ -15,7 +15,12 @@ Primary responsibility: parse source structure without resolving meaning.
 ## Implementation Map
 
 - `parser.rs` owns public entrypoints and whole-file parse completion checks.
-- `parser/input.rs` owns token cursor movement, span mapping, and parser lookahead helpers.
+- `parser/input.rs` owns token cursor movement, span mapping, and parser
+  lookahead helpers.
+- `parser/input/delimited.rs` owns balanced delimiter skipping and top-level
+  delimiter search.
+- `parser/input/literals.rs` owns parser-side numeric literal validation and
+  conversion from token text into syntax values.
 - `parser/file.rs` and `parser/item.rs` own top-level item sequencing.
 - Item modules such as `data.rs`, `domain.rs`, `machine.rs`, `trait_definition.rs`, `operator.rs`, `library.rs`, `platform.rs`, `target.rs`, `export_item.rs`, and `use_item.rs` own the grammar for their corresponding source forms.
 - `parser/expression.rs` owns expression precedence and membership parsing.
