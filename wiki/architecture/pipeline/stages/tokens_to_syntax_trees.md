@@ -23,7 +23,9 @@ Primary responsibility: parse source structure without resolving meaning.
   conversion from token text into syntax values.
 - `parser/file.rs` and `parser/item.rs` own top-level item sequencing.
 - Item modules such as `data.rs`, `domain.rs`, `machine.rs`, `trait_definition.rs`, `operator.rs`, `library.rs`, `platform.rs`, `target.rs`, `export_item.rs`, and `use_item.rs` own the grammar for their corresponding source forms.
-- `parser/expression.rs` owns expression precedence and membership parsing.
+- `parser/expression.rs` owns expression precedence parsing.
+- `parser/expression/membership.rs` owns executable domain membership parsing,
+  including `in`, domain intersections, and domain unions.
 - `parser/expression/primary.rs` owns literals, grouped expressions, array literals, path names, and struct literals.
 - `parser/expression/postfix.rs` owns calls, argument lists, indexing/ranges, member access, and casts.
 - `parser/machine.rs` owns machine headers, body/member sequencing, implicit entry construction, and attached-data path splitting.
