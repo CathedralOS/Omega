@@ -70,10 +70,14 @@ Current ownership is:
   place should invalidate facts there, not ad hoc in proof or borrow code.
 - `flow/place/*` owns canonical place construction, comparison, and type/member
   resolution used by proof, borrow, and invalidation checks.
-- `proof/*`, `checks/contracts/*`, `checks/ranges/*`, and
-  `checks/termination/*` should remain proof/checking modules. They should
-  consume checked facts and emit diagnostics, not invent new durable semantic
-  representations.
+- `checks/ranges.rs` is the range-check entry point. `checks/ranges/indexes.rs`
+  owns indexed/subslice validation, while `checks/ranges/facts.rs`,
+  `checks/ranges/guards.rs`, `checks/ranges/proofs.rs`, and
+  `checks/ranges/state_arguments.rs` own range fact storage, guard-derived
+  facts, proof lookups, and transition argument facts.
+- `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
+  proof/checking modules. They should consume checked facts and emit
+  diagnostics, not invent new durable semantic representations.
 
 ## Known Gaps
 
