@@ -1,10 +1,7 @@
-use omega_control_flow::{
-    ControlFlowPlan, Operation, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
-    StateFlow, StateKey, StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
-};
+use omega_control_flow::{ControlFlowPlan, StateFlow, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_state_graph::{StateGraph, StateNode, StateParameterNode, TransitionEdge};
+use omega_state_graph::{StateGraph, StateNode, StateParameterNode};
 
 use crate::borrows::{
     remap_borrow_activation_owned, remap_borrow_activations, remap_borrow_argument_access_owned,
@@ -21,12 +18,12 @@ use crate::contracts::{
 use crate::facts::{
     remap_invariant_owned, remap_invariants, remap_proof_obligation_owned, remap_proof_obligations,
 };
-use crate::handles::{
-    remap_expression_span, remap_operation_span, remap_parameter_span, remap_transition_span,
-};
+use crate::handles::{remap_operation_span, remap_parameter_span, remap_transition_span};
 use crate::machines::{
     remap_contained_owned, remap_machine_owned, remap_machines, remap_owned_data_owned,
 };
+use crate::operations::{remap_operation_owned, remap_operations};
+use crate::transitions::{remap_state_key, remap_transition_owned, remap_transitions};
 
 pub(crate) fn build_control_flow_plan(
     state_graph: &StateGraph,
@@ -177,208 +174,5 @@ fn remap_parameter_owned(parameter: StateParameterNode) -> StateParameterFlow {
         type_symbol: parameter.type_symbol,
         type_name: parameter.type_name,
         is_mutable_reference: parameter.is_mutable_reference,
-    }
-}
-
-fn remap_operations(state_graph: &StateGraph) -> Arena<Operation> {
-    let mut operations = Arena::with_capacity(state_graph.operations.len());
-
-    for (_, operation) in state_graph.operations.iter() {
-        operations.append(remap_operation(operation));
-    }
-
-    operations
-}
-
-fn remap_transitions(state_graph: &StateGraph) -> Arena<TransitionFlow> {
-    let mut transitions = Arena::with_capacity(state_graph.transitions.len());
-
-    for (_, transition) in state_graph.transitions.iter() {
-        transitions.append(remap_transition(transition));
-    }
-
-    transitions
-}
-
-fn remap_operation(operation: &omega_state_graph::Operation) -> Operation {
-    Operation {
-        statement_index: operation.statement_index,
-        kind: remap_operation_kind(&operation.kind),
-        expressions: remap_operation_expression_refs(operation.expressions),
-    }
-}
-
-fn remap_operation_owned(operation: omega_state_graph::Operation) -> Operation {
-    Operation {
-        statement_index: operation.statement_index,
-        kind: remap_operation_kind_owned(operation.kind),
-        expressions: remap_operation_expression_refs(operation.expressions),
-    }
-}
-
-fn remap_operation_kind(kind: &omega_state_graph::OperationKind) -> OperationKind {
-    match kind {
-        omega_state_graph::OperationKind::Assignment => OperationKind::Assignment,
-        omega_state_graph::OperationKind::Call {
-            receiver_symbol,
-            target_symbol,
-            has_receiver,
-            receiver,
-            target,
-        } => OperationKind::Call {
-            receiver_symbol: *receiver_symbol,
-            target_symbol: *target_symbol,
-            has_receiver: *has_receiver,
-            receiver: receiver.clone(),
-            target: target.clone(),
-        },
-        omega_state_graph::OperationKind::ConstantIntegerAssignment => {
-            OperationKind::ConstantIntegerAssignment
-        }
-        omega_state_graph::OperationKind::Expression => OperationKind::Expression,
-        omega_state_graph::OperationKind::LocalData => OperationKind::LocalData,
-        omega_state_graph::OperationKind::StaticAssignment => OperationKind::StaticAssignment,
-    }
-}
-
-fn remap_operation_kind_owned(kind: omega_state_graph::OperationKind) -> OperationKind {
-    match kind {
-        omega_state_graph::OperationKind::Assignment => OperationKind::Assignment,
-        omega_state_graph::OperationKind::Call {
-            receiver_symbol,
-            target_symbol,
-            has_receiver,
-            receiver,
-            target,
-        } => OperationKind::Call {
-            receiver_symbol,
-            target_symbol,
-            has_receiver,
-            receiver,
-            target,
-        },
-        omega_state_graph::OperationKind::ConstantIntegerAssignment => {
-            OperationKind::ConstantIntegerAssignment
-        }
-        omega_state_graph::OperationKind::Expression => OperationKind::Expression,
-        omega_state_graph::OperationKind::LocalData => OperationKind::LocalData,
-        omega_state_graph::OperationKind::StaticAssignment => OperationKind::StaticAssignment,
-    }
-}
-
-fn remap_operation_expression_refs(
-    expressions: omega_state_graph::OperationExpressionRefs,
-) -> OperationExpressionRefs {
-    match expressions {
-        omega_state_graph::OperationExpressionRefs::Assignment { target, value } => {
-            OperationExpressionRefs::Assignment { target, value }
-        }
-        omega_state_graph::OperationExpressionRefs::Call { arguments } => {
-            OperationExpressionRefs::Call {
-                arguments: remap_expression_span(arguments),
-            }
-        }
-        omega_state_graph::OperationExpressionRefs::Expression(expression) => {
-            OperationExpressionRefs::Expression(expression)
-        }
-        omega_state_graph::OperationExpressionRefs::None => OperationExpressionRefs::None,
-    }
-}
-
-fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
-    TransitionFlow {
-        statement_index: transition.statement_index,
-        target: remap_transition_target(&transition.target),
-        continuation: remap_transition_target(&transition.continuation),
-        expressions: TransitionExpressionRefs {
-            target_arguments: transition.expressions.target_arguments,
-            target_value: transition.expressions.target_value,
-            continuation_arguments: transition.expressions.continuation_arguments,
-            continuation_value: transition.expressions.continuation_value,
-            guard: transition.expressions.guard,
-        },
-    }
-}
-
-fn remap_transition_owned(transition: TransitionEdge) -> TransitionFlow {
-    TransitionFlow {
-        statement_index: transition.statement_index,
-        target: remap_transition_target_owned(transition.target),
-        continuation: remap_transition_target_owned(transition.continuation),
-        expressions: TransitionExpressionRefs {
-            target_arguments: transition.expressions.target_arguments,
-            target_value: transition.expressions.target_value,
-            continuation_arguments: transition.expressions.continuation_arguments,
-            continuation_value: transition.expressions.continuation_value,
-            guard: transition.expressions.guard,
-        },
-    }
-}
-
-fn remap_transition_target(
-    target: &omega_state_graph::PlannedTransitionTarget,
-) -> PlannedTransitionTarget {
-    match target {
-        omega_state_graph::PlannedTransitionTarget::None => PlannedTransitionTarget::None,
-        omega_state_graph::PlannedTransitionTarget::State { index, key, name } => {
-            PlannedTransitionTarget::State {
-                index: *index,
-                key: remap_state_key(*key),
-                name: name.clone(),
-            }
-        }
-        omega_state_graph::PlannedTransitionTarget::Nested {
-            receiver_symbol,
-            state_symbol,
-            receiver,
-            state,
-        } => PlannedTransitionTarget::Nested {
-            receiver_symbol: *receiver_symbol,
-            state_symbol: *state_symbol,
-            receiver: receiver.clone(),
-            state: state.clone(),
-        },
-        omega_state_graph::PlannedTransitionTarget::SelfTarget => {
-            PlannedTransitionTarget::SelfTarget
-        }
-        omega_state_graph::PlannedTransitionTarget::Terminal => PlannedTransitionTarget::Terminal,
-    }
-}
-
-fn remap_transition_target_owned(
-    target: omega_state_graph::PlannedTransitionTarget,
-) -> PlannedTransitionTarget {
-    match target {
-        omega_state_graph::PlannedTransitionTarget::None => PlannedTransitionTarget::None,
-        omega_state_graph::PlannedTransitionTarget::State { index, key, name } => {
-            PlannedTransitionTarget::State {
-                index,
-                key: remap_state_key(key),
-                name,
-            }
-        }
-        omega_state_graph::PlannedTransitionTarget::Nested {
-            receiver_symbol,
-            state_symbol,
-            receiver,
-            state,
-        } => PlannedTransitionTarget::Nested {
-            receiver_symbol,
-            state_symbol,
-            receiver,
-            state,
-        },
-        omega_state_graph::PlannedTransitionTarget::SelfTarget => {
-            PlannedTransitionTarget::SelfTarget
-        }
-        omega_state_graph::PlannedTransitionTarget::Terminal => PlannedTransitionTarget::Terminal,
-    }
-}
-
-fn remap_state_key(key: omega_state_graph::StateKey) -> StateKey {
-    StateKey {
-        machine: key.machine,
-        state: key.state,
-        segment_index: key.segment_index,
     }
 }
