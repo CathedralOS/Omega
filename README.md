@@ -118,6 +118,11 @@ Targets without a direct image writer fail the executable emission phase instead
 
 The repository should grow toward a feature-first Rust workspace with strong layering and deliberately explicit crate names. The goal is not a tiny academic compiler layout. The goal is a production-grade toolchain layout that can carry Omega from language bring-up through multi-platform shipping without leaning on LLVM or native system linkers.
 
+Architecture notes live under [`wiki/architecture/`](wiki/architecture/README.md),
+including the semantic-spine and pipeline-stage documents that explain how
+places, values, facts, loans, moves, drops, calls, transitions, effects, and
+boundary edges should evolve across IRs.
+
 Long-term design assumptions:
 
 - The compiler owns its full native pipeline: parse, analyze, lower, optimize, select instructions, encode machine code, write object containers, resolve/link, and emit final platform images.
