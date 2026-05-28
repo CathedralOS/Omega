@@ -5,6 +5,7 @@ use omega_state_graph::{StateGraph, StateNode, StateParameterNode};
 use crate::borrows::remap_borrow_summary;
 use crate::contracts::remap_contract_summary;
 use crate::handles::{remap_operation_span, remap_parameter_span, remap_transition_span};
+use crate::ownership::remap_ownership_summary;
 use crate::transitions::remap_state_key;
 
 pub(crate) fn remap_states(
@@ -30,6 +31,7 @@ pub(crate) fn remap_state_owned(state: StateNode) -> StateFlow {
         parameters: remap_parameter_span(state.parameters),
         contracts: remap_contract_summary(&state.contracts),
         borrow: remap_borrow_summary(&state.borrow),
+        ownership: remap_ownership_summary(&state.ownership),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
     }
@@ -65,6 +67,7 @@ fn remap_state(
         ),
         contracts: remap_contract_summary(&state.contracts),
         borrow: remap_borrow_summary(&state.borrow),
+        ownership: remap_ownership_summary(&state.ownership),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
     }

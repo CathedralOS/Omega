@@ -11,6 +11,7 @@ mod contracts;
 mod facts;
 mod machine_metadata;
 mod merge;
+mod ownership;
 mod remap;
 mod segments;
 mod states;

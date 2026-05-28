@@ -68,6 +68,8 @@ pub(super) fn build_state_flow_fact(
     let state_invalidations_start = ctx.invalidations.len();
     let state_borrow_activations_start = ctx.borrow_activations.len();
     let state_borrow_weakenings_start = ctx.borrow_weakenings.len();
+    let state_moves_start = ctx.moves.len();
+    let state_drops_start = ctx.drops.len();
     let state_statements_start = ctx.statements.len();
     let state_calls = append_state_statement_flow_facts(
         program,
@@ -121,6 +123,8 @@ pub(super) fn build_state_flow_fact(
             &ctx.borrow_weakenings,
             state_borrow_weakenings_start,
         ),
+        moves: appended_span_since(&ctx.moves, state_moves_start),
+        drops: appended_span_since(&ctx.drops, state_drops_start),
         statements: appended_span_since(&ctx.statements, state_statements_start),
         calls: state_calls,
         exits: state_exits,

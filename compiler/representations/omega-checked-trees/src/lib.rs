@@ -411,6 +411,20 @@ pub struct FlowBorrowWeakeningFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowMoveEventFact {
+    pub source: FlowInvalidationSource,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowDropEventFact {
+    pub source: FlowInvalidationSource,
+    pub root: omega_facts::PlaceRoot,
+    pub segments: HandleSpan<omega_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -461,6 +475,8 @@ pub struct FlowStateFact {
     pub invalidations: HandleSpan<FlowInvalidationFact>,
     pub borrow_activations: HandleSpan<FlowBorrowActivationFact>,
     pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
+    pub moves: HandleSpan<FlowMoveEventFact>,
+    pub drops: HandleSpan<FlowDropEventFact>,
     pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
@@ -473,9 +489,12 @@ pub struct FlowFacts {
     pub semantic_context_refs: Arena<FlowSemanticContextRef>,
     pub constraint_refs: Arena<FlowConstraintRef>,
     pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
+    pub ownership_segments: Arena<omega_facts::PlaceSegment>,
     pub invalidations: Arena<FlowInvalidationFact>,
     pub borrow_activations: Arena<FlowBorrowActivationFact>,
     pub borrow_weakenings: Arena<FlowBorrowWeakeningFact>,
+    pub moves: Arena<FlowMoveEventFact>,
+    pub drops: Arena<FlowDropEventFact>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
