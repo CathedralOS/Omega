@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::StateGraph;
 
 mod builder;
+mod handles;
 
 pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPlan, Diagnostic> {
     builder::build_control_flow_plan(state_graph)
