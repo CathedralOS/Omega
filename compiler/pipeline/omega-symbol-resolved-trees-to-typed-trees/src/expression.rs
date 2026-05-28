@@ -6,9 +6,13 @@ use omega_typed_trees as typed;
 
 mod domain_membership;
 mod name_paths;
+mod operators;
+mod spans;
 
 use domain_membership::lower_domain_membership_expression;
 use name_paths::{lower_name_path_members_into_table, lower_table_name_path_node_into_table};
+use operators::lower_binary_operator;
+use spans::{lower_expression_handle_span_from_table, lower_struct_literal_field_span_from_table};
 
 pub(crate) fn lower_expression_handle(
     lowerer: &mut Lowerer,
@@ -277,95 +281,6 @@ pub(super) fn lower_expression_handle_from_table_with_self_substitution(
         resolved::expression::ExpressionNode::String(value) => Ok(target.insert(
             typed::expression::ExpressionNode::String(value.shared_text()),
         )),
-    }
-}
-
-fn lower_expression_handle_span_from_table(
-    program: Option<&resolved::SymbolResolvedTrees>,
-    source: &resolved::expression::ExpressionTable,
-    target: &mut typed::expression::ExpressionTable,
-    expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
-    self_substitution: Option<typed::expression::ExpressionHandle>,
-) -> Result<omega_core::arena::HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
-    let lowered = source
-        .expression_handles(expressions)
-        .iter()
-        .copied()
-        .map(|expression| {
-            lower_expression_handle_from_table_with_self_substitution(
-                program,
-                source,
-                target,
-                expression,
-                self_substitution,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(target.insert_expression_handles(lowered))
-}
-
-fn lower_struct_literal_field_span_from_table(
-    program: Option<&resolved::SymbolResolvedTrees>,
-    source: &resolved::expression::ExpressionTable,
-    target: &mut typed::expression::ExpressionTable,
-    fields: omega_core::arena::HandleSpan<resolved::expression::TableStructLiteralField>,
-    self_substitution: Option<typed::expression::ExpressionHandle>,
-) -> Result<omega_core::arena::HandleSpan<typed::expression::TableStructLiteralField>, Diagnostic> {
-    let lowered = source
-        .struct_fields(fields)
-        .iter()
-        .map(|field| {
-            let value = lower_expression_handle_from_table_with_self_substitution(
-                program,
-                source,
-                target,
-                field.value,
-                self_substitution,
-            )?;
-            Ok(typed::expression::TableStructLiteralField {
-                name: lower_name(&field.name),
-                value,
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-
-    Ok(target.insert_struct_fields(lowered))
-}
-
-fn lower_binary_operator(
-    operator: resolved::expression::BinaryOperator,
-) -> typed::expression::BinaryOperator {
-    match operator {
-        resolved::expression::BinaryOperator::Add => typed::expression::BinaryOperator::Add,
-        resolved::expression::BinaryOperator::And => typed::expression::BinaryOperator::And,
-        resolved::expression::BinaryOperator::Divide => typed::expression::BinaryOperator::Divide,
-        resolved::expression::BinaryOperator::Equal => typed::expression::BinaryOperator::Equal,
-        resolved::expression::BinaryOperator::Greater => typed::expression::BinaryOperator::Greater,
-        resolved::expression::BinaryOperator::GreaterOrEqual => {
-            typed::expression::BinaryOperator::GreaterOrEqual
-        }
-        resolved::expression::BinaryOperator::Less => typed::expression::BinaryOperator::Less,
-        resolved::expression::BinaryOperator::LessOrEqual => {
-            typed::expression::BinaryOperator::LessOrEqual
-        }
-        resolved::expression::BinaryOperator::Modulo => typed::expression::BinaryOperator::Modulo,
-        resolved::expression::BinaryOperator::Multiply => {
-            typed::expression::BinaryOperator::Multiply
-        }
-        resolved::expression::BinaryOperator::NotEqual => {
-            typed::expression::BinaryOperator::NotEqual
-        }
-        resolved::expression::BinaryOperator::Or => typed::expression::BinaryOperator::Or,
-        resolved::expression::BinaryOperator::ShiftLeft => {
-            typed::expression::BinaryOperator::ShiftLeft
-        }
-        resolved::expression::BinaryOperator::ShiftRight => {
-            typed::expression::BinaryOperator::ShiftRight
-        }
-        resolved::expression::BinaryOperator::Subtract => {
-            typed::expression::BinaryOperator::Subtract
-        }
     }
 }
 
