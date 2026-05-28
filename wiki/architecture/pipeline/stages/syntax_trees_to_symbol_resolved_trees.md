@@ -50,6 +50,8 @@ Must not own:
 
 The implementation should stay split by identity task:
 
+- `program.rs` owns stage entry and the top-level lowering conveyor. Integration
+  coverage belongs in `program/tests.rs`, not inline with the entrypoint.
 - `symbols/symbol_table.rs` creates the root symbol tree and reserves top-level
   child order. `symbols/symbol_table/children.rs` owns declaration child layout,
   including inherited attached-data fields and state locals.
