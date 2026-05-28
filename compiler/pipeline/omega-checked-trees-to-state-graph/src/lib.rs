@@ -4,6 +4,7 @@ use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::StateGraph;
 use std::sync::Arc;
 
+mod borrows;
 mod builder;
 mod capacity;
 mod contracts;
