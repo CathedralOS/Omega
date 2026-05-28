@@ -9,9 +9,7 @@ lowers?"
 ## Documents
 
 - [Repository Layout](repository_layout.md): workspace/folder shape and placement rules.
-- [Pipeline Overview](pipeline/README.md): durable pipeline stages and the normalized questions every stage should answer.
-- [Semantic Spine](pipeline/semantic_spine.md): shared compiler nouns such as places, values, facts, loans, moves, drops, calls, transitions, effects, and boundary edges.
-- [Current Pipeline Stages](pipeline/stages.md): stage-by-stage ownership of those nouns.
+- [Pipeline Architecture](pipeline/pipeline.md): semantic spine, durable stages, and the normalized questions every stage should answer.
 
 ## Architecture Rule
 
