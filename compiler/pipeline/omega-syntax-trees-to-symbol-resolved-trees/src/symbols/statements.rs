@@ -2,13 +2,11 @@ use omega_core::arena::Arena;
 use omega_core::symbols::{SymbolHandle, SymbolTable};
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
+use super::expressions::{assign_expression_span_symbols, assign_statement_expression_symbols};
 use super::scope::MachineScope;
 use super::scoped_paths::resolve_state_scoped_members;
+use super::targets::{assign_transition_target_symbols, resolve_call_target_symbol};
 use super::type_references::assign_type_reference_symbol_with_self_type;
-use super::{
-    assign_expression_span_symbols, assign_statement_expression_symbols,
-    assign_transition_target_symbols, resolve_call_target_symbol,
-};
 
 pub(super) fn assign_statement_call_symbols(
     program: &mut SymbolResolvedTrees,

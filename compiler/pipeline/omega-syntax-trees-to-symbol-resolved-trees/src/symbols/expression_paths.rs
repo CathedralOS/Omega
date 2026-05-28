@@ -1,12 +1,12 @@
 use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::lookup::{child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds};
-use super::resolve_call_target_symbol;
 use super::scope::MachineScope;
 use super::scoped_paths::{
     invalid_symbol_pair, resolve_state_scoped_table_path,
     resolve_state_scoped_table_path_with_indexed_last_member,
 };
+use super::targets::resolve_call_target_symbol;
 
 pub(super) fn stamp_receiver_path_symbols_in_table(
     expression_table: &mut omega_symbol_resolved_trees::expression::ExpressionTable,
