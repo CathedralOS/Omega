@@ -24,8 +24,8 @@ trees and preserved by the state graph.
 | Values | Become explicit data-flow operands, temporaries, or carried payloads. |
 | Facts | Preserved as annotations/diagnostic support; not re-proved. |
 | Loans | Preserved only as correctness metadata/assertions; not revalidated. |
-| Moves | Should become explicit control-flow events before backend lowering. |
-| Drops | Should become scheduled control-flow cleanup before backend lowering. |
+| Moves | Preserved from graph ownership summaries into control-flow ownership events. |
+| Drops | Preserved from graph ownership summaries into control-flow ownership events. |
 | Calls | Become explicit control-flow operations. |
 | Transitions | Lower into branches, calls, exits, continuations, and block edges. |
 | Effects | Attach to operations/blocks for later reporting and validation. |
@@ -55,7 +55,7 @@ noun preserved in a focused file:
   only top-level orchestration.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
-  contract, borrow, operation, transition, and effect summaries.
+  contract, borrow, ownership, operation, transition, and effect summaries.
 - `operations.rs` remaps graph operations into control-flow operations.
 - `transitions.rs` remaps graph transition edges and transition targets.
 - `facts.rs` preserves proof obligations and invariant facts.
@@ -66,11 +66,13 @@ noun preserved in a focused file:
   call, and exit conversion from graph form into control-flow form.
   `borrows/conversions.rs` owns individual borrow root, access, call, loan,
   activation, and weakening conversion from graph form into control-flow form.
+- `ownership.rs` owns move/drop event conversion from graph form into
+  control-flow form.
 - `handles.rs` owns handle-span remapping helpers only.
 
 ## Known Gaps
 
-- Control-flow should not erase move/drop/boundary events before the backend can
-  lower them.
-- Once moves/drops/boundary edges become first-class checked/graph events, this
-  stage needs dedicated operation variants instead of generic metadata leakage.
+- Control-flow now preserves move/drop ownership events, but backend lowering
+  still needs to decide how moves become transfers and drops become cleanup.
+- Boundary edges should get the same first-class checked/graph/control-flow
+  preservation shape that ownership events now have.
