@@ -16,14 +16,15 @@ use lookup::{
 };
 use symbol_table::build_symbol_table;
 use type_references::{
-    assign_type_reference_symbol_with_locals, assign_type_reference_symbol_with_self_type,
-    assign_type_reference_symbols, call_target_for_type_reference,
+    assign_type_reference_symbol_with_self_type, assign_type_reference_symbols,
+    call_target_for_type_reference,
 };
 
 mod domain_facts;
 mod lookup;
 mod scope;
 mod scoped_paths;
+mod top_level;
 mod type_references;
 
 use domain_facts::assign_domain_fact_symbols;
@@ -32,6 +33,7 @@ use scoped_paths::{
     invalid_symbol_pair, resolve_state_scoped_members, resolve_state_scoped_table_path,
     resolve_state_scoped_table_path_with_indexed_last_member,
 };
+use top_level::{assign_operator_symbols, inherited_field_count, next_child_of_kind};
 
 pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
     let symbols = build_symbol_table(program, sources);
@@ -321,87 +323,6 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             }
         }
     });
-}
-
-fn next_child_of_kind(
-    children: &mut impl Iterator<Item = SymbolHandle>,
-    symbols: &SymbolTable,
-    kind: SymbolKind,
-) -> SymbolHandle {
-    let Some(child) = children.next() else {
-        return SymbolHandle::invalid();
-    };
-
-    if symbols.get(child).kind == kind {
-        child
-    } else {
-        SymbolHandle::invalid()
-    }
-}
-
-fn inherited_field_count<'data>(
-    data_definitions: impl IntoIterator<Item = &'data omega_symbol_resolved_trees::data::DataDefinition>,
-    data_members: &Arena<omega_symbol_resolved_trees::data::DataMember>,
-    attached_data: Option<&omega_symbol_resolved_trees::name::DiagnosticName>,
-) -> usize {
-    let Some(attached_data) = attached_data else {
-        return 0;
-    };
-
-    data_definitions
-        .into_iter()
-        .find(|data_definition| data_definition.name == *attached_data)
-        .map(|data_definition| {
-            data_members
-                .span_or_empty(data_definition.members)
-                .iter()
-                .filter(|member| {
-                    matches!(
-                        member,
-                        omega_symbol_resolved_trees::data::DataMember::Field(_)
-                    )
-                })
-                .count()
-        })
-        .unwrap_or(0)
-}
-
-fn assign_operator_symbols(
-    symbols: &SymbolTable,
-    siblings: &mut impl Iterator<Item = SymbolHandle>,
-    data_type_parameters: &mut Arena<omega_symbol_resolved_trees::data::TypeParameter>,
-    state_parameters: &mut Arena<omega_symbol_resolved_trees::signature::StateParameter>,
-    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
-    operator: &mut omega_symbol_resolved_trees::operator::OperatorDefinition,
-) {
-    operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
-    let mut operator_children = symbols.child_handles(operator.symbol).into_iter().flatten();
-
-    for type_parameter in data_type_parameters.span_mut_or_empty(operator.type_parameters) {
-        type_parameter.symbol =
-            next_child_of_kind(&mut operator_children, symbols, SymbolKind::TypeParameter);
-    }
-    let local_type_parameters = data_type_parameters
-        .span_or_empty(operator.type_parameters)
-        .to_vec();
-    for parameter in state_parameters.span_mut_or_empty(operator.parameters) {
-        parameter.symbol =
-            next_child_of_kind(&mut operator_children, symbols, SymbolKind::Parameter);
-        assign_type_reference_symbol_with_locals(
-            symbols,
-            child_type_references,
-            &local_type_parameters,
-            &mut parameter.type_reference,
-        );
-    }
-    if let Some(return_type) = &mut operator.return_type {
-        assign_type_reference_symbol_with_locals(
-            symbols,
-            child_type_references,
-            &local_type_parameters,
-            return_type,
-        );
-    }
 }
 
 fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
