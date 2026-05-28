@@ -57,6 +57,8 @@ preservation:
   merging.
 - `segments.rs` splits checked state statements into graph segments and
   operations.
+- `states.rs` assembles graph state nodes from segments, including state-local
+  contract, borrow, effect, operation, and transition summaries.
 - `transitions.rs` plans graph transition edges, targets, continuations, guards,
   and transition expression refs.
 - `contracts.rs`, `borrows.rs`, and `facts.rs` preserve checked evidence in
