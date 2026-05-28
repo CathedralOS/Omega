@@ -1,5 +1,7 @@
 use omega_core::symbols::SymbolHandle;
 
+mod proofs;
+
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
     fields: &'field [(SymbolHandle, String, usize)],
@@ -158,160 +160,6 @@ impl<'field> RangeFacts<'field> {
         self.integer_fields.clear();
     }
 
-    pub(super) fn alias_collection(&mut self, original: &str, alias: &str) {
-        if original == alias {
-            return;
-        }
-
-        for (_, index) in self
-            .proven_indexes
-            .clone()
-            .into_iter()
-            .filter(|(collection, _)| collection == original)
-        {
-            self.prove_index(alias.to_owned(), index);
-        }
-        for (_, bound) in self
-            .proven_range_bounds
-            .clone()
-            .into_iter()
-            .filter(|(collection, _)| collection == original)
-        {
-            self.prove_range_bound(alias.to_owned(), bound);
-        }
-        if let Some(minimum_length) = self.minimum_length(original) {
-            self.prove_minimum_length(alias.to_owned(), minimum_length);
-        }
-    }
-
-    pub(super) fn alias_index(&mut self, original: &str, alias: &str) {
-        if original == alias {
-            return;
-        }
-
-        for (collection, _) in self
-            .proven_indexes
-            .clone()
-            .into_iter()
-            .filter(|(_, index)| index == original)
-        {
-            self.prove_index(collection, alias.to_owned());
-        }
-        for (collection, _) in self
-            .proven_range_bounds
-            .clone()
-            .into_iter()
-            .filter(|(_, bound)| bound == original)
-        {
-            self.prove_range_bound(collection, alias.to_owned());
-        }
-        for (lower, upper) in self
-            .proven_orderings
-            .clone()
-            .into_iter()
-            .filter(|(lower, upper)| lower == original || upper == original)
-        {
-            let lower = if lower == original {
-                alias.to_owned()
-            } else {
-                lower
-            };
-            let upper = if upper == original {
-                alias.to_owned()
-            } else {
-                upper
-            };
-            self.prove_at_most(lower, upper);
-        }
-    }
-
-    pub(super) fn prove_index(&mut self, collection: String, index: String) {
-        if !self
-            .proven_indexes
-            .iter()
-            .any(|(known_collection, known_index)| {
-                known_collection == &collection && known_index == &index
-            })
-        {
-            self.proven_indexes.push((collection, index));
-        }
-    }
-
-    pub(super) fn index_is_proven(&self, collection: &str, index: &str) -> bool {
-        self.proven_indexes
-            .iter()
-            .any(|(known_collection, known_index)| {
-                known_collection == collection && known_index == index
-            })
-    }
-
-    pub(super) fn index_value_is_proven(&self, collection: &str, index: i64) -> bool {
-        index >= 0
-            && self
-                .minimum_length(collection)
-                .is_some_and(|length| index < length)
-    }
-
-    pub(super) fn prove_at_most(&mut self, lower: String, upper: String) {
-        if !self
-            .proven_orderings
-            .iter()
-            .any(|(known_lower, known_upper)| known_lower == &lower && known_upper == &upper)
-        {
-            self.proven_orderings.push((lower, upper));
-        }
-    }
-
-    pub(super) fn at_most_is_proven(&self, lower: &str, upper: &str) -> bool {
-        self.proven_orderings
-            .iter()
-            .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
-    }
-
-    pub(super) fn prove_range_bound(&mut self, collection: String, bound: String) {
-        if !self
-            .proven_range_bounds
-            .iter()
-            .any(|(known_collection, known_bound)| {
-                known_collection == &collection && known_bound == &bound
-            })
-        {
-            self.proven_range_bounds.push((collection, bound));
-        }
-    }
-
-    pub(super) fn range_bound_is_proven(&self, collection: &str, bound: &str) -> bool {
-        self.proven_range_bounds
-            .iter()
-            .any(|(known_collection, known_bound)| {
-                known_collection == collection && known_bound == bound
-            })
-    }
-
-    pub(super) fn range_bound_value_is_proven(&self, collection: &str, bound: i64) -> bool {
-        bound >= 0
-            && self
-                .minimum_length(collection)
-                .is_some_and(|length| bound <= length)
-    }
-
-    pub(super) fn prove_minimum_length(&mut self, collection: String, minimum_length: i64) {
-        if minimum_length <= 0 {
-            return;
-        }
-
-        if let Some((_, known_minimum)) = self
-            .minimum_lengths
-            .iter_mut()
-            .find(|(known_collection, _)| known_collection == &collection)
-        {
-            *known_minimum = (*known_minimum).max(minimum_length);
-            return;
-        }
-
-        self.minimum_lengths.push((collection, minimum_length));
-    }
-
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
         self.locals
             .retain(|(local, local_name, _)| !local_matches(*local, local_name, symbol, name));
@@ -322,14 +170,6 @@ impl<'field> RangeFacts<'field> {
     fn forget_field_integer(&mut self, symbol: SymbolHandle, name: Option<&str>) {
         self.integer_fields
             .retain(|(field, field_name, _)| !local_matches(*field, field_name, symbol, name));
-    }
-
-    fn minimum_length(&self, collection: &str) -> Option<i64> {
-        self.minimum_lengths
-            .iter()
-            .find_map(|(known_collection, minimum_length)| {
-                (known_collection == collection).then_some(*minimum_length)
-            })
     }
 }
 
