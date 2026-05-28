@@ -60,7 +60,9 @@ noun preserved in a focused file:
 - `transitions.rs` remaps graph transition edges and transition targets.
 - `facts.rs` preserves proof obligations and invariant facts.
 - `contracts.rs` and `borrows.rs` preserve checked evidence summaries without
-  revalidating them.
+  revalidating them. `borrows/conversions.rs` owns individual borrow root,
+  access, call, loan, activation, and weakening conversion from graph form into
+  control-flow form.
 - `handles.rs` owns handle-span remapping helpers only.
 
 ## Known Gaps
