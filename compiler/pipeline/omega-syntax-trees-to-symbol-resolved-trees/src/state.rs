@@ -142,8 +142,8 @@ pub(crate) fn lower_signature_contracts(
                         syntax::item::CapabilityContractKind::Ensures => {
                             SignatureContractKind::Ensures
                         }
-                        syntax::item::CapabilityContractKind::Trusted(_) => {
-                            SignatureContractKind::Trusted
+                        syntax::item::CapabilityContractKind::Boundary(_) => {
+                            SignatureContractKind::Boundary
                         }
                     },
                     facts,

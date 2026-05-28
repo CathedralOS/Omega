@@ -202,10 +202,13 @@ pub fn discover_imports(
                         }
                     }
 
-                    for trust_policy in syntax_trees.items.trust_policies(target.trust_policies) {
+                    for boundary_policy in syntax_trees
+                        .items
+                        .boundary_policies(target.boundary_policies)
+                    {
                         let policy_path = syntax_trees
                             .items
-                            .identifier_path_members(trust_policy.path);
+                            .identifier_path_members(boundary_policy.path);
                         if is_bundled_omega_path(policy_path) {
                             imports.push(normalize_path(&resolve_source_path(
                                 &root_dir,

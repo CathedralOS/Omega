@@ -24,7 +24,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Old bracketed refinement syntax is dead. The open question is how much range-heavy proof vocabulary should live directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`, versus being packaged into named domains or helper proof constructs.
 - Omega should distinguish proof numbers from machine numbers. `UInt`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
-- Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
+- Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and boundary. Values carry facts; operations have contracts; contracts create obligations; boundary names the authority for accepting unproved guarantees.
 - Termination should be an explicit proof claim such as `terminates`, with
   nested progress clauses such as `decreases value -> OrderOrMeasure`. A
   terminating root like `Main::main` should implicitly require every reachable
@@ -33,7 +33,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
 - A machine enters at the top of its body. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
-- Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
+- Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `boundary`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
 
 ## Still Open
 

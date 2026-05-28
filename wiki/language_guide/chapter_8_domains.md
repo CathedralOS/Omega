@@ -317,7 +317,7 @@ Working model:
 
 - Operator spellings are fixed by the language.
 - Core types such as `Slice`, `Array`, `Vec`, `Str`, and `StrView` can expose
-  operator definitions whose implementations are bound to trusted primitive
+  operator definitions whose implementations are bound to boundary primitive
   compiler/runtime operations below the public core surface.
 - User/library types can expose ordinary operator definitions when the language
   supports that surface.
@@ -414,7 +414,7 @@ predicate may be too expensive or too low-level for early Omega domains. The
 language may need staged support here:
 
 - cheap classifier/checker domains at boundaries,
-- richer proof facts for trusted constructors and validated transformations,
+- richer proof facts for boundary constructors and validated transformations,
 - and only later more expressive sequence-wide invariants.
 
 ## No Hidden RTTI

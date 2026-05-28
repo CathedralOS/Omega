@@ -3,8 +3,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
-    LibraryFunction, ProofFact, StateParameterNode, StateSignature, TrustLevel,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
+    LibraryFunction, ProofFact, StateParameterNode, StateSignature,
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
@@ -73,10 +73,6 @@ pub enum ItemSnapshot {
         path: Vec<IdentifierSnapshot>,
         alias: Option<IdentifierSnapshot>,
     },
-    TrustDefinition {
-        name: IdentifierSnapshot,
-        token_count: usize,
-    },
     Use {
         path: Vec<IdentifierSnapshot>,
     },
@@ -103,7 +99,7 @@ pub enum ItemSnapshot {
     Target {
         name: IdentifierSnapshot,
         host: Option<TargetHostSnapshot>,
-        trust_policies: Vec<TrustPolicySnapshot>,
+        boundary_policies: Vec<BoundaryPolicySnapshot>,
     },
 }
 
@@ -114,6 +110,7 @@ pub struct TypeParameterSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorSnapshot {
+    pub is_boundary: bool,
     pub name: Vec<IdentifierSnapshot>,
     pub type_parameters: Vec<TypeParameterSnapshot>,
     pub parameters: Vec<StateParameterSnapshot>,
@@ -160,7 +157,7 @@ pub struct CapabilityContractSnapshot {
 pub enum CapabilityContractKindSnapshot {
     Ensures,
     Requires,
-    Trusted { trust_level: TrustLevelSnapshot },
+    Boundary { boundary: BoundaryLevelSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -180,12 +177,12 @@ pub struct LibraryFunctionSnapshot {
     pub signature: StateSignatureSnapshot,
     pub symbol: Option<String>,
     pub calling_convention: Option<IdentifierSnapshot>,
-    pub trusts: Vec<TrustLevelSnapshot>,
+    pub boundaries: Vec<BoundaryLevelSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum TrustLevelSnapshot {
+pub enum BoundaryLevelSnapshot {
     Host,
     Named { name: IdentifierSnapshot },
 }
@@ -215,7 +212,7 @@ pub enum TargetHostSettingValueSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct TrustPolicySnapshot {
+pub struct BoundaryPolicySnapshot {
     pub mode: &'static str,
     pub path: Vec<IdentifierSnapshot>,
 }
@@ -499,10 +496,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
             alias: value.alias.as_ref().map(snapshot_identifier),
         },
-        Item::TrustDefinition(value) => ItemSnapshot::TrustDefinition {
-            name: snapshot_identifier(&value.name),
-            token_count: value.token_count,
-        },
         Item::Use(value) => ItemSnapshot::Use {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
         },
@@ -593,14 +586,14 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     })
                     .collect(),
             }),
-            trust_policies: syntax_trees
+            boundary_policies: syntax_trees
                 .items
-                .trust_policies(value.trust_policies)
+                .boundary_policies(value.boundary_policies)
                 .iter()
-                .map(|policy| TrustPolicySnapshot {
+                .map(|policy| BoundaryPolicySnapshot {
                     mode: match policy.mode {
-                        crate::item::TrustMode::Checked => "checked",
-                        crate::item::TrustMode::Unchecked => "unchecked",
+                        crate::item::BoundaryMode::Checked => "checked",
+                        crate::item::BoundaryMode::Unchecked => "unchecked",
                     },
                     path: snapshot_identifier_slice(
                         syntax_trees.items.identifier_path_members(policy.path),
@@ -616,6 +609,7 @@ fn snapshot_operator(
     operator: &crate::item::OperatorDefinition,
 ) -> OperatorSnapshot {
     OperatorSnapshot {
+        is_boundary: operator.is_boundary,
         name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(operator.name)),
         type_parameters: syntax_trees
             .items
@@ -675,8 +669,8 @@ fn snapshot_capability_contract(
         kind: match &contract.kind {
             CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
             CapabilityContractKind::Requires => CapabilityContractKindSnapshot::Requires,
-            CapabilityContractKind::Trusted(level) => CapabilityContractKindSnapshot::Trusted {
-                trust_level: snapshot_trust_level(level),
+            CapabilityContractKind::Boundary(level) => CapabilityContractKindSnapshot::Boundary {
+                boundary: snapshot_boundary_level(level),
             },
         },
         facts: snapshot_proof_facts(syntax_trees, contract.facts),
@@ -736,19 +730,19 @@ fn snapshot_library_function(
             .calling_convention
             .as_ref()
             .map(snapshot_identifier),
-        trusts: syntax_trees
+        boundaries: syntax_trees
             .items
-            .trust_levels(function.trusts)
+            .boundary_levels(function.boundaries)
             .iter()
-            .map(snapshot_trust_level)
+            .map(snapshot_boundary_level)
             .collect(),
     }
 }
 
-fn snapshot_trust_level(level: &TrustLevel) -> TrustLevelSnapshot {
+fn snapshot_boundary_level(level: &BoundaryLevel) -> BoundaryLevelSnapshot {
     match level {
-        TrustLevel::Host => TrustLevelSnapshot::Host,
-        TrustLevel::Named(name) => TrustLevelSnapshot::Named {
+        BoundaryLevel::Host => BoundaryLevelSnapshot::Host,
+        BoundaryLevel::Named(name) => BoundaryLevelSnapshot::Named {
             name: snapshot_identifier(name),
         },
     }

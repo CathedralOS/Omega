@@ -5,7 +5,7 @@ use omega::host::contracts::types;
 
 // Target-independent host capability surface.
 //
-// Platform packages implement these contracts by trusting their ABI boundary.
+// Platform packages implement these contracts by accepting their ABI boundary.
 
 capability Host {
     stdin: Stdin

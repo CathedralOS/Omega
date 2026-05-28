@@ -114,6 +114,7 @@ pub struct ResolvedTableSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorDefinitionSnapshot {
+    pub is_boundary: bool,
     pub has_symbol: bool,
     pub name: Vec<String>,
     pub type_parameters: Vec<String>,
@@ -128,6 +129,7 @@ fn operator_snapshot(
     operator: &OperatorDefinition,
 ) -> OperatorDefinitionSnapshot {
     OperatorDefinitionSnapshot {
+        is_boundary: operator.is_boundary,
         has_symbol: operator.symbol.is_valid(),
         name: program
             .operator_path_members(operator.name)
@@ -665,7 +667,7 @@ fn signature_contract_snapshot(
         kind: match contract.kind {
             crate::signature::SignatureContractKind::Requires => "requires",
             crate::signature::SignatureContractKind::Ensures => "ensures",
-            crate::signature::SignatureContractKind::Trusted => "trusted",
+            crate::signature::SignatureContractKind::Boundary => "boundary",
         },
         facts: domain_fact_snapshots(program, contract.facts),
         token_count: contract.token_count,

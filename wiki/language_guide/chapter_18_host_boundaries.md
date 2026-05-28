@@ -1,6 +1,6 @@
-# Chapter 18: Host Libraries And Trust Boundaries
+# Chapter 18: Host Libraries And Boundaries
 
-Omega should model the trusted root explicitly.
+Omega should model host and compiler boundaries explicitly.
 
 The outside world is not one thing. Linux may expose raw syscall numbers,
 Darwin normally routes process IO through `libSystem`, Windows imports APIs
@@ -9,39 +9,31 @@ targets may jump through firmware tables. The shared concept is not "Unix
 syscall." The shared concept is an imported boundary whose implementation is
 not Omega code.
 
-## Trust Roots
+## Boundary Surfaces
 
-A `trust` declaration names an authority the compiler may accept for facts it
-cannot prove from ordinary Omega source.
+`boundary` marks a surface where ordinary Omega proof stops and an audited
+provider begins. There is no separate top-level root declaration: the boundary
+is carried by the construct that crosses the edge, such as an operator,
+library entry, capability contract, trait, or target policy.
 
-```omega
-trust compiler_slice_index {
-}
-```
-
-The declaration does not implement behavior by itself. It creates an auditable
-root that a boundary contract, target policy, library binding, or core operator
-can reference.
-
-Core operators use the same shape. Their public contracts stay visible, while
-the unsafe primitive lowering is attributed to a named compiler/runtime root:
+Core operators keep their public contracts visible while primitive lowering
+stays behind the compiler/runtime boundary:
 
 ```omega
-operator Slice::index<T>(items: &[T], index: usize) -> T
+boundary operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
-    index < items.len
-trust compiler_slice_index;
+    index < items.len;
 ```
 
 Working interpretation:
 
 - `requires` remains a proof obligation for callers.
-- `trust compiler_slice_index` says the operator's implementation and any
-  unproved guarantee are accepted through that named root.
-- The trust report records root declarations, trusted references, unresolved
-  references, and target policies.
-- A root should be declared in core/toolchain/host source, not invented by
-  ordinary application code as a way to bypass proof checking.
+- `boundary operator` says implementation lowering is accepted from the
+  compiler/runtime provider for that operator.
+- The boundary report records boundary operators, library/capability boundary
+  clauses, target policies, and unchecked policies.
+- Ordinary application code should not be able to mint new host/compiler
+  providers as a proof escape hatch.
 
 This is the current boundary between browsable core semantics and private
 compiler machinery. Users should be able to inspect `Slice::index` and see the
@@ -54,18 +46,18 @@ A boundary trait names callable behavior whose implementation crosses out of
 proved Omega code. It is still a trait: callers see machine signatures,
 requirements, guarantees, and effects. What makes it a boundary is that the
 implementation is accepted through a host package, target binding, firmware
-surface, dynamic loader, or other trusted edge.
+surface, dynamic loader, or other boundary edge.
 
 `boundary` is not a synonym for "has effects." These are separate axes:
 
 - `effects` names what externally visible capability behavior can happen.
 - `export` names what symbols belong to an artifact/API surface.
-- `boundary` names where ordinary Omega proof stops and trusted provider
+- `boundary` names where ordinary Omega proof stops and boundary provider
   guarantees begin.
 
 Ordinary Omega code can have effects if it calls lower boundary surfaces. It is
 still proved Omega code. Boundary code is different: the compiler accepts its
-declared guarantees from a configured trust root because the implementation is
+declared guarantees from a configured boundary provider because the implementation is
 not available as normal Omega source.
 
 ```omega
@@ -93,8 +85,8 @@ Working interpretation:
   stdin, stdout, network, thread, clock, or device access.
 - Build policy decides which boundary providers are allowed for a target.
 - Safe application packages cannot silently create new host boundaries. A
-  boundary provider must come from the toolchain, target configuration, or an
-  explicitly whitelisted trust root.
+  provider must come from the toolchain, target configuration, or an explicitly
+  whitelisted boundary package.
 
 ## Standard Effects
 
@@ -174,7 +166,7 @@ effects
 In that shape, `Console::write_line` is ordinary Omega standard-library code.
 It is statically linkable and proof-checked like any other machine. The
 boundary is the lower `HostConsole` provider edge where the implementation is a
-syscall, imported symbol, firmware call, loader hook, or trusted test surface.
+syscall, imported symbol, firmware call, loader hook, or boundary test surface.
 
 Effects propagate through the call graph. The compiler should compute direct
 effects for each callable and then compute transitive effects for every machine
@@ -182,7 +174,7 @@ from the machines it can call.
 
 Effect declarations are policy surfaces, not required noise on every machine:
 
-- Boundary traits must declare effects. They are the trusted edge where
+- Boundary traits must declare effects. They are the boundary edge where
   externally visible capabilities enter the program.
 - Exported library APIs should declare effects. This makes the public contract
   stable and lets callers reject libraries that unexpectedly grow filesystem,
@@ -243,7 +235,7 @@ UART is a provider detail.
 
 Unknown effects should be rejected in normal safe builds once the compiler has
 a complete standard vocabulary. Toolchain or firmware authors can extend the
-vocabulary only through explicitly trusted target configuration.
+vocabulary only through explicitly boundary target configuration.
 
 Console capability should use the same shape:
 
@@ -305,13 +297,13 @@ such as UTF-8 validity efficiently enough that common text handling does not
 turn into byte-by-byte proof boilerplate.
 
 Target metadata such as library artifact, symbol, syscall number, calling
-convention, and trust root belongs in toolchain host packages or explicitly
+convention, and boundary provider belongs in toolchain host packages or explicitly
 whitelisted boundary providers. Pulling in a boundary with `filesystem_io`,
 `stdout_io`, or `process_exit` is visible to the build, and a restricted build
 can reject it.
 
 The compiler should understand boundary traits, provider packages, libraries,
-symbols, calling conventions, trust roots, and target image imports
+symbols, calling conventions, boundary providers, and target image imports
 generically. It should not special-case every Windows, Darwin, Linux, or SDK
 API.
 
@@ -333,8 +325,8 @@ host linux_aarch64 provides Console {
 This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.
-- The imported boundary is trusted to satisfy its declared guarantees.
-- The build artifact records which trust roots were used.
+- The imported boundary is accepted to satisfy its declared guarantees.
+- The build artifact records which boundary providers were used.
 
 The exact provider syntax is provisional. The important design point is that
 raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
@@ -393,7 +385,7 @@ The same split likely applies to other core collection and text concepts:
 - `StrView` is the borrowed text view, even if the early syntax stays close to
   Rust conventions.
 - Low-level carriers such as `Ptr` or buffer descriptors may exist in core or
-  a primitive layer, but they are the boundary where trusted/compiler-managed
+  a primitive layer, but they are the boundary where boundary/compiler-managed
   representation begins.
 
 Working private carrier model:
@@ -415,7 +407,7 @@ Working private carrier model:
 
 This keeps the magic boundary narrow. Core declarations expose contracts such
 as `Slice::range`, `Vec::with_capacity`, or `String::push_str`; private
-carriers and trusted primitive roots implement the descriptor rewrite, pointer
+carriers and boundary primitive providers implement the descriptor rewrite, pointer
 offset, allocation, and initialization details after the proof obligations are
 satisfied.
 
@@ -428,31 +420,31 @@ This sketch needs more design work, but the direction is important:
   requirements.
 - Safe Omega source does not expose raw pointer fields for ordinary slices or
   vectors. Address-level representation belongs to compiler/runtime lowering
-  and explicit trusted boundary modeling, not the normal surface language.
+  and explicit boundary modeling, not the normal surface language.
 - Core operators such as slice indexing and subslicing should have visible
   signatures and contracts; their implementations may be bound to explicitly
-  trusted compiler/runtime primitives below the public core surface.
+  boundary compiler/runtime primitives below the public core surface.
 
 Short forms such as `&[T]` and `&mut [T]` mean the same slice views with no
 extra invariant parameters.
 
-## Trust
+## Boundary
 
-Trust is the authority for accepting a guarantee that Omega cannot prove from
+Boundary is the authority for accepting a guarantee that Omega cannot prove from
 Omega code.
 
 For an imported function:
 
 - Omega proves the caller satisfies the parameter and state invariants.
-- The imported implementation is trusted to satisfy the declared guarantees.
-- Omega may use those trusted guarantees as facts after the call.
+- The imported implementation is accepted to satisfy the declared guarantees.
+- Omega may use those boundary guarantees as facts after the call.
 
 In proof vocabulary:
 
 - Input refinements and invariant parameters are caller requirements.
-- Return refinements and trusted clauses are callee guarantees.
+- Return refinements and boundary clauses are callee guarantees.
 - The call creates obligations for the caller.
-- `trust` explains why unproved imported guarantees are accepted.
+- `boundary` explains why unproved imported guarantees are accepted.
 
 For ordinary Omega code, the compiler should know the contracts for
 assignments, arithmetic, borrows, transitions, calls, and field access. For
@@ -461,21 +453,21 @@ imported from an audited package.
 
 Core primitives use the same discipline. A public declaration such as a slice
 indexing operator should state the visible contract. The implementation should
-then bind to a registered trusted primitive root such as slice indexing,
+then bind to a registered boundary primitive provider such as slice indexing,
 descriptor construction, pointer offset, allocation, or target ABI lowering. The
 root name is not a general-purpose user escape hatch: it must come from the
 toolchain, core package, target configuration, or an explicitly whitelisted
-audited provider, and it should appear in the build trust report.
+audited provider, and it should appear in the build boundary report.
 
 `omega::language::core::ptr` is the natural home for pointer-level primitive
-trust roots. Safe source should generally work through owners and views, but the
+boundary providers. Safe source should generally work through owners and views, but the
 language still needs a browsable place to audit names such as pointer offset,
 read/write, and pointer-range construction.
 
 ## Blocking Boundaries
 
 Imported entries that can block must say what can unblock them, or they must be
-reported as trusted opaque waits.
+reported as boundary opaque waits.
 
 Examples:
 
@@ -484,10 +476,10 @@ Examples:
 - A process wait may block until the target process exits.
 - A socket receive may block on external network input.
 - A driver call may block on hardware interrupt, timeout, cancellation, or a
-  trusted opaque device contract.
+  boundary opaque device contract.
 
 The proof/invariant checker can reason about modeled waits. It can audit
-trusted opaque waits. A proved-concurrency build may reject opaque blocking
+boundary opaque waits. A proved-concurrency build may reject opaque blocking
 boundaries.
 
 ## Host vs Standard Library
@@ -498,7 +490,7 @@ and higher-level process or filesystem helpers. These machines are ordinary
 Omega code unless they are explicitly modeling the bottom host edge.
 
 Host packages are the audited bottom edge. They contain imported libraries,
-syscall surfaces, startup bindings, and trust roots.
+syscall surfaces, startup bindings, and boundary providers.
 
 Typical layering:
 
@@ -513,7 +505,7 @@ Static vs dynamic linkage is not the same question as boundary vs normal code.
 A statically linked standard-library wrapper is still normal Omega code if the
 compiler can check its body. A dynamically imported, syscall-backed, firmware,
 or externally supplied implementation is a boundary because its guarantees are
-trusted rather than proved from Omega source.
+boundary rather than proved from Omega source.
 
 Most users should not author raw Windows, Darwin, Linux, firmware, or console
 SDK contracts for ordinary applications. They should import toolchain-provided
@@ -525,11 +517,11 @@ use omega::host::windows::kernel32;
 ```
 
 Advanced users can author libraries for custom OSes, firmware, game consoles,
-or unusual hardware. Doing so explicitly expands the trusted computing base.
+or unusual hardware. Doing so explicitly expands the boundary base.
 
 ## Build Artifacts
 
-Compiler artifacts should list imported libraries, syscall surfaces, trusted
+Compiler artifacts should list imported libraries, syscall surfaces, boundary
 functions, and unchecked policies.
 
 Example shape:
@@ -539,9 +531,9 @@ imported libraries:
   Kernel32 -> Kernel32.dll calling_convention winapi
   DarwinLibSystem -> libSystem.B.dylib calling_convention c
 
-trusted imported functions:
-  Kernel32.ReadFile trust omega_windows_kernel32_read_file
-  DarwinLibSystem.write trust omega_darwin_libsystem_write
+boundary imported functions:
+  Kernel32.ReadFile boundary omega_windows_kernel32_read_file
+  DarwinLibSystem.write boundary omega_darwin_libsystem_write
 
 target image imports:
   Kernel32.dll!ReadFile
@@ -551,5 +543,5 @@ target image imports:
 A build with proofs or contracts disabled should be stamped loudly rather than
 silently behaving like a normal safe build.
 
-The goal is not to eliminate trust. The goal is to make trust explicit, scoped,
-and auditable.
+The goal is not to pretend these edges disappear. The goal is to make every
+boundary explicit, scoped, and auditable.

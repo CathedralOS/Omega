@@ -10,7 +10,7 @@ target linux_arm64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::linux
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
 }
 

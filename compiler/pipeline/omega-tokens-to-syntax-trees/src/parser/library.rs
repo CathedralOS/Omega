@@ -2,7 +2,7 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{LibraryDefinition, LibraryFunction, TrustLevel};
+use omega_syntax_trees::item::{BoundaryLevel, LibraryDefinition, LibraryFunction};
 use omega_tokens::{KeywordKind, PunctuationKind, Token};
 
 pub(super) fn parse_library_definition<'tokens, 'source>(
@@ -62,8 +62,8 @@ fn parse_library_function<'tokens, 'source>(
     let (signature, mut input) = parse_state_signature(syntax_trees, input)?;
     let mut symbol = None;
     let mut calling_convention = None;
-    let mut trust_start = Handle::invalid();
-    let mut trust_count = 0u32;
+    let mut boundary_start = Handle::invalid();
+    let mut boundary_count = 0u32;
 
     loop {
         if input.at_keyword(KeywordKind::Entry) || input.at_punctuation(PunctuationKind::RightBrace)
@@ -71,16 +71,16 @@ fn parse_library_function<'tokens, 'source>(
             break;
         }
 
-        if input.at_keyword(KeywordKind::Trust) {
-            input = input.take_keyword(KeywordKind::Trust, "trust")?;
-            let (trust, rest) = parse_trust_level(input)?;
-            let handle = syntax_trees.items.append_trust_level(trust);
-            if trust_count == 0 {
-                trust_start = handle;
+        if input.at_contextual("boundary") {
+            input = input.take_contextual("boundary")?;
+            let (boundary, rest) = parse_boundary_level(input)?;
+            let handle = syntax_trees.items.append_boundary_level(boundary);
+            if boundary_count == 0 {
+                boundary_start = handle;
             }
-            trust_count = trust_count
+            boundary_count = boundary_count
                 .checked_add(1)
-                .expect("library function trust span count overflow");
+                .expect("library function boundary span count overflow");
             input = if rest.at_punctuation(PunctuationKind::Semicolon) {
                 rest.take_punctuation(PunctuationKind::Semicolon, ";")?
             } else {
@@ -111,10 +111,10 @@ fn parse_library_function<'tokens, 'source>(
         }
     }
 
-    let trusts = if trust_count == 0 {
+    let boundaries = if boundary_count == 0 {
         HandleSpan::empty()
     } else {
-        HandleSpan::from_parts(trust_start, trust_count)
+        HandleSpan::from_parts(boundary_start, boundary_count)
     };
 
     Ok((
@@ -122,20 +122,20 @@ fn parse_library_function<'tokens, 'source>(
             signature,
             symbol,
             calling_convention,
-            trusts,
+            boundaries,
         },
         input,
     ))
 }
 
-fn parse_trust_level<'tokens, 'source>(
+fn parse_boundary_level<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TrustLevel> {
+) -> ParseResult<'tokens, 'source, BoundaryLevel> {
     if input.at_keyword(KeywordKind::Host) {
         let input = input.take_keyword(KeywordKind::Host, "host")?;
-        Ok((TrustLevel::Host, input))
+        Ok((BoundaryLevel::Host, input))
     } else {
         let (name, input) = input.take_identifier()?;
-        Ok((TrustLevel::Named(name), input))
+        Ok((BoundaryLevel::Named(name), input))
     }
 }

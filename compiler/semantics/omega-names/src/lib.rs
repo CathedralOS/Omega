@@ -48,7 +48,6 @@ pub enum ResolvedDefinitionKind {
     Platform,
     Target,
     Trait,
-    Trust,
     #[default]
     Unknown,
 }
@@ -358,13 +357,6 @@ fn build_resolve_report_with_optional_sources(
                     &mut report,
                     target.name.as_str(),
                     ResolvedDefinitionKind::Target,
-                );
-            }
-            Item::TrustDefinition(trust_definition) => {
-                insert_definition(
-                    &mut report,
-                    trust_definition.name.as_str(),
-                    ResolvedDefinitionKind::Trust,
                 );
             }
             Item::Export(_) => {}
@@ -1141,11 +1133,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Export(_)
-            | Item::Invariant(_)
-            | Item::Target(_)
-            | Item::TrustDefinition(_)
-            | Item::Use(_) => {}
+            Item::Export(_) | Item::Invariant(_) | Item::Target(_) | Item::Use(_) => {}
         }
     }
 
@@ -1484,11 +1472,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Export(_)
-            | Item::Invariant(_)
-            | Item::Target(_)
-            | Item::TrustDefinition(_)
-            | Item::Use(_) => {}
+            Item::Export(_) | Item::Invariant(_) | Item::Target(_) | Item::Use(_) => {}
         }
     }
 }
@@ -1532,10 +1516,6 @@ fn root_item_symbol_seed<'syntax>(
             &trait_definition.name,
         )),
         Item::Target(target) => Some(RootSymbolSeed::Identifier(SymbolKind::Object, &target.name)),
-        Item::TrustDefinition(trust_definition) => Some(RootSymbolSeed::Identifier(
-            SymbolKind::Trust,
-            &trust_definition.name,
-        )),
         Item::Export(_) | Item::Use(_) => None,
     }
 }
@@ -1551,7 +1531,6 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Platform(platform) => Some(platform.name.as_str()),
         Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
-        Item::TrustDefinition(trust_definition) => Some(trust_definition.name.as_str()),
         Item::Export(_) | Item::Operator(_) | Item::Use(_) => None,
     }
 }
@@ -1639,6 +1618,7 @@ mod tests {
             .items
             .append_state_parameter_handle(index_parameter);
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            is_boundary: false,
             name,
             type_parameters: HandleSpan::from_parts(type_parameter, 1),
             parameters: HandleSpan::from_parts(items_parameter, 2),
@@ -1684,32 +1664,6 @@ mod tests {
     }
 
     #[test]
-    fn collects_trust_definitions_as_trust_symbols() {
-        let mut syntax_trees = SyntaxTrees::new(Default::default());
-        syntax_trees.push_root_item(Item::TrustDefinition(
-            omega_syntax_trees::item::TrustDefinition {
-                name: Identifier::generated("compiler_slice_index"),
-                token_count: 1,
-            },
-        ));
-
-        let report = build_resolve_report_without_sources(&syntax_trees);
-
-        let (_, definition) = report
-            .definitions
-            .iter()
-            .find(|(_, definition)| {
-                report.symbols.name(definition.symbol) == "compiler_slice_index"
-            })
-            .expect("trust definition should be collected");
-        assert_eq!(definition.kind, ResolvedDefinitionKind::Trust);
-        assert_eq!(
-            report.symbols.get(definition.symbol).kind,
-            SymbolKind::Trust
-        );
-    }
-
-    #[test]
     fn collects_domain_definitions_and_target_type_references() {
         let mut syntax_trees = SyntaxTrees::new(Default::default());
         let target_type = syntax_trees
@@ -1729,6 +1683,7 @@ mod tests {
             });
         let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
         let operator = syntax_trees.items.append_operator(OperatorDefinition {
+            is_boundary: false,
             name: operator_name,
             type_parameters: HandleSpan::empty(),
             parameters: HandleSpan::from_parts(parameter, 1),

@@ -1,7 +1,8 @@
 use crate::SyntaxTrees;
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContractKind, CapabilityMember, Item, ProofFact, TargetHostSettingValue, TrustLevel,
+    BoundaryLevel, CapabilityContractKind, CapabilityMember, Item, ProofFact,
+    TargetHostSettingValue,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -114,17 +115,14 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 if let Some(calling_convention) = &function.calling_convention {
                     count_identifier(calling_convention, counts);
                 }
-                for trust in syntax_trees.items.trust_levels(function.trusts) {
-                    if let TrustLevel::Named(name) = trust {
+                for boundary in syntax_trees.items.boundary_levels(function.boundaries) {
+                    if let BoundaryLevel::Named(name) = boundary {
                         count_identifier(name, counts);
                     }
                 }
             }
         }
         Item::Operator(operator) => count_operator(syntax_trees, operator, counts),
-        Item::TrustDefinition(trust_definition) => {
-            count_identifier(&trust_definition.name, counts);
-        }
         Item::Use(use_item) => count_identifier_members(
             syntax_trees.items.identifier_path_members(use_item.path),
             counts,
@@ -186,7 +184,10 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     }
                 }
             }
-            for policy in syntax_trees.items.trust_policies(target.trust_policies) {
+            for policy in syntax_trees
+                .items
+                .boundary_policies(target.boundary_policies)
+            {
                 count_identifier_members(
                     syntax_trees.items.identifier_path_members(policy.path),
                     counts,
@@ -314,7 +315,7 @@ fn count_contract(
     contract: &crate::item::CapabilityContract,
     counts: &mut AstIdentityStorageCounts,
 ) {
-    if let CapabilityContractKind::Trusted(TrustLevel::Named(name)) = &contract.kind {
+    if let CapabilityContractKind::Boundary(BoundaryLevel::Named(name)) = &contract.kind {
         count_identifier(name, counts);
     }
     for fact in syntax_trees.items.proof_facts(contract.facts) {

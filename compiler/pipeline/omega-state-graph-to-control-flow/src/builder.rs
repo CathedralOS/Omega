@@ -361,7 +361,7 @@ fn remap_contract_fact_ref(
         kind: match reference.kind {
             omega_state_graph::StateContractFactKind::Requires => StateContractFactKind::Requires,
             omega_state_graph::StateContractFactKind::Ensures => StateContractFactKind::Ensures,
-            omega_state_graph::StateContractFactKind::Trusted => StateContractFactKind::Trusted,
+            omega_state_graph::StateContractFactKind::Boundary => StateContractFactKind::Boundary,
         },
         fact: reference.fact,
     }

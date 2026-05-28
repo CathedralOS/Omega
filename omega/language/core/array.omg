@@ -7,36 +7,16 @@
 // The element layout is backend-owned, but the array's proof-facing length and
 // view conversion contracts belong in this module.
 
-trust compiler_array_length {
-}
+boundary operator Array::Length<T>(items: &Array<T>) -> usize;
 
-trust compiler_array_index {
-}
-
-trust compiler_array_index_mut {
-}
-
-trust compiler_array_as_slice {
-}
-
-trust compiler_array_as_mut_slice {
-}
-
-operator Array::Length<T>(items: &Array<T>) -> usize
-trust compiler_array_length;
-
-operator Array::index<T>(items: &Array<T>, index: usize) -> T
+boundary operator Array::index<T>(items: &Array<T>, index: usize) -> T
 requires
-    index < items.len
-trust compiler_array_index;
+    index < items.len;
 
-operator Array::index_mut<T>(items: &mut Array<T>, index: usize) -> &mut T
+boundary operator Array::index_mut<T>(items: &mut Array<T>, index: usize) -> &mut T
 requires
-    index < items.len
-trust compiler_array_index_mut;
+    index < items.len;
 
-operator Array::as_slice<T>(items: &Array<T>) -> &[T]
-trust compiler_array_as_slice;
+boundary operator Array::as_slice<T>(items: &Array<T>) -> &[T];
 
-operator Array::as_mut_slice<T>(items: &mut Array<T>) -> &mut [T]
-trust compiler_array_as_mut_slice;
+boundary operator Array::as_mut_slice<T>(items: &mut Array<T>) -> &mut [T];

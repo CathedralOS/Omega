@@ -48,7 +48,7 @@ pub enum ContractKindSurface {
     #[default]
     Requires,
     Ensures,
-    Trusted,
+    Boundary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -146,7 +146,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             Item::Trait(trait_definition) => {
                 collect_trait_definition(&mut report, syntax_trees, trait_definition)
             }
-            Item::Target(_) | Item::TrustDefinition(_) => {}
+            Item::Target(_) => {}
         }
     }
 
@@ -325,7 +325,7 @@ fn collect_contracts(
             kind: match contract.kind {
                 CapabilityContractKind::Requires => ContractKindSurface::Requires,
                 CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
-                CapabilityContractKind::Trusted(_) => ContractKindSurface::Trusted,
+                CapabilityContractKind::Boundary(_) => ContractKindSurface::Boundary,
             },
             fact_count: syntax_trees.items.proof_facts(contract.facts).len(),
             membership_fact_count: syntax_trees
@@ -577,6 +577,7 @@ mod tests {
             .type_references
             .insert_named(Identifier::generated("T"));
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            is_boundary: false,
             name: operator_name,
             type_parameters: HandleSpan::empty(),
             parameters: HandleSpan::empty(),

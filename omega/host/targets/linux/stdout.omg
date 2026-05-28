@@ -8,7 +8,7 @@ capability LinuxStdout {
     entry write_line(text: String) -> Result<(), IOError> where {
         requires text.utf8
         ensures result.Ok || result.Err
-        trust omega_linux_stdout_adapter
-        trust omega_linux_syscalls
+        boundary omega_linux_stdout_adapter
+        boundary omega_linux_syscalls
     }
 }

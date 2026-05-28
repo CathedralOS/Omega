@@ -2,97 +2,53 @@
 //
 // Slices are compiler-managed views over contiguous storage. The public core
 // surface owns the semantic contracts; the concrete pointer/length carrier and
-// trusted primitive implementation live below this layer.
+// boundary implementation live below this layer.
 //
 // Planned public surface:
 // - Slice::Length ranks a slice by its current length for termination proofs.
 // - index and subslice operators require bounds proofs before lowering to the
-//   trusted primitive descriptor layer.
+//   boundary descriptor layer.
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
 
-trust compiler_slice_index {
-}
+boundary operator Slice::Length<T>(items: &[T]) -> usize;
 
-trust compiler_slice_index_mut {
-}
-
-trust compiler_slice_tail {
-}
-
-trust compiler_slice_tail_mut {
-}
-
-trust compiler_slice_from {
-}
-
-trust compiler_slice_from_mut {
-}
-
-trust compiler_slice_to {
-}
-
-trust compiler_slice_to_mut {
-}
-
-trust compiler_slice_range {
-}
-
-trust compiler_slice_range_mut {
-}
-
-trust compiler_slice_length {
-}
-
-operator Slice::Length<T>(items: &[T]) -> usize
-trust compiler_slice_length;
-
-operator Slice::index<T>(items: &[T], index: usize) -> T
+boundary operator Slice::index<T>(items: &[T], index: usize) -> T
 requires
-    index < items.len
-trust compiler_slice_index;
+    index < items.len;
 
-operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+boundary operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
 requires
-    index < items.len
-trust compiler_slice_index_mut;
+    index < items.len;
 
-operator Slice::tail<T>(items: &[T]) -> &[T]
+boundary operator Slice::tail<T>(items: &[T]) -> &[T]
 requires
-    items.len > 0
-trust compiler_slice_tail;
+    items.len > 0;
 
-operator Slice::tail_mut<T>(items: &mut [T]) -> &mut [T]
+boundary operator Slice::tail_mut<T>(items: &mut [T]) -> &mut [T]
 requires
-    items.len > 0
-trust compiler_slice_tail_mut;
+    items.len > 0;
 
-operator Slice::from<T>(items: &[T], start: usize) -> &[T]
+boundary operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
-    start <= items.len
-trust compiler_slice_from;
+    start <= items.len;
 
-operator Slice::from_mut<T>(items: &mut [T], start: usize) -> &mut [T]
+boundary operator Slice::from_mut<T>(items: &mut [T], start: usize) -> &mut [T]
 requires
-    start <= items.len
-trust compiler_slice_from_mut;
+    start <= items.len;
 
-operator Slice::to<T>(items: &[T], end: usize) -> &[T]
+boundary operator Slice::to<T>(items: &[T], end: usize) -> &[T]
 requires
-    end <= items.len
-trust compiler_slice_to;
+    end <= items.len;
 
-operator Slice::to_mut<T>(items: &mut [T], end: usize) -> &mut [T]
+boundary operator Slice::to_mut<T>(items: &mut [T], end: usize) -> &mut [T]
 requires
-    end <= items.len
-trust compiler_slice_to_mut;
+    end <= items.len;
 
-operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
 requires
-    start <= end && end <= items.len
-trust compiler_slice_range;
+    start <= end && end <= items.len;
 
-operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
+boundary operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
 requires
-    start <= end && end <= items.len
-trust compiler_slice_range_mut;
+    start <= end && end <= items.len;

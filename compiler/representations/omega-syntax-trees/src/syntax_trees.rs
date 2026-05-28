@@ -5,13 +5,13 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
-    CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
-    DomainDefinition, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
-    OperatorDefinition, Platform, ProofFact, ProofMembershipFact, State, StateHandle,
-    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
-    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, TypeParameter, UseItem,
+    BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
+    CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
+    DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable,
+    LibraryDefinition, LibraryFunction, Machine, OperatorDefinition, Platform, ProofFact,
+    ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
+    StateSignature, StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting,
+    TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -98,7 +98,6 @@ impl SyntaxTrees {
             | Item::Library(_)
             | Item::Operator(_)
             | Item::Target(_)
-            | Item::TrustDefinition(_)
             | Item::Use(_) => {}
         }
 
@@ -146,10 +145,6 @@ impl SyntaxTrees {
             Item::Export(export_item) => Item::Export(crate::item::ExportItem {
                 path: self.copy_item_identifier_span(other, export_item.path),
                 alias: export_item.alias.clone(),
-            }),
-            Item::TrustDefinition(trust) => Item::TrustDefinition(TrustDefinition {
-                name: trust.name.clone(),
-                token_count: trust.token_count,
             }),
             Item::Use(use_item) => Item::Use(UseItem {
                 path: self.copy_item_identifier_span(other, use_item.path),
@@ -205,6 +200,7 @@ impl SyntaxTrees {
         operator: &OperatorDefinition,
     ) -> OperatorDefinition {
         OperatorDefinition {
+            is_boundary: operator.is_boundary,
             name: self.copy_item_identifier_span(other, operator.name),
             type_parameters: self.copy_type_parameter_span(other, operator.type_parameters),
             parameters: self.copy_state_parameter_handle_span(other, operator.parameters),
@@ -271,7 +267,7 @@ impl SyntaxTrees {
                 provider: self.copy_item_identifier_span(other, host.provider),
                 settings: self.copy_target_host_setting_span(other, host.settings),
             }),
-            trust_policies: self.copy_trust_policy_span(other, target.trust_policies),
+            boundary_policies: self.copy_boundary_policy_span(other, target.boundary_policies),
         }
     }
 
@@ -286,21 +282,21 @@ impl SyntaxTrees {
         )
     }
 
-    fn copy_trust_level_span(
+    fn copy_boundary_level_span(
         &mut self,
         other: &SyntaxTrees,
-        span: HandleSpan<TrustLevel>,
-    ) -> HandleSpan<TrustLevel> {
+        span: HandleSpan<BoundaryLevel>,
+    ) -> HandleSpan<BoundaryLevel> {
         self.copy_span(
             other
                 .items
-                .trust_levels(span)
+                .boundary_levels(span)
                 .iter()
                 .map(|level| match level {
-                    TrustLevel::Host => TrustLevel::Host,
-                    TrustLevel::Named(name) => TrustLevel::Named(name.clone()),
+                    BoundaryLevel::Host => BoundaryLevel::Host,
+                    BoundaryLevel::Named(name) => BoundaryLevel::Named(name.clone()),
                 }),
-            |this, trust_level| this.items.append_trust_level(trust_level),
+            |this, boundary_level| this.items.append_boundary_level(boundary_level),
         )
     }
 
@@ -315,7 +311,7 @@ impl SyntaxTrees {
                 signature: this.copy_state_signature_value(other, &function.signature),
                 symbol: function.symbol.clone(),
                 calling_convention: function.calling_convention.clone(),
-                trusts: this.copy_trust_level_span(other, function.trusts),
+                boundaries: this.copy_boundary_level_span(other, function.boundaries),
             },
             |this, function| this.items.append_library_function(function),
         )
@@ -355,11 +351,11 @@ impl SyntaxTrees {
                 kind: match &contract.kind {
                     CapabilityContractKind::Ensures => CapabilityContractKind::Ensures,
                     CapabilityContractKind::Requires => CapabilityContractKind::Requires,
-                    CapabilityContractKind::Trusted(TrustLevel::Host) => {
-                        CapabilityContractKind::Trusted(TrustLevel::Host)
+                    CapabilityContractKind::Boundary(BoundaryLevel::Host) => {
+                        CapabilityContractKind::Boundary(BoundaryLevel::Host)
                     }
-                    CapabilityContractKind::Trusted(TrustLevel::Named(name)) => {
-                        CapabilityContractKind::Trusted(TrustLevel::Named(name.clone()))
+                    CapabilityContractKind::Boundary(BoundaryLevel::Named(name)) => {
+                        CapabilityContractKind::Boundary(BoundaryLevel::Named(name.clone()))
                     }
                 },
                 facts: self.copy_domain_fact_span(other, contract.facts),
@@ -441,21 +437,21 @@ impl SyntaxTrees {
         })
     }
 
-    fn copy_trust_policy_span(
+    fn copy_boundary_policy_span(
         &mut self,
         other: &SyntaxTrees,
-        span: HandleSpan<TrustPolicy>,
-    ) -> HandleSpan<TrustPolicy> {
+        span: HandleSpan<BoundaryPolicy>,
+    ) -> HandleSpan<BoundaryPolicy> {
         self.copy_mapped_span(
-            other.items.trust_policies(span),
-            |this, policy| TrustPolicy {
+            other.items.boundary_policies(span),
+            |this, policy| BoundaryPolicy {
                 mode: match policy.mode {
-                    TrustMode::Checked => TrustMode::Checked,
-                    TrustMode::Unchecked => TrustMode::Unchecked,
+                    BoundaryMode::Checked => BoundaryMode::Checked,
+                    BoundaryMode::Unchecked => BoundaryMode::Unchecked,
                 },
                 path: this.copy_item_identifier_span(other, policy.path),
             },
-            |this, policy| this.items.append_trust_policy(policy),
+            |this, policy| this.items.append_boundary_policy(policy),
         )
     }
 

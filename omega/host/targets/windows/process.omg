@@ -7,7 +7,7 @@ capability WindowsProcess {
     entry exit(return_code: i32) -> Terminal where {
         requires windows_accepts_exit_code(return_code)
         ensures process_terminated
-        trust omega_windows_process_adapter
-        trust omega_windows_kernel32
+        boundary omega_windows_process_adapter
+        boundary omega_windows_kernel32
     }
 }

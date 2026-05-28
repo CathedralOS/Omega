@@ -5,8 +5,8 @@ use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
-    CapabilityMember, CapabilityState, TrustLevel,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityDefinition,
+    CapabilityField, CapabilityMember, CapabilityState,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -163,17 +163,13 @@ fn parse_capability_contract<'tokens, 'source>(
         ));
     }
 
-    if input.at_keyword(KeywordKind::Trust) || input.at_contextual("trusted") {
-        let input = if input.at_keyword(KeywordKind::Trust) {
-            input.take_keyword(KeywordKind::Trust, "trust")?
-        } else {
-            input.take_contextual("trusted")?
-        };
-        let (trust_level, input) = parse_trust_level(input)?;
+    if input.at_contextual("boundary") {
+        let input = input.take_contextual("boundary")?;
+        let (boundary_level, input) = parse_boundary_level(input)?;
         let input = take_optional_semicolon(input)?;
         return Ok((
             CapabilityContract {
-                kind: CapabilityContractKind::Trusted(trust_level),
+                kind: CapabilityContractKind::Boundary(boundary_level),
                 facts: HandleSpan::empty(),
                 token_count: 1,
             },
@@ -201,18 +197,18 @@ fn capability_contract_terminator(input: Input<'_, '_>) -> bool {
         || input.at_keyword(KeywordKind::Entry)
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
-        || input.at_contextual("trust")
+        || input.at_contextual("boundary")
         || input.tokens.is_empty()
 }
 
-fn parse_trust_level<'tokens, 'source>(
+fn parse_boundary_level<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TrustLevel> {
+) -> ParseResult<'tokens, 'source, BoundaryLevel> {
     if input.at_keyword(KeywordKind::Host) {
         let input = input.take_keyword(KeywordKind::Host, "host")?;
-        Ok((TrustLevel::Host, input))
+        Ok((BoundaryLevel::Host, input))
     } else {
         let (name, input) = input.take_identifier()?;
-        Ok((TrustLevel::Named(name), input))
+        Ok((BoundaryLevel::Named(name), input))
     }
 }

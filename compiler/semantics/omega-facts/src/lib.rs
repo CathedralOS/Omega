@@ -125,7 +125,7 @@ pub enum ContractFactKind {
     #[default]
     Requires,
     Ensures,
-    Trusted,
+    Boundary,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

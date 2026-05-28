@@ -4,6 +4,7 @@ use crate::pipeline::artifacts::{
     write_resolved_snapshot, write_state_graph_snapshot, write_syntax_snapshot, write_timings,
     write_typed_snapshot,
 };
+use crate::pipeline::boundary_report::write_boundary_report;
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::output::write_output;
@@ -14,7 +15,6 @@ use crate::pipeline::stages::{
     typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
-use crate::pipeline::trust_report::write_trust_report;
 use omega_artifacts::build_backend_surface_report;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
@@ -44,7 +44,7 @@ impl Compiler {
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;
-        write_trust_report(&self.options, &syntax.syntax_trees)?;
+        write_boundary_report(&self.options, &syntax.syntax_trees)?;
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         write_resolved_snapshot(&self.options, &resolved)?;

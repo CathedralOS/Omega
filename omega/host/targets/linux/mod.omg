@@ -2,13 +2,12 @@ use omega::host::targets::linux::process;
 use omega::host::targets::linux::stdin;
 use omega::host::targets::linux::stdout;
 use omega::host::targets::linux::syscalls;
-use omega::host::targets::linux::trusts;
 use omega::host::targets::linux::types;
 
 // Linux host package shipped with the Omega toolchain.
 //
 // Linux is the platform where direct syscalls are a plausible tiny target.
-// The syscall ABI is still trusted host machinery, not app-proven behavior.
+// The syscall ABI is still boundary host machinery, not app-proven behavior.
 
 capability LinuxHost {
     syscalls: LinuxSyscalls

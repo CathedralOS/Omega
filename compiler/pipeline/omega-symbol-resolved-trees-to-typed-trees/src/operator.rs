@@ -8,6 +8,7 @@ pub(crate) fn lower_operator_definition(
     operator: &omega_symbol_resolved_trees::operator::OperatorDefinition,
 ) -> Result<omega_typed_trees::operator::OperatorDefinition, Diagnostic> {
     let mut typed_operator = omega_typed_trees::operator::OperatorDefinition {
+        is_boundary: operator.is_boundary,
         symbol: operator.symbol,
         name: Default::default(),
         type_parameters: Default::default(),
@@ -68,8 +69,8 @@ pub(crate) fn lower_operator_definition(
                     omega_symbol_resolved_trees::signature::SignatureContractKind::Ensures => {
                         omega_typed_trees::signature::SignatureContractKind::Ensures
                     }
-                    omega_symbol_resolved_trees::signature::SignatureContractKind::Trusted => {
-                        omega_typed_trees::signature::SignatureContractKind::Trusted
+                    omega_symbol_resolved_trees::signature::SignatureContractKind::Boundary => {
+                        omega_typed_trees::signature::SignatureContractKind::Boundary
                     }
                 },
                 facts,

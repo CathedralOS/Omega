@@ -466,102 +466,68 @@ impl ArtifactWriter {
         self.write_html_report("00_timings.html", "phase_timings", &output)
     }
 
-    pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
+    pub fn write_boundary_report(
+        &self,
+        boundary_report: &BoundaryReport,
+    ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
-        output.push_str("# Omega Trust\n\n");
-        output.push_str(&format!("targets: {}\n", trust_report.targets.len()));
+        output.push_str("# Omega Boundary\n\n");
+        output.push_str(&format!("targets: {}\n", boundary_report.targets.len()));
         output.push_str(&format!(
-            "trust roots: {}\n",
-            trust_report.trust_roots.len()
-        ));
-        output.push_str(&format!(
-            "trusted contracts: {}\n",
-            trust_report.trusted_contracts.len()
-        ));
-        output.push_str(&format!(
-            "unresolved trusts: {}\n",
-            trust_report.unresolved_trusts.len()
+            "boundary contracts: {}\n",
+            boundary_report.contracts.len()
         ));
         output.push_str(&format!(
             "unchecked policies: {}\n\n",
-            trust_report.unchecked_policies.len()
+            boundary_report.unchecked_policies.len()
         ));
 
         output.push_str("## Targets\n");
-        if trust_report.targets.is_empty() {
+        if boundary_report.targets.is_empty() {
             output.push_str("none\n");
         } else {
-            for (_, target) in trust_report.targets.iter() {
+            for (_, target) in boundary_report.targets.iter() {
                 output.push_str(&format!(
-                    "- target `{}` host `{}` settings {} checked trusts {} unchecked trusts {}\n",
+                    "- target `{}` host `{}` settings {} checked boundaries {} unchecked boundaries {}\n",
                     target.name,
                     target.host_provider,
                     target.host_settings,
-                    target.checked_trusts,
-                    target.unchecked_trusts
+                    target.checked_boundaries,
+                    target.unchecked_boundaries
                 ));
             }
         }
 
-        output.push_str("\n## Trust Roots\n");
-        if trust_report.trust_roots.is_empty() {
+        output.push_str("\n## Boundary Contracts\n");
+        if boundary_report.contracts.is_empty() {
             output.push_str("none\n");
         } else {
-            for (_, root) in trust_report.trust_roots.iter() {
+            for (_, contract) in boundary_report.contracts.iter() {
                 output.push_str(&format!(
-                    "- trust `{}` body tokens {} checked refs {} unchecked refs {}\n",
-                    root.name, root.token_count, root.checked_references, root.unchecked_references
-                ));
-            }
-        }
-
-        output.push_str("\n## Trusted Contracts\n");
-        if trust_report.trusted_contracts.is_empty() {
-            output.push_str("none\n");
-        } else {
-            for (_, contract) in trust_report.trusted_contracts.iter() {
-                output.push_str(&format!(
-                    "- {}.{} trusts `{}` ({}) requires {} ensures {}\n",
+                    "- {}.{} boundary `{}` requires {} ensures {}\n",
                     contract.capability,
                     contract.state,
-                    contract.trust_level,
-                    if contract.resolved {
-                        "resolved"
-                    } else {
-                        "unresolved"
-                    },
+                    contract.boundary,
                     contract.requires_count,
                     contract.ensures_count
                 ));
             }
         }
 
-        output.push_str("\n## Unresolved Trusts\n");
-        if trust_report.unresolved_trusts.is_empty() {
-            output.push_str("none\n");
-        } else {
-            for (_, unresolved) in trust_report.unresolved_trusts.iter() {
-                output.push_str(&format!(
-                    "- {}.{} trust `{}`\n",
-                    unresolved.capability, unresolved.state, unresolved.trust_level
-                ));
-            }
-        }
-
         output.push_str("\n## Unchecked Policies\n");
-        if trust_report.unchecked_policies.is_empty() {
+        if boundary_report.unchecked_policies.is_empty() {
             output.push_str("none\n");
         } else {
-            for (_, policy) in trust_report.unchecked_policies.iter() {
+            for (_, policy) in boundary_report.unchecked_policies.iter() {
                 output.push_str(&format!(
-                    "- target `{}` trusts unchecked `{}`\n",
+                    "- target `{}` boundary unchecked `{}`\n",
                     policy.target, policy.name
                 ));
             }
         }
 
-        self.write_html_report("10_trust.html", "trust", &output)
+        self.write_html_report("10_boundary.html", "boundary", &output)
     }
 }
 
@@ -857,50 +823,32 @@ pub struct AstFileArtifact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustReport {
-    pub targets: Arena<TrustTarget>,
-    pub trust_roots: Arena<TrustRoot>,
-    pub trusted_contracts: Arena<TrustedContract>,
-    pub unresolved_trusts: Arena<UnresolvedTrustReference>,
-    pub unchecked_policies: Arena<UncheckedTrustPolicy>,
+pub struct BoundaryReport {
+    pub targets: Arena<BoundaryTarget>,
+    pub contracts: Arena<BoundaryContract>,
+    pub unchecked_policies: Arena<UncheckedBoundaryPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustTarget {
+pub struct BoundaryTarget {
     pub name: String,
     pub host_provider: String,
     pub host_settings: usize,
-    pub checked_trusts: usize,
-    pub unchecked_trusts: usize,
+    pub checked_boundaries: usize,
+    pub unchecked_boundaries: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustRoot {
-    pub name: String,
-    pub token_count: usize,
-    pub checked_references: usize,
-    pub unchecked_references: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustedContract {
+pub struct BoundaryContract {
     pub capability: String,
     pub state: String,
-    pub trust_level: String,
-    pub resolved: bool,
+    pub boundary: String,
     pub requires_count: usize,
     pub ensures_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct UnresolvedTrustReference {
-    pub capability: String,
-    pub state: String,
-    pub trust_level: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct UncheckedTrustPolicy {
+pub struct UncheckedBoundaryPolicy {
     pub target: String,
     pub name: String,
 }

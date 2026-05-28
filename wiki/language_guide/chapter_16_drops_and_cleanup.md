@@ -158,7 +158,7 @@ For a file handle:
 drop file
 requires file owns handle
 ensures handle released
-trusts platform close contract
+boundaries platform close contract
 ```
 
 These facts matter for:
@@ -167,7 +167,7 @@ These facts matter for:
 - invariant restoration,
 - deadlock and waitable-resource proofs,
 - hot-swap quiescence,
-- host-boundary trust reports.
+- host-boundary reports.
 
 Drop is therefore part of the same proof system as moves, transitions, effects,
 and host contracts.

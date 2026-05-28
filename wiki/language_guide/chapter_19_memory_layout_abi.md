@@ -57,7 +57,7 @@ machine Host::write(
     fd: i32,
     buffer: &[u8]
 ) -> i32
-trust host
+boundary host
 {
 }
 ```

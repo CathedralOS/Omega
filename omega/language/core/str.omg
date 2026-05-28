@@ -8,62 +8,26 @@
 // Runtime builders and host IO should lower through the private representation
 // layer, not through ad hoc string special cases.
 
-trust compiler_string_length {
-}
+boundary operator String::Length(text: &String) -> usize;
 
-trust compiler_string_capacity {
-}
+boundary operator String::Capacity(text: &String) -> usize;
 
-trust compiler_string_as_view {
-}
+boundary operator String::as_view(text: &String) -> &str;
 
-trust compiler_string_allocate {
-}
+boundary operator String::with_capacity(capacity: usize) -> String;
 
-trust compiler_string_push_str {
-}
-
-trust compiler_str_view_length {
-}
-
-trust compiler_str_view_bytes {
-}
-
-trust compiler_str_view_byte {
-}
-
-trust compiler_str_view_range {
-}
-
-operator String::Length(text: &String) -> usize
-trust compiler_string_length;
-
-operator String::Capacity(text: &String) -> usize
-trust compiler_string_capacity;
-
-operator String::as_view(text: &String) -> &str
-trust compiler_string_as_view;
-
-operator String::with_capacity(capacity: usize) -> String
-trust compiler_string_allocate;
-
-operator String::push_str(text: &mut String, value: &str) -> ()
+boundary operator String::push_str(text: &mut String, value: &str) -> ()
 requires
-    text.len + value.len <= text.capacity
-trust compiler_string_push_str;
+    text.len + value.len <= text.capacity;
 
-operator StrView::Length(text: &str) -> usize
-trust compiler_str_view_length;
+boundary operator StrView::Length(text: &str) -> usize;
 
-operator StrView::bytes(text: &str) -> &[u8]
-trust compiler_str_view_bytes;
+boundary operator StrView::bytes(text: &str) -> &[u8];
 
-operator StrView::byte(text: &str, index: usize) -> u8
+boundary operator StrView::byte(text: &str, index: usize) -> u8
 requires
-    index < text.len
-trust compiler_str_view_byte;
+    index < text.len;
 
-operator StrView::range(text: &str, start: usize, end: usize) -> &str
+boundary operator StrView::range(text: &str, start: usize, end: usize) -> &str
 requires
-    start <= end && end <= text.len
-trust compiler_str_view_range;
+    start <= end && end <= text.len;

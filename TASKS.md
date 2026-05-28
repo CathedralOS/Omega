@@ -27,29 +27,29 @@ meaning, without needing access to pointer descriptor internals.
   - `Slice::Length` and `Nat::Descending` now have explicit browsable core
     declarations through the current operator declaration surface
   - `Array`, `Vec`, and current text surfaces now expose initial browsable
-    length/view operator contracts and primitive trust roots
+    length/view operator contracts and primitive boundary providers
   - owner length contracts now use borrowed receivers for `Array`, `Vec`, and
     `String` instead of consuming the owner
   - `Array` and `Vec` now expose browsable index operator contracts with
-    bounds proof obligations and primitive trust roots
+    bounds proof obligations and primitive boundary providers
   - `Slice`, `Array`, and `Vec` now expose mutable index operator contracts
-    with the same bounds proof obligations and distinct primitive trust roots
+    with the same bounds proof obligations and distinct primitive boundary providers
   - `Slice` now exposes mutable tail/from/to/range subslice contracts with the
-    same bounds proof obligations and distinct primitive trust roots
+    same bounds proof obligations and distinct primitive boundary providers
   - `StrView` now exposes byte and byte-range view contracts with bounds proof
-    obligations and distinct primitive trust roots
+    obligations and distinct primitive boundary providers
   - `Vec` now exposes an initial allocation-facing `with_capacity` contract
-    backed by the existing vector allocation primitive trust root
+    backed by the existing vector allocation primitive boundary provider
   - `String` now exposes an initial allocation-facing `with_capacity` contract
-    backed by a dedicated string allocation primitive trust root
+    backed by a dedicated string allocation primitive boundary provider
   - `String` now exposes capacity and `push_str` mutation contracts so owned
     text growth has a browsable core surface
   - `str` is now a builtin type name, allowing user source to spell borrowed
     text views such as `&str` instead of only core declarations using them
   - bare storage `str` now rejects early with a validation diagnostic directing
     users to `&str`
-  - core operators can now name their trusted primitive root through operator
-    `trust` contracts instead of relying only on nearby trust declarations
+  - core operators now use `boundary operator` for compiler/runtime-backed
+    implementation edges instead of separate root declarations
   - `Ptr` core source now exposes browsable primitive-boundary operator
     contracts for offset, read, write, and pointer-range construction
   Next target:
@@ -71,32 +71,31 @@ meaning, without needing access to pointer descriptor internals.
   - keep safe source away from raw pointer fields while still giving host/ABI code a truthful low-level model
   - audit places where slice/string descriptor logic is spread across backend stages and identify a single representation owner
 
-- [ ] Trusted primitive registry
-  Core contracts need an auditable implementation authority without inventing ad hoc keywords on every declaration.
+- [ ] Boundary primitive registry
+  Core contracts need an auditable implementation authority for the private
+  compiler/runtime layer.
   Landed:
-  - syntax trust reports now emit trust roots, target trust policies, trusted contracts, unresolved trusts, and unchecked policies
-  - the pipeline shell includes the Trust artifact when present
-  - core `Slice` declares the first language-authored primitive trust roots for indexing, subslicing, and length ranking
-  - core `Ptr` declares initial primitive trust roots for offset, read, write, and pointer-range operations
-  - trust definitions now receive dedicated `Trust` symbols in the early name
-    surface instead of being hidden as generic objects
-  - trust artifacts now show checked and unchecked reference counts per trust
-    root
-  - operator declarations now accept `trust` contracts and the trust report
-    counts root/domain operator trusted references
-  - unresolved root and domain operator trust roots now reject with focused
-    diagnostics
-  - unresolved imported-library trust contracts now reject unless they use a
-    declared trust root or the built-in `host` trust
-  - unresolved target trust-policy references now reject with focused
-    diagnostics instead of remaining report-only
+  - syntax boundary reports now emit target boundary policies, boundary
+    contracts, boundary operators, and unchecked policies
+  - the pipeline shell includes the Boundary artifact when present
+  - core `Slice`, `Array`, `Vec`, `String`, `StrView`, and `Ptr` declare their
+    compiler/runtime-backed edges with `boundary operator`
+  - imported libraries, capability contracts, and target policies use
+    `boundary` clauses consistently
+  - the old top-level boundary-root declaration surface was removed
+  - the legacy authority syntax, docs, canaries, and report names were removed
   Next target:
-  - define a language-authored registry for compiler/runtime primitive roots such as slice indexing, pointer offset, descriptor construction, allocation, and host ABI calls
-  - require trusted implementation bindings to reference registered roots
-  - promote trust-root usage counts into stricter registry validation once
-    implementation-binding syntax exists
-  - reject unregistered trusted implementation names outside explicitly whitelisted toolchain/core packages
-  - add canaries for both accepted core primitive bindings and rejected unregistered bindings once the syntax is selected
+  - define the language-authored registry shape for compiler/runtime primitive
+    providers such as slice indexing, pointer offset, descriptor construction,
+    allocation, and host ABI calls
+  - decide whether the registry is package/target metadata, a restricted core
+    declaration form, or emitted compiler inventory
+  - require boundary implementation bindings to reference registered providers
+    once binding syntax exists
+  - reject unregistered boundary provider names outside explicitly whitelisted
+    toolchain/core packages
+  - add canaries for accepted core primitive bindings and rejected unregistered
+    bindings once the registry syntax is selected
 
 - [ ] Operator declarations and overload resolution
   Operators should have visible semantic homes instead of being anonymous parser/backend special cases.
@@ -131,7 +130,7 @@ meaning, without needing access to pointer descriptor internals.
     operator declarations by signature and context
   - design a declaration form for fixed operator spellings such as `+`, `[]`, and range slicing
   - model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec` operator contracts
-  - design trusted implementation bindings for core operators without hiding their signatures and proof obligations
+  - design boundary implementation bindings for core operators without hiding their signatures and proof obligations
   - decide how ordinary trait-like operator requirements relate to existing `trait` machine requirements
   - add ambiguity diagnostics before adding broad overload power
 
@@ -337,7 +336,7 @@ meaning, without needing access to pointer descriptor internals.
   `Array` and `Vec` should be owners that can produce `Slice` views.
   Next target:
   - make fixed arrays visible as `Array[T; N]` or an equivalent core concept
-  - define `Array::as_slice` / `Array::as_mut_slice` as visible operator/machine contracts backed by trusted primitive lowering where needed
+  - define `Array::as_slice` / `Array::as_mut_slice` as visible operator/machine contracts backed by boundary primitive lowering where needed
   - design `Vec[T]` as owned dynamic storage with length and capacity
   - define how `Vec` borrowing prevents reallocation or mutation that would invalidate active slices
   - add first `Vec` allocation/storage canaries once allocator support exists
@@ -367,7 +366,7 @@ meaning, without needing access to pointer descriptor internals.
   - quantified or sequence-style facts for text/slice invariants
   - reusable proof lemmas for length, bounds, and window transformations
   - better diagnostics when a proof-backed operator is missing a required fact
-  - trusted proof boundaries for host/core primitive implementations
+  - boundary proof boundaries for host/core primitive implementations
 
 - [ ] Borrow checking over views
   Slice and string views make overlap reasoning central.

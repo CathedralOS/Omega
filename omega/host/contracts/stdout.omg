@@ -5,12 +5,12 @@ capability Stdout {
         requires buf.initialized
         requires buf.len <= usize.max
         ensures result.Ok || result.Err
-        trust host
+        boundary host
     }
 
     entry write_line(text: String) -> Result<(), IOError> where {
         requires text.utf8
         ensures result.Ok || result.Err
-        trust host
+        boundary host
     }
 }

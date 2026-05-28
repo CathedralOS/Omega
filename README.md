@@ -34,7 +34,7 @@ Omega is exploring these core ideas:
 - Nested machine flow can be expressed as machine calls in straight-line code or as continuation-style transition handoff.
 - Callable machine entries like `entry helper(...)` create frame/return semantics; `state ...` stays graph handoff.
 - Data flow should prefer explicit owned data and `&mut` parameters over ambient state.
-- Platform boundaries are explicit, trusted, and auditable.
+- Platform boundaries are explicit, boundary, and auditable.
 
 Longer term, Omega wants compile-time proof integration. TLA+ style transition checks are a design goal, not decoration. The compiler should eventually derive formal transition models from source, challenge invariants and liveness properties, and only then lower the program.
 
@@ -88,7 +88,7 @@ Important artifact files:
 - `07_graph.txt`: source and lowered state graph.
 - `08_proof.txt`: proof surface and obligations.
 - `09_backend_plan.txt`: target, host ABI, calls, data, instructions, and image planning.
-- `10_trust.txt`: trusted contracts and unchecked obligations.
+- `10_boundary.html`: boundary contracts and unchecked obligations.
 - `12_emission.txt`: whether native emission is currently possible.
 - `13_emitted_output.txt`: emitted native output information.
 - `14_finalization.txt`: executable finalization and permission stamping for directly emitted images.
@@ -257,7 +257,7 @@ Omega/
 |   |   |-- [CRATE] omega-runtime-core/                 # Shared runtime entry contracts and compiler intrinsics.
 |   |   |-- [CRATE] omega-runtime-memory/               # Allocator/runtime memory surfaces if language needs them.
 |   |   |-- [CRATE] omega-runtime-unwind/               # Panic/failure/unwind or abort-mode runtime surface.
-|   |   |-- [CRATE] omega-runtime-host/                 # Trusted host-call shims and platform bridge contracts.
+|   |   |-- [CRATE] omega-runtime-host/                 # Boundary host-call shims and platform bridge contracts.
 |   |   `-- startup/
 |   |       |-- [CRATE] omega-startup-macos/            # Process entry, startup runtime replacement, platform bootstrap.
 |   |       |-- [CRATE] omega-startup-linux/            # Process entry, startup runtime replacement, platform bootstrap.
@@ -282,7 +282,7 @@ Omega/
 |   |   `-- std/                                        # Higher-level standard package surface.
 |   |
 |   `-- host/
-|       |-- contracts/                                  # Cross-platform trusted capability contracts.
+|       |-- contracts/                                  # Cross-platform boundary capability contracts.
 |       |-- standard/                                   # Default host capability bundle.
 |       `-- targets/
 |           |-- darwin/

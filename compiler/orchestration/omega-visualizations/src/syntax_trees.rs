@@ -475,7 +475,6 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             )
         }
         Item::Target(value) => format!("target {}", value.name.as_str()),
-        Item::TrustDefinition(value) => format!("trust {}", value.name.as_str()),
         Item::Export(value) => {
             let path = syntax
                 .items

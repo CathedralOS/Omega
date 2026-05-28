@@ -51,6 +51,6 @@ fn darwin_import(capability: &str, operation: &str, symbol: &str) -> HostBinding
             library: "libSystem.B.dylib".into(),
             symbol: symbol.into(),
         },
-        trust_policy: "omega::host::targets::darwin".into(),
+        boundary_policy: "omega::host::targets::darwin".into(),
     }
 }

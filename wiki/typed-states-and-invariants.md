@@ -17,7 +17,7 @@ Direct chapter links:
 - [Chapter 11: Relax Scopes](language_guide/chapter_11_relax_scopes.md)
 - [Chapter 12: Generics](language_guide/chapter_12_generics.md)
 - [Chapter 13: Traits And Runtime Dispatch](language_guide/chapter_13_traits.md)
-- [Chapter 14: Host Libraries And Trust Boundaries](language_guide/chapter_14_host_trust_boundaries.md)
+- [Chapter 14: Host Libraries And Boundaries](language_guide/chapter_14_host_boundaries.md)
 - [Chapter 15: Versioned Data And Machine Replacement](language_guide/chapter_15_versioned_data.md)
 - [Chapter 16: Wire Protocols](language_guide/chapter_16_wire_protocols.md)
 - [Chapter 17: Inline Assembly](language_guide/chapter_17_inline_assembly.md)

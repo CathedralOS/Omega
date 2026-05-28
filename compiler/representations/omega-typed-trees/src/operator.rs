@@ -3,6 +3,7 @@ use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
+    pub is_boundary: bool,
     pub symbol: SymbolHandle,
     pub name: HandleSpan<crate::name::Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,

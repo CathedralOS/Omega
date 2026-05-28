@@ -1,4 +1,5 @@
 mod artifacts;
+mod boundary_report;
 pub mod compile_options;
 pub mod compile_report;
 pub mod compiler;
@@ -9,7 +10,6 @@ pub mod source;
 mod stage;
 mod stages;
 mod timing;
-mod trust_report;
 
 pub use compile_options::CompileOptions;
 pub use compile_report::CompileReport;

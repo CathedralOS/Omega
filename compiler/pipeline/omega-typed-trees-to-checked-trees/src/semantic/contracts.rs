@@ -19,7 +19,7 @@ pub(super) fn append_contract_semantic_facts(
         };
         let fact = match contract.kind {
             ContractProofFactKind::Requires => facts.append_fact_context(fact),
-            ContractProofFactKind::Ensures | ContractProofFactKind::Trusted => {
+            ContractProofFactKind::Ensures | ContractProofFactKind::Boundary => {
                 facts.append_fact(fact)
             }
         };

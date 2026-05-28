@@ -22,7 +22,7 @@ Omega's proof model should use a small set of terms consistently.
 - Obligations are proof or check work the compiler must discharge.
 - Invariants are facts that must remain true across a boundary.
 - Contracts are requirements plus guarantees.
-- Trust is an accepted authority for guarantees that Omega cannot prove from Omega code.
+- Boundary is an accepted authority for guarantees that Omega cannot prove from Omega code.
 
 Short form:
 
@@ -33,14 +33,14 @@ contracts create obligations
 the compiler proves obligations using facts
 operations contribute guarantees
 invariants are facts that must survive boundaries
-trust explains why unproved guarantees are accepted
+boundary explains why unproved guarantees are accepted
 ```
 
 For ordinary Omega code, users should not have to write every contract
 explicitly. The compiler knows the contracts for assignment, arithmetic, field
 access, transitions, borrows, cleanup, and similar language operations.
 
-For boundary code, contracts must be explicit. Host APIs, inline assembly, target-specific primitive operations, and trusted packages sit at the edge of Omega's semantic world. The compiler cannot honestly infer their behavior unless the toolchain or author supplies a contract.
+For boundary code, contracts must be explicit. Host APIs, inline assembly, target-specific primitive operations, and boundary packages sit at the edge of Omega's semantic world. The compiler cannot honestly infer their behavior unless the toolchain or author supplies a contract.
 
 Likely obligations:
 
@@ -57,7 +57,7 @@ Likely obligations:
   jump, and cleanup guarantees are added to the target facts.
 - Every spawned graph captures only moved, copied, or concurrency-safe values.
 - Every blocking operation exposes a waitable contract or crosses an explicit
-  trust boundary.
+  boundary.
 - Every machine that claims termination proves progress for every recursive or
   cyclic path in its reachable call/state graph.
 
@@ -188,7 +188,7 @@ The subtraction operation has requirements: `self.health` must be mutable, `dama
 
 The assignment back into `self.health` creates obligations: prove the arithmetic is valid and prove the resulting value satisfies the field invariant at the required boundary.
 
-If those obligations are discharged, the operation contributes guarantees: `self.health` is initialized and has the proven resulting facts. If not, the compiler must reject the code, require a different arithmetic mode, require a `relax` scope, or require an explicit checked/trusted boundary depending on the construct.
+If those obligations are discharged, the operation contributes guarantees: `self.health` is initialized and has the proven resulting facts. If not, the compiler must reject the code, require a different arithmetic mode, require a `relax` scope, or require an explicit checked/boundary depending on the construct.
 
 This maps well onto TLA+ style action checking:
 

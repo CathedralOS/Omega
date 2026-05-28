@@ -19,7 +19,6 @@ mod statement;
 mod target;
 mod trait_definition;
 mod transition;
-mod trust;
 mod type_reference;
 mod use_item;
 

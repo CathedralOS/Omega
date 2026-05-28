@@ -3,7 +3,7 @@
 Failure semantics must be explicit.
 
 Omega should not have hidden exceptions as ordinary control flow. Failure should
-be represented as data, a declared trap, or a trusted host boundary.
+be represented as data, a declared trap, or a host boundary.
 
 ## Fallible Results
 
@@ -35,7 +35,7 @@ Examples:
 
 - proven-impossible state reached,
 - failed exact arithmetic proof in a checked runtime mode,
-- violated trusted boundary contract,
+- violated boundary contract,
 - target fault reported by a host or OS boundary.
 
 Traps must be visible in effects and build artifacts.
@@ -58,12 +58,12 @@ machine HostFile::read(
     out: &mut Buffer,
     result: &mut IOError
 )
-trust host
+boundary host
 {
 }
 ```
 
-The contract decides whether failure is data, blocking, trap, or trust-boundary
+The contract decides whether failure is data, blocking, trap, or boundary-boundary
 violation.
 
 ## Cleanup On Failure

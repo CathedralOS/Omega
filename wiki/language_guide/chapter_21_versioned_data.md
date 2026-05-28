@@ -275,7 +275,7 @@ machine Driver:
     outstanding borrow of DriverState::v1 held by scheduler queue
 ```
 
-This fits Omega's broader trust model: facts, obligations, and trust boundaries
+This fits Omega's broader boundary model: facts, obligations, and boundary boundaries
 should be visible in build artifacts.
 
 ## Working Rules

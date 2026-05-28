@@ -9,7 +9,7 @@ capability DarwinStdin {
         requires out_text.writable
         ensures out_text.utf8
         ensures result.Ok || result.Err
-        trust omega_darwin_stdin_adapter
-        trust omega_darwin_libsystem
+        boundary omega_darwin_stdin_adapter
+        boundary omega_darwin_libsystem
     }
 }

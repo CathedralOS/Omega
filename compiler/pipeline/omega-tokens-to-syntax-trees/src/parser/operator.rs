@@ -4,14 +4,13 @@ use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, OperatorDefinition, TrustLevel,
-};
-use omega_tokens::{KeywordKind, PunctuationKind};
+use omega_syntax_trees::item::{CapabilityContract, CapabilityContractKind, OperatorDefinition};
+use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_operator_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    is_boundary: bool,
 ) -> ParseResult<'tokens, 'source, OperatorDefinition> {
     let body_start_tokens = input.tokens.len();
     let (name, input) = parse_path_handle_span(input, |member| {
@@ -27,6 +26,7 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
 
     Ok((
         OperatorDefinition {
+            is_boundary,
             name,
             type_parameters,
             parameters,
@@ -77,7 +77,7 @@ fn parse_operator_contract<'tokens, 'source>(
         return parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Ensures);
     }
 
-    parse_operator_trust_contract(input)
+    Err(input.expected_one_of_here(&["`requires`", "`ensures`"]))
 }
 
 fn parse_operator_fact_contract<'tokens, 'source>(
@@ -96,29 +96,8 @@ fn parse_operator_fact_contract<'tokens, 'source>(
     })
 }
 
-fn parse_operator_trust_contract<'tokens, 'source>(
-    input: &mut Input<'tokens, 'source>,
-) -> Result<CapabilityContract, crate::parse_error::ParseError> {
-    *input = if input.at_keyword(KeywordKind::Trust) {
-        input.take_keyword(KeywordKind::Trust, "trust")?
-    } else {
-        input.take_contextual("trusted")?
-    };
-    let (trust, rest) = parse_trust_level(*input)?;
-    *input = rest;
-
-    Ok(CapabilityContract {
-        kind: CapabilityContractKind::Trusted(trust),
-        facts: HandleSpan::empty(),
-        token_count: 1,
-    })
-}
-
 fn is_operator_contract_start(input: &Input<'_, '_>) -> bool {
-    input.at_contextual("requires")
-        || input.at_contextual("ensures")
-        || input.at_keyword(KeywordKind::Trust)
-        || input.at_contextual("trusted")
+    input.at_contextual("requires") || input.at_contextual("ensures")
 }
 
 fn operator_contract_terminator(input: Input<'_, '_>) -> bool {
@@ -126,17 +105,6 @@ fn operator_contract_terminator(input: Input<'_, '_>) -> bool {
         || input.at_punctuation(PunctuationKind::RightBrace)
         || is_operator_contract_start(&input)
         || input.at_contextual("operator")
+        || input.at_contextual("boundary")
         || input.tokens.is_empty()
-}
-
-fn parse_trust_level<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TrustLevel> {
-    if input.at_keyword(KeywordKind::Host) {
-        let input = input.take_keyword(KeywordKind::Host, "host")?;
-        Ok((TrustLevel::Host, input))
-    } else {
-        let (name, input) = input.take_identifier()?;
-        Ok((TrustLevel::Named(name), input))
-    }
 }
