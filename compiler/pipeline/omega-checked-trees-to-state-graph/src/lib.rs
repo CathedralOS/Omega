@@ -12,6 +12,7 @@ mod facts;
 mod machine_metadata;
 mod remap;
 mod segments;
+mod states;
 mod transitions;
 
 pub fn build_state_graph(program: &CheckedTrees) -> Result<StateGraph, Diagnostic> {
