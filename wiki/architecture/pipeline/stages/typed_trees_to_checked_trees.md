@@ -56,8 +56,10 @@ Current ownership is:
   collection, `borrow/accesses/read.rs` owns recursive read-access traversal,
   `borrow/accesses/place.rs` owns contextual place resolution,
   `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs` owns
-  borrow call-site discovery, `borrow/tracker.rs` owns per-state loan tracker
-  state, `borrow/last_uses.rs` owns loan last-use updates, and
+  statement-level borrow call-site discovery, `borrow/calls/expression.rs` owns
+  expression-local borrow call discovery, `borrow/calls/transitions.rs` owns
+  transition-target borrow call discovery, `borrow/tracker.rs` owns per-state
+  loan tracker state, `borrow/last_uses.rs` owns loan last-use updates, and
   `borrow/last_uses/usage.rs` owns statement/expression usage traversal for
   last-use detection.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
