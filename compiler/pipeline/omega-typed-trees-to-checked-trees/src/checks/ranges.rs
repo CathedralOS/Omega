@@ -7,6 +7,7 @@ mod indexes;
 mod proofs;
 mod requirements;
 mod state_arguments;
+mod types;
 
 use arrays::{fixed_array_field_lengths, fixed_array_type_length};
 use expressions::{expression_indexable_length, expression_integer_value, expression_name};
