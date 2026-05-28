@@ -45,6 +45,20 @@ Must not own:
 - Final proof discharge, liveness, borrow overlap, move/drop scheduling,
   graph/control-flow shape, ABI layout, or target storage.
 
+## Implementation Map
+
+The implementation should make typed semantic surfaces visible by file:
+
+- `expression.rs` lowers resolved expression nodes into typed expression nodes.
+- `expression/domain_membership.rs` lowers executable domain membership into
+  typed boolean fact expressions.
+- `expression/name_paths.rs` lowers typed name-path members and preserves the
+  head/final symbol handles needed by later place and call checks.
+- `type_reference.rs` owns type-reference lowering and should remain the home
+  for reference, slice, constrained, generic, and fixed-array type surfaces.
+- `statement.rs`, `state.rs`, and `machine.rs` own typed call/transition/state
+  signatures, not checked-flow liveness or borrow legality.
+
 ## Known Gaps
 
 - Value identity should start becoming more explicit here so checked trees are
