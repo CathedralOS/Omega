@@ -71,8 +71,9 @@ Current ownership is:
   place should invalidate facts there, not ad hoc in proof or borrow code.
 - `flow/place/*` owns canonical place construction, comparison, and type/member
   resolution used by proof, borrow, and invalidation checks.
-- `checks/ranges.rs` is the range-check entry point. `checks/ranges/indexes.rs`
-  owns indexed/subslice validation, while `checks/ranges/facts.rs`,
+- `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`
+  owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
+  indexed/subslice validation, while `checks/ranges/facts.rs`,
   `checks/ranges/guards.rs`, `checks/ranges/proofs.rs`,
   `checks/ranges/requirements.rs`, and `checks/ranges/state_arguments.rs` own
   range fact storage, guard-derived facts, proof lookups, requires-derived
