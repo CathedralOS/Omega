@@ -62,8 +62,10 @@ Current ownership is:
   expression-local borrow call discovery, `borrow/calls/transitions.rs` owns
   transition-target borrow call discovery, `borrow/tracker.rs` owns per-state
   loan tracker state, `borrow/last_uses.rs` owns loan last-use updates, and
-  `borrow/last_uses/usage.rs` owns statement/expression usage traversal for
-  last-use detection.
+  `borrow/last_uses/usage.rs` owns statement usage routing.
+  `borrow/last_uses/usage/expressions.rs` owns expression usage traversal, and
+  `borrow/last_uses/usage/transitions.rs` owns transition guard/target usage
+  traversal for last-use detection.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow legality, `checks/borrows/statements.rs` owns local
   borrow and mutation conflicts, `checks/borrows/overlap.rs` owns place/index
