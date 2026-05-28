@@ -49,6 +49,8 @@ Must not own:
 
 The implementation should make typed semantic surfaces visible by file:
 
+- `program.rs` owns stage entry and the top-level lowering conveyor. Behavior
+  coverage belongs in `program/tests.rs`, not inline with the entrypoint.
 - `expression.rs` lowers resolved expression nodes into typed expression nodes.
 - `expression/domain_membership.rs` lowers executable domain membership into
   typed boolean fact expressions.
