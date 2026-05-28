@@ -77,6 +77,6 @@ fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding 
             number_register: 8,
             supervisor_call: 0,
         },
-        trust_policy: "omega::host::targets::linux".into(),
+        boundary_policy: "omega::host::targets::linux".into(),
     }
 }

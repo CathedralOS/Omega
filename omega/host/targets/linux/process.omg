@@ -7,7 +7,7 @@ capability LinuxProcess {
     entry exit(return_code: i32) -> Terminal where {
         requires linux_accepts_exit_code(return_code)
         ensures process_terminated
-        trust omega_linux_process_adapter
-        trust omega_linux_syscalls
+        boundary omega_linux_process_adapter
+        boundary omega_linux_syscalls
     }
 }

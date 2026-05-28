@@ -9,7 +9,7 @@ capability LinuxStdin {
         requires out_text.writable
         ensures out_text.utf8
         ensures result.Ok || result.Err
-        trust omega_linux_stdin_adapter
-        trust omega_linux_syscalls
+        boundary omega_linux_stdin_adapter
+        boundary omega_linux_syscalls
     }
 }

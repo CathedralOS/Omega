@@ -22,8 +22,8 @@ target cross_platform_cli {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::standard
+    boundary omega::host::contracts
+    boundary omega::host::standard
 }
 
 target linux_x64 {
@@ -37,8 +37,8 @@ target linux_x64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::linux
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
 }
 
 target linux_arm64 {
@@ -52,8 +52,8 @@ target linux_arm64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::linux
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
 }
 
 target macos_arm64 {
@@ -67,8 +67,8 @@ target macos_arm64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::darwin
+    boundary omega::host::contracts
+    boundary omega::host::targets::darwin
 }
 
 target windows_x64 {
@@ -82,8 +82,8 @@ target windows_x64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::windows
+    boundary omega::host::contracts
+    boundary omega::host::targets::windows
 }
 
 // A permissive development build should still be auditable.
@@ -94,6 +94,6 @@ target local_unchecked {
         process = enabled
     }
 
-    trust omega::host::contracts
-    trust unchecked invariant_proofs
+    boundary omega::host::contracts
+    boundary unchecked invariant_proofs
 }

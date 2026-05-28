@@ -4,6 +4,6 @@ capability Process {
     entry exit(return_code: i32) -> Terminal where {
         requires target_accepts_exit_code(return_code)
         ensures process_terminated
-        trust host
+        boundary host
     }
 }

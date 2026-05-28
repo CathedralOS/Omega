@@ -13,7 +13,7 @@ package dungeon_crawler_cli
 ```
 
 Packages expose public data, machines, traits, domains, wire schemas, and
-trusted boundaries.
+boundary boundaries.
 
 ## Files And Modules
 
@@ -56,7 +56,7 @@ pub machine Player::take_damage(
 ```
 
 Visibility is a source-level API boundary. It does not bypass proof,
-ownership, or trust checks.
+ownership, or boundary checks.
 
 ## Name Resolution
 
@@ -79,5 +79,5 @@ Compiler artifacts should report:
 - package graph,
 - import graph,
 - public API surface,
-- trusted boundary imports,
+- boundary imports,
 - versioned and wire declarations exported by a package.

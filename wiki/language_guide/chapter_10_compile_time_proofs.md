@@ -13,7 +13,7 @@ requires + body facts -> ensures
 
 If the checker can prove that implication, the machine is a proof artifact. If
 it cannot, the contract is only an unchecked promise and must be rejected or
-treated as an explicit trusted boundary.
+treated as an explicit boundary.
 
 ## Machines As Proofs
 
@@ -210,7 +210,7 @@ terminates {
 The important design boundary is that `terminates` is not an effect. It is a
 proof claim over control flow.
 
-## Automation And Trust
+## Automation And Boundary
 
 The checker should automatically solve common cases:
 
@@ -222,5 +222,5 @@ The checker should automatically solve common cases:
 - simple generic const facts.
 
 When automation fails, library authors can provide helper machines. When a fact
-cannot be proven from machine code, contracts, or trusted foundations, it must
-cross an explicit trust boundary.
+cannot be proven from machine code, contracts, or boundary foundations, it must
+cross an explicit boundary.

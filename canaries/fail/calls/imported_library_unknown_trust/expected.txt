@@ -1,1 +1,0 @@
-unresolved trust `missing_host_write_contract`

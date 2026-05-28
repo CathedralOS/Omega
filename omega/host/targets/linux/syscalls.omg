@@ -6,8 +6,8 @@ capability LinuxSyscalls {
         requires buffer.writable
         requires byte_count <= buffer.len
         ensures result.Ok || result.Err
-        trust linux_syscall_abi
-        trust host
+        boundary linux_syscall_abi
+        boundary host
     }
 
     entry write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
@@ -15,14 +15,14 @@ capability LinuxSyscalls {
         requires buffer.initialized
         requires byte_count <= buffer.len
         ensures result.Ok || result.Err
-        trust linux_syscall_abi
-        trust host
+        boundary linux_syscall_abi
+        boundary host
     }
 
     entry exit_group(return_code: i32) -> Terminal where {
         requires linux_accepts_exit_code(return_code)
         ensures process_terminated
-        trust linux_syscall_abi
-        trust host
+        boundary linux_syscall_abi
+        boundary host
     }
 }

@@ -45,7 +45,17 @@ fn parse_domain_body<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("operator") {
             input = input.take_contextual("operator")?;
-            let (operator, rest) = parse_operator_definition(syntax_trees, input)?;
+            let (operator, rest) = parse_operator_definition(syntax_trees, input, false)?;
+            let handle = syntax_trees.items.append_operator(operator);
+            operators.push_contiguous(handle);
+            input = rest;
+            continue;
+        }
+
+        if input.at_contextual("boundary") {
+            input = input.take_contextual("boundary")?;
+            input = input.take_contextual("operator")?;
+            let (operator, rest) = parse_operator_definition(syntax_trees, input, true)?;
             let handle = syntax_trees.items.append_operator(operator);
             operators.push_contiguous(handle);
             input = rest;
@@ -53,7 +63,9 @@ fn parse_domain_body<'tokens, 'source>(
         }
 
         let ((parsed_facts, _), rest) = parse_proof_facts_until(syntax_trees, input, |input| {
-            input.at_punctuation(PunctuationKind::RightBrace) || input.at_contextual("operator")
+            input.at_punctuation(PunctuationKind::RightBrace)
+                || input.at_contextual("operator")
+                || input.at_contextual("boundary")
         })?;
         facts = merge_contiguous_fact_spans(facts, parsed_facts);
         input = rest;

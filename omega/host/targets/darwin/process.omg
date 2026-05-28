@@ -7,7 +7,7 @@ capability DarwinProcess {
     entry exit(return_code: i32) -> Terminal where {
         requires darwin_accepts_exit_code(return_code)
         ensures process_terminated
-        trust omega_darwin_process_adapter
-        trust omega_darwin_libsystem
+        boundary omega_darwin_process_adapter
+        boundary omega_darwin_libsystem
     }
 }

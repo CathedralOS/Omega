@@ -8,64 +8,28 @@
 // internals; the visible contracts belong here so slices derived from Vec can
 // participate in borrow checking and proof obligations.
 
-trust compiler_vec_length {
-}
+boundary operator Vec::Length<T>(items: &Vec<T>) -> usize;
 
-trust compiler_vec_capacity {
-}
+boundary operator Vec::Capacity<T>(items: &Vec<T>) -> usize;
 
-trust compiler_vec_index {
-}
+boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>;
 
-trust compiler_vec_index_mut {
-}
-
-trust compiler_vec_as_slice {
-}
-
-trust compiler_vec_as_mut_slice {
-}
-
-trust compiler_vec_push {
-}
-
-trust compiler_vec_pop {
-}
-
-trust compiler_vec_allocate {
-}
-
-operator Vec::Length<T>(items: &Vec<T>) -> usize
-trust compiler_vec_length;
-
-operator Vec::Capacity<T>(items: &Vec<T>) -> usize
-trust compiler_vec_capacity;
-
-operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
-trust compiler_vec_allocate;
-
-operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+boundary operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
 requires
-    index < items.len
-trust compiler_vec_index;
+    index < items.len;
 
-operator Vec::index_mut<T>(items: &mut Vec<T>, index: usize) -> &mut T
+boundary operator Vec::index_mut<T>(items: &mut Vec<T>, index: usize) -> &mut T
 requires
-    index < items.len
-trust compiler_vec_index_mut;
+    index < items.len;
 
-operator Vec::as_slice<T>(items: &Vec<T>) -> &[T]
-trust compiler_vec_as_slice;
+boundary operator Vec::as_slice<T>(items: &Vec<T>) -> &[T];
 
-operator Vec::as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T]
-trust compiler_vec_as_mut_slice;
+boundary operator Vec::as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T];
 
-operator Vec::push<T>(items: &mut Vec<T>, value: T) -> ()
+boundary operator Vec::push<T>(items: &mut Vec<T>, value: T) -> ()
 requires
-    items.len < items.capacity
-trust compiler_vec_push;
+    items.len < items.capacity;
 
-operator Vec::pop<T>(items: &mut Vec<T>) -> Option<T>
+boundary operator Vec::pop<T>(items: &mut Vec<T>) -> Option<T>
 requires
-    items.len > 0
-trust compiler_vec_pop;
+    items.len > 0;

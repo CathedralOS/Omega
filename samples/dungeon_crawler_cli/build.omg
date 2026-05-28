@@ -10,8 +10,8 @@ target cross_platform_cli {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::standard
+    boundary omega::host::contracts
+    boundary omega::host::standard
 }
 
 target macos_arm64 {
@@ -26,8 +26,8 @@ target macos_arm64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::darwin
+    boundary omega::host::contracts
+    boundary omega::host::targets::darwin
 }
 
 target linux_x64 {
@@ -42,8 +42,8 @@ target linux_x64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::linux
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
 }
 
 target linux_arm64 {
@@ -58,8 +58,8 @@ target linux_arm64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::linux
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
 }
 
 target windows_x64 {
@@ -74,6 +74,6 @@ target windows_x64 {
         random = disabled
     }
 
-    trust omega::host::contracts
-    trust omega::host::targets::windows
+    boundary omega::host::contracts
+    boundary omega::host::targets::windows
 }

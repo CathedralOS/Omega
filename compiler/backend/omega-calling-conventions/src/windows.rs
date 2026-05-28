@@ -63,6 +63,6 @@ fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str
             library: library.into(),
             symbol: symbol.into(),
         },
-        trust_policy: "omega::host::targets::windows".into(),
+        boundary_policy: "omega::host::targets::windows".into(),
     }
 }

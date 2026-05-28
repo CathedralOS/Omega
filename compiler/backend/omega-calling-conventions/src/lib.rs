@@ -121,7 +121,7 @@ pub struct HostAbiPlan {
 pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
-    pub trust_policy: Arc<str>,
+    pub boundary_policy: Arc<str>,
 }
 
 impl Default for HostBinding {
@@ -132,7 +132,7 @@ impl Default for HostBinding {
                 library: Arc::from(""),
                 symbol: Arc::from(""),
             },
-            trust_policy: Arc::from(""),
+            boundary_policy: Arc::from(""),
         }
     }
 }

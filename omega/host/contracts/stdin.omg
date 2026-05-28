@@ -5,6 +5,6 @@ capability Stdin {
         requires out_text.writable
         ensures out_text.utf8
         ensures result.Ok || result.Err
-        trust host
+        boundary host
     }
 }

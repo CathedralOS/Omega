@@ -119,7 +119,7 @@ let item: Item = items[index];
 
 can resolve to an indexing operator requirement on the collection/view type.
 For core types such as `Slice`, that operator still has a visible signature and
-contract, even when the implementation is bound to a trusted compiler/runtime
+contract, even when the implementation is bound to a boundary compiler/runtime
 primitive below the public core surface.
 
 Domain-sensitive operator resolution is a layer above this. A proved domain may
@@ -273,9 +273,9 @@ dyn ImageFilter:
 
 A call such as `filter.apply(image)` dispatches through that machine table.
 
-Inside a single already-built trusted binary, this is ordinary runtime
+Inside a single already-built boundary binary, this is ordinary runtime
 indirection. Across a dynamic loading or hot-swap boundary, it becomes a loader
-and trust problem.
+and boundary problem.
 
 A dynamic interface value must carry or be associated with enough metadata to
 check:
@@ -283,7 +283,7 @@ check:
 - Which machine table is passed?
 - Is the target hot-swappable?
 - What effects are allowed?
-- Can the call cross trust or host boundaries?
+- Can the call cross boundary or host boundaries?
 - Are versioned machine surfaces still compatible?
 - What ABI version is used?
 - Which concrete capabilities were granted?
@@ -300,7 +300,7 @@ Working rule:
 - `dyn Trait` is reserved for explicit runtime interface boundaries.
 - Dynamic-loaded `dyn` values must pass loader, ABI, effect, capability, and
   version checks.
-- Untrusted dynamic code should be isolated or capability-limited.
+- Unverified dynamic code should be isolated or capability-limited.
 
 ## Satisfaction
 
@@ -581,5 +581,5 @@ reusable contract, that group can be a trait.
 - What is the exact runtime representation of `dyn Trait`: fat pointer,
   component handle, dispatch table, endpoint, trampoline, or target-specific
   lowering?
-- Which `dyn` calls are legal inside fully trusted code, and which require
+- Which `dyn` calls are legal inside fully boundary code, and which require
   loader/capability mediation?

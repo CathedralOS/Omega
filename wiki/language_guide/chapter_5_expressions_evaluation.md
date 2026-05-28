@@ -63,7 +63,7 @@ operation for the operand meaning in scope.
 This model also applies to privileged syntax. `items[index]` should be
 understood as an indexing operator, not as raw pointer syntax. `items[1..]`
 should be understood as a range-slice operator. Those operators should have a
-semantic home that users and tools can inspect, while their trusted primitive
+semantic home that users and tools can inspect, while their boundary primitive
 implementation is bound through the compiler/runtime layer.
 
 This chapter only defines ordinary evaluation. Domain-sensitive operator
@@ -100,7 +100,7 @@ view type name, backed by the core `StrView` semantic surface.
 The implementation can still use privileged internal carriers. A slice view is
 likely lowered as a descriptor such as pointer plus length. A vector is likely
 lowered as an owned buffer with pointer, length, and capacity. Those carriers
-belong near the trusted/primitive layer, while the public proof and operator
+belong near the boundary/primitive layer, while the public proof and operator
 surface belongs to core concepts such as `Slice`.
 
 This means names such as `Slice::Length` should be browsable and documented as
@@ -143,64 +143,54 @@ The important point is that indexing is not magical pointer syntax. It is a
 normal operation guarded by proof of a valid range. For built-in core
 collections, the operator contract and named measures should be visible as part
 of the core language surface; the low-level pointer/descriptor work belongs to a
-trusted primitive implementation layer below that surface.
+boundary primitive implementation layer below that surface.
 
-The visible core declaration should therefore look like a normal contract plus a
-named trust root:
+The visible core declaration should therefore look like a normal contract on a
+`boundary operator`:
 
 ```omega
-operator Array::index<T>(items: &Array<T>, index: usize) -> T
+boundary operator Array::index<T>(items: &Array<T>, index: usize) -> T
 requires
-    index < items.len
-trust compiler_array_index;
+    index < items.len;
 
-operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+boundary operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
 requires
-    index < items.len
-trust compiler_vec_index;
+    index < items.len;
 
-operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+boundary operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
 requires
-    index < items.len
-trust compiler_slice_index_mut;
+    index < items.len;
 
-operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
+boundary operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
 requires
-    start <= end && end <= items.len
-trust compiler_slice_range_mut;
+    start <= end && end <= items.len;
 
-operator Slice::from<T>(items: &[T], start: usize) -> &[T]
+boundary operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
-    start <= items.len
-trust compiler_slice_from;
+    start <= items.len;
 
-operator StrView::byte(text: &str, index: usize) -> u8
+boundary operator StrView::byte(text: &str, index: usize) -> u8
 requires
-    index < text.len
-trust compiler_str_view_byte;
+    index < text.len;
 
-operator StrView::range(text: &str, start: usize, end: usize) -> &str
+boundary operator StrView::range(text: &str, start: usize, end: usize) -> &str
 requires
-    start <= end && end <= text.len
-trust compiler_str_view_range;
+    start <= end && end <= text.len;
 
-operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
-trust compiler_vec_allocate;
+boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>;
 
-operator String::with_capacity(capacity: usize) -> String
-trust compiler_string_allocate;
+boundary operator String::with_capacity(capacity: usize) -> String;
 
-operator String::push_str(text: &mut String, value: &str) -> ()
+boundary operator String::push_str(text: &mut String, value: &str) -> ()
 requires
-    text.len + value.len <= text.capacity
-trust compiler_string_push_str;
+    text.len + value.len <= text.capacity;
 ```
 
-The proof checker owns `start <= items.len`. The trusted primitive owns the
+The proof checker owns `start <= items.len`. The boundary primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
 For allocation-facing contracts such as `Vec::with_capacity` and
 `String::with_capacity`, the public core
-declaration owns the source meaning while the trusted primitive owns allocator
+declaration owns the source meaning while the boundary primitive owns allocator
 and buffer initialization details.
 Mutating growth operations such as `String::push_str` have both a capacity proof
 obligation and a borrow-checking obligation: the string must be uniquely

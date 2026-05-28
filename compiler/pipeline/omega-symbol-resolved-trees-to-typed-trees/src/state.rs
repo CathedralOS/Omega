@@ -93,8 +93,8 @@ pub(crate) fn lower_state_signature(
                     resolved::signature::SignatureContractKind::Ensures => {
                         typed::signature::SignatureContractKind::Ensures
                     }
-                    resolved::signature::SignatureContractKind::Trusted => {
-                        typed::signature::SignatureContractKind::Trusted
+                    resolved::signature::SignatureContractKind::Boundary => {
+                        typed::signature::SignatureContractKind::Boundary
                     }
                 },
                 facts,

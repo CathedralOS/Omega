@@ -10,22 +10,22 @@ The compiler writes phase artifacts and executable output to local `build/`.
 That directory is ignored by this sample on purpose so the project can be copied
 without bringing stale compiler output with it.
 
-## Trusted Root Sketch
+## Boundary Root Sketch
 
-`build.omg` references compiler-provided `omega::host` packages from each `target` item. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.
+`build.omg` references compiler-provided `omega::host` packages from each `target` item. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a boundary report so we can design the boundary in Omega source instead of inventing a sidecar config format.
 
-For cross-platform hello world, the trusted computing base is tiny:
+For cross-platform hello world, the boundary base is tiny:
 
 - `Stdout.write_line`: host claims it can write initialized UTF-8 text to process stdout and report `IOError`.
 - `Process.exit`: host claims it can terminate the process with a target-specific observable exit code.
 
-Omega should prove the literal is initialized/UTF-8 and that errors are handled once `Result` exists. Omega should trust the OS wrapper contract only because `build.omg` explicitly accepts `host_contracts`.
+Omega should prove the literal is initialized/UTF-8 and that errors are handled once `Result` exists. Omega should accept the OS wrapper contract only because `build.omg` explicitly names the host boundary.
 
 ## Standard Library vs Host Bindings
 
 The standard library should be ordinary Omega code wherever possible: strings, slices, math, collections, parsing helpers, portable console helpers, and so on.
 
-The host bindings are different. Files under the toolchain-provided `omega::host` package sketch the trusted root that adapts those portable capabilities to a target ABI. Each platform target is folder-backed and split by domain, for example `omega::host::targets::windows` loads `targets/windows/mod.omg`, then pulls in `kernel32`, `stdout`, `process`, and local platform types.
+The host bindings are different. Files under the toolchain-provided `omega::host` package sketch the boundary provider that adapts those portable capabilities to a target ABI. Each platform target is folder-backed and split by domain, for example `omega::host::targets::windows` loads `targets/windows/mod.omg`, then pulls in `kernel32`, `stdout`, `process`, and local platform types.
 
 - Windows uses documented Win32 imports like `Kernel32.dll!WriteFile` and `ExitProcess`.
 - Linux can plausibly use raw syscalls for `write` and `exit_group`.

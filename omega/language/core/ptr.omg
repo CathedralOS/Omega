@@ -4,30 +4,14 @@
 // low-level compiler/runtime boundary that safe core views such as `Slice`,
 // `Array`, `Vec`, and future text views lower through after proof checking.
 //
-// Public core types should expose contracts over views and owners. The trust
-// roots below are the implementation authorities for the unsafe representation
-// work beneath those contracts.
+// Public core types should expose contracts over views and owners. Boundary
+// operators are the implementation edges for the unsafe representation work
+// beneath those contracts.
 
-trust compiler_ptr_offset {
-}
+boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: usize) -> Ptr<T>;
 
-trust compiler_ptr_read {
-}
+boundary operator Ptr::read<T>(ptr: Ptr<T>) -> T;
 
-trust compiler_ptr_write {
-}
+boundary operator Ptr::write<T>(ptr: Ptr<T>, value: T) -> ();
 
-trust compiler_ptr_range {
-}
-
-operator Ptr::offset<T>(ptr: Ptr<T>, count: usize) -> Ptr<T>
-trust compiler_ptr_offset;
-
-operator Ptr::read<T>(ptr: Ptr<T>) -> T
-trust compiler_ptr_read;
-
-operator Ptr::write<T>(ptr: Ptr<T>, value: T) -> ()
-trust compiler_ptr_write;
-
-operator Ptr::range<T>(ptr: Ptr<T>, len: usize) -> PtrRange<T>
-trust compiler_ptr_range;
+boundary operator Ptr::range<T>(ptr: Ptr<T>, len: usize) -> PtrRange<T>;

@@ -10,7 +10,6 @@ use crate::parser::operator::parse_operator_definition;
 use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
-use crate::parser::trust::parse_trust_definition;
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::Item;
@@ -62,12 +61,6 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Target(item), rest));
     }
 
-    if input.at_keyword(KeywordKind::Trust) {
-        let input = input.take_keyword(KeywordKind::Trust, "trust")?;
-        let (item, rest) = parse_trust_definition(input)?;
-        return Ok((Item::TrustDefinition(item), rest));
-    }
-
     if input.at_keyword(KeywordKind::Capability) {
         let input = input.take_keyword(KeywordKind::Capability, "capability")?;
         let (item, rest) = parse_capability_definition(syntax_trees, input)?;
@@ -88,7 +81,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_contextual("operator") {
         let input = input.take_contextual("operator")?;
-        let (item, rest) = parse_operator_definition(syntax_trees, input)?;
+        let (item, rest) = parse_operator_definition(syntax_trees, input, false)?;
         return Ok((Item::Operator(item), rest));
     }
 
@@ -105,6 +98,11 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_contextual("boundary") {
         let input = input.take_contextual("boundary")?;
+        if input.at_contextual("operator") {
+            let input = input.take_contextual("operator")?;
+            let (item, rest) = parse_operator_definition(syntax_trees, input, true)?;
+            return Ok((Item::Operator(item), rest));
+        }
         let (item, rest) = parse_trait_definition(syntax_trees, input, true)?;
         return Ok((Item::Trait(item), rest));
     }
@@ -117,13 +115,13 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`enum`",
         "`machine`",
         "`target`",
-        "`trust`",
         "`capability`",
         "`invariant`",
         "`library`",
         "`operator`",
         "`platform`",
         "`trait`",
+        "`boundary operator`",
         "`boundary trait`",
     ]))
 }

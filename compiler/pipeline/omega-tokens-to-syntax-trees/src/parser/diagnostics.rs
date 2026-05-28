@@ -96,7 +96,6 @@ fn render_keyword(keyword: KeywordKind) -> &'static str {
         KeywordKind::Target => "target",
         KeywordKind::Transition => "transition",
         KeywordKind::True => "true",
-        KeywordKind::Trust => "trust",
         KeywordKind::Use => "use",
         KeywordKind::When => "when",
         KeywordKind::While => "while",

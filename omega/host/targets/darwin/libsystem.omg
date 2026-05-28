@@ -6,8 +6,8 @@ capability DarwinLibSystem {
         requires buffer.writable
         requires byte_count <= buffer.len
         ensures result.Ok || result.Err
-        trust darwin_libsystem_abi
-        trust host
+        boundary darwin_libsystem_abi
+        boundary host
     }
 
     entry write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno> where {
@@ -15,14 +15,14 @@ capability DarwinLibSystem {
         requires buffer.initialized
         requires byte_count <= buffer.len
         ensures result.Ok || result.Err
-        trust darwin_libsystem_abi
-        trust host
+        boundary darwin_libsystem_abi
+        boundary host
     }
 
     entry exit(return_code: i32) -> Terminal where {
         requires darwin_accepts_exit_code(return_code)
         ensures process_terminated
-        trust darwin_libsystem_abi
-        trust host
+        boundary darwin_libsystem_abi
+        boundary host
     }
 }

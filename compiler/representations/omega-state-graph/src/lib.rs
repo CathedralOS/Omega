@@ -245,7 +245,7 @@ pub enum StateContractFactKind {
     #[default]
     Requires,
     Ensures,
-    Trusted,
+    Boundary,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

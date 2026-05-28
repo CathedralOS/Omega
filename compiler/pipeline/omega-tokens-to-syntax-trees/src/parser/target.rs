@@ -3,7 +3,8 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TrustMode, TrustPolicy,
+    BoundaryMode, BoundaryPolicy, TargetDefinition, TargetHost, TargetHostSetting,
+    TargetHostSettingValue,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -14,8 +15,8 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
     let (name, mut input) = input.take_identifier()?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut host = None;
-    let mut trust_policy_start = Handle::invalid();
-    let mut trust_policy_count = 0u32;
+    let mut boundary_policy_start = Handle::invalid();
+    let mut boundary_policy_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_keyword(KeywordKind::Host) {
@@ -23,16 +24,16 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
             let (value, rest) = parse_target_host(syntax_trees, input)?;
             host = Some(value);
             input = rest;
-        } else if input.at_keyword(KeywordKind::Trust) {
-            input = input.take_keyword(KeywordKind::Trust, "trust")?;
-            let (value, rest) = parse_trust_policy(syntax_trees, input)?;
-            let handle = syntax_trees.items.append_trust_policy(value);
-            if trust_policy_count == 0 {
-                trust_policy_start = handle;
+        } else if input.at_contextual("boundary") {
+            input = input.take_contextual("boundary")?;
+            let (value, rest) = parse_boundary_policy(syntax_trees, input)?;
+            let handle = syntax_trees.items.append_boundary_policy(value);
+            if boundary_policy_count == 0 {
+                boundary_policy_start = handle;
             }
-            trust_policy_count = trust_policy_count
+            boundary_policy_count = boundary_policy_count
                 .checked_add(1)
-                .expect("target trust policy span count overflow");
+                .expect("target boundary policy span count overflow");
             input = rest;
         } else {
             return Err(input.error_here("expected target item"));
@@ -40,16 +41,16 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let trust_policies = if trust_policy_count == 0 {
+    let boundary_policies = if boundary_policy_count == 0 {
         HandleSpan::empty()
     } else {
-        HandleSpan::from_parts(trust_policy_start, trust_policy_count)
+        HandleSpan::from_parts(boundary_policy_start, boundary_policy_count)
     };
     Ok((
         TargetDefinition {
             name,
             host,
-            trust_policies,
+            boundary_policies,
         },
         input,
     ))
@@ -106,14 +107,14 @@ fn parse_target_host<'tokens, 'source>(
     Ok((TargetHost { provider, settings }, input))
 }
 
-fn parse_trust_policy<'tokens, 'source>(
+fn parse_boundary_policy<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TrustPolicy> {
+) -> ParseResult<'tokens, 'source, BoundaryPolicy> {
     let (mode, input) = if input.at_contextual("unchecked") {
-        (TrustMode::Unchecked, input.take_contextual("unchecked")?)
+        (BoundaryMode::Unchecked, input.take_contextual("unchecked")?)
     } else {
-        (TrustMode::Checked, input)
+        (BoundaryMode::Checked, input)
     };
 
     let (path, input) = if input.at_keyword(KeywordKind::Host) {
@@ -130,5 +131,5 @@ fn parse_trust_policy<'tokens, 'source>(
         })?
     };
 
-    Ok((TrustPolicy { mode, path }, input))
+    Ok((BoundaryPolicy { mode, path }, input))
 }

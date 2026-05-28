@@ -239,7 +239,7 @@ wire data CounterMessage:
     field 3 retired in v2
 ```
 
-This fits Omega's broader design direction: facts, obligations, and trust should
+This fits Omega's broader design direction: facts, obligations, and boundary should
 be visible in build artifacts instead of hiding inside implementation details.
 
 ## Working Rules

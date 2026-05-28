@@ -68,5 +68,5 @@ pub enum SignatureContractKind {
     #[default]
     Requires,
     Ensures,
-    Trusted,
+    Boundary,
 }

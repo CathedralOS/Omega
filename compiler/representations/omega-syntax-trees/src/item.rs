@@ -18,7 +18,6 @@ pub enum Item {
     Library(LibraryDefinition),
     Operator(OperatorDefinition),
     Export(ExportItem),
-    TrustDefinition(TrustDefinition),
     Use(UseItem),
     Machine(Machine),
     Platform(Platform),
@@ -67,12 +66,6 @@ pub struct InvariantDefinition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TrustDefinition {
-    pub name: Identifier,
-    pub token_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LibraryDefinition {
     pub name: Option<Identifier>,
     pub path: String,
@@ -85,7 +78,7 @@ pub struct LibraryFunction {
     pub signature: StateSignature,
     pub symbol: Option<String>,
     pub calling_convention: Option<Identifier>,
-    pub trusts: HandleSpan<TrustLevel>,
+    pub boundaries: HandleSpan<BoundaryLevel>,
 }
 
 impl Default for LibraryFunction {
@@ -100,13 +93,14 @@ impl Default for LibraryFunction {
             },
             symbol: None,
             calling_convention: None,
-            trusts: HandleSpan::empty(),
+            boundaries: HandleSpan::empty(),
         }
     }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
+    pub is_boundary: bool,
     pub name: HandleSpan<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<StateParameterHandle>,
@@ -166,7 +160,7 @@ impl Default for CapabilityContract {
 pub enum CapabilityContractKind {
     Ensures,
     Requires,
-    Trusted(TrustLevel),
+    Boundary(BoundaryLevel),
 }
 
 impl Default for CapabilityContractKind {
@@ -176,12 +170,12 @@ impl Default for CapabilityContractKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TrustLevel {
+pub enum BoundaryLevel {
     Host,
     Named(Identifier),
 }
 
-impl Default for TrustLevel {
+impl Default for BoundaryLevel {
     fn default() -> Self {
         Self::Named(Identifier::default())
     }
@@ -191,7 +185,7 @@ impl Default for TrustLevel {
 pub struct TargetDefinition {
     pub name: Identifier,
     pub host: Option<TargetHost>,
-    pub trust_policies: HandleSpan<TrustPolicy>,
+    pub boundary_policies: HandleSpan<BoundaryPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -216,13 +210,13 @@ pub enum TargetHostSettingValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TrustPolicy {
-    pub mode: TrustMode,
+pub struct BoundaryPolicy {
+    pub mode: BoundaryMode,
     pub path: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TrustMode {
+pub enum BoundaryMode {
     Checked,
     Unchecked,
 }
@@ -242,16 +236,16 @@ impl Default for TargetHostSettingValue {
     }
 }
 
-impl Default for TrustPolicy {
+impl Default for BoundaryPolicy {
     fn default() -> Self {
         Self {
-            mode: TrustMode::default(),
+            mode: BoundaryMode::default(),
             path: HandleSpan::empty(),
         }
     }
 }
 
-impl Default for TrustMode {
+impl Default for BoundaryMode {
     fn default() -> Self {
         Self::Checked
     }
@@ -410,7 +404,7 @@ struct StateStorage {
 struct DeclarationStorage {
     identifier_path_members: Arena<Identifier>,
     type_parameters: Arena<TypeParameter>,
-    trust_levels: Arena<TrustLevel>,
+    boundary_levels: Arena<BoundaryLevel>,
     library_functions: Arena<LibraryFunction>,
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
@@ -418,7 +412,7 @@ struct DeclarationStorage {
     operators: Arena<OperatorDefinition>,
     proof_facts: Arena<ProofFact>,
     target_host_settings: Arena<TargetHostSetting>,
-    trust_policies: Arena<TrustPolicy>,
+    boundary_policies: Arena<BoundaryPolicy>,
 }
 
 impl ItemTable {
@@ -474,8 +468,8 @@ impl ItemTable {
             .span_or_empty(span)
     }
 
-    pub fn trust_levels(&self, span: HandleSpan<TrustLevel>) -> &[TrustLevel] {
-        self.declaration_storage.trust_levels.span_or_empty(span)
+    pub fn boundary_levels(&self, span: HandleSpan<BoundaryLevel>) -> &[BoundaryLevel] {
+        self.declaration_storage.boundary_levels.span_or_empty(span)
     }
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
@@ -514,8 +508,10 @@ impl ItemTable {
             .span_or_empty(span)
     }
 
-    pub fn trust_policies(&self, span: HandleSpan<TrustPolicy>) -> &[TrustPolicy] {
-        self.declaration_storage.trust_policies.span_or_empty(span)
+    pub fn boundary_policies(&self, span: HandleSpan<BoundaryPolicy>) -> &[BoundaryPolicy] {
+        self.declaration_storage
+            .boundary_policies
+            .span_or_empty(span)
     }
 
     pub fn state_parameters(
@@ -594,8 +590,8 @@ impl ItemTable {
             .append(member)
     }
 
-    pub fn append_trust_policy(&mut self, policy: TrustPolicy) -> Handle<TrustPolicy> {
-        self.declaration_storage.trust_policies.append(policy)
+    pub fn append_boundary_policy(&mut self, policy: BoundaryPolicy) -> Handle<BoundaryPolicy> {
+        self.declaration_storage.boundary_policies.append(policy)
     }
 
     pub fn append_type_parameter(
@@ -607,8 +603,13 @@ impl ItemTable {
             .append(type_parameter)
     }
 
-    pub fn append_trust_level(&mut self, trust_level: TrustLevel) -> Handle<TrustLevel> {
-        self.declaration_storage.trust_levels.append(trust_level)
+    pub fn append_boundary_level(
+        &mut self,
+        boundary_level: BoundaryLevel,
+    ) -> Handle<BoundaryLevel> {
+        self.declaration_storage
+            .boundary_levels
+            .append(boundary_level)
     }
 
     pub fn append_library_function(
@@ -737,7 +738,7 @@ impl DeclarationStorage {
         Self {
             identifier_path_members: Arena::new(),
             type_parameters: Arena::new(),
-            trust_levels: Arena::new(),
+            boundary_levels: Arena::new(),
             library_functions: Arena::new(),
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
@@ -745,7 +746,7 @@ impl DeclarationStorage {
             operators: Arena::new(),
             proof_facts: Arena::new(),
             target_host_settings: Arena::new(),
-            trust_policies: Arena::new(),
+            boundary_policies: Arena::new(),
         }
     }
 }

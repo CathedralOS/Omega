@@ -73,12 +73,12 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
     match &binding.mechanism {
         HostBindingMechanism::Import { library, symbol } => {
             output.push_str(&format!(
-                "- {}.{} import {}!{} trust `{}`\n",
+                "- {}.{} import {}!{} boundary `{}`\n",
                 binding.operation_key.capability_name(),
                 binding.operation_key.operation_name(),
                 library,
                 symbol,
-                binding.trust_policy
+                binding.boundary_policy
             ));
         }
         HostBindingMechanism::Syscall {
@@ -88,14 +88,14 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             supervisor_call,
         } => {
             output.push_str(&format!(
-                "- {}.{} syscall {}({}) register x{} svc #{} trust `{}`\n",
+                "- {}.{} syscall {}({}) register x{} svc #{} boundary `{}`\n",
                 binding.operation_key.capability_name(),
                 binding.operation_key.operation_name(),
                 name,
                 number,
                 number_register,
                 supervisor_call,
-                binding.trust_policy
+                binding.boundary_policy
             ));
         }
     }

@@ -4,9 +4,9 @@ capability WindowsKernel32 {
     entry get_std_handle(kind: u32) -> WinHandle where {
         requires kind == std_input_handle || kind == std_output_handle
         ensures result.valid || result.invalid
-        trust windows_loader
-        trust win32_contracts
-        trust windows_x64_calling_convention
+        boundary windows_loader
+        boundary win32_contracts
+        boundary windows_x64_calling_convention
     }
 
     entry write_file(
@@ -19,9 +19,9 @@ capability WindowsKernel32 {
         requires buffer.initialized
         requires bytes_to_write <= buffer.len
         ensures result.true || result.false
-        trust windows_loader
-        trust win32_contracts
-        trust windows_x64_calling_convention
+        boundary windows_loader
+        boundary win32_contracts
+        boundary windows_x64_calling_convention
     }
 
     entry read_file(
@@ -34,16 +34,16 @@ capability WindowsKernel32 {
         requires buffer.writable
         requires bytes_to_read <= buffer.len
         ensures result.true || result.false
-        trust windows_loader
-        trust win32_contracts
-        trust windows_x64_calling_convention
+        boundary windows_loader
+        boundary win32_contracts
+        boundary windows_x64_calling_convention
     }
 
     entry exit_process(return_code: u32) -> Terminal where {
         requires windows_accepts_exit_code(return_code)
         ensures process_terminated
-        trust windows_loader
-        trust win32_contracts
-        trust windows_x64_calling_convention
+        boundary windows_loader
+        boundary win32_contracts
+        boundary windows_x64_calling_convention
     }
 }

@@ -7,7 +7,7 @@ Omega may eventually allow assembly inside states, but assembly must participate
 - Parsed assembly instructions have contracts.
 - The compiler checks those contracts.
 - If the contracts cannot be satisfied, the program fails to compile.
-- Trust is explicit when the compiler cannot prove an assembly contract from Omega facts.
+- Boundary is explicit when the compiler cannot prove an assembly contract from Omega facts.
 
 This keeps inline assembly useful for low-level work without letting it become a hole in the language.
 
@@ -96,7 +96,7 @@ Examples:
 - A memory load emits initialization, bounds, alignment, provenance, and aliasing obligations.
 - A memory store emits mutability, ownership, bounds, alignment, and invariant-preservation obligations.
 - A SIMD load may require source data alignment, element count, initialized bytes, non-overlap, and target feature availability.
-- A special CPU instruction may require target feature flags or host trust contracts.
+- A special CPU instruction may require target feature flags or host boundary contracts.
 - A register clobber requires the compiler to know which values are destroyed.
 
 For example, a SIMD block might require facts like:
@@ -114,13 +114,13 @@ The exact syntax is not settled. The important rule is that assembly does not ge
 
 This is not fundamentally different from normal Omega code. Values carry facts; operations have contracts; contracts create obligations. Assembly is special only because it lives closer to the machine, so the contracts are lower-level and often more numerous.
 
-## Trust Levels
+## Boundary Levels
 
-Inline assembly can produce facts at the same three trust levels used elsewhere:
+Inline assembly can produce facts at the same three boundary levels used elsewhere:
 
 - Proven: Omega proves the assembly contract from surrounding code and target rules.
 - Checked: Omega inserts or requires a runtime check before continuing.
-- Trusted: A human or host/runtime contract asserts the fact.
+- Boundary: A human or host/runtime contract asserts the fact.
 
 Unchecked assembly should be loud in build artifacts.
 
@@ -129,10 +129,10 @@ Example artifact shape:
 ```text
 unchecked assembly obligations:
   physics.omg:42 requires src.aligned<16>
-  crypto.omg:91 trusts target_feature<aes>
+  crypto.omg:91 boundaries target_feature<aes>
 ```
 
-This matches the broader trust model: "trust me" is allowed only when it is explicit, scoped, and auditable.
+This matches the broader boundary model: "boundary me" is allowed only when it is explicit, scoped, and auditable.
 
 ## Syntax Direction
 
@@ -180,7 +180,7 @@ The `where` spelling is provisional. It lines up with the idea that assembly blo
 - Hidden exits, hidden loops, and undeclared clobbers are invalid.
 - Assembly memory effects must be described in terms Omega can reason about.
 - Target-specific instructions may require target-feature contracts.
-- Assembly should be unavailable in safe/proven builds unless all obligations are discharged or explicitly trusted.
+- Assembly should be unavailable in safe/proven builds unless all obligations are discharged or explicitly boundary.
 - The compiler should prefer parsed, restricted, contract-emitting assembly over arbitrary textual assembly.
 - Manual contracts are for unknown instructions, target-specific primitive operations, or proof gaps, not a replacement for compiler-known instruction contracts.
 

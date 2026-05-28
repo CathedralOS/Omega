@@ -101,7 +101,7 @@ Examples:
   is part of the contract.
 
 The declaration can live in a standard type, platform entry, syscall surface, or
-trusted host package. The important rule is that blocking must not be invisible.
+boundary host package. The important rule is that blocking must not be invisible.
 
 ## TLA-Style Model
 
@@ -122,7 +122,7 @@ Then it can check properties such as:
 - A blocking receive has a reachable sender, close, timeout, or external-event
   assumption.
 - A barrier can reach its required arrival count.
-- A host wait is either modeled, trusted, or rejected in the selected proof
+- A host wait is either modeled, boundary, or rejected in the selected proof
   mode.
 
 This is not arbitrary-threaded-code magic. The language makes enough structure
@@ -160,7 +160,7 @@ Different builds may ask for different concurrency guarantees.
 
 - Memory-safe concurrency: ownership, move/copy, and borrow rules hold.
 - Internal-deadlock-free: no cycle among known internal waitable resources.
-- Blocking-audited: every waitable host boundary is modeled, trusted, or
+- Blocking-audited: every waitable host boundary is modeled, boundary, or
   reported.
 - Progress-proven: external waits require fairness, timeout, cancellation, or
   explicit environment assumptions.
@@ -168,13 +168,13 @@ Different builds may ask for different concurrency guarantees.
 Servers, kernels, drivers, CLIs, and embedded firmware do not all want the same
 definition of "may block." The proof mode should be explicit in build artifacts.
 
-## Connection To Trust Boundaries
+## Connection To Boundaries
 
 Host and OS waits are part of the same contract system as other imported
 entries.
 
 If a platform entry can block, its contract must say what unblocks it or mark
-the wait as trusted/opaque. A proved-concurrency build may reject opaque waits.
+the wait as boundary/opaque. A proved-concurrency build may reject opaque waits.
 
 This keeps the language honest: the checker can prove the parts it can see, and
-the build report names the trust roots for the parts it cannot.
+the build report names the boundary providers for the parts it cannot.

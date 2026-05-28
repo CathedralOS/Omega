@@ -1,16 +1,12 @@
 library TestHost = "TestHost.dylib" calling_convention c {
     entry host_write(fd: i32, count: usize) -> i32
         symbol "_host_write"
-        trust omega_test_host_write
+        boundary omega_test_host_write
 }
 
 library "AnonymousHost.dylib" calling_convention c {
     entry host_tick() -> i32
-        trust host
-}
-
-trust omega_test_host_write {
-    owner test
+        boundary host
 }
 
 data Main {

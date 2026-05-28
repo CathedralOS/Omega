@@ -221,7 +221,6 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             Item::Target(target) => {
                 insert_declaration(&mut report, &target.name, TypeDeclarationKind::Target);
             }
-            Item::TrustDefinition(_) => {}
         }
     }
 
@@ -505,6 +504,7 @@ mod tests {
             .items
             .append_state_parameter_handle(index_parameter);
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            is_boundary: false,
             name,
             type_parameters: HandleSpan::from_parts(type_parameter, 1),
             parameters: HandleSpan::from_parts(items_parameter, 2),
@@ -550,6 +550,7 @@ mod tests {
             });
         let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
         let operator = syntax_trees.items.append_operator(OperatorDefinition {
+            is_boundary: false,
             name: operator_name,
             type_parameters: HandleSpan::empty(),
             parameters: HandleSpan::from_parts(parameter, 1),

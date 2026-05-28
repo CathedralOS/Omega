@@ -955,7 +955,7 @@ fn contract_kind_label(kind: omega_typed_trees::signature::SignatureContractKind
     match kind {
         omega_typed_trees::signature::SignatureContractKind::Requires => "requires",
         omega_typed_trees::signature::SignatureContractKind::Ensures => "ensures",
-        omega_typed_trees::signature::SignatureContractKind::Trusted => "trusted",
+        omega_typed_trees::signature::SignatureContractKind::Boundary => "boundary",
     }
 }
 

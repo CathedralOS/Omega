@@ -81,8 +81,8 @@ fn contract_fact_kind(
         omega_typed_trees::signature::SignatureContractKind::Ensures => {
             ContractProofFactKind::Ensures
         }
-        omega_typed_trees::signature::SignatureContractKind::Trusted => {
-            ContractProofFactKind::Trusted
+        omega_typed_trees::signature::SignatureContractKind::Boundary => {
+            ContractProofFactKind::Boundary
         }
     }
 }
