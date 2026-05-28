@@ -55,8 +55,10 @@ preservation:
 
 - `builder.rs` orchestrates per-machine graph construction and worker-local graph
   merging.
-- `segments.rs` splits checked state statements into graph segments and
-  operations.
+- `segments.rs` splits checked state statements into graph segments.
+  `segments/branching.rs` owns branch-call topology detection and recursive
+  branch-flow discovery. `segments/operations.rs` owns graph operation kind
+  selection and expression-ref copying.
 - `states.rs` assembles graph state nodes from segments, including state-local
   contract, borrow, effect, operation, and transition summaries.
 - `transitions.rs` plans graph transition edges, targets, continuations, guards,
