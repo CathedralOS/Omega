@@ -59,6 +59,8 @@ The implementation should make typed semantic surfaces visible by file:
 - `expression/operators.rs` owns resolved-to-typed operator-kind mapping.
 - `type_reference.rs` owns type-reference shape lowering for reference, slice,
   constrained, generic, fixed-array, named, self, and unit type surfaces.
+  `type_reference/direct.rs` lowers inline resolved type references, while
+  `type_reference/table.rs` lowers table-backed type-reference handles.
 - `type_reference/constraints.rs` owns typed constraint lowering, including
   named constraints and range constraints whose bounds lower through typed
   expressions.
