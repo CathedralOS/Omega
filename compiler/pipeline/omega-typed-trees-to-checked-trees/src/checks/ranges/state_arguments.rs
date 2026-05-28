@@ -4,8 +4,9 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 
+use super::arrays::fixed_array_type_length;
 use super::expressions::{expression_indexable_length, expression_integer_value, expression_name};
-use super::facts::{RangeFacts, fixed_array_type_length};
+use super::facts::RangeFacts;
 use super::seed_machine_requires;
 
 #[derive(Clone, Debug, Default)]

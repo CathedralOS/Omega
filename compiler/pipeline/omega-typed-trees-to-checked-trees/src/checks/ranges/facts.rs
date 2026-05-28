@@ -1,40 +1,4 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-pub(super) fn fixed_array_field_lengths(
-    program: &omega_typed_trees::TypedTrees,
-) -> Vec<(SymbolHandle, String, usize)> {
-    let mut fields = Vec::new();
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
-                continue;
-            };
-            let Some(length) = fixed_array_type_length(program, field.type_reference) else {
-                continue;
-            };
-            fields.push((field.symbol, field.name.to_string(), length));
-        }
-    }
-    fields
-}
-
-pub(super) fn fixed_array_type_length(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<usize> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray { length, .. } => Some(*length),
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => fixed_array_type_length(program, *referee),
-        TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Unit => None,
-    }
-}
 
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
