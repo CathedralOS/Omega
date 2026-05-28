@@ -52,18 +52,25 @@ The implementation should stay split by identity task:
 
 - `symbols/symbol_table.rs` creates the symbol tree and reserves child order.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.
+- `symbols/top_level.rs` stamps declaration symbols for roots, data members,
+  machines, states, platforms, traits, operators, and inherited attached-data
+  fields.
 - `symbols/type_references.rs` stamps type-reference symbols.
 - `symbols/scoped_paths.rs` resolves machine/state-scoped name paths for places,
   calls, indexed paths, and transition targets.
 - `symbols/scope.rs` owns `MachineScope`, the local identity context shared by
   statement, expression, call, and transition resolution.
 - `symbols/domain_facts.rs` stamps domain/proof fact references.
+- `symbols/statements.rs` walks machine states and stamps statement-local calls,
+  locals, transition targets, and statement-owned expression references.
+- `symbols/expression_paths.rs` resolves expression receiver/member paths,
+  indexed receiver paths, and call receivers inside expression tables.
 - `symbols.rs` should continue shrinking toward orchestration plus the remaining
-  statement/expression/call/transition stamping seams.
+  expression walker, transition target, and call-target stamping seams.
 
 ## Known Gaps
 
-Root/operator/domain symbol handling is still too concentrated in implementation
-code. Keep splitting symbol-table construction, lookup, and reference stamping so
-later phases can rely on handles without inheriting string identity or resolver
-control flow.
+The remaining `symbols.rs` expression walker and call-target resolver still mix
+tree traversal with call lookup policy. Keep splitting symbol-table construction,
+lookup, and reference stamping so later phases can rely on handles without
+inheriting string identity or resolver control flow.
