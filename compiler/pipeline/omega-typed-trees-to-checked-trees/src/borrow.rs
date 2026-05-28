@@ -4,20 +4,14 @@ mod calls;
 mod last_uses;
 mod loans;
 mod roots;
+mod tracker;
 
 use crate::lookup::machine_state_count;
 use calls::collect_statement_borrow_calls;
 use last_uses::update_state_loan_last_uses;
 use loans::statement_borrow_loan;
 use roots::{append_state_writable_roots, estimated_borrow_root_capacity, mutable_parameter_count};
-
-#[derive(Clone)]
-struct StateLoanTracker {
-    handle: Handle<omega_checked_trees::BorrowLoanFact>,
-    owner_symbol: SymbolHandle,
-    owner_name: Identifier,
-    place: accesses::BorrowAccessPlace,
-}
+use tracker::StateLoanTracker;
 
 pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     let mut writable_roots =
