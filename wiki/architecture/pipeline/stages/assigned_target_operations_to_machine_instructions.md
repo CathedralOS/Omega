@@ -65,8 +65,11 @@ Must not own:
 - `shapes/runtime_storage/addresses.rs` owns address-to-runtime-frame write
   shapes.
 - `shapes/runtime_storage/copies.rs` owns runtime storage copy shapes.
-- `shapes/runtime_text.rs` owns runtime text selected-instruction routing and
-  read/write/append/materialize instruction shapes.
+- `shapes/runtime_text.rs` routes runtime text selected-instruction shapes.
+  `shapes/runtime_text/compare.rs`, `shapes/runtime_text/write.rs`,
+  `shapes/runtime_text/append.rs`, `shapes/runtime_text/materialize.rs`, and
+  `shapes/runtime_text/read.rs` own the compare, write, append, materialize,
+  and read families respectively.
 - `shapes/validation.rs` owns pre-shape checks that assigned runtime value homes
   are present and compatible with the selected instruction.
 
