@@ -78,6 +78,9 @@ Current ownership is:
   `checks/ranges/requirements.rs`, and `checks/ranges/state_arguments.rs` own
   range fact storage, guard-derived facts, proof lookups, requires-derived
   proof seeding, and transition argument facts.
+- `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
+  into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
+  owns expression traversal that discovers nested state calls.
 - `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
   proof/checking modules. They should consume checked facts and emit
   diagnostics, not invent new durable semantic representations.
