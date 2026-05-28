@@ -12,6 +12,7 @@ mod context;
 mod domain;
 mod mutation;
 mod place;
+mod transfers;
 
 pub(crate) use builder::build_flow_facts;
 use common::{
@@ -39,3 +40,4 @@ pub(crate) use place::{
     canonical_place_segments_may_overlap, effective_member_symbol, expression_type_symbol,
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
+use transfers::propagate_statement_transfers;
