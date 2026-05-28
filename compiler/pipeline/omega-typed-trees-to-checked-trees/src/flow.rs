@@ -15,6 +15,7 @@ mod domain;
 mod exits;
 mod mutation;
 mod place;
+mod statements;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
@@ -46,4 +47,5 @@ pub(crate) use place::{
     canonical_place_segments_may_overlap, effective_member_symbol, expression_type_symbol,
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
+use statements::append_state_statement_flow_facts;
 use transfers::propagate_statement_transfers;
