@@ -54,8 +54,11 @@ The implementation should make typed semantic surfaces visible by file:
   typed boolean fact expressions.
 - `expression/name_paths.rs` lowers typed name-path members and preserves the
   head/final symbol handles needed by later place and call checks.
-- `type_reference.rs` owns type-reference lowering and should remain the home
-  for reference, slice, constrained, generic, and fixed-array type surfaces.
+- `type_reference.rs` owns type-reference shape lowering for reference, slice,
+  constrained, generic, fixed-array, named, self, and unit type surfaces.
+- `type_reference/constraints.rs` owns typed constraint lowering, including
+  named constraints and range constraints whose bounds lower through typed
+  expressions.
 - `statement.rs`, `state.rs`, and `machine.rs` own typed call/transition/state
   signatures, not checked-flow liveness or borrow legality.
 
