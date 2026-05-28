@@ -16,7 +16,8 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 - `lexer.rs` owns token dispatch, source-span slicing, token construction, comments, whitespace, identifiers, keywords, and punctuation.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.
-- `lexer/strings.rs` owns cooked/raw string scanning, escape validation, and decoded string token text.
+- `lexer/strings.rs` owns cooked/raw string scanning and escape validation while advancing the lexer cursor.
+- `lexer/strings/decode.rs` owns decoded string token text, including cooked escapes and raw string body extraction.
 - `lex_error.rs` owns lexical diagnostics before later stages know enough to report semantic errors.
 - `lexer/tests.rs` owns stage examples and coverage; behavior tests should not grow inside the dispatch file.
 
