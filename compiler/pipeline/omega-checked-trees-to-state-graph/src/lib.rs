@@ -9,6 +9,7 @@ mod builder;
 mod capacity;
 mod contracts;
 mod facts;
+mod machine_metadata;
 mod remap;
 mod segments;
 mod transitions;
