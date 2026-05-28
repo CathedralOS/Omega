@@ -84,6 +84,12 @@ Current ownership is:
 - `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
   owns expression traversal that discovers nested state calls.
+- `checks/contracts.rs` is the contract-check entry point.
+  `checks/contracts/prover.rs` owns recursive proof orchestration,
+  `checks/contracts/direct.rs` owns direct boolean fact matching,
+  `checks/contracts/domains.rs` owns domain-membership proof fallback,
+  `checks/contracts/places.rs` owns contract-place matching, and
+  `checks/contracts/evaluator.rs` owns call-site expression evaluation.
 - `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
   proof/checking modules. They should consume checked facts and emit
   diagnostics, not invent new durable semantic representations.
