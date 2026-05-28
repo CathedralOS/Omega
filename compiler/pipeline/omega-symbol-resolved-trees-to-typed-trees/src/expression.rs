@@ -111,20 +111,13 @@ pub(super) fn lower_expression_handle_from_table_with_self_substitution(
             )))
         }
         resolved::expression::ExpressionNode::Call(call) => {
-            let receiver = call
-                .receiver
-                .is_valid()
-                .then(|| {
-                    lower_expression_handle_from_table_with_self_substitution(
-                        program,
-                        source,
-                        target,
-                        call.receiver,
-                        self_substitution,
-                    )
-                })
-                .transpose()?
-                .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+            let receiver = lower_optional_expression_handle(
+                program,
+                source,
+                target,
+                call.receiver,
+                self_substitution,
+            )?;
             let arguments = lower_expression_handle_span_from_table(
                 program,
                 source,
@@ -229,34 +222,20 @@ pub(super) fn lower_expression_handle_from_table_with_self_substitution(
             Ok(target.insert(typed::expression::ExpressionNode::Name(path)))
         }
         resolved::expression::ExpressionNode::Range(range) => {
-            let start = range
-                .start
-                .is_valid()
-                .then(|| {
-                    lower_expression_handle_from_table_with_self_substitution(
-                        program,
-                        source,
-                        target,
-                        range.start,
-                        self_substitution,
-                    )
-                })
-                .transpose()?
-                .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
-            let end = range
-                .end
-                .is_valid()
-                .then(|| {
-                    lower_expression_handle_from_table_with_self_substitution(
-                        program,
-                        source,
-                        target,
-                        range.end,
-                        self_substitution,
-                    )
-                })
-                .transpose()?
-                .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+            let start = lower_optional_expression_handle(
+                program,
+                source,
+                target,
+                range.start,
+                self_substitution,
+            )?;
+            let end = lower_optional_expression_handle(
+                program,
+                source,
+                target,
+                range.end,
+                self_substitution,
+            )?;
             Ok(target.insert(typed::expression::ExpressionNode::Range(
                 typed::expression::TableRangeExpression { start, end },
             )))
@@ -282,6 +261,26 @@ pub(super) fn lower_expression_handle_from_table_with_self_substitution(
             typed::expression::ExpressionNode::String(value.shared_text()),
         )),
     }
+}
+
+fn lower_optional_expression_handle(
+    program: Option<&resolved::SymbolResolvedTrees>,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    expression: resolved::expression::ExpressionHandle,
+    self_substitution: Option<typed::expression::ExpressionHandle>,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    if !expression.is_valid() {
+        return Ok(typed::expression::ExpressionHandle::invalid());
+    }
+
+    lower_expression_handle_from_table_with_self_substitution(
+        program,
+        source,
+        target,
+        expression,
+        self_substitution,
+    )
 }
 
 #[cfg(test)]
