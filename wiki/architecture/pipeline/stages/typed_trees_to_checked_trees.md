@@ -81,12 +81,13 @@ Current ownership is:
   resolution used by proof, borrow, and invalidation checks.
 - `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`
   owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
-  indexed/subslice validation, while `checks/ranges/facts.rs`,
-  `checks/ranges/guards.rs`, `checks/ranges/proofs.rs`,
-  `checks/ranges/requirements.rs`, `checks/ranges/state_arguments.rs`, and
-  `checks/ranges/types.rs` own range fact storage, guard-derived facts, proof
-  lookups, requires-derived proof seeding, transition argument facts, and
-  expression type/slice classification.
+  indexed/subslice validation, `checks/ranges/facts.rs` owns local/field range
+  fact storage, `checks/ranges/facts/proofs.rs` owns index/range-bound proof
+  propagation and aliasing, `checks/ranges/guards.rs` owns guard-derived facts,
+  `checks/ranges/proofs.rs` owns proof lookups,
+  `checks/ranges/requirements.rs` owns requires-derived proof seeding,
+  `checks/ranges/state_arguments.rs` owns transition argument facts, and
+  `checks/ranges/types.rs` owns expression type/slice classification.
 - `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
   owns expression traversal that discovers nested state calls.
