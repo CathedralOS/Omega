@@ -7,6 +7,7 @@ use crate::{
 
 mod builder;
 mod common;
+mod constraints;
 mod domain;
 mod mutation;
 mod place;
@@ -17,6 +18,9 @@ use common::{
     append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
     clone_constraint_refs, clone_flow_contexts, effects_call, effects_machine, effects_state,
     project_constraint_refs_to_active_contexts, proof_contract_call,
+};
+use constraints::{
+    append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
 pub(crate) use domain::build_domain_facts;
 use domain::filter_contexts_after_place_mutations;
