@@ -57,8 +57,11 @@ Must not own:
 - `shapes/runtime_storage.rs` routes runtime storage selected instructions to
   compare, write, address, and copy shape helpers.
 - `shapes/runtime_storage/compare.rs` owns runtime storage compare shapes.
-- `shapes/runtime_storage/writes.rs` owns runtime integer, binary, and string
-  write shapes.
+- `shapes/runtime_storage/writes.rs` routes runtime storage write shapes.
+  `shapes/runtime_storage/writes/integer.rs`,
+  `shapes/runtime_storage/writes/binary.rs`, and
+  `shapes/runtime_storage/writes/string.rs` own integer, binary, and string
+  write families respectively.
 - `shapes/runtime_storage/addresses.rs` owns address-to-runtime-frame write
   shapes.
 - `shapes/runtime_storage/copies.rs` owns runtime storage copy shapes.
