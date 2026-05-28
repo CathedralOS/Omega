@@ -56,6 +56,12 @@ Must not own:
 - `shapes/host.rs` owns host-operation instruction shapes.
 - `shapes/runtime_storage.rs` routes runtime storage selected instructions to
   compare, write, address, and copy shape helpers.
+- `shapes/runtime_storage/compare.rs` owns runtime storage compare shapes.
+- `shapes/runtime_storage/writes.rs` owns runtime integer, binary, and string
+  write shapes.
+- `shapes/runtime_storage/addresses.rs` owns address-to-runtime-frame write
+  shapes.
+- `shapes/runtime_storage/copies.rs` owns runtime storage copy shapes.
 - `shapes/runtime_text.rs` owns runtime text selected-instruction routing and
   read/write/append/materialize instruction shapes.
 - `shapes/validation.rs` owns pre-shape checks that assigned runtime value homes
