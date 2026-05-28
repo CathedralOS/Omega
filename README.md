@@ -222,5 +222,5 @@ cargo test -p omega-compiler rejects_failing_canaries
 
 The language is moving quickly. The best current design references are:
 
-- [Omega Language Guide](wiki/language_guide/README.md)
+- [Omega Language Guide](wiki/language_guide/language_guide.md)
 - [Architecture](wiki/architecture/architecture.md)
