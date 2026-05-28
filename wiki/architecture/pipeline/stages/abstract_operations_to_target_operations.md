@@ -12,23 +12,31 @@ Output: target-aware operations.
 
 Primary responsibility: legalize operations using target, layout, ABI, ISA, and calling-convention knowledge.
 
+## Implementation Map
+
+- `translator.rs` owns the conveyor from abstract operation arenas into target operation arenas.
+- `remap.rs` owns handle/span remapping when arena ordering is preserved across the lowering boundary.
+- `host.rs` owns lowered host operation key resolution and host ABI binding reconciliation.
+
 ## Semantic Ownership
 
-- Places: lower to target-aware memory/register shapes.
-- Values: become target-legal operands.
-- Facts: should not be re-proved here.
-- Loans: should not be rechecked here.
-- Moves: become legal target copies, loads, stores, or elisions.
-- Drops: become target-callable cleanup sequences.
-- Calls: become target-aware call sequences.
-- Transitions: become target-aware branch/jump/return operations.
-- Effects: map to target/runtime operations.
-- Boundary edges: map to ABI-aware host/runtime/compiler operation shapes.
+- Places: re-expressed as target-aware storage operands; no new language-level places are born here.
+- Values: re-expressed as target value operands; this stage may choose target-legal operand shapes but should not invent semantic values.
+- Facts: consumed only as already-lowered operation shape; proof and type facts are not re-proved here.
+- Loans: not owned; borrow legality must already be decided before abstract operations exist.
+- Moves: lowered only if they are already represented as abstract copies, loads, stores, or value transfers.
+- Drops: lowered only from explicit abstract cleanup operations; this stage should not decide destructor reachability.
+- Calls: host/runtime operation ordinals become target operation keys and ABI bindings.
+- Transitions: preserved as target-aware branch/jump/return operations, not re-scheduled.
+- Effects: carried through as concrete runtime/host operation choices.
+- Boundary edges: resolved to ABI-aware host operation keys and copied host bindings.
 
 ## Ownership Rules
 
-Must not own: language acceptance of unsafe behavior.
+- Must preserve abstract operation order when remapping handles and spans.
+- Must not own language acceptance of unsafe behavior, proof discharge, borrow checking, or effect authorization.
+- Must keep legalization separate from physical register/stack assignment.
 
 ## Known Gaps
 
-This stage needs clean separation between legalization and physical assignment.
+This stage still needs a richer distinction between target legalization, ABI lowering, and later physical assignment once target operations grow beyond the current direct mapping.
