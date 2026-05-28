@@ -65,6 +65,8 @@ preservation:
   and transition expression refs.
 - `contracts.rs`, `borrows.rs`, and `facts.rs` preserve checked evidence in
   graph-shaped summaries; they should not revalidate proof or borrow legality.
+  `borrows/remap.rs` owns borrow-summary arena remapping when worker-local graph
+  fragments are merged.
 - `remap.rs` remaps worker-local operations, transitions, and expressions into
   the final graph arena.
 - `machine_metadata.rs` projects machine owned data, contained machines, and
