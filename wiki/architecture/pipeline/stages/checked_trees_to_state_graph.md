@@ -48,6 +48,26 @@ Must not own:
 - Physical storage, ABI placement, object/image symbols, or platform-specific
   boundary mechanics.
 
+## Implementation Map
+
+The implementation should keep graph scheduling separate from evidence
+preservation:
+
+- `builder.rs` orchestrates per-machine graph construction and worker-local graph
+  merging.
+- `segments.rs` splits checked state statements into graph segments and
+  operations.
+- `transitions.rs` plans graph transition edges, targets, continuations, guards,
+  and transition expression refs.
+- `contracts.rs`, `borrows.rs`, and `facts.rs` preserve checked evidence in
+  graph-shaped summaries; they should not revalidate proof or borrow legality.
+- `remap.rs` remaps worker-local operations, transitions, and expressions into
+  the final graph arena.
+- `machine_metadata.rs` projects machine owned data, contained machines, and
+  direct/reached effect bits into graph metadata.
+- `capacity.rs` estimates graph arena sizes; it should stay about allocation
+  planning, not semantic ownership.
+
 ## Known Gaps
 
 - Transition ownership transfer should be as explicit as call ownership transfer.
