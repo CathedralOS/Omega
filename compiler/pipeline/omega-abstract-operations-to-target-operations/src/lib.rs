@@ -4,6 +4,7 @@ use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetOperationPlan;
 
+mod remap;
 mod translator;
 
 pub fn build_target_operation_plan(

@@ -1,13 +1,13 @@
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_calling_conventions::{HostAbiPlan, HostCapability, HostOperation, HostOperationKey};
-use omega_core::arena::{Handle, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{
     InstructionOperand, InstructionOperandKind, RuntimeTextReadSource, TargetOperation,
     TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetValueOperand,
-    TargetValueOperandHandle,
 };
+
+use crate::remap;
 
 pub(crate) fn build_target_operation_plan(
     target: NativeTarget,
@@ -44,7 +44,7 @@ pub(crate) fn build_target_operation_plan(
         target_operations.functions.insert(TargetOperationFunction {
             symbol: std::sync::Arc::clone(&function.symbol),
             source_key: function.source_key,
-            instructions: remap_instruction_span(function.instructions),
+            instructions: remap::instruction_span(function.instructions),
         });
     }
 
@@ -60,7 +60,7 @@ pub(crate) fn build_target_operation_plan(
             ..
         } = &target_operations
             .instructions
-            .get(remap_instruction_handle(instruction_key))
+            .get(remap::instruction_handle(instruction_key))
             .kind
         else {
             continue;
@@ -106,7 +106,7 @@ fn translate_instruction_kind(
                 resolve_host_operation_key(host_calls, instruction, *operation_ordinal);
             TargetOperationKind::HostOperation {
                 operation_key,
-                operands: remap_operand_span(*operands),
+                operands: remap::operand_span(*operands),
             }
         }
         omega_abstract_operations::AbstractOperationKind::PreparePlatformOutputHandle {
@@ -116,7 +116,7 @@ fn translate_instruction_kind(
                 HostCapability::Stdout,
                 HostOperation::GetStdHandle,
             ),
-            operands: remap_operand_span(*operands),
+            operands: remap::operand_span(*operands),
         },
         omega_abstract_operations::AbstractOperationKind::WritePlatformNewline {
             use_file_api,
@@ -130,7 +130,7 @@ fn translate_instruction_kind(
                     HostOperation::Write
                 },
             ),
-            operands: remap_operand_span(*operands),
+            operands: remap::operand_span(*operands),
         },
         kind => TargetOperationKind::from(kind),
     }
@@ -245,9 +245,9 @@ fn translate_runtime_value_operand(
             operator,
             right,
         } => TargetValueOperand::Binary {
-            left: remap_runtime_value_handle(*left),
+            left: remap::runtime_value_handle(*left),
             operator: *operator,
-            right: remap_runtime_value_handle(*right),
+            right: remap::runtime_value_handle(*right),
         },
     }
 }
@@ -283,42 +283,4 @@ fn resolve_host_operation_key(
     };
 
     operation.operation_key
-}
-
-fn remap_instruction_handle(
-    handle: omega_core::arena::Handle<omega_abstract_operations::AbstractOperation>,
-) -> omega_core::arena::Handle<TargetOperation> {
-    omega_core::arena::Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-fn remap_instruction_span(
-    span: omega_core::arena::HandleSpan<omega_abstract_operations::AbstractOperation>,
-) -> HandleSpan<TargetOperation> {
-    if span.is_empty() {
-        return HandleSpan::empty();
-    }
-
-    HandleSpan::from_parts(
-        Handle::from_parts(span.start().arena_index(), span.start().generation()),
-        span.count(),
-    )
-}
-
-fn remap_operand_span(
-    span: omega_core::arena::HandleSpan<omega_abstract_operations::InstructionOperand>,
-) -> HandleSpan<omega_target_operations::TargetInstructionOperand> {
-    if span.is_empty() {
-        return HandleSpan::empty();
-    }
-
-    HandleSpan::from_parts(
-        Handle::from_parts(span.start().arena_index(), span.start().generation()),
-        span.count(),
-    )
-}
-
-fn remap_runtime_value_handle(
-    handle: omega_abstract_operations::AbstractValueOperandHandle,
-) -> TargetValueOperandHandle {
-    Handle::from_parts(handle.arena_index(), handle.generation())
 }
