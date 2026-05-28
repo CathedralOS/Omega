@@ -1,0 +1,302 @@
+use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
+
+use super::lookup::{
+    child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds,
+    child_symbol_by_kinds, top_level_symbol_by_kinds,
+};
+
+pub(super) fn resolve_state_scoped_table_path(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
+    path: &omega_symbol_resolved_trees::expression::TableNamePath,
+) -> (SymbolHandle, SymbolHandle) {
+    let members = expression_table.name_path_members(path.members);
+    resolve_state_scoped_table_members(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        members,
+        path.is_self_value,
+        None,
+    )
+}
+
+pub(super) fn resolve_state_scoped_table_path_with_indexed_last_member(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
+    path: &omega_symbol_resolved_trees::expression::TableNamePath,
+    index: i64,
+) -> (SymbolHandle, SymbolHandle) {
+    let members = expression_table.name_path_members(path.members);
+    resolve_state_scoped_table_members(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        members,
+        path.is_self_value,
+        Some(index),
+    )
+}
+
+pub(super) fn resolve_state_scoped_members(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    members: &[omega_symbol_resolved_trees::name::DiagnosticName],
+    starts_at_self: bool,
+) -> (SymbolHandle, SymbolHandle) {
+    if members.is_empty() {
+        return invalid_symbol_pair();
+    }
+
+    let mut index = 0usize;
+    let mut current = SymbolHandle::invalid();
+    let head: SymbolHandle;
+
+    if starts_at_self {
+        current = machine_symbol;
+        index = 1;
+    }
+
+    if index >= members.len() {
+        return if current.is_valid() {
+            (current, current)
+        } else {
+            invalid_symbol_pair()
+        };
+    }
+
+    if !current.is_valid() {
+        current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
+        if !current.is_valid() {
+            return invalid_symbol_pair();
+        }
+        head = current;
+        index += 1;
+    } else {
+        current = child_or_attached_data_child_symbol_by_kinds(
+            symbols,
+            current,
+            &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+            members[index].as_str(),
+        );
+        if !current.is_valid() {
+            return invalid_symbol_pair();
+        }
+        head = current;
+        index += 1;
+    }
+
+    for member in &members[index..] {
+        current = child_or_attached_data_child_symbol_by_kinds(
+            symbols,
+            current,
+            &[
+                SymbolKind::Field,
+                SymbolKind::Object,
+                SymbolKind::State,
+                SymbolKind::Parameter,
+                SymbolKind::Variant,
+            ],
+            member.as_str(),
+        );
+        if !current.is_valid() {
+            return invalid_symbol_pair();
+        }
+    }
+
+    (head, current)
+}
+
+fn resolve_state_scoped_table_members(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    members: &[omega_symbol_resolved_trees::name::DiagnosticName],
+    starts_at_self: bool,
+    indexed_last_member: Option<i64>,
+) -> (SymbolHandle, SymbolHandle) {
+    if members.is_empty() {
+        return invalid_symbol_pair();
+    }
+
+    let mut index = 0usize;
+    let mut current = SymbolHandle::invalid();
+    let head: SymbolHandle;
+
+    if starts_at_self {
+        current = machine_symbol;
+        index = 1;
+    }
+
+    if index >= members.len() {
+        return if current.is_valid() {
+            (current, current)
+        } else {
+            invalid_symbol_pair()
+        };
+    }
+
+    if !current.is_valid() {
+        current = if indexed_last_member.is_some() && index + 1 == members.len() {
+            let indexed_symbol = resolve_base_indexed_symbol(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                members[index].as_str(),
+                indexed_last_member.expect("indexed last member should be present"),
+            );
+            if !indexed_symbol.is_valid() {
+                return invalid_symbol_pair();
+            }
+            indexed_symbol
+        } else {
+            let base_symbol =
+                resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
+            if !base_symbol.is_valid() {
+                return invalid_symbol_pair();
+            }
+            base_symbol
+        };
+        head = current;
+        index += 1;
+    } else {
+        current = if indexed_last_member.is_some() && index + 1 == members.len() {
+            child_indexed_symbol_by_kinds(
+                symbols,
+                current,
+                &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+                members[index].as_str(),
+                indexed_last_member.expect("indexed last member should be present"),
+            )
+        } else {
+            child_or_attached_data_child_symbol_by_kinds(
+                symbols,
+                current,
+                &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+                members[index].as_str(),
+            )
+        };
+        if !current.is_valid() {
+            return invalid_symbol_pair();
+        }
+        head = current;
+        index += 1;
+    }
+
+    for (offset, member) in members[index..].iter().enumerate() {
+        let is_last = index + offset + 1 == members.len();
+        current = if indexed_last_member.is_some() && is_last {
+            child_indexed_symbol_by_kinds(
+                symbols,
+                current,
+                &[
+                    SymbolKind::Field,
+                    SymbolKind::Object,
+                    SymbolKind::State,
+                    SymbolKind::Parameter,
+                    SymbolKind::Variant,
+                ],
+                member.as_str(),
+                indexed_last_member.expect("indexed last member should be present"),
+            )
+        } else {
+            child_or_attached_data_child_symbol_by_kinds(
+                symbols,
+                current,
+                &[
+                    SymbolKind::Field,
+                    SymbolKind::Object,
+                    SymbolKind::State,
+                    SymbolKind::Parameter,
+                    SymbolKind::Variant,
+                ],
+                member.as_str(),
+            )
+        };
+        if !current.is_valid() {
+            return invalid_symbol_pair();
+        }
+    }
+
+    (head, current)
+}
+
+fn resolve_base_indexed_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    member: &str,
+    index: i64,
+) -> SymbolHandle {
+    if state_symbol.is_valid() {
+        let parameter_symbol = child_indexed_symbol_by_kinds(
+            symbols,
+            state_symbol,
+            &[SymbolKind::Parameter],
+            member,
+            index,
+        );
+        if parameter_symbol.is_valid() {
+            return parameter_symbol;
+        }
+    }
+
+    child_indexed_symbol_by_kinds(
+        symbols,
+        machine_symbol,
+        &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+        member,
+        index,
+    )
+}
+
+pub(super) fn invalid_symbol_pair() -> (SymbolHandle, SymbolHandle) {
+    (SymbolHandle::invalid(), SymbolHandle::invalid())
+}
+
+fn resolve_base_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    member: &omega_symbol_resolved_trees::name::DiagnosticName,
+) -> SymbolHandle {
+    if state_symbol.is_valid() {
+        let parameter_symbol = child_symbol_by_kinds(
+            symbols,
+            state_symbol,
+            &[SymbolKind::Parameter],
+            member.as_str(),
+        );
+        if parameter_symbol.is_valid() {
+            return parameter_symbol;
+        }
+    }
+
+    let machine_child = child_or_attached_data_child_symbol_by_kinds(
+        symbols,
+        machine_symbol,
+        &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+        member.as_str(),
+    );
+    if machine_child.is_valid() {
+        return machine_child;
+    }
+
+    top_level_symbol_by_kinds(
+        symbols,
+        &[
+            SymbolKind::BuiltinType,
+            SymbolKind::Data,
+            SymbolKind::Machine,
+            SymbolKind::Platform,
+            SymbolKind::Trait,
+            SymbolKind::Invariant,
+        ],
+        member.as_str(),
+    )
+}
