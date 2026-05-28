@@ -26,11 +26,15 @@ meaning, without needing access to pointer descriptor internals.
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
     ownership summaries without nested per-state allocations
+  - checked-flow now emits initial conservative move/drop events for path-like
+    assignment/local-initializer moves and state-exit local drops
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
-  - teach assignment, call, transition, and state-exit analysis to append real
-    move/drop events into the existing checked-flow ownership arenas
+  - make ownership event production type-aware so Copy/no-drop values and real
+    ownership-consuming values are distinguished
+  - teach call and transition analysis to append ownership transfer/drop events
+    into the existing checked-flow ownership arenas
   - lower move/drop events from control flow into explicit backend transfer and
     cleanup operations
   - define durable value identity in checked trees so proof, borrow,

@@ -14,6 +14,7 @@ mod context;
 mod domain;
 mod exits;
 mod mutation;
+mod ownership;
 mod place;
 mod state;
 mod statements;
@@ -39,6 +40,7 @@ use mutation::call_may_mutate_contract_state;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
 };
+use ownership::{append_state_exit_drop_events, append_statement_ownership_events};
 #[allow(unused_imports)]
 pub(crate) use place::{
     CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,

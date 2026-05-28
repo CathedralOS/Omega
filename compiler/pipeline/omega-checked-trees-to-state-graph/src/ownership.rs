@@ -1,4 +1,4 @@
-use omega_checked_trees::{CheckedTrees, FlowInvalidationSource};
+use omega_checked_trees::{CheckedTrees, FlowOwnershipEventSource};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     StateDropEvent, StateGraph, StateKey, StateMoveEvent, StateOwnershipEventSource,
@@ -131,12 +131,14 @@ fn append_remapped_drop_events(
     remapped
 }
 
-fn remap_flow_ownership_event_source(source: FlowInvalidationSource) -> StateOwnershipEventSource {
+fn remap_flow_ownership_event_source(
+    source: FlowOwnershipEventSource,
+) -> StateOwnershipEventSource {
     match source {
-        FlowInvalidationSource::Statement { statement_index } => {
+        FlowOwnershipEventSource::Statement { statement_index } => {
             StateOwnershipEventSource::Statement { statement_index }
         }
-        FlowInvalidationSource::Call {
+        FlowOwnershipEventSource::Call {
             statement_index,
             call_ordinal,
             target_symbol,
@@ -145,5 +147,6 @@ fn remap_flow_ownership_event_source(source: FlowInvalidationSource) -> StateOwn
             call_ordinal,
             target_symbol,
         },
+        FlowOwnershipEventSource::StateExit => StateOwnershipEventSource::StateExit,
     }
 }

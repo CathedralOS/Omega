@@ -10,9 +10,9 @@ pub(crate) use omega_checked_trees::{
     DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact, FlowBorrowWeakeningFact,
     FlowBorrowWeakeningReason, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
     FlowDropEventFact, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
-    FlowMoveEventFact, FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact,
-    InvariantFacts, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner,
-    StateBorrowFact,
+    FlowMoveEventFact, FlowOwnershipEventSource, FlowSemanticContextRef, FlowStateFact,
+    FlowStatementFact, InvariantFact, InvariantFacts, ProofFactKind, ProofFacts,
+    ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 pub(crate) use omega_core::arena::{Handle, HandleSpan};
 pub(crate) use omega_core::symbols::SymbolHandle;

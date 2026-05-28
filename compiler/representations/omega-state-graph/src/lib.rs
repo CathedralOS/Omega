@@ -465,6 +465,7 @@ pub enum StateOwnershipEventSource {
         call_ordinal: usize,
         target_symbol: SymbolHandle,
     },
+    StateExit,
 }
 
 impl Default for StateOwnershipEventSource {

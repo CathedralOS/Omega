@@ -67,5 +67,8 @@ fn remap_ownership_event_source(
             call_ordinal,
             target_symbol,
         },
+        omega_state_graph::StateOwnershipEventSource::StateExit => {
+            StateOwnershipEventSource::StateExit
+        }
     }
 }
