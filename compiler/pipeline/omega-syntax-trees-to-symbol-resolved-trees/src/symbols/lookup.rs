@@ -75,6 +75,20 @@ pub(super) fn child_indexed_symbol_by_kinds(
     })
 }
 
+pub(super) fn call_target_for_attached_data(
+    symbols: &SymbolTable,
+    attached_data: &str,
+    target_name: &str,
+) -> SymbolHandle {
+    let machine_name = format!("{attached_data}::{target_name}");
+    let machine_symbol = top_level_symbol(symbols, SymbolKind::Machine, &machine_name);
+    if !machine_symbol.is_valid() {
+        return SymbolHandle::invalid();
+    }
+
+    child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target_name)
+}
+
 fn child_symbol_by_kinds_matching(
     symbols: &SymbolTable,
     parent: SymbolHandle,
