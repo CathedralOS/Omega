@@ -21,6 +21,8 @@ Primary responsibility: parse source structure without resolving meaning.
 - `parser/expression.rs` owns expression precedence and membership parsing.
 - `parser/expression/primary.rs` owns literals, grouped expressions, array literals, path names, and struct literals.
 - `parser/expression/postfix.rs` owns calls, argument lists, indexing/ranges, member access, and casts.
+- `parser/machine.rs` owns machine headers, body/member sequencing, implicit entry construction, and attached-data path splitting.
+- `parser/machine/clauses.rs` owns machine `satisfies`, `terminates`, `decreases`, `effects`, `requires`, and `ensures` clauses.
 - `parser/statement.rs`, `transition.rs`, `state.rs`, `type_reference.rs`, and `proof_fact.rs` own source-shaped subgrammars reused across items.
 - `parser/capability.rs` owns unresolved capability/authority contract syntax.
 - `parser/diagnostics.rs` owns parse-time grammar diagnostics.
