@@ -14,21 +14,41 @@ Primary responsibility: lower state-machine structure into explicit blocks, bran
 
 ## Semantic Ownership
 
-- Places: become control-flow-accessible storage/value references.
-- Values: become explicit data-flow operands or temporaries.
-- Facts: should be preserved as annotations or diagnostics support where needed.
-- Loans: should have already been validated; any remaining data is for correctness-preserving lowering.
-- Moves: should become control-flow events before backend lowering.
-- Drops: should become scheduled control-flow cleanup.
-- Calls: explicit control-flow operations.
-- Transitions: lowered into branches, calls, exits, and block edges.
-- Effects: attached to operations/blocks for later reporting and validation.
-- Boundary edges: attached to operations that lower to imported/compiler/runtime code.
+This stage owns control-flow shape. It should turn graph topology into explicit
+blocks and operations without changing the semantic truth established by checked
+trees and preserved by the state graph.
+
+| Noun | Ownership |
+| --- | --- |
+| Places | Become control-flow-accessible storage/value references. |
+| Values | Become explicit data-flow operands, temporaries, or carried payloads. |
+| Facts | Preserved as annotations/diagnostic support; not re-proved. |
+| Loans | Preserved only as correctness metadata/assertions; not revalidated. |
+| Moves | Should become explicit control-flow events before backend lowering. |
+| Drops | Should become scheduled control-flow cleanup before backend lowering. |
+| Calls | Become explicit control-flow operations. |
+| Transitions | Lower into branches, calls, exits, continuations, and block edges. |
+| Effects | Attach to operations/blocks for later reporting and validation. |
+| Boundary edges | Attach to operations that lower to imported/compiler/runtime code. |
 
 ## Ownership Rules
 
-Must not own: semantic proof discharge or target register assignment.
+Must own:
+
+- Explicit block/operation/branch/exit structure for state-machine execution.
+- Preservation of graph-carried contracts, borrows, facts, effects, and boundary
+  edges as control-flow metadata or events.
+- Scheduling of already-checked cleanup and ownership events once those events
+  exist in the graph input.
+
+Must not own:
+
+- Semantic proof discharge, borrow overlap validation, target register
+  assignment, ABI lowering, instruction selection, or object/image emission.
 
 ## Known Gaps
 
-Control-flow should not erase move/drop/boundary events before the backend can lower them.
+- Control-flow should not erase move/drop/boundary events before the backend can
+  lower them.
+- Once moves/drops/boundary edges become first-class checked/graph events, this
+  stage needs dedicated operation variants instead of generic metadata leakage.
