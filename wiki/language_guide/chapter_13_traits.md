@@ -286,7 +286,7 @@ check:
 - Can the call cross boundary or host boundaries?
 - Are versioned machine surfaces still compatible?
 - What ABI version is used?
-- Which concrete capabilities were granted?
+- Which concrete authority values and domains were granted?
 - What lifecycle hooks exist for drop, migration, and replacement?
 
 For a Theseus-like OS, `dyn`-like runtime indirection is not optional. Versioned
@@ -298,8 +298,8 @@ Working rule:
 
 - Static trait dispatch is the default.
 - `dyn Trait` is reserved for explicit runtime interface boundaries.
-- Dynamic-loaded `dyn` values must pass loader, ABI, effect, capability, and
-  version checks.
+- Dynamic-loaded `dyn` values must pass loader, ABI, effect, authority-flow,
+  boundary-provider, and version checks.
 - Unverified dynamic code should be isolated or capability-limited.
 
 ## Satisfaction
@@ -582,4 +582,4 @@ reusable contract, that group can be a trait.
   component handle, dispatch table, endpoint, trampoline, or target-specific
   lowering?
 - Which `dyn` calls are legal inside fully boundary code, and which require
-  loader/capability mediation?
+  loader or authority mediation?

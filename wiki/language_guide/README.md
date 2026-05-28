@@ -36,7 +36,7 @@ Language-building features:
 
 Boundary and low-level topics:
 
-- [Chapter 18: Host Libraries And Boundaries](chapter_18_host_boundaries.md)
+- [Chapter 18: Capabilities, Effects, And Boundaries](chapter_18_capabilities_effects_boundaries.md)
 - [Chapter 19: Memory Layout And ABI](chapter_19_memory_layout_abi.md)
 - [Chapter 20: Wire Protocols](chapter_20_wire_protocols.md)
 - [Chapter 21: Versioned Data And Machine Replacement](chapter_21_versioned_data.md)

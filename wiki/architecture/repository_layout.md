@@ -57,7 +57,7 @@ Omega/
 |   |-- semantics/
 |   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
-|   |   |-- [CRATE] omega-effects/                      # Effect surface, mutation/host capability checking.
+|   |   |-- [CRATE] omega-effects/                      # Effect surface and authority-flow checking.
 |   |   |-- [CRATE] omega-borrow/                       # Ownership, aliasing, lifetime-style checks as needed.
 |   |   |-- [CRATE] omega-invariants/                   # Variable/state invariant propagation and refinement checking.
 |   |   |-- [CRATE] omega-contracts/                    # Requires/ensures/halts-style callable and machine contracts.
@@ -165,8 +165,8 @@ Omega/
 |   |   `-- std/                                        # Higher-level standard package surface.
 |   |
 |   `-- host/
-|       |-- contracts/                                  # Cross-platform boundary capability contracts.
-|       |-- standard/                                   # Default host capability bundle.
+|       |-- contracts/                                  # Cross-platform boundary and authority contracts.
+|       |-- standard/                                   # Default host boundary and authority bundle.
 |       `-- targets/
 |           |-- darwin/
 |           |-- linux/
