@@ -65,8 +65,11 @@ Current ownership is:
 - `flow.rs` assembles checked flow facts. `flow/context.rs` owns the mutable
   arena bundle, `flow/constraints.rs` materializes borrow constraints,
   `flow/borrow_lifetimes.rs` owns loan activation/weakening rules,
-  `flow/transfers.rs` owns statement fact transfers, and `flow/calls.rs` owns
-  call entry/requires/ensures/effect/invalidation flow facts.
+  `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
+  activation, mutation invalidation, and transfer propagation,
+  `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
+  entry/requires/ensures/effect/invalidation flow facts, and `flow/exits.rs`
+  owns exit/ensures flow facts.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
 - `flow/place/*` owns canonical place construction, comparison, and type/member
