@@ -5,6 +5,7 @@ use omega_state_graph::StateGraph;
 mod borrows;
 mod builder;
 mod contracts;
+mod facts;
 mod handles;
 
 pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPlan, Diagnostic> {
