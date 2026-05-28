@@ -9,7 +9,13 @@ use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
 mod symbol_table;
 
+use lookup::{
+    child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds,
+    child_symbol_by_kinds, top_level_symbol, top_level_symbol_by_kinds, top_level_type_symbol,
+};
 use symbol_table::build_symbol_table;
+
+mod lookup;
 
 pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
     let symbols = build_symbol_table(program, sources);
@@ -2141,109 +2147,4 @@ fn resolve_type_symbol(
         .find(|parameter| parameter.name.as_str() == name.as_str())
         .map(|parameter| parameter.symbol)
         .unwrap_or_else(|| top_level_type_symbol(symbols, name.as_str()))
-}
-
-fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {
-    top_level_symbol_by_kinds(
-        symbols,
-        &[
-            SymbolKind::BuiltinType,
-            SymbolKind::Data,
-            SymbolKind::Machine,
-            SymbolKind::Platform,
-            SymbolKind::Trait,
-            SymbolKind::Invariant,
-        ],
-        name,
-    )
-}
-
-fn top_level_symbol(symbols: &SymbolTable, kind: SymbolKind, name: &str) -> SymbolHandle {
-    top_level_symbol_by_kinds(symbols, &[kind], name)
-}
-
-fn top_level_symbol_by_kinds(
-    symbols: &SymbolTable,
-    kinds: &[SymbolKind],
-    name: &str,
-) -> SymbolHandle {
-    child_symbol_by_kinds(symbols, symbols.root(), kinds, name)
-}
-
-fn child_symbol_by_kinds(
-    symbols: &SymbolTable,
-    parent: SymbolHandle,
-    kinds: &[SymbolKind],
-    name: &str,
-) -> SymbolHandle {
-    child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| symbol_name == name)
-}
-
-fn child_or_attached_data_child_symbol_by_kinds(
-    symbols: &SymbolTable,
-    parent: SymbolHandle,
-    kinds: &[SymbolKind],
-    name: &str,
-) -> SymbolHandle {
-    let child = child_symbol_by_kinds(symbols, parent, kinds, name);
-    if child.is_valid() || symbols.get(parent).kind != SymbolKind::Machine {
-        return child;
-    }
-
-    let Some(attached_data_name) = symbols.name(parent).split_once("::").map(|(data, _)| data)
-    else {
-        return SymbolHandle::invalid();
-    };
-    let attached_data = top_level_symbol(symbols, SymbolKind::Data, attached_data_name);
-    if !attached_data.is_valid() {
-        return SymbolHandle::invalid();
-    }
-
-    child_symbol_by_kinds(symbols, attached_data, kinds, name)
-}
-
-fn child_indexed_symbol_by_kinds(
-    symbols: &SymbolTable,
-    parent: SymbolHandle,
-    kinds: &[SymbolKind],
-    name: &str,
-    index: i64,
-) -> SymbolHandle {
-    child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| {
-        symbol_name_matches_indexed_member(symbol_name, name, index)
-    })
-}
-
-fn child_symbol_by_kinds_matching(
-    symbols: &SymbolTable,
-    parent: SymbolHandle,
-    kinds: &[SymbolKind],
-    mut matches_name: impl FnMut(&str) -> bool,
-) -> SymbolHandle {
-    let Some(children) = symbols.child_handles(parent) else {
-        return SymbolHandle::invalid();
-    };
-
-    for child in children {
-        let symbol = symbols.get(child);
-        if matches_name(symbols.name(child)) && kinds.contains(&symbol.kind) {
-            return child;
-        }
-    }
-
-    SymbolHandle::invalid()
-}
-
-fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i64) -> bool {
-    let Some(suffix) = symbol_name.strip_prefix(member) else {
-        return false;
-    };
-    let Some(suffix) = suffix.strip_prefix('[') else {
-        return false;
-    };
-    let Some(index_text) = suffix.strip_suffix(']') else {
-        return false;
-    };
-
-    index_text.parse::<i64>().ok() == Some(index)
 }
