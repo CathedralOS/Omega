@@ -296,6 +296,170 @@ system. The hard unresolved piece is proving or checking sequence-wide facts
 such as UTF-8 validity efficiently enough that common text handling does not
 turn into byte-by-byte proof boilerplate.
 
+## Capabilities And Authority Flow
+
+Effects are not authority by themselves. `filesystem_io` says filesystem-shaped
+behavior may occur, but it does not say whether the code was handed a folder by
+the caller, opened an absolute path through ambient host power, prompted the
+user, stored a handle for later, or merely derived a narrower file handle from a
+folder it already had.
+
+Omega should model authority as ordinary values plus facts. A filesystem handle
+should usually be one stable type with permission domains, not a family of
+separate permission-flavored types:
+
+```omega
+data Folder {
+}
+
+domain Folder::Readable {
+}
+
+domain Folder::Writable {
+}
+
+domain Folder::ReadWrite {
+    self in Folder::Readable;
+    self in Folder::Writable;
+}
+```
+
+Boundary and standard-library APIs then state normal requirements and
+guarantees:
+
+```omega
+boundary trait Desktop {
+    machine choose_folder(prompt: String) -> Folder
+    ensures
+        result in Folder::Writable
+    effects
+        filesystem_io;
+}
+
+boundary trait Filesystem {
+    machine write_bytes(folder: Folder, path: String, bytes: &[u8])
+    requires
+        folder in Folder::Writable
+    effects
+        filesystem_io;
+
+    machine read_bytes(folder: Folder, path: String, out: &mut Vec<u8>)
+    requires
+        folder in Folder::Readable
+    effects
+        filesystem_io;
+}
+```
+
+This should not require new source keywords such as `uses capability` or
+`acquires capability`. The compiler can infer authority flow from types,
+domains, call contracts, returns, stores, drops, and boundary provenance.
+
+Important report verbs:
+
+- Accepts: authority enters through parameters or machine-owned fields.
+- Uses: an operation requires authority facts such as `folder in
+  Folder::Writable`.
+- Returns: authority leaves through a return value or output parameter.
+- Stores: authority is retained beyond the current call.
+- Acquires: fresh authority is minted by a boundary, host prompt, ambient host
+  surface, package permission grant, loader, or OS/runtime broker.
+- Derives: a narrower or related authority is produced from an existing
+  authority, such as `Folder::Writable -> File::Writable`.
+- Releases: an authority is closed, dropped, revoked, or otherwise ended by the
+  code.
+
+`derives` is intentionally separate from `acquires`. Opening a file inside a
+caller-provided folder is a sub-capability operation. It expands the set of
+values flowing through the program, but it does not independently obtain new
+host authority.
+
+Example ordinary use:
+
+```omega
+machine Thumbnailer::write_cache(
+    cache: Folder,
+    image: Image
+)
+requires
+    cache in Folder::Writable
+effects
+    filesystem_io
+{
+    Filesystem::write_bytes(cache, "thumb.bin", image.thumbnail_bytes());
+}
+```
+
+Expected package report shape:
+
+```text
+authority flow:
+  accepts: Folder where Folder::Writable
+  uses: Folder::Writable
+  derives: none
+  stores: none
+  acquires: none
+  returns: none
+  releases: none
+
+effects:
+  filesystem_io
+```
+
+Example acquisition:
+
+```omega
+machine Thumbnailer::choose_and_write_cache(image: Image)
+effects
+    filesystem_io
+{
+    let cache: Folder = Desktop::choose_folder("Choose cache folder");
+    Filesystem::write_bytes(cache, "thumb.bin", image.thumbnail_bytes());
+}
+```
+
+Expected report shape:
+
+```text
+authority flow:
+  accepts: none
+  uses: Folder::Writable
+  derives: none
+  stores: none
+  acquires: Folder::Writable via Desktop::choose_folder
+  returns: none
+  releases: none
+
+effects:
+  filesystem_io
+```
+
+Package and build policy should be able to set ceilings over this inferred
+flow. A package may be allowed to use `filesystem_io` only through
+caller-provided folders, while being forbidden from acquiring a folder through
+`Desktop::choose_folder` or opening an ambient absolute path.
+
+Authority flow and boundary calls are related but separate reports:
+
+- Authority flow answers what power-bearing values a package can accept, use,
+  derive, store, return, release, or acquire.
+- Boundary calls answer which host, runtime, compiler, syscall, imported
+  library, broker, or prompt surfaces the package directly or transitively
+  reaches.
+
+A library can therefore be audited along three axes:
+
+- Effect ceiling: which externally visible behavior classes may occur.
+- Authority-flow ceiling: what authority values may move through or be minted
+  by the package.
+- Boundary-provider ceiling: which direct and transitive host/provider calls are
+  allowed.
+
+This distinction matters because two packages can both have `filesystem_io`
+while having very different blast radii. One only writes into a folder supplied
+by the caller. The other prompts the user, consults the environment, or calls a
+raw host provider to acquire filesystem authority itself.
+
 Target metadata such as library artifact, symbol, syscall number, calling
 convention, and boundary provider belongs in toolchain host packages or explicitly
 whitelisted boundary providers. Pulling in a boundary with `filesystem_io`,
@@ -522,14 +686,43 @@ or unusual hardware. Doing so explicitly expands the boundary base.
 ## Build Artifacts
 
 Compiler artifacts should list imported libraries, syscall surfaces, boundary
-functions, and unchecked policies.
+functions, inferred authority flow, direct/transitive host calls, and unchecked
+policies.
 
 Example shape:
 
 ```text
+authority flow:
+  accepts:
+    Folder where Folder::Writable
+  uses:
+    Folder::Writable
+  derives:
+    File::Writable from Folder::Writable
+  stores:
+    none
+  acquires:
+    none
+  returns:
+    none
+  releases:
+    none
+
+effects:
+  declared: filesystem_io
+  reached: filesystem_io
+
 imported libraries:
   Kernel32 -> Kernel32.dll calling_convention winapi
   DarwinLibSystem -> libSystem.B.dylib calling_convention c
+
+direct boundary calls:
+  none
+
+transitive boundary calls:
+  omega::std::fs::Folder::open
+  omega::host::filesystem::openat
+  omega::host::filesystem::write
 
 boundary imported functions:
   Kernel32.ReadFile boundary omega_windows_kernel32_read_file
