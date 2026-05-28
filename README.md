@@ -115,7 +115,7 @@ Current known limitation:
 Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
 
 ## Architecture
-See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler pipeline.
+See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
 ## Samples And Canaries
 
