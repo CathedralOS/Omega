@@ -51,13 +51,13 @@ Must not own:
 
 - `builder.rs` walks assigned target operations and appends symbolic machine
   instructions.
-- `shapes.rs` dispatches selected instruction kinds to shape-specific helpers.
+- `shapes.rs` routes selected instruction families to shape-specific helpers.
 - `shapes/dispatch.rs` owns dispatch-loop/case/state/return instruction shapes.
 - `shapes/host.rs` owns host-operation instruction shapes.
-- `shapes/runtime_storage.rs` owns runtime storage read/write/copy/compare
-  instruction shapes.
-- `shapes/runtime_text.rs` owns runtime text read/write/append/materialize
-  instruction shapes.
+- `shapes/runtime_storage.rs` routes runtime storage selected instructions to
+  compare, write, address, and copy shape helpers.
+- `shapes/runtime_text.rs` owns runtime text selected-instruction routing and
+  read/write/append/materialize instruction shapes.
 - `shapes/validation.rs` owns pre-shape checks that assigned runtime value homes
   are present and compatible with the selected instruction.
 
