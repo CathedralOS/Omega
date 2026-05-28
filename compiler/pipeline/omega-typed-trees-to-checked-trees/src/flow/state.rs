@@ -97,6 +97,7 @@ pub(super) fn build_state_flow_fact(
             .len(),
         FlowBorrowWeakeningReason::StateExit,
     );
+    append_state_exit_drop_events(program, ctx, state);
     let state_exits = append_state_exit_facts(
         proof,
         semantic,

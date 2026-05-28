@@ -41,6 +41,7 @@ pub(super) fn append_state_statement_flow_facts(
             entry_semantic_contexts: *active_contexts,
             entry_constraints: *active_constraints,
         });
+        append_statement_ownership_events(program, ctx, state.symbol, statement_index, statement);
 
         while let Some(borrow_call) = borrow_calls.get(call_index) {
             if borrow_call.statement_index != statement_index {
