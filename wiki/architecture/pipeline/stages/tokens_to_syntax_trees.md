@@ -12,6 +12,17 @@ Output: `SyntaxTrees`.
 
 Primary responsibility: parse source structure without resolving meaning.
 
+## Implementation Map
+
+- `parser.rs` owns public entrypoints and whole-file parse completion checks.
+- `parser/input.rs` owns token cursor movement, span mapping, and parser lookahead helpers.
+- `parser/file.rs` and `parser/item.rs` own top-level item sequencing.
+- Item modules such as `data.rs`, `domain.rs`, `machine.rs`, `trait_definition.rs`, `operator.rs`, `library.rs`, `platform.rs`, `target.rs`, `export_item.rs`, and `use_item.rs` own the grammar for their corresponding source forms.
+- `parser/expression.rs`, `statement.rs`, `transition.rs`, `state.rs`, `type_reference.rs`, and `proof_fact.rs` own source-shaped subgrammars reused across items.
+- `parser/capability.rs` owns unresolved capability/authority contract syntax.
+- `parser/diagnostics.rs` owns parse-time grammar diagnostics.
+- `parser/tests.rs` owns broad parser coverage; tests should not live in the entrypoint file.
+
 ## Semantic Ownership
 
 This stage owns source shape only. It may recognize grammar constructs, but it
