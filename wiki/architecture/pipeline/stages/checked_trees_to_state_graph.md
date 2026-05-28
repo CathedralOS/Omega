@@ -58,7 +58,8 @@ preservation:
 - `segments.rs` splits checked state statements into graph segments.
   `segments/branching.rs` owns branch-call topology detection and recursive
   branch-flow discovery. `segments/operations.rs` owns graph operation kind
-  selection and expression-ref copying.
+  selection and expression-ref copying. `segments/parameters.rs` owns
+  state-parameter payload materialization for graph segments.
 - `states.rs` assembles graph state nodes from segments, including state-local
   contract, borrow, effect, operation, and transition summaries.
 - `transitions.rs` assembles graph transition edges, guards, and transition
