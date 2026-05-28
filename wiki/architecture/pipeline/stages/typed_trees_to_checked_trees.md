@@ -14,21 +14,45 @@ Primary responsibility: validate semantic obligations and build checked facts.
 
 ## Semantic Ownership
 
-- Places: first strongly useful place layer via `omega_facts::Place` and checked-flow `CanonicalPlace`.
-- Values: still weaker than desired; expressions and symbols stand in for value instances.
-- Facts: first-class fact contexts, origins, payloads, proof obligations, and contract facts.
-- Loans: first-class borrow facts, accesses, loans, activations, weakenings, and overlap checks.
-- Moves: should become first-class here; currently too implicit.
-- Drops: should become first-class here; currently too implicit.
-- Calls: first-class call facts for contracts, borrows, flow, and effects.
-- Transitions: checked for proof/arguments, but ownership transfer needs more explicit data.
-- Effects: direct/transitive effect plans are available.
-- Boundary edges: represented through boundary contracts/operators/policies, but should become explicit checked-flow events.
+This stage is the first durable semantic fact owner. It should be the place
+where source/type meaning becomes queryable evidence for proof, borrow, flow,
+effect, and boundary validation.
+
+| Noun | Ownership |
+| --- | --- |
+| Places | First strongly useful place layer via `omega_facts::Place` and checked-flow `CanonicalPlace`. |
+| Values | Partially owned; expressions and symbols still stand in for durable value instances. |
+| Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
+| Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
+| Moves | Should become first-class checked-flow events; currently too implicit. |
+| Drops | Should become first-class checked-flow events; currently too implicit. |
+| Calls | First-class call facts for contracts, borrows, flow, and effects. |
+| Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
+| Effects | Direct/transitive effect plans are available. |
+| Boundary edges | Represented through boundary contracts/operators/policies; should become explicit checked-flow events. |
 
 ## Ownership Rules
 
-Must not own: machine instruction shape, ABI placement, final storage layout.
+Must own:
+
+- Proof obligations and whether current facts discharge them.
+- Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
+- Effect summaries and boundary contract facts that later stages must preserve.
+- A durable checked-flow representation of calls and transitions.
+
+Must not own:
+
+- Machine instruction shape, ABI placement, final storage layout, relocation
+  identity, or platform image policy.
+- Rewriting checked obligations into backend convenience data without preserving
+  the original semantic evidence.
 
 ## Known Gaps
 
-Add durable value, move, drop, and boundary-edge events to checked flow.
+- Add durable value identity so proof, borrow, allocation, and lowering can talk
+  about values as clearly as places.
+- Add durable move and drop events before graph/control-flow lowering.
+- Make boundary edges first-class checked-flow events, not just contract/effect
+  side data.
+- Keep contract, proof, borrow, range, termination, and effect checks split by
+  noun ownership instead of letting `checks` files become semantic junk drawers.
