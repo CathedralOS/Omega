@@ -53,8 +53,9 @@ The stage should stay organized around semantic nouns instead of pass history.
 Current ownership is:
 
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
-  places, `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs`
-  owns borrow call-site discovery, and `borrow/last_uses.rs` owns loan last-use
+  collection, `borrow/accesses/place.rs` owns contextual place resolution,
+  `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs` owns
+  borrow call-site discovery, and `borrow/last_uses.rs` owns loan last-use
   scanning.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow legality, `checks/borrows/statements.rs` owns local
