@@ -5,6 +5,7 @@ use crate::{
     find_state, find_state_in_machine,
 };
 
+mod borrow_lifetimes;
 mod builder;
 mod common;
 mod constraints;
@@ -14,6 +15,7 @@ mod mutation;
 mod place;
 mod transfers;
 
+use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 pub(crate) use builder::build_flow_facts;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
