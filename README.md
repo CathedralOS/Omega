@@ -1,44 +1,68 @@
 # Omega
 
-Omega is an experimental systems programming language centered around explicit state, provable behavior, and data-oriented execution.
+Omega is an experimental systems programming language centered around explicit
+state, proof-carrying behavior, capability-aware boundaries, and data-oriented
+execution.
 
-The central bet is simple: state machines should not be a framework pattern hidden inside a branch-heavy language. They should be the shape of the program. Machines own data, states perform work, and transitions describe control-flow handoff.
+The bet is pretty direct: state machines should not be a framework pattern
+hidden inside a branch-heavy language. They should be the shape of the program.
+Machines own data, states perform work, and transitions describe control-flow
+handoff in a form the compiler can inspect, prove, and eventually optimize hard.
 
-Current status: Omega is very early, but no longer purely theoretical. The compiler can parse/check all current samples, emit small native macOS ARM64 CLI programs as direct executable images, and writes phase artifacts for every compiler stage. The native path is still intentionally narrow; when a feature is not supported, the compiler should say so instead of pretending.
+Omega is not trying to be a safer C with prettier syntax, or a Rust clone with
+state machines bolted on afterward. The language is trying to make the scary
+systems-programming nouns first-class: places, values, facts, loans, moves,
+drops, calls, transitions, effects, authority flow, and boundary edges.
+
+Current status: Omega is very early, but no longer purely theoretical. The
+compiler can parse/check all current samples, emit small native macOS ARM64 CLI
+programs as direct executable images, and writes phase artifacts for every
+compiler stage. The native path is still intentionally narrow; when a feature is
+not supported, the compiler should say so instead of pretending.
 
 Tiny current program:
 
 ```omega
 use omega::language::std::console;
 
-machine main {
-    contains console: Console;
+data Main {
+    console: Console;
+}
 
-    pub entry() {
-        console.write_line("Hello, Omega.");
-        console.exit_process(0);
-    }
+machine Main::main(&mut self) {
+    self.console.write_line("Hello, Omega.");
+    self.console.exit_process(0);
 }
 ```
 
 ## Language Direction
 
-Omega is exploring these core ideas:
+Omega is chasing a few connected ideas:
 
-- State machines are first-class citizens, not library objects.
-- Process entry is currently expressed as `machine main` with `pub entry(...)`, often alongside `data main` for owned root data.
-- Machines can expose both `pub entry(...)` callable entry surfaces and `state ...` graph nodes.
-- States prefer straight-line work. Ordered `transition { ... }` tables handle branch handoff.
-- Transition rows live inside a trailing `transition { ... }` block, using `_ -> target()` for unconditional/default flow and `condition -> target()` for guarded flow.
-- `-> expr;` is the expression-style terminal return form used by helper machines and value-returning states.
-- Nested machine flow can be expressed as machine calls in straight-line code or as continuation-style transition handoff.
-- Callable machine entries like `entry helper(...)` create frame/return semantics; `state ...` stays graph handoff.
-- Data flow should prefer explicit owned data and `&mut` parameters over ambient state.
-- Platform boundaries are explicit and auditable.
+- State machines are syntax, not library objects. `machine`, `state`, and
+  `transition` give control flow a durable graph shape instead of burying it in
+  arbitrary branches.
+- Proof is part of normal compilation. Contracts, domains, bounded values,
+  borrow facts, slice bounds, termination claims, and transition obligations are
+  meant to be checked before the backend gets to emit bytes.
+- Authority should flow through values. Effects stay coarse and readable, while
+  capabilities are tracked through values, domains, provenance, and boundary
+  calls so package reports can say what code accepts, uses, derives, stores,
+  returns, releases, or acquires.
+- Core collections are proof surfaces. Arrays, vectors, slices, strings, and
+  string views should expose browsable operators and measures such as
+  `Slice::Length`, while pointer/descriptor machinery stays behind explicit
+  compiler/runtime boundaries.
+- Data layout matters. Omega should bias toward owned data, dense arenas,
+  predictable access, SIMD-friendly transforms, and state graphs that can be
+  optimized because their semantics are visible.
+- Native output is a first-class goal. The compiler is growing its own path from
+  source to machine code, object data, linking, and final platform images
+  instead of treating executable construction as mysterious external glue.
 
-Longer term, Omega wants compile-time proof integration. TLA+ style transition checks are a design goal, not decoration. The compiler should eventually derive formal transition models from source, challenge invariants and liveness properties, and only then lower the program.
-
-Performance is also part of the language design. Omega should bias toward dense data, predictable access, SIMD-friendly transforms, and state graphs that can be optimized aggressively.
+The long-term pitch is ambitious on purpose: write programs as explicit state
+evolution, let the compiler challenge the facts, and then lower the surviving
+program into tight native code.
 
 ## Building
 
@@ -198,6 +222,5 @@ cargo test -p omega-compiler rejects_failing_canaries
 
 The language is moving quickly. The best current design references are:
 
-- [Language Vision](wiki/language-vision.md)
-- [State And Transition Model](wiki/state-transition-model.md)
 - [Omega Language Guide](wiki/language_guide/README.md)
+- [Architecture](wiki/architecture/architecture.md)
