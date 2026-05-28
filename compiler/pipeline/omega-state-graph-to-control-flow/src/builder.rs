@@ -1,8 +1,7 @@
 use omega_control_flow::{
-    ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, MachineOwnedDataFlow, Operation,
-    OperationExpressionRefs, OperationKind, PlannedTransitionTarget, ProofFactKind,
-    ProofObligationFact, ProofObligationOwner, StateFlow, StateKey, StateParameterFlow,
-    TransitionExpressionRefs, TransitionFlow,
+    ContainedFlow, ControlFlowPlan, MachineFlow, MachineOwnedDataFlow, Operation,
+    OperationExpressionRefs, OperationKind, PlannedTransitionTarget, StateFlow, StateKey,
+    StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -22,6 +21,9 @@ use crate::contracts::{
     remap_contract_call_owned, remap_contract_calls, remap_contract_exit_owned,
     remap_contract_exits, remap_contract_fact_ref_owned, remap_contract_fact_refs,
     remap_contract_summary,
+};
+use crate::facts::{
+    remap_invariant_owned, remap_invariants, remap_proof_obligation_owned, remap_proof_obligations,
 };
 use crate::handles::{
     remap_contained_span, remap_expression_span, remap_operation_span, remap_owned_data_span,
@@ -215,146 +217,6 @@ fn remap_states(state_graph: &StateGraph) -> (Arena<StateFlow>, Arena<StateParam
     }
 
     (states, state_parameters)
-}
-
-fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFact> {
-    let mut obligations = Arena::with_capacity(state_graph.proof_obligations.len());
-
-    for (_, obligation) in state_graph.proof_obligations.iter() {
-        obligations.append(ProofObligationFact {
-            kind: match obligation.kind {
-                omega_state_graph::ProofFactKind::BoundedAssignment => {
-                    ProofFactKind::BoundedAssignment
-                }
-                omega_state_graph::ProofFactKind::BoundedCallArgument => {
-                    ProofFactKind::BoundedCallArgument
-                }
-                omega_state_graph::ProofFactKind::BoundedInitializer => {
-                    ProofFactKind::BoundedInitializer
-                }
-                omega_state_graph::ProofFactKind::BoundedStateReturn => {
-                    ProofFactKind::BoundedStateReturn
-                }
-                omega_state_graph::ProofFactKind::BoundedValue => ProofFactKind::BoundedValue,
-                omega_state_graph::ProofFactKind::BoundedTransitionArgument => {
-                    ProofFactKind::BoundedTransitionArgument
-                }
-                omega_state_graph::ProofFactKind::GuardedTransition => {
-                    ProofFactKind::GuardedTransition
-                }
-            },
-            machine_symbol: obligation.machine_symbol,
-            state_symbol: obligation.state_symbol,
-            owner: remap_proof_owner(&obligation.owner),
-        });
-    }
-
-    obligations
-}
-
-fn remap_proof_obligation_owned(
-    obligation: omega_state_graph::ProofObligationFact,
-) -> ProofObligationFact {
-    ProofObligationFact {
-        kind: match obligation.kind {
-            omega_state_graph::ProofFactKind::BoundedAssignment => ProofFactKind::BoundedAssignment,
-            omega_state_graph::ProofFactKind::BoundedCallArgument => {
-                ProofFactKind::BoundedCallArgument
-            }
-            omega_state_graph::ProofFactKind::BoundedInitializer => {
-                ProofFactKind::BoundedInitializer
-            }
-            omega_state_graph::ProofFactKind::BoundedStateReturn => {
-                ProofFactKind::BoundedStateReturn
-            }
-            omega_state_graph::ProofFactKind::BoundedValue => ProofFactKind::BoundedValue,
-            omega_state_graph::ProofFactKind::BoundedTransitionArgument => {
-                ProofFactKind::BoundedTransitionArgument
-            }
-            omega_state_graph::ProofFactKind::GuardedTransition => ProofFactKind::GuardedTransition,
-        },
-        machine_symbol: obligation.machine_symbol,
-        state_symbol: obligation.state_symbol,
-        owner: remap_proof_owner(&obligation.owner),
-    }
-}
-
-fn remap_proof_owner(owner: &omega_state_graph::ProofObligationOwner) -> ProofObligationOwner {
-    match owner {
-        omega_state_graph::ProofObligationOwner::Unknown => ProofObligationOwner::Unknown,
-        omega_state_graph::ProofObligationOwner::MachineState {
-            machine_symbol,
-            state_symbol,
-        } => ProofObligationOwner::MachineState {
-            machine_symbol: *machine_symbol,
-            state_symbol: *state_symbol,
-        },
-        omega_state_graph::ProofObligationOwner::MachineOwnedData {
-            machine_symbol,
-            data_symbol,
-        } => ProofObligationOwner::MachineOwnedData {
-            machine_symbol: *machine_symbol,
-            data_symbol: *data_symbol,
-        },
-        omega_state_graph::ProofObligationOwner::StateParameter {
-            machine_symbol,
-            state_symbol,
-            parameter_symbol,
-        } => ProofObligationOwner::StateParameter {
-            machine_symbol: *machine_symbol,
-            state_symbol: *state_symbol,
-            parameter_symbol: *parameter_symbol,
-        },
-        omega_state_graph::ProofObligationOwner::StateReturn {
-            machine_symbol,
-            state_symbol,
-        } => ProofObligationOwner::StateReturn {
-            machine_symbol: *machine_symbol,
-            state_symbol: *state_symbol,
-        },
-        omega_state_graph::ProofObligationOwner::CallParameter {
-            machine_symbol,
-            state_symbol,
-            target_symbol,
-            parameter_symbol,
-        } => ProofObligationOwner::CallParameter {
-            machine_symbol: *machine_symbol,
-            state_symbol: *state_symbol,
-            target_symbol: *target_symbol,
-            parameter_symbol: *parameter_symbol,
-        },
-        omega_state_graph::ProofObligationOwner::TransitionParameter {
-            machine_symbol,
-            state_symbol,
-            parameter_symbol,
-        } => ProofObligationOwner::TransitionParameter {
-            machine_symbol: *machine_symbol,
-            state_symbol: *state_symbol,
-            parameter_symbol: *parameter_symbol,
-        },
-    }
-}
-
-fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
-    let mut invariants = Arena::with_capacity(state_graph.invariants.len());
-
-    for (_, invariant) in state_graph.invariants.iter() {
-        invariants.append(InvariantFact {
-            symbol: invariant.symbol,
-            name: invariant.name.clone(),
-            constraint_count: invariant.constraint_count,
-        });
-    }
-
-    invariants
-}
-
-fn remap_invariant_owned(invariant: omega_state_graph::InvariantFact) -> InvariantFact {
-    InvariantFact {
-        symbol: invariant.symbol,
-        name: invariant.name,
-        constraint_count: invariant.constraint_count,
-    }
 }
 
 fn remap_state(
