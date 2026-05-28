@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 mod builder;
 mod capacity;
+mod facts;
 mod segments;
 mod transitions;
 
