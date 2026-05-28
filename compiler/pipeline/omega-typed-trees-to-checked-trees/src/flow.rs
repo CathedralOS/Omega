@@ -7,6 +7,7 @@ use crate::{
 
 mod borrow_lifetimes;
 mod builder;
+mod calls;
 mod common;
 mod constraints;
 mod context;
@@ -17,6 +18,7 @@ mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 pub(crate) use builder::build_flow_facts;
+use calls::build_call_flow_fact;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
     append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
