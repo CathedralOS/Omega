@@ -1,14 +1,10 @@
 use omega_control_flow::{
-    ContainedFlow, ControlFlowPlan, MachineFlow, MachineOwnedDataFlow, Operation,
-    OperationExpressionRefs, OperationKind, PlannedTransitionTarget, StateFlow, StateKey,
-    StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
+    ControlFlowPlan, Operation, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
+    StateFlow, StateKey, StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_state_graph::{
-    ContainedGraph, MachineGraph, MachineOwnedDataGraph, StateGraph, StateNode, StateParameterNode,
-    TransitionEdge,
-};
+use omega_state_graph::{StateGraph, StateNode, StateParameterNode, TransitionEdge};
 
 use crate::borrows::{
     remap_borrow_activation_owned, remap_borrow_activations, remap_borrow_argument_access_owned,
@@ -26,8 +22,10 @@ use crate::facts::{
     remap_invariant_owned, remap_invariants, remap_proof_obligation_owned, remap_proof_obligations,
 };
 use crate::handles::{
-    remap_contained_span, remap_expression_span, remap_operation_span, remap_owned_data_span,
-    remap_parameter_span, remap_state_span, remap_transition_span,
+    remap_expression_span, remap_operation_span, remap_parameter_span, remap_transition_span,
+};
+use crate::machines::{
+    remap_contained_owned, remap_machine_owned, remap_machines, remap_owned_data_owned,
 };
 
 pub(crate) fn build_control_flow_plan(
@@ -108,104 +106,6 @@ pub(crate) fn build_control_flow_plan_owned(
         operations: operations.map(remap_operation_owned),
         transitions: transitions.map(remap_transition_owned),
     })
-}
-
-fn remap_machines(
-    state_graph: &StateGraph,
-) -> (
-    Arena<MachineFlow>,
-    Arena<ContainedFlow>,
-    Arena<MachineOwnedDataFlow>,
-) {
-    let mut machines = Arena::with_capacity(state_graph.machines.len());
-    let mut contained_machines = Arena::with_capacity(state_graph.contained_machines.len());
-    let mut machine_owned_data = Arena::with_capacity(state_graph.machine_owned_data.len());
-
-    for (_, machine) in state_graph.machines.iter() {
-        machines.append(remap_machine(
-            state_graph,
-            machine,
-            &mut contained_machines,
-            &mut machine_owned_data,
-        ));
-    }
-
-    (machines, contained_machines, machine_owned_data)
-}
-
-fn remap_machine(
-    state_graph: &StateGraph,
-    machine: &MachineGraph,
-    contained_machines: &mut Arena<ContainedFlow>,
-    machine_owned_data: &mut Arena<MachineOwnedDataFlow>,
-) -> MachineFlow {
-    MachineFlow {
-        symbol: machine.symbol,
-        name: machine.name.clone(),
-        attached_data: machine.attached_data.clone(),
-        direct_effects: machine.direct_effects,
-        reached_effects: machine.reached_effects,
-        contains: contained_machines.insert_many(
-            state_graph
-                .machine_contains(machine)
-                .iter()
-                .map(remap_contained),
-        ),
-        owned_data: machine_owned_data.insert_many(
-            state_graph
-                .machine_owned_data(machine)
-                .iter()
-                .map(remap_owned_data),
-        ),
-        states: remap_state_span(machine.states),
-    }
-}
-
-fn remap_machine_owned(machine: MachineGraph) -> MachineFlow {
-    MachineFlow {
-        symbol: machine.symbol,
-        name: machine.name,
-        attached_data: machine.attached_data,
-        direct_effects: machine.direct_effects,
-        reached_effects: machine.reached_effects,
-        contains: remap_contained_span(machine.contains),
-        owned_data: remap_owned_data_span(machine.owned_data),
-        states: remap_state_span(machine.states),
-    }
-}
-
-fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
-    ContainedFlow {
-        symbol: contained.symbol,
-        name: contained.name.clone(),
-        type_symbol: contained.type_symbol,
-        type_name: contained.type_name.clone(),
-    }
-}
-
-fn remap_contained_owned(contained: ContainedGraph) -> ContainedFlow {
-    ContainedFlow {
-        symbol: contained.symbol,
-        name: contained.name,
-        type_symbol: contained.type_symbol,
-        type_name: contained.type_name,
-    }
-}
-
-fn remap_owned_data(data: &MachineOwnedDataGraph) -> MachineOwnedDataFlow {
-    MachineOwnedDataFlow {
-        symbol: data.symbol,
-        name: data.name.clone(),
-        type_reference: data.type_reference,
-    }
-}
-
-fn remap_owned_data_owned(data: MachineOwnedDataGraph) -> MachineOwnedDataFlow {
-    MachineOwnedDataFlow {
-        symbol: data.symbol,
-        name: data.name,
-        type_reference: data.type_reference,
-    }
 }
 
 fn remap_states(state_graph: &StateGraph) -> (Arena<StateFlow>, Arena<StateParameterFlow>) {
