@@ -46,6 +46,23 @@ Must not own:
 - Semantic proof discharge, borrow overlap validation, target register
   assignment, ABI lowering, instruction selection, or object/image emission.
 
+## Implementation Map
+
+This stage should read as graph-to-control-flow remapping, with each semantic
+noun preserved in a focused file:
+
+- `builder.rs` assembles the final `ControlFlowPlan` from graph arenas and owns
+  only top-level orchestration.
+- `machines.rs` remaps machine, contained-machine, and owned-data metadata.
+- `states.rs` remaps state nodes and state parameters while preserving state
+  contract, borrow, operation, transition, and effect summaries.
+- `operations.rs` remaps graph operations into control-flow operations.
+- `transitions.rs` remaps graph transition edges and transition targets.
+- `facts.rs` preserves proof obligations and invariant facts.
+- `contracts.rs` and `borrows.rs` preserve checked evidence summaries without
+  revalidating them.
+- `handles.rs` owns handle-span remapping helpers only.
+
 ## Known Gaps
 
 - Control-flow should not erase move/drop/boundary events before the backend can
