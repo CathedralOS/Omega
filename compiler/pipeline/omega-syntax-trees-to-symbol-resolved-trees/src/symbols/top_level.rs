@@ -4,7 +4,7 @@ use omega_core::symbols::{
 };
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
-use super::assign_expression_table_symbols;
+use super::expressions::assign_expression_table_symbols;
 use super::lookup::top_level_symbol;
 use super::scope::MachineScope;
 use super::type_references::{
