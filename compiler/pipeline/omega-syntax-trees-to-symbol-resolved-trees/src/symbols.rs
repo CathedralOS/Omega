@@ -21,9 +21,11 @@ use type_references::{
 };
 
 mod lookup;
+mod scope;
 mod scoped_paths;
 mod type_references;
 
+use scope::MachineScope;
 use scoped_paths::{
     invalid_symbol_pair, resolve_state_scoped_members, resolve_state_scoped_table_path,
     resolve_state_scoped_table_path_with_indexed_last_member,
@@ -591,41 +593,6 @@ fn assign_proof_expression_membership_symbols(
         | omega_symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::Name(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
-    }
-}
-
-struct MachineScope<'program> {
-    symbol: SymbolHandle,
-    attached_data: Option<&'program omega_symbol_resolved_trees::name::DiagnosticName>,
-    contains: &'program [omega_symbol_resolved_trees::machine::ContainedObject],
-    inherited_data_members: Option<&'program [omega_symbol_resolved_trees::data::DataMember]>,
-    owned_data: &'program [omega_symbol_resolved_trees::machine::OwnedData],
-}
-
-impl MachineScope<'_> {
-    fn field_type_reference(
-        &self,
-        symbols: &SymbolTable,
-        field_symbol: SymbolHandle,
-    ) -> Option<&omega_symbol_resolved_trees::types::TypeReference> {
-        if let Some(data_members) = self.inherited_data_members {
-            for member in data_members {
-                let omega_symbol_resolved_trees::data::DataMember::Field(field) = member else {
-                    continue;
-                };
-                if field.symbol == field_symbol
-                    || (field_symbol.is_valid()
-                        && field.name.as_str() == symbols.name(field_symbol))
-                {
-                    return Some(&field.type_reference);
-                }
-            }
-        }
-
-        self.owned_data
-            .iter()
-            .find(|owned_data| owned_data.symbol == field_symbol)
-            .map(|owned_data| &owned_data.type_reference)
     }
 }
 
