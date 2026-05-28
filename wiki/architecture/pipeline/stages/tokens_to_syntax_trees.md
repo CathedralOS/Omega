@@ -32,7 +32,10 @@ Primary responsibility: parse source structure without resolving meaning.
 - `parser/machine/clauses.rs` owns machine `satisfies`, `terminates`, `decreases`, `effects`, `requires`, and `ensures` clauses.
 - `parser/transition.rs` owns transition block assembly.
 - `parser/transition/guards.rs` owns transition subjects, guard patterns, wildcard matching, and guard expression synthesis.
-- `parser/transition/targets.rs` owns transition target classification and expression-to-statement target copying.
+- `parser/transition/targets.rs` owns transition target parsing and
+  classification.
+- `parser/transition/targets/copy.rs` owns expression-to-statement-table copying
+  for transition target paths and arguments.
 - `parser/statement.rs`, `state.rs`, `type_reference.rs`, and `proof_fact.rs` own source-shaped subgrammars reused across items.
 - `parser/capability.rs` owns unresolved capability/authority contract syntax.
 - `parser/diagnostics.rs` owns parse-time grammar diagnostics.
