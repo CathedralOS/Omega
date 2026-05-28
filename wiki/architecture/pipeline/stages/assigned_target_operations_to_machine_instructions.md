@@ -14,21 +14,55 @@ Primary responsibility: convert assigned target operations into ISA instruction 
 
 ## Semantic Ownership
 
-- Places: are now encoded as assigned memory/register operands.
-- Values: are instruction operands.
-- Facts: optional diagnostics/debug metadata.
-- Loans: not active.
-- Moves: become machine copies, loads, stores, or disappear.
-- Drops: become calls or instruction sequences.
-- Calls: become symbolic call instructions/sequences.
-- Transitions: become symbolic jumps/branches/returns.
-- Effects: represented by instruction/call sequences.
-- Boundary edges: represented by symbolic imports, calls, syscalls, traps, or runtime sequences.
+This stage owns symbolic instruction shape only. Assigned target operations have
+already chosen concrete homes; this stage turns those assigned homes and
+operation kinds into inspectable machine-instruction variants without deciding
+final bytes, sections, or relocations.
+
+| Noun | Ownership |
+| --- | --- |
+| Places | Encoded as assigned memory/register operands. |
+| Values | Become instruction operands or immediates. |
+| Facts | Optional diagnostics/debug metadata only. |
+| Loans | Not active. |
+| Moves | Become machine copies, loads, stores, or disappear. |
+| Drops | Become calls or instruction sequences. |
+| Calls | Become symbolic call instructions/sequences. |
+| Transitions | Become symbolic jumps, branches, returns, or dispatch mutations. |
+| Effects | Represented by instruction/call sequences. |
+| Boundary edges | Represented by symbolic imports, calls, syscalls, traps, or runtime sequences. |
 
 ## Ownership Rules
 
-Must not own: section layout, relocation application, final image policy.
+Must own:
+
+- Mapping selected instruction kinds to symbolic machine instruction kinds.
+- Validating that assigned runtime value homes are shape-compatible before
+  symbolic instruction emission.
+- Keeping dispatch, host, runtime-storage, and runtime-text instruction-shape
+  helpers separate from final object encoding.
+
+Must not own:
+
+- Section layout, relocation application, final image policy, or encoded bytes.
+- Register allocation, stack-slot assignment, or calling-convention placement.
+
+## Implementation Map
+
+- `builder.rs` walks assigned target operations and appends symbolic machine
+  instructions.
+- `shapes.rs` dispatches selected instruction kinds to shape-specific helpers.
+- `shapes/dispatch.rs` owns dispatch-loop/case/state/return instruction shapes.
+- `shapes/host.rs` owns host-operation instruction shapes.
+- `shapes/runtime_storage.rs` owns runtime storage read/write/copy/compare
+  instruction shapes.
+- `shapes/runtime_text.rs` owns runtime text read/write/append/materialize
+  instruction shapes.
+- `shapes/validation.rs` owns pre-shape checks that assigned runtime value homes
+  are present and compatible with the selected instruction.
 
 ## Known Gaps
 
-Keep instruction selection separate from machine encoding.
+- `shapes.rs` is still a large dispatch table; continue splitting by selected
+  instruction family when a family grows enough to hide intent.
+- Keep instruction selection separate from machine encoding.
