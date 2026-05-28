@@ -53,7 +53,8 @@ The stage should stay organized around semantic nouns instead of pass history.
 Current ownership is:
 
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
-  collection, `borrow/accesses/place.rs` owns contextual place resolution,
+  collection, `borrow/accesses/read.rs` owns recursive read-access traversal,
+  `borrow/accesses/place.rs` owns contextual place resolution,
   `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs` owns
   borrow call-site discovery, `borrow/tracker.rs` owns per-state loan tracker
   state, `borrow/last_uses.rs` owns loan last-use updates, and
