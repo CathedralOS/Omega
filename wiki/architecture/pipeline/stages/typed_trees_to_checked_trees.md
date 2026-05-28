@@ -56,6 +56,11 @@ Current ownership is:
   places, `borrow/loans.rs` owns local loan creation/rebasing, `borrow/calls.rs`
   owns borrow call-site discovery, and `borrow/last_uses.rs` owns loan last-use
   scanning.
+- `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
+  owns call-site borrow legality, `checks/borrows/statements.rs` owns local
+  borrow and mutation conflicts, `checks/borrows/overlap.rs` owns place/index
+  overlap policy, and `checks/borrows/details.rs` owns diagnostic lifetime
+  explanations.
 - `flow.rs` assembles checked flow facts. `flow/context.rs` owns the mutable
   arena bundle, `flow/constraints.rs` materializes borrow constraints,
   `flow/borrow_lifetimes.rs` owns loan activation/weakening rules,
