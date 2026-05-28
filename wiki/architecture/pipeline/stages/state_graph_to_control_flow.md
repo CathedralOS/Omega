@@ -59,6 +59,8 @@ noun preserved in a focused file:
 - `operations.rs` remaps graph operations into control-flow operations.
 - `transitions.rs` remaps graph transition edges and transition targets.
 - `facts.rs` preserves proof obligations and invariant facts.
+  `facts/conversions.rs` owns individual proof obligation, proof owner, proof
+  kind, and invariant conversion from graph form into control-flow form.
 - `contracts.rs` and `borrows.rs` preserve checked evidence summaries without
   revalidating them. `contracts/conversions.rs` owns individual contract fact,
   call, and exit conversion from graph form into control-flow form.
