@@ -1,26 +1,22 @@
 # Repository Layout
-The repository should grow toward a feature-first Rust workspace with strong layering and deliberately explicit crate names. The goal is not a tiny academic compiler layout. The goal is a production-grade toolchain layout that can carry Omega from language bring-up through multi-platform shipping without leaning on LLVM or native system linkers.
 
-Architecture notes start at [Architecture](architecture.md), including the
-pipeline document that explains how places, values, facts, loans, moves, drops,
-calls, transitions, effects, and boundary edges should evolve across IRs.
+This page is a map and a placement guide. It should help answer two questions:
 
-Long-term design assumptions:
+- Where should a new crate or module live?
+- Which layer is allowed to own a concept?
 
-- The compiler owns its full native pipeline: parse, analyze, lower, optimize, select instructions, encode machine code, write object containers, resolve/link, and emit final platform images.
-- All major executable formats are first-class: Mach-O, ELF, PE/COFF, and WebAssembly.
-- The backend is shared where it should be shared, but architecture and platform boundaries stay obvious in the tree.
-- The standard library, host contracts, startup/runtime, and calling-convention/platform ABI knowledge are versioned inside the workspace, not treated as mysterious external glue.
+The pipeline-specific semantic rules live in
+[Pipeline Architecture](pipeline/pipeline.md).
 
-Current migration note: the old native bring-up bridge has been split apart. Domain logic now lives in explicit backend crates, while `compiler/orchestration/omega-backend-pipeline` owns the remaining phase sequencing. The long-term pressure stays the same: phase boundaries should become precise enough that temporary aggregate report surfaces disappear instead of ossifying.
+## Design Bias
 
-Near-term compiler pipeline direction:
-
-- `omega-compiler` should read like an obvious conveyor belt: load sources, lex, parse, discover imports, assemble syntax, resolve, typecheck, validate, plan backend, emit, optionally write outputs.
-- Source discovery/loading is a subsystem inside `compiler/orchestration/omega-compiler/src/pipeline/source/`, not a responsibility smeared across lexer, parser, and compiler entrypoints.
-- The source subsystem should own frontier management, canonical source identity, file contents, and compiler-local source storage.
-- Lexer and parser should stay narrow: `TokenStream` in, syntax out. Import discovery happens from parsed per-file structure, not by giving the parser orchestration jobs.
-- New crates should come later, only after these boundaries stop moving. For now, the right move is cleaner subsystems inside the orchestration crate.
+- Prefer feature-first crates with explicit names.
+- Keep durable IR structs in `representations/`.
+- Keep transforms in `pipeline/`.
+- Keep language meaning in `semantics/`.
+- Keep target, ABI, layout, object, linker, and image details in `backend/`.
+- Keep orchestration boring: sequence phases, write artifacts, do not absorb phase logic.
+- Do not add a crate until a module boundary has stopped moving.
 
 Legend:
 
@@ -211,39 +207,96 @@ Omega/
 `-- wiki/                                               # Language design notes, target notes, and guide drafts.
 ```
 
-## Internal Placement Rules
+## Placement Rules
 
-These are the current rules of thumb. They are allowed to evolve, but the README should stay current when they do.
+### Front Door
 
-- `omega-cli`, `omega-language-server`, and `omega-documentation-generator` stay thin. They parse user intent and call `omega-compiler` or `omega-ide`; they do not own compiler semantics.
-- `foundation/` must stay dependency-light. If a crate there starts depending on semantic representations, machine representations, or target details, it is in the wrong layer.
-- `frontend/` owns syntax definitions and source-preserving structure only. The durable per-file outputs of frontend work belong in `representations/`. Name resolution, type facts, and control-flow meaning belong in `semantics/`.
-- `omega-syntax-trees` should be table-shaped, not a long-lived recursive heap tree. Recursive syntax edges should be `Handle<T>` and repeated children should be `HandleSpan<T>` so parser output does not normalize tiny allocations into the rest of the compiler.
-- `packages/` owns manifests, dependency graphs, and source loading. It should not grow semantic rules for the language itself.
-- `omega-symbol-resolved-trees` exports `SymbolResolvedTrees`, the first representation where source spelling has been disambiguated into symbol handles. Parser conveniences and concrete syntax trivia do not belong there; names are diagnostic payload, not semantic equality.
-- `semantics/` proves and reports what the program means. `representations/` decides how that meaning is shaped for optimization and code generation.
-- `omega-borrow` answers who may read or mutate. `omega-invariants` answers what remains true. `omega-contracts` answers what a callable or machine requires or promises. `omega-proof` is where those obligations are discharged.
-- `omega-graph` and `omega-proof` stay semantic/proof-facing first. Do not bury language-level state-machine reasoning inside machine-code crates.
-- `omega-symbol-resolved-trees`/`SymbolResolvedTrees`, `omega-typed-trees`, `omega-state-graph`, `omega-control-flow`, `omega-abstract-operations`, `omega-target-operations`, `omega-assigned-target-operations`, `omega-machine-instructions`, and `omega-object-file` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often split into HIR, MIR, target-independent abstract operations, target-aware low-level operations, assigned target operations, symbolic machine instructions, and final object-file emission.
-- `representations/` owns the durable structs and arena data, including frontend products like source files, token streams, and syntax trees. `pipeline/` crates transform from one representation to the next, depend on both sides, and should not become owners of shared helper structures.
-- `omega-control-flow-to-abstract-operations` is where the backend stops pretending control flow is already machine-shaped. This phase should produce target-independent abstract operations with infinite virtual registers, explicit values, and explicit effects.
-- `omega-abstract-operations-to-target-operations` is where normalization, legalization, and instruction-shape lowering belong. This phase may depend on target, ISA, layout, and calling-convention facts, but it should still be a pure representation-to-representation transform: abstract operations in, target-aware operations out.
-- `omega-target-operations-to-assigned-target-operations` is where register allocation, stack-slot assignment, spill insertion, and calling-convention placement become concrete. If a pass needs physical registers or fixed stack homes, it belongs here or immediately around it.
-- `backend/instruction_set_architectures/*` owns architecture-specific instruction definitions and encoding. Shared lowering policy belongs in `omega-instruction-selection`, not duplicated per architecture unless the target really demands it.
-- `omega-assigned-target-operations` is the post-assignment layer: target-aware operations whose registers, stack homes, and calling-convention placements are already decided, but which have not yet been converted into final machine instructions.
-- `omega-machine-instructions` is Omega's final symbolic instruction layer: physical registers and stack homes may already be assigned, but labels, relocations, and object-file concerns are still symbolic and inspectable here.
-- `omega-machine-instructions-to-object-file` is where final bytes and relocation-bearing object contents are born. No earlier representation should carry encoded instruction bytes as its primary truth. Final instruction encodings, section layout, relocation records, and symbol references belong here or immediately around it in backend-only passes.
-- `omega-calling-conventions` owns ABI-level rules for how values cross state/function/platform boundaries: registers, stack slots, return locations, and callee/caller responsibilities.
-- `omega-platform-interface` owns ABI-facing OS/platform call surfaces, imports, loader-visible symbols, and host integration facts.
-- `backend/object/*` writes relocatable containers. `backend/linker/*` resolves symbols, applies relocations, strips dead sections, and builds final images. Do not blur object writing and linking together.
-- `backend/images/*` owns final executable/shared-library layout rules. Platform image concerns should not leak upward into generic optimization crates.
-- Because Omega does not rely on native system linkers, import tables, export tables, load commands, dynamic loader metadata, startup entry selection, and final fixups are first-class compiler responsibilities.
-- `.o` emission is a compatibility/debug bridge, not the default long-term architecture. The compiler should move toward direct executable image construction from machine program data.
-- Internal symbols should be handle-first, not string-first. A symbol's identity should come from a generational arena handle; parentage, kind, linkage, and optional debug/display strings are metadata. Names needed by final images, imports, exports, diagnostics, or debug info should be generated or retained at the edge, not propagated through every lowering layer.
-- Symbol resolution should follow the symbol tree before reaching for a global resolver map. A symbol handle is identity; its parent chain and `HandleSpan` child range are the natural scope structure. `HierarchyArena` is the foundation shape for this: builders may patch exact child spans during construction, while published arenas are immutable and walk only the child range a parent owns. Resolving `self.player.inventory.drop_items` is a sequence of local sibling probes: find `player` under the current machine, find `inventory` under `Player`, then find `drop_items` under `Inventory`. This keeps lookups dense and scoped instead of maintaining a giant `(parent, string) -> symbol` table by default. If instrumentation later shows a parent with pathological child counts, add a sorted child range or parent-local side index for that scope only.
-- Source text does not survive resolution as compiler identity. Tokens and abstract syntax may point at source files with `SourceSpan`, and the resolver may compare those spans against the symbol table while building handles. After resolution, program identity is `SymbolHandle` or a more specific typed handle. If later phases need spelling, they ask the symbol table or source map for diagnostics/debug output; they do not carry source strings as data-flow truth.
-- User-defined string literals are payload, not identity, and may flow through typed program data into emission. Debug/display names are symbol metadata and may be omitted or stripped from release artifacts. Compiler-generated linker/platform names are target-edge payload and should be introduced near the image/linking layer, not propagated through semantic representations.
-- `runtime/startup/*` owns entry bootstrap code and startup-runtime replacement logic. Keep process start rules out of random backend files.
-- `omega-queries` and `omega-session` own orchestration, caching, and artifact production. They should call phases, not absorb the phase logic itself.
-- Tests should not live in `lib.rs`; public crate roots should explain exports, not hide 2,000 lines of behavior.
-- `mod.rs` and `lib.rs` should declare boundaries, not become implementation junk drawers.
+- `apps/` crates stay thin. They parse user intent and call compiler or IDE
+  services.
+- `orchestration/` sequences phases, owns sessions/options/artifacts, and keeps
+  source loading coherent.
+- `orchestration/` must not become the home for semantic checks or backend
+  lowering.
+
+### Source And Packages
+
+- `foundation/` stays dependency-light. If it needs semantic or target details,
+  it is in the wrong layer.
+- `frontend/` owns source-preserving syntax tools. Durable parsed output belongs
+  in `representations/`.
+- `packages/` owns manifests, package graphs, and loading. It does not own
+  language semantics.
+- Source discovery/loading should remain an orchestration subsystem, not parser
+  responsibility.
+
+### Semantic Ownership
+
+- `semantics/` owns language meaning: names, types, effects, contracts, proofs,
+  domains, borrow checking, invariants, and validation.
+- `omega-borrow` answers who may read or mutate.
+- `omega-invariants` answers what remains true.
+- `omega-contracts` answers what a callable requires or promises.
+- `omega-proof` discharges obligations.
+- `omega-graph` stays language/proof-facing; do not bury state-machine reasoning
+  in backend crates.
+
+### Representations And Pipeline
+
+- `representations/` owns durable IR data structures and arena storage.
+- `pipeline/` crates transform one representation into the next.
+- Pipeline crates may depend on input and output representations, but should not
+  become owners of shared helper structures.
+- Long-lived representation boundaries should remain explicit: syntax,
+  symbol-resolved, typed, checked, state graph, control flow, abstract
+  operations, target operations, assigned target operations, machine
+  instructions, and object/image data.
+- Do not skip from source-shaped trees to backend-specific structs.
+
+### Backend
+
+- `omega-control-flow-to-abstract-operations` is where backend lowering begins;
+  it should produce target-independent operations with explicit values and
+  effects.
+- `omega-abstract-operations-to-target-operations` owns target legalization and
+  instruction-shape lowering.
+- `omega-target-operations-to-assigned-target-operations` owns register
+  allocation, stack slots, spills, and calling-convention homes.
+- `omega-assigned-target-operations-to-machine-instructions` owns symbolic
+  machine instruction construction.
+- `omega-machine-instructions-to-object-file` owns final instruction bytes,
+  sections, symbols, and relocations.
+- `backend/instruction_set_architectures/*` owns ISA definitions and encodings.
+  Shared lowering policy belongs in shared backend crates.
+- `omega-calling-conventions` owns ABI value passing rules.
+- `omega-platform-interface` owns ABI-facing host/platform surfaces.
+- `backend/object/*`, `backend/linker/*`, and `backend/images/*` should stay
+  separate. Object writing, linking, and final image layout are different jobs.
+
+### Runtime And Boundaries
+
+- `runtime/startup/*` owns process entry and startup-runtime replacement logic.
+- `omega/runtime` and `omega/host` model runtime and host boundary surfaces, not
+  random backend shortcuts.
+- Import tables, export tables, loader metadata, startup selection, and final
+  fixups are compiler responsibilities because Omega does not assume native
+  system linkers.
+- `.o` emission is a compatibility/debug bridge. Direct image construction from
+  machine program data remains the long-term pressure.
+
+### Identity And Data Shape
+
+- Internal identity is handle-first, not string-first.
+- Source text is frontend/diagnostic/debug payload, not semantic identity after
+  resolution.
+- User string literals are program payload. Debug names and linker names are
+  edge metadata.
+- Repeated durable children should prefer arena `Handle<T>` and `HandleSpan<T>`
+  over recursive boxes or scattered owned vectors.
+- Symbol lookup should prefer scoped symbol-tree walks. Add maps only for
+  measured pathological scopes.
+
+### Hygiene
+
+- Public crate roots should explain exports, not hide implementation.
+- Tests should not live in giant `lib.rs` files.
+- `mod.rs` and `lib.rs` declare boundaries; they are not junk drawers.
