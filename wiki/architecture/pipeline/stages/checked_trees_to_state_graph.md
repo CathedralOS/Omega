@@ -61,8 +61,9 @@ preservation:
   selection and expression-ref copying.
 - `states.rs` assembles graph state nodes from segments, including state-local
   contract, borrow, effect, operation, and transition summaries.
-- `transitions.rs` plans graph transition edges, targets, continuations, guards,
-  and transition expression refs.
+- `transitions.rs` assembles graph transition edges, guards, and transition
+  expression refs. `transitions/targets.rs` owns transition/call target
+  resolution and continuation segment lookup.
 - `contracts.rs`, `borrows.rs`, and `facts.rs` preserve checked evidence in
   graph-shaped summaries; they should not revalidate proof or borrow legality.
   `borrows/remap.rs` owns borrow-summary arena remapping when worker-local graph
