@@ -50,7 +50,11 @@ Must not own:
 
 The implementation should stay split by identity task:
 
-- `symbols/symbol_table.rs` creates the symbol tree and reserves child order.
+- `symbols/symbol_table.rs` creates the root symbol tree and reserves top-level
+  child order. `symbols/symbol_table/children.rs` owns declaration child layout,
+  including inherited attached-data fields and state locals.
+  `symbols/symbol_table/names.rs` owns symbol-name seeding and operator display
+  names.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.
 - `symbols/top_level.rs` stamps declaration symbols for roots, data members,
   machines, states, platforms, traits, operators, and inherited attached-data
