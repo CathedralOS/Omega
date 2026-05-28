@@ -1,3 +1,4 @@
+mod arrays;
 mod diagnostics;
 mod expressions;
 mod facts;
@@ -7,8 +8,9 @@ mod proofs;
 mod requirements;
 mod state_arguments;
 
+use arrays::{fixed_array_field_lengths, fixed_array_type_length};
 use expressions::{expression_indexable_length, expression_integer_value, expression_name};
-use facts::{RangeFacts, fixed_array_field_lengths, fixed_array_type_length};
+use facts::RangeFacts;
 use guards::{seed_guard_facts, seed_negated_guard_facts};
 use indexes::check_expression;
 use omega_core::diagnostics::Diagnostic;
