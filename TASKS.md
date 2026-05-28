@@ -22,11 +22,17 @@ meaning, without needing access to pointer descriptor internals.
     across all durable pipeline stages
   - the syntax-to-symbol-resolved stage doc now explicitly says it owns symbol
     identity only and must not typecheck, prove, borrow-check, or schedule flow
+  - checked-flow, state-graph, and control-flow representations now have
+    arena-backed move/drop ownership event plumbing with state-local spans
+  - checked-tree-to-state-graph and state-graph-to-control-flow preserve
+    ownership summaries without nested per-state allocations
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
-  - make moves and drops first-class checked-tree facts/events instead of
-    implicit lowering behavior
+  - teach assignment, call, transition, and state-exit analysis to append real
+    move/drop events into the existing checked-flow ownership arenas
+  - lower move/drop events from control flow into explicit backend transfer and
+    cleanup operations
   - define durable value identity in checked trees so proof, borrow,
     allocation, and lowering can talk about values as clearly as places
   - make boundary edges as queryable in checked/control-flow representations as

@@ -24,8 +24,8 @@ effect, and boundary validation.
 | Values | Partially owned; expressions and symbols still stand in for durable value instances. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
-| Moves | Should become first-class checked-flow events; currently too implicit. |
-| Drops | Should become first-class checked-flow events; currently too implicit. |
+| Moves | First-class checked-flow event arenas/spans exist; event production is still incomplete. |
+| Drops | First-class checked-flow event arenas/spans exist; event production is still incomplete. |
 | Calls | First-class call facts for contracts, borrows, flow, and effects. |
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
 | Effects | Direct/transitive effect plans are available. |
@@ -74,7 +74,8 @@ Current ownership is:
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
-  bundle, `flow/constraints.rs` materializes borrow constraints,
+  bundle including ownership-event arenas, `flow/constraints.rs` materializes
+  borrow constraints,
   `flow/borrow_lifetimes.rs` owns loan activation/weakening rules,
   `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
   activation, mutation invalidation, and transfer propagation,
@@ -117,7 +118,8 @@ Current ownership is:
 
 - Add durable value identity so proof, borrow, allocation, and lowering can talk
   about values as clearly as places.
-- Add durable move and drop events before graph/control-flow lowering.
+- Teach assignment, call, transition, and state-exit analysis to append real
+  move/drop events into the existing checked-flow ownership arenas.
 - Make boundary edges first-class checked-flow events, not just contract/effect
   side data.
 - Keep contract, proof, borrow, range, termination, and effect checks split by
