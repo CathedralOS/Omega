@@ -61,6 +61,9 @@ meaning, without needing access to pointer descriptor internals.
     operation records, operation kinds, value operands, instruction operands,
     and runtime storage regions instead of hiding instruction-adjacent data in
     `selected.rs`
+  - abstract operation value facts, ownership facts, and boundary edges now sit
+    under an explicit `AbstractSemanticSummary` root on `AbstractOperationPlan`
+    instead of appearing as unrelated plan siblings
   - target-operation representation roots now split target function plans,
     operation records, operation kinds, abstract-to-target conversions, value
     operands, and instruction operands instead of hiding all instruction

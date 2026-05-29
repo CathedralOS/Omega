@@ -4,6 +4,7 @@ pub mod guard;
 pub mod instruction;
 pub mod ownership;
 pub mod plan;
+pub mod semantics;
 pub mod values;
 
 pub use boundary::{AbstractBoundaryEdge, AbstractBoundarySummary, AbstractSourceBoundaryEdge};
@@ -22,6 +23,7 @@ pub use ownership::{
     AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
 };
 pub use plan::AbstractOperationPlan;
+pub use semantics::AbstractSemanticSummary;
 pub use values::{
     AbstractValueFact, AbstractValueFactHandle, AbstractValueOrigin, AbstractValueStatementRole,
     AbstractValueSummary,

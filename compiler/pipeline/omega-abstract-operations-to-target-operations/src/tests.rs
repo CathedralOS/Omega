@@ -14,16 +14,20 @@ fn copies_abstract_value_summary_to_target_plan() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);
 
-    abstract_operations.values.values.insert(AbstractValueFact {
-        source_key: Default::default(),
-        machine_symbol,
-        state_symbol,
-        expression: Default::default(),
-        origin: AbstractValueOrigin::Statement {
-            statement_index: 5,
-            role: AbstractValueStatementRole::AssignmentValue,
-        },
-    });
+    abstract_operations
+        .semantics
+        .values
+        .values
+        .insert(AbstractValueFact {
+            source_key: Default::default(),
+            machine_symbol,
+            state_symbol,
+            expression: Default::default(),
+            origin: AbstractValueOrigin::Statement {
+                statement_index: 5,
+                role: AbstractValueStatementRole::AssignmentValue,
+            },
+        });
 
     let target_operations = build_target_operation_plan(
         NativeTarget::host(),
@@ -58,6 +62,7 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
     let signature_symbol = SymbolHandle::from_arena_index(4);
 
     abstract_operations
+        .semantics
         .boundary_edges
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
@@ -96,6 +101,7 @@ fn copies_abstract_ownership_summary_to_target_plan() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let target_symbol = SymbolHandle::from_arena_index(1);
     abstract_operations
+        .semantics
         .ownership
         .moves
         .insert(AbstractMoveEvent {
