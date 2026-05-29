@@ -14,6 +14,11 @@ Output: object plan with sections, symbols, and entry symbol under
 
 Primary responsibility: construct artifact-level sections and symbols for text, data, bss, imports, runtime frame storage, machine storage, and the entry function.
 
+Backend orchestration shape: the aggregate `BackendPlan` keeps symbolic machine
+instructions, encoded machine bytes, object layout, and relocation records under
+`BackendArtifactRoots`. Individual stages still own their artifact type, but the
+orchestration root now makes the final artifact chain visible as one spine.
+
 ## Semantic Ownership
 
 This stage owns object sections and symbol metadata. It does not own source-level values, facts, loans, moves, drops, or boundary semantics; those remain sibling metadata on the encoded-machine/backend plan until a later reporting or validation stage consumes them.

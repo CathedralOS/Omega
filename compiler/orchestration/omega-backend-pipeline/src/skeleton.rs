@@ -1,6 +1,6 @@
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
-use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
+use omega_backend_plan::{BackendArtifactRoots, BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::{Arena, Handle};
@@ -40,6 +40,24 @@ pub(super) struct BackendPlanSkeletonInput {
 pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> BackendPlan {
     BackendPlan {
         target: input.target,
+        artifacts: BackendArtifactRoots {
+            machine_instructions: MachineInstructionPlan::default(),
+            encoded_machine: EncodedMachinePlan::default(),
+            object: ObjectPlan {
+                target: input.target,
+                layout: omega_object_file::ObjectFileLayout {
+                    sections: omega_core::arena::Arena::new(),
+                    symbols: omega_core::arena::Arena::new(),
+                    entry_symbol: Handle::<SymbolPlan>::invalid(),
+                },
+            },
+            relocations: RelocationPlan {
+                target: input.target,
+                record_set: omega_object_file::RelocationRecordSet {
+                    records: omega_core::arena::Arena::new(),
+                },
+            },
+        },
         host_abi: input.host_abi,
         host_calls: Arc::new(input.host_calls),
         state_calls: Arc::new(StateCallPlan::default()),
@@ -61,22 +79,6 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         runtime_storage: RuntimeStoragePlan::default(),
         runtime_text: RuntimeTextPlan::default(),
         layouts: Arc::new(input.layouts),
-        machine_instructions: MachineInstructionPlan::default(),
-        encoded_machine: EncodedMachinePlan::default(),
-        object: ObjectPlan {
-            target: input.target,
-            layout: omega_object_file::ObjectFileLayout {
-                sections: omega_core::arena::Arena::new(),
-                symbols: omega_core::arena::Arena::new(),
-                entry_symbol: Handle::<SymbolPlan>::invalid(),
-            },
-        },
-        relocations: RelocationPlan {
-            target: input.target,
-            record_set: omega_object_file::RelocationRecordSet {
-                records: omega_core::arena::Arena::new(),
-            },
-        },
         entry_key: input.entry_key,
         phase_timings: input.phase_timings,
     }
