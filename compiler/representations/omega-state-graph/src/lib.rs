@@ -1,19 +1,23 @@
 mod borrow;
 mod contracts;
 mod invariants;
+mod operations;
 mod ownership;
 mod proof;
 mod runtime_flow;
+mod transitions;
 
 pub use borrow::*;
 pub use contracts::*;
 pub use invariants::*;
+pub use operations::*;
 pub use ownership::*;
 pub use proof::*;
+pub use transitions::*;
 
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
+use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 use omega_typed_trees::name::Identifier;
 use omega_typed_trees::types::TypeReferenceHandle;
 
@@ -270,97 +274,4 @@ pub struct StateParameterNode {
     pub type_symbol: SymbolHandle,
     pub type_name: Identifier,
     pub is_mutable_reference: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Operation {
-    pub statement_index: usize,
-    pub kind: OperationKind,
-    pub expressions: OperationExpressionRefs,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OperationKind {
-    Assignment,
-    Call {
-        receiver_symbol: SymbolHandle,
-        target_symbol: SymbolHandle,
-        has_receiver: bool,
-        receiver: Identifier,
-        target: Identifier,
-    },
-    ConstantIntegerAssignment,
-    Expression,
-    LocalData,
-    StaticAssignment,
-}
-
-impl Default for Operation {
-    fn default() -> Self {
-        Self {
-            statement_index: 0,
-            kind: OperationKind::LocalData,
-            expressions: OperationExpressionRefs::None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum OperationExpressionRefs {
-    Assignment {
-        target: ExpressionHandle,
-        value: ExpressionHandle,
-    },
-    Call {
-        arguments: HandleSpan<ExpressionHandle>,
-    },
-    Expression(ExpressionHandle),
-    #[default]
-    None,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TransitionEdge {
-    pub statement_index: usize,
-    pub target: PlannedTransitionTarget,
-    pub continuation: PlannedTransitionTarget,
-    pub expressions: TransitionExpressionRefs,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct TransitionExpressionRefs {
-    pub target_arguments: HandleSpan<ExpressionHandle>,
-    pub target_value: ExpressionHandle,
-    pub continuation_arguments: HandleSpan<ExpressionHandle>,
-    pub continuation_value: ExpressionHandle,
-    pub guard: ExpressionHandle,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PlannedTransitionTarget {
-    None,
-    State {
-        index: usize,
-        key: StateKey,
-        name: Identifier,
-    },
-    Nested {
-        receiver_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        receiver: Identifier,
-        state: Identifier,
-    },
-    SelfTarget,
-    Terminal,
-}
-
-impl Default for TransitionEdge {
-    fn default() -> Self {
-        Self {
-            statement_index: 0,
-            target: PlannedTransitionTarget::Terminal,
-            continuation: PlannedTransitionTarget::None,
-            expressions: TransitionExpressionRefs::default(),
-        }
-    }
 }
