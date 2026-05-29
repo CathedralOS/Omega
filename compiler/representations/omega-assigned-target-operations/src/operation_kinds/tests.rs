@@ -87,3 +87,52 @@ fn operation_kinds_accept_assigned_runtime_value_handles() {
         AssignedOperationDomain::GuardEvaluation
     );
 }
+
+#[test]
+fn operation_kind_conversion_preserves_semantic_queries() {
+    let target_read = omega_target_operations::TargetOperationKind::ReadRuntimeTextLine {
+        buffer: TargetDataObjectHandle::invalid(),
+        target_region: RuntimeStorageRegion::RuntimeFrame,
+        target_offset: 0,
+        byte_capacity: 64,
+        source: RuntimeTextReadSource::HostOperation {
+            operation_key: HostOperationKey::default(),
+        },
+    };
+    let assigned_read = AssignedOperationKind::from(target_read.clone());
+
+    assert_eq!(
+        assigned_read.semantic_domain(),
+        target_read.semantic_domain()
+    );
+    assert_eq!(
+        assigned_read.crosses_host_boundary(),
+        target_read.crosses_host_boundary()
+    );
+    assert_eq!(
+        assigned_read.touches_runtime_storage(),
+        target_read.touches_runtime_storage()
+    );
+
+    let assigned_copy = AssignedOperationKind::CopyRuntimeStorage {
+        source_region: RuntimeStorageRegion::Machine,
+        source_offset: 0,
+        target_region: RuntimeStorageRegion::RuntimeFrame,
+        target_offset: 8,
+        byte_count: 8,
+    };
+    let target_copy = omega_target_operations::TargetOperationKind::from(assigned_copy.clone());
+
+    assert_eq!(
+        target_copy.semantic_domain(),
+        assigned_copy.semantic_domain()
+    );
+    assert_eq!(
+        target_copy.crosses_host_boundary(),
+        assigned_copy.crosses_host_boundary()
+    );
+    assert_eq!(
+        target_copy.touches_runtime_storage(),
+        assigned_copy.touches_runtime_storage()
+    );
+}
