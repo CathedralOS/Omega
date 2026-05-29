@@ -132,6 +132,8 @@ meaning, without needing access to pointer descriptor internals.
     out of the root writer into a focused module
   - `omega-backend-report` now splits state schedule reporting out of the root
     writer into a focused module
+  - `omega-backend-report` now splits runtime state-flow and dispatch reporting
+    out of the root writer into a focused transition/report module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
