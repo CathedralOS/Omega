@@ -1,0 +1,38 @@
+use omega_core::arena::{Handle, HandleSpan};
+use omega_core::symbols::SymbolHandle;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum StateContractFactKind {
+    #[default]
+    Requires,
+    Ensures,
+    Boundary,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractFactRef {
+    pub kind: StateContractFactKind,
+    pub fact: Handle<omega_typed_trees::domain::ProofFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractCall {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_machine_symbol: SymbolHandle,
+    pub target_state_symbol: SymbolHandle,
+    pub requires: HandleSpan<StateContractFactRef>,
+    pub ensures: HandleSpan<StateContractFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractExit {
+    pub statement_index: usize,
+    pub ensures: HandleSpan<StateContractFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateContractSummary {
+    pub calls: HandleSpan<StateContractCall>,
+    pub exits: HandleSpan<StateContractExit>,
+}
