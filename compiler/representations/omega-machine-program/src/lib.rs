@@ -7,6 +7,7 @@ pub struct MachineProgram {
     pub target: NativeTarget,
     pub functions: Arena<MachineFunction>,
     pub instructions: Arena<MachineInstruction>,
+    pub ownership: omega_target_operations::TargetOwnershipSummary,
 }
 
 impl Default for MachineProgram {
@@ -25,6 +26,7 @@ impl MachineProgram {
             target,
             functions: Arena::with_capacity(function_capacity),
             instructions: Arena::with_capacity(instruction_capacity),
+            ownership: omega_target_operations::TargetOwnershipSummary::default(),
         }
     }
 }

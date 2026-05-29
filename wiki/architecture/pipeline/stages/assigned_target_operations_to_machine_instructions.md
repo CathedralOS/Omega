@@ -25,8 +25,8 @@ final bytes, sections, or relocations.
 | Values | Become instruction operands or immediates. |
 | Facts | Optional diagnostics/debug metadata only. |
 | Loans | Not active. |
-| Moves | Become machine copies, loads, stores, or disappear. |
-| Drops | Become calls or instruction sequences. |
+| Moves | Preserve assigned ownership summaries while symbolic instructions are emitted; explicit machine copy lowering is still pending. |
+| Drops | Preserve assigned ownership summaries while symbolic instructions are emitted; explicit cleanup instruction lowering is still pending. |
 | Calls | Become symbolic call instructions/sequences. |
 | Transitions | Become symbolic jumps, branches, returns, or dispatch mutations. |
 | Effects | Represented by instruction/call sequences. |
@@ -78,3 +78,5 @@ Must not own:
 - `shapes.rs` is still a large dispatch table; continue splitting by selected
   instruction family when a family grows enough to hide intent.
 - Keep instruction selection separate from machine encoding.
+- Ownership summaries are preserved through symbolic instruction emission, but
+  not yet consumed to produce explicit copy/drop instruction sequences.

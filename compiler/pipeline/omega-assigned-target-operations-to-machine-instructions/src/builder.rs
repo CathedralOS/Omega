@@ -14,6 +14,7 @@ pub(crate) fn build_machine_instructions(
         assigned_target_operations.functions.len(),
         assigned_target_operations.instructions.len(),
     );
+    machine_instructions.ownership = assigned_target_operations.ownership.clone();
 
     for (_, function) in assigned_target_operations.functions.iter() {
         let function_instructions = append_machine_instructions(
