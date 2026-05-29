@@ -566,6 +566,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
+  - `omega-symbol-resolved-trees` expression representation now follows the
+    same data/display/test split, and stale machine-storage test fixtures were
+    updated to include termination/decrease fields
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
