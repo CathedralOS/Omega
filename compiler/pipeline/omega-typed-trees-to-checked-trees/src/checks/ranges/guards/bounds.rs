@@ -113,6 +113,36 @@ pub(super) fn seed_at_most_fact(
     );
 }
 
+pub(super) fn seed_index_less_than_integer_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    index: ExpressionHandle,
+    upper_bound: ExpressionHandle,
+) {
+    let Some(upper_bound) = expression_integer_value(program, facts, upper_bound) else {
+        return;
+    };
+    facts.prove_index_upper_bound(program.expression_table.display_name(index), upper_bound);
+}
+
+pub(super) fn seed_index_at_most_integer_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    index: ExpressionHandle,
+    upper_bound: ExpressionHandle,
+) {
+    let Some(upper_bound) = expression_integer_value(program, facts, upper_bound) else {
+        return;
+    };
+    let Some(exclusive_upper_bound) = upper_bound.checked_add(1) else {
+        return;
+    };
+    facts.prove_index_upper_bound(
+        program.expression_table.display_name(index),
+        exclusive_upper_bound,
+    );
+}
+
 fn seed_minimum_length_fact(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
