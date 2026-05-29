@@ -546,6 +546,8 @@ meaning, without needing access to pointer descriptor internals.
     to target-operation formatting
   - `omega-backend-report` now splits selected-instruction operand rendering
     into a focused codegen helper module
+  - `omega-backend-report` now keeps codegen section orchestration thin and
+    moves target-operation report rendering into a focused target-op module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
