@@ -68,6 +68,8 @@ Must not own:
 - `omega-machine-bytes/src/plan.rs` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
+  Constructors should initialize that semantic root through the shared
+  semantic-summary constructor, not an opaque default.
 - `omega-machine-bytes/src/semantics.rs` owns encoded-stage semantic aliases.
   `EncodedMachineSemanticSummary` is the preserved backend semantic spine, not
   a new duplicate values/boundaries/ownership container.
