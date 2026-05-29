@@ -1,3 +1,4 @@
+mod binary_table_writes;
 mod frame_slots;
 mod normalization;
 mod operators;
@@ -7,11 +8,9 @@ mod value_operands;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
+use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_calls::StateCallRole;
@@ -23,10 +22,8 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_base_indexed_target,
-    resolve_runtime_frame_indexed_target, resolve_runtime_frame_indexed_target_in_table,
-    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_scratch_emit,
@@ -38,17 +35,19 @@ use super::static_values::{
 };
 use super::storage_copy::runtime_storage_copy;
 use super::subslice_copy::runtime_fixed_array_subslice_indexed_source_copy;
+pub(super) use binary_table_writes::{
+    select_runtime_binary_mutation_write_in_table, select_runtime_storage_binary_write_in_table,
+};
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
 pub(super) use normalization::simplify_runtime_expression_with_state_locals;
 use normalization::{normalize_runtime_mutation_expression, resolve_runtime_mutation_target};
 use operators::{
-    builtin_runtime_call_operator, builtin_runtime_call_operator_in_table, runtime_binary_operator,
-    supports_scalar_integer_write,
+    builtin_runtime_call_operator, runtime_binary_operator, supports_scalar_integer_write,
 };
 pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
-use value_operands::{resolve_runtime_value_operand, resolve_runtime_value_operand_in_table};
+use value_operands::resolve_runtime_value_operand;
 
 fn resolve_runtime_call_result_source_place(
     input: &InstructionSelectionInput<'_>,
@@ -247,215 +246,6 @@ pub(super) fn select_runtime_state_call_result_write(
         runtime_value_operands,
         selected_instructions,
     );
-}
-
-pub(super) fn select_runtime_binary_mutation_write_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    target_source_key: StateKey,
-    value_source_key: StateKey,
-    statement_index: usize,
-    expressions: &ExpressionTable,
-    target: ExpressionHandle,
-    value: ExpressionHandle,
-    static_values: &RuntimeStaticValues,
-    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-) -> Option<SelectedInstructionKind> {
-    let target_place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    );
-
-    select_runtime_targeted_binary_mutation_write_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        value_source_key,
-        statement_index,
-        expressions,
-        target,
-        target_place,
-        value,
-        static_values,
-        runtime_value_operands,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn select_runtime_targeted_binary_mutation_write_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    target_source_key: StateKey,
-    value_source_key: StateKey,
-    statement_index: usize,
-    expressions: &ExpressionTable,
-    target: ExpressionHandle,
-    target_place: Option<super::super::super::storage_places::RuntimeStoragePlace>,
-    value: ExpressionHandle,
-    static_values: &RuntimeStaticValues,
-    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-) -> Option<SelectedInstructionKind> {
-    let (operator, left_expression, right_expression) = match expressions.expression(value) {
-        ExpressionNode::Binary(binary) => (
-            runtime_binary_operator(binary.operator)?,
-            binary.left,
-            binary.right,
-        ),
-        ExpressionNode::Call(call) => {
-            let operator = builtin_runtime_call_operator_in_table(input, call)?;
-            let left = expressions.expression_handle_at_offset(call.arguments, 0);
-            let right = expressions.expression_handle_at_offset(call.arguments, 1);
-            (operator, left, right)
-        }
-        _ => return None,
-    };
-
-    let left = resolve_runtime_value_operand_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        statement_index,
-        expressions,
-        left_expression,
-        static_values,
-        runtime_value_operands,
-    )?;
-    let right = resolve_runtime_value_operand_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        statement_index,
-        expressions,
-        right_expression,
-        static_values,
-        runtime_value_operands,
-    )?;
-
-    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) {
-        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_size: indexed_target.byte_count,
-            left,
-            operator,
-            right,
-        });
-    }
-
-    if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
-            left,
-            operator,
-            right,
-        });
-    }
-
-    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
-            left,
-            operator,
-            right,
-        });
-    }
-
-    let target_place = target_place?;
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
-        byte_size: target_place.byte_count,
-        left,
-        operator,
-        right,
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn select_runtime_storage_binary_write_in_table(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    statement_index: usize,
-    expressions: &ExpressionTable,
-    target_region: RuntimeStorageRegion,
-    target_offset: usize,
-    byte_size: usize,
-    value: ExpressionHandle,
-    static_values: &RuntimeStaticValues,
-    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
-) -> Option<SelectedInstructionKind> {
-    let (operator, left_expression, right_expression) = match expressions.expression(value) {
-        ExpressionNode::Binary(binary) => (
-            runtime_binary_operator(binary.operator)?,
-            binary.left,
-            binary.right,
-        ),
-        ExpressionNode::Call(call) => {
-            let operator = builtin_runtime_call_operator_in_table(input, call)?;
-            let left = expressions.expression_handle_at_offset(call.arguments, 0);
-            let right = expressions.expression_handle_at_offset(call.arguments, 1);
-            (operator, left, right)
-        }
-        _ => return None,
-    };
-
-    let left = resolve_runtime_value_operand_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        expressions,
-        left_expression,
-        static_values,
-        runtime_value_operands,
-    )?;
-    let right = resolve_runtime_value_operand_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        expressions,
-        right_expression,
-        static_values,
-        runtime_value_operands,
-    )?;
-
-    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
-        target_region,
-        target_offset,
-        byte_size,
-        left,
-        operator,
-        right,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
