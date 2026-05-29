@@ -5,10 +5,17 @@ use crate::{
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
 use omega_core::symbols::SymbolTable;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTrees {
     pub roots: TypedTreeRoots,
+    pub tables: TypedTreeTables,
+    pub symbols: SymbolTable,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TypedTreeTables {
     pub data_definitions: Arena<data::DataDefinition>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
@@ -34,7 +41,6 @@ pub struct TypedTrees {
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
-    pub symbols: SymbolTable,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -50,12 +56,14 @@ pub struct TypedTreeRoots {
 
 impl TypedTrees {
     pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
-        self.data_definitions
+        self.tables
+            .data_definitions
             .append_to_span(&mut self.roots.data_definitions, data_definition);
     }
 
     pub fn data_definitions(&self) -> &[data::DataDefinition] {
-        self.data_definitions
+        self.tables
+            .data_definitions
             .span_or_empty(self.roots.data_definitions)
     }
 
@@ -90,7 +98,8 @@ impl TypedTrees {
     }
 
     pub fn push_domain_definition(&mut self, domain_definition: domain::DomainDefinition) {
-        self.domain_definitions
+        self.tables
+            .domain_definitions
             .append_to_span(&mut self.roots.domain_definitions, domain_definition);
     }
 
@@ -104,7 +113,8 @@ impl TypedTrees {
     }
 
     pub fn domain_definitions(&self) -> &[domain::DomainDefinition] {
-        self.domain_definitions
+        self.tables
+            .domain_definitions
             .span_or_empty(self.roots.domain_definitions)
     }
 
@@ -130,27 +140,31 @@ impl TypedTrees {
         &mut self,
         invariant_definition: invariant::InvariantDefinition,
     ) {
-        self.invariant_definitions
+        self.tables
+            .invariant_definitions
             .append_to_span(&mut self.roots.invariant_definitions, invariant_definition);
     }
 
     pub fn invariant_definitions(&self) -> &[invariant::InvariantDefinition] {
-        self.invariant_definitions
+        self.tables
+            .invariant_definitions
             .span_or_empty(self.roots.invariant_definitions)
     }
 
     pub fn push_platform(&mut self, platform: platform::Platform) {
-        self.platforms
+        self.tables
+            .platforms
             .append_to_span(&mut self.roots.platforms, platform);
     }
 
     pub fn push_operator(&mut self, operator: crate::operator::OperatorDefinition) {
-        self.operators
+        self.tables
+            .operators
             .append_to_span(&mut self.roots.operators, operator);
     }
 
     pub fn operators(&self) -> &[crate::operator::OperatorDefinition] {
-        self.operators.span_or_empty(self.roots.operators)
+        self.tables.operators.span_or_empty(self.roots.operators)
     }
 
     pub fn push_operator_path_member(
@@ -212,16 +226,17 @@ impl TypedTrees {
     }
 
     pub fn platforms(&self) -> &[platform::Platform] {
-        self.platforms.span_or_empty(self.roots.platforms)
+        self.tables.platforms.span_or_empty(self.roots.platforms)
     }
 
     pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
-        self.traits
+        self.tables
+            .traits
             .append_to_span(&mut self.roots.traits, trait_definition);
     }
 
     pub fn traits(&self) -> &[trait_definition::TraitDefinition] {
-        self.traits.span_or_empty(self.roots.traits)
+        self.tables.traits.span_or_empty(self.roots.traits)
     }
 
     pub fn push_trait_requirement(
@@ -276,16 +291,17 @@ impl TypedTrees {
     }
 
     pub fn push_machine(&mut self, machine: machine::Machine) {
-        self.machines
+        self.tables
+            .machines
             .append_to_span(&mut self.roots.machines, machine);
     }
 
     pub fn machines(&self) -> &[machine::Machine] {
-        self.machines.span_or_empty(self.roots.machines)
+        self.tables.machines.span_or_empty(self.roots.machines)
     }
 
     pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
-        self.machines.span_mut_or_empty(self.roots.machines)
+        self.tables.machines.span_mut_or_empty(self.roots.machines)
     }
 
     pub fn push_machine_contained_object(
@@ -490,5 +506,19 @@ impl PhaseSnapshot for TypedTrees {
 
     fn snapshot(&self) -> Self::Snapshot {
         TypedTrees::snapshot(self)
+    }
+}
+
+impl Deref for TypedTrees {
+    type Target = TypedTreeTables;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tables
+    }
+}
+
+impl DerefMut for TypedTrees {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.tables
     }
 }
