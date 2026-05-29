@@ -231,7 +231,8 @@ fn translate_runtime_value_operand(
 mod tests {
     use super::*;
     use omega_abstract_operations::{
-        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+        AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin,
+        AbstractValueStatementRole,
     };
     use omega_calling_conventions::build_host_abi_plan;
     use omega_core::symbols::SymbolHandle;
@@ -275,5 +276,47 @@ mod tests {
                 role: AbstractValueStatementRole::AssignmentValue,
             }
         );
+    }
+
+    #[test]
+    fn copies_abstract_source_boundary_edges_to_target_plan() {
+        let mut abstract_operations = AbstractOperationPlan::default();
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+        let trait_symbol = SymbolHandle::from_arena_index(3);
+        let signature_symbol = SymbolHandle::from_arena_index(4);
+
+        abstract_operations
+            .boundary_edges
+            .source_edges
+            .insert(AbstractSourceBoundaryEdge {
+                source_key: Default::default(),
+                statement_index: 9,
+                call_ordinal: 1,
+                receiver_symbol: machine_symbol,
+                target_symbol: state_symbol,
+                boundary_trait_symbol: trait_symbol,
+                boundary_signature_symbol: signature_symbol,
+            });
+
+        let target_operations = build_target_operation_plan(
+            NativeTarget::host(),
+            &build_host_abi_plan(NativeTarget::host()),
+            &HostCallPlan::default(),
+            &abstract_operations,
+        );
+
+        assert_eq!(target_operations.boundary_edges.source_edges.len(), 1);
+        let edge = target_operations
+            .boundary_edges
+            .source_edges
+            .iter()
+            .next()
+            .map(|(_, edge)| edge)
+            .expect("target source boundary edge");
+        assert_eq!(edge.statement_index, 9);
+        assert_eq!(edge.call_ordinal, 1);
+        assert_eq!(edge.boundary_trait_symbol, trait_symbol);
+        assert_eq!(edge.boundary_signature_symbol, signature_symbol);
     }
 }
