@@ -20,6 +20,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `values.rs` owns runtime value operand translation and runtime value handle remapping.
 - `remap.rs` owns handle/span remapping when arena ordering is preserved across the lowering boundary.
 - `host.rs` owns lowered host operation key resolution and host ABI binding reconciliation.
+- `omega-target-operations/src/instruction/function.rs` owns target operation
+  function plans, `instruction/selected.rs` owns target operation kinds,
+  `instruction/value.rs` owns target value operands, and
+  `instruction/operand.rs` owns target instruction operands.
 - `tests.rs` owns stage-level preservation canaries for values, ownership, and boundary edges.
 
 ## Semantic Ownership
