@@ -1,12 +1,11 @@
+mod assigned;
 mod native_data;
 
 use super::backend_state_name;
 use super::host::host_call_display_name;
 
 use crate::BackendReportInput;
-use omega_assigned_target_operations::{
-    AssignedValueOperand, RuntimeTextReadSource, RuntimeValueOperand,
-};
+use omega_assigned_target_operations::{RuntimeTextReadSource, RuntimeValueOperand};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionFunction};
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
@@ -51,30 +50,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     }
     output.push('\n');
 
-    output.push_str("## Assigned Target Operations\n");
-    output.push_str(&format!(
-        "functions: {}\n",
-        backend_plan.assigned_target_operations.code.functions.len()
-    ));
-    output.push_str(&format!(
-        "instructions: {}\n",
-        backend_plan
-            .assigned_target_operations
-            .code
-            .instructions
-            .len()
-    ));
-    output.push_str(&format!(
-        "runtime value homes: {}\n",
-        backend_plan
-            .assigned_target_operations
-            .runtime_values_with_homes()
-            .count()
-    ));
-    let scratch_home_count = backend_plan.assigned_target_operations.scratch_home_count();
-    output.push_str(&format!("scratch homes: {}\n", scratch_home_count));
-    write_assigned_value_homes(output, backend_plan);
-    output.push('\n');
+    assigned::write_assigned_target_operations_section(output, backend_plan);
 
     output.push_str("## Machine Instructions\n");
     output.push_str(&format!(
@@ -97,31 +73,6 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
         write_machine_function_code(output, backend_plan, function);
     }
     output.push('\n');
-}
-
-fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportInput<'_>) {
-    if backend_plan
-        .assigned_target_operations
-        .runtime_values_with_homes()
-        .next()
-        .is_none()
-    {
-        output.push_str("homes: none\n");
-        return;
-    }
-
-    output.push_str("homes:\n");
-    for (operand_handle, operand) in backend_plan
-        .assigned_target_operations
-        .runtime_values_with_homes()
-    {
-        output.push_str(&format!(
-            "  - #{} {} => {}\n",
-            operand_handle.arena_index(),
-            runtime_value_operand_name(backend_plan, operand_handle),
-            assigned_value_home_name(operand)
-        ));
-    }
 }
 
 fn write_function_instruction_plan(
@@ -819,7 +770,7 @@ fn runtime_text_read_source_name(
     }
 }
 
-fn runtime_value_operand_name(
+pub(super) fn runtime_value_operand_name(
     backend_plan: &BackendReportInput<'_>,
     operand: RuntimeValueOperandHandle,
 ) -> String {
@@ -882,89 +833,6 @@ fn runtime_value_operand_name(
             runtime_value_operand_name(backend_plan, *left),
             runtime_value_operand_name(backend_plan, *right),
         ),
-    }
-}
-
-fn assigned_value_home_name(operand: &AssignedValueOperand) -> String {
-    match operand.home {
-        omega_assigned_target_operations::AssignedValueHomeKind::Immediate => {
-            "immediate".to_owned()
-        }
-        omega_assigned_target_operations::AssignedValueHomeKind::StackSlot {
-            byte_offset,
-            byte_size,
-        } => format!("stack slot frame@{byte_offset}/{}", byte_size),
-        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeStorage {
-            region,
-            byte_offset,
-            byte_size,
-        } => format!("storage {region:?}@{byte_offset}/{}", byte_size),
-        omega_assigned_target_operations::AssignedValueHomeKind::RuntimePointee {
-            pointer_byte_offset,
-            field_byte_offset,
-            byte_size,
-        } => format!(
-            "pointee frame@{pointer_byte_offset}+{field_byte_offset}/{}",
-            byte_size
-        ),
-        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameIndexed {
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-        } => format!(
-            "frame-indexed desc@{descriptor_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
-            byte_size
-        ),
-        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameBaseIndexed {
-            base_byte_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-        } => format!(
-            "frame-base-indexed base@{base_byte_offset} idx@{index_offset} elem {element_byte_size} field +{field_byte_offset}/{}",
-            byte_size
-        ),
-        omega_assigned_target_operations::AssignedValueHomeKind::RuntimeFrameFixedIndexed {
-            descriptor_offset,
-            element_index,
-            element_byte_size,
-            field_byte_offset,
-            byte_size,
-        } => format!(
-            "frame-fixed-indexed desc@{descriptor_offset} idx {element_index} elem {element_byte_size} field +{field_byte_offset}/{}",
-            byte_size
-        ),
-        omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { bank, name } => {
-            let source = match operand.kind {
-                RuntimeValueOperand::Binary { .. } => "binary temp",
-                _ => "temp",
-            };
-            format!(
-                "{bank:?} register {} ({source})",
-                assigned_register_name(name)
-            )
-        }
-    }
-}
-
-fn assigned_register_name(name: omega_assigned_target_operations::AssignedRegisterName) -> String {
-    match name {
-        omega_assigned_target_operations::AssignedRegisterName::Aarch64X(register) => {
-            format!("x{register}")
-        }
-        omega_assigned_target_operations::AssignedRegisterName::X86_64(register) => {
-            match register {
-                omega_assigned_target_operations::X86_64AssignedRegister::R10 => "r10".to_owned(),
-                omega_assigned_target_operations::X86_64AssignedRegister::R11 => "r11".to_owned(),
-                omega_assigned_target_operations::X86_64AssignedRegister::R12 => "r12".to_owned(),
-                omega_assigned_target_operations::X86_64AssignedRegister::R13 => "r13".to_owned(),
-                omega_assigned_target_operations::X86_64AssignedRegister::R14 => "r14".to_owned(),
-                omega_assigned_target_operations::X86_64AssignedRegister::R15 => "r15".to_owned(),
-            }
-        }
     }
 }
 
