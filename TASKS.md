@@ -45,6 +45,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-checked-trees` now has noun-shaped representation modules for
     borrow facts, proof facts, invariant/domain facts, checked flow facts,
     statement wrappers, and the root checked-tree container
+  - `omega-state-graph` and `omega-control-flow` now mirror that representation
+    shape with modules for topology, graph/plan containers, contracts, proof
+    facts, invariants, borrow facts, ownership facts, operations, and transitions
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
