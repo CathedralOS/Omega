@@ -43,6 +43,27 @@ pub(crate) fn build_value_facts(program: &TypedTrees) -> CheckedValueFacts {
                 );
             }
         }
+        if let Some(attached_data) = machine.attached_data.as_ref()
+            && let Some(data_definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name == *attached_data)
+        {
+            for member in program.data_members(data_definition) {
+                let omega_typed_trees::data::DataMember::Field(field) = member else {
+                    continue;
+                };
+                if field.initial_value.is_valid() {
+                    builder.collect_expression(
+                        field.initial_value,
+                        CheckedValueOrigin::MachineOwnedDataInitializer {
+                            machine_symbol: machine.symbol,
+                            data_symbol: field.symbol,
+                        },
+                    );
+                }
+            }
+        }
 
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program

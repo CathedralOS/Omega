@@ -106,8 +106,9 @@ Current ownership is:
   `values/statement.rs` owns statement-role routing, `values/transition.rs`
   owns transition target value routing, and `values/expression.rs` owns nested
   expression traversal. These modules record source expression handles and why
-  each value matters, but they do not yet decide ownership kind, drop policy,
-  or storage shape.
+  each value matters, including machine decreases, attached-data field
+  initializers, statement values, transition targets, and nested expressions.
+  They do not yet decide ownership kind, drop policy, or storage shape.
 - `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`
   owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
   indexed/subslice validation, `checks/ranges/facts.rs` owns local/field range

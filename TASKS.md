@@ -55,6 +55,8 @@ meaning, without needing access to pointer descriptor internals.
   - checked value fact production is now split into entrypoint, statement-role
     routing, transition target value routing, and nested expression traversal
     modules instead of concentrating all value concerns in one file
+  - checked value facts now cover machine decreases and attached-data field
+    initializers, with focused canaries for both top-level value origins
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
