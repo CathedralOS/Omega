@@ -14,6 +14,7 @@ pub(crate) fn build_machine_instructions(
         assigned_target_operations.functions.len(),
         assigned_target_operations.instructions.len(),
     );
+    machine_instructions.values = assigned_target_operations.values.clone();
     machine_instructions.boundary_edges = assigned_target_operations.boundary_edges.clone();
     machine_instructions.ownership = assigned_target_operations.ownership.clone();
 
@@ -69,4 +70,50 @@ fn append_machine_instructions(
             })
         },
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_abstract_operations::{
+        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    };
+    use omega_core::symbols::SymbolHandle;
+
+    #[test]
+    fn copies_assigned_value_summary_to_machine_instruction_plan() {
+        let mut assigned_operations = AssignedTargetOperationPlan::default();
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+
+        assigned_operations.values.values.insert(AbstractValueFact {
+            source_key: Default::default(),
+            machine_symbol,
+            state_symbol,
+            expression: Default::default(),
+            origin: AbstractValueOrigin::Statement {
+                statement_index: 11,
+                role: AbstractValueStatementRole::TransitionGuard,
+            },
+        });
+
+        let machine_instructions =
+            build_machine_instructions(&assigned_operations).expect("machine instructions");
+
+        assert_eq!(machine_instructions.values.values.len(), 1);
+        let value = machine_instructions
+            .values
+            .values
+            .iter()
+            .next()
+            .map(|(_, value)| value)
+            .expect("machine value");
+        assert_eq!(
+            value.origin,
+            AbstractValueOrigin::Statement {
+                statement_index: 11,
+                role: AbstractValueStatementRole::TransitionGuard,
+            }
+        );
+    }
 }

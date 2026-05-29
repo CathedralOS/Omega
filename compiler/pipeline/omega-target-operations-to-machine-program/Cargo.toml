@@ -15,3 +15,6 @@ omega-machine-instructions = { path = "../../representations/omega-machine-instr
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-target-operations-to-assigned-target-operations = { path = "../omega-target-operations-to-assigned-target-operations" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+
+[dev-dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
