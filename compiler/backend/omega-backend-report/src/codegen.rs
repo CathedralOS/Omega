@@ -1,3 +1,4 @@
+mod abstract_ops;
 mod assigned;
 mod machine;
 mod native_data;
@@ -16,21 +17,7 @@ use omega_target_operations::{
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
     native_data::write_native_data_section(output, backend_plan);
-
-    output.push_str("## Abstract Operations\n");
-    output.push_str(&format!(
-        "functions: {}\n",
-        backend_plan.abstract_operations.code.functions.len()
-    ));
-    output.push_str(&format!(
-        "instructions: {}\n",
-        backend_plan.abstract_operations.code.instructions.len()
-    ));
-    output.push_str(&format!(
-        "operands: {}\n",
-        backend_plan.abstract_operations.code.operands.len()
-    ));
-    output.push('\n');
+    abstract_ops::write_abstract_operations_section(output, backend_plan);
 
     output.push_str("## Target Operations\n");
     output.push_str(&format!(
