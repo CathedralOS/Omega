@@ -1,8 +1,8 @@
 use crate::context::*;
 use crate::semantic_calls::find_state;
 
-use super::StateLoanTracker;
 use super::accesses::{self, borrow_access_place};
+use super::tracker::StateLoanTracker;
 mod types;
 
 use types::{is_mutable_reference_type, is_reference_type};

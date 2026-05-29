@@ -57,6 +57,8 @@ Current ownership is:
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
   collection, `borrow/accesses/read.rs` owns recursive read-access traversal,
   `borrow/accesses/place.rs` owns contextual place resolution,
+  `borrow/state.rs` owns state-local borrow fact assembly from writable roots,
+  loans, call accesses, and last-use updates,
   `borrow/loans.rs` owns local loan creation/rebasing,
   `borrow/loans/types.rs` owns reference-type classification for loan
   creation, `borrow/calls.rs` owns statement-level borrow call-site discovery,
