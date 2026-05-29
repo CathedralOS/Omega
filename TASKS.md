@@ -49,6 +49,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow ownership production is now split into entrypoint, move
     traversal, call argument routing, state-exit drops, and type-resolution
     modules instead of concentrating every ownership concern in one file
+  - checked-flow move traversal now descends into binary/range value
+    expressions, with a string-concat ownership canary proving owned operands
+    are materialized as move facts
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
@@ -158,8 +161,8 @@ meaning, without needing access to pointer descriptor internals.
     format where prose is currently vague
   - make ownership event production fully type-aware so Copy/no-drop values and
     real ownership-consuming values are distinguished across all transfer sites
-  - extend type-aware ownership event production into slice/string operations,
-    binary/operator expressions, and future user-defined copy/drop policy
+  - extend type-aware ownership event production into slice/string operators
+    beyond binary expressions and future user-defined copy/drop policy
   - teach remaining value-expression analysis to append ownership
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and

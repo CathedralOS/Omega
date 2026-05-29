@@ -302,6 +302,37 @@ fn materializes_struct_literal_field_moves() {
 }
 
 #[test]
+fn materializes_binary_operand_moves_for_owned_strings() {
+    let source = r#"
+        data Main {
+            left: String;
+            right: String;
+        }
+
+        machine Main::main(&mut self) {
+            let joined: String = self.left + self.right;
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    let moves = flow.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 2);
+    assert!(moves.iter().all(|event| event.source
+        == omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }));
+    assert!(moves.iter().all(|event| {
+        !flow
+            .ownership_segments
+            .span_or_empty(event.segments)
+            .is_empty()
+    }));
+
+    let drops = flow.drops.span_or_empty(state_flow.drops);
+    assert_eq!(drops.len(), 1);
+}
+
+#[test]
 fn does_not_materialize_move_or_drop_events_for_copy_scalar_locals() {
     let source = r#"
         data Main {
