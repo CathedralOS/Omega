@@ -183,6 +183,9 @@ meaning, without needing access to pointer descriptor internals.
   - runtime-storage write relocation planning now routes operand-start and
     runtime-frame address offsets through the relocation offset family, with a
     canary for architecture-specific write offsets
+  - compatibility object-container serialization now splits primitive byte
+    writing and stable enum ID mapping out of the orchestration module, with a
+    canary for the object-container IDs
   - `omega-image` now has a thin crate root plus modules for final-image model
     records, object/relocation conversion, symbol/address queries, emitted
     output records, and architecture relocation patching

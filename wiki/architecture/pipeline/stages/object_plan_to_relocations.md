@@ -58,6 +58,7 @@ Must not own:
 - `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families: append, compare, materialize, host-backed line read, and literal write references.
 - `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data.
+- `omega-object-file/src/container.rs` owns compatibility object-container serialization orchestration; `container/bytes.rs` owns primitive byte writing and `container/ids.rs` owns stable object-container enum IDs.
 
 ## Known Gaps
 
