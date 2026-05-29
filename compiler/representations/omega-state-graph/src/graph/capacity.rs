@@ -1,7 +1,7 @@
 use omega_core::arena::Arena;
 use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 
-use crate::{StateGraph, StateGraphSemanticRoots};
+use crate::{StateGraph, StateGraphCode, StateGraphSemanticRoots};
 
 impl StateGraph {
     pub fn with_capacity(
@@ -32,12 +32,16 @@ impl StateGraph {
         transition_capacity: usize,
     ) -> Self {
         Self {
-            expressions: ExpressionTable::with_capacities(expression_capacity),
-            machines: Arena::with_capacity(machine_capacity),
-            contained_machines: Arena::with_capacity(contained_machine_capacity),
-            machine_owned_data: Arena::with_capacity(machine_owned_data_capacity),
-            states: Arena::with_capacity(state_capacity),
-            state_parameters: Arena::with_capacity(state_parameter_capacity),
+            code: StateGraphCode {
+                expressions: ExpressionTable::with_capacities(expression_capacity),
+                machines: Arena::with_capacity(machine_capacity),
+                contained_machines: Arena::with_capacity(contained_machine_capacity),
+                machine_owned_data: Arena::with_capacity(machine_owned_data_capacity),
+                states: Arena::with_capacity(state_capacity),
+                state_parameters: Arena::with_capacity(state_parameter_capacity),
+                operations: Arena::with_capacity(operation_capacity),
+                transitions: Arena::with_capacity(transition_capacity),
+            },
             semantics: StateGraphSemanticRoots {
                 proof_obligations: Arena::with_capacity(proof_obligation_capacity),
                 invariants: Arena::with_capacity(invariant_capacity),
@@ -57,8 +61,6 @@ impl StateGraph {
                 move_events: Arena::with_capacity(move_event_capacity),
                 drop_events: Arena::with_capacity(drop_event_capacity),
             },
-            operations: Arena::with_capacity(operation_capacity),
-            transitions: Arena::with_capacity(transition_capacity),
         }
     }
 }

@@ -20,8 +20,9 @@ can lower without rediscovering machine structure.
 The input semantic source is `CheckFacts`, including grouped checked-flow
 roots under `FlowFacts`.
 The representation root is `StateGraph`: scheduling topology lives in the
-machine/state/operation/transition arenas, while preserved semantic evidence
-lives under `StateGraphSemanticRoots`.
+`StateGraphCode` root for expressions, machine/state topology, operations, and
+transitions, while preserved semantic evidence lives under
+`StateGraphSemanticRoots`.
 
 | Noun | Ownership |
 | --- | --- |
@@ -60,6 +61,9 @@ preservation:
 
 - `builder.rs` orchestrates per-machine graph construction and worker
   scheduling.
+- `omega-state-graph/src/graph.rs` owns the representation roots: executable
+  scheduling shape lives under `StateGraphCode`, while preserved semantic
+  evidence lives under `StateGraphSemanticRoots`.
 - `omega-state-graph/src/semantics.rs` owns the `StateGraphSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas.
