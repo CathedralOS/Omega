@@ -1,11 +1,13 @@
 mod effects;
 mod entry_point;
+mod locals;
 mod operators;
 mod symbols;
 #[cfg(test)]
 mod tests;
 
 use crate::entry_point::validate_entry_point;
+use crate::locals::{WritableRoots, validate_local_data_names};
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
@@ -344,68 +346,6 @@ fn domain_membership_facts(
     symbol: SymbolHandle,
 ) -> impl Iterator<Item = omega_facts::DomainMembershipFact> + '_ {
     fact_plan.domain_memberships_for_symbol(symbol)
-}
-
-struct WritableRoots<'program, 'state> {
-    machine_symbols: &'state MachineSymbols<'program>,
-    statements: &'state [StatementNode],
-    parameters: &'state [StateParameter],
-}
-
-impl WritableRoots<'_, '_> {
-    fn contains(&self, root_name: &str) -> bool {
-        self.machine_symbols.has_owned_data(root_name)
-            || self.statements.iter().any(|statement| {
-                let StatementNode::LocalData(local_data) = statement else {
-                    return false;
-                };
-
-                local_data.name.as_str() == root_name
-            })
-            || self
-                .parameters
-                .iter()
-                .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
-    }
-}
-
-fn validate_local_data_names(
-    statements: &[StatementNode],
-    machine_symbols: &MachineSymbols<'_>,
-    parameters: &[StateParameter],
-    machine_name: &str,
-    state_name: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::LocalData(local_data) = statement else {
-            continue;
-        };
-
-        if machine_symbols.has_member(local_data.name.as_str())
-            || parameters
-                .iter()
-                .any(|parameter| parameter.name == local_data.name)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{machine_name}` state `{state_name}` local data `{}` conflicts with an existing name",
-                local_data.name
-            )));
-            continue;
-        }
-
-        if statements[..statement_index].iter().any(|previous| {
-            matches!(
-                previous,
-                StatementNode::LocalData(previous) if previous.name == local_data.name
-            )
-        }) {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{machine_name}` state `{state_name}` has duplicate local data `{}`",
-                local_data.name
-            )));
-        }
-    }
 }
 
 fn validate_state_statement_node(
