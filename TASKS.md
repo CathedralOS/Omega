@@ -49,6 +49,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow ownership production is now split into entrypoint, move
     traversal, call argument routing, state-exit drops, and type-resolution
     modules instead of concentrating every ownership concern in one file
+  - typed-to-checked borrow fact production now splits state-local writable
+    root, loan, call-access, and last-use assembly out of the program-level
+    borrow entrypoint
   - checked-flow move traversal now descends into binary/range value
     expressions, with a string-concat ownership canary proving owned operands
     are materialized as move facts

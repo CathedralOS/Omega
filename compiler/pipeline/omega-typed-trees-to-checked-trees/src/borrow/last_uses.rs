@@ -1,6 +1,6 @@
 use crate::context::*;
 
-use super::StateLoanTracker;
+use super::tracker::StateLoanTracker;
 use usage::{statement_uses_local_name, statement_uses_symbol};
 
 mod usage;

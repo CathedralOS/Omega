@@ -494,9 +494,11 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(combined.contains(
-        "statement 1 mutates `Main::main.value` while local borrow `alias` is still active"
-    ));
+    assert!(
+        combined.contains(
+            "statement 1 mutates `self.value` while local borrow `alias` is still active"
+        )
+    );
     assert!(combined.contains("borrowed at statement 0"));
 }
 
