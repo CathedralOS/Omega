@@ -56,8 +56,10 @@ preservation:
 - `builder.rs` orchestrates per-machine graph construction and worker
   scheduling.
 - `merge.rs` owns worker-local graph merging and remapping of state-local
-  contract, value, boundary, borrow, ownership, operation, transition, and metadata spans
-  into the final graph.
+  contract, value, boundary, borrow, ownership, operation, transition, and
+  metadata spans into the final graph. Worker-local source arenas should stay
+  bundled so the merge API exposes one semantic source bundle instead of a long
+  argument list.
 - `segments.rs` splits checked state statements into graph segments.
   `segments/branching.rs` owns branch-call topology detection and recursive
   branch-flow discovery. `segments/operations.rs` owns graph operation kind
