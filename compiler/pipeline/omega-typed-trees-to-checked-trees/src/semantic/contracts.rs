@@ -1,4 +1,11 @@
+mod payload;
+mod places;
+
 use super::*;
+pub(crate) use places::contract_fact_place;
+
+use payload::semantic_contract_payload;
+use points::{contract_fact_origin, contract_fact_point};
 
 pub(super) fn append_contract_semantic_facts(
     program: &omega_typed_trees::TypedTrees,
