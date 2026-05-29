@@ -17,21 +17,24 @@ pub(crate) fn build_assigned_target_operations(
 
     for (_, function) in target_operations.code.functions.iter() {
         assigned_target_operations
+            .code
             .functions
             .insert(functions::assign_function(function));
     }
 
     for (_, instruction) in target_operations.code.instructions.iter() {
         assigned_target_operations
+            .code
             .instructions
             .insert(operations::assign_operation(instruction));
     }
     for (_, operand) in target_operations.code.operands.iter() {
         assigned_target_operations
+            .code
             .operands
             .insert(operations::assign_instruction_operand(operand));
     }
-    assigned_target_operations.host_bindings = target_operations.code.host_bindings.clone();
+    assigned_target_operations.code.host_bindings = target_operations.code.host_bindings.clone();
     assigned_target_operations.semantics.values = target_operations.semantics.values.clone();
     assigned_target_operations.semantics.boundary_edges =
         target_operations.semantics.boundary_edges.clone();

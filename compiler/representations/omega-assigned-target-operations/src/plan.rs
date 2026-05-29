@@ -14,13 +14,18 @@ use omega_target_operations::TargetHostBinding;
 pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssignedTargetOperationPlan {
-    pub target: NativeTarget,
+pub struct AssignedTargetOperationCode {
     pub functions: Arena<AssignedTargetOperationFunction>,
     pub instructions: Arena<AssignedOperation>,
     pub operands: Arena<AssignedInstructionOperand>,
     pub runtime_value_operands: Arena<AssignedValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedTargetOperationPlan {
+    pub target: NativeTarget,
+    pub code: AssignedTargetOperationCode,
     pub semantics: AssignedSemanticSummary,
 }
 

@@ -85,6 +85,10 @@ meaning, without needing access to pointer descriptor internals.
     now sit under an explicit `AssignedSemanticSummary` root on
     `AssignedTargetOperationPlan`, preserving the same semantic spine through
     physical-home assignment
+  - assigned target operation executable shape and host bindings now sit under
+    an explicit `AssignedTargetOperationCode` root on
+    `AssignedTargetOperationPlan`, keeping assigned operation arenas separate
+    from preserved semantic summaries
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve

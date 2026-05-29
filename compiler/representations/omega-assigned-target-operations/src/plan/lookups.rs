@@ -8,7 +8,8 @@ use omega_target_operations::{HostOperationKey, TargetHostBinding};
 
 impl AssignedTargetOperationPlan {
     pub fn host_binding(&self, operation_key: HostOperationKey) -> Option<&TargetHostBinding> {
-        self.host_bindings
+        self.code
+            .host_bindings
             .iter()
             .find(|(_, binding)| binding.operation_key == operation_key)
             .map(|(_, binding)| binding)
@@ -19,9 +20,10 @@ impl AssignedTargetOperationPlan {
         handle: Handle<omega_target_operations::TargetInstructionOperand>,
     ) -> Option<&AssignedInstructionOperand> {
         let handle = assigned_instruction_handle(handle);
-        self.operands
+        self.code
+            .operands
             .is_valid(handle)
-            .then(|| self.operands.get(handle))
+            .then(|| self.code.operands.get(handle))
     }
 
     pub fn instruction_operands(
@@ -29,7 +31,7 @@ impl AssignedTargetOperationPlan {
         span: HandleSpan<omega_target_operations::TargetInstructionOperand>,
     ) -> Option<&[AssignedInstructionOperand]> {
         let span = assigned_instruction_span(span);
-        self.operands.span(span)
+        self.code.operands.span(span)
     }
 
     pub fn runtime_value_home_handle(
@@ -38,6 +40,7 @@ impl AssignedTargetOperationPlan {
     ) -> AssignedValueHomeHandle {
         if value_operands::assigned_value_handle(handle).is_valid()
             && self
+                .code
                 .runtime_value_operands
                 .is_valid(value_operands::assigned_value_handle(handle))
         {
@@ -60,15 +63,17 @@ impl AssignedTargetOperationPlan {
         handle: RuntimeValueOperandHandle,
     ) -> Option<&AssignedValueOperand> {
         let handle = value_operands::assigned_value_handle(handle);
-        self.runtime_value_operands
+        self.code
+            .runtime_value_operands
             .is_valid(handle)
-            .then(|| self.runtime_value_operands.get(handle))
+            .then(|| self.code.runtime_value_operands.get(handle))
     }
 
     pub fn runtime_values_with_homes(
         &self,
     ) -> impl Iterator<Item = (RuntimeValueOperandHandle, &AssignedValueOperand)> + '_ {
-        self.runtime_value_operands
+        self.code
+            .runtime_value_operands
             .iter()
             .map(|(handle, operand)| (value_operands::target_value_handle(handle), operand))
     }

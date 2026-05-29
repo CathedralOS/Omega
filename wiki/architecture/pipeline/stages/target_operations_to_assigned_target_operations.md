@@ -18,6 +18,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   representation root: executable target operation shape and host bindings live
   under `TargetOperationCode`, while preserved semantic evidence lives under
   `TargetSemanticSummary`.
+- `omega-assigned-target-operations/src/plan.rs` is the output
+  representation root: assigned executable shape and host bindings live under
+  `AssignedTargetOperationCode`, while preserved semantic evidence lives under
+  `AssignedSemanticSummary`.
 - `builder.rs` owns the stage conveyor from target operation arenas into assigned target operation arenas.
 - `functions.rs` owns function metadata remapping while operation ordering is preserved.
 - `operations.rs` owns target operation and instruction-operand conversion into assigned operation records.
