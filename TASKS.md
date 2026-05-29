@@ -56,6 +56,8 @@ meaning, without needing access to pointer descriptor internals.
     as target value metadata
   - target value summaries now preserve through assignment as assigned target
     value metadata beside ownership and boundary summaries
+  - assigned value summaries now preserve through symbolic machine
+    instructions and the current machine-program artifact as metadata
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, value facts, ownership facts, operations,
@@ -81,8 +83,8 @@ meaning, without needing access to pointer descriptor internals.
     cleanup operations
   - refine checked/control-flow/abstract/target value summaries with type-aware
     ownership kind, drop policy, storage consequences, and backend lowering
-    beyond metadata, then decide whether machine-instruction/object layers
-    preserve value metadata or intentionally cut it off at a documented seam
+    beyond metadata so machine-instruction/object layers can lower value
+    consequences deliberately instead of only preserving summaries
   - make boundary edges as queryable in checked/control-flow representations as
     calls, effects, and contracts
   - connect backend boundary-edge summaries back to checked source-level
