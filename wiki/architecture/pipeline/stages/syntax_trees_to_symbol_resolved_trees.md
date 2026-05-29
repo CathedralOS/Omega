@@ -67,7 +67,10 @@ The implementation should stay split by identity task:
   `symbols/top_level/machines.rs` owns machine symbol stamping, including
   contained objects, owned data, state parameters, state locals, trait
   conformances, and inherited attached-data field offsets.
-- `symbols/type_references.rs` stamps type-reference symbols.
+- `symbols/type_references.rs` owns only the type-reference export surface.
+  `symbols/type_references/assignment.rs` stamps type-reference symbols, while
+  `symbols/type_references/queries.rs` answers read-side type-reference symbol
+  and call-target questions.
 - `symbols/scoped_paths.rs` resolves machine/state-scoped name paths for places,
   calls, indexed paths, and transition targets.
   `symbols/scoped_paths/base.rs` owns the base-segment lookup policy across

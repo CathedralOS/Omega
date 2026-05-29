@@ -38,6 +38,8 @@ meaning, without needing access to pointer descriptor internals.
   - syntax-to-symbol top-level symbol stamping now splits data, domain,
     operator, platform, trait, and machine declaration-family stamping out of
     the root-level conveyor
+  - syntax-to-symbol type-reference handling now splits symbol assignment from
+    read-side type-reference/call-target queries behind a narrow export surface
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
