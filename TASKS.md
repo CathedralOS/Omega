@@ -76,6 +76,9 @@ meaning, without needing access to pointer descriptor internals.
   - abstract operation value facts, ownership facts, and boundary edges now sit
     under an explicit `AbstractSemanticSummary` root on `AbstractOperationPlan`
     instead of appearing as unrelated plan siblings
+  - `AbstractSemanticSummary` now owns root construction for value, boundary,
+    and ownership summaries instead of requiring lowerings to spell out its
+    internal fields
   - abstract operation executable shape now sits under an explicit
     `AbstractOperationCode` root on `AbstractOperationPlan`, keeping operation
     arenas separate from preserved semantic summaries
