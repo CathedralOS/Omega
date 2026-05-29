@@ -21,11 +21,13 @@ machine EventRuntime::describe(
     room: Room,
     out_line: &mut String
 ) {
-    -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
-    -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
-    -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
-    -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
-    -> quiet_room(out_line);
+    transition {
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line)
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line)
+        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy, out_line)
+        _ -> quiet_room(out_line)
+    }
 
 
     state describe_fountain(
@@ -71,10 +73,12 @@ machine EventRuntime::use_event(
     room: &mut Room,
     out_line: &mut String
 ) {
-    -> use_fountain(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
-    -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
-    -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
-    -> no_usable_event(out_line);
+    transition {
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(player, &mut room.event, out_line)
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> use_reward(player, &mut room.event, out_line)
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(player, &mut room.event, out_line)
+        _ -> no_usable_event(out_line)
+    }
 
 
     state use_fountain(
@@ -115,8 +119,10 @@ machine EventRuntime::fight_event(
     round: &mut CombatRound,
     out_line: &mut String
 ) {
-    -> fight_enemy_event(player, room, random, round, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
-    -> no_enemy(out_line);
+    transition {
+        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> fight_enemy_event(player, room, random, round, out_line)
+        _ -> no_enemy(out_line)
+    }
 
 
     state fight_enemy_event(
@@ -130,9 +136,11 @@ machine EventRuntime::fight_event(
         self.combat.fight(player, &mut room.event, random, round);
         out_line = "You trade blows with the monster.";
 
-        -> player_died(out_line) when round.player_defeated;
-        -> enemy_died(room.event.reward, out_line) when round.enemy_defeated;
-        -> exchange_blows(round, out_line);
+        transition {
+            round.player_defeated -> player_died(out_line)
+            round.enemy_defeated -> enemy_died(room.event.reward, out_line)
+            _ -> exchange_blows(round, out_line)
+        }
     }
 
     state no_enemy(
@@ -154,9 +162,11 @@ machine EventRuntime::fight_event(
         reward: Reward,
         out_line: &mut String
     ) {
-        -> rich_reward(out_line) when reward.gold >= 20;
-        -> small_reward(out_line) when reward.gold > 0;
-        -> empty_reward(out_line);
+        transition {
+            reward.gold >= 20 -> rich_reward(out_line)
+            reward.gold > 0 -> small_reward(out_line)
+            _ -> empty_reward(out_line)
+        }
     }
 
     state rich_reward(
@@ -185,10 +195,12 @@ machine EventRuntime::fight_event(
         round: CombatRound,
         out_line: &mut String
     ) {
-        -> heavy_exchange(out_line) when round.player_damage > 10;
-        -> clean_hit(out_line) when round.enemy_damage == 0;
-        -> painful_exchange(out_line) when round.enemy_damage >= 5;
-        -> glancing_exchange(out_line);
+        transition {
+            round.player_damage > 10 -> heavy_exchange(out_line)
+            round.enemy_damage == 0 -> clean_hit(out_line)
+            round.enemy_damage >= 5 -> painful_exchange(out_line)
+            _ -> glancing_exchange(out_line)
+        }
     }
 
     state heavy_exchange(

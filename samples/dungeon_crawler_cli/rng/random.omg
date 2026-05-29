@@ -19,7 +19,9 @@ machine Random::next_u32(
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
 
-    -> ((state.seed >> 32) as u32);
+    transition {
+        _ -> ((state.seed >> 32) as u32)
+    }
 }
 
 machine Random::range(
@@ -29,7 +31,9 @@ machine Random::range(
     ) -> u32 {
     let raw: u32 = self.next_u32(state);
 
-    -> raw % exclusive_max;
+    transition {
+        _ -> (raw % exclusive_max)
+    }
 }
 
 machine Random::chance(
@@ -40,7 +44,9 @@ machine Random::chance(
     ) -> bool {
     let roll: u32 = self.range(state, denominator);
 
-    -> roll < numerator;
+    transition {
+        _ -> (roll < numerator)
+    }
 }
 
 machine Random::unit_real(
@@ -49,5 +55,7 @@ machine Random::unit_real(
     ) -> Real {
     let raw: u32 = self.next_u32(state);
 
-    -> Real::from(raw) / Real::from(u32::MAX);
+    transition {
+        _ -> (Real::from(raw) / Real::from(u32::MAX))
+    }
 }

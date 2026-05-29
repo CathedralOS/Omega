@@ -26,12 +26,14 @@ machine EnemyTables::tier_for_depth(
     let is_cultist_depth: bool = depth <= 6;
     let is_hellhound_depth: bool = depth <= 8;
 
-    -> EnemyTier::Bat when is_bat_depth;
-    -> EnemyTier::Spider when is_spider_depth;
-    -> EnemyTier::Skeleton when is_skeleton_depth;
-    -> EnemyTier::Cultist when is_cultist_depth;
-    -> EnemyTier::Hellhound when is_hellhound_depth;
-    -> EnemyTier::PitFiend;
+    transition {
+        is_bat_depth -> EnemyTier::Bat
+        is_spider_depth -> EnemyTier::Spider
+        is_skeleton_depth -> EnemyTier::Skeleton
+        is_cultist_depth -> EnemyTier::Cultist
+        is_hellhound_depth -> EnemyTier::Hellhound
+        _ -> EnemyTier::PitFiend
+    }
 }
 
 machine EnemyTables::roll_enemy_kind(

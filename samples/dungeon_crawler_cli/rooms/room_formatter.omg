@@ -39,11 +39,13 @@ machine RoomFormatter::write_room_event(
     let room: Room;
     self.lookup.find_room(level, cell, &mut room);
 
-    -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
-    -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
-    -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
-    -> describe_enemy(room.event.enemy.name, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
-    -> quiet_room(out_line);
+    transition {
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line)
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line)
+        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy.name, out_line)
+        _ -> quiet_room(out_line)
+    }
 
 
     state describe_fountain(

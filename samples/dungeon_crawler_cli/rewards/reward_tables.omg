@@ -78,10 +78,12 @@ machine RewardTables::roll_item(
     let is_ember_blade: bool = depth >= 5 && roll < 96;
     let is_deep_key: bool = depth >= 8;
 
-    -> ItemKind::RustedDagger when is_early_dagger;
-    -> ItemKind::CrackedBuckler when is_early_buckler;
-    -> ItemKind::HealingCharm when is_healing_charm;
-    -> ItemKind::EmberBlade when is_ember_blade;
-    -> ItemKind::DeepKey when is_deep_key;
-    -> ItemKind::RustedDagger;
+    transition {
+        is_early_dagger -> ItemKind::RustedDagger
+        is_early_buckler -> ItemKind::CrackedBuckler
+        is_healing_charm -> ItemKind::HealingCharm
+        is_ember_blade -> ItemKind::EmberBlade
+        is_deep_key -> ItemKind::DeepKey
+        _ -> ItemKind::RustedDagger
+    }
 }

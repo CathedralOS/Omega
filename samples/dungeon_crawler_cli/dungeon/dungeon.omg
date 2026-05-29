@@ -93,8 +93,10 @@ machine Dungeon::can_travel_to(
     self.lookup
         .find_room(self.level, destination, &mut destination_room);
 
-    -> false when destination == CellId::Empty;
-    -> self.evaluate_travel_block(current_room, destination_room);
+    transition {
+        destination == CellId::Empty -> false
+        _ -> self.evaluate_travel_block(current_room, destination_room)
+    }
 }
 
 machine Dungeon::evaluate_travel_block(
@@ -102,9 +104,10 @@ machine Dungeon::evaluate_travel_block(
     current_room: Room,
     destination_room: Room
 ) -> bool {
-    -> self.gated_enemy_travel(current_room, destination_room)
-        when current_room.event.kind == RoomEventKind::Enemy && current_room.event.consumed == false;
-    -> true;
+    transition {
+        current_room.event.kind == RoomEventKind::Enemy && current_room.event.consumed == false -> self.gated_enemy_travel(current_room, destination_room)
+        _ -> true
+    }
 }
 
 machine Dungeon::gated_enemy_travel(
@@ -112,7 +115,9 @@ machine Dungeon::gated_enemy_travel(
     current_room: Room,
     destination_room: Room
 ) -> bool {
-    -> destination_room.depth <= current_room.depth;
+    transition {
+        _ -> (destination_room.depth <= current_room.depth)
+    }
 }
 
 machine Dungeon::game_over(&mut self) {
@@ -208,20 +213,22 @@ machine Dungeon::room_index(
     &mut self,
     cell: CellId
     ) -> usize {
-    -> 0 when cell == CellId::R00;
-    -> 1 when cell == CellId::R01;
-    -> 2 when cell == CellId::R02;
-    -> 3 when cell == CellId::R03;
-    -> 4 when cell == CellId::R04;
-    -> 5 when cell == CellId::R05;
-    -> 6 when cell == CellId::R06;
-    -> 7 when cell == CellId::R07;
-    -> 8 when cell == CellId::R08;
-    -> 9 when cell == CellId::R09;
-    -> 10 when cell == CellId::R10;
-    -> 11 when cell == CellId::R11;
-    -> 12 when cell == CellId::R12;
-    -> 13 when cell == CellId::R13;
-    -> 14 when cell == CellId::R14;
-    -> 15;
+    transition {
+        cell == CellId::R00 -> 0
+        cell == CellId::R01 -> 1
+        cell == CellId::R02 -> 2
+        cell == CellId::R03 -> 3
+        cell == CellId::R04 -> 4
+        cell == CellId::R05 -> 5
+        cell == CellId::R06 -> 6
+        cell == CellId::R07 -> 7
+        cell == CellId::R08 -> 8
+        cell == CellId::R09 -> 9
+        cell == CellId::R10 -> 10
+        cell == CellId::R11 -> 11
+        cell == CellId::R12 -> 12
+        cell == CellId::R13 -> 13
+        cell == CellId::R14 -> 14
+        _ -> 15
+    }
 }

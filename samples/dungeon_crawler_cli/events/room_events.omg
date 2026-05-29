@@ -30,10 +30,12 @@ machine RoomEvents::event_action(
     let is_fountain: bool = roll < 30;
     let is_reward: bool = roll < 60;
 
-    -> RoomEventAction::Quiet when is_quiet;
-    -> RoomEventAction::Fountain when is_fountain;
-    -> RoomEventAction::Reward when is_reward;
-    -> RoomEventAction::Enemy;
+    transition {
+        is_quiet -> RoomEventAction::Quiet
+        is_fountain -> RoomEventAction::Fountain
+        is_reward -> RoomEventAction::Reward
+        _ -> RoomEventAction::Enemy
+    }
 }
 
 machine RoomEvents::apply_event(
