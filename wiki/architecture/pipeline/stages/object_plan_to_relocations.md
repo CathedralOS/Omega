@@ -45,9 +45,11 @@ Must not own:
 
 ## Implementation Map
 
-- `omega-relocations/src/lib.rs` owns the relocation-planning entrypoint and per-function walk.
+- `omega-relocations/src/lib.rs` owns the public relocation-planning API surface only.
+- `omega-relocations/src/input.rs` owns relocation-planning input DTOs.
+- `omega-relocations/src/builder.rs` owns the relocation-planning entrypoint and per-function walk.
 - `omega-relocations/src/lookups.rs` owns selected-instruction offset lookup.
-- `omega-relocations/src/data_addresses.rs` owns data/storage address relocations.
+- `omega-relocations/src/data_addresses.rs` owns data/storage address relocations and target-specific data-address relocation record facts.
 - `omega-relocations/src/offsets/*` owns target-specific relocation offset math by family: external calls, runtime frame indexing, runtime storage, and runtime text.
 - `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
 - `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.

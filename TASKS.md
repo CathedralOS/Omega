@@ -167,6 +167,11 @@ meaning, without needing access to pointer descriptor internals.
   - relocation offset math now has a thin module entrypoint with separate
     external-call, runtime-frame-index, runtime-storage, and runtime-text
     offset families
+  - relocation planning now has a thin crate root plus focused modules for
+    planning input, per-function walking, and target-specific data-address
+    relocation record facts
+  - data-address relocation planning now has a focused canary for AArch64 page
+    relocations and x86_64 absolute-address relocations
   - `omega-image` now has a thin crate root plus modules for final-image model
     records, object/relocation conversion, symbol/address queries, emitted
     output records, and architecture relocation patching
