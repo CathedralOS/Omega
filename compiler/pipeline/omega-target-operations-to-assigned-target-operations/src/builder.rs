@@ -150,7 +150,8 @@ pub(crate) fn build_assigned_target_operations(
 mod tests {
     use super::*;
     use omega_abstract_operations::{
-        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+        AbstractMoveEvent, AbstractOwnershipEventSource, AbstractValueFact, AbstractValueOrigin,
+        AbstractValueStatementRole,
     };
     use omega_core::symbols::SymbolHandle;
 
@@ -186,6 +187,42 @@ mod tests {
             AbstractValueOrigin::Statement {
                 statement_index: 7,
                 role: AbstractValueStatementRole::CallArgument,
+            }
+        );
+    }
+
+    #[test]
+    fn copies_target_ownership_summary_to_assigned_plan() {
+        let mut target_operations = TargetOperationPlan::default();
+        let target_symbol = SymbolHandle::from_arena_index(1);
+
+        target_operations.ownership.moves.insert(AbstractMoveEvent {
+            source_key: Default::default(),
+            source: AbstractOwnershipEventSource::Call {
+                statement_index: 9,
+                call_ordinal: 3,
+                target_symbol,
+            },
+            root: Default::default(),
+            segments: Default::default(),
+        });
+
+        let assigned_operations = build_assigned_target_operations(&target_operations);
+
+        assert_eq!(assigned_operations.ownership.moves.len(), 1);
+        let event = assigned_operations
+            .ownership
+            .moves
+            .iter()
+            .next()
+            .map(|(_, event)| event)
+            .expect("assigned ownership event");
+        assert_eq!(
+            event.source,
+            AbstractOwnershipEventSource::Call {
+                statement_index: 9,
+                call_ordinal: 3,
+                target_symbol,
             }
         );
     }
