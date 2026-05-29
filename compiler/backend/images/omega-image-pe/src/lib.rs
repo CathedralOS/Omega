@@ -68,7 +68,7 @@ pub fn emit_pe_x86_64_executable(
         write_section_header(
             &mut bytes,
             ".data",
-            image.data.len(),
+            image.memory.data.len(),
             sections.data_rva,
             sections.data_raw_size,
             sections.data_raw,
@@ -79,7 +79,7 @@ pub fn emit_pe_x86_64_executable(
         write_section_header(
             &mut bytes,
             ".bss",
-            image.bss_size,
+            image.memory.bss_size,
             sections.bss_rva,
             0,
             0,
@@ -88,14 +88,14 @@ pub fn emit_pe_x86_64_executable(
     }
 
     bytes.resize(sections.text_raw, 0);
-    bytes.extend(&image.text);
+    bytes.extend(&image.memory.text);
     bytes.resize(sections.text_raw + sections.text_raw_size, 0);
     bytes.resize(sections.rdata_raw, 0);
     bytes.extend(&import_table.bytes);
     bytes.resize(sections.rdata_raw + sections.rdata_raw_size, 0);
     if sections.has_data {
         bytes.resize(sections.data_raw, 0);
-        bytes.extend(&image.data);
+        bytes.extend(&image.memory.data);
         bytes.resize(sections.data_raw + sections.data_raw_size, 0);
     }
 
@@ -103,11 +103,11 @@ pub fn emit_pe_x86_64_executable(
         bytes,
         file_name: "omega-program.exe".to_owned(),
         format: "pe64-x86_64-executable".to_owned(),
-        text_bytes: image.text.len(),
-        data_bytes: image.data.len(),
-        bss_bytes: image.bss_size,
-        symbols: image.symbols.len(),
-        imports: image.imports.len(),
-        relocations: image.relocations.len(),
+        text_bytes: image.memory.text.len(),
+        data_bytes: image.memory.data.len(),
+        bss_bytes: image.memory.bss_size,
+        symbols: image.symbol_table.symbols.len(),
+        imports: image.symbol_table.imports.len(),
+        relocations: image.relocation_table.relocations.len(),
     })
 }

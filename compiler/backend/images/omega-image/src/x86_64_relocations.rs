@@ -9,7 +9,7 @@ pub fn apply_x86_64_relocations(
     layout: &FinalImageLayout,
     output_name: &str,
 ) -> Result<(), Diagnostic> {
-    for (_, relocation) in image.relocations.iter() {
+    for (_, relocation) in image.relocation_table.relocations.iter() {
         let Some(symbol_address) =
             final_image_symbol_address(image, relocation.symbol_handle, layout)
         else {
@@ -22,7 +22,7 @@ pub fn apply_x86_64_relocations(
         match relocation.kind {
             RelocationKind::X86_64Absolute64 => {
                 patch_bytes::write_u64(
-                    &mut image.text,
+                    &mut image.memory.text,
                     relocation.text_offset,
                     symbol_address,
                     "x86_64",
@@ -36,7 +36,12 @@ pub fn apply_x86_64_relocations(
                         "{output_name} x86_64 relative relocation is out of range: {delta} byte(s)"
                     ))
                 })?;
-                patch_bytes::write_i32(&mut image.text, relocation.text_offset, value, "x86_64")?;
+                patch_bytes::write_i32(
+                    &mut image.memory.text,
+                    relocation.text_offset,
+                    value,
+                    "x86_64",
+                )?;
             }
             RelocationKind::Aarch64Page21
             | RelocationKind::Aarch64PageOffset12

@@ -12,10 +12,12 @@ pub(crate) struct PeImportThunk {
 
 pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk> {
     let imports = image
+        .symbol_table
         .imports
         .iter()
         .filter_map(|(_, import)| {
             image
+                .symbol_table
                 .symbols
                 .is_valid(import.symbol_handle)
                 .then_some(import.symbol_handle)
@@ -24,11 +26,11 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk
     let mut thunks = Vec::new();
 
     for symbol_handle in imports {
-        let symbol = image.symbols.get(symbol_handle).name.clone();
-        let text_offset = image.text.len();
-        image.text.extend([0xff, 0x25, 0, 0, 0, 0]);
+        let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
+        let text_offset = image.memory.text.len();
+        image.memory.text.extend([0xff, 0x25, 0, 0, 0, 0]);
 
-        let image_symbol = image.symbols.get_mut(symbol_handle);
+        let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
         image_symbol.section = FinalImageSection::Text;
         image_symbol.offset = text_offset;
         image_symbol.size = 6;
@@ -123,7 +125,7 @@ pub(crate) fn patch_import_thunks(
                 thunk.symbol
             ))
         })?;
-        write_i32_at(&mut image.text, thunk.text_offset + 2, displacement)?;
+        write_i32_at(&mut image.memory.text, thunk.text_offset + 2, displacement)?;
     }
 
     Ok(())
