@@ -31,8 +31,8 @@ Primary responsibility: lower checked control flow into explicit operations with
 
 - Places: should lower toward abstract storage references, but much of that
   policy still lives beyond this adapter.
-- Values: should become abstract operands, temporaries, constants, or virtual
-  registers.
+- Values: preserved as abstract value summaries; later passes should turn them
+  into operands, temporaries, constants, virtual registers, or storage policy.
 - Facts: preserved as diagnostic/proven metadata; not re-proved here.
 - Loans: already validated; may remain as assertions or metadata.
 - Moves: are preserved as abstract ownership events; they should later become
@@ -63,5 +63,8 @@ operation construction that should eventually live here.
 It preserves control-flow move/drop events as abstract ownership summaries, but
 does not yet consume those summaries to build explicit transfer and cleanup
 operations.
+It preserves control-flow value summaries as abstract value summaries, but does
+not yet consume them to decide type-aware ownership kind, storage shape, or
+runtime operand lowering.
 Boundary-edge summaries are currently born from lowered host operations; they
 still need to be connected back to checked source-level boundary contracts.
