@@ -535,6 +535,8 @@ meaning, without needing access to pointer descriptor internals.
     the root writer into a focused proof report module
   - `omega-backend-report` now splits native data codegen reporting out of the
     large codegen report module
+  - `omega-backend-report` now splits assigned target-operation home reporting
+    out of the large codegen report module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
