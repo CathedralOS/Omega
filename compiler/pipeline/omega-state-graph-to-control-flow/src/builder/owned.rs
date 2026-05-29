@@ -1,4 +1,4 @@
-use omega_control_flow::ControlFlowPlan;
+use omega_control_flow::{ControlFlowCode, ControlFlowPlan};
 use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::StateGraph;
 
@@ -34,12 +34,16 @@ pub(crate) fn build_control_flow_plan_owned(
     } = state_graph;
 
     Ok(ControlFlowPlan {
-        expressions,
-        machines: machines.map(remap_machine_owned),
-        contained_machines: contained_machines.map(remap_contained_owned),
-        machine_owned_data: machine_owned_data.map(remap_owned_data_owned),
-        states: states.map(remap_state_owned),
-        state_parameters: state_parameters.map(remap_parameter_owned),
+        code: ControlFlowCode {
+            expressions,
+            machines: machines.map(remap_machine_owned),
+            contained_machines: contained_machines.map(remap_contained_owned),
+            machine_owned_data: machine_owned_data.map(remap_owned_data_owned),
+            states: states.map(remap_state_owned),
+            state_parameters: state_parameters.map(remap_parameter_owned),
+            operations: operations.map(remap_operation_owned),
+            transitions: transitions.map(remap_transition_owned),
+        },
         semantics: omega_control_flow::ControlFlowSemanticRoots {
             proof_obligations: semantics
                 .proof_obligations
@@ -71,7 +75,5 @@ pub(crate) fn build_control_flow_plan_owned(
             move_events: semantics.move_events.map(remap_move_event_owned),
             drop_events: semantics.drop_events.map(remap_drop_event_owned),
         },
-        operations: operations.map(remap_operation_owned),
-        transitions: transitions.map(remap_transition_owned),
     })
 }

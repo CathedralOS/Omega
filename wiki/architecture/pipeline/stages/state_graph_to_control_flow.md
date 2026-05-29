@@ -19,8 +19,9 @@ blocks and operations without changing the semantic truth established by checked
 trees and preserved by the state graph.
 The input semantic source is `StateGraphSemanticRoots`.
 The representation root is `ControlFlowPlan`: executable shape lives in the
-machine/state/operation/transition arenas, while preserved semantic evidence
-lives under `ControlFlowSemanticRoots`.
+`ControlFlowCode` root for expressions, machines, states, operations, and
+transitions, while preserved semantic evidence lives under
+`ControlFlowSemanticRoots`.
 
 | Noun | Ownership |
 | --- | --- |
@@ -60,6 +61,9 @@ noun preserved in a focused file:
 - `builder.rs` assembles the final `ControlFlowPlan` from graph arenas and owns
   only top-level orchestration. `builder/borrowed.rs` owns borrowed graph
   remapping, while `builder/owned.rs` owns owned graph remapping.
+- `omega-control-flow/src/plan.rs` owns the representation roots:
+  executable control-flow shape lives under `ControlFlowCode`, while preserved
+  semantic evidence lives under `ControlFlowSemanticRoots`.
 - `omega-control-flow/src/semantics.rs` owns the `ControlFlowSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas.
