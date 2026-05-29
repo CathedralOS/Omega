@@ -1,6 +1,7 @@
 pub mod allocations;
 pub mod arena;
 pub mod diagnostics;
+pub mod operations;
 pub mod parallel;
 pub mod source;
 pub mod span;

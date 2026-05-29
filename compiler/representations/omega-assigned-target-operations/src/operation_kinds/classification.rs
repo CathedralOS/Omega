@@ -1,17 +1,7 @@
 use super::AssignedOperationKind;
 use omega_target_operations::RuntimeTextReadSource;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssignedOperationDomain {
-    FunctionBoundary,
-    DispatchControl,
-    GuardEvaluation,
-    RuntimeTextAssembly,
-    RuntimeRead,
-    RuntimeWrite,
-    RuntimeCopy,
-    HostBoundary,
-}
+pub type AssignedOperationDomain = omega_core::operations::OperationDomain;
 
 impl AssignedOperationKind {
     pub fn semantic_domain(&self) -> AssignedOperationDomain {
