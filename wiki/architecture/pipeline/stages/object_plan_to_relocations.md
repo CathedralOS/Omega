@@ -8,7 +8,7 @@ This stage derives relocation records from selected target operations, assigned 
 
 Input: target operations, assigned target operations, encoded machine bytes, target data, object plan, and host ABI.
 
-Output: relocation plan.
+Output: relocation plan with records under `RelocationRecordSet`.
 
 Primary responsibility: map instruction/data references to object symbols and text offsets so object/container/image emission can patch or describe unresolved addresses.
 
@@ -57,7 +57,9 @@ Must not own:
 - `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.
 - `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families: append, compare, materialize, host-backed line read, and literal write references.
 - `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
-- `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data.
+- `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data:
+  patch records live under `RelocationRecordSet`, keeping artifact relocation
+  shape explicit at the plan root.
 - `omega-object-file/src/container.rs` owns compatibility object-container serialization orchestration.
 - `omega-object-file/src/container/bytes.rs` owns primitive byte writing for the compatibility object container.
 - `omega-object-file/src/container/ids.rs` owns stable object-container enum IDs.

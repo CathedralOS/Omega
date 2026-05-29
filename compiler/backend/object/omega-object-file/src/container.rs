@@ -67,6 +67,6 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
         data_bytes: input.data_bytes.len(),
         bss_bytes,
         symbols: input.object.symbols.len(),
-        relocations: input.relocations.records.len(),
+        relocations: input.relocations.record_set.records.len(),
     }
 }

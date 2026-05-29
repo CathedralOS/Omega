@@ -1466,6 +1466,7 @@ fn relocations_for_selected_instruction(
     selected_instruction_index: u32,
 ) -> Vec<&RelocationRecord> {
     relocations
+        .record_set
         .records
         .iter()
         .filter(|(_, relocation)| {
@@ -1477,6 +1478,7 @@ fn relocations_for_selected_instruction(
 
 fn relocations_in_range(relocations: &RelocationPlan, start: usize, end: usize) -> usize {
     relocations
+        .record_set
         .records
         .iter()
         .filter(|(_, relocation)| relocation.text_offset >= start && relocation.text_offset < end)

@@ -9,10 +9,10 @@ pub(super) fn write_relocations(
 ) {
     write_u32(
         bytes,
-        u32::try_from(relocations.records.len()).expect("relocation count overflow"),
+        u32::try_from(relocations.record_set.records.len()).expect("relocation count overflow"),
     );
 
-    for (_, relocation) in relocations.records.iter() {
+    for (_, relocation) in relocations.record_set.records.iter() {
         write_string(
             bytes,
             object_symbol_name(object, relocation.function_symbol_handle),
