@@ -133,7 +133,9 @@ Current ownership is:
   validation, `checks/contracts/prover.rs` owns recursive proof orchestration,
   `checks/contracts/direct.rs` owns direct boolean fact matching,
   `checks/contracts/domains.rs` owns domain-membership proof fallback,
-  `checks/contracts/places.rs` owns contract-place matching, and
+  `checks/contracts/labels/calls.rs` owns call-site contract expression label
+  substitution, `checks/contracts/labels/domain.rs` owns domain proof label
+  substitution, `checks/contracts/places.rs` owns contract-place matching, and
   `checks/contracts/evaluator.rs` owns call-site expression evaluation.
 - `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
   proof/checking modules. They should consume checked facts and emit
