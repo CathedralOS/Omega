@@ -42,8 +42,9 @@ Primary responsibility: lower checked control flow into explicit operations with
 - Calls: should become abstract call operations.
 - Transitions: should become branches, jumps, returns, exits, and block edges.
 - Effects: should attach to abstract operations for later reporting/lowering.
-- Boundary edges: host operations become abstract boundary-edge summaries and
-  abstract runtime/host/compiler calls.
+- Boundary edges: control-flow source boundary edges and lowered host
+  operations become distinct abstract boundary summaries beside abstract
+  runtime/host/compiler calls.
 
 ## Ownership Rules
 
@@ -66,5 +67,6 @@ operations.
 It preserves control-flow value summaries as abstract value summaries, but does
 not yet consume them to decide type-aware ownership kind, storage shape, or
 runtime operand lowering.
-Boundary-edge summaries are currently born from lowered host operations; they
-still need to be connected back to checked source-level boundary contracts.
+Boundary-edge summaries now preserve both source-level boundary trait edges and
+lowered host-operation edges. The remaining gap is linking those two layers
+and validating the result against target policy.

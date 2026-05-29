@@ -89,10 +89,10 @@ Current deliberate gaps:
   instructions, and the current machine-program artifact, but still need
   type-aware ownership kind, drop policy, storage consequences, and backend
   lowering beyond metadata.
-- Source-level boundary trait calls now preserve as checked, graph, and
-  control-flow boundary edges. Backend boundary summaries still preserve
-  lowered host-operation edges as separate metadata, and those two layers still
-  need an explicit linkage to target policy.
+- Source-level boundary trait calls now preserve as checked, graph,
+  control-flow, and abstract source boundary edges. Abstract/backend boundary
+  summaries also preserve lowered host-operation edges as separate metadata;
+  those two layers still need explicit linkage to target policy.
 
 ## Stages
 

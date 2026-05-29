@@ -43,6 +43,8 @@ meaning, without needing access to pointer descriptor internals.
     states supplied by boundary trait signatures
   - checked boundary edges now preserve through state graph and control flow as
     state-local boundary summaries
+  - control-flow-to-abstract-operations now preserves source-level boundary
+    edges beside lowered host-operation boundary edges in abstract summaries
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`
@@ -94,8 +96,8 @@ meaning, without needing access to pointer descriptor internals.
     ownership kind, drop policy, storage consequences, and backend lowering
     beyond metadata so machine-instruction/object layers can lower value
     consequences deliberately instead of only preserving summaries
-  - connect backend host-operation boundary summaries back to checked
-    source-level boundary edges and target policies
+  - link abstract source boundary edges to lowered host-operation boundary
+    edges and validate the pair against target policies
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic
