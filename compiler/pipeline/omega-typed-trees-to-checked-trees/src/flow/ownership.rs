@@ -15,13 +15,17 @@ pub(super) fn append_statement_ownership_events(
             statement_index,
             assignment.value,
         ),
-        StatementNode::LocalData(local_data) => append_move_event_for_expression(
-            program,
-            ctx,
-            state_symbol,
-            statement_index,
-            local_data.initial_value,
-        ),
+        StatementNode::LocalData(local_data) => {
+            if type_requires_ownership(program, local_data.type_reference) {
+                append_move_event_for_expression(
+                    program,
+                    ctx,
+                    state_symbol,
+                    statement_index,
+                    local_data.initial_value,
+                );
+            }
+        }
         StatementNode::Call(_) | StatementNode::Expression(_) | StatementNode::Transition(_) => {}
     }
 }
@@ -40,6 +44,10 @@ pub(super) fn append_state_exit_drop_events(
         let StatementNode::LocalData(local_data) = statement else {
             continue;
         };
+
+        if !type_requires_ownership(program, local_data.type_reference) {
+            continue;
+        }
 
         append_drop_event_for_place(
             ctx,
@@ -71,7 +79,7 @@ pub(super) fn append_call_ownership_events(
         .filter(|parameter| !parameter.is_self);
 
     for (parameter, argument) in parameters.zip(arguments.iter()) {
-        if !parameter_takes_ownership(program, parameter.type_reference)
+        if !type_requires_ownership(program, parameter.type_reference)
             || !expression_is_place_like(program, *argument)
         {
             continue;
@@ -159,7 +167,7 @@ fn statement_call_arguments<'a>(
         .then(|| program.statement_table.expression_handles(call.arguments))
 }
 
-fn parameter_takes_ownership(
+fn type_requires_ownership(
     program: &omega_typed_trees::TypedTrees,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -170,13 +178,26 @@ fn parameter_takes_ownership(
     match program.type_reference_table.type_reference(type_reference) {
         omega_typed_trees::types::TypeReferenceNode::Reference { .. } => false,
         omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            parameter_takes_ownership(program, *base_type)
+            type_requires_ownership(program, *base_type)
         }
-        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
-        | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
-        | omega_typed_trees::types::TypeReferenceNode::Named { .. }
-        | omega_typed_trees::types::TypeReferenceNode::Unit => true,
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_requires_ownership(program, *element_type)
+        }
+        omega_typed_trees::types::TypeReferenceNode::Named { name, .. } => !matches!(
+            omega_typed_trees::types::PrimitiveType::from_name(name.as_str()),
+            Some(
+                omega_typed_trees::types::PrimitiveType::Bool
+                    | omega_typed_trees::types::PrimitiveType::F32
+                    | omega_typed_trees::types::PrimitiveType::F64
+                    | omega_typed_trees::types::PrimitiveType::I32
+                    | omega_typed_trees::types::PrimitiveType::U32
+                    | omega_typed_trees::types::PrimitiveType::U64
+                    | omega_typed_trees::types::PrimitiveType::Usize
+            )
+        ),
+        omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Generic { .. } => true,
+        omega_typed_trees::types::TypeReferenceNode::Unit => false,
     }
 }
 

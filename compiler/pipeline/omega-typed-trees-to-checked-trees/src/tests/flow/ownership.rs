@@ -169,3 +169,98 @@ fn materializes_by_value_call_argument_moves() {
             .is_empty()
     );
 }
+
+#[test]
+fn does_not_materialize_move_or_drop_events_for_copy_scalar_locals() {
+    let source = r#"
+        data Main {
+            count: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let copied: i32 = self.count;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "main")
+        .expect("main state");
+    let state_flow = flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
+                .then_some(state)
+        })
+        .expect("main flow state");
+
+    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
+    assert!(flow.drops.span_or_empty(state_flow.drops).is_empty());
+}
+
+#[test]
+fn does_not_materialize_by_value_call_argument_moves_for_copy_scalar_parameters() {
+    let source = r#"
+        data Main {
+            count: i32;
+        }
+
+        machine Main::consume(&mut self, value: i32) {}
+
+        machine Main::main(&mut self) {
+            self.consume(self.count);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "main")
+        .expect("main state");
+    let state_flow = flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
+                .then_some(state)
+        })
+        .expect("main flow state");
+
+    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
+}
