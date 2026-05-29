@@ -35,6 +35,9 @@ meaning, without needing access to pointer descriptor internals.
   - syntax-to-symbol symbol-table child layout now splits declaration-family
     child insertion for builtins, data, machines, operators, platforms, and
     traits behind a narrow child export surface
+  - syntax-to-symbol top-level symbol stamping now splits data, domain,
+    operator, platform, trait, and machine declaration-family stamping out of
+    the root-level conveyor
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
