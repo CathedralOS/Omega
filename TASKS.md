@@ -124,6 +124,8 @@ meaning, without needing access to pointer descriptor internals.
     trait conformance, and top-level versus machine-local symbol scopes
   - `omega-backend-report` now separates backend report input/timing DTOs from
     the large report text writer root while preserving the public report API
+  - `omega-backend-report` now splits state-call lowering and alias-flow report
+    sections out of the root writer into a focused report-section module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
