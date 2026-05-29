@@ -1,11 +1,13 @@
 mod contextual;
 mod place;
 mod read;
+mod records;
 
 use super::*;
 
 pub(crate) use place::{BorrowAccessPlace, borrow_access_place};
 use read::collect_read_accesses;
+use records::append_argument_access;
 
 pub(crate) fn collect_call_argument_accesses(
     program: &omega_typed_trees::TypedTrees,
@@ -53,13 +55,12 @@ fn collect_argument_accesses(
                 *inner_expression,
                 machine_symbol,
             ) {
-                argument_accesses.append_to_span(
+                append_argument_access(
+                    access_segments,
+                    argument_accesses,
                     accesses,
-                    BorrowArgumentAccessFact {
-                        root_symbol: access_place.root_symbol,
-                        segments: access_segments.insert_many(access_place.segments),
-                        kind: BorrowAccessKind::Mutable,
-                    },
+                    access_place,
+                    BorrowAccessKind::Mutable,
                 );
             }
         }

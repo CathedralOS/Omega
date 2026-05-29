@@ -1,4 +1,5 @@
 use super::*;
+use records::append_argument_access;
 
 pub(super) fn collect_read_accesses(
     expression: ExpressionHandle,
@@ -222,13 +223,12 @@ fn append_read_access(
         return false;
     };
 
-    argument_accesses.append_to_span(
+    append_argument_access(
+        access_segments,
+        argument_accesses,
         accesses,
-        BorrowArgumentAccessFact {
-            root_symbol: access_place.root_symbol,
-            segments: access_segments.insert_many(access_place.segments),
-            kind: BorrowAccessKind::Read,
-        },
+        access_place,
+        BorrowAccessKind::Read,
     );
     true
 }
