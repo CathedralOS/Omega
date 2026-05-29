@@ -370,6 +370,8 @@ meaning, without needing access to pointer descriptor internals.
   - final-image root construction now goes through `FinalImage::with_capacity`
     so the builder does not manually assemble memory, symbol-table, and
     relocation-table roots
+  - final-image model data now lives in noun-shaped modules for memory,
+    symbols/imports, relocations, layout, and the `FinalImage` root
   - checked-flow representation data moved out of one large `flow.rs` file into
     noun-shaped modules for contexts, invalidations, borrow lifetimes,
     ownership, boundaries, control facts, and `FlowFacts` roots/query helpers
