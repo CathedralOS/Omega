@@ -333,6 +333,8 @@ meaning, without needing access to pointer descriptor internals.
     `BackendArtifactRoots` root, grouping symbolic machine instructions,
     encoded machine bytes, object layout, and relocation records instead of
     leaving the artifact chain as unrelated top-level plan siblings
+  - `omega-backend-plan` now has a thin crate root with focused modules for the
+    aggregate plan, final artifact roots, and phase timing records
   - `omega-machine-bytes` now has a thin crate root and noun-shaped modules
     for encoded function ranges, encoded instruction byte spans, semantic
     summaries, and encoded plan storage
