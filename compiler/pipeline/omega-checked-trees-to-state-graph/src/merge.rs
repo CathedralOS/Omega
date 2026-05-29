@@ -47,28 +47,31 @@ pub(crate) fn merge_machine_graph(
         transitions,
     } = source;
 
+    let source_arenas = SourceStateArenas {
+        expressions: &expressions,
+        state_parameters: &state_parameters,
+        contract_fact_refs: &contract_fact_refs,
+        contract_calls: &contract_calls,
+        contract_exits: &contract_exits,
+        values: &values,
+        boundary_edges: &boundary_edges,
+        borrow_writable_roots: &borrow_writable_roots,
+        borrow_access_segments: &borrow_access_segments,
+        borrow_argument_accesses: &borrow_argument_accesses,
+        borrow_calls: &borrow_calls,
+        borrow_loans: &borrow_loans,
+        borrow_activations: &borrow_activations,
+        borrow_weakenings: &borrow_weakenings,
+        ownership_segments: &ownership_segments,
+        move_events: &move_events,
+        drop_events: &drop_events,
+        operations: &operations,
+        transitions: &transitions,
+    };
     let states = append_remapped_states(
         target,
-        &expressions,
+        &source_arenas,
         states.into_span_items(machine_graph.states),
-        &state_parameters,
-        &contract_fact_refs,
-        &contract_calls,
-        &contract_exits,
-        &values,
-        &boundary_edges,
-        &borrow_writable_roots,
-        &borrow_access_segments,
-        &borrow_argument_accesses,
-        &borrow_calls,
-        &borrow_loans,
-        &borrow_activations,
-        &borrow_weakenings,
-        &ownership_segments,
-        &move_events,
-        &drop_events,
-        &operations,
-        &transitions,
     );
 
     let contains = target
@@ -91,34 +94,39 @@ pub(crate) fn merge_machine_graph(
     });
 }
 
+struct SourceStateArenas<'a> {
+    expressions: &'a ExpressionTable,
+    state_parameters: &'a Arena<StateParameterNode>,
+    contract_fact_refs: &'a Arena<StateContractFactRef>,
+    contract_calls: &'a Arena<StateContractCall>,
+    contract_exits: &'a Arena<StateContractExit>,
+    values: &'a Arena<StateValueFact>,
+    boundary_edges: &'a Arena<StateBoundaryEdge>,
+    borrow_writable_roots: &'a Arena<StateBorrowWritableRoot>,
+    borrow_access_segments: &'a Arena<omega_facts::PlaceSegment>,
+    borrow_argument_accesses: &'a Arena<StateBorrowArgumentAccess>,
+    borrow_calls: &'a Arena<StateBorrowCall>,
+    borrow_loans: &'a Arena<StateBorrowLoan>,
+    borrow_activations: &'a Arena<StateBorrowActivation>,
+    borrow_weakenings: &'a Arena<StateBorrowWeakening>,
+    ownership_segments: &'a Arena<omega_facts::PlaceSegment>,
+    move_events: &'a Arena<StateMoveEvent>,
+    drop_events: &'a Arena<StateDropEvent>,
+    operations: &'a Arena<Operation>,
+    transitions: &'a Arena<TransitionEdge>,
+}
+
 fn append_remapped_states(
     target: &mut StateGraph,
-    source_expressions: &ExpressionTable,
+    source: &SourceStateArenas<'_>,
     states: impl Iterator<Item = StateNode>,
-    source_state_parameters: &Arena<StateParameterNode>,
-    source_contract_fact_refs: &Arena<StateContractFactRef>,
-    source_contract_calls: &Arena<StateContractCall>,
-    source_contract_exits: &Arena<StateContractExit>,
-    source_values: &Arena<StateValueFact>,
-    source_boundary_edges: &Arena<StateBoundaryEdge>,
-    source_borrow_writable_roots: &Arena<StateBorrowWritableRoot>,
-    source_borrow_access_segments: &Arena<omega_facts::PlaceSegment>,
-    source_borrow_argument_accesses: &Arena<StateBorrowArgumentAccess>,
-    source_borrow_calls: &Arena<StateBorrowCall>,
-    source_borrow_loans: &Arena<StateBorrowLoan>,
-    source_borrow_activations: &Arena<StateBorrowActivation>,
-    source_borrow_weakenings: &Arena<StateBorrowWeakening>,
-    source_ownership_segments: &Arena<omega_facts::PlaceSegment>,
-    source_move_events: &Arena<StateMoveEvent>,
-    source_drop_events: &Arena<StateDropEvent>,
-    source_operations: &Arena<Operation>,
-    source_transitions: &Arena<TransitionEdge>,
 ) -> HandleSpan<StateNode> {
     let mut remapped_states = HandleSpan::empty();
 
     for state in states {
         let parameters = target.state_parameters.insert_many(
-            source_state_parameters
+            source
+                .state_parameters
                 .span_or_empty(state.parameters)
                 .iter()
                 .cloned(),
@@ -126,42 +134,42 @@ fn append_remapped_states(
 
         let operations = append_remapped_operations(
             target,
-            source_expressions,
-            source_operations,
+            source.expressions,
+            source.operations,
             state.operations,
         );
         let transitions = append_remapped_transitions(
             target,
-            source_expressions,
-            source_transitions,
+            source.expressions,
+            source.transitions,
             state.transitions,
         );
         let contracts = remap_state_contract_summary(
             target,
-            source_contract_fact_refs,
-            source_contract_calls,
-            source_contract_exits,
+            source.contract_fact_refs,
+            source.contract_calls,
+            source.contract_exits,
             &state.contracts,
         );
-        let values = remap_state_value_summary(target, source_values, &state.values);
+        let values = remap_state_value_summary(target, source.values, &state.values);
         let boundaries =
-            remap_state_boundary_summary(target, source_boundary_edges, &state.boundaries);
+            remap_state_boundary_summary(target, source.boundary_edges, &state.boundaries);
         let borrow = remap_state_borrow_summary(
             target,
-            source_borrow_writable_roots,
-            source_borrow_access_segments,
-            source_borrow_argument_accesses,
-            source_borrow_calls,
-            source_borrow_loans,
-            source_borrow_activations,
-            source_borrow_weakenings,
+            source.borrow_writable_roots,
+            source.borrow_access_segments,
+            source.borrow_argument_accesses,
+            source.borrow_calls,
+            source.borrow_loans,
+            source.borrow_activations,
+            source.borrow_weakenings,
             &state.borrow,
         );
         let ownership = remap_state_ownership_summary(
             target,
-            source_ownership_segments,
-            source_move_events,
-            source_drop_events,
+            source.ownership_segments,
+            source.move_events,
+            source.drop_events,
             &state.ownership,
         );
         target.states.append_to_span(
