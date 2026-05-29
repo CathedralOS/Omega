@@ -1,16 +1,16 @@
+mod operators;
+
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
-    SelectedInstructionKind, StateGuardOperator,
+    SelectedInstructionKind,
 };
 use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-    TableCallExpression, TableNamePath,
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::BuiltinFunction;
 use omega_state_calls::StateCallRole;
 use omega_state_values::simplify_state_expression;
 
@@ -41,14 +41,10 @@ use super::static_values::{
 };
 use super::storage_copy::runtime_storage_copy;
 use super::subslice_copy::runtime_fixed_array_subslice_indexed_source_copy;
-
-fn supports_scalar_integer_write(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
-}
-
-fn supports_runtime_value_operand(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
-}
+use operators::{
+    builtin_runtime_call_operator, builtin_runtime_call_operator_in_table, runtime_binary_operator,
+    supports_runtime_value_operand, supports_scalar_integer_write,
+};
 
 fn resolve_runtime_call_result_source_place(
     input: &InstructionSelectionInput<'_>,
@@ -70,25 +66,6 @@ fn resolve_runtime_call_result_source_place(
             statement_index,
         )
     })
-}
-
-fn builtin_runtime_call_operator_in_table(
-    input: &InstructionSelectionInput<'_>,
-    call: &TableCallExpression,
-) -> Option<StateGuardOperator> {
-    if call.receiver.is_valid() || call.arguments.count() != 2 {
-        return None;
-    }
-
-    let symbols = &input.program.symbols;
-    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Max) {
-        return Some(StateGuardOperator::Max);
-    }
-    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Min) {
-        return Some(StateGuardOperator::Min);
-    }
-
-    None
 }
 
 pub(super) fn simplify_runtime_expression_with_state_locals(
@@ -1845,41 +1822,4 @@ fn resolve_runtime_value_operand(
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
     }))
-}
-
-fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
-    match operator {
-        BinaryOperator::Add => Some(StateGuardOperator::Add),
-        BinaryOperator::And => Some(StateGuardOperator::And),
-        BinaryOperator::Equal => Some(StateGuardOperator::Equal),
-        BinaryOperator::Greater => Some(StateGuardOperator::Greater),
-        BinaryOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqual),
-        BinaryOperator::Less => Some(StateGuardOperator::Less),
-        BinaryOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqual),
-        BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
-        BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
-        BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
-        BinaryOperator::Or => Some(StateGuardOperator::Or),
-        BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::Divide | BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => None,
-    }
-}
-
-fn builtin_runtime_call_operator(
-    input: &InstructionSelectionInput<'_>,
-    call: &omega_checked_trees::expression::CallExpression,
-) -> Option<StateGuardOperator> {
-    if call.receiver.is_some() || call.arguments.len() != 2 {
-        return None;
-    }
-
-    let symbols = &input.program.symbols;
-    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Max) {
-        return Some(StateGuardOperator::Max);
-    }
-    if Some(call.target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Min) {
-        return Some(StateGuardOperator::Min);
-    }
-
-    None
 }
