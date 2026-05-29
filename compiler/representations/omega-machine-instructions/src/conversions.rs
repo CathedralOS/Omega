@@ -6,11 +6,11 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
     fn from(program: omega_machine_program::MachineProgram) -> Self {
         let mut plan = Self::with_capacity(
             program.target,
-            program.functions.len(),
-            program.instructions.len(),
+            program.code.functions.len(),
+            program.code.instructions.len(),
         );
-        for (_, function) in program.functions.iter() {
-            let Some(function_instructions) = program.instructions.span(function.instructions)
+        for (_, function) in program.code.functions.iter() {
+            let Some(function_instructions) = program.code.instructions.span(function.instructions)
             else {
                 continue;
             };
@@ -50,6 +50,7 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
                 continue;
             };
             let inserted = program
+                .code
                 .instructions
                 .try_insert_many(function_instructions.iter().map(|instruction| {
                     Ok::<omega_machine_program::MachineInstruction, Infallible>(
@@ -61,6 +62,7 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
                 }))
                 .expect("machine instruction arena insertion should not fail");
             program
+                .code
                 .functions
                 .insert(omega_machine_program::MachineFunction {
                     source_key: function.source_key,
