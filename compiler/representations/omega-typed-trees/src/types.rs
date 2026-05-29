@@ -3,6 +3,10 @@ use omega_core::symbols::SymbolHandle;
 
 use crate::name::Identifier;
 
+mod display;
+#[cfg(test)]
+mod tests;
+
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -346,115 +350,6 @@ impl Default for TypeReferenceNode {
 }
 
 impl TypeReferenceNode {
-    pub fn display_name(&self, table: &TypeReferenceTable) -> String {
-        match self {
-            TypeReferenceNode::Reference {
-                referee,
-                is_mutable,
-            } => {
-                let qualifier = if *is_mutable { "mut " } else { "" };
-                format!("&{qualifier}{}", table.display_name(*referee))
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                format!(
-                    "{}[{}]",
-                    table.display_name(*base_type),
-                    match constraints.count() {
-                        1 => "1 constraint".to_owned(),
-                        count => format!("{count} constraints"),
-                    }
-                )
-            }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                format!("[{}; {}]", table.display_name(*element_type), length)
-            }
-            TypeReferenceNode::Slice { element_type } => {
-                format!("[{}]", table.display_name(*element_type))
-            }
-            TypeReferenceNode::Generic {
-                base_name,
-                arguments,
-                ..
-            } => {
-                format!(
-                    "{base_name}<{}>",
-                    comma_join_display(table.type_reference_handles(*arguments), |argument| {
-                        table.display_name(*argument)
-                    })
-                )
-            }
-            TypeReferenceNode::Named { name, .. } => name.to_string(),
-            TypeReferenceNode::Unit => "()".to_owned(),
-        }
-    }
-
-    pub fn display_name_with_constraints(
-        &self,
-        table: &TypeReferenceTable,
-        expressions: &crate::expression::ExpressionTable,
-    ) -> String {
-        match self {
-            TypeReferenceNode::Reference {
-                referee,
-                is_mutable,
-            } => {
-                let qualifier = if *is_mutable { "mut " } else { "" };
-                format!(
-                    "&{qualifier}{}",
-                    table.display_name_with_constraints(*referee, expressions)
-                )
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                format!(
-                    "{}[{}]",
-                    table.display_name_with_constraints(*base_type, expressions),
-                    comma_join_display(table.constraints(*constraints), |constraint| {
-                        constraint.display_name(expressions)
-                    })
-                )
-            }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                format!(
-                    "[{}; {}]",
-                    table.display_name_with_constraints(*element_type, expressions),
-                    length
-                )
-            }
-            TypeReferenceNode::Slice { element_type } => {
-                format!(
-                    "[{}]",
-                    table.display_name_with_constraints(*element_type, expressions)
-                )
-            }
-            TypeReferenceNode::Generic {
-                base_name,
-                arguments,
-                ..
-            } => {
-                format!(
-                    "{base_name}<{}>",
-                    comma_join_display(table.type_reference_handles(*arguments), |argument| {
-                        table.display_name_with_constraints(*argument, expressions)
-                    })
-                )
-            }
-            TypeReferenceNode::Named { name, .. } => name.to_string(),
-            TypeReferenceNode::Unit => "()".to_owned(),
-        }
-    }
-
     pub fn primitive_type(&self, table: &TypeReferenceTable) -> Option<PrimitiveType> {
         match self {
             TypeReferenceNode::Reference { .. } => None,
@@ -506,19 +401,6 @@ pub enum TypeConstraintNode {
 }
 
 impl TypeConstraintNode {
-    pub fn display_name(&self, expressions: &crate::expression::ExpressionTable) -> String {
-        match self {
-            TypeConstraintNode::Named(name) => name.to_string(),
-            TypeConstraintNode::Range { minimum, maximum } => {
-                format!(
-                    "range<{}, {}>",
-                    expressions.display_name(*minimum),
-                    expressions.display_name(*maximum)
-                )
-            }
-        }
-    }
-
     fn copy_from(
         &self,
         source_expressions: &crate::expression::ExpressionTable,
@@ -597,151 +479,5 @@ impl PrimitiveType {
 
     pub fn accepts_finite_constraint(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
-    }
-}
-
-fn comma_join_display<'item, I, T>(
-    values: I,
-    mut display_name: impl FnMut(&'item T) -> String,
-) -> String
-where
-    I: IntoIterator<Item = &'item T>,
-    T: 'item,
-{
-    let mut output = String::new();
-    let mut first = true;
-
-    for value in values {
-        if first {
-            first = false;
-        } else {
-            output.push_str(", ");
-        }
-
-        output.push_str(&display_name(value));
-    }
-
-    output
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{PrimitiveType, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
-    use crate::expression::{ExpressionNode, ExpressionTable};
-    use crate::name::Identifier;
-    use omega_core::symbols::SymbolHandle;
-
-    #[test]
-    fn type_reference_table_stores_nested_typed_references_as_handles() {
-        let mut types = TypeReferenceTable::new();
-        let usize_reference = types.insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::generated("usize"),
-        });
-        let u8_reference = types.insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::generated("u8"),
-        });
-        let fixed_array_reference = types.insert(TypeReferenceNode::FixedArray {
-            element_type: u8_reference,
-            length: 16,
-        });
-        let arguments =
-            types.insert_type_reference_handles([usize_reference, fixed_array_reference]);
-        let root = types.insert(TypeReferenceNode::Generic {
-            base_symbol: SymbolHandle::invalid(),
-            base_name: Identifier::generated("Result"),
-            arguments,
-        });
-
-        assert_eq!(types.type_reference_count(), 4);
-        let TypeReferenceNode::Generic { arguments, .. } = types.type_reference(root) else {
-            panic!("root type reference should be generic");
-        };
-
-        assert_eq!(arguments.count(), 2);
-        assert_eq!(types.display_name(root), "Result<usize, [u8; 16]>");
-    }
-
-    #[test]
-    fn type_reference_table_stores_typed_constraints_as_expression_handles() {
-        let mut expressions = ExpressionTable::new();
-        let minimum = expressions.insert(ExpressionNode::Integer(0));
-        let maximum = expressions.insert(ExpressionNode::Integer(10));
-        let mut types = TypeReferenceTable::new();
-        let base_type = types.insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::generated("i32"),
-        });
-        let constraints =
-            types.insert_constraints([TypeConstraintNode::Range { minimum, maximum }]);
-        let root = types.insert(TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        });
-
-        assert_eq!(types.type_reference_count(), 2);
-        assert_eq!(expressions.expression_count(), 2);
-
-        let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(root) else {
-            panic!("root type reference should be constrained");
-        };
-        let [TypeConstraintNode::Range { minimum, maximum }] = types.constraints(*constraints)
-        else {
-            panic!("expected one range constraint");
-        };
-
-        assert!(minimum.is_valid());
-        assert!(maximum.is_valid());
-        assert_eq!(
-            types.display_name_with_constraints(root, &expressions),
-            "i32[range<0, 10>]"
-        );
-        assert_eq!(types.primitive_type(root), Some(PrimitiveType::I32));
-        assert_eq!(types.type_symbol(root), SymbolHandle::invalid());
-    }
-
-    #[test]
-    fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
-        let mut source_expressions = ExpressionTable::new();
-        let minimum = source_expressions.insert(ExpressionNode::Integer(1));
-        let maximum = source_expressions.insert(ExpressionNode::Integer(8));
-        let mut source_types = TypeReferenceTable::new();
-        let u8_reference = source_types.insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::from_arena_index(11),
-            name: Identifier::generated("u8"),
-        });
-        let fixed_array_reference = source_types.insert(TypeReferenceNode::FixedArray {
-            element_type: u8_reference,
-            length: 8,
-        });
-        let constraints =
-            source_types.insert_constraints([TypeConstraintNode::Range { minimum, maximum }]);
-        let source_root = source_types.insert(TypeReferenceNode::Constrained {
-            base_type: fixed_array_reference,
-            constraints,
-        });
-
-        let mut copied_expressions = ExpressionTable::new();
-        let mut copied_types = TypeReferenceTable::new();
-        let copied_root = copied_types.copy_from(
-            &source_types,
-            &source_expressions,
-            &mut copied_expressions,
-            source_root,
-        );
-
-        assert_eq!(
-            copied_types.display_name_with_constraints(copied_root, &copied_expressions),
-            "[u8; 8][range<1, 8>]"
-        );
-        assert_eq!(
-            copied_types.type_reference_count(),
-            source_types.type_reference_count()
-        );
-        assert_eq!(
-            copied_expressions.expression_count(),
-            source_expressions.expression_count()
-        );
     }
 }

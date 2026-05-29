@@ -572,6 +572,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-syntax-trees` root syntax container canaries now live in a focused
     `syntax_trees/tests.rs` module instead of stretching the representation
     root file
+  - `omega-typed-trees` type-reference display helpers and table canaries now
+    live in focused type submodules, leaving the root type-reference file
+    closer to the arena-backed data model
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
