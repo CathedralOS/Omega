@@ -587,6 +587,9 @@ meaning, without needing access to pointer descriptor internals.
     classifier and host-boundary flag so downstream passes can ask whether an
     operation is dispatch, guard, runtime storage/text, host-boundary, or
     function-boundary work without re-matching raw variants
+  - `omega-target-operations` now mirrors the operation-domain and
+    host-boundary query surface so semantic ownership remains explicit after
+    target-aware lowering
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures

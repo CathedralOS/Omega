@@ -11,8 +11,8 @@ pub use instruction::{
     InstructionOperandLike, InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource,
     RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource, SelectedInstruction,
     SelectedInstructionKind, TargetBoundarySummary, TargetHostBinding, TargetInstructionOperand,
-    TargetInstructionOperandKind, TargetOperation, TargetOperationCode, TargetOperationFunction,
-    TargetOperationKind, TargetOperationPlan, TargetOwnershipSummary, TargetSemanticSummary,
-    TargetValueOperand, TargetValueOperandHandle, TargetValueSummary,
+    TargetInstructionOperandKind, TargetOperation, TargetOperationCode, TargetOperationDomain,
+    TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetOwnershipSummary,
+    TargetSemanticSummary, TargetValueOperand, TargetValueOperandHandle, TargetValueSummary,
 };
 pub use omega_abstract_operations::{StateGuardLowering, StateGuardOperator};
