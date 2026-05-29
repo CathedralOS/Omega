@@ -1,12 +1,12 @@
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use omega_core::symbols::{SymbolHandle, SymbolTable};
 
-use super::expression_paths::{
-    resolve_expression_table_call_target_symbol, resolve_expression_table_member_symbol,
-    resolve_expression_table_receiver_path_symbols, stamp_receiver_path_symbols_in_table,
+mod references;
+
+use self::references::{
+    assign_call_symbol, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
 };
 use super::scope::MachineScope;
-use super::scoped_paths::resolve_state_scoped_table_path;
 
 pub(super) fn assign_statement_expression_symbols(
     symbols: &SymbolTable,
@@ -143,35 +143,17 @@ pub(super) fn assign_expression_table_symbols(
                 child_type_references,
                 call.arguments,
             );
-            let (head_symbol, symbol) = resolve_expression_table_receiver_path_symbols(
+            assign_call_symbol(
                 symbols,
-                machine.symbol,
-                state_symbol,
-                expression_table,
-                call.receiver,
-            );
-            if symbol.is_valid() {
-                stamp_receiver_path_symbols_in_table(
-                    expression_table,
-                    call.receiver,
-                    head_symbol,
-                    symbol,
-                );
-            }
-            let target_symbol = resolve_expression_table_call_target_symbol(
                 machine,
                 parameters,
                 state_symbol,
-                &call,
                 expression_table,
                 child_type_references,
-                symbols,
+                call.receiver,
+                &call,
+                expression,
             );
-            if let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
-                expression_table.expression_mut(expression)
-            {
-                call.target_symbol = target_symbol;
-            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
             assign_expression_table_symbols(
@@ -227,20 +209,15 @@ pub(super) fn assign_expression_table_symbols(
                 child_type_references,
                 member.receiver,
             );
-            let member_symbol = resolve_expression_table_member_symbol(
+            assign_member_symbol(
                 symbols,
                 machine.symbol,
                 state_symbol,
                 expression_table,
                 member.receiver,
                 &member.member,
+                expression,
             );
-            if let (symbol, omega_symbol_resolved_trees::expression::ExpressionNode::Member(member)) =
-                (member_symbol, expression_table.expression_mut(expression))
-                && symbol.is_valid()
-            {
-                member.member_symbol = symbol;
-            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
             assign_expression_table_symbols(
@@ -252,19 +229,7 @@ pub(super) fn assign_expression_table_symbols(
                 child_type_references,
                 membership.value,
             );
-            let name = expression_table
-                .name_path_members(membership.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
-            if let omega_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
-                expression_table.expression_mut(expression)
-            {
-                membership.domain_symbol = symbols
-                    .find_child_by_name_and_kind(symbols.root(), &name, SymbolKind::Domain)
-                    .unwrap_or_else(SymbolHandle::invalid);
-            }
+            assign_membership_symbol(symbols, expression_table, membership.domain, expression);
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
             assign_expression_table_symbols(
@@ -278,21 +243,14 @@ pub(super) fn assign_expression_table_symbols(
             );
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
-            let (head_symbol, symbol) = resolve_state_scoped_table_path(
+            assign_name_symbol(
                 symbols,
                 machine.symbol,
                 state_symbol,
                 expression_table,
                 &path,
+                expression,
             );
-            if symbol.is_valid() {
-                if let omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-                    expression_table.expression_mut(expression)
-                {
-                    path.head_symbol = head_symbol;
-                    path.symbol = symbol;
-                }
-            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
             let count = struct_literal.fields.count();
