@@ -541,6 +541,9 @@ meaning, without needing access to pointer descriptor internals.
     byte reporting out of the large codegen report module
   - `omega-backend-report` now splits abstract-operation summary reporting out
     of the large codegen report module
+  - `omega-backend-report` now splits runtime value/source name rendering into
+    a shared codegen helper module instead of coupling assigned-home reporting
+    to target-operation formatting
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
