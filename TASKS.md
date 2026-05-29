@@ -40,6 +40,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow call ownership events now recover arguments through the shared
     semantic call-site lookup, so transition target arguments materialize
     ownership moves instead of being invisible to the move/drop spine
+  - the ownership canary set now covers nested expression-call arguments,
+    proving the shared call-site lookup also materializes ownership moves for
+    by-value arguments inside nested state calls
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
@@ -149,9 +152,9 @@ meaning, without needing access to pointer descriptor internals.
     format where prose is currently vague
   - make ownership event production fully type-aware so Copy/no-drop values and
     real ownership-consuming values are distinguished across all transfer sites
-  - extend type-aware ownership event production into nested call arguments,
-    arrays, slices, strings, and future user-defined copy/drop policy
-  - teach transition and nested expression-call analysis to append ownership
+  - extend type-aware ownership event production into arrays, slices, strings,
+    and future user-defined copy/drop policy
+  - teach remaining aggregate/value expression analysis to append ownership
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
     cleanup operations
