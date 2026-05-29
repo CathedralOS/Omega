@@ -182,6 +182,8 @@ meaning, without needing access to pointer descriptor internals.
     construction, and AArch64 thunk patching out of the executable-emission root
   - `omega-image-elf` now splits ELF constants, byte writers, alignment
     helpers, and ELF/program-header writing out of the executable-emission root
+  - ELF direct image emission now splits text/data/BSS address planning into a
+    focused module with a canary for final layout facts
   - ELF, PE, and Mach-O direct image emission now split entry-symbol lookup into
     focused modules with canaries for final-image entry address/offset/RVA
     resolution
