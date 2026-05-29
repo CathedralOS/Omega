@@ -99,6 +99,22 @@ impl AcceptanceSummary {
             && self.boundaries.is_satisfied()
             && self.termination.is_satisfied()
     }
+
+    pub const fn checks(self) -> [AcceptanceCheck; 5] {
+        [
+            self.borrow,
+            self.proof,
+            self.effects,
+            self.boundaries,
+            self.termination,
+        ]
+    }
+
+    pub fn rejected_checks(self) -> impl Iterator<Item = AcceptanceCheck> {
+        self.checks()
+            .into_iter()
+            .filter(|check| !check.is_satisfied())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

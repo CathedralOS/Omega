@@ -303,6 +303,8 @@ meaning, without needing access to pointer descriptor internals.
     for linked, unlinked, and host-binding-missing boundary operations
   - host ABI plans now carry checked boundary-policy allow-lists and target
     boundary validation can flag disallowed binding policies
+  - checked acceptance summaries now expose a stable ordered check list and
+    rejected-check iterator for unified admissibility querying
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`

@@ -31,6 +31,8 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(state_acceptance.is_accepted());
     let state_summary = state_acceptance.summary();
     assert!(state_summary.is_accepted());
+    assert_eq!(state_summary.checks().len(), 5);
+    assert_eq!(state_summary.rejected_checks().count(), 0);
     assert!(state_summary.borrow.evidence_count > 0);
     assert_eq!(state_summary.proof.evidence_count, 1);
     assert_eq!(state_acceptance.statements().len(), 1);
@@ -56,6 +58,8 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(call_acceptance.is_accepted());
     let call_summary = call_acceptance.summary();
     assert!(call_summary.is_accepted());
+    assert_eq!(call_summary.checks().len(), 5);
+    assert_eq!(call_summary.rejected_checks().count(), 0);
     assert!(call_summary.borrow.evidence_count > 0);
     assert_eq!(call_summary.proof.evidence_count, 1);
     assert_eq!(
