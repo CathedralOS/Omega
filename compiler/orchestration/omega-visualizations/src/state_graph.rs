@@ -159,7 +159,11 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
     );
     append_effect_bit_lines(&mut label, state.direct_effects, state.reached_effects);
 
-    for call in graph.contract_calls.span_or_empty(state.contracts.calls) {
+    for call in graph
+        .semantics
+        .contract_calls
+        .span_or_empty(state.contracts.calls)
+    {
         label.push('\n');
         label.push_str("  ");
         label.push_str(&format!(
@@ -171,7 +175,11 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         ));
     }
 
-    for exit in graph.contract_exits.span_or_empty(state.contracts.exits) {
+    for exit in graph
+        .semantics
+        .contract_exits
+        .span_or_empty(state.contracts.exits)
+    {
         label.push('\n');
         label.push_str("  ");
         label.push_str(&format!(
@@ -181,19 +189,28 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
         ));
     }
 
-    for borrow_call in graph.borrow_calls.span_or_empty(state.borrow.calls) {
+    for borrow_call in graph
+        .semantics
+        .borrow_calls
+        .span_or_empty(state.borrow.calls)
+    {
         label.push('\n');
         label.push_str("  ");
         label.push_str(&borrow_call_label(graph, machine, state, borrow_call));
     }
 
-    for loan in graph.borrow_loans.span_or_empty(state.borrow.active_loans) {
+    for loan in graph
+        .semantics
+        .borrow_loans
+        .span_or_empty(state.borrow.active_loans)
+    {
         label.push('\n');
         label.push_str("  ");
         label.push_str(&borrow_loan_label(graph, machine, state, loan));
     }
 
     for activation in graph
+        .semantics
         .borrow_activations
         .span_or_empty(state.borrow.activations)
     {
@@ -203,6 +220,7 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
     }
 
     for weakening in graph
+        .semantics
         .borrow_weakenings
         .span_or_empty(state.borrow.weakenings)
     {
@@ -268,6 +286,7 @@ fn borrow_call_label(
     call: &StateBorrowCall,
 ) -> String {
     let accesses = graph
+        .semantics
         .borrow_argument_accesses
         .span_or_empty(call.accesses)
         .iter()
@@ -323,7 +342,7 @@ fn borrow_activation_label(
     state: &StateNode,
     activation: &StateBorrowActivation,
 ) -> String {
-    let loan = graph.borrow_loans.get(activation.loan);
+    let loan = graph.semantics.borrow_loans.get(activation.loan);
     format!(
         "activation {} -> {}",
         borrow_event_source_label(graph, activation.source),
@@ -337,7 +356,7 @@ fn borrow_weakening_label(
     state: &StateNode,
     weakening: &StateBorrowWeakening,
 ) -> String {
-    let loan = graph.borrow_loans.get(weakening.loan);
+    let loan = graph.semantics.borrow_loans.get(weakening.loan);
     format!(
         "weakening {} -> {} ({})",
         borrow_event_source_label(graph, weakening.source),
@@ -354,7 +373,11 @@ fn borrow_place_label(
     segments: omega_core::arena::HandleSpan<omega_facts::PlaceSegment>,
 ) -> String {
     let mut label = symbol_name_for_state(graph, machine, state, root_symbol);
-    for segment in graph.borrow_access_segments.span_or_empty(segments) {
+    for segment in graph
+        .semantics
+        .borrow_access_segments
+        .span_or_empty(segments)
+    {
         match segment {
             omega_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');

@@ -27,17 +27,18 @@ fn append_remapped_contract_calls(
     let mut remapped_calls = HandleSpan::empty();
 
     for call in source_calls.span_or_empty(calls) {
-        let requires = target.contract_fact_refs.insert_many(
+        let requires = target.semantics.contract_fact_refs.insert_many(
             source_fact_refs
                 .span_or_empty(call.requires)
                 .iter()
                 .cloned(),
         );
         let ensures = target
+            .semantics
             .contract_fact_refs
             .insert_many(source_fact_refs.span_or_empty(call.ensures).iter().cloned());
 
-        target.contract_calls.append_to_span(
+        target.semantics.contract_calls.append_to_span(
             &mut remapped_calls,
             StateContractCall {
                 statement_index: call.statement_index,
@@ -63,10 +64,11 @@ fn append_remapped_contract_exits(
 
     for exit in source_exits.span_or_empty(exits) {
         let ensures = target
+            .semantics
             .contract_fact_refs
             .insert_many(source_fact_refs.span_or_empty(exit.ensures).iter().cloned());
 
-        target.contract_exits.append_to_span(
+        target.semantics.contract_exits.append_to_span(
             &mut remapped_exits,
             StateContractExit {
                 statement_index: exit.statement_index,

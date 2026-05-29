@@ -28,6 +28,7 @@ fn append_boundary_edges(
     edges: HandleSpan<FlowBoundaryEdgeFact>,
 ) -> HandleSpan<StateBoundaryEdge> {
     state_graph
+        .semantics
         .boundary_edges
         .insert_many(
             source_edges
@@ -51,6 +52,7 @@ pub(crate) fn remap_state_boundary_summary(
 ) -> StateBoundarySummary {
     StateBoundarySummary {
         edges: target
+            .semantics
             .boundary_edges
             .insert_many(source_edges.span_or_empty(summary.edges).iter().cloned()),
     }
@@ -127,7 +129,10 @@ mod tests {
             },
         );
 
-        let edges = state_graph.boundary_edges.span_or_empty(summary.edges);
+        let edges = state_graph
+            .semantics
+            .boundary_edges
+            .span_or_empty(summary.edges);
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].statement_index, 7);
         assert_eq!(edges[0].call_ordinal, 1);

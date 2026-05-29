@@ -71,11 +71,11 @@ pub(crate) fn build_state_graph_with_workers(
         merge_machine_graph(&mut state_graph, local_state_graph, machine_graph);
     }
 
-    state_graph.proof_obligations = remap_proof_obligations(
+    state_graph.semantics.proof_obligations = remap_proof_obligations(
         program.facts.proof.obligations.len(),
         program.facts.proof.obligations.iter().map(|(_, fact)| fact),
     );
-    state_graph.invariants = remap_invariants(
+    state_graph.semantics.invariants = remap_invariants(
         program.facts.invariants.definitions.len(),
         program
             .facts

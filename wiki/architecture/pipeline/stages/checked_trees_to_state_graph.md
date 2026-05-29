@@ -17,6 +17,9 @@ Primary responsibility: make machine/state transitions explicit for scheduling, 
 This stage owns scheduling shape, not semantic invention. It takes checked
 facts/events and makes state-machine topology explicit enough that later stages
 can lower without rediscovering machine structure.
+The representation root is `StateGraph`: scheduling topology lives in the
+machine/state/operation/transition arenas, while preserved semantic evidence
+lives under `StateGraphSemanticRoots`.
 
 | Noun | Ownership |
 | --- | --- |
@@ -55,6 +58,9 @@ preservation:
 
 - `builder.rs` orchestrates per-machine graph construction and worker
   scheduling.
+- `omega-state-graph/src/semantics.rs` owns the `StateGraphSemanticRoots`
+  bundle for preserved proof, invariant, contract, value, boundary, borrow, and
+  ownership arenas.
 - `merge.rs` owns worker-local graph merging and remapping of state-local
   contract, value, boundary, borrow, ownership, operation, transition, and
   metadata spans into the final graph. Worker-local source arenas should stay

@@ -23,12 +23,12 @@ pub(crate) fn state_ownership_summary(
 
     let mut moves = HandleSpan::empty();
     for event in program.facts.flow.moves.span_or_empty(flow_state.moves) {
-        state_graph.move_events.append_to_span(
+        state_graph.semantics.move_events.append_to_span(
             &mut moves,
             StateMoveEvent {
                 source: remap_flow_ownership_event_source(event.source),
                 root: event.root,
-                segments: state_graph.ownership_segments.insert_many(
+                segments: state_graph.semantics.ownership_segments.insert_many(
                     program
                         .facts
                         .flow
@@ -43,12 +43,12 @@ pub(crate) fn state_ownership_summary(
 
     let mut drops = HandleSpan::empty();
     for event in program.facts.flow.drops.span_or_empty(flow_state.drops) {
-        state_graph.drop_events.append_to_span(
+        state_graph.semantics.drop_events.append_to_span(
             &mut drops,
             StateDropEvent {
                 source: remap_flow_ownership_event_source(event.source),
                 root: event.root,
-                segments: state_graph.ownership_segments.insert_many(
+                segments: state_graph.semantics.ownership_segments.insert_many(
                     program
                         .facts
                         .flow

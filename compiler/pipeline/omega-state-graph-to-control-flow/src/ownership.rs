@@ -23,9 +23,9 @@ pub(crate) fn remap_drop_event_owned(event: omega_state_graph::StateDropEvent) -
 }
 
 pub(crate) fn remap_move_events(state_graph: &StateGraph) -> Arena<StateMoveEvent> {
-    let mut moves = Arena::with_capacity(state_graph.move_events.len());
+    let mut moves = Arena::with_capacity(state_graph.semantics.move_events.len());
 
-    for (_, event) in state_graph.move_events.iter() {
+    for (_, event) in state_graph.semantics.move_events.iter() {
         moves.append(remap_move_event_owned(event.clone()));
     }
 
@@ -33,9 +33,9 @@ pub(crate) fn remap_move_events(state_graph: &StateGraph) -> Arena<StateMoveEven
 }
 
 pub(crate) fn remap_drop_events(state_graph: &StateGraph) -> Arena<StateDropEvent> {
-    let mut drops = Arena::with_capacity(state_graph.drop_events.len());
+    let mut drops = Arena::with_capacity(state_graph.semantics.drop_events.len());
 
-    for (_, event) in state_graph.drop_events.iter() {
+    for (_, event) in state_graph.semantics.drop_events.iter() {
         drops.append(remap_drop_event_owned(event.clone()));
     }
 

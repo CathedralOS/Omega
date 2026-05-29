@@ -26,7 +26,7 @@ pub(crate) fn state_value_summary(
             continue;
         }
 
-        state_graph.values.append_to_span(
+        state_graph.semantics.values.append_to_span(
             &mut values,
             StateValueFact {
                 machine_symbol,
@@ -50,6 +50,7 @@ pub(crate) fn remap_state_value_summary(
 ) -> StateValueSummary {
     StateValueSummary {
         values: target
+            .semantics
             .values
             .insert_many(source_values.span_or_empty(values.values).iter().cloned()),
     }
@@ -119,7 +120,7 @@ mod tests {
             },
         );
 
-        let values = state_graph.values.span_or_empty(summary.values);
+        let values = state_graph.semantics.values.span_or_empty(summary.values);
         assert_eq!(values.len(), 1);
         assert_eq!(values[0].expression, expression);
         assert_eq!(
