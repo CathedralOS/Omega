@@ -190,6 +190,143 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
 }
 
 #[test]
+fn records_checked_boundary_edges_for_boundary_trait_calls() {
+    let caller_machine_symbol = SymbolHandle::from_arena_index(60);
+    let caller_state_symbol = SymbolHandle::from_arena_index(61);
+    let target_machine_symbol = SymbolHandle::from_arena_index(62);
+    let target_state_symbol = SymbolHandle::from_arena_index(63);
+    let boundary_trait_symbol = SymbolHandle::from_arena_index(64);
+    let boundary_signature_symbol = SymbolHandle::from_arena_index(65);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+
+    let mut boundary_trait = TraitDefinition {
+        symbol: boundary_trait_symbol,
+        is_boundary: true,
+        name: Identifier::generated("Console"),
+        requires: Default::default(),
+        machines: Default::default(),
+    };
+    program.push_trait_machine_signature(
+        &mut boundary_trait,
+        StateSignature {
+            symbol: boundary_signature_symbol,
+            name: Identifier::generated("write_line"),
+            parameters: Default::default(),
+            return_type: Default::default(),
+            effects: Default::default(),
+            contracts: Default::default(),
+        },
+    );
+    program.push_trait_definition(boundary_trait);
+
+    let mut target_machine = Machine {
+        symbol: target_machine_symbol,
+        name: Identifier::generated("ConsoleImpl"),
+        attached_data: None,
+        contains: Default::default(),
+        owned_data: Default::default(),
+        satisfies: Default::default(),
+        terminates: false,
+        decreases: Default::default(),
+        decrease_order: Default::default(),
+        effects: Default::default(),
+        contracts: Default::default(),
+        states: Default::default(),
+    };
+    program.push_machine_trait_conformance(
+        &mut target_machine,
+        TraitConformance {
+            symbol: boundary_trait_symbol,
+            name: Identifier::generated("Console"),
+        },
+    );
+    program.push_machine_state(
+        &mut target_machine,
+        State {
+            symbol: target_state_symbol,
+            name: Identifier::generated("write_line"),
+            parameters: Default::default(),
+            return_type: Default::default(),
+            statement_nodes: Default::default(),
+        },
+    );
+    program.push_machine(target_machine);
+
+    let call_statement = program
+        .statement_table
+        .insert(StatementNode::Call(TableCall {
+            receiver: HandleSpan::empty(),
+            receiver_symbol: target_machine_symbol,
+            target: Identifier::generated("write_line"),
+            target_symbol: target_state_symbol,
+            arguments: HandleSpan::empty(),
+        }));
+    let mut caller_machine = Machine {
+        symbol: caller_machine_symbol,
+        name: Identifier::generated("Main"),
+        attached_data: None,
+        contains: Default::default(),
+        owned_data: Default::default(),
+        satisfies: Default::default(),
+        terminates: false,
+        decreases: Default::default(),
+        decrease_order: Default::default(),
+        effects: Default::default(),
+        contracts: Default::default(),
+        states: Default::default(),
+    };
+    program.push_machine_state(
+        &mut caller_machine,
+        State {
+            symbol: caller_state_symbol,
+            name: Identifier::generated("main"),
+            parameters: Default::default(),
+            return_type: Default::default(),
+            statement_nodes: HandleSpan::from_parts(call_statement, 1),
+        },
+    );
+    program.push_machine(caller_machine);
+
+    let proof_plan = omega_proof::obligations::build_proof_plan(&program);
+    let effects = omega_effects::infer_effects(&program);
+    let borrow = build_borrow_facts(&program);
+    let proof = build_proof_facts(&program, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&program, &proof);
+    let domains = build_domain_facts(&program, &semantic);
+    let flow = build_flow_facts(&program, &borrow, &proof, &mut semantic, &domains, &effects);
+
+    let caller_flow = flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == caller_machine_symbol
+                && state.state_symbol == caller_state_symbol)
+                .then_some(state)
+        })
+        .expect("caller flow state");
+    let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
+
+    assert_eq!(flow.boundary_edges.len(), 1);
+    assert_eq!(caller_flow.boundary_edges.count(), 1);
+    assert_eq!(call_flow.boundary_edges.count(), 1);
+    let boundary = flow
+        .boundary_edges
+        .span_or_empty(call_flow.boundary_edges)
+        .first()
+        .expect("boundary edge");
+    assert_eq!(boundary.statement_index, 0);
+    assert_eq!(boundary.call_ordinal, 0);
+    assert_eq!(boundary.receiver_symbol, target_machine_symbol);
+    assert_eq!(boundary.target_symbol, target_state_symbol);
+    assert_eq!(boundary.boundary_trait_symbol, boundary_trait_symbol);
+    assert_eq!(
+        boundary.boundary_signature_symbol,
+        boundary_signature_symbol
+    );
+}
+
+#[test]
 fn carries_local_borrow_loans_into_later_call_constraints() {
     let source = r#"
         data Main {

@@ -70,6 +70,7 @@ pub(super) fn build_state_flow_fact(
     let state_borrow_weakenings_start = ctx.borrow_weakenings.len();
     let state_moves_start = ctx.moves.len();
     let state_drops_start = ctx.drops.len();
+    let state_boundary_edges_start = ctx.boundary_edges.len();
     let state_statements_start = ctx.statements.len();
     let state_calls = append_state_statement_flow_facts(
         program,
@@ -126,6 +127,7 @@ pub(super) fn build_state_flow_fact(
         ),
         moves: appended_span_since(&ctx.moves, state_moves_start),
         drops: appended_span_since(&ctx.drops, state_drops_start),
+        boundary_edges: appended_span_since(&ctx.boundary_edges, state_boundary_edges_start),
         statements: appended_span_since(&ctx.statements, state_statements_start),
         calls: state_calls,
         exits: state_exits,

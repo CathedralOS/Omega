@@ -123,6 +123,16 @@ pub struct FlowDropEventFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBoundaryEdgeFact {
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub receiver_symbol: SymbolHandle,
+    pub target_symbol: SymbolHandle,
+    pub boundary_trait_symbol: SymbolHandle,
+    pub boundary_signature_symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -137,6 +147,7 @@ pub struct FlowCallFact {
     pub exit_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub exit_constraints: HandleSpan<FlowConstraintRef>,
     pub invalidations: HandleSpan<FlowInvalidationFact>,
+    pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
     pub direct_effects: omega_effects::EffectSet,
@@ -175,6 +186,7 @@ pub struct FlowStateFact {
     pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
     pub moves: HandleSpan<FlowMoveEventFact>,
     pub drops: HandleSpan<FlowDropEventFact>,
+    pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
@@ -193,6 +205,7 @@ pub struct FlowFacts {
     pub borrow_weakenings: Arena<FlowBorrowWeakeningFact>,
     pub moves: Arena<FlowMoveEventFact>,
     pub drops: Arena<FlowDropEventFact>,
+    pub boundary_edges: Arena<FlowBoundaryEdgeFact>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
