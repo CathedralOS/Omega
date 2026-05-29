@@ -125,6 +125,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`
+  - symbol-resolved-to-typed expression lowering now keeps `expression.rs` as
+    the entry surface while recursive table lowering and expression lowering
+    canaries live in focused sibling modules
   - `omega-checked-trees` now has noun-shaped representation modules for
     borrow facts, proof facts, invariant/domain facts, checked flow facts,
     checked value facts, statement wrappers, and the root checked-tree container

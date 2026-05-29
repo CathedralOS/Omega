@@ -247,7 +247,9 @@ fn lowers_statement_argument_spans_from_statement_table() {
     data Parser {}
 
     machine Parser::start(&mut self, level: i32, cell: i32, line: i32) -> i32 {
-        -> self.resolve_exit(level, cell, line);
+        transition {
+            _ -> self.resolve_exit(level, cell, line)
+        }
 
         state resolve_exit(&mut self, level: i32, cell: i32, line: i32) -> i32 {
             0
