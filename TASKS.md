@@ -580,6 +580,9 @@ meaning, without needing access to pointer descriptor internals.
   - syntax, symbol-resolved, and typed snapshot canaries now live in focused
     `snapshot/tests.rs` modules so the snapshot roots stay focused on snapshot
     DTOs and conversion logic
+  - `omega-syntax-trees` expression display helpers and expression table
+    canaries now live in focused expression submodules, matching the typed and
+    symbol-resolved expression roots
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
