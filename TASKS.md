@@ -49,6 +49,9 @@ meaning, without needing access to pointer descriptor internals.
   - syntax-tree root item handles now sit under an explicit `SyntaxTreeRoots`
     root, keeping parser output roots separate from item/expression/statement
     table storage
+  - syntax-tree item, expression, statement, and type-reference storage now
+    sits under an explicit `SyntaxTreeTables` root while preserving ergonomic
+    table access for parser and resolver code
   - symbol-resolved-to-typed expression-table lowering now uses an
     `ExpressionTableLowerer` context to own recursive source-table to
     typed-table lowering, including expression-handle and struct-field spans

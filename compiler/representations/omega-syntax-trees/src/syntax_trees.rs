@@ -22,11 +22,17 @@ use crate::types::{
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceId;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxTrees {
     pub source_id: SourceId,
     pub roots: SyntaxTreeRoots,
+    pub tables: SyntaxTreeTables,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyntaxTreeTables {
     pub items: ItemTable,
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
@@ -43,10 +49,7 @@ impl SyntaxTrees {
         Self {
             source_id,
             roots: SyntaxTreeRoots::default(),
-            items: ItemTable::new(),
-            expressions: ExpressionTable::new(),
-            statements: StatementTable::new(),
-            type_references: TypeReferenceTable::new(),
+            tables: SyntaxTreeTables::new(),
         }
     }
 
@@ -952,6 +955,37 @@ impl SyntaxTrees {
         } else {
             HandleSpan::from_parts(start, count)
         }
+    }
+}
+
+impl SyntaxTreeTables {
+    pub fn new() -> Self {
+        Self {
+            items: ItemTable::new(),
+            expressions: ExpressionTable::new(),
+            statements: StatementTable::new(),
+            type_references: TypeReferenceTable::new(),
+        }
+    }
+}
+
+impl Default for SyntaxTreeTables {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Deref for SyntaxTrees {
+    type Target = SyntaxTreeTables;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tables
+    }
+}
+
+impl DerefMut for SyntaxTrees {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.tables
     }
 }
 

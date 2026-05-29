@@ -15,13 +15,17 @@ fn copy_item_path_to_expression_path(
 ) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
-    for member in syntax_trees
+    let members = syntax_trees
+        .tables
         .items
         .identifier_path_members(span)
         .iter()
         .cloned()
-    {
+        .collect::<Vec<_>>();
+
+    for member in members {
         let handle = syntax_trees
+            .tables
             .expressions
             .append_identifier_path_member(member);
         if count == 0 {

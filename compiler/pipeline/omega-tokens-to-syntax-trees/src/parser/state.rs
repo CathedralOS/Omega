@@ -181,12 +181,13 @@ fn parse_state_parameter<'tokens, 'source>(
 
         if input.at_keyword(KeywordKind::SelfValue) {
             let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
+            let type_reference = syntax_trees.tables.type_references.insert_self_type();
 
             return Ok((
                 syntax_trees.items.insert_state_parameter_node(
                     omega_syntax_trees::item::StateParameterNode {
                         name: Identifier::generated("self"),
-                        type_reference: syntax_trees.type_references.insert_self_type(),
+                        type_reference,
                         is_const,
                         is_mutable: is_mutable || is_leading_mutable,
                         is_self: true,
@@ -216,12 +217,13 @@ fn parse_state_parameter<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::SelfValue) {
         let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
+        let type_reference = syntax_trees.tables.type_references.insert_self_type();
 
         return Ok((
             syntax_trees.items.insert_state_parameter_node(
                 omega_syntax_trees::item::StateParameterNode {
                     name: Identifier::generated("self"),
-                    type_reference: syntax_trees.type_references.insert_self_type(),
+                    type_reference,
                     is_const,
                     is_mutable: is_leading_mutable,
                     is_self: true,
