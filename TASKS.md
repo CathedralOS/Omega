@@ -317,6 +317,8 @@ meaning, without needing access to pointer descriptor internals.
   - encoded-machine plan roots now follow the backend plan-module convention:
     `plan/code.rs` owns root structs and `plan/capacity.rs` owns root
     construction
+  - object-file layout roots now have representation-level constructors, so
+    object planning no longer hand-builds `ObjectFileLayout` internals
   - backend semantic summary names after abstract operations now alias the same
     preserved summary spine instead of duplicating identical
     values/boundaries/ownership structs per representation
