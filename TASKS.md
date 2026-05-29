@@ -32,6 +32,8 @@ meaning, without needing access to pointer descriptor internals.
     by-value machine call arguments while skipping reference parameters
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
+  - abstract-to-target and target-to-assigned lowering now preserve ownership
+    summaries instead of silently dropping them at backend representation seams
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague

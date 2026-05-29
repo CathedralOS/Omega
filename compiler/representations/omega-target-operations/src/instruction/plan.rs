@@ -1,4 +1,4 @@
-use super::{HostOperationKey, InstructionOperand, TargetHostBinding};
+use super::{HostOperationKey, InstructionOperand, TargetHostBinding, TargetOwnershipSummary};
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
@@ -10,6 +10,7 @@ pub struct TargetOperationPlan {
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<super::TargetValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
+    pub ownership: TargetOwnershipSummary,
 }
 
 pub type InstructionPlan = TargetOperationPlan;
@@ -35,6 +36,7 @@ impl TargetOperationPlan {
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::new(),
+            ownership: TargetOwnershipSummary::default(),
         }
     }
 

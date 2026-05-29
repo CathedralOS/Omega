@@ -50,6 +50,7 @@ pub(crate) fn build_target_operation_plan(
     }
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);
+    target_operations.ownership = abstract_operations.ownership.clone();
 
     target_operations
 }
