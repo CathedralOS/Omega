@@ -31,7 +31,7 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         bss_alignment: sections::section_alignment(input.object, SectionKind::Bss),
         symbols: Arena::with_capacity(input.object.symbols.len()),
         imports: Arena::with_capacity(import_count),
-        relocations: Arena::with_capacity(input.relocations.records.len()),
+        relocations: Arena::with_capacity(input.relocations.record_set.records.len()),
     };
 
     copies::copy_object_symbols(&mut image, input.object);

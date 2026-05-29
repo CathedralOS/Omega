@@ -37,16 +37,20 @@ pub(super) fn collect_runtime_text_read_relocations(
     );
 
     if let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism {
-        context.relocation_plan.records.insert(RelocationRecord {
-            function_symbol_handle: context.function_symbol_handle,
-            selected_instruction_index: context.selected_instruction_index,
-            text_offset: runtime_text_line_read_import_call_offset(
-                context.input.target.architecture,
-                context.selected_text_offset,
-            ),
-            byte_width: 4,
-            symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
-            kind: external_call_relocation_kind(context.input.target.architecture),
-        });
+        context
+            .relocation_plan
+            .record_set
+            .records
+            .insert(RelocationRecord {
+                function_symbol_handle: context.function_symbol_handle,
+                selected_instruction_index: context.selected_instruction_index,
+                text_offset: runtime_text_line_read_import_call_offset(
+                    context.input.target.architecture,
+                    context.selected_text_offset,
+                ),
+                byte_width: 4,
+                symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+                kind: external_call_relocation_kind(context.input.target.architecture),
+            });
     }
 }

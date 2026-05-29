@@ -86,12 +86,12 @@ pub(super) fn write_layout_object_sections(
     output.push_str("## Relocations\n");
     output.push_str(&format!(
         "records: {}\n",
-        backend_plan.relocations.records.len()
+        backend_plan.relocations.record_set.records.len()
     ));
-    if backend_plan.relocations.records.is_empty() {
+    if backend_plan.relocations.record_set.records.is_empty() {
         output.push_str("none\n");
     } else {
-        for (_, relocation) in backend_plan.relocations.records.iter() {
+        for (_, relocation) in backend_plan.relocations.record_set.records.iter() {
             write_relocation_record(output, backend_plan, relocation);
         }
     }

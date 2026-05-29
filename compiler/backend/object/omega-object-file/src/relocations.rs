@@ -5,6 +5,11 @@ use omega_target::NativeTarget;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationPlan {
     pub target: NativeTarget,
+    pub record_set: RelocationRecordSet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelocationRecordSet {
     pub records: Arena<RelocationRecord>,
 }
 
@@ -12,7 +17,9 @@ impl Default for RelocationPlan {
     fn default() -> Self {
         Self {
             target: NativeTarget::host(),
-            records: Arena::new(),
+            record_set: RelocationRecordSet {
+                records: Arena::new(),
+            },
         }
     }
 }

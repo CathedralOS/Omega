@@ -106,7 +106,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         instruction_operands: input.instructions.code.operands.len(),
         machine_code_bytes: input.encoded_machine.code.byte_count,
         encoded_machine_bytes: input.encoded_machine.code.bytes.len(),
-        relocations: input.relocations.records.len(),
+        relocations: input.relocations.record_set.records.len(),
         blockers,
     }
 }

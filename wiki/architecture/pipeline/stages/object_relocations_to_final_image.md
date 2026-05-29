@@ -6,7 +6,8 @@ This stage combines encoded machine bytes, data bytes, object sections/symbols, 
 
 ## Stage Contract
 
-Input: target, object plan, relocation plan, encoded text bytes, and data bytes.
+Input: target, object plan, relocation records under `RelocationRecordSet`,
+encoded text bytes, and data bytes.
 
 Output: final image model and emitted executable image output.
 
@@ -52,6 +53,8 @@ Must not own:
 - `omega-image/src/builder.rs` owns object-plan and relocation-plan conversion into `FinalImage`.
 - `omega-image/src/builder/copies.rs` owns object symbol, import, and
   relocation copying into final-image arenas.
+- `omega-object-file/src/relocations.rs` is the input relocation representation:
+  patch records live under `RelocationRecordSet`.
 - `omega-image/src/builder/sections.rs` owns object section size/alignment
   lookup for final-image construction.
 - `omega-image/src/tests.rs` owns final-image construction canaries so

@@ -338,6 +338,9 @@ meaning, without needing access to pointer descriptor internals.
   - relocation planning now has a thin crate root plus focused modules for
     planning input, per-function walking, and target-specific data-address
     relocation record facts
+  - relocation records now sit under an explicit `RelocationRecordSet` root on
+    `RelocationPlan`, keeping artifact patch data visible as its own plan
+    shape before final-image construction
   - data-address relocation planning now has a focused canary for AArch64 page
     relocations and x86_64 absolute-address relocations
   - data-address relocation planning now separates assigned-operand scanning
