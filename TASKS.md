@@ -83,6 +83,9 @@ meaning, without needing access to pointer descriptor internals.
     tests out of the translator root
   - target-to-assigned lowering now has focused unit coverage proving ownership
     summaries survive physical-home assignment beside value summaries
+  - target-to-assigned lowering now splits function remapping, operation and
+    operand conversion, runtime value home assignment, and metadata preservation
+    tests out of the builder root
   - assigned-to-machine-instructions now has focused unit coverage proving
     value, boundary-edge, and ownership summaries survive symbolic instruction
     emission
