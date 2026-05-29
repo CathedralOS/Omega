@@ -32,11 +32,17 @@ pub(super) fn build_abstract_boundary_summary(
     }
 
     for (_, call) in host_calls.calls.iter() {
-        for operation in host_calls.operations.span_or_empty(call.operations) {
+        for (operation_ordinal, operation) in host_calls
+            .operations
+            .span_or_empty(call.operations)
+            .iter()
+            .enumerate()
+        {
             let lowered_edge = summary.edges.insert(AbstractBoundaryEdge {
                 source_key: call.source_key,
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
+                operation_ordinal,
                 operation_key: operation.operation_key,
             });
             append_boundary_links(
@@ -108,16 +114,28 @@ mod tests {
                 fixed_leading_immediate: None,
             },
         );
+        host_calls.operations.append_to_span(
+            &mut call.operations,
+            LoweredHostOperation {
+                operation_key: HostOperationKey::new(
+                    HostCapability::Stdout,
+                    HostOperation::WriteFile,
+                ),
+                fixed_leading_immediate: None,
+            },
+        );
         call.arguments = HandleSpan::empty();
         host_calls.calls.insert(call);
 
         let summary = build_abstract_boundary_summary(&ControlFlowPlan::default(), &host_calls);
 
-        let edge = summary.edges.iter().next().map(|(_, edge)| edge).unwrap();
-        assert_eq!(summary.edges.len(), 1);
-        assert_eq!(edge.statement_index, 5);
-        assert_eq!(edge.call_ordinal, 2);
-        assert_eq!(edge.operation_key, operation_key);
+        let edges: Vec<_> = summary.edges.iter().map(|(_, edge)| edge).collect();
+        assert_eq!(summary.edges.len(), 2);
+        assert_eq!(edges[0].statement_index, 5);
+        assert_eq!(edges[0].call_ordinal, 2);
+        assert_eq!(edges[0].operation_ordinal, 0);
+        assert_eq!(edges[0].operation_key, operation_key);
+        assert_eq!(edges[1].operation_ordinal, 1);
     }
 
     #[test]

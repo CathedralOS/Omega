@@ -296,6 +296,9 @@ meaning, without needing access to pointer descriptor internals.
   - abstract boundary summaries now include first-pass links from source
     boundary edges to lowered host-operation edges when they share state,
     statement, and call-ordinal provenance
+  - abstract boundary edges now preserve the lowered host-operation ordinal
+    inside each host call, so diagnostics can distinguish multi-operation
+    lowerings
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`
@@ -532,8 +535,7 @@ meaning, without needing access to pointer descriptor internals.
     ownership kind, drop policy, storage consequences, and backend lowering
     beyond metadata so machine-instruction/object layers can lower value
     consequences deliberately instead of only preserving summaries
-  - enrich abstract source-to-lowered boundary links with operation provenance,
-    then validate the pair against target policies
+  - validate abstract source-to-lowered boundary links against target policies
   - give platform host-call collection its own statement/expression call-site
     traversal so boundary-only and nested host calls receive precise ordinals
     instead of relying on statement-level ordinal `0`

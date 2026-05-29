@@ -34,7 +34,9 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level
   authorization, and links source boundary edges to lowered host-operation
-  edges when they share the same state, statement, and call ordinal.
+  edges when they share the same state, statement, and call ordinal. Each
+  lowered edge also records the operation ordinal inside the host call so
+  multi-operation lowerings remain diagnosable.
   Platform host calls currently carry statement-level ordinal `0` when they do
   not participate in ordinary borrow-dispatched call facts; expression-level
   host calls need a dedicated ordinal traversal before this can be fully
