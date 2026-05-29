@@ -7,12 +7,13 @@ pub(crate) use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
     BorrowWritableRootFact, CheckedTrees, ContractCallFact, ContractExitFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
-    DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact, FlowBorrowWeakeningFact,
-    FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintKind,
-    FlowConstraintRef, FlowDropEventFact, FlowExitFact, FlowFacts, FlowInvalidationFact,
-    FlowInvalidationSource, FlowMoveEventFact, FlowOwnershipEventSource, FlowSemanticContextRef,
-    FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts, ProofFactKind, ProofFacts,
-    ProofObligationFact, ProofObligationOwner, StateBorrowFact,
+    DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact, FlowBorrowLifetimeFacts,
+    FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts,
+    FlowCallFact, FlowConstraintKind, FlowConstraintRef, FlowContextFacts, FlowControlFacts,
+    FlowDropEventFact, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationFacts,
+    FlowInvalidationSource, FlowMoveEventFact, FlowOwnershipEventSource, FlowOwnershipFacts,
+    FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts,
+    ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 pub(crate) use omega_core::arena::{Handle, HandleSpan};
 pub(crate) use omega_core::symbols::SymbolHandle;

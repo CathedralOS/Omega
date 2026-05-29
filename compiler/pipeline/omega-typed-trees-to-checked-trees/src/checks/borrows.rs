@@ -15,7 +15,7 @@ pub(crate) fn check_flow_call_borrows(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
-    for (_, state_flow) in facts.flow.states.iter() {
+    for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(borrow_state) = matching_borrow_state(facts, state_flow) else {
             continue;
         };

@@ -212,7 +212,8 @@ fn append_activation_preview(
     let activations = program
         .facts
         .flow
-        .borrow_activations
+        .borrow_lifetimes
+        .activations
         .span_or_empty(flow.borrow_activations);
     for activation in activations.iter().take(3) {
         label.push_str("\n  activation: ");
@@ -237,7 +238,8 @@ fn append_weakening_preview(
     let weakenings = program
         .facts
         .flow
-        .borrow_weakenings
+        .borrow_lifetimes
+        .weakenings
         .span_or_empty(flow.borrow_weakenings);
     for weakening in weakenings.iter().take(3) {
         label.push_str("\n  weakening: ");
@@ -251,7 +253,12 @@ fn append_weakening_preview(
 }
 
 fn append_statement_preview(label: &mut String, program: &CheckedTrees, flow: &FlowStateFact) {
-    let statements = program.facts.flow.statements.span_or_empty(flow.statements);
+    let statements = program
+        .facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(flow.statements);
     for statement in statements.iter().take(6) {
         label.push_str("\n  stmt #");
         label.push_str(&statement.statement_index.to_string());
@@ -275,7 +282,7 @@ fn append_statement_preview(label: &mut String, program: &CheckedTrees, flow: &F
 }
 
 fn append_exit_preview(label: &mut String, program: &CheckedTrees, flow: &FlowStateFact) {
-    let exits = program.facts.flow.exits.span_or_empty(flow.exits);
+    let exits = program.facts.flow.control.exits.span_or_empty(flow.exits);
     for exit in exits.iter().take(3) {
         label.push_str("\n  exit #");
         label.push_str(&exit.statement_index.to_string());
@@ -299,7 +306,13 @@ fn append_checked_call_nodes(
         return;
     };
 
-    for call in program.facts.flow.calls.span_or_empty(flow_state.calls) {
+    for call in program
+        .facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow_state.calls)
+    {
         let label = checked_call_label(program, machine, state, call);
         let call_id = format!(
             "checked_call_{}_{}_{}_{}",
@@ -556,10 +569,16 @@ fn flow_state_for(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<&FlowStateFact> {
-    program.facts.flow.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
-    })
+    program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+                .then_some(state)
+        })
 }
 
 fn borrow_state_for(

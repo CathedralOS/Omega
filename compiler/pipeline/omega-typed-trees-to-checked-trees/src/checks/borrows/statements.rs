@@ -27,7 +27,12 @@ pub(super) fn check_statement_borrows(
         return;
     };
 
-    for statement in facts.flow.statements.span_or_empty(state_flow.statements) {
+    for statement in facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(state_flow.statements)
+    {
         let Some(statement_node) = program
             .statement_table
             .statements(state.statement_nodes)

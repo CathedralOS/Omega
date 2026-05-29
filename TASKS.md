@@ -98,6 +98,9 @@ meaning, without needing access to pointer descriptor internals.
     state parameters, local declarations, machine data, attached data fields,
     and indexed elements so copy-like scalar assignments do not materialize
     fake move/drop facts
+  - checked-flow published facts now group contexts, invalidations, borrow
+    lifetimes, ownership, boundaries, and control under explicit `FlowFacts`
+    sub-roots while preserving arena-backed state-local spans
   - checked-flow call ownership events now recover arguments through the shared
     semantic call-site lookup, so transition target arguments materialize
     ownership moves instead of being invisible to the move/drop spine

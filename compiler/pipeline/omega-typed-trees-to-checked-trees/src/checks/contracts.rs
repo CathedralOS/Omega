@@ -18,11 +18,11 @@ pub(crate) fn check_flow_call_contracts(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
-    for (_, state_flow) in facts.flow.states.iter() {
-        for call_flow in facts.flow.calls.span_or_empty(state_flow.calls) {
+    for (_, state_flow) in facts.flow.control.states.iter() {
+        for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
             check_call_requires(program, facts, state_flow, call_flow, &mut diagnostics);
         }
-        for exit_flow in facts.flow.exits.span_or_empty(state_flow.exits) {
+        for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             check_exit_ensures(program, facts, state_flow, exit_flow, &mut diagnostics);
         }
     }

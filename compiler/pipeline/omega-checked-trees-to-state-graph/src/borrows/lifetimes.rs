@@ -28,6 +28,7 @@ pub(crate) fn state_borrow_lifetime_summary(
     if let Some(flow_state) = program
         .facts
         .flow
+        .control
         .states
         .iter()
         .find(|(_, state)| state.machine_symbol == key.machine && state.state_symbol == key.state)
@@ -46,7 +47,8 @@ pub(crate) fn state_borrow_lifetime_summary(
         for activation in program
             .facts
             .flow
-            .borrow_activations
+            .borrow_lifetimes
+            .activations
             .span_or_empty(flow_state.borrow_activations)
         {
             let loan =
@@ -63,7 +65,8 @@ pub(crate) fn state_borrow_lifetime_summary(
         for weakening in program
             .facts
             .flow
-            .borrow_weakenings
+            .borrow_lifetimes
+            .weakenings
             .span_or_empty(flow_state.borrow_weakenings)
         {
             let loan =

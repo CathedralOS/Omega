@@ -195,26 +195,56 @@ pub struct FlowStateFact {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FlowFacts {
+pub struct FlowContextFacts {
     pub semantic_context_refs: Arena<FlowSemanticContextRef>,
     pub constraint_refs: Arena<FlowConstraintRef>,
-    pub invalidation_segments: Arena<omega_facts::PlaceSegment>,
-    pub ownership_segments: Arena<omega_facts::PlaceSegment>,
-    pub invalidations: Arena<FlowInvalidationFact>,
-    pub borrow_activations: Arena<FlowBorrowActivationFact>,
-    pub borrow_weakenings: Arena<FlowBorrowWeakeningFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowInvalidationFacts {
+    pub segments: Arena<omega_facts::PlaceSegment>,
+    pub events: Arena<FlowInvalidationFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBorrowLifetimeFacts {
+    pub activations: Arena<FlowBorrowActivationFact>,
+    pub weakenings: Arena<FlowBorrowWeakeningFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowOwnershipFacts {
+    pub segments: Arena<omega_facts::PlaceSegment>,
     pub moves: Arena<FlowMoveEventFact>,
     pub drops: Arena<FlowDropEventFact>,
-    pub boundary_edges: Arena<FlowBoundaryEdgeFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowBoundaryFacts {
+    pub edges: Arena<FlowBoundaryEdgeFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowControlFacts {
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
     pub states: Arena<FlowStateFact>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowFacts {
+    pub contexts: FlowContextFacts,
+    pub invalidations: FlowInvalidationFacts,
+    pub borrow_lifetimes: FlowBorrowLifetimeFacts,
+    pub ownership: FlowOwnershipFacts,
+    pub boundaries: FlowBoundaryFacts,
+    pub control: FlowControlFacts,
+}
+
 impl FlowFacts {
     pub fn constraints(&self, constraints: HandleSpan<FlowConstraintRef>) -> &[FlowConstraintRef] {
-        self.constraint_refs.span_or_empty(constraints)
+        self.contexts.constraint_refs.span_or_empty(constraints)
     }
 
     pub fn semantic_constraint_contexts<'a>(
@@ -324,7 +354,8 @@ impl FlowFacts {
         state: &FlowStateFact,
         statement_index: usize,
     ) -> Option<&FlowStatementFact> {
-        self.statements
+        self.control
+            .statements
             .span_or_empty(state.statements)
             .iter()
             .find(|statement| statement.statement_index == statement_index)
@@ -338,12 +369,16 @@ impl FlowFacts {
         target_symbol: SymbolHandle,
         receiver_symbol: SymbolHandle,
     ) -> Option<&FlowCallFact> {
-        self.calls.span_or_empty(state.calls).iter().find(|call| {
-            call.statement_index == statement_index
-                && call.call_ordinal == call_ordinal
-                && call.target_symbol == target_symbol
-                && call.receiver_symbol == receiver_symbol
-        })
+        self.control
+            .calls
+            .span_or_empty(state.calls)
+            .iter()
+            .find(|call| {
+                call.statement_index == statement_index
+                    && call.call_ordinal == call_ordinal
+                    && call.target_symbol == target_symbol
+                    && call.receiver_symbol == receiver_symbol
+            })
     }
 
     pub fn state_call_entry_constraints(
@@ -392,6 +427,7 @@ impl FlowFacts {
         call: &'a FlowCallFact,
     ) -> impl Iterator<Item = &'a FlowInvalidationFact> + 'a {
         self.invalidations
+            .events
             .span_or_empty(state.invalidations)
             .iter()
             .filter(move |invalidation| match invalidation.source {

@@ -1474,6 +1474,7 @@ fn accepts_requires_from_local_alias_transfer() {
         .find(|state| state.name.as_str() == "main")
         .expect("main state");
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -1482,6 +1483,7 @@ fn accepts_requires_from_local_alias_transfer() {
         })
         .expect("main flow state");
     let inspect_call = flow
+        .control
         .calls
         .span_or_empty(caller_flow.calls)
         .iter()
@@ -1500,6 +1502,7 @@ fn accepts_requires_from_local_alias_transfer() {
     let local_argument = arguments[0];
     assert_eq!(typed.expression_table.display_name(local_argument), "local");
     let transferred: Vec<_> = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(inspect_call.entry_semantic_contexts)
         .iter()
@@ -1539,7 +1542,8 @@ fn accepts_requires_from_local_alias_transfer() {
         "entry contexts should include transferred local fact: {transferred:?}"
     );
     let required =
-        flow.semantic_context_refs
+        flow.contexts
+            .semantic_context_refs
             .span_or_empty(inspect_call.requires_contexts)
             .iter()
             .find_map(|context_ref| {

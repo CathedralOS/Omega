@@ -51,20 +51,32 @@ impl FlowBuildContext {
 
     pub(super) fn finish(self) -> FlowFacts {
         FlowFacts {
-            semantic_context_refs: self.semantic_context_refs,
-            constraint_refs: self.constraint_refs,
-            invalidation_segments: self.invalidation_segments,
-            ownership_segments: self.ownership_segments,
-            invalidations: self.invalidations,
-            borrow_activations: self.borrow_activations,
-            borrow_weakenings: self.borrow_weakenings,
-            moves: self.moves,
-            drops: self.drops,
-            boundary_edges: self.boundary_edges,
-            statements: self.statements,
-            calls: self.calls,
-            exits: self.exits,
-            states: self.states,
+            contexts: FlowContextFacts {
+                semantic_context_refs: self.semantic_context_refs,
+                constraint_refs: self.constraint_refs,
+            },
+            invalidations: FlowInvalidationFacts {
+                segments: self.invalidation_segments,
+                events: self.invalidations,
+            },
+            borrow_lifetimes: FlowBorrowLifetimeFacts {
+                activations: self.borrow_activations,
+                weakenings: self.borrow_weakenings,
+            },
+            ownership: FlowOwnershipFacts {
+                segments: self.ownership_segments,
+                moves: self.moves,
+                drops: self.drops,
+            },
+            boundaries: FlowBoundaryFacts {
+                edges: self.boundary_edges,
+            },
+            control: FlowControlFacts {
+                statements: self.statements,
+                calls: self.calls,
+                exits: self.exits,
+                states: self.states,
+            },
         }
     }
 }

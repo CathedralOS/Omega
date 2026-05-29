@@ -17,6 +17,10 @@ Primary responsibility: validate semantic obligations and build checked facts.
 This stage is the first durable semantic fact owner. It should be the place
 where source/type meaning becomes queryable evidence for proof, borrow, flow,
 effect, and boundary validation.
+The representation root is `CheckedTrees`: typed syntax remains under `typed`,
+while durable semantic evidence lives under `CheckFacts`. Checked flow evidence
+is grouped under `FlowFacts` roots for contexts, invalidations, borrow
+lifetimes, ownership, boundaries, and control.
 
 | Noun | Ownership |
 | --- | --- |
@@ -98,6 +102,9 @@ Current ownership is:
   `checks/borrows/overlap/segments.rs` owns place-segment overlap policy,
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
+- `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model:
+  state-local spans point into grouped `FlowFacts` roots for contexts,
+  invalidations, borrow lifetimes, ownership, boundaries, and control.
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
