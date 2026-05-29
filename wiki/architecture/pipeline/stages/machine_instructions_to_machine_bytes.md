@@ -55,6 +55,9 @@ Must not own:
 - `omega-machine-emission/src/code.rs` owns `EncodedMachineCode` construction,
   including encoded function ranges, instruction byte spans, final byte count,
   and delegation to function/instruction byte insertion helpers.
+- `omega-machine-emission/src/instruction_bytes.rs` owns function-local byte
+  insertion, fixed instruction encodings, target-encoded instruction fallback,
+  and encoded-width validation.
 - `omega-machine-instructions/src/plan.rs` is the input representation root:
   symbolic executable instruction shape lives under `MachineInstructionCode`,
   while preserved semantic evidence lives under
