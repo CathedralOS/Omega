@@ -82,6 +82,9 @@ meaning, without needing access to pointer descriptor internals.
   - abstract operation executable shape now sits under an explicit
     `AbstractOperationCode` root on `AbstractOperationPlan`, keeping operation
     arenas separate from preserved semantic summaries
+  - abstract operation plan roots now follow the backend plan-module convention:
+    `plan/code.rs` owns root structs and `plan/capacity.rs` owns root
+    construction
   - target-operation representation roots now split target function plans,
     operation records, operation kinds, abstract-to-target conversions, value
     operands, and instruction operands instead of hiding all instruction

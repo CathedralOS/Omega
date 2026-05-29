@@ -34,9 +34,11 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level
   authorization.
-- `omega-abstract-operations/src/plan.rs` owns the representation root:
+- `omega-abstract-operations/src/plan/` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.
+  `plan/code.rs` owns the root structs and `plan/capacity.rs` owns capacity
+  constructors.
 - `omega-abstract-operations/src/semantics.rs` owns grouped semantic-root
   construction for abstract values, boundary edges, and ownership summaries.
   `instruction/function.rs`

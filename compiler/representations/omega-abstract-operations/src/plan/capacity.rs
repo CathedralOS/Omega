@@ -1,28 +1,5 @@
-use crate::{
-    AbstractFunctionPlan, AbstractOperation, AbstractSemanticSummary, AbstractValueOperand,
-    InstructionOperand,
-};
+use crate::{AbstractOperationCode, AbstractOperationPlan, AbstractSemanticSummary};
 use omega_core::arena::Arena;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractOperationCode {
-    pub functions: Arena<AbstractFunctionPlan>,
-    pub instructions: Arena<AbstractOperation>,
-    pub operands: Arena<InstructionOperand>,
-    pub runtime_value_operands: Arena<AbstractValueOperand>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractOperationPlan {
-    pub code: AbstractOperationCode,
-    pub semantics: AbstractSemanticSummary,
-}
-
-impl Default for AbstractOperationPlan {
-    fn default() -> Self {
-        Self::with_capacity(0, 0, 0, 0)
-    }
-}
 
 impl AbstractOperationPlan {
     pub fn with_capacity(
