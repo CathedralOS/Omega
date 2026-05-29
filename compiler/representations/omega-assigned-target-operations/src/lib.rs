@@ -6,6 +6,7 @@ mod functions;
 mod homes;
 mod operands;
 mod operations;
+mod runtime_values;
 
 pub use functions::*;
 pub use homes::*;
@@ -1688,10 +1689,10 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> AssignedValueHomeHandle {
-        if assigned_value_handle(handle).is_valid()
+        if operands::assigned_value_handle(handle).is_valid()
             && self
                 .runtime_value_operands
-                .is_valid(assigned_value_handle(handle))
+                .is_valid(operands::assigned_value_handle(handle))
         {
             handle
         } else {
@@ -1711,7 +1712,7 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<&AssignedValueOperand> {
-        let handle = assigned_value_handle(handle);
+        let handle = operands::assigned_value_handle(handle);
         self.runtime_value_operands
             .is_valid(handle)
             .then(|| self.runtime_value_operands.get(handle))
@@ -1722,7 +1723,7 @@ impl AssignedTargetOperationPlan {
     ) -> impl Iterator<Item = (RuntimeValueOperandHandle, &AssignedValueOperand)> + '_ {
         self.runtime_value_operands
             .iter()
-            .map(|(handle, operand)| (target_value_handle(handle), operand))
+            .map(|(handle, operand)| (operands::target_value_handle(handle), operand))
     }
 
     pub fn scratch_home_count(&self) -> usize {
@@ -1732,134 +1733,6 @@ impl AssignedTargetOperationPlan {
             })
             .count()
     }
-}
-
-impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperationPlan {
-    fn immediate_integer(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<i64> {
-        match AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::Immediate(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    fn storage(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeStorageRegion, usize, usize)> {
-        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::Storage {
-                region,
-                byte_offset,
-                byte_size,
-            } => Some((*region, *byte_offset, *byte_size)),
-            _ => None,
-        }
-    }
-
-    fn pointee(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize)> {
-        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::Pointee {
-                pointer_byte_offset,
-                field_byte_offset,
-                byte_size,
-            } => Some((*pointer_byte_offset, *field_byte_offset, *byte_size)),
-            _ => None,
-        }
-    }
-
-    fn frame_indexed(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)> {
-        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::FrameIndexed {
-                descriptor_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                byte_size,
-            } => Some((
-                *descriptor_offset,
-                *index_offset,
-                *element_byte_size,
-                *field_byte_offset,
-                *byte_size,
-            )),
-            _ => None,
-        }
-    }
-
-    fn frame_base_indexed(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)> {
-        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::FrameBaseIndexed {
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                byte_size,
-            } => Some((
-                *base_byte_offset,
-                *index_offset,
-                *element_byte_size,
-                *field_byte_offset,
-                *byte_size,
-            )),
-            _ => None,
-        }
-    }
-
-    fn frame_fixed_indexed(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(usize, usize, usize, usize, usize)> {
-        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::FrameFixedIndexed {
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                byte_size,
-            } => Some((
-                *descriptor_offset,
-                *element_index,
-                *element_byte_size,
-                *field_byte_offset,
-                *byte_size,
-            )),
-            _ => None,
-        }
-    }
-
-    fn binary(
-        &self,
-        handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(
-        omega_target_operations::RuntimeValueOperandHandle,
-        StateGuardOperator,
-        omega_target_operations::RuntimeValueOperandHandle,
-    )> {
-        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::Binary {
-                left,
-                operator,
-                right,
-            } => Some((*left, *operator, *right)),
-            _ => None,
-        }
-    }
-}
-
-fn assigned_value_handle(handle: RuntimeValueOperandHandle) -> Handle<AssignedValueOperand> {
-    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 fn assigned_instruction_handle(
@@ -1876,10 +1749,6 @@ fn assigned_instruction_span(
     } else {
         HandleSpan::from_parts(assigned_instruction_handle(span.start()), span.count())
     }
-}
-
-fn target_value_handle(handle: Handle<AssignedValueOperand>) -> RuntimeValueOperandHandle {
-    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperationPlan {

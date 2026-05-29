@@ -346,3 +346,15 @@ pub type RuntimeValueOperand = AssignedValueOperandKind;
 pub type RuntimeValueOperandHandle = AssignedValueOperandHandle;
 pub type TargetValueOperand = AssignedValueOperandKind;
 pub type TargetValueOperandHandle = AssignedValueOperandHandle;
+
+pub(crate) fn assigned_value_handle(
+    handle: RuntimeValueOperandHandle,
+) -> omega_core::arena::Handle<AssignedValueOperand> {
+    omega_core::arena::Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+pub(crate) fn target_value_handle(
+    handle: omega_core::arena::Handle<AssignedValueOperand>,
+) -> RuntimeValueOperandHandle {
+    omega_core::arena::Handle::from_parts(handle.arena_index(), handle.generation())
+}
