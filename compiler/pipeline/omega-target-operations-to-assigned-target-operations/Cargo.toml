@@ -12,3 +12,7 @@ path = "src/lib.rs"
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-target = { path = "../../backend/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+
+[dev-dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-core = { path = "../../foundation/omega-core" }

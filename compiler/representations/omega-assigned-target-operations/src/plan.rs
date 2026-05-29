@@ -10,6 +10,7 @@ use omega_target_operations::{HostOperationKey, TargetHostBinding};
 use std::sync::Arc;
 
 pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
+pub type AssignedValueSummary = omega_target_operations::TargetValueSummary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedTargetOperationPlan {
@@ -19,6 +20,7 @@ pub struct AssignedTargetOperationPlan {
     pub operands: Arena<AssignedInstructionOperand>,
     pub runtime_value_operands: Arena<AssignedValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
+    pub values: AssignedValueSummary,
     pub boundary_edges: omega_target_operations::TargetBoundarySummary,
     pub ownership: omega_target_operations::TargetOwnershipSummary,
 }
@@ -45,6 +47,7 @@ impl AssignedTargetOperationPlan {
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::with_capacity(host_binding_capacity),
+            values: AssignedValueSummary::default(),
             boundary_edges: omega_target_operations::TargetBoundarySummary::default(),
             ownership: omega_target_operations::TargetOwnershipSummary::default(),
         }
@@ -184,6 +187,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
+            values: plan.values,
             boundary_edges: plan.boundary_edges,
             ownership: plan.ownership,
         }
@@ -234,6 +238,7 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
+            values: plan.values,
             boundary_edges: plan.boundary_edges,
             ownership: plan.ownership,
         }

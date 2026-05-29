@@ -911,7 +911,9 @@ dependencies = [
 name = "omega-target-operations-to-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-operations",
  "omega-assigned-target-operations",
+ "omega-core",
  "omega-target",
  "omega-target-operations",
 ]

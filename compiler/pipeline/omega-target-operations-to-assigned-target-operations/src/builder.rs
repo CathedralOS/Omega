@@ -45,6 +45,7 @@ pub(crate) fn build_assigned_target_operations(
         );
     }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
+    assigned_target_operations.values = target_operations.values.clone();
     assigned_target_operations.boundary_edges = target_operations.boundary_edges.clone();
     assigned_target_operations.ownership = target_operations.ownership.clone();
 
@@ -143,4 +144,49 @@ pub(crate) fn build_assigned_target_operations(
     }
 
     assigned_target_operations
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_abstract_operations::{
+        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    };
+    use omega_core::symbols::SymbolHandle;
+
+    #[test]
+    fn copies_target_value_summary_to_assigned_plan() {
+        let mut target_operations = TargetOperationPlan::default();
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+
+        target_operations.values.values.insert(AbstractValueFact {
+            source_key: Default::default(),
+            machine_symbol,
+            state_symbol,
+            expression: Default::default(),
+            origin: AbstractValueOrigin::Statement {
+                statement_index: 7,
+                role: AbstractValueStatementRole::CallArgument,
+            },
+        });
+
+        let assigned_operations = build_assigned_target_operations(&target_operations);
+
+        assert_eq!(assigned_operations.values.values.len(), 1);
+        let value = assigned_operations
+            .values
+            .values
+            .iter()
+            .next()
+            .map(|(_, value)| value)
+            .expect("assigned value");
+        assert_eq!(
+            value.origin,
+            AbstractValueOrigin::Statement {
+                statement_index: 7,
+                role: AbstractValueStatementRole::CallArgument,
+            }
+        );
+    }
 }
