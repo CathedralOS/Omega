@@ -1,3 +1,4 @@
+mod normalization;
 mod operators;
 
 use crate::InstructionSelectionInput;
@@ -12,7 +13,6 @@ use omega_checked_trees::expression::{
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCallRole;
-use omega_state_values::simplify_state_expression;
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix, resolve_runtime_alias_binding,
@@ -41,6 +41,8 @@ use super::static_values::{
 };
 use super::storage_copy::runtime_storage_copy;
 use super::subslice_copy::runtime_fixed_array_subslice_indexed_source_copy;
+pub(super) use normalization::simplify_runtime_expression_with_state_locals;
+use normalization::{normalize_runtime_mutation_expression, resolve_runtime_mutation_target};
 use operators::{
     builtin_runtime_call_operator, builtin_runtime_call_operator_in_table, runtime_binary_operator,
     supports_runtime_value_operand, supports_scalar_integer_write,
@@ -66,85 +68,6 @@ fn resolve_runtime_call_result_source_place(
             statement_index,
         )
     })
-}
-
-pub(super) fn simplify_runtime_expression_with_state_locals(
-    input: &InstructionSelectionInput<'_>,
-    source_key: StateKey,
-    statement_index: usize,
-    expression: &Expression,
-) -> Expression {
-    let Some(machine) = input
-        .program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == source_key.machine)
-    else {
-        return expression.clone();
-    };
-    let Some(state) = input
-        .program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == source_key.state)
-    else {
-        return expression.clone();
-    };
-
-    simplify_state_expression(input.program, machine, state, statement_index, expression)
-}
-
-fn normalize_runtime_mutation_expression(
-    input: &InstructionSelectionInput<'_>,
-    source_key: StateKey,
-    statement_index: usize,
-    expression: &Expression,
-    aliases: &[RuntimeAliasBinding],
-    alias_expressions: &ExpressionTable,
-) -> super::super::super::bindings::RuntimeResolvedExpression {
-    let first = resolve_runtime_alias_binding(expression, source_key, aliases, alias_expressions);
-    let first_simplified = simplify_runtime_expression_with_state_locals(
-        input,
-        first.source_key,
-        statement_index,
-        &first.expression,
-    );
-    let second = resolve_runtime_alias_binding(
-        &first_simplified,
-        first.source_key,
-        aliases,
-        alias_expressions,
-    );
-    let second_simplified = simplify_runtime_expression_with_state_locals(
-        input,
-        second.source_key,
-        statement_index,
-        &second.expression,
-    );
-
-    super::super::super::bindings::RuntimeResolvedExpression {
-        source_key: second.source_key,
-        expression: second_simplified,
-    }
-}
-
-fn resolve_runtime_mutation_target(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    expression: &Expression,
-    aliases: &[RuntimeAliasBinding],
-    alias_expressions: &ExpressionTable,
-) -> super::super::super::bindings::RuntimeResolvedExpression {
-    if resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression).is_some()
-    {
-        return super::super::super::bindings::RuntimeResolvedExpression {
-            source_key,
-            expression: expression.clone(),
-        };
-    }
-
-    resolve_runtime_alias_binding(expression, source_key, aliases, alias_expressions)
 }
 
 #[allow(clippy::too_many_arguments)]
