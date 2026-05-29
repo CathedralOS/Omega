@@ -65,11 +65,12 @@ Must not own:
 - `omega-machine-emission/src/layout.rs` owns instruction width and byte-offset layout.
 - `omega-machine-emission/src/encoding.rs` and `encoding/*` own target byte emission helpers.
 - `omega-machine-emission/src/branch_distances.rs` and submodules own byte-distance queries used by branch encoding.
-- `omega-machine-bytes/src/plan.rs` is the output representation root:
+- `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
   Constructors should initialize that semantic root through the shared
-  semantic-summary constructor, not an opaque default.
+  semantic-summary constructor, not an opaque default. `plan/code.rs` owns the
+  root structs and `plan/capacity.rs` owns capacity construction.
 - `omega-machine-bytes/src/semantics.rs` owns encoded-stage semantic aliases.
   `EncodedMachineSemanticSummary` is the preserved backend semantic spine, not
   a new duplicate values/boundaries/ownership container.

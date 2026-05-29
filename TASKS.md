@@ -314,6 +314,9 @@ meaning, without needing access to pointer descriptor internals.
     instructions and the current machine-program artifact as metadata
   - encoded machine bytes now preserve value, boundary-edge, and ownership
     summaries from symbolic machine instructions
+  - encoded-machine plan roots now follow the backend plan-module convention:
+    `plan/code.rs` owns root structs and `plan/capacity.rs` owns root
+    construction
   - backend semantic summary names after abstract operations now alias the same
     preserved summary spine instead of duplicating identical
     values/boundaries/ownership structs per representation
