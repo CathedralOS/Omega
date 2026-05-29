@@ -178,8 +178,11 @@ Current ownership is:
   natural-number ranking proof shapes, `checks/termination/ranking/nat/guards.rs`
   owns natural-number guard predicates,
   `checks/termination/ranking/nat/arguments.rs` owns natural-number next-argument
-  rewrite predicates, and `checks/termination/ranking/slice.rs` owns slice-length
-  ranking proof shapes.
+  rewrite predicates, `checks/termination/ranking/slice.rs` owns slice-length
+  ranking proof shapes, `checks/termination/ranking/slice/guards.rs` owns
+  slice-length guard predicates, and
+  `checks/termination/ranking/slice/arguments.rs` owns slice-tail next-argument
+  rewrite predicates.
 - `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
   proof/checking modules. They should consume checked facts and emit
   diagnostics, not invent new durable semantic representations.

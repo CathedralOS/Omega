@@ -103,6 +103,8 @@ meaning, without needing access to pointer descriptor internals.
     and ordering fact helpers behind the guard-bound export surface
   - natural-number termination ranking now splits ranking proof shapes from
     guard predicates and next-argument rewrite predicates
+  - slice-length termination ranking now splits ranking proof shapes from guard
+    predicates and tail-slice next-argument rewrite predicates
   - range state-argument fact propagation now splits the merged parameter fact
     model from statement/transition traversal
   - contract checking now keeps its root as an entrypoint, with call
