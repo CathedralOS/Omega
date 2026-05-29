@@ -72,6 +72,10 @@ Current preferred shapes:
 - Graph/control/backend representations use a code/shape root plus a semantic
   evidence root, for example `StateGraph { code, semantics }`,
   `ControlFlowPlan { code, semantics }`, and backend operation plans.
+- Aggregate backend artifacts use their own artifact root, for example
+  `BackendArtifactRoots`, and orchestration should construct empty artifact
+  spines through that root instead of hand-assembling machine, object, or
+  relocation internals.
 
 This is not ceremony. It makes it obvious whether a pass is changing executable
 shape, preserving semantic evidence, or doing both. If a stage starts reaching

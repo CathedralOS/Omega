@@ -3,11 +3,8 @@ use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_backend_plan::{BackendArtifactRoots, BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
-use omega_core::arena::{Arena, Handle};
+use omega_core::arena::Arena;
 use omega_layout::LayoutPlan;
-use omega_machine_bytes::EncodedMachinePlan;
-use omega_machine_instructions::MachineInstructionPlan;
-use omega_object_file::{ObjectPlan, RelocationPlan, SymbolPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
@@ -40,19 +37,7 @@ pub(super) struct BackendPlanSkeletonInput {
 pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> BackendPlan {
     BackendPlan {
         target: input.target,
-        artifacts: BackendArtifactRoots {
-            machine_instructions: MachineInstructionPlan::default(),
-            encoded_machine: EncodedMachinePlan::default(),
-            object: ObjectPlan {
-                target: input.target,
-                layout: omega_object_file::ObjectFileLayout {
-                    sections: omega_core::arena::Arena::new(),
-                    symbols: omega_core::arena::Arena::new(),
-                    entry_symbol: Handle::<SymbolPlan>::invalid(),
-                },
-            },
-            relocations: RelocationPlan::with_target(input.target),
-        },
+        artifacts: BackendArtifactRoots::empty_for_target(input.target),
         host_abi: input.host_abi,
         host_calls: Arc::new(input.host_calls),
         state_calls: Arc::new(StateCallPlan::default()),
