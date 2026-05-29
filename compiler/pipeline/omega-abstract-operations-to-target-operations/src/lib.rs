@@ -5,8 +5,13 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetOperationPlan;
 
 mod host;
+mod instructions;
+mod operands;
 mod remap;
+#[cfg(test)]
+mod tests;
 mod translator;
+mod values;
 
 pub fn build_target_operation_plan(
     target: NativeTarget,

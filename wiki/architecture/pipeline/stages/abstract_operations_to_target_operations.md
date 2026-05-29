@@ -14,9 +14,13 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 
 ## Implementation Map
 
-- `translator.rs` owns the conveyor from abstract operation arenas into target operation arenas.
+- `translator.rs` owns the conveyor from abstract operation arenas into target operation arenas and preserves semantic metadata summaries across the stage boundary.
+- `instructions.rs` owns abstract instruction legalization, including host-operation remapping into target operation keys.
+- `operands.rs` owns instruction operand translation and abstract data-handle remapping.
+- `values.rs` owns runtime value operand translation and runtime value handle remapping.
 - `remap.rs` owns handle/span remapping when arena ordering is preserved across the lowering boundary.
 - `host.rs` owns lowered host operation key resolution and host ABI binding reconciliation.
+- `tests.rs` owns stage-level preservation canaries for values, ownership, and boundary edges.
 
 ## Semantic Ownership
 
