@@ -1,6 +1,6 @@
 use crate::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
 use crate::symbols::TopLevelSymbols;
-use crate::{
+use crate::type_references::{
     TypeReferenceOwner, type_reference_label, type_references_match, validate_type_reference_handle,
 };
 use omega_core::diagnostics::Diagnostic;
