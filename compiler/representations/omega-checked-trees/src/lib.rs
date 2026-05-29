@@ -9,9 +9,11 @@ mod flow;
 mod proof;
 pub mod statement;
 mod trees;
+mod values;
 
 pub use borrow::*;
 pub use facts::*;
 pub use flow::*;
 pub use proof::*;
 pub use trees::*;
+pub use values::*;

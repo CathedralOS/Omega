@@ -1,10 +1,11 @@
-use crate::{BorrowFacts, DomainFacts, FlowFacts, InvariantFacts, ProofFacts};
+use crate::{BorrowFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts, ProofFacts};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
     pub semantic: omega_facts::FactPlan,
     pub borrow: BorrowFacts,
     pub proof: ProofFacts,
+    pub values: CheckedValueFacts,
     pub invariants: InvariantFacts,
     pub domains: DomainFacts,
     pub effects: omega_effects::EffectPlan,
