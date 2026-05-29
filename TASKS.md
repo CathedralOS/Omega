@@ -178,8 +178,9 @@ meaning, without needing access to pointer descriptor internals.
     construction, and AArch64 thunk patching out of the executable-emission root
   - `omega-image-elf` now splits ELF constants, byte writers, alignment
     helpers, and ELF/program-header writing out of the executable-emission root
-  - PE and Mach-O direct image emission now split entry-symbol lookup into
-    focused modules with canaries for final-image entry offset/RVA resolution
+  - ELF, PE, and Mach-O direct image emission now split entry-symbol lookup into
+    focused modules with canaries for final-image entry address/offset/RVA
+    resolution
   - ELF direct executable emission now uses the final-image entry symbol offset
     instead of assuming the entry point is the first byte of `.text`
   - `omega-validation` now has a thin validation entrypoint plus semantic
