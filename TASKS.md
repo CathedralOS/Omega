@@ -33,6 +33,10 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow ownership events now skip copy-like scalar locals and
     by-value scalar call parameters instead of treating every place-like scalar
     read as an ownership move/drop
+  - checked-flow assignment ownership events now resolve RHS place types through
+    state parameters, local declarations, machine data, attached data fields,
+    and indexed elements so copy-like scalar assignments do not materialize
+    fake move/drop facts
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
@@ -140,11 +144,11 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
-  - make ownership event production type-aware so Copy/no-drop values and real
-    ownership-consuming values are distinguished
-  - extend type-aware ownership event production from local declarations and
-    call parameters into assignment targets, transition arguments, nested call
-    arguments, arrays, slices, strings, and future user-defined copy/drop policy
+  - make ownership event production fully type-aware so Copy/no-drop values and
+    real ownership-consuming values are distinguished across all transfer sites
+  - extend type-aware ownership event production into transition arguments,
+    nested call arguments, arrays, slices, strings, and future user-defined
+    copy/drop policy
   - teach transition and nested expression-call analysis to append ownership
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
