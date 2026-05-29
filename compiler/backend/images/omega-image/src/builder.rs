@@ -1,6 +1,9 @@
-use crate::model::{FinalImage, FinalImageImport, FinalImageRelocation, FinalImageSymbol};
-use crate::symbols::{final_image_section, final_image_symbol_handle};
-use omega_core::arena::{Arena, Handle};
+mod copies;
+mod sections;
+
+use crate::model::FinalImage;
+use crate::symbols::final_image_symbol_handle;
+use omega_core::arena::Arena;
 use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind};
 use omega_target::NativeTarget;
 
@@ -24,74 +27,18 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         entry_symbol: final_image_symbol_handle(input.object.entry_symbol),
         text: input.text_bytes.to_vec(),
         data: input.data_bytes.to_vec(),
-        bss_size: section_size(input.object, SectionKind::Bss),
-        bss_alignment: section_alignment(input.object, SectionKind::Bss),
+        bss_size: sections::section_size(input.object, SectionKind::Bss),
+        bss_alignment: sections::section_alignment(input.object, SectionKind::Bss),
         symbols: Arena::with_capacity(input.object.symbols.len()),
         imports: Arena::with_capacity(import_count),
         relocations: Arena::with_capacity(input.relocations.records.len()),
     };
 
-    image.symbols.insert_many(
-        input
-            .object
-            .symbols
-            .iter()
-            .map(|(_, symbol)| FinalImageSymbol {
-                name: symbol.name.clone(),
-                section: final_image_section(symbol.section),
-                offset: symbol.offset,
-                size: symbol.size,
-                kind: symbol.kind,
-            }),
-    );
-
-    image.imports.insert_many(
-        input
-            .object
-            .symbols
-            .iter()
-            .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
-            .map(|(symbol_handle, _)| FinalImageImport {
-                symbol_handle: final_image_symbol_handle(symbol_handle),
-            }),
-    );
-
-    let symbols = &image.symbols;
-    image
-        .relocations
-        .insert_many(input.relocations.records.iter().map(|(_, relocation)| {
-            let symbol_handle = final_image_symbol_handle(relocation.symbol_handle);
-            FinalImageRelocation {
-                text_offset: relocation.text_offset,
-                byte_width: relocation.byte_width,
-                symbol_handle: symbol_handle
-                    .is_valid()
-                    .then_some(symbol_handle)
-                    .filter(|handle| symbols.is_valid(*handle))
-                    .unwrap_or_else(Handle::invalid),
-                kind: relocation.kind,
-            }
-        }));
+    copies::copy_object_symbols(&mut image, input.object);
+    copies::copy_object_imports(&mut image, input.object);
+    copies::copy_object_relocations(&mut image, input.relocations);
 
     image
-}
-
-fn section_size(object: &ObjectPlan, kind: SectionKind) -> usize {
-    object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == kind)
-        .map(|(_, section)| section.size)
-        .unwrap_or(0)
-}
-
-fn section_alignment(object: &ObjectPlan, kind: SectionKind) -> usize {
-    object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == kind)
-        .map(|(_, section)| section.alignment)
-        .unwrap_or(1)
 }
 
 #[cfg(test)]

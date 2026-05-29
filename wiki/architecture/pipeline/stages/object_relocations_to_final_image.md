@@ -50,6 +50,10 @@ Must not own:
 - `omega-image/src/lib.rs` owns the public final-image API surface only.
 - `omega-image/src/model.rs` owns final-image arena-backed data records.
 - `omega-image/src/builder.rs` owns object-plan and relocation-plan conversion into `FinalImage`.
+- `omega-image/src/builder/copies.rs` owns object symbol, import, and
+  relocation copying into final-image arenas.
+- `omega-image/src/builder/sections.rs` owns object section size/alignment
+  lookup for final-image construction.
 - `omega-image/src/symbols.rs` owns final-image symbol handle mapping, symbol names, import checks, and address queries.
 - `omega-image/src/output.rs` owns emitted image output DTOs.
 - `omega-image/src/*_relocations.rs` owns architecture-specific final relocation patching helpers.

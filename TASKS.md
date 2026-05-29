@@ -90,6 +90,8 @@ meaning, without needing access to pointer descriptor internals.
     function lookup out of object-plan orchestration
   - object-file planning tests now live outside the orchestration module so
     `builder.rs` stays focused on the stage conveyor
+  - final-image construction now splits object symbol/import/relocation copying
+    and object section lookup out of the builder root
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
