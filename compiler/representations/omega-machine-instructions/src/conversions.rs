@@ -29,9 +29,9 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                 instructions: inserted,
             });
         }
-        plan.values = program.values;
-        plan.boundary_edges = program.boundary_edges;
-        plan.ownership = program.ownership;
+        plan.semantics.values = program.values;
+        plan.semantics.boundary_edges = program.boundary_edges;
+        plan.semantics.ownership = program.ownership;
         plan
     }
 }
@@ -65,9 +65,9 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
                     instructions: inserted,
                 });
         }
-        program.values = plan.values;
-        program.boundary_edges = plan.boundary_edges;
-        program.ownership = plan.ownership;
+        program.values = plan.semantics.values;
+        program.boundary_edges = plan.semantics.boundary_edges;
+        program.ownership = plan.semantics.ownership;
         program
     }
 }

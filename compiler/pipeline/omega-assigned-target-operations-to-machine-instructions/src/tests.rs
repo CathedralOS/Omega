@@ -30,8 +30,9 @@ fn copies_assigned_value_summary_to_machine_instruction_plan() {
     let machine_instructions =
         build_machine_instructions(&assigned_operations).expect("machine instructions");
 
-    assert_eq!(machine_instructions.values.values.len(), 1);
+    assert_eq!(machine_instructions.semantics.values.values.len(), 1);
     let value = machine_instructions
+        .semantics
         .values
         .values
         .iter()
@@ -70,8 +71,16 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
     let machine_instructions =
         build_machine_instructions(&assigned_operations).expect("machine instructions");
 
-    assert_eq!(machine_instructions.boundary_edges.source_edges.len(), 1);
+    assert_eq!(
+        machine_instructions
+            .semantics
+            .boundary_edges
+            .source_edges
+            .len(),
+        1
+    );
     let edge = machine_instructions
+        .semantics
         .boundary_edges
         .source_edges
         .iter()
@@ -107,8 +116,9 @@ fn copies_assigned_ownership_summary_to_machine_instruction_plan() {
     let machine_instructions =
         build_machine_instructions(&assigned_operations).expect("machine instructions");
 
-    assert_eq!(machine_instructions.ownership.moves.len(), 1);
+    assert_eq!(machine_instructions.semantics.ownership.moves.len(), 1);
     let event = machine_instructions
+        .semantics
         .ownership
         .moves
         .iter()
