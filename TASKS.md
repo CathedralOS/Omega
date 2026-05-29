@@ -557,6 +557,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility checks now carry diagnostic counts and
     explicit provenance so accepted-by-evidence, not-required, rejected, and
     diagnostic-pending checks share one durable record shape
+  - checked operation admissibility summaries can now be built from dimension
+    records and derive the aggregate accepted/rejected verdict from those
+    records
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague

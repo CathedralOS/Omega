@@ -110,6 +110,45 @@ fn acceptance_checks_have_diagnostic_provenance_shape_for_rejections() {
     );
 }
 
+#[test]
+fn acceptance_summary_derives_rejection_from_dimension_records() {
+    let summary = omega_checked_trees::AcceptanceSummary::with_checks(
+        omega_checked_trees::AcceptanceCheck::accepted(
+            omega_checked_trees::AcceptanceDimension::Borrow,
+            3,
+        ),
+        omega_checked_trees::AcceptanceCheck::rejected(
+            omega_checked_trees::AcceptanceDimension::Proof,
+            1,
+        ),
+        omega_checked_trees::AcceptanceCheck::accepted(
+            omega_checked_trees::AcceptanceDimension::Effects,
+            1,
+        ),
+        omega_checked_trees::AcceptanceCheck::accepted(
+            omega_checked_trees::AcceptanceDimension::Boundaries,
+            0,
+        ),
+        omega_checked_trees::AcceptanceCheck::not_applicable(
+            omega_checked_trees::AcceptanceDimension::Termination,
+        ),
+    );
+
+    assert_eq!(
+        summary.verdict,
+        omega_checked_trees::AcceptanceVerdict::Rejected
+    );
+    assert!(!summary.is_accepted());
+    assert_eq!(summary.rejected_checks().count(), 1);
+    assert_eq!(
+        summary
+            .rejected_checks()
+            .next()
+            .map(|check| check.dimension),
+        Some(omega_checked_trees::AcceptanceDimension::Proof)
+    );
+}
+
 fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
