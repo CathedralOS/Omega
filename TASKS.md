@@ -62,6 +62,9 @@ meaning, without needing access to pointer descriptor internals.
     construction from state-local contextual name/member resolution
   - typed-to-checked borrow access collection now splits argument-access fact
     emission out of read/mutable access traversal
+  - typed-to-checked borrow access collection now threads read/mutable access
+    traversal through a named `BorrowAccessCollection` context instead of raw
+    arena/state parameters
   - typed-to-checked borrow call discovery now threads recursive expression and
     transition traversal through a named `BorrowCallCollection` context instead
     of raw arena/ordinal/state parameters
