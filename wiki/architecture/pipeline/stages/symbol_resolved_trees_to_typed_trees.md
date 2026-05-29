@@ -52,14 +52,14 @@ The implementation should make typed semantic surfaces visible by file:
 - `program.rs` owns stage entry and the top-level lowering conveyor. Behavior
   coverage belongs in `program/tests.rs`, not inline with the entrypoint.
 - `expression.rs` owns the typed-expression lowering entry surface.
-- `expression/table.rs` owns recursive resolved-expression table lowering into
-  typed expression-table nodes.
+- `expression/table.rs` owns only the recursive expression-table export surface.
+  `expression/table/lowerer.rs` owns the `ExpressionTableLowerer` context that
+  carries the source table, target table, optional program context, and optional
+  self-substitution through recursive lowering.
 - `expression/domain_membership.rs` lowers executable domain membership into
   typed boolean fact expressions.
 - `expression/name_paths.rs` lowers typed name-path members and preserves the
   head/final symbol handles needed by later place and call checks.
-- `expression/spans.rs` owns recursive expression-handle and struct-field span
-  lowering into the typed expression table.
 - `expression/operators.rs` owns resolved-to-typed operator-kind mapping.
 - `expression/tests.rs` owns expression-table lowering canaries.
 - `type_reference.rs` owns type-reference shape lowering for reference, slice,
