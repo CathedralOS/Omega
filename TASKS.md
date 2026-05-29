@@ -61,6 +61,9 @@ meaning, without needing access to pointer descriptor internals.
   - typed-tree top-level entry spans now sit under an explicit `TypedTreeRoots`
     root, so the typed representation exposes its program spine separately from
     declaration/body/type-reference table storage
+  - typed-tree declaration, expression, statement, and type-reference storage
+    now sits under an explicit `TypedTreeTables` root while preserving
+    ergonomic table access for later semantic stages
   - typed-to-checked semantic fact assembly now splits contract fact place
     recovery and contract payload construction out of the semantic root
   - typed-to-checked semantic call-site lookup now threads recursive
