@@ -8,7 +8,7 @@ use crate::{
     ProofObligationFact, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
     StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateContractCall,
     StateContractExit, StateContractFactRef, StateDropEvent, StateFlow, StateKey, StateMoveEvent,
-    StateParameterFlow, TransitionFlow,
+    StateParameterFlow, StateValueFact, TransitionFlow,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -24,6 +24,7 @@ pub struct ControlFlowPlan {
     pub contract_fact_refs: Arena<StateContractFactRef>,
     pub contract_calls: Arena<StateContractCall>,
     pub contract_exits: Arena<StateContractExit>,
+    pub values: Arena<StateValueFact>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,

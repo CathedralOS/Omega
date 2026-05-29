@@ -2,7 +2,7 @@ use omega_control_flow::{
     ContainedFlow, MachineOwnedDataFlow, Operation, StateBorrowActivation,
     StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan, StateBorrowWeakening,
     StateBorrowWritableRoot, StateContractCall, StateContractExit, StateContractFactRef,
-    StateDropEvent, StateFlow, StateMoveEvent, StateParameterFlow, TransitionFlow,
+    StateDropEvent, StateFlow, StateMoveEvent, StateParameterFlow, StateValueFact, TransitionFlow,
 };
 use omega_core::arena::{Handle, HandleSpan};
 
@@ -42,6 +42,12 @@ pub(crate) fn remap_operation_span(
     operations: HandleSpan<omega_state_graph::Operation>,
 ) -> HandleSpan<Operation> {
     remap_span(operations)
+}
+
+pub(crate) fn remap_value_span(
+    values: HandleSpan<omega_state_graph::StateValueFact>,
+) -> HandleSpan<StateValueFact> {
+    remap_span(values)
 }
 
 pub(crate) fn remap_transition_span(

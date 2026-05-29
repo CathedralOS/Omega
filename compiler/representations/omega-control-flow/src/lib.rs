@@ -7,6 +7,7 @@ mod plan;
 mod proof;
 mod topology;
 mod transitions;
+mod values;
 
 pub use borrow::*;
 pub use contracts::*;
@@ -17,3 +18,4 @@ pub use plan::*;
 pub use proof::*;
 pub use topology::*;
 pub use transitions::*;
+pub use values::*;
