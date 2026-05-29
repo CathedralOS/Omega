@@ -12,21 +12,23 @@ pub(super) fn append_statement_ownership_events(
     statement: &StatementNode,
 ) {
     match statement {
-        StatementNode::Assignment(assignment) => append_move_event_for_expression(
+        StatementNode::Assignment(assignment) => append_move_events_for_expression(
             program,
             ctx,
             state_symbol,
             statement_index,
             assignment.value,
+            FlowOwnershipEventSource::Statement { statement_index },
         ),
         StatementNode::LocalData(local_data) => {
             if type_requires_ownership(program, local_data.type_reference) {
-                append_move_event_for_expression(
+                append_move_events_for_expression(
                     program,
                     ctx,
                     state_symbol,
                     statement_index,
                     local_data.initial_value,
+                    FlowOwnershipEventSource::Statement { statement_index },
                 );
             }
         }
@@ -91,50 +93,92 @@ pub(super) fn append_call_ownership_events(
         .filter(|parameter| !parameter.is_self);
 
     for (parameter, argument) in parameters.zip(arguments.iter()) {
-        if !type_requires_ownership(program, parameter.type_reference)
-            || !expression_is_place_like(program, *argument)
-        {
+        if !type_requires_ownership(program, parameter.type_reference) {
             continue;
         }
 
-        if let Some(place) = canonical_place_from_expression_in_state(
+        append_move_events_for_expression(
             program,
+            ctx,
             state.symbol,
             borrow_call.statement_index,
             *argument,
-        ) {
-            append_move_event_for_place(
-                ctx,
-                place,
-                FlowOwnershipEventSource::Call {
-                    statement_index: borrow_call.statement_index,
-                    call_ordinal: borrow_call.call_ordinal,
-                    target_symbol: borrow_call.target_symbol,
-                },
-            );
-        }
+            FlowOwnershipEventSource::Call {
+                statement_index: borrow_call.statement_index,
+                call_ordinal: borrow_call.call_ordinal,
+                target_symbol: borrow_call.target_symbol,
+            },
+        );
     }
 }
 
-fn append_move_event_for_expression(
+fn append_move_events_for_expression(
     program: &omega_typed_trees::TypedTrees,
     ctx: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
+    source: FlowOwnershipEventSource,
 ) {
-    if !expression_requires_ownership(program, state_symbol, statement_index, expression) {
+    if expression_requires_ownership(program, state_symbol, statement_index, expression) {
+        if let Some(place) = canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            expression,
+        ) {
+            append_move_event_for_place(ctx, place, source);
+        }
         return;
     }
 
-    if let Some(place) =
-        canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
-    {
-        append_move_event_for_place(
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                append_move_events_for_expression(
+                    program,
+                    ctx,
+                    state_symbol,
+                    statement_index,
+                    *value,
+                    source,
+                );
+            }
+        }
+        ExpressionNode::Cast(cast) => append_move_events_for_expression(
+            program,
             ctx,
-            place,
-            FlowOwnershipEventSource::Statement { statement_index },
-        );
+            state_symbol,
+            statement_index,
+            cast.value,
+            source,
+        ),
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
+                append_move_events_for_expression(
+                    program,
+                    ctx,
+                    state_symbol,
+                    statement_index,
+                    field.value,
+                    source,
+                );
+            }
+        }
+        ExpressionNode::Mutable(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::String(_) => {}
     }
 }
 
