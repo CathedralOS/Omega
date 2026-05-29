@@ -1,19 +1,34 @@
 use omega_core::arena::HandleSpan;
 
 use crate::{
-    AcceptanceVerdict, BorrowArgumentAccessFact, CallAcceptance, ContractProofFactRef,
-    FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef, FlowInvalidationFact,
-    FlowSemanticContextRef,
-    admissibility::helpers::{constraints, semantic_contexts},
+    AcceptanceSummary, AcceptanceVerdict, BorrowArgumentAccessFact, CallAcceptance,
+    ContractProofFactRef, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef,
+    FlowInvalidationFact, FlowSemanticContextRef,
+    admissibility::helpers::{
+        borrow_constraint_count, constraints, effect_evidence_count, semantic_contexts,
+    },
 };
 
 impl<'facts> CallAcceptance<'facts> {
     pub fn verdict(&self) -> AcceptanceVerdict {
-        AcceptanceVerdict::Accepted
+        self.summary().verdict
     }
 
     pub fn is_accepted(&self) -> bool {
-        self.verdict() == AcceptanceVerdict::Accepted
+        self.summary().is_accepted()
+    }
+
+    pub fn summary(&self) -> AcceptanceSummary {
+        AcceptanceSummary::accepted(
+            self.call.accesses.len()
+                + borrow_constraint_count(&self.facts.flow, self.call.entry_constraints)
+                + borrow_constraint_count(&self.facts.flow, self.call.requires_constraints)
+                + borrow_constraint_count(&self.facts.flow, self.call.exit_constraints),
+            self.call.requires.len() + self.call.ensures.len(),
+            effect_evidence_count(self.call.transitive_effects),
+            self.call.boundary_edges.len(),
+            0,
+        )
     }
 
     pub fn call(&self) -> &'facts FlowCallFact {

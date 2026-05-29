@@ -29,6 +29,10 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         .expect("main state acceptance should be queryable");
 
     assert!(state_acceptance.is_accepted());
+    let state_summary = state_acceptance.summary();
+    assert!(state_summary.is_accepted());
+    assert!(state_summary.borrow.evidence_count > 0);
+    assert_eq!(state_summary.proof.evidence_count, 1);
     assert_eq!(state_acceptance.statements().len(), 1);
     assert_eq!(state_acceptance.calls().len(), 1);
 
@@ -36,6 +40,7 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         .statement(0)
         .expect("call statement acceptance should be queryable");
     assert!(statement_acceptance.is_accepted());
+    assert!(statement_acceptance.summary().borrow.evidence_count > 0);
     assert!(!statement_acceptance.entry_constraints().is_empty());
 
     let call_fact = state_acceptance.calls()[0].clone();
@@ -49,6 +54,14 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         .expect("call acceptance should be queryable");
 
     assert!(call_acceptance.is_accepted());
+    let call_summary = call_acceptance.summary();
+    assert!(call_summary.is_accepted());
+    assert!(call_summary.borrow.evidence_count > 0);
+    assert_eq!(call_summary.proof.evidence_count, 1);
+    assert_eq!(
+        call_summary.termination.verdict,
+        omega_checked_trees::AcceptanceCheckVerdict::NotApplicable
+    );
     assert!(!call_acceptance.entry_constraints().is_empty());
     assert!(!call_acceptance.requires_constraints().is_empty());
     assert_eq!(call_acceptance.requires().len(), 1);
