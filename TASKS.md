@@ -48,6 +48,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, ownership facts, operations, and transitions
+  - `omega-assigned-target-operations` has started shedding its overloaded root
+    by splitting assigned operands, value homes, operation records, function
+    metadata, and runtime-value source behavior into noun-shaped modules
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -63,6 +66,9 @@ meaning, without needing access to pointer descriptor internals.
     calls, effects, and contracts
   - connect backend boundary-edge summaries back to checked source-level
     boundary contracts and target policies
+  - finish `omega-assigned-target-operations` by splitting the assigned plan
+    container/storage helpers and the large operation-kind conversion table out
+    of `lib.rs`
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 
