@@ -6,7 +6,6 @@ use omega_typed_trees as typed;
 mod domain_membership;
 mod name_paths;
 mod operators;
-mod spans;
 mod table;
 #[cfg(test)]
 mod tests;
