@@ -186,6 +186,9 @@ meaning, without needing access to pointer descriptor internals.
   - compatibility object-container serialization now splits primitive byte
     writing and stable enum ID mapping out of the orchestration module, with a
     canary for the object-container IDs
+  - compatibility object-container serialization now splits section summary,
+    symbol metadata, and relocation metadata serialization out of the
+    orchestration module, with a canary for BSS summary sizing
   - `omega-image` now has a thin crate root plus modules for final-image model
     records, object/relocation conversion, symbol/address queries, emitted
     output records, and architecture relocation patching

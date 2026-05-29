@@ -1,10 +1,16 @@
-use crate::{ObjectPlan, RelocationPlan, SectionKind, object_symbol_name, symbol_section_name};
-use bytes::{write_string, write_u32, write_u64};
-use ids::{architecture_id, object_format_id, relocation_kind_id, symbol_kind_id};
+use crate::{ObjectPlan, RelocationPlan};
+use bytes::{write_u32, write_u64};
+use ids::{architecture_id, object_format_id};
 use omega_target::NativeTarget;
+use relocations::write_relocations;
+use sections::bss_size;
+use symbols::write_symbols;
 
 mod bytes;
 mod ids;
+mod relocations;
+mod sections;
+mod symbols;
 
 pub struct ObjectContainerInput<'a> {
     pub target: NativeTarget,
@@ -62,60 +68,5 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
         bss_bytes,
         symbols: input.object.symbols.len(),
         relocations: input.relocations.records.len(),
-    }
-}
-
-fn bss_size(object: &ObjectPlan) -> usize {
-    object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == SectionKind::Bss)
-        .map(|(_, section)| section.size)
-        .unwrap_or(0)
-}
-
-fn write_symbols(bytes: &mut Vec<u8>, object: &ObjectPlan) {
-    write_u32(
-        bytes,
-        u32::try_from(object.symbols.len()).expect("symbol count overflow"),
-    );
-
-    for (_, symbol) in object.symbols.iter() {
-        write_string(bytes, &symbol.name);
-        write_string(bytes, &symbol_section_name(object.target, symbol.section));
-        write_u64(
-            bytes,
-            u64::try_from(symbol.offset).expect("symbol offset overflow"),
-        );
-        write_u64(
-            bytes,
-            u64::try_from(symbol.size).expect("symbol size overflow"),
-        );
-        write_u32(bytes, symbol_kind_id(symbol.kind));
-    }
-}
-
-fn write_relocations(bytes: &mut Vec<u8>, object: &ObjectPlan, relocations: &RelocationPlan) {
-    write_u32(
-        bytes,
-        u32::try_from(relocations.records.len()).expect("relocation count overflow"),
-    );
-
-    for (_, relocation) in relocations.records.iter() {
-        write_string(
-            bytes,
-            object_symbol_name(object, relocation.function_symbol_handle),
-        );
-        write_u32(bytes, relocation.selected_instruction_index);
-        write_u64(
-            bytes,
-            u64::try_from(relocation.text_offset).expect("relocation text offset overflow"),
-        );
-        write_u32(
-            bytes,
-            u32::try_from(relocation.byte_width).expect("relocation byte width overflow"),
-        );
-        write_string(bytes, object_symbol_name(object, relocation.symbol_handle));
-        write_u32(bytes, relocation_kind_id(relocation.kind));
     }
 }
