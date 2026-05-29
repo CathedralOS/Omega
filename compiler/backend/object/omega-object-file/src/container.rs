@@ -1,8 +1,10 @@
-use crate::{
-    ObjectPlan, RelocationKind, RelocationPlan, SectionKind, SymbolKind, object_symbol_name,
-    symbol_section_name,
-};
-use omega_target::{Architecture, NativeTarget, ObjectFormat};
+use crate::{ObjectPlan, RelocationPlan, SectionKind, object_symbol_name, symbol_section_name};
+use bytes::{write_string, write_u32, write_u64};
+use ids::{architecture_id, object_format_id, relocation_kind_id, symbol_kind_id};
+use omega_target::NativeTarget;
+
+mod bytes;
+mod ids;
 
 pub struct ObjectContainerInput<'a> {
     pub target: NativeTarget,
@@ -116,53 +118,4 @@ fn write_relocations(bytes: &mut Vec<u8>, object: &ObjectPlan, relocations: &Rel
         write_string(bytes, object_symbol_name(object, relocation.symbol_handle));
         write_u32(bytes, relocation_kind_id(relocation.kind));
     }
-}
-
-fn architecture_id(architecture: Architecture) -> u32 {
-    match architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    }
-}
-
-fn object_format_id(object_format: ObjectFormat) -> u32 {
-    match object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    }
-}
-
-fn symbol_kind_id(symbol_kind: SymbolKind) -> u32 {
-    match symbol_kind {
-        SymbolKind::Function => 1,
-        SymbolKind::Import => 2,
-        SymbolKind::Object => 3,
-    }
-}
-
-fn relocation_kind_id(relocation_kind: RelocationKind) -> u32 {
-    match relocation_kind {
-        RelocationKind::Aarch64Page21 => 1,
-        RelocationKind::Aarch64PageOffset12 => 2,
-        RelocationKind::Aarch64Branch26 => 3,
-        RelocationKind::X86_64Absolute64 => 4,
-        RelocationKind::X86_64Relative32 => 5,
-    }
-}
-
-fn write_string(bytes: &mut Vec<u8>, value: &str) {
-    write_u32(
-        bytes,
-        u32::try_from(value.len()).expect("object string length overflow"),
-    );
-    bytes.extend(value.as_bytes());
-}
-
-fn write_u32(bytes: &mut Vec<u8>, value: u32) {
-    bytes.extend(value.to_le_bytes());
-}
-
-fn write_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend(value.to_le_bytes());
 }
