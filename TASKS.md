@@ -34,6 +34,8 @@ meaning, without needing access to pointer descriptor internals.
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
     summaries instead of silently dropping them at backend representation seams
+  - assigned-to-machine-instructions and the current machine-program aggregate
+    now preserve ownership summaries as metadata
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
