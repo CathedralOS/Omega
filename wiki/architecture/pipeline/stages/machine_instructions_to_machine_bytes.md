@@ -58,10 +58,11 @@ Must not own:
 - `omega-machine-emission/src/instruction_bytes.rs` owns function-local byte
   insertion, fixed instruction encodings, target-encoded instruction fallback,
   and encoded-width validation.
-- `omega-machine-instructions/src/plan.rs` is the input representation root:
+- `omega-machine-instructions/src/plan/` is the input representation root:
   symbolic executable instruction shape lives under `MachineInstructionCode`,
   while preserved semantic evidence lives under
-  `MachineInstructionSemanticSummary`.
+  `MachineInstructionSemanticSummary`. `plan/code.rs` owns root structs and
+  `plan/capacity.rs` owns capacity construction.
 - `omega-machine-emission/src/layout.rs` owns instruction width and byte-offset layout.
 - `omega-machine-emission/src/encoding.rs` and `encoding/*` own target byte emission helpers.
 - `omega-machine-emission/src/branch_distances.rs` and submodules own byte-distance queries used by branch encoding.
