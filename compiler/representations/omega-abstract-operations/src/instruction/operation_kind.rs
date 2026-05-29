@@ -5,6 +5,12 @@ use crate::{
 use omega_core::arena::HandleSpan;
 use std::sync::Arc;
 
+mod classification;
+#[cfg(test)]
+mod tests;
+
+pub use classification::AbstractOperationDomain;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperationKind {
     EnterFunction,

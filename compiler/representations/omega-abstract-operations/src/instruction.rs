@@ -8,7 +8,7 @@ mod value_operand;
 pub use function::{AbstractFunctionPlan, FunctionInstructionPlan};
 pub use operand::{InstructionOperand, InstructionOperandKind};
 pub use operation::{AbstractOperation, SelectedInstruction};
-pub use operation_kind::{AbstractOperationKind, SelectedInstructionKind};
+pub use operation_kind::{AbstractOperationDomain, AbstractOperationKind, SelectedInstructionKind};
 pub use storage::RuntimeStorageRegion;
 pub use value_operand::{
     AbstractValueOperand, AbstractValueOperandHandle, RuntimeValueOperand,
