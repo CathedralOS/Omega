@@ -42,6 +42,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`
+  - `omega-checked-trees` now has noun-shaped representation modules for
+    borrow facts, proof facts, invariant/domain facts, checked flow facts,
+    statement wrappers, and the root checked-tree container
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
