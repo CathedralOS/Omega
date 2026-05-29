@@ -52,8 +52,9 @@ meaning, without needing access to pointer descriptor internals.
     construction produce move facts
   - checked-flow ownership production is now split into entrypoint, move
     traversal, call argument routing, state-exit drops, move/drop fact emission,
-    and type-reference ownership classification modules instead of
-    concentrating every ownership concern in one file
+    contextual place-type resolution, and type-reference ownership
+    classification modules instead of concentrating every ownership concern in
+    one file
   - typed-to-checked borrow fact production now splits state-local writable
     root, loan, call-access, and last-use assembly out of the program-level
     borrow entrypoint

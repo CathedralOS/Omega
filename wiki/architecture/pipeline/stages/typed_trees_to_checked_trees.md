@@ -94,8 +94,9 @@ Current ownership is:
   `flow/ownership/calls.rs` owns call-site argument routing,
   `flow/ownership/drops.rs` owns state-exit local drops,
   `flow/ownership/events.rs` owns move/drop fact emission into the ownership
-  arenas, and `flow/ownership/type_references.rs` owns the local
-  type-reference resolver that distinguishes copy-like scalar places from
+  arenas, `flow/ownership/place_types.rs` owns contextual type-reference
+  resolution for canonical places, and `flow/ownership/type_references.rs`
+  owns the policy that distinguishes copy-like scalar places from
   ownership-consuming places.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
