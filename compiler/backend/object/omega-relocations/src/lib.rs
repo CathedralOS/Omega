@@ -1,4 +1,5 @@
 mod builder;
+mod data_address_records;
 mod data_addresses;
 mod input;
 mod instruction_records;

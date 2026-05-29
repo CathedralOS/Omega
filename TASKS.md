@@ -172,6 +172,8 @@ meaning, without needing access to pointer descriptor internals.
     relocation record facts
   - data-address relocation planning now has a focused canary for AArch64 page
     relocations and x86_64 absolute-address relocations
+  - data-address relocation planning now separates assigned-operand scanning
+    from target-specific relocation record insertion
   - data-address relocation offset math now lives with relocation offset
     families and has a focused canary for architecture-specific prior operand
     widths
