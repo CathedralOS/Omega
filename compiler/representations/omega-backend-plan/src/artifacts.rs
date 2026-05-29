@@ -17,7 +17,7 @@ impl BackendArtifactRoots {
             machine_instructions: MachineInstructionPlan::with_capacity(target, 0, 0),
             encoded_machine: EncodedMachinePlan::with_capacity(target, 0, 0, 0),
             object: ObjectPlan::with_capacity(target, 0, 0),
-            relocations: RelocationPlan::with_target(target),
+            relocations: RelocationPlan::with_record_capacity(target, 0),
         }
     }
 }

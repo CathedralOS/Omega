@@ -13,6 +13,14 @@ pub struct RelocationRecordSet {
     pub records: Arena<RelocationRecord>,
 }
 
+impl RelocationRecordSet {
+    pub fn with_capacity(record_capacity: usize) -> Self {
+        Self {
+            records: Arena::with_capacity(record_capacity),
+        }
+    }
+}
+
 impl Default for RelocationPlan {
     fn default() -> Self {
         Self::with_target(NativeTarget::host())
@@ -21,11 +29,13 @@ impl Default for RelocationPlan {
 
 impl RelocationPlan {
     pub fn with_target(target: NativeTarget) -> Self {
+        Self::with_record_capacity(target, 0)
+    }
+
+    pub fn with_record_capacity(target: NativeTarget, record_capacity: usize) -> Self {
         Self {
             target,
-            record_set: RelocationRecordSet {
-                records: Arena::new(),
-            },
+            record_set: RelocationRecordSet::with_capacity(record_capacity),
         }
     }
 
