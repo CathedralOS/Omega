@@ -1,4 +1,4 @@
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;

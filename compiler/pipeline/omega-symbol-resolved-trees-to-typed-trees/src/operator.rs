@@ -1,5 +1,5 @@
 use crate::domain::lower_proof_facts;
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use omega_core::diagnostics::Diagnostic;
 

@@ -1,5 +1,5 @@
 use crate::data::lower_type_parameters;
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use crate::state::{lower_signature_contracts, lower_state_parameters};
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;

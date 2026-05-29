@@ -1,4 +1,4 @@
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature_node;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
