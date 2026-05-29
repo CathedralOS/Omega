@@ -14,11 +14,10 @@ mod runtime_text_read;
 mod runtime_text_write;
 mod runtime_values;
 
-use super::data_addresses::collect_data_address_relocations;
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
 use omega_object_file::{ObjectSymbolHandle, RelocationPlan};
-use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::SelectedInstruction;
 
 pub(super) fn collect_instruction_relocations(
     input: RelocationPlanningInput<'_>,
@@ -37,21 +36,10 @@ pub(super) fn collect_instruction_relocations(
     };
 
     match &instruction.kind {
-        SelectedInstructionKind::HostOperation {
-            operation_key,
-            operands,
-        } => {
-            collect_data_address_relocations(
-                input,
-                function_symbol_handle,
-                selected_instruction_index,
-                Some(*operation_key),
-                *operands,
-                selected_text_offset,
-                context.relocation_plan,
-            );
-            host_operation::collect_host_operation_relocation(&mut context, &instruction.kind);
-        }
+        _ if host_operation::collect_host_operation_relocations(
+            &mut context,
+            &instruction.kind,
+        ) => {}
         _ if runtime_storage::collect_runtime_storage_relocations(
             &mut context,
             &instruction.kind,

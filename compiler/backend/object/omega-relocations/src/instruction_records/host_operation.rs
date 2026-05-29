@@ -1,3 +1,4 @@
+use super::super::data_addresses::collect_data_address_relocations;
 use super::super::lookups::find_host_binding;
 use super::super::offsets::{
     external_call_relocation_kind, external_call_relocation_offset, external_call_relocation_width,
@@ -7,7 +8,32 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::SelectedInstructionKind;
 
-pub(super) fn collect_host_operation_relocation(
+pub(super) fn collect_host_operation_relocations(
+    context: &mut InstructionRelocationContext<'_, '_>,
+    instruction: &SelectedInstructionKind,
+) -> bool {
+    let SelectedInstructionKind::HostOperation {
+        operation_key,
+        operands,
+    } = instruction
+    else {
+        return false;
+    };
+
+    collect_data_address_relocations(
+        context.input,
+        context.function_symbol_handle,
+        context.selected_instruction_index,
+        Some(*operation_key),
+        *operands,
+        context.selected_text_offset,
+        context.relocation_plan,
+    );
+    collect_host_operation_call_relocation(context, instruction);
+    true
+}
+
+fn collect_host_operation_call_relocation(
     context: &mut InstructionRelocationContext<'_, '_>,
     instruction: &SelectedInstructionKind,
 ) {
