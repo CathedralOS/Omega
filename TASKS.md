@@ -66,6 +66,8 @@ meaning, without needing access to pointer descriptor internals.
     policy out of root and segment overlap policy
   - typed-to-checked borrow overlap checking now splits segment overlap policy
     out of root-matching entry dispatch
+  - typed-to-checked borrow call checking now splits mutable argument
+    writable-root validation out of access/loan conflict checks
   - typed-to-checked borrow access collection now threads read/mutable access
     traversal through a named `BorrowAccessCollection` context instead of raw
     arena/state parameters
