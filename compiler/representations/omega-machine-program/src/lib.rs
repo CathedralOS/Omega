@@ -1,9 +1,9 @@
 mod functions;
 mod instructions;
 mod plan;
+mod semantics;
 
 pub use functions::*;
 pub use instructions::*;
 pub use plan::*;
-
-pub type MachineValueSummary = omega_target_operations::TargetValueSummary;
+pub use semantics::*;
