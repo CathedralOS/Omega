@@ -1,8 +1,10 @@
+mod function;
 mod operand;
 mod plan;
 mod selected;
 mod value;
 
+pub use function::{FunctionInstructionPlan, TargetOperationFunction};
 pub use omega_abstract_operations::{AbstractDataObjectHandle, RuntimeStorageRegion};
 pub use omega_calling_conventions::{HostBinding, HostBindingMechanism, HostOperationKey};
 pub use operand::{
@@ -11,8 +13,7 @@ pub use operand::{
 };
 pub use plan::{InstructionPlan, TargetOperationPlan};
 pub use selected::{
-    FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, TargetOperation,
-    TargetOperationFunction, TargetOperationKind,
+    SelectedInstruction, SelectedInstructionKind, TargetOperation, TargetOperationKind,
 };
 pub use value::{
     RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource, TargetValueOperand,
