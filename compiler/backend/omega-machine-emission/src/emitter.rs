@@ -53,10 +53,7 @@ pub fn emit_machine_bytes(
     }
 
     encoded_bytes.code.byte_count = encoded_bytes.code.bytes.len();
-    encoded_bytes.semantics.values = input.machine_instructions.semantics.values.clone();
-    encoded_bytes.semantics.boundary_edges =
-        input.machine_instructions.semantics.boundary_edges.clone();
-    encoded_bytes.semantics.ownership = input.machine_instructions.semantics.ownership.clone();
+    encoded_bytes.semantics = input.machine_instructions.semantics.clone();
 
     Ok(encoded_bytes)
 }

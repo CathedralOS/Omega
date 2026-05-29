@@ -311,6 +311,8 @@ meaning, without needing access to pointer descriptor internals.
   - backend semantic summary names after abstract operations now alias the same
     preserved summary spine instead of duplicating identical
     values/boundaries/ownership structs per representation
+  - backend semantic preservation handoffs now copy the whole summary spine
+    instead of repeating field-by-field values/boundaries/ownership transfer
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved

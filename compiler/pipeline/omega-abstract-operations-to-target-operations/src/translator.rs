@@ -56,10 +56,7 @@ pub(crate) fn build_target_operation_plan(
     }
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);
-    target_operations.semantics.values = abstract_operations.semantics.values.clone();
-    target_operations.semantics.boundary_edges =
-        abstract_operations.semantics.boundary_edges.clone();
-    target_operations.semantics.ownership = abstract_operations.semantics.ownership.clone();
+    target_operations.semantics = abstract_operations.semantics.clone();
 
     target_operations
 }
