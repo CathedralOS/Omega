@@ -12,6 +12,11 @@ Output: `SyntaxTrees`.
 
 Primary responsibility: parse source structure without resolving meaning.
 
+Representation shape: `SyntaxTrees` keeps root item handles under a
+`SyntaxTreeRoots` root, while item, expression, statement, and type-reference
+tables remain arena/handle-backed storage. Parser output should preserve source
+shape without turning nested syntax into scattered heap objects.
+
 ## Implementation Map
 
 - `parser.rs` owns public entrypoints and whole-file parse completion checks.

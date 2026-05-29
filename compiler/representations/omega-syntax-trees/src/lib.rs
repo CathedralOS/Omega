@@ -8,4 +8,4 @@ pub mod syntax_trees;
 pub mod types;
 
 pub use snapshot::SyntaxTreesSnapshot;
-pub use syntax_trees::SyntaxTrees;
+pub use syntax_trees::{SyntaxTreeRoots, SyntaxTrees};

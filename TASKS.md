@@ -46,6 +46,9 @@ meaning, without needing access to pointer descriptor internals.
   - syntax-to-symbol statement handling now splits machine/state traversal from
     statement-kind routing, and the entrypoint name now reflects reference
     stamping rather than only calls
+  - syntax-tree root item handles now sit under an explicit `SyntaxTreeRoots`
+    root, keeping parser output roots separate from item/expression/statement
+    table storage
   - symbol-resolved-to-typed expression-table lowering now uses an
     `ExpressionTableLowerer` context to own recursive source-table to
     typed-table lowering, including expression-handle and struct-field spans
@@ -421,6 +424,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-backend-report` now splits runtime state-flow and dispatch reporting
     out of the root writer into a focused transition/report module
   Next target:
+  - migrate the dungeon sample away from legacy bare `-> ... when ...;`
+    transition syntax so parser sample-project tests can become reliable
+    canaries again
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
   - make ownership event production fully type-aware so Copy/no-drop values and

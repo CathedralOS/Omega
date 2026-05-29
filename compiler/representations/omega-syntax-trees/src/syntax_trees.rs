@@ -26,18 +26,23 @@ use omega_core::source::SourceId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxTrees {
     pub source_id: SourceId,
-    pub root_item_handles: Arena<ItemHandle>,
+    pub roots: SyntaxTreeRoots,
     pub items: ItemTable,
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
     pub type_references: TypeReferenceTable,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SyntaxTreeRoots {
+    pub items: Arena<ItemHandle>,
+}
+
 impl SyntaxTrees {
     pub fn new(source_id: SourceId) -> Self {
         Self {
             source_id,
-            root_item_handles: Arena::new(),
+            roots: SyntaxTreeRoots::default(),
             items: ItemTable::new(),
             expressions: ExpressionTable::new(),
             statements: StatementTable::new(),
@@ -57,12 +62,12 @@ impl SyntaxTrees {
 
     pub fn push_root_item(&mut self, item: Item) -> ItemHandle {
         let handle = self.insert_item(item);
-        self.root_item_handles.append(handle);
+        self.roots.items.append(handle);
         handle
     }
 
     pub fn root_item_handles(&self) -> &[ItemHandle] {
-        self.root_item_handles.storage_slice()
+        self.roots.items.storage_slice()
     }
 
     pub fn root_item(&self, handle: ItemHandle) -> &Item {
@@ -76,7 +81,7 @@ impl SyntaxTrees {
     }
 
     pub fn root_item_count(&self) -> usize {
-        self.root_item_handles.len()
+        self.roots.items.len()
     }
 
     pub fn extend_from(&mut self, other: &SyntaxTrees) {
@@ -1005,6 +1010,9 @@ mod tests {
             name: Identifier::generated("Main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state_handle, 1),
@@ -1035,6 +1043,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
@@ -1086,6 +1097,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
@@ -1185,6 +1199,9 @@ mod tests {
             name: Identifier::generated("main"),
             attached_data: None,
             satisfies: HandleSpan::empty(),
+            terminates: false,
+            decreases: HandleSpan::empty(),
+            decrease_order: HandleSpan::empty(),
             effects: HandleSpan::empty(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
