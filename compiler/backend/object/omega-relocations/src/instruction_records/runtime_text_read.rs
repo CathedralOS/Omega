@@ -3,30 +3,24 @@ use super::super::offsets::{
     runtime_text_line_read_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
+use super::queries::selected_host_text_read;
 use omega_calling_conventions::HostBindingMechanism;
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
-use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_text_read_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,
     instruction: &SelectedInstructionKind,
 ) {
-    let SelectedInstructionKind::ReadRuntimeTextLine {
-        buffer,
-        target_region,
-        source,
-        ..
-    } = instruction
-    else {
+    let Some(read) = selected_host_text_read(instruction) else {
         return;
     };
-    let RuntimeTextReadSource::HostOperation { operation_key } = source;
-    let Some(binding) = context.input.instructions.host_binding(*operation_key) else {
+    let Some(binding) = context.input.instructions.host_binding(read.operation_key) else {
         return;
     };
 
-    let buffer_symbol = context.data_object_symbol_handle(*buffer);
-    let target_symbol = context.storage_region_symbol_handle(*target_region);
+    let buffer_symbol = context.data_object_symbol_handle(read.buffer);
+    let target_symbol = context.storage_region_symbol_handle(read.target_region);
     context.insert_data_address_at_instruction_start(buffer_symbol);
     context.insert_data_address_at_relative_offset(
         runtime_text_line_read_target_address_offset(

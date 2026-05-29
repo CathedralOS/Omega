@@ -1,5 +1,6 @@
 mod context;
 mod host_operation;
+mod queries;
 mod runtime_storage;
 mod runtime_storage_addresses;
 mod runtime_storage_compares;
