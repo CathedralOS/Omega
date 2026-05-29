@@ -249,6 +249,9 @@ meaning, without needing access to pointer descriptor internals.
   - machine-instruction executable shape now sits under an explicit
     `MachineInstructionCode` root on `MachineInstructionPlan`, keeping
     symbolic instruction arenas separate from preserved semantic summaries
+  - symbolic machine-instruction plan roots now follow the backend plan-module
+    convention: `plan/code.rs` owns root structs and `plan/capacity.rs` owns
+    root construction
   - target-to-machine-program now has focused unit coverage proving value,
     boundary-edge, and ownership summaries survive the aggregate bridge into
     the current machine-program artifact
@@ -399,6 +402,9 @@ meaning, without needing access to pointer descriptor internals.
   - machine-program executable artifact shape now sits under an explicit
     `MachineProgramCode` root on `MachineProgram`, keeping the transitional
     aggregate bridge consistent with the surrounding code/semantic split
+  - transitional machine-program plan roots now follow the backend plan-module
+    convention: `plan/code.rs` owns root structs and `plan/capacity.rs` owns
+    root construction
   - backend-plan final artifacts now sit under an explicit
     `BackendArtifactRoots` root, grouping symbolic machine instructions,
     encoded machine bytes, object layout, and relocation records instead of

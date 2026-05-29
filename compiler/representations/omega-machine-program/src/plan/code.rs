@@ -1,0 +1,16 @@
+use crate::{MachineFunction, MachineInstruction, MachineSemanticSummary};
+use omega_core::arena::Arena;
+use omega_target::NativeTarget;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineProgramCode {
+    pub functions: Arena<MachineFunction>,
+    pub instructions: Arena<MachineInstruction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineProgram {
+    pub target: NativeTarget,
+    pub code: MachineProgramCode,
+    pub semantics: MachineSemanticSummary,
+}

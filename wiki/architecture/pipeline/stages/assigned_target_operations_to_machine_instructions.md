@@ -66,10 +66,11 @@ Must not own:
   machine-instruction semantic aliases. `MachineInstructionSemanticSummary`
   is the preserved assigned/target/abstract semantic spine, not a new
   duplicate values/boundaries/ownership container.
-- `omega-machine-instructions/src/plan.rs` is the output representation root:
+- `omega-machine-instructions/src/plan/` is the output representation root:
   symbolic executable instruction shape lives under `MachineInstructionCode`,
   while preserved semantic evidence lives under
-  `MachineInstructionSemanticSummary`.
+  `MachineInstructionSemanticSummary`. `plan/code.rs` owns root structs and
+  `plan/capacity.rs` owns capacity construction.
 - `shapes.rs` routes selected instruction families to shape-specific helpers.
 - `shapes/dispatch.rs` owns dispatch-loop/case/state/return instruction shapes.
 - `shapes/host.rs` owns host-operation instruction shapes.

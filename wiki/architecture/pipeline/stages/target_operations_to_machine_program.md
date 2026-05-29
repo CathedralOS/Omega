@@ -17,8 +17,10 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 
 - `lib.rs` owns the public stage entrypoint only.
 - `builder.rs` owns composition of `omega-target-operations-to-assigned-target-operations` and `omega-assigned-target-operations-to-machine-instructions`, then wraps the result as a `MachineProgram`.
-- `omega-machine-program/src/plan.rs` owns the aggregate machine-program
+- `omega-machine-program/src/plan/` owns the aggregate machine-program
   artifact root: functions and instructions live under `MachineProgramCode`.
+  `plan/code.rs` owns root structs and `plan/capacity.rs` owns capacity
+  construction.
 - `omega-machine-program/src/semantics.rs` owns aggregate machine-program
   semantic aliases. `MachineSemanticSummary` is the preserved backend semantic
   spine, not a new duplicate values/boundaries/ownership container.
