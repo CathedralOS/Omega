@@ -4,7 +4,10 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
-use omega_machine_bytes::EncodedMachinePlan;
+use omega_machine_bytes::{
+    EncodedMachineBoundarySummary, EncodedMachineOwnershipSummary, EncodedMachinePlan,
+    EncodedMachineSemanticSummary, EncodedMachineValueSummary,
+};
 use omega_machine_instructions::MachineInstructionPlan;
 use omega_object_file::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
@@ -71,5 +74,21 @@ impl<'plan> BackendReportInput<'plan> {
             .state_by_key(self.entry_key)
             .map(|state| state.name.as_str())
             .unwrap_or("")
+    }
+
+    pub fn semantic_summary(&self) -> &EncodedMachineSemanticSummary {
+        &self.encoded_machine.semantics
+    }
+
+    pub fn value_summary(&self) -> &EncodedMachineValueSummary {
+        &self.encoded_machine.semantics.values
+    }
+
+    pub fn boundary_summary(&self) -> &EncodedMachineBoundarySummary {
+        &self.encoded_machine.semantics.boundary_edges
+    }
+
+    pub fn ownership_summary(&self) -> &EncodedMachineOwnershipSummary {
+        &self.encoded_machine.semantics.ownership
     }
 }

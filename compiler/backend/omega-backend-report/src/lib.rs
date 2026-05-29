@@ -7,6 +7,7 @@ mod object;
 mod runtime_flow;
 mod runtime_text;
 mod schedule;
+mod semantic_spine;
 mod source_surface;
 mod state_calls;
 mod stats;
@@ -45,6 +46,7 @@ pub fn backend_report_text(
     stats::write_backend_phase_timings(&mut output, backend_plan);
     stats::write_backend_string_storage(&mut output, backend_plan);
     write_checked_semantics_section(&mut output, backend_plan);
+    semantic_spine::write_artifact_semantic_spine(&mut output, backend_plan);
 
     host::write_host_sections(&mut output, backend_plan);
     state_calls::write_state_call_sections(&mut output, backend_plan);

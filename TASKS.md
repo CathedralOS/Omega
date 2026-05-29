@@ -526,6 +526,11 @@ meaning, without needing access to pointer descriptor internals.
     writer into a focused module
   - `omega-backend-report` now splits runtime state-flow and dispatch reporting
     out of the root writer into a focused transition/report module
+  - backend artifact roots now expose value, boundary, ownership, and full
+    semantic-summary accessors so artifact-time diagnostics do not need to
+    reach directly through encoded-machine internals
+  - `omega-backend-report` now has an artifact semantic-spine section for
+    preserved values, move/drop summaries, and boundary policy-check verdicts
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -565,8 +570,8 @@ meaning, without needing access to pointer descriptor internals.
     families, especially type-reference validation, state-signature validation,
     and effect diagnostics
   - continue splitting `omega-backend-report` into report-section modules so
-    call lowering, storage, runtime text, scheduling, dispatch, proof, object,
-    and codegen reporting do not live in one root
+    proof, object, codegen, and remaining root-local helpers do not live in one
+    root
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 
