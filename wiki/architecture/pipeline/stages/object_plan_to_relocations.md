@@ -51,11 +51,11 @@ Must not own:
 - `omega-relocations/src/offsets/*` owns target-specific relocation offset math by family: external calls, runtime frame indexing, runtime storage, and runtime text.
 - `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
 - `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.
-- `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families, with append and host-backed line reads split from general text buffer references.
+- `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families: append, compare, materialize, host-backed line read, and literal write references.
 - `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data.
 
 ## Known Gaps
 
-- Runtime-text relocation helpers are still relatively dense; split compare/write/materialize families if new text cases land.
+- Keep runtime text and runtime storage relocation families aligned with instruction-selection families as new selected instructions land.
 - Boundary summaries are preserved beside this stage, but target policy validation still needs explicit linkage between source boundary edges and lowered host-operation relocations.
