@@ -9,6 +9,7 @@ mod encoding;
 mod host_bindings;
 mod instruction_bytes;
 mod layout;
+mod selected_instruction_queries;
 pub use emitter::{MachineEmissionInput, emit_machine_bytes};
 
 #[derive(Debug, Clone, Copy)]

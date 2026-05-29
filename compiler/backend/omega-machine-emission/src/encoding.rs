@@ -4,6 +4,7 @@ mod runtime_text;
 
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
+use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::SelectedInstructionKind;
 use omega_core::diagnostics::Diagnostic;
 
@@ -13,22 +14,20 @@ pub(super) fn encode_machine_instruction_bytes(
     machine_instruction_index: usize,
     kind: &SelectedInstructionKind,
 ) -> Result<Vec<u8>, Diagnostic> {
-    match kind {
-        SelectedInstructionKind::HostOperation {
-            operation_key,
-            operands,
-        } => {
-            let Some(operands) = input
-                .assigned_target_operations
-                .instruction_operands(*operands)
-            else {
-                return Err(Diagnostic::error(
-                    "cannot encode host operation: missing operand span",
-                ));
-            };
+    if let Some(host_operation) = selected_host_operation(kind) {
+        let Some(operands) = input
+            .assigned_target_operations
+            .instruction_operands(host_operation.operands)
+        else {
+            return Err(Diagnostic::error(
+                "cannot encode host operation: missing operand span",
+            ));
+        };
 
-            host::encode_host_operation(input, *operation_key, operands)
-        }
+        return host::encode_host_operation(input, host_operation.operation_key, operands);
+    }
+
+    match kind {
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
             runtime_text::encode_runtime_text_literal_compare(
                 input,
@@ -413,16 +412,20 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
         ),
         SelectedInstructionKind::ReadRuntimeTextLine {
-            target_offset,
-            byte_capacity,
-            source,
             ..
-        } => runtime_text::encode_runtime_text_line_read(
-            input,
-            *target_offset,
-            *byte_capacity,
-            source,
-        ),
+        } => {
+            let Some(read) = selected_host_text_read(kind) else {
+                return Err(Diagnostic::error(
+                    "cannot encode runtime text read: missing host operation source",
+                ));
+            };
+            runtime_text::encode_runtime_text_line_read(
+                input,
+                read.target_offset,
+                read.byte_capacity,
+                read.source,
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
             target_offset,
@@ -562,6 +565,9 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::LeaveFunction
         | SelectedInstructionKind::BeginPlatformCall => Err(Diagnostic::error(
             "internal error: zero-width machine instruction reached byte encoder",
+        )),
+        SelectedInstructionKind::HostOperation { .. } => Err(Diagnostic::error(
+            "internal error: host operation was not handled by machine encoder host query",
         )),
     }
 }
