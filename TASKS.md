@@ -563,6 +563,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility now exposes an `AcceptanceView` trait so
     states, statements, calls, and exits share one query surface for summary,
     verdict, and acceptance checks
+  - `omega-typed-trees` expression representation now keeps display/rendering
+    helpers and table canaries in focused expression submodules, leaving the
+    root expression file closer to the arena-backed data model
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
