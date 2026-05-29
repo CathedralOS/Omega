@@ -134,7 +134,7 @@ pub(super) fn build_call_flow_fact(
             call_ordinal: borrow_call.call_ordinal,
         }],
     );
-    append_call_ownership_events(program, ctx, state, borrow_call);
+    append_call_ownership_events(program, ctx, machine, state, borrow_call);
     let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
     *active_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, exit_contexts);
     *active_constraints = clone_constraint_refs(&mut ctx.constraint_refs, exit_constraints);

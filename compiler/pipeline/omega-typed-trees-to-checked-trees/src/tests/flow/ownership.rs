@@ -115,6 +115,61 @@ fn materializes_by_value_call_argument_moves() {
 }
 
 #[test]
+fn materializes_transition_argument_moves() {
+    let source = r#"
+        data Item {
+            value: i32;
+        }
+
+        data Main {
+            left: Item;
+        }
+
+        machine Main::main(&mut self) {
+            let first: Item = self.left;
+
+            transition {
+                _ -> consume(first)
+            }
+
+            state consume(&mut self, value: Item) {}
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    let moves = flow.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 2);
+    assert_eq!(
+        moves[0].source,
+        omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }
+    );
+    let omega_checked_trees::FlowOwnershipEventSource::Call {
+        statement_index,
+        call_ordinal,
+        target_symbol,
+    } = moves[1].source
+    else {
+        panic!("expected transition call ownership event source");
+    };
+    assert_eq!(statement_index, 1);
+    assert_eq!(call_ordinal, 0);
+
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let consume_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "consume")
+        .expect("consume state");
+    assert_eq!(target_symbol, consume_state.symbol);
+}
+
+#[test]
 fn does_not_materialize_move_or_drop_events_for_copy_scalar_locals() {
     let source = r#"
         data Main {
