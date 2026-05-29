@@ -29,7 +29,7 @@ can lower without rediscovering machine structure.
 | Calls | State/helper calls become graph actions or edge computations. |
 | Transitions | First-class graph edges with targets, guards, continuations, and payloads. |
 | Effects | Accumulated per machine/state/edge where later reporting or lowering needs them. |
-| Boundary edges | Must remain visible when graph actions cross host/compiler/runtime boundaries. |
+| Boundary edges | Preserved from checked-flow boundary events into state-local graph boundary summaries. |
 
 ## Ownership Rules
 
@@ -56,7 +56,7 @@ preservation:
 - `builder.rs` orchestrates per-machine graph construction and worker
   scheduling.
 - `merge.rs` owns worker-local graph merging and remapping of state-local
-  contract, value, borrow, ownership, operation, transition, and metadata spans
+  contract, value, boundary, borrow, ownership, operation, transition, and metadata spans
   into the final graph.
 - `segments.rs` splits checked state statements into graph segments.
   `segments/branching.rs` owns branch-call topology detection and recursive
@@ -64,7 +64,7 @@ preservation:
   selection and expression-ref copying. `segments/parameters.rs` owns
   state-parameter payload materialization for graph segments.
 - `states.rs` assembles graph state nodes from segments, including state-local
-  contract, value, borrow, ownership, effect, operation, and transition summaries.
+  contract, value, boundary, borrow, ownership, effect, operation, and transition summaries.
 - `transitions.rs` assembles graph transition edges, guards, and transition
   expression refs. `transitions/targets.rs` owns transition/call target
   resolution and continuation segment lookup.
@@ -72,6 +72,9 @@ preservation:
   graph-shaped summaries; they should not revalidate proof or borrow legality.
   `borrows/remap.rs` owns borrow-summary arena remapping when worker-local graph
   fragments are merged.
+- `boundaries.rs` preserves checked-flow boundary edges into graph-shaped
+  state-local boundary summaries and remaps worker-local boundary arenas during
+  graph merging.
 - `ownership.rs` preserves checked-flow move/drop events into graph-shaped
   ownership summaries and remaps worker-local ownership arenas during graph
   merging.
@@ -93,5 +96,5 @@ preservation:
 - Move/drop event producers are still conservative upstream, so this stage
   preserves the available ownership evidence but cannot yet expect complete
   type-aware transfer/drop coverage.
-- Boundary edges should have an explicit graph representation instead of only
-  being implied by contracts/effects/operations.
+- Graph boundary summaries preserve checked source-level boundary edges, but
+  backend host-operation summaries still need explicit linkage back to them.

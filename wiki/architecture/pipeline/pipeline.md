@@ -89,9 +89,10 @@ Current deliberate gaps:
   instructions, and the current machine-program artifact, but still need
   type-aware ownership kind, drop policy, storage consequences, and backend
   lowering beyond metadata.
-- Backend boundary-edge summaries now preserve lowered host-operation trust
-  edges as metadata. The checked representation should still connect those
-  edges back to source-level boundary contracts and target policies.
+- Source-level boundary trait calls now preserve as checked, graph, and
+  control-flow boundary edges. Backend boundary summaries still preserve
+  lowered host-operation edges as separate metadata, and those two layers still
+  need an explicit linkage to target policy.
 
 ## Stages
 

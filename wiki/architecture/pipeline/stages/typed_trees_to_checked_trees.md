@@ -29,7 +29,7 @@ effect, and boundary validation.
 | Calls | First-class call facts for contracts, borrows, flow, and effects. |
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
 | Effects | Direct/transitive effect plans are available. |
-| Boundary edges | Represented through boundary contracts/operators/policies; should become explicit checked-flow events. |
+| Boundary edges | First-class checked-flow events for calls into states supplied by boundary trait signatures. |
 
 ## Ownership Rules
 
@@ -130,7 +130,7 @@ Current ownership is:
   conservative path-like evidence.
 - Teach transition and nested expression-call analysis to append ownership
   transfer/drop events into the existing checked-flow ownership arenas.
-- Make boundary edges first-class checked-flow events, not just contract/effect
-  side data.
+- Connect checked boundary edges to backend host-operation boundary summaries
+  and target policy decisions.
 - Keep contract, proof, borrow, range, termination, and effect checks split by
   noun ownership instead of letting `checks` files become semantic junk drawers.
