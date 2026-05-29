@@ -20,6 +20,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `values.rs` owns runtime value operand translation and runtime value handle remapping.
 - `remap.rs` owns handle/span remapping when arena ordering is preserved across the lowering boundary.
 - `host.rs` owns lowered host operation key resolution and host ABI binding reconciliation.
+- `boundary_policy.rs` owns first-pass target boundary validation: it records
+  whether each lowered host operation is linked to a source boundary edge and
+  whether the target ABI has a binding/policy for that operation.
 - `omega-target-operations/src/instruction/function.rs` owns target operation function plans.
 - `omega-target-operations/src/instruction/operation.rs` owns target operation records and source coordinates.
 - `omega-target-operations/src/instruction/operation_kind.rs` owns target operation kinds.
@@ -48,7 +51,7 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 | Calls | Host/runtime operation ordinals become target operation keys and ABI bindings. |
 | Transitions | Preserved as target-aware branch/jump/return operations, not re-scheduled. |
 | Effects | Carried through as concrete runtime/host operation choices. |
-| Boundary edges | Preserve abstract source-boundary, host-operation boundary, and source-to-lowered link summaries while host operations resolve to ABI-aware operation keys and copied host bindings. |
+| Boundary edges | Preserve abstract source-boundary, host-operation boundary, and source-to-lowered link summaries while recording target policy checks for linked, unlinked, and unbound host operations. |
 
 ## Ownership Rules
 
@@ -65,3 +68,6 @@ Value summaries are preserved through target legalization, but are not yet used
 to drive target storage or ownership policy.
 Boundary-edge summaries are preserved through target legalization, including
 both source-level boundary edges and lowered host-operation edges.
+Boundary policy checks currently validate source-link presence and target host
+binding presence; exact source policy path matching is still pending because
+source boundary policy paths are not yet represented in the semantic spine.

@@ -2,6 +2,7 @@ use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle};
 use omega_core::symbols::SymbolHandle;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AbstractSourceBoundaryEdge {
@@ -29,11 +30,42 @@ pub struct AbstractBoundaryLink {
     pub lowered_edge: Handle<AbstractBoundaryEdge>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AbstractBoundaryPolicyVerdict {
+    #[default]
+    Unknown,
+    Accepted,
+    MissingSourceBoundary,
+    MissingHostBinding,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractBoundaryPolicyCheck {
+    pub source_edge: Handle<AbstractSourceBoundaryEdge>,
+    pub lowered_edge: Handle<AbstractBoundaryEdge>,
+    pub operation_key: HostOperationKey,
+    pub boundary_policy: Arc<str>,
+    pub verdict: AbstractBoundaryPolicyVerdict,
+}
+
+impl Default for AbstractBoundaryPolicyCheck {
+    fn default() -> Self {
+        Self {
+            source_edge: Handle::invalid(),
+            lowered_edge: Handle::invalid(),
+            operation_key: HostOperationKey::default(),
+            boundary_policy: Arc::from(""),
+            verdict: AbstractBoundaryPolicyVerdict::Unknown,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AbstractBoundarySummary {
     pub source_edges: Arena<AbstractSourceBoundaryEdge>,
     pub edges: Arena<AbstractBoundaryEdge>,
     pub links: Arena<AbstractBoundaryLink>,
+    pub policy_checks: Arena<AbstractBoundaryPolicyCheck>,
 }
 
 impl AbstractBoundarySummary {
@@ -49,6 +81,7 @@ impl AbstractBoundarySummary {
             source_edges: Arena::with_capacity(source_edge_capacity),
             edges: Arena::with_capacity(edge_capacity),
             links: Arena::new(),
+            policy_checks: Arena::new(),
         }
     }
 }
