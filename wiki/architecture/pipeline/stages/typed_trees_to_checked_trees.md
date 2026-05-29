@@ -24,8 +24,8 @@ effect, and boundary validation.
 | Values | First checked value fact layer via `CheckedValueFacts`, keyed by typed expression handles and value origins. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
-| Moves | First-class checked-flow event arenas/spans exist, with initial path-like assignment/local-initializer and by-value call-argument producers. |
-| Drops | First-class checked-flow event arenas/spans exist, with initial state-exit local drop producers. |
+| Moves | First-class checked-flow event arenas/spans exist. Initial producers are type-aware for direct assignments, local initializers, indexed element reads, and by-value direct-call arguments. |
+| Drops | First-class checked-flow event arenas/spans exist. Initial state-exit local drop producers skip copy-like scalar locals. |
 | Calls | First-class call facts for contracts, borrows, flow, and effects. |
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
 | Effects | Direct/transitive effect plans are available. |
@@ -83,9 +83,11 @@ Current ownership is:
   activation, mutation invalidation, and transfer propagation,
   `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
   entry/requires/ensures/effect/invalidation flow facts, and `flow/exits.rs`
-  owns exit/ensures flow facts. `flow/ownership.rs` owns the first move/drop
-  event producers for path-like assignment/local-initializer moves, by-value
-  direct-call argument moves, and state-exit local drops.
+  owns exit/ensures flow facts. `flow/ownership.rs` owns move/drop event
+  production for assignment/local-initializer moves, by-value direct-call
+  argument moves, and state-exit local drops, while
+  `flow/ownership/type_resolution.rs` owns the local type-reference resolver
+  that distinguishes copy-like scalar places from ownership-consuming places.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
   `flow/domain/dependencies/expression.rs` owns dependency expression
@@ -123,11 +125,12 @@ Current ownership is:
 
 ## Known Gaps
 
-- Refine checked value facts with type-aware ownership kind, drop policy, and
-  storage/lowering consequences.
-- Make move/drop event production type-aware, so Copy/no-drop values and true
-  ownership-consuming values are distinguished instead of using the current
-  conservative path-like evidence.
+- Refine checked value facts with ownership kind, drop policy, and
+  storage/lowering consequences instead of leaving those decisions attached
+  only to flow ownership events.
+- Finish move/drop event production across all transfer sites, including
+  transitions, nested expression calls, arrays/slices/strings, and future
+  user-defined copy/drop policy.
 - Teach transition and nested expression-call analysis to append ownership
   transfer/drop events into the existing checked-flow ownership arenas.
 - Connect checked boundary edges to backend host-operation boundary summaries
