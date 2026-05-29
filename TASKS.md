@@ -316,6 +316,10 @@ meaning, without needing access to pointer descriptor internals.
   - checked trees now expose a first unified operation-admissibility query
     doorway over state, statement, call, and exit evidence instead of requiring
     callers to know every proof/borrow/flow/effect sub-arena
+  - control-flow executable shape now sits under an explicit
+    `ControlFlowCode` root on `ControlFlowPlan`, keeping expressions,
+    machine/state topology, operations, and transitions separate from
+    preserved semantic evidence
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
