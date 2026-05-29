@@ -1,0 +1,108 @@
+use crate::calls::validate_call_arguments_handles;
+use crate::locals::WritableRoots;
+use crate::symbols::{MachineSymbols, TopLevelSymbols};
+use omega_core::diagnostics::Diagnostic;
+use omega_typed_trees::TypedTrees;
+use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::signature::StateParameter;
+use omega_typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
+
+pub(crate) fn validate_transition_target_node(
+    program: &TypedTrees,
+    target: TransitionTargetHandle,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let TransitionTargetNode::Named { path, arguments } =
+        program.statement_table.transition_target(target)
+    else {
+        return;
+    };
+
+    let path = program.statement_table.name_path_members(path.members);
+    let arguments = program.statement_table.expression_handles(*arguments);
+
+    if path.len() == 1 {
+        let Some(state) = machine_symbols.state(path[0].as_str()) else {
+            return;
+        };
+
+        validate_transition_arguments_handles(
+            program,
+            arguments,
+            state.name.as_str(),
+            program.state_parameters(state),
+            writable_roots,
+            diagnostics,
+        );
+
+        return;
+    }
+
+    if path.len() == 2 && path[0].as_str() == "self" {
+        let Some(state) = machine_symbols.state(path[1].as_str()) else {
+            return;
+        };
+
+        validate_transition_arguments_handles(
+            program,
+            arguments,
+            state.name.as_str(),
+            program.state_parameters(state),
+            writable_roots,
+            diagnostics,
+        );
+        return;
+    }
+
+    let Some(receiver_type) = machine_symbols.contained_type(path[0].as_str()) else {
+        return;
+    };
+
+    if path.len() == 2 {
+        let Some(machine) = symbols.machine(receiver_type) else {
+            return;
+        };
+
+        let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.name == path[1])
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has no state `{}`",
+                machine.name, path[1]
+            )));
+            return;
+        };
+
+        validate_transition_arguments_handles(
+            program,
+            arguments,
+            &state.name,
+            program.state_parameters(state),
+            writable_roots,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_transition_arguments_handles(
+    program: &TypedTrees,
+    arguments: &[ExpressionHandle],
+    target_name: &str,
+    parameters: &[StateParameter],
+    writable_roots: &WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_call_arguments_handles(
+        program,
+        arguments,
+        target_name,
+        parameters,
+        writable_roots,
+        diagnostics,
+    );
+}
