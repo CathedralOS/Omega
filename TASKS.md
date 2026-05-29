@@ -69,6 +69,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-machine-instructions` now has a thin crate root and noun-shaped
     modules for symbolic instruction records, function metadata, plan storage,
     and machine-program conversions
+  - `omega-machine-program` now has a thin crate root and noun-shaped modules
+    for artifact instruction records, function metadata, and plan storage
   - `omega-validation` now has a thin validation entrypoint plus semantic
     modules for tests, runtime entry-point checks, local writable roots,
     assignment places, calls, transitions, proof facts, domain membership,
