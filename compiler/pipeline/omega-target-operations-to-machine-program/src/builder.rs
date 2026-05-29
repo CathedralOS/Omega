@@ -21,7 +21,8 @@ pub(crate) fn build_machine_program(
 mod tests {
     use super::*;
     use omega_abstract_operations::{
-        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+        AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin,
+        AbstractValueStatementRole,
     };
     use omega_core::symbols::SymbolHandle;
 
@@ -59,5 +60,42 @@ mod tests {
                 role: AbstractValueStatementRole::TransitionTargetValue,
             }
         );
+    }
+
+    #[test]
+    fn preserves_target_source_boundary_edges_into_machine_program() {
+        let mut target_operations = InstructionPlan::default();
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+        let trait_symbol = SymbolHandle::from_arena_index(3);
+        let signature_symbol = SymbolHandle::from_arena_index(4);
+
+        target_operations
+            .boundary_edges
+            .source_edges
+            .insert(AbstractSourceBoundaryEdge {
+                source_key: Default::default(),
+                statement_index: 21,
+                call_ordinal: 2,
+                receiver_symbol: machine_symbol,
+                target_symbol: state_symbol,
+                boundary_trait_symbol: trait_symbol,
+                boundary_signature_symbol: signature_symbol,
+            });
+
+        let machine_program = build_machine_program(&target_operations).expect("machine program");
+
+        assert_eq!(machine_program.boundary_edges.source_edges.len(), 1);
+        let edge = machine_program
+            .boundary_edges
+            .source_edges
+            .iter()
+            .next()
+            .map(|(_, edge)| edge)
+            .expect("machine-program source boundary edge");
+        assert_eq!(edge.statement_index, 21);
+        assert_eq!(edge.call_ordinal, 2);
+        assert_eq!(edge.boundary_trait_symbol, trait_symbol);
+        assert_eq!(edge.boundary_signature_symbol, signature_symbol);
     }
 }
