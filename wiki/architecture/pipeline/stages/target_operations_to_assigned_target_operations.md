@@ -22,7 +22,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   representation root: assigned executable shape and host bindings live under
   `AssignedTargetOperationCode`, while preserved semantic evidence lives under
   `AssignedSemanticSummary`.
-- `builder.rs` owns the stage conveyor from target operation arenas into assigned target operation arenas.
+- `builder.rs` owns the stage conveyor only: target identity, assigned code
+  root, and preserved semantic root are assembled there.
+- `code.rs` owns assigned executable-code root construction from target
+  operation arenas and delegates runtime value home assignment to `values.rs`.
 - `functions.rs` owns function metadata remapping while operation ordering is preserved.
 - `operations.rs` owns target operation and instruction-operand conversion into assigned operation records.
 - `instruction_operands.rs` owns assigned instruction operand records such as immediates, data addresses, and runtime string descriptors.

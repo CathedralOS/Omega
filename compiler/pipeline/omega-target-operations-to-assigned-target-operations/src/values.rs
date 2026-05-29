@@ -1,5 +1,5 @@
 use omega_assigned_target_operations::{
-    AssignedRegisterBank, AssignedTargetOperationPlan, AssignedValueHomeKind, AssignedValueOperand,
+    AssignedRegisterBank, AssignedTargetOperationCode, AssignedValueHomeKind, AssignedValueOperand,
 };
 use omega_target_operations::{RuntimeStorageRegion, TargetOperationPlan, TargetValueOperand};
 
@@ -7,18 +7,15 @@ use crate::registers;
 
 pub(crate) fn assign_runtime_value_operands(
     target_operations: &TargetOperationPlan,
-    assigned_target_operations: &mut AssignedTargetOperationPlan,
+    target: &mut AssignedTargetOperationCode,
 ) {
     let mut next_scratch_slot = 0u16;
     for (_, operand) in target_operations.code.runtime_value_operands.iter() {
         let home = assign_value_home(target_operations, operand, &mut next_scratch_slot);
-        assigned_target_operations
-            .code
-            .runtime_value_operands
-            .insert(AssignedValueOperand {
-                kind: operand.clone().into(),
-                home,
-            });
+        target.runtime_value_operands.insert(AssignedValueOperand {
+            kind: operand.clone().into(),
+            home,
+        });
     }
 }
 
