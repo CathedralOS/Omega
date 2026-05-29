@@ -1,6 +1,8 @@
 mod aliases;
+mod transitions;
 
 use self::aliases::seed_local_alias_facts;
+use self::transitions::check_transition_target;
 use super::arrays::fixed_array_type_length;
 use super::expressions::{expression_indexable_length, expression_integer_value, expression_name};
 use super::facts::RangeFacts;
@@ -10,7 +12,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 pub(super) fn check_statement(
     program: &omega_typed_trees::TypedTrees,
@@ -118,29 +120,4 @@ fn expression_member_name(
         return None;
     };
     Some((member.member_symbol, Some(member.member.as_str())))
-}
-
-fn check_transition_target(
-    program: &omega_typed_trees::TypedTrees,
-    machine: &Machine,
-    state: &State,
-    facts: &RangeFacts<'_>,
-    target: omega_typed_trees::statement::TransitionTargetHandle,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if !target.is_valid() {
-        return;
-    }
-
-    match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { arguments, .. } => {
-            for argument in program.statement_table.expression_handles(*arguments) {
-                check_expression(program, machine, state, facts, *argument, diagnostics);
-            }
-        }
-        TransitionTargetNode::Value(value) => {
-            check_expression(program, machine, state, facts, *value, diagnostics)
-        }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
-    }
 }
