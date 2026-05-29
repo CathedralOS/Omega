@@ -1,11 +1,19 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations};
+use omega_image::{
+    ExecutableImageOutput, FinalImage, FinalImageLayout, FinalImageSection,
+    apply_aarch64_relocations, final_image_symbol_name,
+};
 
-const ELF_HEADER_SIZE: usize = 64;
-const PROGRAM_HEADER_SIZE: usize = 56;
-const PROGRAM_HEADER_COUNT: usize = 2;
-const IMAGE_BASE: u64 = 0x400000;
-const PAGE_SIZE: usize = 0x1000;
+mod bytes;
+mod constants;
+mod headers;
+mod layout;
+
+use constants::{
+    ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
+};
+use headers::{write_data_program_header, write_elf_header, write_text_program_header};
+use layout::{align_to, align_to_u64};
 
 pub fn emit_elf_aarch64_executable(
     mut image: FinalImage,
@@ -26,6 +34,7 @@ pub fn emit_elf_aarch64_executable(
         data_address,
         bss_address,
     };
+    let entry_address = elf_entry_address(&image, text_address)?;
 
     apply_aarch64_relocations(&mut image, &layout, "ELF direct image")?;
 
@@ -33,7 +42,7 @@ pub fn emit_elf_aarch64_executable(
         .checked_add(image.bss_size as u64)
         .expect("ELF data memory size overflow");
     let mut bytes = Vec::with_capacity(data_offset + image.data.len());
-    write_elf_header(&mut bytes, text_address, text_offset, data_offset);
+    write_elf_header(&mut bytes, entry_address, text_offset, data_offset);
     write_text_program_header(&mut bytes, text_offset, image.text.len());
     write_data_program_header(&mut bytes, data_offset, image.data.len(), data_memory_size);
     bytes.resize(text_offset, 0);
@@ -54,100 +63,51 @@ pub fn emit_elf_aarch64_executable(
     })
 }
 
-fn write_elf_header(
-    bytes: &mut Vec<u8>,
-    entry_address: u64,
-    text_offset: usize,
-    data_offset: usize,
-) {
-    bytes.extend([0x7f, b'E', b'L', b'F']);
-    bytes.push(2);
-    bytes.push(1);
-    bytes.push(1);
-    bytes.push(0);
-    bytes.extend([0; 8]);
-    write_u16(bytes, 2);
-    write_u16(bytes, 183);
-    write_u32(bytes, 1);
-    write_u64(bytes, entry_address);
-    write_u64(bytes, ELF_HEADER_SIZE as u64);
-    write_u64(bytes, 0);
-    write_u32(bytes, 0);
-    write_u16(bytes, ELF_HEADER_SIZE as u16);
-    write_u16(bytes, PROGRAM_HEADER_SIZE as u16);
-    write_u16(bytes, PROGRAM_HEADER_COUNT as u16);
-    write_u16(bytes, 0);
-    write_u16(bytes, 0);
-    write_u16(bytes, 0);
+fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result<u64, Diagnostic> {
+    let entry_symbol = image
+        .symbols
+        .is_valid(image.entry_symbol)
+        .then(|| image.symbols.get(image.entry_symbol))
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "ELF entry symbol `{}` is missing from the final image",
+                final_image_symbol_name(image, image.entry_symbol)
+            ))
+        })?;
 
-    debug_assert_eq!(bytes.len(), ELF_HEADER_SIZE);
-    debug_assert!(text_offset >= bytes.len());
-    debug_assert!(data_offset > text_offset);
+    if entry_symbol.section != FinalImageSection::Text {
+        return Err(Diagnostic::error(format!(
+            "ELF entry symbol `{}` is not in the text section",
+            final_image_symbol_name(image, image.entry_symbol)
+        )));
+    }
+
+    Ok(text_address + entry_symbol.offset as u64)
 }
 
-fn write_text_program_header(bytes: &mut Vec<u8>, text_offset: usize, text_size: usize) {
-    write_program_header(
-        bytes,
-        5,
-        0,
-        IMAGE_BASE,
-        u64::try_from(text_offset + text_size).expect("ELF text segment size overflow"),
-        u64::try_from(text_offset + text_size).expect("ELF text memory size overflow"),
-    );
-}
+#[cfg(test)]
+mod tests {
+    use super::emit_elf_aarch64_executable;
+    use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
 
-fn write_data_program_header(
-    bytes: &mut Vec<u8>,
-    data_offset: usize,
-    data_size: usize,
-    data_memory_size: u64,
-) {
-    write_program_header(
-        bytes,
-        6,
-        u64::try_from(data_offset).expect("ELF data offset overflow"),
-        IMAGE_BASE + data_offset as u64,
-        u64::try_from(data_size).expect("ELF data segment size overflow"),
-        data_memory_size,
-    );
-}
+    #[test]
+    fn emits_entry_address_from_final_image_entry_symbol() {
+        let mut image = FinalImage {
+            text: vec![0; 16],
+            ..FinalImage::default()
+        };
+        let entry_symbol = image.symbols.insert(FinalImageSymbol {
+            name: "_start".into(),
+            section: FinalImageSection::Text,
+            offset: 4,
+            size: 4,
+            ..FinalImageSymbol::default()
+        });
+        image.entry_symbol = entry_symbol;
 
-fn write_program_header(
-    bytes: &mut Vec<u8>,
-    flags: u32,
-    offset: u64,
-    virtual_address: u64,
-    file_size: u64,
-    memory_size: u64,
-) {
-    write_u32(bytes, 1);
-    write_u32(bytes, flags);
-    write_u64(bytes, offset);
-    write_u64(bytes, virtual_address);
-    write_u64(bytes, virtual_address);
-    write_u64(bytes, file_size);
-    write_u64(bytes, memory_size);
-    write_u64(bytes, PAGE_SIZE as u64);
-}
+        let output = emit_elf_aarch64_executable(image).expect("ELF image should emit");
+        let entry_bytes: [u8; 8] = output.bytes[24..32].try_into().unwrap();
 
-fn write_u16(bytes: &mut Vec<u8>, value: u16) {
-    bytes.extend(value.to_le_bytes());
-}
-
-fn write_u32(bytes: &mut Vec<u8>, value: u32) {
-    bytes.extend(value.to_le_bytes());
-}
-
-fn write_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend(value.to_le_bytes());
-}
-
-fn align_to(value: usize, alignment: usize) -> usize {
-    let alignment = alignment.max(1);
-    value.div_ceil(alignment) * alignment
-}
-
-fn align_to_u64(value: u64, alignment: u64) -> u64 {
-    let alignment = alignment.max(1);
-    value.div_ceil(alignment) * alignment
+        assert_eq!(u64::from_le_bytes(entry_bytes), 0x401004);
+    }
 }
