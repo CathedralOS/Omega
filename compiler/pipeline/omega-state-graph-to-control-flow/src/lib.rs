@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::StateGraph;
 
 mod borrows;
+mod boundaries;
 mod builder;
 mod contracts;
 mod facts;

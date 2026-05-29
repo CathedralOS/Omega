@@ -45,6 +45,7 @@ pub(crate) fn build_state_graph_with_workers(
             0,
             0,
             0,
+            0,
         ));
     }
 

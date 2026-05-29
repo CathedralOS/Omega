@@ -3,6 +3,7 @@ use omega_core::arena::Arena;
 use omega_state_graph::{StateGraph, StateNode, StateParameterNode};
 
 use crate::borrows::remap_borrow_summary;
+use crate::boundaries::remap_boundary_summary;
 use crate::contracts::remap_contract_summary;
 use crate::handles::{remap_operation_span, remap_parameter_span, remap_transition_span};
 use crate::ownership::remap_ownership_summary;
@@ -32,6 +33,7 @@ pub(crate) fn remap_state_owned(state: StateNode) -> StateFlow {
         parameters: remap_parameter_span(state.parameters),
         contracts: remap_contract_summary(&state.contracts),
         values: remap_value_summary(&state.values),
+        boundaries: remap_boundary_summary(&state.boundaries),
         borrow: remap_borrow_summary(&state.borrow),
         ownership: remap_ownership_summary(&state.ownership),
         operations: remap_operation_span(state.operations),
@@ -69,6 +71,7 @@ fn remap_state(
         ),
         contracts: remap_contract_summary(&state.contracts),
         values: remap_value_summary(&state.values),
+        boundaries: remap_boundary_summary(&state.boundaries),
         borrow: remap_borrow_summary(&state.borrow),
         ownership: remap_ownership_summary(&state.ownership),
         operations: remap_operation_span(state.operations),

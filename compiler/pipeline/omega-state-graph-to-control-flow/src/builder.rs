@@ -8,6 +8,7 @@ use crate::borrows::{
     remap_borrow_loan_owned, remap_borrow_loans, remap_borrow_weakening_owned,
     remap_borrow_weakenings, remap_borrow_writable_root_owned, remap_borrow_writable_roots,
 };
+use crate::boundaries::{remap_boundary_edge_owned, remap_boundary_edges};
 use crate::contracts::{
     remap_contract_call_owned, remap_contract_calls, remap_contract_exit_owned,
     remap_contract_exits, remap_contract_fact_ref_owned, remap_contract_fact_refs,
@@ -45,6 +46,7 @@ pub(crate) fn build_control_flow_plan(
         contract_calls: remap_contract_calls(state_graph),
         contract_exits: remap_contract_exits(state_graph),
         values: remap_values(state_graph),
+        boundary_edges: remap_boundary_edges(state_graph),
         borrow_writable_roots: remap_borrow_writable_roots(state_graph),
         borrow_access_segments: state_graph.borrow_access_segments.clone(),
         borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
@@ -76,6 +78,7 @@ pub(crate) fn build_control_flow_plan_owned(
         contract_calls,
         contract_exits,
         values,
+        boundary_edges,
         borrow_writable_roots,
         borrow_access_segments,
         borrow_argument_accesses,
@@ -103,6 +106,7 @@ pub(crate) fn build_control_flow_plan_owned(
         contract_calls: contract_calls.map(remap_contract_call_owned),
         contract_exits: contract_exits.map(remap_contract_exit_owned),
         values: values.map(remap_value_owned),
+        boundary_edges: boundary_edges.map(remap_boundary_edge_owned),
         borrow_writable_roots: borrow_writable_roots.map(remap_borrow_writable_root_owned),
         borrow_access_segments,
         borrow_argument_accesses: borrow_argument_accesses.map(remap_borrow_argument_access_owned),

@@ -4,8 +4,8 @@ use omega_typed_trees::name::Identifier;
 use omega_typed_trees::types::TypeReferenceHandle;
 
 use crate::{
-    Operation, StateBorrowSummary, StateContractSummary, StateOwnershipSummary, StateValueSummary,
-    TransitionEdge,
+    Operation, StateBorrowSummary, StateBoundarySummary, StateContractSummary,
+    StateOwnershipSummary, StateValueSummary, TransitionEdge,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -73,6 +73,7 @@ pub struct StateNode {
     pub parameters: HandleSpan<StateParameterNode>,
     pub contracts: StateContractSummary,
     pub values: StateValueSummary,
+    pub boundaries: StateBoundarySummary,
     pub borrow: StateBorrowSummary,
     pub ownership: StateOwnershipSummary,
     pub operations: HandleSpan<Operation>,
@@ -90,6 +91,7 @@ impl Default for StateNode {
             parameters: HandleSpan::empty(),
             contracts: StateContractSummary::default(),
             values: StateValueSummary::default(),
+            boundaries: StateBoundarySummary::default(),
             borrow: StateBorrowSummary::default(),
             ownership: StateOwnershipSummary::default(),
             operations: HandleSpan::empty(),

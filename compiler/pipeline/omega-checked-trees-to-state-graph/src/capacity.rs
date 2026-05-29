@@ -21,6 +21,7 @@ pub(crate) struct StateGraphCapacity {
     contract_calls: usize,
     contract_exits: usize,
     values: usize,
+    boundary_edges: usize,
     borrow_writable_roots: usize,
     borrow_access_segments: usize,
     borrow_argument_accesses: usize,
@@ -50,6 +51,7 @@ impl StateGraphCapacity {
             contract_calls: program.facts.proof.contract_calls.len(),
             contract_exits: program.facts.proof.contract_exits.len(),
             values: program.facts.values.values.len(),
+            boundary_edges: program.facts.flow.boundary_edges.len(),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
@@ -98,6 +100,7 @@ impl StateGraphCapacity {
             contract_calls: machine_contract_call_count(program, machine),
             contract_exits: machine_contract_exit_count(program, machine),
             values: machine_value_count(program, machine),
+            boundary_edges: machine_boundary_edge_count(program, machine),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
@@ -127,6 +130,7 @@ impl StateGraphCapacity {
             self.contract_calls,
             self.contract_exits,
             self.values,
+            self.boundary_edges,
             self.borrow_writable_roots,
             self.borrow_access_segments,
             self.borrow_argument_accesses,
@@ -141,6 +145,17 @@ impl StateGraphCapacity {
             self.transitions,
         )
     }
+}
+
+fn machine_boundary_edge_count(program: &CheckedTrees, machine: &Machine) -> usize {
+    program
+        .facts
+        .flow
+        .states
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine.symbol)
+        .map(|(_, state)| state.boundary_edges.len())
+        .sum()
 }
 
 fn machine_value_count(program: &CheckedTrees, machine: &Machine) -> usize {

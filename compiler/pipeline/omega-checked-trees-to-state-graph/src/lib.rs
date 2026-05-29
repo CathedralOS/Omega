@@ -5,6 +5,7 @@ use omega_state_graph::StateGraph;
 use std::sync::Arc;
 
 mod borrows;
+mod boundaries;
 mod builder;
 mod capacity;
 mod contracts;
