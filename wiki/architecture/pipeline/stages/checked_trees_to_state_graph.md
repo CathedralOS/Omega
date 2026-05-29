@@ -21,7 +21,7 @@ can lower without rediscovering machine structure.
 | Noun | Ownership |
 | --- | --- |
 | Places | Carried only when graph nodes/edges need state, parameter, or data identity. |
-| Values | Transition arguments and state payloads become graph-carried data. |
+| Values | Checked value facts become state-local graph value summaries. |
 | Facts | Checked facts attach to states, edges, calls, exits, and proof summaries. |
 | Loans | Preserved as graph-visible borrow summaries/events; not revalidated here. |
 | Moves | Preserved from checked-flow ownership events into graph ownership summaries. |
@@ -35,8 +35,8 @@ can lower without rediscovering machine structure.
 
 Must own:
 
-- Machine, state, transition, operation, contract, borrow, proof, and effect
-  summaries in graph form.
+- Machine, state, transition, operation, contract, value, borrow, proof, and
+  effect summaries in graph form.
 - Edge-local payloads needed to lower transitions without consulting source
   syntax again.
 - Preservation of checked evidence without weakening or inventing proofs.
@@ -56,15 +56,15 @@ preservation:
 - `builder.rs` orchestrates per-machine graph construction and worker
   scheduling.
 - `merge.rs` owns worker-local graph merging and remapping of state-local
-  contract, borrow, ownership, operation, transition, and metadata spans into
-  the final graph.
+  contract, value, borrow, ownership, operation, transition, and metadata spans
+  into the final graph.
 - `segments.rs` splits checked state statements into graph segments.
   `segments/branching.rs` owns branch-call topology detection and recursive
   branch-flow discovery. `segments/operations.rs` owns graph operation kind
   selection and expression-ref copying. `segments/parameters.rs` owns
   state-parameter payload materialization for graph segments.
 - `states.rs` assembles graph state nodes from segments, including state-local
-  contract, borrow, ownership, effect, operation, and transition summaries.
+  contract, value, borrow, ownership, effect, operation, and transition summaries.
 - `transitions.rs` assembles graph transition edges, guards, and transition
   expression refs. `transitions/targets.rs` owns transition/call target
   resolution and continuation segment lookup.
@@ -75,6 +75,8 @@ preservation:
 - `ownership.rs` preserves checked-flow move/drop events into graph-shaped
   ownership summaries and remaps worker-local ownership arenas during graph
   merging.
+- `values.rs` preserves checked value facts into state-local graph value
+  summaries and remaps worker-local value arenas during graph merging.
 - `remap.rs` owns narrow operation/transition/expression remap helpers used by
   graph merging.
 - `machine_metadata.rs` projects machine owned data, contained machines, and
@@ -85,6 +87,8 @@ preservation:
 
 ## Known Gaps
 
+- Value summaries preserve checked expression origins, but still need ownership
+  kind, drop policy, and storage consequences.
 - Transition ownership transfer should be as explicit as call ownership transfer.
 - Move/drop event producers are still conservative upstream, so this stage
   preserves the available ownership evidence but cannot yet expect complete
