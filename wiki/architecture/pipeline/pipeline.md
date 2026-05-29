@@ -78,6 +78,8 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
 | Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction metadata |
 | Machine Instructions To Machine Bytes | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
+| Machine Bytes To Object Plan | artifact | artifact | metadata | none | metadata | metadata | symbol metadata | section metadata | artifact | sibling metadata |
+| Object Plan To Relocations | artifact | artifact | metadata | none | metadata | metadata | relocation records | relocation records | artifact | sibling metadata |
 | Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact metadata |
 
 Current deliberate gaps:
@@ -110,4 +112,6 @@ Current deliberate gaps:
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)
 - [Machine Instructions To Machine Bytes](stages/machine_instructions_to_machine_bytes.md)
+- [Machine Bytes To Object Plan](stages/machine_bytes_to_object_plan.md)
+- [Object Plan To Relocations](stages/object_plan_to_relocations.md)
 - [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
