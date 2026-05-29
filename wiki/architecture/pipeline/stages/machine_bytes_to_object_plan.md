@@ -46,7 +46,9 @@ Must not own:
 ## Implementation Map
 
 - `omega-object-file-planning/src/lib.rs` owns the public stage boundary only.
-- `omega-object-file-planning/src/builder.rs` owns object-plan orchestration and entry lookup.
+- `omega-object-file-planning/src/builder.rs` owns object-plan orchestration.
+- `omega-object-file-planning/src/entry.rs` owns entry machine layout and
+  encoded entry-function lookup diagnostics.
 - `omega-object-file-planning/src/sections.rs` owns text/data/bss section sizing and runtime-frame offset placement.
 - `omega-object-file-planning/src/symbols.rs` owns entry, storage, import, runtime-frame, and data-object symbol construction.
 - `omega-object-file/src/plan.rs` owns the object-plan container.
