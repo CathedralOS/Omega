@@ -1,6 +1,6 @@
 use omega_control_flow::{ControlFlowCode, ControlFlowPlan};
 use omega_core::diagnostics::Diagnostic;
-use omega_state_graph::StateGraph;
+use omega_state_graph::{StateGraph, StateGraphCode};
 
 use crate::borrows::{
     remap_borrow_activation_owned, remap_borrow_argument_access_owned, remap_borrow_call_owned,
@@ -21,17 +21,17 @@ use crate::values::remap_value_owned;
 pub(crate) fn build_control_flow_plan_owned(
     state_graph: StateGraph,
 ) -> Result<ControlFlowPlan, Diagnostic> {
-    let StateGraph {
+    let StateGraph { code, semantics } = state_graph;
+    let StateGraphCode {
         expressions,
         machines,
         contained_machines,
         machine_owned_data,
         states,
         state_parameters,
-        semantics,
         operations,
         transitions,
-    } = state_graph;
+    } = code;
 
     Ok(ControlFlowPlan {
         code: ControlFlowCode {
