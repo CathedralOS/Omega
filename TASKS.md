@@ -341,6 +341,9 @@ meaning, without needing access to pointer descriptor internals.
   - relocation records now stay behind `RelocationPlan` root helpers for plan
     construction, insertion, counting, and iteration instead of requiring
     callers to reach through `RelocationRecordSet.records`
+  - final-image root construction now goes through `FinalImage::with_capacity`
+    so the builder does not manually assemble memory, symbol-table, and
+    relocation-table roots
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
