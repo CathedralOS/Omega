@@ -20,7 +20,11 @@ effect, and boundary validation.
 The representation root is `CheckedTrees`: typed syntax remains under `typed`,
 while durable semantic evidence lives under `CheckFacts`. Checked flow evidence
 is grouped under `FlowFacts` roots for contexts, invalidations, borrow
-lifetimes, ownership, boundaries, and control.
+lifetimes, ownership, boundaries, and control. `CheckedTrees::state_acceptance`
+is the first unified query doorway over that evidence: a checked tree exists
+only after diagnostics are clear, and the acceptance views expose the proof,
+borrow, boundary, effect, invalidation, and call/exit evidence that made each
+state operation admissible.
 
 | Noun | Ownership |
 | --- | --- |
@@ -105,6 +109,10 @@ Current ownership is:
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model:
   state-local spans point into grouped `FlowFacts` roots for contexts,
   invalidations, borrow lifetimes, ownership, boundaries, and control.
+- `omega-checked-trees/src/admissibility.rs` owns checked operation acceptance
+  views. These views do not re-run proof, borrow, or effect checks; they gather
+  the already-accepted evidence behind state, statement, call, and exit query
+  methods so later stages and reports have one obvious doorway.
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
@@ -230,5 +238,8 @@ Current ownership is:
   transfer/drop events into the existing checked-flow ownership arenas.
 - Connect checked boundary edges to backend host-operation boundary summaries
   and target policy decisions.
+- Grow the checked operation acceptance views from read-only evidence views
+  into the durable verdict model for effect/capability authorization, proof
+  discharge status, and backend policy linkage.
 - Keep contract, proof, borrow, range, termination, and effect checks split by
   noun ownership instead of letting `checks` files become semantic junk drawers.

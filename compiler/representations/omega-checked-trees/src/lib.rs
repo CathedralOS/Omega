@@ -3,6 +3,7 @@ pub use omega_typed_trees::{
     trait_definition, types,
 };
 
+mod admissibility;
 mod borrow;
 mod facts;
 mod flow;
@@ -11,6 +12,7 @@ pub mod statement;
 mod trees;
 mod values;
 
+pub use admissibility::*;
 pub use borrow::*;
 pub use facts::*;
 pub use flow::*;
