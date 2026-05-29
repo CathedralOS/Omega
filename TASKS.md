@@ -112,6 +112,8 @@ meaning, without needing access to pointer descriptor internals.
     modules
   - contract label helpers now split call-site argument substitution from
     domain proof label substitution
+  - contract call-site evaluation now splits expression value evaluation from
+    parameter/local/indexed-literal/struct-field expression resolution
   - checked-tree-to-state-graph contract preservation now splits state-local
     contract summary construction from worker-local graph remapping
   - checked-tree-to-state-graph borrow preservation now splits call argument
