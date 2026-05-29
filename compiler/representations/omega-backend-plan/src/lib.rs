@@ -24,11 +24,13 @@ use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::InstructionPlan;
 use omega_target_operations::TargetDataPlan;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendPlan {
     pub target: NativeTarget,
+    pub artifacts: BackendArtifactRoots,
     pub host_abi: Arc<HostAbiPlan>,
     pub host_calls: Arc<HostCallPlan>,
     pub state_calls: Arc<StateCallPlan>,
@@ -50,12 +52,16 @@ pub struct BackendPlan {
     pub runtime_storage: RuntimeStoragePlan,
     pub runtime_text: RuntimeTextPlan,
     pub layouts: Arc<LayoutPlan>,
+    pub entry_key: StateKey,
+    pub phase_timings: Arena<BackendPlanPhaseTiming>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendArtifactRoots {
     pub machine_instructions: MachineInstructionPlan,
     pub encoded_machine: EncodedMachinePlan,
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
-    pub entry_key: StateKey,
-    pub phase_timings: Arena<BackendPlanPhaseTiming>,
 }
 
 impl BackendPlan {
@@ -71,6 +77,20 @@ impl BackendPlan {
             .state_by_key(self.entry_key)
             .map(|state| state.name.as_str())
             .unwrap_or("")
+    }
+}
+
+impl Deref for BackendPlan {
+    type Target = BackendArtifactRoots;
+
+    fn deref(&self) -> &Self::Target {
+        &self.artifacts
+    }
+}
+
+impl DerefMut for BackendPlan {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.artifacts
     }
 }
 

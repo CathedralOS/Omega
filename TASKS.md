@@ -329,6 +329,10 @@ meaning, without needing access to pointer descriptor internals.
   - machine-program executable artifact shape now sits under an explicit
     `MachineProgramCode` root on `MachineProgram`, keeping the transitional
     aggregate bridge consistent with the surrounding code/semantic split
+  - backend-plan final artifacts now sit under an explicit
+    `BackendArtifactRoots` root, grouping symbolic machine instructions,
+    encoded machine bytes, object layout, and relocation records instead of
+    leaving the artifact chain as unrelated top-level plan siblings
   - `omega-machine-bytes` now has a thin crate root and noun-shaped modules
     for encoded function ranges, encoded instruction byte spans, semantic
     summaries, and encoded plan storage
