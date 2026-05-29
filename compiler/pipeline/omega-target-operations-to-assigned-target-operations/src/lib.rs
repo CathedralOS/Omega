@@ -2,6 +2,7 @@ use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_target_operations::TargetOperationPlan;
 
 mod builder;
+mod code;
 mod functions;
 mod operations;
 mod registers;
