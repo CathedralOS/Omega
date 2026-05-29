@@ -1,0 +1,66 @@
+use super::*;
+
+pub(in crate::flow) struct CallInvalidationResult {
+    pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,
+    pub(in crate::flow) post_constraints: HandleSpan<FlowConstraintRef>,
+    pub(in crate::flow) invalidations: HandleSpan<FlowInvalidationFact>,
+}
+
+pub(in crate::flow) fn apply_call_invalidations(
+    program: &omega_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    semantic: &FactPlan,
+    domains: &DomainFacts,
+    ctx: &mut FlowBuildContext,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    active_contexts: HandleSpan<FlowSemanticContextRef>,
+    active_constraints: HandleSpan<FlowConstraintRef>,
+    borrow_call: &BorrowCallFact,
+) -> CallInvalidationResult {
+    let mutated_places = call_mutated_places(
+        program,
+        machine.symbol,
+        state.symbol,
+        borrow,
+        borrow_call,
+        &mut ctx.state_mutation_summary_cache,
+    );
+    let invalidations_start = ctx.invalidations.len();
+    let post_contexts = if call_may_mutate_contract_state(program, borrow, borrow_call) {
+        if mutated_places.is_empty() {
+            HandleSpan::empty()
+        } else {
+            filter_contexts_after_place_mutations(
+                program,
+                semantic,
+                domains,
+                &mut ctx.semantic_context_refs,
+                &mut ctx.invalidation_segments,
+                &mut ctx.invalidations,
+                active_contexts,
+                &mutated_places,
+                FlowInvalidationSource::Call {
+                    statement_index: borrow_call.statement_index,
+                    call_ordinal: borrow_call.call_ordinal,
+                    target_symbol: borrow_call.target_symbol,
+                },
+            )
+        }
+    } else {
+        clone_flow_contexts(&mut ctx.semantic_context_refs, active_contexts)
+    };
+    let post_constraints = project_constraint_refs_to_active_contexts(
+        &mut ctx.constraint_refs,
+        active_constraints,
+        post_contexts,
+        &ctx.semantic_context_refs,
+    );
+    let invalidations = appended_span_since(&ctx.invalidations, invalidations_start);
+
+    CallInvalidationResult {
+        post_contexts,
+        post_constraints,
+        invalidations,
+    }
+}
