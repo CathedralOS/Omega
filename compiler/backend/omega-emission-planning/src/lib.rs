@@ -25,6 +25,7 @@ mod host_argument_blockers;
 mod host_binding_blockers;
 mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
+mod selected_instruction_queries;
 mod semantic_scope;
 mod state_call_blockers;
 mod state_codegen_blockers;

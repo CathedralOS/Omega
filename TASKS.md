@@ -600,6 +600,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-core` now exposes an `OperationSemanticQuery` trait so abstract,
     target, and assigned operation kinds share one generic semantic query
     interface while preserving stage-specific aliases and inherent helpers
+  - `omega-emission-planning` now centralizes selected-instruction host
+    boundary payload queries so host binding/argument blockers reuse the
+    operation semantic query surface instead of open-coding boundary matches
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
