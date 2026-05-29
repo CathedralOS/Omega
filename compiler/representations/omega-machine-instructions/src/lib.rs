@@ -11,6 +11,7 @@ pub struct MachineInstructionPlan {
     pub target: NativeTarget,
     pub functions: Arena<MachineInstructionFunction>,
     pub instructions: Arena<MachineInstruction>,
+    pub boundary_edges: omega_target_operations::TargetBoundarySummary,
     pub ownership: omega_target_operations::TargetOwnershipSummary,
 }
 
@@ -30,6 +31,7 @@ impl MachineInstructionPlan {
             target,
             functions: Arena::with_capacity(function_capacity),
             instructions: Arena::with_capacity(instruction_capacity),
+            boundary_edges: omega_target_operations::TargetBoundarySummary::default(),
             ownership: omega_target_operations::TargetOwnershipSummary::default(),
         }
     }
@@ -94,6 +96,7 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                 instructions: inserted,
             });
         }
+        plan.boundary_edges = program.boundary_edges;
         plan.ownership = program.ownership;
         plan
     }
@@ -128,6 +131,7 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
                     instructions: inserted,
                 });
         }
+        program.boundary_edges = plan.boundary_edges;
         program.ownership = plan.ownership;
         program
     }

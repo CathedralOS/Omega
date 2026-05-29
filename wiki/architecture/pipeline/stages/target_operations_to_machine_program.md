@@ -28,7 +28,8 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 - Calls: already represented by target/assigned/symbolic instruction stages.
 - Transitions: already represented by target/assigned/symbolic instruction stages.
 - Effects: already represented by target/assigned/symbolic instruction stages.
-- Boundary edges: already represented by target/assigned/symbolic instruction stages.
+- Boundary edges: boundary-edge summaries are forwarded through assignment,
+  symbolic instruction emission, and the current `MachineProgram` artifact.
 
 ## Ownership Rules
 
@@ -41,3 +42,5 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 This is an aggregate bridge, not the final backend architecture. Object-file emission and direct final-image construction remain future representation boundaries, but they should be documented as future backend work rather than current pipeline stages.
 The bridge preserves ownership summaries as metadata, but explicit transfer and
 cleanup instruction lowering remains future work.
+The bridge also preserves boundary-edge summaries as metadata; those summaries
+still need source-level checked boundary contract linkage.

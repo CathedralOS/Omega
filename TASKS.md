@@ -36,6 +36,9 @@ meaning, without needing access to pointer descriptor internals.
     summaries instead of silently dropping them at backend representation seams
   - assigned-to-machine-instructions and the current machine-program aggregate
     now preserve ownership summaries as metadata
+  - control-flow-to-abstract-operations now records lowered host operations as
+    abstract boundary-edge summaries, and downstream backend representations
+    preserve those summaries as metadata
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -49,6 +52,8 @@ meaning, without needing access to pointer descriptor internals.
     allocation, and lowering can talk about values as clearly as places
   - make boundary edges as queryable in checked/control-flow representations as
     calls, effects, and contracts
+  - connect backend boundary-edge summaries back to checked source-level
+    boundary contracts and target policies
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 

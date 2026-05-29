@@ -29,7 +29,8 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - Calls: host/runtime operation ordinals become target operation keys and ABI bindings.
 - Transitions: preserved as target-aware branch/jump/return operations, not re-scheduled.
 - Effects: carried through as concrete runtime/host operation choices.
-- Boundary edges: resolved to ABI-aware host operation keys and copied host bindings.
+- Boundary edges: preserve abstract boundary-edge summaries while host
+  operations resolve to ABI-aware operation keys and copied host bindings.
 
 ## Ownership Rules
 
@@ -42,3 +43,4 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 This stage still needs a richer distinction between target legalization, ABI lowering, and later physical assignment once target operations grow beyond the current direct mapping.
 It also preserves ownership summaries without yet lowering them into target
 copy/cleanup operations.
+Boundary-edge summaries are preserved through target legalization.
