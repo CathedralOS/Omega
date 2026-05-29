@@ -5,6 +5,7 @@ mod identity;
 mod input;
 mod object;
 mod runtime_text;
+mod source_surface;
 mod state_calls;
 mod stats;
 mod storage;
@@ -53,35 +54,7 @@ pub fn backend_report_text(
     runtime_text::write_runtime_text_sections(&mut output, backend_plan);
 
     codegen::write_codegen_sections(&mut output, backend_plan);
-
-    output.push_str("## Source Native Surface\n");
-    output.push_str(&format!(
-        "entry candidates: {}\n",
-        backend_surface.entry_points.len()
-    ));
-    for (_, entry_point) in backend_surface.entry_points.iter() {
-        output.push_str(&format!(
-            "- entry {}.{}\n",
-            entry_point.machine, entry_point.state
-        ));
-    }
-
-    output.push_str(&format!("platforms: {}\n", backend_surface.platforms.len()));
-    for (_, platform) in backend_surface.platforms.iter() {
-        output.push_str(&format!(
-            "- platform {}: {} state(s)\n",
-            platform.name, platform.states
-        ));
-    }
-
-    output.push_str(&format!("machines: {}\n", backend_surface.machines.len()));
-    for (_, machine) in backend_surface.machines.iter() {
-        output.push_str(&format!(
-            "- machine {}: contains {}, owned data {}, states {}\n",
-            machine.name, machine.contained_objects, machine.owned_data, machine.states
-        ));
-    }
-    output.push('\n');
+    source_surface::write_source_native_surface(&mut output, backend_surface);
 
     output.push_str("## State Schedule\n");
     let schedule_context = StateScheduleContext::new(
