@@ -97,8 +97,8 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     EmissionPlan {
         image_format: input.target.object_format,
         entry_symbol: omega_object_file::object_entry_symbol_name(input.object).to_owned(),
-        sections: input.object.sections.len(),
-        symbols: input.object.symbols.len(),
+        sections: input.object.layout.sections.len(),
+        symbols: input.object.layout.symbols.len(),
         host_bindings: input.host_abi.bindings.len(),
         host_calls: input.host_calls.calls.len(),
         data_bytes: input.data.bytes.len(),

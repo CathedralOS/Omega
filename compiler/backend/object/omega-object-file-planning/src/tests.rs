@@ -81,9 +81,10 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
     })
     .expect("object planning should produce sections and symbols");
 
-    assert_eq!(object.sections.len(), 3);
+    assert_eq!(object.layout.sections.len(), 3);
     assert_eq!(
         object
+            .layout
             .sections
             .iter()
             .find(|(_, section)| section.kind == SectionKind::Text)
@@ -92,6 +93,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
     );
     assert_eq!(
         object
+            .layout
             .sections
             .iter()
             .find(|(_, section)| section.kind == SectionKind::Data)
@@ -100,6 +102,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
     );
     assert_eq!(
         object
+            .layout
             .sections
             .iter()
             .find(|(_, section)| section.kind == SectionKind::Bss)
@@ -107,7 +110,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         Some((40, 16))
     );
 
-    let entry = object.symbols.get(object.entry_symbol);
+    let entry = object.layout.symbols.get(object.layout.entry_symbol);
     assert_eq!(object_entry_symbol_name(&object), entry.name);
     assert_eq!(entry.kind, SymbolKind::Function);
     assert_eq!(entry.section, SymbolSection::Section(SectionKind::Text));
@@ -115,12 +118,14 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
 
     assert!(
         object
+            .layout
             .symbols
             .iter()
             .any(|(_, symbol)| symbol.name == "host_write" && symbol.kind == SymbolKind::Import)
     );
     assert!(
         object
+            .layout
             .symbols
             .iter()
             .any(|(_, symbol)| symbol.name == "payload"
@@ -129,7 +134,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
                 && symbol.offset == 4
                 && symbol.size == 3)
     );
-    assert!(object.symbols.iter().any(|(_, symbol)| symbol.name
+    assert!(object.layout.symbols.iter().any(|(_, symbol)| symbol.name
         == runtime_frame_storage_symbol_name()
         && symbol.kind == SymbolKind::Object
         && symbol.offset == 32

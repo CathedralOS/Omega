@@ -266,6 +266,7 @@ pub(super) fn backend_plan_to_native_image_payload(
 
 fn object_text_size(object: &omega_object_file::ObjectPlan) -> usize {
     object
+        .layout
         .sections
         .iter()
         .find(|(_, section)| section.kind == SectionKind::Text)

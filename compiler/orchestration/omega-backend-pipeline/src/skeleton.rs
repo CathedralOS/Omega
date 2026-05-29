@@ -65,13 +65,17 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         encoded_machine: EncodedMachinePlan::default(),
         object: ObjectPlan {
             target: input.target,
-            sections: omega_core::arena::Arena::new(),
-            symbols: omega_core::arena::Arena::new(),
-            entry_symbol: Handle::<SymbolPlan>::invalid(),
+            layout: omega_object_file::ObjectFileLayout {
+                sections: omega_core::arena::Arena::new(),
+                symbols: omega_core::arena::Arena::new(),
+                entry_symbol: Handle::<SymbolPlan>::invalid(),
+            },
         },
         relocations: RelocationPlan {
             target: input.target,
-            records: omega_core::arena::Arena::new(),
+            record_set: omega_object_file::RelocationRecordSet {
+                records: omega_core::arena::Arena::new(),
+            },
         },
         entry_key: input.entry_key,
         phase_timings: input.phase_timings,

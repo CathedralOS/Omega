@@ -4,8 +4,8 @@ use crate::{
 };
 use omega_core::arena::{Arena, Handle};
 use omega_object_file::{
-    ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind, SectionPlan,
-    SymbolKind, SymbolPlan, SymbolSection,
+    ObjectFileLayout, ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
+    SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
 };
 use omega_target::NativeTarget;
 
@@ -14,48 +14,50 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
     let target = NativeTarget::host();
     let mut object = ObjectPlan {
         target,
-        sections: Arena::new(),
-        symbols: Arena::new(),
-        entry_symbol: Handle::invalid(),
+        layout: ObjectFileLayout {
+            sections: Arena::new(),
+            symbols: Arena::new(),
+            entry_symbol: Handle::invalid(),
+        },
     };
-    object.sections.insert(SectionPlan {
+    object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
         size: 8,
         alignment: 16,
     });
-    object.sections.insert(SectionPlan {
+    object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Data,
         size: 3,
         alignment: 4,
     });
-    object.sections.insert(SectionPlan {
+    object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Bss,
         size: 24,
         alignment: 8,
     });
 
-    let entry_symbol = object.symbols.insert(SymbolPlan {
+    let entry_symbol = object.layout.symbols.insert(SymbolPlan {
         name: "_start".into(),
         section: SymbolSection::Section(SectionKind::Text),
         offset: 4,
         size: 4,
         kind: SymbolKind::Function,
     });
-    let import_symbol = object.symbols.insert(SymbolPlan {
+    let import_symbol = object.layout.symbols.insert(SymbolPlan {
         name: "host_write".into(),
         section: SymbolSection::None,
         offset: 0,
         size: 0,
         kind: SymbolKind::Import,
     });
-    object.symbols.insert(SymbolPlan {
+    object.layout.symbols.insert(SymbolPlan {
         name: "payload".into(),
         section: SymbolSection::Section(SectionKind::Data),
         offset: 2,
         size: 1,
         kind: SymbolKind::Object,
     });
-    object.entry_symbol = entry_symbol;
+    object.layout.entry_symbol = entry_symbol;
 
     let mut relocations = RelocationPlan {
         target,

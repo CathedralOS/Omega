@@ -38,13 +38,17 @@ mod tests {
         let target = NativeTarget::linux_arm64();
         let object = ObjectPlan {
             target,
-            sections: Arena::new(),
-            symbols: Arena::new(),
-            entry_symbol: Handle::invalid(),
+            layout: omega_object_file::ObjectFileLayout {
+                sections: Arena::new(),
+                symbols: Arena::new(),
+                entry_symbol: Handle::invalid(),
+            },
         };
         let relocations = RelocationPlan {
             target,
-            records: Arena::new(),
+            record_set: omega_object_file::RelocationRecordSet {
+                records: Arena::new(),
+            },
         };
 
         let diagnostic = emit_checked_executable_image(

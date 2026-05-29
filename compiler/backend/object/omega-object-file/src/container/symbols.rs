@@ -5,10 +5,10 @@ use crate::{ObjectPlan, symbol_section_name};
 pub(super) fn write_symbols(bytes: &mut Vec<u8>, object: &ObjectPlan) {
     write_u32(
         bytes,
-        u32::try_from(object.symbols.len()).expect("symbol count overflow"),
+        u32::try_from(object.layout.symbols.len()).expect("symbol count overflow"),
     );
 
-    for (_, symbol) in object.symbols.iter() {
+    for (_, symbol) in object.layout.symbols.iter() {
         write_string(bytes, &symbol.name);
         write_string(bytes, &symbol_section_name(object.target, symbol.section));
         write_u64(

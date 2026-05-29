@@ -326,6 +326,9 @@ meaning, without needing access to pointer descriptor internals.
     data-object symbol emission
   - object-file planning now has focused unit canaries for missing
     entry-machine layout and missing encoded entry-function diagnostics
+  - object sections, symbols, and entry symbol now sit under an explicit
+    `ObjectFileLayout` root on `ObjectPlan`, keeping artifact layout shape
+    visible before relocation and final-image stages
   - relocation instruction-record extraction now routes through a thin module
     entrypoint with runtime-value, runtime-text, and runtime-storage relocation
     families split out of the dispatch table; runtime text is split into

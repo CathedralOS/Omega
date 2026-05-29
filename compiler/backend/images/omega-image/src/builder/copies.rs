@@ -4,20 +4,25 @@ use omega_core::arena::Handle;
 use omega_object_file::{ObjectPlan, RelocationPlan, SymbolKind};
 
 pub(super) fn copy_object_symbols(image: &mut FinalImage, object: &ObjectPlan) {
-    image
-        .symbols
-        .insert_many(object.symbols.iter().map(|(_, symbol)| FinalImageSymbol {
-            name: symbol.name.clone(),
-            section: final_image_section(symbol.section),
-            offset: symbol.offset,
-            size: symbol.size,
-            kind: symbol.kind,
-        }));
+    image.symbols.insert_many(
+        object
+            .layout
+            .symbols
+            .iter()
+            .map(|(_, symbol)| FinalImageSymbol {
+                name: symbol.name.clone(),
+                section: final_image_section(symbol.section),
+                offset: symbol.offset,
+                size: symbol.size,
+                kind: symbol.kind,
+            }),
+    );
 }
 
 pub(super) fn copy_object_imports(image: &mut FinalImage, object: &ObjectPlan) {
     image.imports.insert_many(
         object
+            .layout
             .symbols
             .iter()
             .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
