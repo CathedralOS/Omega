@@ -66,6 +66,8 @@ The implementation should stay split by identity task:
 - `symbols/type_references.rs` stamps type-reference symbols.
 - `symbols/scoped_paths.rs` resolves machine/state-scoped name paths for places,
   calls, indexed paths, and transition targets.
+  `symbols/scoped_paths/base.rs` owns the base-segment lookup policy across
+  state parameters, machine children, attached data, and top-level symbols.
 - `symbols/scope.rs` owns `MachineScope`, the local identity context shared by
   statement, expression, call, and transition resolution.
 - `symbols/domain_facts.rs` stamps domain/proof fact references.
