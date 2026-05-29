@@ -58,8 +58,9 @@ meaning, without needing access to pointer descriptor internals.
     statement/expression/transition discovery through an explicit
     `CallSiteTraversal` context instead of raw call ordinal coordinates
   - abstract-operation representation roots now split function plans,
-    operation kinds, value operands, and runtime storage regions instead of
-    hiding all instruction-adjacent data in one selected-instruction file
+    operation records, operation kinds, value operands, instruction operands,
+    and runtime storage regions instead of hiding instruction-adjacent data in
+    `selected.rs`
   - target-operation representation roots now split target function plans,
     operation records, operation kinds, abstract-to-target conversions, value
     operands, and instruction operands instead of hiding all instruction
