@@ -83,6 +83,8 @@ meaning, without needing access to pointer descriptor internals.
     arenas so state remapping reads as one semantic source bundle
   - state-graph-to-control-flow now has focused unit canaries for preserving
     ownership summary spans and owned move-event call sources across the handoff
+  - state-graph-to-control-flow now splits borrowed and owned graph remapping
+    out of the builder facade
   - abstract-to-target lowering now has focused unit coverage proving ownership
     summaries survive target-operation legalization beside values and boundaries
   - abstract-to-target lowering now splits instruction legalization, instruction
