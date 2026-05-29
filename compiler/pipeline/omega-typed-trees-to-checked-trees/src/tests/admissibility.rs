@@ -152,6 +152,51 @@ fn acceptance_summary_derives_rejection_from_dimension_records() {
     );
 }
 
+#[test]
+fn exposes_exit_acceptance_through_shared_view_surface() {
+    let source = r#"
+        data Player {
+            health: i32;
+        }
+
+        domain Player::Alive {
+            self.health > 0;
+        }
+
+        data Main {
+            player: Player;
+        }
+
+        machine Main::main(&mut self) -> i32
+        requires
+            self.player in Player::Alive
+        ensures
+            self.player in Player::Alive
+        {
+            0
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source)).expect("program should check");
+    let main = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = checked.machine_states(main).first().expect("main state");
+    let state_acceptance = checked
+        .state_acceptance(main.symbol, main_state.symbol)
+        .expect("main state acceptance should be queryable");
+    let exit_acceptance = state_acceptance
+        .exit(0)
+        .expect("terminal expression exit acceptance should be queryable");
+
+    assert_acceptance_view_is_queryable(&exit_acceptance);
+    assert!(exit_acceptance.is_accepted());
+    assert_eq!(exit_acceptance.ensures().len(), 1);
+    assert_eq!(exit_acceptance.summary().proof.evidence_count, 1);
+}
+
 fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
