@@ -124,7 +124,9 @@ Current ownership is:
   type/slice classification.
 - `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
-  owns expression traversal that discovers nested state calls.
+  owns expression traversal that discovers nested state calls, and
+  `checks/ranges/state_arguments/statements.rs` owns statement and transition
+  traversal for state-argument fact collection.
 - `checks/contracts.rs` is the contract-check entry point.
   `checks/contracts/calls.rs` owns call `requires` validation and domain
   invalidation explanations, `checks/contracts/exits.rs` owns exit `ensures`
