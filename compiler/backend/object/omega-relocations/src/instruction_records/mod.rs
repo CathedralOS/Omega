@@ -8,8 +8,10 @@ mod runtime_storage_strings;
 mod runtime_storage_writes;
 mod runtime_text;
 mod runtime_text_append;
+mod runtime_text_compare;
 mod runtime_text_materialize;
 mod runtime_text_read;
+mod runtime_text_write;
 mod runtime_values;
 
 use super::data_addresses::collect_data_address_relocations;
