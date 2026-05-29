@@ -58,6 +58,8 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow place handling now splits generic canonical-place conversion
     from state-local contextual name/member recovery, so place construction,
     comparison, and type/member resolution have distinct module seams
+  - typed-to-checked borrow access collection now splits borrow-access place
+    construction from state-local contextual name/member resolution
   - typed-to-checked borrow fact production now splits state-local writable
     root, loan, call-access, and last-use assembly out of the program-level
     borrow entrypoint
