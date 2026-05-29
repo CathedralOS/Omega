@@ -1,10 +1,16 @@
-use crate::expression::lower_expression_handle;
+mod arguments;
+mod calls;
+mod transitions;
+
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle_from_table;
-use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
+
+use self::arguments::lower_statement_expression;
+use self::calls::lower_call_statement;
+use self::transitions::lower_transition_statement;
 
 pub(crate) fn lower_statement_node(
     lowerer: &mut Lowerer,
@@ -17,19 +23,9 @@ pub(crate) fn lower_statement_node(
                 value: lower_statement_expression(lowerer, assignment.value)?,
             }),
         ),
-        resolved::statement::StatementNode::Call(call) => {
-            let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
-
-            Ok(typed::statement::StatementNode::Call(
-                typed::statement::TableCall {
-                    receiver_symbol: call.receiver_symbol,
-                    target_symbol: call.target_symbol,
-                    receiver: lower_statement_path_members(lowerer, call.receiver),
-                    target: crate::name::lower_name(&call.target),
-                    arguments,
-                },
-            ))
-        }
+        resolved::statement::StatementNode::Call(call) => Ok(
+            typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
+        ),
         resolved::statement::StatementNode::Expression(expression) => {
             Ok(typed::statement::StatementNode::Expression(
                 lower_statement_expression(lowerer, *expression)?,
@@ -51,127 +47,10 @@ pub(crate) fn lower_statement_node(
                     .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
             }),
         ),
-        resolved::statement::StatementNode::Transition(transition) => Ok(
-            typed::statement::StatementNode::Transition(typed::statement::TableTransition {
-                target: lower_transition_target(lowerer, transition.target)?,
-                continuation: transition
-                    .continuation
-                    .is_valid()
-                    .then(|| lower_transition_target(lowerer, transition.continuation))
-                    .transpose()?
-                    .unwrap_or_else(typed::statement::TransitionTargetHandle::invalid),
-                guard: lower_transition_guard(lowerer, &transition.guard)?,
-            }),
-        ),
-    }
-}
-
-fn lower_statement_expression(
-    lowerer: &mut Lowerer,
-    expression: resolved::expression::ExpressionHandle,
-) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    lower_expression_handle(lowerer, expression)
-}
-
-fn lower_statement_argument_span(
-    lowerer: &mut Lowerer,
-    arguments: HandleSpan<resolved::expression::ExpressionHandle>,
-) -> Result<HandleSpan<typed::expression::ExpressionHandle>, Diagnostic> {
-    let arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .statements
-        .expression_handles(arguments)
-        .to_vec();
-    let lowered_arguments = arguments
-        .into_iter()
-        .map(|argument| lower_statement_expression(lowerer, argument))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(lowerer
-        .typed_trees
-        .statement_table
-        .insert_expression_handles(lowered_arguments))
-}
-
-fn lower_transition_guard(
-    lowerer: &mut Lowerer,
-    guard: &resolved::statement::TransitionGuardNode,
-) -> Result<typed::statement::TransitionGuardNode, Diagnostic> {
-    match guard {
-        resolved::statement::TransitionGuardNode::Always => {
-            Ok(typed::statement::TransitionGuardNode::Always)
-        }
-        resolved::statement::TransitionGuardNode::When(expression) => {
-            Ok(typed::statement::TransitionGuardNode::When(
-                lower_statement_expression(lowerer, *expression)?,
+        resolved::statement::StatementNode::Transition(transition) => {
+            Ok(typed::statement::StatementNode::Transition(
+                lower_transition_statement(lowerer, transition)?,
             ))
         }
     }
-}
-
-fn lower_transition_target(
-    lowerer: &mut Lowerer,
-    target: resolved::statement::TransitionTargetHandle,
-) -> Result<typed::statement::TransitionTargetHandle, Diagnostic> {
-    let target = match lowerer
-        .source_trees
-        .tables
-        .bodies
-        .statements
-        .transition_target(target)
-    {
-        resolved::statement::TransitionTargetNode::Named { path, arguments } => {
-            let lowered_arguments = lower_statement_argument_span(lowerer, *arguments)?;
-
-            typed::statement::TransitionTargetNode::Named {
-                path: typed::statement::TableNamePath {
-                    members: lower_statement_path_members(lowerer, path.members),
-                    head_symbol: path.head_symbol,
-                    symbol: path.symbol,
-                },
-                arguments: lowered_arguments,
-            }
-        }
-        resolved::statement::TransitionTargetNode::Value(expression) => {
-            typed::statement::TransitionTargetNode::Value(lower_statement_expression(
-                lowerer,
-                *expression,
-            )?)
-        }
-        resolved::statement::TransitionTargetNode::SelfTarget => {
-            typed::statement::TransitionTargetNode::SelfTarget
-        }
-        resolved::statement::TransitionTargetNode::Terminal => {
-            typed::statement::TransitionTargetNode::Terminal
-        }
-    };
-
-    Ok(lowerer
-        .typed_trees
-        .statement_table
-        .insert_transition_target(target))
-}
-
-fn lower_statement_path_members(
-    lowerer: &mut Lowerer,
-    path: HandleSpan<resolved::name::DiagnosticName>,
-) -> HandleSpan<typed::name::Identifier> {
-    let mut lowered_path = HandleSpan::empty();
-
-    for member in lowerer
-        .source_trees
-        .tables
-        .bodies
-        .statements
-        .name_path_members(path)
-    {
-        lowerer
-            .typed_trees
-            .statement_table
-            .push_name_path_member(&mut lowered_path, crate::name::lower_name(member));
-    }
-
-    lowered_path
 }
