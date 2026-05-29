@@ -1,12 +1,13 @@
-use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::NativeTarget;
 use std::sync::Arc;
 
+mod functions;
 mod homes;
 mod operands;
 mod operations;
 
+pub use functions::*;
 pub use homes::*;
 pub use operands::*;
 pub use operations::*;
@@ -1879,23 +1880,6 @@ fn assigned_instruction_span(
 
 fn target_value_handle(handle: Handle<AssignedValueOperand>) -> RuntimeValueOperandHandle {
     Handle::from_parts(handle.arena_index(), handle.generation())
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssignedTargetOperationFunction {
-    pub symbol: Arc<str>,
-    pub source_key: StateKey,
-    pub instructions: HandleSpan<AssignedOperation>,
-}
-
-impl Default for AssignedTargetOperationFunction {
-    fn default() -> Self {
-        Self {
-            symbol: Arc::from(""),
-            source_key: StateKey::default(),
-            instructions: HandleSpan::empty(),
-        }
-    }
 }
 
 impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperationPlan {
