@@ -55,6 +55,9 @@ meaning, without needing access to pointer descriptor internals.
     contextual place-type resolution, and type-reference ownership
     classification modules instead of concentrating every ownership concern in
     one file
+  - checked-flow place handling now splits generic canonical-place conversion
+    from state-local contextual name/member recovery, so place construction,
+    comparison, and type/member resolution have distinct module seams
   - typed-to-checked borrow fact production now splits state-local writable
     root, loan, call-access, and last-use assembly out of the program-level
     borrow entrypoint
