@@ -1,6 +1,6 @@
 use crate::RelocationPlanningInput;
+use crate::offsets::data_address_relocation_offset;
 use omega_calling_conventions::HostOperationKey;
-use omega_instruction_selection as architecture;
 use omega_object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationPlan, RelocationRecord,
     object_symbol_handle_by_name, storage_region_symbol_name,
@@ -39,7 +39,7 @@ pub(super) fn collect_data_address_relocations(
                 function_symbol_handle,
                 selected_instruction_index,
                 data_address_relocation_offset(
-                    input,
+                    input.target.architecture,
                     operation_key,
                     operands,
                     selected_text_offset,
@@ -64,7 +64,7 @@ pub(super) fn collect_data_address_relocations(
                 function_symbol_handle,
                 selected_instruction_index,
                 data_address_relocation_offset(
-                    input,
+                    input.target.architecture,
                     operation_key,
                     operands,
                     selected_text_offset,
@@ -74,29 +74,6 @@ pub(super) fn collect_data_address_relocations(
             );
         }
     }
-}
-
-fn data_address_relocation_offset(
-    input: RelocationPlanningInput<'_>,
-    operation_key: Option<HostOperationKey>,
-    operands: &[omega_assigned_target_operations::InstructionOperand],
-    selected_text_offset: usize,
-    operand_index: usize,
-) -> usize {
-    if input.target.architecture == Architecture::X86_64
-        && let Some(operation_key) = operation_key
-        && let Some(site) =
-            omega_isa_x86_64::host_call_data_relocation_site(operation_key, operands, operand_index)
-    {
-        return selected_text_offset + site.byte_offset;
-    }
-
-    selected_text_offset
-        + operands
-            .iter()
-            .take(operand_index)
-            .map(|operand| architecture::operand_width(input.target.architecture, operand))
-            .sum::<usize>()
 }
 
 pub(super) fn insert_data_address_relocations(
