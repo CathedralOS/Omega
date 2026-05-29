@@ -13,6 +13,7 @@ pub(crate) fn assign_runtime_value_operands(
     for (_, operand) in target_operations.code.runtime_value_operands.iter() {
         let home = assign_value_home(target_operations, operand, &mut next_scratch_slot);
         assigned_target_operations
+            .code
             .runtime_value_operands
             .insert(AssignedValueOperand {
                 kind: operand.clone().into(),

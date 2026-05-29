@@ -62,11 +62,15 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     output.push_str("## Assigned Target Operations\n");
     output.push_str(&format!(
         "functions: {}\n",
-        backend_plan.assigned_target_operations.functions.len()
+        backend_plan.assigned_target_operations.code.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        backend_plan.assigned_target_operations.instructions.len()
+        backend_plan
+            .assigned_target_operations
+            .code
+            .instructions
+            .len()
     ));
     output.push_str(&format!(
         "runtime value homes: {}\n",

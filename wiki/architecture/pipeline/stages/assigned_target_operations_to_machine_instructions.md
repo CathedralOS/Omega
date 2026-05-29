@@ -15,9 +15,10 @@ Primary responsibility: convert assigned target operations into ISA instruction 
 ## Semantic Ownership
 
 This stage owns symbolic instruction shape only. Assigned target operations have
-already chosen concrete homes; this stage turns those assigned homes and
-operation kinds into inspectable machine-instruction variants without deciding
-final bytes, sections, or relocations.
+already chosen concrete homes under `AssignedTargetOperationCode`; this stage
+turns those assigned homes and operation kinds into inspectable
+machine-instruction variants without deciding final bytes, sections, or
+relocations.
 
 | Noun | Ownership |
 | --- | --- |
@@ -51,6 +52,10 @@ Must not own:
 
 - `builder.rs` walks assigned target operations and appends symbolic machine
   instruction functions while preserving semantic metadata summaries.
+- `omega-assigned-target-operations/src/plan.rs` is the input representation
+  root: assigned executable shape and host bindings live under
+  `AssignedTargetOperationCode`, while preserved semantic evidence lives under
+  `AssignedSemanticSummary`.
 - `functions.rs` owns function-local selected-instruction walking and symbolic
   instruction arena appends.
 - `omega-machine-instructions/src/semantics.rs` owns the symbolic

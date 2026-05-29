@@ -8,8 +8,8 @@ pub(crate) fn build_machine_instructions(
 ) -> Result<MachineInstructionPlan, Diagnostic> {
     let mut machine_instructions = MachineInstructionPlan::with_capacity(
         assigned_target_operations.target,
-        assigned_target_operations.functions.len(),
-        assigned_target_operations.instructions.len(),
+        assigned_target_operations.code.functions.len(),
+        assigned_target_operations.code.instructions.len(),
     );
     machine_instructions.semantics.values = assigned_target_operations.semantics.values.clone();
     machine_instructions.semantics.boundary_edges =
@@ -17,7 +17,7 @@ pub(crate) fn build_machine_instructions(
     machine_instructions.semantics.ownership =
         assigned_target_operations.semantics.ownership.clone();
 
-    for (_, function) in assigned_target_operations.functions.iter() {
+    for (_, function) in assigned_target_operations.code.functions.iter() {
         let function_instructions = functions::append_machine_instructions(
             assigned_target_operations,
             function,

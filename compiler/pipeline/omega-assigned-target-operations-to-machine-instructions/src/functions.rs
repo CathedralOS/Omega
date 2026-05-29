@@ -12,6 +12,7 @@ pub(crate) fn append_machine_instructions(
     output_instructions: &mut Arena<MachineInstruction>,
 ) -> Result<HandleSpan<MachineInstruction>, Diagnostic> {
     let Some(selected_instructions) = assigned_target_operations
+        .code
         .instructions
         .span(function.instructions)
     else {

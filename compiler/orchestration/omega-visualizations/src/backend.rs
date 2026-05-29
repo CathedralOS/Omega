@@ -44,7 +44,7 @@ pub fn assigned_target_operations_html(
 ) -> String {
     let function_views = collect_state_function_views(
         "assigned block",
-        plan.instructions.storage_slice(),
+        plan.code.instructions.storage_slice(),
         |instruction| instruction.source_key,
         assigned_instruction_line,
     );
@@ -479,10 +479,10 @@ fn collect_machine_function_views(
     for (index, instruction) in plan.instructions.storage_slice().iter().enumerate() {
         let handle =
             omega_core::arena::Handle::from_arena_index(instruction.selected_instruction_index);
-        if handle.arena_index() as usize >= assigned_plan.instructions.len() {
+        if handle.arena_index() as usize >= assigned_plan.code.instructions.len() {
             continue;
         }
-        let assigned_instruction = assigned_plan.instructions.get(handle);
+        let assigned_instruction = assigned_plan.code.instructions.get(handle);
         let source_key = assigned_instruction.source_key;
         let line = format!("{index:02} {}", machine_instruction_line(instruction));
         if let Some(existing) = views.iter_mut().find(|view| view.source_key == source_key) {
@@ -523,7 +523,7 @@ fn collect_emitted_function_views(
         let selected_handle = omega_core::arena::Handle::from_arena_index(
             machine_instruction.selected_instruction_index,
         );
-        if !assigned_plan.instructions.is_valid(selected_handle) {
+        if !assigned_plan.code.instructions.is_valid(selected_handle) {
             let bytes = encoded_plan
                 .bytes
                 .span(encoded_instruction.bytes)
@@ -532,7 +532,11 @@ fn collect_emitted_function_views(
             continue;
         }
 
-        let source_key = assigned_plan.instructions.get(selected_handle).source_key;
+        let source_key = assigned_plan
+            .code
+            .instructions
+            .get(selected_handle)
+            .source_key;
         let bytes = encoded_plan
             .bytes
             .span(encoded_instruction.bytes)

@@ -10,6 +10,7 @@ pub(super) fn ensure_runtime_value_homes(
     kind: &SelectedInstructionKind,
 ) -> Result<(), Diagnostic> {
     let selected_instruction = assigned_target_operations
+        .code
         .instructions
         .get(selected_instruction_handle);
     for handle in [
