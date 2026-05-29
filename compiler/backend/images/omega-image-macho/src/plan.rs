@@ -1,0 +1,156 @@
+use crate::code_signature::code_signature_size;
+use crate::constants::{
+    MACHO_ARM64_PAGE_SIZE, MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE,
+    MACHO_DYSYMTAB_COMMAND_SIZE, MACHO_EXECUTABLE_BASE,
+    MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_HEADER_SIZE,
+    MACHO_LOAD_DYLINKER_COMMAND_SIZE, MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE, MACHO_MAIN_COMMAND_SIZE,
+    MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE,
+    MACHO_UUID_COMMAND_SIZE,
+};
+use crate::layout::{align_to, align_to_u64};
+use omega_image::{FinalImage, FinalImageLayout};
+
+pub(crate) struct MachOImagePlan {
+    pub(crate) has_imports: bool,
+    pub(crate) has_data_segment: bool,
+    pub(crate) command_count: usize,
+    pub(crate) sizeofcmds: usize,
+    pub(crate) text_offset: usize,
+    pub(crate) data_offset: usize,
+    pub(crate) text_address: u64,
+    pub(crate) data_address: u64,
+    pub(crate) bss_address: u64,
+    pub(crate) text_file_size: usize,
+    pub(crate) data_vm_size: u64,
+    pub(crate) bind_offset: usize,
+    pub(crate) code_signature_offset: usize,
+    pub(crate) code_signature_size: usize,
+    pub(crate) linkedit_vmaddr: u64,
+    pub(crate) linkedit_filesize: usize,
+    pub(crate) linkedit_vmsize: usize,
+}
+
+impl MachOImagePlan {
+    pub(crate) fn final_image_layout(&self) -> FinalImageLayout {
+        FinalImageLayout {
+            text_address: self.text_address,
+            data_address: self.data_address,
+            bss_address: self.bss_address,
+        }
+    }
+}
+
+pub(crate) fn plan_macho_image(
+    image: &FinalImage,
+    import_count: usize,
+    bind_size: usize,
+) -> MachOImagePlan {
+    let has_imports = import_count > 0;
+    let data_section_count = usize::from(!image.data.is_empty()) + usize::from(image.bss_size > 0);
+    let has_data_segment = data_section_count > 0;
+    let command_count = 11 + usize::from(has_data_segment) + usize::from(has_imports);
+    let sizeofcmds = MACHO_SEGMENT_COMMAND_SIZE
+        + (MACHO_SEGMENT_COMMAND_SIZE + MACHO_SECTION_SIZE)
+        + usize::from(has_data_segment)
+            * (MACHO_SEGMENT_COMMAND_SIZE + data_section_count * MACHO_SECTION_SIZE)
+        + MACHO_LOAD_DYLINKER_COMMAND_SIZE
+        + MACHO_UUID_COMMAND_SIZE
+        + MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE
+        + MACHO_MAIN_COMMAND_SIZE
+        + MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE
+        + usize::from(has_imports) * MACHO_DYLD_INFO_COMMAND_SIZE
+        + MACHO_SYMTAB_COMMAND_SIZE
+        + MACHO_DYSYMTAB_COMMAND_SIZE
+        + MACHO_SEGMENT_COMMAND_SIZE
+        + MACHO_CODE_SIGNATURE_COMMAND_SIZE;
+    let text_offset = align_to(MACHO_HEADER_SIZE + sizeofcmds, 16);
+    let data_offset = align_to(text_offset + image.text.len(), MACHO_ARM64_PAGE_SIZE);
+    let text_address = MACHO_EXECUTABLE_BASE + text_offset as u64;
+    let data_address = MACHO_EXECUTABLE_BASE + data_offset as u64;
+    let bss_address = align_to_u64(
+        data_address + image.data.len() as u64,
+        image.bss_alignment as u64,
+    );
+    let text_file_size = if has_data_segment {
+        data_offset
+    } else {
+        align_to(text_offset + image.text.len(), MACHO_ARM64_PAGE_SIZE)
+    };
+    let data_memory_size = if has_data_segment {
+        (bss_address - data_address)
+            .checked_add(image.bss_size as u64)
+            .expect("Mach-O data memory size overflow")
+    } else {
+        0
+    };
+    let data_vm_size = align_to_u64(data_memory_size, MACHO_ARM64_PAGE_SIZE as u64);
+    let unsigned_file_end = if has_data_segment {
+        data_offset + image.data.len()
+    } else {
+        text_offset + image.text.len()
+    };
+    let bind_offset = align_to(unsigned_file_end, MACHO_ARM64_PAGE_SIZE);
+    let code_signature_offset = align_to(bind_offset + bind_size, MACHO_ARM64_PAGE_SIZE);
+    let code_signature_size = code_signature_size(code_signature_offset);
+    let linkedit_vmaddr = MACHO_EXECUTABLE_BASE + bind_offset as u64;
+    let linkedit_filesize = code_signature_offset + code_signature_size - bind_offset;
+    let linkedit_vmsize = align_to(linkedit_filesize, MACHO_ARM64_PAGE_SIZE);
+
+    MachOImagePlan {
+        has_imports,
+        has_data_segment,
+        command_count,
+        sizeofcmds,
+        text_offset,
+        data_offset,
+        text_address,
+        data_address,
+        bss_address,
+        text_file_size,
+        data_vm_size,
+        bind_offset,
+        code_signature_offset,
+        code_signature_size,
+        linkedit_vmaddr,
+        linkedit_filesize,
+        linkedit_vmsize,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plan_macho_image;
+    use crate::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
+    use omega_image::FinalImage;
+
+    #[test]
+    fn plans_macho_data_bss_and_linkedit_layout() {
+        let image = FinalImage {
+            text: vec![0; 3],
+            data: vec![0; 5],
+            bss_size: 7,
+            bss_alignment: 8,
+            ..FinalImage::default()
+        };
+
+        let plan = plan_macho_image(&image, 1, 12);
+
+        assert!(plan.has_imports);
+        assert!(plan.has_data_segment);
+        assert_eq!(plan.command_count, 13);
+        assert_eq!(plan.data_offset, MACHO_ARM64_PAGE_SIZE);
+        assert_eq!(
+            plan.text_address,
+            MACHO_EXECUTABLE_BASE + plan.text_offset as u64
+        );
+        assert_eq!(
+            plan.data_address,
+            MACHO_EXECUTABLE_BASE + MACHO_ARM64_PAGE_SIZE as u64
+        );
+        assert_eq!(plan.bss_address, plan.data_address + 8);
+        assert_eq!(plan.data_vm_size, MACHO_ARM64_PAGE_SIZE as u64);
+        assert_eq!(plan.bind_offset, MACHO_ARM64_PAGE_SIZE * 2);
+        assert_eq!(plan.code_signature_offset, MACHO_ARM64_PAGE_SIZE * 3);
+        assert!(plan.linkedit_filesize >= plan.code_signature_size);
+    }
+}

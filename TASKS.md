@@ -180,6 +180,9 @@ meaning, without needing access to pointer descriptor internals.
     focused module with a canary for data and BSS layout facts
   - `omega-image-macho` now splits import thunk installation, bind-info
     construction, and AArch64 thunk patching out of the executable-emission root
+  - Mach-O direct image emission now splits command sizing, section/data
+    segment placement, bind offsets, linkedit offsets, and code-signature
+    planning into a focused module with a final layout canary
   - `omega-image-elf` now splits ELF constants, byte writers, alignment
     helpers, and ELF/program-header writing out of the executable-emission root
   - ELF direct image emission now splits text/data/BSS address planning into a
