@@ -96,6 +96,34 @@ pub struct AcceptanceSummary {
 }
 
 impl AcceptanceSummary {
+    pub const fn with_checks(
+        borrow: AcceptanceCheck,
+        proof: AcceptanceCheck,
+        effects: AcceptanceCheck,
+        boundaries: AcceptanceCheck,
+        termination: AcceptanceCheck,
+    ) -> Self {
+        let verdict = if borrow.is_satisfied()
+            && proof.is_satisfied()
+            && effects.is_satisfied()
+            && boundaries.is_satisfied()
+            && termination.is_satisfied()
+        {
+            AcceptanceVerdict::Accepted
+        } else {
+            AcceptanceVerdict::Rejected
+        };
+
+        Self {
+            verdict,
+            borrow,
+            proof,
+            effects,
+            boundaries,
+            termination,
+        }
+    }
+
     pub const fn accepted(
         borrow_evidence: usize,
         proof_evidence: usize,
@@ -103,21 +131,17 @@ impl AcceptanceSummary {
         boundary_evidence: usize,
         termination_evidence: usize,
     ) -> Self {
-        Self {
-            verdict: AcceptanceVerdict::Accepted,
-            borrow: AcceptanceCheck::accepted(AcceptanceDimension::Borrow, borrow_evidence),
-            proof: AcceptanceCheck::accepted(AcceptanceDimension::Proof, proof_evidence),
-            effects: AcceptanceCheck::accepted(AcceptanceDimension::Effects, effect_evidence),
-            boundaries: AcceptanceCheck::accepted(
-                AcceptanceDimension::Boundaries,
-                boundary_evidence,
-            ),
-            termination: if termination_evidence == 0 {
+        Self::with_checks(
+            AcceptanceCheck::accepted(AcceptanceDimension::Borrow, borrow_evidence),
+            AcceptanceCheck::accepted(AcceptanceDimension::Proof, proof_evidence),
+            AcceptanceCheck::accepted(AcceptanceDimension::Effects, effect_evidence),
+            AcceptanceCheck::accepted(AcceptanceDimension::Boundaries, boundary_evidence),
+            if termination_evidence == 0 {
                 AcceptanceCheck::not_applicable(AcceptanceDimension::Termination)
             } else {
                 AcceptanceCheck::accepted(AcceptanceDimension::Termination, termination_evidence)
             },
-        }
+        )
     }
 
     pub const fn is_accepted(self) -> bool {
