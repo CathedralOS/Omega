@@ -52,6 +52,9 @@ meaning, without needing access to pointer descriptor internals.
   - symbol-resolved-to-typed statement lowering now splits statement-local
     arguments/name paths, calls, and transitions out of the statement-kind
     dispatch root
+  - typed-tree top-level entry spans now sit under an explicit `TypedTreeRoots`
+    root, so the typed representation exposes its program spine separately from
+    declaration/body/type-reference table storage
   - typed-to-checked semantic fact assembly now splits contract fact place
     recovery and contract payload construction out of the semantic root
   - typed-to-checked semantic call-site lookup now threads recursive

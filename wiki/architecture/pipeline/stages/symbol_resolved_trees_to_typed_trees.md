@@ -12,6 +12,12 @@ Output: `TypedTrees`.
 
 Primary responsibility: attach type and signature meaning.
 
+Representation shape: `TypedTrees` keeps top-level program entry spans under a
+`TypedTreeRoots` root, while declaration, expression, statement, and
+type-reference arenas remain handle/span-backed storage. This keeps the
+source-facing typed program spine visible without forcing later proof, borrow,
+and flow code to chase nested source syntax.
+
 ## Semantic Ownership
 
 This stage owns type and signature meaning. It may prove that a construct has a

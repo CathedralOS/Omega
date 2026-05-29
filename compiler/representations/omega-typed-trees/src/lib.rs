@@ -16,4 +16,4 @@ pub mod typed_trees;
 pub mod types;
 
 pub use snapshot::TypedTreesSnapshot;
-pub use typed_trees::TypedTrees;
+pub use typed_trees::{TypedTreeRoots, TypedTrees};
