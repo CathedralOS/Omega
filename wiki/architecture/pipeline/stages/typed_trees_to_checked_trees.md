@@ -114,6 +114,10 @@ Current ownership is:
   move/drop facts, `boundaries.rs` owns boundary-edge facts, `control.rs` owns
   state/statement/call/exit facts, and `roots.rs` owns grouped `FlowFacts`
   roots plus query helpers.
+- `omega-checked-trees/src/facts/` owns checked semantic facts that are not
+  part of the temporal flow spine: `invariants.rs` owns invariant definition
+  facts, and `domains.rs` owns domain dependency facts and dependency-path
+  accessors.
 - `omega-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query

@@ -319,6 +319,8 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility moved out of one large file into type,
     state, statement, call, exit, and shared-helper modules while preserving
     the single query doorway
+  - checked invariant and domain fact definitions now live in noun-shaped
+    modules instead of a generic `facts.rs` bucket
   - state-graph scheduling shape now sits under an explicit `StateGraphCode`
     root on `StateGraph`, keeping expressions, graph topology, operations, and
     transitions separate from preserved semantic evidence
