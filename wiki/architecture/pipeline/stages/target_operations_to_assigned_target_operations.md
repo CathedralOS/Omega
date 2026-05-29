@@ -19,17 +19,18 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 
 ## Semantic Ownership
 
-- Places: become concrete stack/runtime homes or target-addressable memory shapes.
-- Values: receive assigned homes such as immediates, stack slots, runtime storage, runtime pointees, indexed runtime-frame locations, or scratch registers; target value summaries are preserved as assigned value metadata.
-- Facts: diagnostic metadata only; this stage does not discharge proof obligations.
-- Loans: prior-stage invariant only; borrow state is not rechecked here.
-- Moves: preserve target ownership summaries while physical homes are assigned; explicit assigned transfer operation lowering is still pending.
-- Drops: preserve target ownership summaries while physical homes are assigned; explicit assigned cleanup operation lowering is still pending.
-- Calls: receive physical ABI placement when represented by target operation metadata.
-- Transitions: receive concrete branch/linkage operands where possible, without changing control-flow shape.
-- Effects: remain operation metadata attached to already-authorized operations.
-- Boundary edges: preserve target boundary-edge summaries while host-call
-  operands receive physical ABI placement.
+| Noun | Ownership |
+| --- | --- |
+| Places | Become concrete stack/runtime homes or target-addressable memory shapes. |
+| Values | Receive assigned homes such as immediates, stack slots, runtime storage, runtime pointees, indexed runtime-frame locations, or scratch registers; target value summaries are preserved as assigned value metadata. |
+| Facts | Diagnostic metadata only; this stage does not discharge proof obligations. |
+| Loans | Prior-stage invariant only; borrow state is not rechecked here. |
+| Moves | Preserve target ownership summaries while physical homes are assigned; explicit assigned transfer operation lowering is still pending. |
+| Drops | Preserve target ownership summaries while physical homes are assigned; explicit assigned cleanup operation lowering is still pending. |
+| Calls | Receive physical ABI placement when represented by target operation metadata. |
+| Transitions | Receive concrete branch/linkage operands where possible, without changing control-flow shape. |
+| Effects | Remain operation metadata attached to already-authorized operations. |
+| Boundary edges | Preserve target boundary-edge summaries while host-call operands receive physical ABI placement. |
 
 ## Ownership Rules
 

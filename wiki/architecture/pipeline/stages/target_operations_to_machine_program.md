@@ -19,17 +19,18 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 
 ## Semantic Ownership
 
-- Places: forwarded into assignment and symbolic instruction emission; no new place semantics are created here.
-- Values: forwarded into assignment, symbolic instruction emission, and the current `MachineProgram` artifact; no new value semantics are created here.
-- Facts: not active except diagnostics/debug metadata carried by lower stages.
-- Loans: not active.
-- Moves: ownership summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact.
-- Drops: ownership summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact.
-- Calls: already represented by target/assigned/symbolic instruction stages.
-- Transitions: already represented by target/assigned/symbolic instruction stages.
-- Effects: already represented by target/assigned/symbolic instruction stages.
-- Boundary edges: boundary-edge summaries are forwarded through assignment,
-  symbolic instruction emission, and the current `MachineProgram` artifact.
+| Noun | Ownership |
+| --- | --- |
+| Places | Forwarded into assignment and symbolic instruction emission; no new place semantics are created here. |
+| Values | Forwarded into assignment, symbolic instruction emission, and the current `MachineProgram` artifact; no new value semantics are created here. |
+| Facts | Not active except diagnostics/debug metadata carried by lower stages. |
+| Loans | Not active. |
+| Moves | Ownership summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact. |
+| Drops | Ownership summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact. |
+| Calls | Already represented by target/assigned/symbolic instruction stages. |
+| Transitions | Already represented by target/assigned/symbolic instruction stages. |
+| Effects | Already represented by target/assigned/symbolic instruction stages. |
+| Boundary edges | Boundary-edge summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact. |
 
 ## Ownership Rules
 

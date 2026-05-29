@@ -29,22 +29,18 @@ Primary responsibility: lower checked control flow into explicit operations with
 
 ## Semantic Ownership
 
-- Places: should lower toward abstract storage references, but much of that
-  policy still lives beyond this adapter.
-- Values: preserved as abstract value summaries; later passes should turn them
-  into operands, temporaries, constants, virtual registers, or storage policy.
-- Facts: preserved as diagnostic/proven metadata; not re-proved here.
-- Loans: already validated; may remain as assertions or metadata.
-- Moves: are preserved as abstract ownership events; they should later become
-  explicit abstract copies/transfers or no-ops.
-- Drops: are preserved as abstract ownership events; they should later become
-  abstract cleanup/deallocation calls or no-ops.
-- Calls: should become abstract call operations.
-- Transitions: should become branches, jumps, returns, exits, and block edges.
-- Effects: should attach to abstract operations for later reporting/lowering.
-- Boundary edges: control-flow source boundary edges and lowered host
-  operations become distinct abstract boundary summaries beside abstract
-  runtime/host/compiler calls.
+| Noun | Ownership |
+| --- | --- |
+| Places | Lower toward abstract storage references, but much of that policy still lives beyond this adapter. |
+| Values | Preserved as abstract value summaries; later passes should turn them into operands, temporaries, constants, virtual registers, or storage policy. |
+| Facts | Preserved as diagnostic/proven metadata; not re-proved here. |
+| Loans | Already validated; may remain as assertions or metadata. |
+| Moves | Preserved as abstract ownership events; they should later become explicit abstract copies/transfers or no-ops. |
+| Drops | Preserved as abstract ownership events; they should later become abstract cleanup/deallocation calls or no-ops. |
+| Calls | Should become abstract call operations. |
+| Transitions | Should become branches, jumps, returns, exits, and block edges. |
+| Effects | Should attach to abstract operations for later reporting/lowering. |
+| Boundary edges | Control-flow source boundary edges and lowered host operations become distinct abstract boundary summaries beside abstract runtime/host/compiler calls. |
 
 ## Ownership Rules
 

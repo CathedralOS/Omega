@@ -20,20 +20,18 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 
 ## Semantic Ownership
 
-- Places: re-expressed as target-aware storage operands; no new language-level places are born here.
-- Values: re-expressed as target value operands while abstract value summaries
-  are preserved as target value metadata; this stage may choose target-legal
-  operand shapes but should not invent semantic values.
-- Facts: consumed only as already-lowered operation shape; proof and type facts are not re-proved here.
-- Loans: not owned; borrow legality must already be decided before abstract operations exist.
-- Moves: preserve abstract ownership summaries while target operations are legalized; explicit transfer operation lowering is still pending.
-- Drops: preserve abstract ownership summaries while target operations are legalized; explicit cleanup operation lowering is still pending.
-- Calls: host/runtime operation ordinals become target operation keys and ABI bindings.
-- Transitions: preserved as target-aware branch/jump/return operations, not re-scheduled.
-- Effects: carried through as concrete runtime/host operation choices.
-- Boundary edges: preserve abstract source-boundary and host-operation boundary
-  summaries while host operations resolve to ABI-aware operation keys and copied
-  host bindings.
+| Noun | Ownership |
+| --- | --- |
+| Places | Re-expressed as target-aware storage operands; no new language-level places are born here. |
+| Values | Re-expressed as target value operands while abstract value summaries are preserved as target value metadata; this stage may choose target-legal operand shapes but should not invent semantic values. |
+| Facts | Consumed only as already-lowered operation shape; proof and type facts are not re-proved here. |
+| Loans | Not owned; borrow legality must already be decided before abstract operations exist. |
+| Moves | Preserve abstract ownership summaries while target operations are legalized; explicit transfer operation lowering is still pending. |
+| Drops | Preserve abstract ownership summaries while target operations are legalized; explicit cleanup operation lowering is still pending. |
+| Calls | Host/runtime operation ordinals become target operation keys and ABI bindings. |
+| Transitions | Preserved as target-aware branch/jump/return operations, not re-scheduled. |
+| Effects | Carried through as concrete runtime/host operation choices. |
+| Boundary edges | Preserve abstract source-boundary and host-operation boundary summaries while host operations resolve to ABI-aware operation keys and copied host bindings. |
 
 ## Ownership Rules
 
