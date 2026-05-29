@@ -3,7 +3,7 @@ mod lookup;
 mod traversal;
 
 use crate::lookup::machine_by_symbol;
-use traversal::find_call_site_in_statement;
+use traversal::{CallSiteTraversal, find_call_site_in_statement};
 
 pub(crate) enum CallSite<'program> {
     Statement(&'program omega_typed_trees::statement::TableCall),
@@ -28,16 +28,16 @@ pub(crate) fn find_call_site<'program>(
         .enumerate()
     {
         let mut current_ordinal = 0usize;
-        if let Some(call_site) = find_call_site_in_statement(
+        let mut traversal = CallSiteTraversal::new(
             program,
             machine,
             state,
-            statement,
             current_statement_index,
             statement_index,
             call_ordinal,
             &mut current_ordinal,
-        ) {
+        );
+        if let Some(call_site) = find_call_site_in_statement(&mut traversal, statement) {
             return Some(call_site);
         }
     }

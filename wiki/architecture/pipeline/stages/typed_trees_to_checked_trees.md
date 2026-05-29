@@ -60,6 +60,11 @@ Current ownership is:
   `semantic/contracts/payload.rs` owns contract semantic payload construction.
   `semantic/points.rs` owns proof-obligation and contract program-point/origin
   mapping.
+- `semantic_calls.rs` owns shared call-site lookup used by proof, borrow, flow,
+  mutation, and ownership checks. `semantic_calls/traversal/context.rs` owns
+  `CallSiteTraversal`, the explicit state for locating a statement/expression/
+  transition call ordinal; expression and statement traversal modules should
+  consume that context instead of threading raw coordinates through recursion.
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
   routing, `borrow/accesses/collection.rs` owns the shared
   `BorrowAccessCollection` arena/context bundle, `borrow/accesses/read.rs`
