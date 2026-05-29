@@ -220,6 +220,66 @@ fn records_missing_source_boundary_for_unlinked_host_operation() {
 }
 
 #[test]
+fn records_missing_host_binding_for_unknown_boundary_operation() {
+    let mut abstract_operations = AbstractOperationPlan::default();
+    let source_edge = abstract_operations
+        .semantics
+        .boundary_edges
+        .source_edges
+        .insert(AbstractSourceBoundaryEdge {
+            source_key: Default::default(),
+            statement_index: 9,
+            call_ordinal: 1,
+            receiver_symbol: SymbolHandle::from_arena_index(1),
+            target_symbol: SymbolHandle::from_arena_index(2),
+            boundary_trait_symbol: SymbolHandle::from_arena_index(3),
+            boundary_signature_symbol: SymbolHandle::from_arena_index(4),
+        });
+    let operation_key = HostOperationKey::new(HostCapability::Unknown, HostOperation::Unknown);
+    let lowered_edge =
+        abstract_operations
+            .semantics
+            .boundary_edges
+            .edges
+            .insert(AbstractBoundaryEdge {
+                source_key: Default::default(),
+                statement_index: 9,
+                call_ordinal: 1,
+                operation_ordinal: 0,
+                operation_key,
+            });
+    abstract_operations
+        .semantics
+        .boundary_edges
+        .links
+        .insert(AbstractBoundaryLink {
+            source_edge,
+            lowered_edge,
+        });
+
+    let target_operations = build_target_operation_plan(
+        NativeTarget::linux_arm64(),
+        &build_host_abi_plan(NativeTarget::linux_arm64()),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+
+    let check = target_operations
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .iter()
+        .next()
+        .map(|(_, check)| check)
+        .expect("boundary policy check");
+    assert_eq!(
+        check.verdict,
+        AbstractBoundaryPolicyVerdict::MissingHostBinding
+    );
+    assert!(check.boundary_policy.is_empty());
+}
+
+#[test]
 fn copies_abstract_ownership_summary_to_target_plan() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let target_symbol = SymbolHandle::from_arena_index(1);
