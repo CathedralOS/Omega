@@ -227,6 +227,81 @@ fn materializes_nested_call_argument_moves() {
 }
 
 #[test]
+fn materializes_array_literal_element_moves() {
+    let source = r#"
+        data Item {
+            value: i32;
+        }
+
+        data Main {
+            left: Item;
+            right: Item;
+        }
+
+        machine Main::main(&mut self) {
+            let items: [Item; 2] = [self.left, self.right];
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    let moves = flow.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 2);
+    assert!(moves.iter().all(|event| event.source
+        == omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }));
+    assert!(moves.iter().all(|event| {
+        !flow
+            .ownership_segments
+            .span_or_empty(event.segments)
+            .is_empty()
+    }));
+
+    let drops = flow.drops.span_or_empty(state_flow.drops);
+    assert_eq!(drops.len(), 1);
+}
+
+#[test]
+fn materializes_struct_literal_field_moves() {
+    let source = r#"
+        data Item {
+            value: i32;
+        }
+
+        data Pair {
+            first: Item;
+            second: Item;
+        }
+
+        data Main {
+            left: Item;
+            right: Item;
+        }
+
+        machine Main::main(&mut self) {
+            let pair: Pair = Pair { first: self.left, second: self.right };
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    let moves = flow.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 2);
+    assert!(moves.iter().all(|event| event.source
+        == omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }));
+    assert!(moves.iter().all(|event| {
+        !flow
+            .ownership_segments
+            .span_or_empty(event.segments)
+            .is_empty()
+    }));
+
+    let drops = flow.drops.span_or_empty(state_flow.drops);
+    assert_eq!(drops.len(), 1);
+}
+
+#[test]
 fn does_not_materialize_move_or_drop_events_for_copy_scalar_locals() {
     let source = r#"
         data Main {
