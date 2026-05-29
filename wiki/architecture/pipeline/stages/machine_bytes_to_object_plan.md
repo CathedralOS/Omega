@@ -63,6 +63,8 @@ Must not own:
 - `omega-machine-bytes/src/plan.rs` is the input representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
+- `omega-machine-bytes/src/semantics.rs` keeps encoded semantic summary names
+  as aliases over the preserved backend semantic spine.
 - `omega-object-file/src/plan.rs` owns the object-plan container: artifact
   sections, symbols, and entry symbol live under `ObjectFileLayout`.
 - `omega-object-file/src/sections.rs` owns section records.

@@ -28,7 +28,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   root: executable target operation shape and host bindings live under
   `TargetOperationCode`, while preserved semantic evidence lives under
   `TargetSemanticSummary`.
-- `omega-target-operations/src/instruction/semantics.rs` owns the target semantic summary root for value facts, ownership facts, and boundary edges.
+- `omega-target-operations/src/instruction/semantics.rs` owns the target-stage
+  semantic aliases. `TargetSemanticSummary` is the preserved abstract semantic
+  spine, not a second copy of the same values/boundaries/ownership shape.
 - `omega-target-operations/src/instruction/value.rs` owns target value operands.
 - `omega-target-operations/src/instruction/operand.rs` owns target instruction operands.
 - `tests.rs` owns stage-level preservation canaries for values, ownership, and boundary edges.
