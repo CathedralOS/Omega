@@ -1,17 +1,18 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{
-    ExecutableImageOutput, FinalImage, FinalImageLayout, FinalImageSection,
-    apply_aarch64_relocations, final_image_symbol_name,
-};
+use omega_image::{ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations};
 
 mod bytes;
 mod constants;
+mod entry;
 mod headers;
 mod layout;
+#[cfg(test)]
+mod tests;
 
 use constants::{
     ELF_HEADER_SIZE, IMAGE_BASE, PAGE_SIZE, PROGRAM_HEADER_COUNT, PROGRAM_HEADER_SIZE,
 };
+use entry::elf_entry_address;
 use headers::{write_data_program_header, write_elf_header, write_text_program_header};
 use layout::{align_to, align_to_u64};
 
@@ -61,53 +62,4 @@ pub fn emit_elf_aarch64_executable(
         imports: image.imports.len(),
         relocations: image.relocations.len(),
     })
-}
-
-fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result<u64, Diagnostic> {
-    let entry_symbol = image
-        .symbols
-        .is_valid(image.entry_symbol)
-        .then(|| image.symbols.get(image.entry_symbol))
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "ELF entry symbol `{}` is missing from the final image",
-                final_image_symbol_name(image, image.entry_symbol)
-            ))
-        })?;
-
-    if entry_symbol.section != FinalImageSection::Text {
-        return Err(Diagnostic::error(format!(
-            "ELF entry symbol `{}` is not in the text section",
-            final_image_symbol_name(image, image.entry_symbol)
-        )));
-    }
-
-    Ok(text_address + entry_symbol.offset as u64)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::emit_elf_aarch64_executable;
-    use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
-
-    #[test]
-    fn emits_entry_address_from_final_image_entry_symbol() {
-        let mut image = FinalImage {
-            text: vec![0; 16],
-            ..FinalImage::default()
-        };
-        let entry_symbol = image.symbols.insert(FinalImageSymbol {
-            name: "_start".into(),
-            section: FinalImageSection::Text,
-            offset: 4,
-            size: 4,
-            ..FinalImageSymbol::default()
-        });
-        image.entry_symbol = entry_symbol;
-
-        let output = emit_elf_aarch64_executable(image).expect("ELF image should emit");
-        let entry_bytes: [u8; 8] = output.bytes[24..32].try_into().unwrap();
-
-        assert_eq!(u64::from_le_bytes(entry_bytes), 0x401004);
-    }
 }
