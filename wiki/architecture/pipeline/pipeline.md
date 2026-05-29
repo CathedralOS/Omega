@@ -61,7 +61,8 @@ Use this rule when a pass starts to sprawl:
 
 This table is intentionally blunt. Each cell says the main relationship between
 the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
-`scheduled`, `lowered`, `assigned`, `encoded`, `artifact`, or `final`.
+`scheduled`, `lowered`, `assigned`, `encoded`, `artifact`, `metadata`, or
+`final`.
 
 | Stage | Places | Values | Facts | Loans | Moves | Drops | Calls | Transitions | Effects | Boundaries |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -72,11 +73,11 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Typed Trees To Checked Trees | checked | checked | checked | checked | checked | checked | checked | checked | checked | checked |
 | Checked Trees To State Graph | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | graph | scheduled | scheduled |
 | State Graph To Control Flow | lowered | lowered | preserved | preserved | lowered | lowered | control flow | control flow | preserved | control flow |
-| Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | abstract op |
-| Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target op |
-| Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned |
-| Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction |
-| Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact |
+| Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
+| Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target metadata |
+| Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
+| Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction metadata |
+| Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact metadata |
 
 Current deliberate gaps:
 
@@ -85,8 +86,9 @@ Current deliberate gaps:
   call coverage.
 - Values are still weaker than places in checked trees. We need a durable value
   identity/story that survives proof, borrow, allocation, and lowering work.
-- Boundary edges are visible, but the checked representation should make
-  compiler/runtime/host trust edges as queryable as calls and effects.
+- Backend boundary-edge summaries now preserve lowered host-operation trust
+  edges as metadata. The checked representation should still connect those
+  edges back to source-level boundary contracts and target policies.
 
 ## Stages
 
