@@ -577,6 +577,9 @@ meaning, without needing access to pointer descriptor internals.
     closer to the arena-backed data model
   - `omega-symbol-resolved-trees` type-reference display helpers and table
     canaries now follow the same focused submodule shape
+  - syntax, symbol-resolved, and typed snapshot canaries now live in focused
+    `snapshot/tests.rs` modules so the snapshot roots stay focused on snapshot
+    DTOs and conversion logic
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
