@@ -1,0 +1,110 @@
+use crate::constants::{
+    COFF_HEADER_SIZE, DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE,
+    SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
+};
+use crate::layout::{align_to, align_to_u32};
+use omega_image::{FinalImage, FinalImageLayout};
+
+pub(crate) struct PeSections {
+    pub(crate) text_virtual_size: usize,
+    pub(crate) rdata_virtual_size: usize,
+    pub(crate) has_data: bool,
+    pub(crate) has_bss: bool,
+    pub(crate) section_count: usize,
+    pub(crate) headers_size: usize,
+    pub(crate) text_raw_size: usize,
+    pub(crate) rdata_raw_size: usize,
+    pub(crate) data_raw_size: usize,
+    pub(crate) text_raw: usize,
+    pub(crate) rdata_raw: usize,
+    pub(crate) data_raw: usize,
+    pub(crate) rdata_rva: u32,
+    pub(crate) data_rva: u32,
+    pub(crate) bss_rva: u32,
+    pub(crate) size_of_image: u32,
+}
+
+impl PeSections {
+    pub(crate) fn final_image_layout(&self) -> FinalImageLayout {
+        FinalImageLayout {
+            text_address: IMAGE_BASE + u64::from(TEXT_RVA),
+            data_address: IMAGE_BASE + u64::from(self.data_rva),
+            bss_address: IMAGE_BASE + u64::from(self.bss_rva),
+        }
+    }
+}
+
+pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) -> PeSections {
+    let text_virtual_size = image.text.len();
+    let rdata_rva = align_to_u32(TEXT_RVA + text_virtual_size as u32, SECTION_ALIGNMENT);
+    let data_rva = align_to_u32(rdata_rva + rdata_virtual_size as u32, SECTION_ALIGNMENT);
+    let bss_rva = align_to_u32(data_rva + image.data.len() as u32, SECTION_ALIGNMENT);
+    let has_data = !image.data.is_empty();
+    let has_bss = image.bss_size > 0;
+    let section_count = 2 + usize::from(has_data) + usize::from(has_bss);
+    let headers_size = align_to(
+        DOS_HEADER_SIZE
+            + 4
+            + COFF_HEADER_SIZE
+            + OPTIONAL_HEADER_SIZE
+            + section_count * SECTION_HEADER_SIZE,
+        FILE_ALIGNMENT,
+    );
+    let text_raw_size = align_to(image.text.len(), FILE_ALIGNMENT);
+    let rdata_raw_size = align_to(rdata_virtual_size, FILE_ALIGNMENT);
+    let data_raw_size = align_to(image.data.len(), FILE_ALIGNMENT);
+    let text_raw = headers_size;
+    let rdata_raw = text_raw + text_raw_size;
+    let data_raw = rdata_raw + rdata_raw_size;
+    let size_of_image = align_to_u32(bss_rva + image.bss_size as u32, SECTION_ALIGNMENT);
+
+    PeSections {
+        text_virtual_size,
+        rdata_virtual_size,
+        has_data,
+        has_bss,
+        section_count,
+        headers_size,
+        text_raw_size,
+        rdata_raw_size,
+        data_raw_size,
+        text_raw,
+        rdata_raw,
+        data_raw,
+        rdata_rva,
+        data_rva,
+        bss_rva,
+        size_of_image,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plan_pe_sections;
+    use crate::constants::{FILE_ALIGNMENT, SECTION_ALIGNMENT, TEXT_RVA};
+    use omega_image::FinalImage;
+
+    #[test]
+    fn plans_pe_sections_with_data_and_bss() {
+        let image = FinalImage {
+            text: vec![0; 3],
+            data: vec![0; 5],
+            bss_size: 7,
+            ..FinalImage::default()
+        };
+
+        let sections = plan_pe_sections(&image, 9);
+
+        assert_eq!(sections.section_count, 4);
+        assert_eq!(sections.text_raw_size, FILE_ALIGNMENT);
+        assert_eq!(sections.rdata_raw_size, FILE_ALIGNMENT);
+        assert_eq!(sections.data_raw_size, FILE_ALIGNMENT);
+        assert_eq!(sections.rdata_rva, TEXT_RVA + SECTION_ALIGNMENT as u32);
+        assert_eq!(sections.data_rva, TEXT_RVA + SECTION_ALIGNMENT as u32 * 2);
+        assert_eq!(sections.bss_rva, TEXT_RVA + SECTION_ALIGNMENT as u32 * 3);
+        assert_eq!(
+            sections.size_of_image,
+            TEXT_RVA + SECTION_ALIGNMENT as u32 * 4
+        );
+    }
+}

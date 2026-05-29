@@ -176,6 +176,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-image-pe` now splits PE constants, byte writers, alignment helpers,
     header/section writing, and import thunk/table construction out of the
     executable-emission root
+  - PE direct image emission now splits section/RVA/raw-offset planning into a
+    focused module with a canary for data and BSS layout facts
   - `omega-image-macho` now splits import thunk installation, bind-info
     construction, and AArch64 thunk patching out of the executable-emission root
   - `omega-image-elf` now splits ELF constants, byte writers, alignment
