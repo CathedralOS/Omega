@@ -54,7 +54,8 @@ This stage should read as graph-to-control-flow remapping, with each semantic
 noun preserved in a focused file:
 
 - `builder.rs` assembles the final `ControlFlowPlan` from graph arenas and owns
-  only top-level orchestration.
+  only top-level orchestration. `builder/borrowed.rs` owns borrowed graph
+  remapping, while `builder/owned.rs` owns owned graph remapping.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
   contract, value, boundary, borrow, ownership, operation, transition, and effect summaries.
