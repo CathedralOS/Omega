@@ -1,6 +1,6 @@
 use crate::{
-    AbstractBoundarySummary, AbstractFunctionPlan, AbstractOperation, AbstractOwnershipSummary,
-    AbstractValueOperand, AbstractValueSummary, InstructionOperand,
+    AbstractFunctionPlan, AbstractOperation, AbstractSemanticSummary, AbstractValueOperand,
+    InstructionOperand,
 };
 use omega_core::arena::Arena;
 
@@ -10,9 +10,7 @@ pub struct AbstractOperationPlan {
     pub instructions: Arena<AbstractOperation>,
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<AbstractValueOperand>,
-    pub values: AbstractValueSummary,
-    pub boundary_edges: AbstractBoundarySummary,
-    pub ownership: AbstractOwnershipSummary,
+    pub semantics: AbstractSemanticSummary,
 }
 
 impl Default for AbstractOperationPlan {
@@ -33,9 +31,7 @@ impl AbstractOperationPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
-            values: AbstractValueSummary::default(),
-            boundary_edges: AbstractBoundarySummary::default(),
-            ownership: AbstractOwnershipSummary::default(),
+            semantics: AbstractSemanticSummary::default(),
         }
     }
 }

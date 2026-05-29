@@ -15,8 +15,9 @@ pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
 ) -> AbstractOperationPlan {
     let mut plan = build_instruction_plan(&InstructionSelectionInput::from(input));
-    plan.boundary_edges = build_abstract_boundary_summary(input.control_flow, input.host_calls);
-    plan.ownership = build_abstract_ownership_summary(input.control_flow);
-    plan.values = build_abstract_value_summary(input.control_flow);
+    plan.semantics.boundary_edges =
+        build_abstract_boundary_summary(input.control_flow, input.host_calls);
+    plan.semantics.ownership = build_abstract_ownership_summary(input.control_flow);
+    plan.semantics.values = build_abstract_value_summary(input.control_flow);
     plan
 }
