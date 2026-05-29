@@ -28,6 +28,8 @@ meaning, without needing access to pointer descriptor internals.
     identity only and must not typecheck, prove, borrow-check, or schedule flow
   - syntax-to-symbol expression traversal now splits nested expression walking
     from expression-local name/member/call/domain reference stamping
+  - syntax-to-symbol expression path resolution now splits call-target lookup
+    from receiver/member/indexed path lookup behind an export surface
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve

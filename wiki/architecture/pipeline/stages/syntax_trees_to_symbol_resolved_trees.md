@@ -75,8 +75,10 @@ The implementation should stay split by identity task:
   reference stamping after nested expression children are processed.
   `symbols/expressions/references.rs` owns stamping names, members, calls, and
   domain membership references inside expression tables.
-- `symbols/expression_paths.rs` resolves expression receiver/member paths,
-  indexed receiver paths, and call receivers inside expression tables.
+- `symbols/expression_paths.rs` owns only the expression-path export surface.
+  `symbols/expression_paths/calls.rs` resolves call targets after receiver
+  identity is known, while `symbols/expression_paths/receivers.rs` resolves
+  expression receiver/member paths and indexed receiver paths.
 - `symbols/expression_paths/stamping.rs` owns writing resolved receiver
   head/final symbols back into expression-table nodes.
 - `symbols/targets.rs` owns only target-resolution exports.
