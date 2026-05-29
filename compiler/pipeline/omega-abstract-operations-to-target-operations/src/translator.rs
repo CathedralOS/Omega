@@ -50,6 +50,7 @@ pub(crate) fn build_target_operation_plan(
     }
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);
+    target_operations.values = abstract_operations.values.clone();
     target_operations.boundary_edges = abstract_operations.boundary_edges.clone();
     target_operations.ownership = abstract_operations.ownership.clone();
 
@@ -223,5 +224,56 @@ fn translate_runtime_value_operand(
             operator: *operator,
             right: remap::runtime_value_handle(*right),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_abstract_operations::{
+        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    };
+    use omega_calling_conventions::build_host_abi_plan;
+    use omega_core::symbols::SymbolHandle;
+
+    #[test]
+    fn copies_abstract_value_summary_to_target_plan() {
+        let mut abstract_operations = AbstractOperationPlan::default();
+        let machine_symbol = SymbolHandle::from_arena_index(1);
+        let state_symbol = SymbolHandle::from_arena_index(2);
+
+        abstract_operations.values.values.insert(AbstractValueFact {
+            source_key: Default::default(),
+            machine_symbol,
+            state_symbol,
+            expression: Default::default(),
+            origin: AbstractValueOrigin::Statement {
+                statement_index: 5,
+                role: AbstractValueStatementRole::AssignmentValue,
+            },
+        });
+
+        let target_operations = build_target_operation_plan(
+            NativeTarget::host(),
+            &build_host_abi_plan(NativeTarget::host()),
+            &HostCallPlan::default(),
+            &abstract_operations,
+        );
+
+        assert_eq!(target_operations.values.values.len(), 1);
+        let value = target_operations
+            .values
+            .values
+            .iter()
+            .next()
+            .map(|(_, value)| value)
+            .expect("target value");
+        assert_eq!(
+            value.origin,
+            AbstractValueOrigin::Statement {
+                statement_index: 5,
+                role: AbstractValueStatementRole::AssignmentValue,
+            }
+        );
     }
 }
