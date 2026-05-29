@@ -51,8 +51,9 @@ meaning, without needing access to pointer descriptor internals.
     literal initializers/call arguments so owned places nested inside aggregate
     construction produce move facts
   - checked-flow ownership production is now split into entrypoint, move
-    traversal, call argument routing, state-exit drops, and type-resolution
-    modules instead of concentrating every ownership concern in one file
+    traversal, call argument routing, state-exit drops, move/drop fact emission,
+    and type-reference ownership classification modules instead of
+    concentrating every ownership concern in one file
   - typed-to-checked borrow fact production now splits state-local writable
     root, loan, call-access, and last-use assembly out of the program-level
     borrow entrypoint

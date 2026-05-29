@@ -91,11 +91,12 @@ Current ownership is:
   entrypoint, `flow/ownership/moves.rs` owns recursive move-event production
   for assignments, initializers, aggregate literals, binary/range operands,
   call arguments, nested expression calls, and transition targets,
-  `flow/ownership/calls.rs` owns
-  call-site argument routing, `flow/ownership/drops.rs` owns state-exit local
-  drops, and `flow/ownership/type_resolution.rs` owns the local type-reference
-  resolver that distinguishes copy-like scalar places from ownership-consuming
-  places.
+  `flow/ownership/calls.rs` owns call-site argument routing,
+  `flow/ownership/drops.rs` owns state-exit local drops,
+  `flow/ownership/events.rs` owns move/drop fact emission into the ownership
+  arenas, and `flow/ownership/type_references.rs` owns the local
+  type-reference resolver that distinguishes copy-like scalar places from
+  ownership-consuming places.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
   `flow/domain/dependencies/expression.rs` owns dependency expression
@@ -104,8 +105,10 @@ Current ownership is:
   `flow/domain/invalidation.rs` owns context filtering, while
   `flow/domain/invalidation/matching.rs` owns mutation/dependency overlap
   policy.
-- `flow/place/*` owns canonical place construction, comparison, and type/member
-  resolution used by proof, borrow, and invalidation checks.
+- `flow/place/*` owns canonical place construction, comparison, and
+  type/member resolution used by proof, borrow, and invalidation checks.
+  `flow/place/canonicalization.rs` owns conversion from expressions, symbols,
+  and semantic fact places into checked-flow `CanonicalPlace` values.
 - `values.rs` owns the first durable checked value fact layer entrypoint.
   `values/statement.rs` owns statement-role routing, `values/transition.rs`
   owns transition target value routing, and `values/expression.rs` owns nested
