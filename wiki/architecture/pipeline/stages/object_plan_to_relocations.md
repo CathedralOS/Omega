@@ -1,6 +1,6 @@
 # Object Plan To Relocations
 
-[Pipeline](../pipeline.md) | Previous: [Machine Bytes To Object Plan](machine_bytes_to_object_plan.md) | Next: [Target Operations To Machine Program](target_operations_to_machine_program.md)
+[Pipeline](../pipeline.md) | Previous: [Machine Bytes To Object Plan](machine_bytes_to_object_plan.md) | Next: [Object Relocations To Final Image](object_relocations_to_final_image.md)
 
 This stage derives relocation records from selected target operations, assigned runtime-value homes, encoded instruction offsets, object symbols, data objects, and host ABI bindings.
 

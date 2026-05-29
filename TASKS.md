@@ -99,6 +99,12 @@ meaning, without needing access to pointer descriptor internals.
   - relocation offset math now has a thin module entrypoint with separate
     external-call, runtime-frame-index, runtime-storage, and runtime-text
     offset families
+  - `omega-image` now has a thin crate root plus modules for final-image model
+    records, object/relocation conversion, symbol/address queries, emitted
+    output records, and architecture relocation patching
+  - final-image construction now has a focused unit canary for preserving
+    object symbols, imports, bss sizing/alignment, relocation symbol handles,
+    and final symbol address lookup
   - `omega-validation` now has a thin validation entrypoint plus semantic
     modules for tests, runtime entry-point checks, local writable roots,
     assignment places, calls, transitions, proof facts, domain membership,
@@ -125,6 +131,10 @@ meaning, without needing access to pointer descriptor internals.
   - keep relocation offset helpers paired with the relocation families that
     consume them; do not let `offsets.rs` grow back into a cross-family bag of
     byte constants
+  - split PE and Mach-O image writers where crate roots still mix headers,
+    layout, imports/thunks, fixups, sections, and byte writing
+  - link final-image imports/fixups back to source and lowered boundary-edge
+    summaries for reporting and target-policy validation
   - add focused object-planning canaries for missing entry-machine layout and
     missing encoded entry-function diagnostics
   - consider breaking `omega-assigned-target-operations` operation conversions
