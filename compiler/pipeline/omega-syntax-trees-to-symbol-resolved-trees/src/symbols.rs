@@ -20,7 +20,7 @@ mod top_level;
 mod type_references;
 
 use domain_facts::assign_domain_fact_symbols;
-use statements::assign_statement_call_symbols;
+use statements::assign_statement_reference_symbols;
 use top_level::assign_top_level_symbols;
 
 pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
@@ -28,6 +28,6 @@ pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
-    assign_statement_call_symbols(program, &symbols);
+    assign_statement_reference_symbols(program, &symbols);
     program.symbols = symbols;
 }

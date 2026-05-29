@@ -78,8 +78,10 @@ The implementation should stay split by identity task:
 - `symbols/scope.rs` owns `MachineScope`, the local identity context shared by
   statement, expression, call, and transition resolution.
 - `symbols/domain_facts.rs` stamps domain/proof fact references.
-- `symbols/statements.rs` walks machine states and stamps statement-local calls,
-  locals, transition targets, and statement-owned expression references.
+- `symbols/statements.rs` walks machine states and constructs the machine/state
+  context for statement reference stamping. `symbols/statements/routing.rs`
+  owns statement-kind routing for assignments, locals, expression statements,
+  calls, transition targets, and statement-owned expression references.
 - `symbols/expressions.rs` owns only the expression symbol export surface.
   `symbols/expressions/traversal.rs` walks expression tables and delegates
   expression-local reference stamping after nested expression children are

@@ -43,6 +43,9 @@ meaning, without needing access to pointer descriptor internals.
   - syntax-to-symbol expression handling now splits recursive expression-table
     traversal from expression-local reference stamping behind a narrow export
     surface
+  - syntax-to-symbol statement handling now splits machine/state traversal from
+    statement-kind routing, and the entrypoint name now reflects reference
+    stamping rather than only calls
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
