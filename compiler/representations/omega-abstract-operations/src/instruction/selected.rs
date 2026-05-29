@@ -1,29 +1,10 @@
-use crate::{AbstractDataObjectHandle, InstructionOperand, StateGuardLowering, StateGuardOperator};
+use crate::{
+    AbstractDataObjectHandle, AbstractValueOperandHandle, InstructionOperand, RuntimeStorageRegion,
+    StateGuardLowering, StateGuardOperator,
+};
 use omega_control_flow::StateKey;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use std::sync::Arc;
-
-pub type AbstractValueOperandHandle = Handle<AbstractValueOperand>;
-pub type RuntimeValueOperandHandle = AbstractValueOperandHandle;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractFunctionPlan {
-    pub symbol: Arc<str>,
-    pub source_key: StateKey,
-    pub instructions: HandleSpan<AbstractOperation>,
-}
-
-pub type FunctionInstructionPlan = AbstractFunctionPlan;
-
-impl Default for AbstractFunctionPlan {
-    fn default() -> Self {
-        Self {
-            symbol: Arc::from(""),
-            source_key: StateKey::default(),
-            instructions: HandleSpan::empty(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperation {
@@ -41,55 +22,6 @@ impl Default for AbstractOperation {
             source_key: StateKey::default(),
             source_statement: 0,
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractValueOperand {
-    Immediate(i64),
-    Storage {
-        region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-    },
-    Pointee {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameIndexed {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameBaseIndexed {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameFixedIndexed {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    Binary {
-        left: AbstractValueOperandHandle,
-        operator: StateGuardOperator,
-        right: AbstractValueOperandHandle,
-    },
-}
-
-pub type RuntimeValueOperand = AbstractValueOperand;
-
-impl Default for AbstractValueOperand {
-    fn default() -> Self {
-        Self::Immediate(0)
     }
 }
 
@@ -448,10 +380,3 @@ pub enum AbstractOperationKind {
 }
 
 pub type SelectedInstructionKind = AbstractOperationKind;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuntimeStorageRegion {
-    #[default]
-    Machine,
-    RuntimeFrame,
-}

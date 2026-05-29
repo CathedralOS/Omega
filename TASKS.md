@@ -57,6 +57,9 @@ meaning, without needing access to pointer descriptor internals.
   - typed-to-checked semantic call-site lookup now threads recursive
     statement/expression/transition discovery through an explicit
     `CallSiteTraversal` context instead of raw call ordinal coordinates
+  - abstract-operation representation roots now split function plans,
+    operation kinds, value operands, and runtime storage regions instead of
+    hiding all instruction-adjacent data in one selected-instruction file
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
