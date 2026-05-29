@@ -75,6 +75,8 @@ meaning, without needing access to pointer descriptor internals.
     length and integer fact lookup/mutation
   - range statement checking now splits local alias proof seeding out of
     statement and transition-target routing
+  - range statement checking now splits transition-target range routing out of
+    the statement router
   - typed-to-checked borrow call discovery now threads recursive expression and
     transition traversal through a named `BorrowCallCollection` context instead
     of raw arena/ordinal/state parameters
