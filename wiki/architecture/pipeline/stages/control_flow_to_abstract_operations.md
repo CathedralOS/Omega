@@ -19,6 +19,10 @@ Primary responsibility: lower checked control flow into explicit operations with
   semantic summaries after the transitional instruction-selection adapter runs.
 - `lowering/input.rs` owns `AbstractOperationLoweringInput` and adapts the
   current control-flow/runtime planning bundle into instruction-selection input.
+- `lowering/semantics.rs` owns construction of `AbstractSemanticSummary` from
+  control-flow semantic roots and lowered host-call evidence. The top-level
+  lowering code should assign this root as a unit instead of mutating individual
+  semantic sub-arenas.
 - `omega-control-flow/src/semantics.rs` is the source semantic root for this
   stage: `ControlFlowSemanticRoots` keeps proof, invariant, contract, value,
   boundary, borrow, and ownership arenas visibly separate from executable

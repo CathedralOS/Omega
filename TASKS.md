@@ -323,6 +323,9 @@ meaning, without needing access to pointer descriptor internals.
     `ControlFlowCode` root on `ControlFlowPlan`, keeping expressions,
     machine/state topology, operations, and transitions separate from
     preserved semantic evidence
+  - control-flow-to-abstract-operations now builds `AbstractSemanticSummary`
+    through a dedicated semantic-root builder and assigns the summary as a unit
+    instead of patching semantic sub-arenas in the top-level lowering function
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
