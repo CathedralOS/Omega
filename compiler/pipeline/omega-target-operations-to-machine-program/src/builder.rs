@@ -21,8 +21,9 @@ pub(crate) fn build_machine_program(
 mod tests {
     use super::*;
     use omega_abstract_operations::{
-        AbstractMoveEvent, AbstractOwnershipEventSource, AbstractSourceBoundaryEdge,
-        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+        AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractMoveEvent,
+        AbstractOwnershipEventSource, AbstractSourceBoundaryEdge, AbstractValueFact,
+        AbstractValueOrigin, AbstractValueStatementRole,
     };
     use omega_core::symbols::SymbolHandle;
 
@@ -147,6 +148,43 @@ mod tests {
                 call_ordinal: 3,
                 target_symbol,
             }
+        );
+    }
+
+    #[test]
+    fn preserves_target_boundary_policy_checks_into_machine_program() {
+        let mut target_operations = InstructionPlan::default();
+        target_operations
+            .semantics
+            .boundary_edges
+            .policy_checks
+            .insert(AbstractBoundaryPolicyCheck {
+                boundary_policy: "omega::host::targets::linux".into(),
+                verdict: AbstractBoundaryPolicyVerdict::DisallowedBoundaryPolicy,
+                ..Default::default()
+            });
+
+        let machine_program = build_machine_program(&target_operations).expect("machine program");
+
+        let check = machine_program
+            .semantics
+            .boundary_edges
+            .policy_checks
+            .iter()
+            .next()
+            .map(|(_, check)| check)
+            .expect("machine-program boundary policy check");
+        assert_eq!(
+            machine_program.semantics.boundary_edges.policy_checks.len(),
+            1
+        );
+        assert_eq!(
+            check.verdict,
+            AbstractBoundaryPolicyVerdict::DisallowedBoundaryPolicy
+        );
+        assert_eq!(
+            check.boundary_policy.as_ref(),
+            "omega::host::targets::linux"
         );
     }
 }
