@@ -8,6 +8,7 @@ mod invariants;
 mod locals;
 mod machine_data;
 mod operators;
+mod places;
 mod proof_facts;
 mod state_signatures;
 mod symbols;
@@ -25,6 +26,7 @@ use crate::expression_types::{ExpressionTypeOwner, validate_expression_type_hand
 use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
 use crate::machine_data::{validate_contained_types, validate_owned_data};
+use crate::places::validate_assignment_target_handle;
 use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
     validate_machine_effects,
@@ -36,7 +38,6 @@ use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle}
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::statement::StatementNode;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -183,69 +184,5 @@ fn validate_state_statement_node(
                 );
             }
         }
-    }
-}
-
-fn validate_assignment_target_handle(
-    program: &TypedTrees,
-    target: ExpressionHandle,
-    writable_roots: &WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-    machine_name: &str,
-    state_name: &str,
-) {
-    if !is_mutable_place_handle(program, target) {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment target must be a named place"
-        )));
-        return;
-    }
-
-    let Some(root_name) = expression_root_name_handle(program, target) else {
-        return;
-    };
-
-    if !writable_roots.contains(root_name) {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` because it is not mutable in this state"
-        )));
-    }
-}
-
-fn is_mutable_place_handle(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Indexed(indexed) => is_mutable_place_handle(program, indexed.collection),
-        ExpressionNode::Member(member) => is_mutable_place_handle(program, member.receiver),
-        ExpressionNode::Name(_) => true,
-        _ => false,
-    }
-}
-
-fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Indexed(indexed) => {
-            expression_root_name_handle(program, indexed.collection)
-        }
-        ExpressionNode::Member(member) => {
-            match program.expression_table.expression(member.receiver) {
-                ExpressionNode::Name(path)
-                    if path.members.count() == 1
-                        && program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .first()
-                            .is_some_and(|name| name.as_str() == "self") =>
-                {
-                    Some(member.member.as_str())
-                }
-                _ => expression_root_name_handle(program, member.receiver),
-            }
-        }
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .first()
-            .map(|name| name.as_str()),
-        _ => None,
     }
 }
