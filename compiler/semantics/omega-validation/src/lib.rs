@@ -14,9 +14,10 @@ mod symbols;
 #[cfg(test)]
 mod tests;
 mod traits;
+mod transitions;
 mod type_references;
 
-use crate::calls::{validate_call_arguments_handles, validate_call_node};
+use crate::calls::validate_call_node;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
 use crate::entry_point::validate_entry_point;
@@ -30,13 +31,13 @@ use crate::state_signatures::{
 };
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::traits::{validate_machine_trait_conformances, validate_trait_requirements};
+use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::signature::StateParameter;
-use omega_typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
+use omega_typed_trees::statement::StatementNode;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -247,104 +248,4 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
             .map(|name| name.as_str()),
         _ => None,
     }
-}
-
-fn validate_transition_target_node(
-    program: &TypedTrees,
-    target: TransitionTargetHandle,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    writable_roots: &WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let TransitionTargetNode::Named { path, arguments } =
-        program.statement_table.transition_target(target)
-    else {
-        return;
-    };
-
-    let path = program.statement_table.name_path_members(path.members);
-    let arguments = program.statement_table.expression_handles(*arguments);
-
-    if path.len() == 1 {
-        let Some(state) = machine_symbols.state(path[0].as_str()) else {
-            return;
-        };
-
-        validate_transition_arguments_handles(
-            program,
-            arguments,
-            state.name.as_str(),
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-        );
-
-        return;
-    }
-
-    if path.len() == 2 && path[0].as_str() == "self" {
-        let Some(state) = machine_symbols.state(path[1].as_str()) else {
-            return;
-        };
-
-        validate_transition_arguments_handles(
-            program,
-            arguments,
-            state.name.as_str(),
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
-
-    let Some(receiver_type) = machine_symbols.contained_type(path[0].as_str()) else {
-        return;
-    };
-
-    if path.len() == 2 {
-        let Some(machine) = symbols.machine(receiver_type) else {
-            return;
-        };
-
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name == path[1])
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has no state `{}`",
-                machine.name, path[1]
-            )));
-            return;
-        };
-
-        validate_transition_arguments_handles(
-            program,
-            arguments,
-            &state.name,
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-        );
-    }
-}
-
-fn validate_transition_arguments_handles(
-    program: &TypedTrees,
-    arguments: &[ExpressionHandle],
-    target_name: &str,
-    parameters: &[StateParameter],
-    writable_roots: &WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_call_arguments_handles(
-        program,
-        arguments,
-        target_name,
-        parameters,
-        writable_roots,
-        diagnostics,
-    );
 }
