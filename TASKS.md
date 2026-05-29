@@ -123,6 +123,8 @@ meaning, without needing access to pointer descriptor internals.
     states supplied by boundary trait signatures
   - typed-to-checked flow construction now splits boundary-edge discovery
     through boundary trait conformances out of call flow fact construction
+  - typed-to-checked call flow construction now splits entry, requires,
+    invalidation, and exit context phases out of call fact assembly
   - checked boundary edges now preserve through state graph and control flow as
     state-local boundary summaries
   - control-flow-to-abstract-operations now preserves source-level boundary

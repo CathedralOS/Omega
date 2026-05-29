@@ -8,6 +8,7 @@ use crate::{
 mod borrow_lifetimes;
 mod boundaries;
 mod builder;
+mod call_phases;
 mod calls;
 mod common;
 mod constraints;
@@ -24,6 +25,10 @@ mod transfers;
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 use boundaries::append_call_boundary_edges;
 pub(crate) use builder::build_flow_facts;
+use call_phases::{
+    apply_call_invalidations, build_call_entry_contexts, build_call_exit_contexts,
+    build_call_requires_contexts,
+};
 use calls::build_call_flow_fact;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
