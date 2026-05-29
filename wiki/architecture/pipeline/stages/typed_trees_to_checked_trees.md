@@ -58,7 +58,8 @@ Current ownership is:
   collection, `borrow/accesses/read.rs` owns recursive read-access traversal,
   `borrow/accesses/place.rs` owns borrow-access place construction,
   `borrow/accesses/contextual.rs` owns state-local contextual name/member
-  resolution for those borrow-access places,
+  resolution for those borrow-access places, `borrow/accesses/records.rs` owns
+  argument-access fact emission into borrow arenas,
   `borrow/state.rs` owns state-local borrow fact assembly from writable roots,
   loans, call accesses, and last-use updates,
   `borrow/loans.rs` owns local loan creation/rebasing,
