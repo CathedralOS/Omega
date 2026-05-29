@@ -3,10 +3,15 @@ use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineInstructionPlan {
-    pub target: NativeTarget,
+pub struct MachineInstructionCode {
     pub functions: Arena<MachineInstructionFunction>,
     pub instructions: Arena<MachineInstruction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineInstructionPlan {
+    pub target: NativeTarget,
+    pub code: MachineInstructionCode,
     pub semantics: MachineInstructionSemanticSummary,
 }
 
@@ -24,8 +29,10 @@ impl MachineInstructionPlan {
     ) -> Self {
         Self {
             target,
-            functions: Arena::with_capacity(function_capacity),
-            instructions: Arena::with_capacity(instruction_capacity),
+            code: MachineInstructionCode {
+                functions: Arena::with_capacity(function_capacity),
+                instructions: Arena::with_capacity(instruction_capacity),
+            },
             semantics: MachineInstructionSemanticSummary::default(),
         }
     }

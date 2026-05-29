@@ -10,7 +10,10 @@ Input: symbolic machine instructions plus assigned target-operation context.
 
 Output: encoded machine bytes.
 
-Primary responsibility: compute instruction widths, lay out symbolic instructions, encode their final byte spans, and retain the semantic summaries already attached to the symbolic instruction plan.
+Primary responsibility: compute instruction widths, lay out symbolic
+instructions from `MachineInstructionCode`, encode their final byte spans, and
+retain the semantic summaries already attached to the symbolic instruction
+plan.
 
 ## Semantic Ownership
 
@@ -47,6 +50,10 @@ Must not own:
 ## Implementation Map
 
 - `omega-machine-emission/src/emitter.rs` owns the public stage entrypoint and copies semantic summaries into the encoded plan.
+- `omega-machine-instructions/src/plan.rs` is the input representation root:
+  symbolic executable instruction shape lives under `MachineInstructionCode`,
+  while preserved semantic evidence lives under
+  `MachineInstructionSemanticSummary`.
 - `omega-machine-emission/src/layout.rs` owns instruction width and byte-offset layout.
 - `omega-machine-emission/src/encoding.rs` and `encoding/*` own target byte emission helpers.
 - `omega-machine-emission/src/branch_distances.rs` and submodules own byte-distance queries used by branch encoding.

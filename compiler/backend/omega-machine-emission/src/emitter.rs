@@ -26,12 +26,12 @@ pub fn emit_machine_bytes(
 ) -> Result<EncodedMachinePlan, Diagnostic> {
     let mut encoded_bytes = EncodedMachinePlan::with_capacity(
         input.target,
-        input.machine_instructions.functions.len(),
-        input.machine_instructions.instructions.len(),
+        input.machine_instructions.code.functions.len(),
+        input.machine_instructions.code.instructions.len(),
         0,
     );
 
-    for (_, function) in input.machine_instructions.functions.iter() {
+    for (_, function) in input.machine_instructions.code.functions.iter() {
         let byte_offset = encoded_bytes.bytes.len();
         emit_function_bytes(
             MachineEmissionContext {
@@ -68,6 +68,7 @@ fn emit_function_bytes(
     machine_instructions_span: HandleSpan<MachineInstruction>,
 ) -> Result<(), Diagnostic> {
     let Some(machine_instructions) = machine_instructions
+        .code
         .instructions
         .span(machine_instructions_span)
     else {
@@ -425,32 +426,39 @@ mod tests {
         let assigned_target_operations = AssignedTargetOperationPlan::default();
         let host_abi = build_host_abi_plan(target);
         let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
-        let instructions = machine_instructions
-            .instructions
-            .insert_many([MachineInstruction {
-                selected_instruction_index: 7,
-                source_kind: SelectedInstructionKind::EnterFunction,
-                kind: MachineInstructionKind::NoOp,
-            }]);
+        let instructions =
+            machine_instructions
+                .code
+                .instructions
+                .insert_many([MachineInstruction {
+                    selected_instruction_index: 7,
+                    source_kind: SelectedInstructionKind::EnterFunction,
+                    kind: MachineInstructionKind::NoOp,
+                }]);
         machine_instructions
+            .code
             .functions
             .insert(MachineInstructionFunction {
                 source_key: Default::default(),
                 instructions,
             });
         machine_instructions
+            .semantics
             .values
             .values
             .insert(Default::default());
         machine_instructions
+            .semantics
             .boundary_edges
             .source_edges
             .insert(Default::default());
         machine_instructions
+            .semantics
             .boundary_edges
             .edges
             .insert(Default::default());
         machine_instructions
+            .semantics
             .ownership
             .moves
             .insert(Default::default());

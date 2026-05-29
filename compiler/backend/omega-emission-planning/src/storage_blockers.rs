@@ -174,7 +174,12 @@ fn state_mutation_is_planned(
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
-    input.instructions.instructions.iter().any(|(_, instruction)| {
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
         if !state_key_matches_statement_source(instruction.source_key, source_key)
             || instruction.source_statement != statement_index
         {

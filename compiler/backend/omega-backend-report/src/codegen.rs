@@ -87,11 +87,11 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     output.push_str("## Machine Instructions\n");
     output.push_str(&format!(
         "functions: {}\n",
-        backend_plan.machine_instructions.functions.len()
+        backend_plan.machine_instructions.code.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        backend_plan.machine_instructions.instructions.len()
+        backend_plan.machine_instructions.code.instructions.len()
     ));
     output.push_str(&format!(
         "encoded bytes: {}\n",
@@ -101,7 +101,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
         "bytes: {}\n",
         backend_plan.encoded_machine.byte_count
     ));
-    for (_, function) in backend_plan.machine_instructions.functions.iter() {
+    for (_, function) in backend_plan.machine_instructions.code.functions.iter() {
         write_machine_function_code(output, backend_plan, function);
     }
     output.push('\n');
@@ -1045,6 +1045,7 @@ fn write_machine_function_code(
 
     match backend_plan
         .machine_instructions
+        .code
         .instructions
         .span(function.instructions)
     {
