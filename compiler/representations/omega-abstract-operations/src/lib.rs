@@ -7,7 +7,9 @@ pub mod plan;
 pub mod semantics;
 pub mod values;
 
-pub use boundary::{AbstractBoundaryEdge, AbstractBoundarySummary, AbstractSourceBoundaryEdge};
+pub use boundary::{
+    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundarySummary, AbstractSourceBoundaryEdge,
+};
 pub use data::{
     AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,
     TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan,

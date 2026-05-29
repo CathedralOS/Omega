@@ -33,7 +33,8 @@ Primary responsibility: lower checked control flow into explicit operations with
   seam, not a place to invent new move/drop semantics.
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level
-  authorization.
+  authorization, and links source boundary edges to lowered host-operation
+  edges when they share the same state and statement.
 - `omega-abstract-operations/src/plan/` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.
@@ -87,6 +88,7 @@ operations.
 It preserves control-flow value summaries as abstract value summaries, but does
 not yet consume them to decide type-aware ownership kind, storage shape, or
 runtime operand lowering.
-Boundary-edge summaries now preserve both source-level boundary trait edges and
-lowered host-operation edges. The remaining gap is linking those two layers
-and validating the result against target policy.
+Boundary-edge summaries now preserve both source-level boundary trait edges,
+lowered host-operation edges, and first-pass links between those layers. The
+remaining gap is carrying enough call-ordinal/operation provenance to validate
+the result against target policy with precise diagnostics.

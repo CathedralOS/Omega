@@ -1,6 +1,6 @@
 use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -21,10 +21,17 @@ pub struct AbstractBoundaryEdge {
     pub operation_key: HostOperationKey,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AbstractBoundaryLink {
+    pub source_edge: Handle<AbstractSourceBoundaryEdge>,
+    pub lowered_edge: Handle<AbstractBoundaryEdge>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AbstractBoundarySummary {
     pub source_edges: Arena<AbstractSourceBoundaryEdge>,
     pub edges: Arena<AbstractBoundaryEdge>,
+    pub links: Arena<AbstractBoundaryLink>,
 }
 
 impl AbstractBoundarySummary {
@@ -39,6 +46,7 @@ impl AbstractBoundarySummary {
         Self {
             source_edges: Arena::with_capacity(source_edge_capacity),
             edges: Arena::with_capacity(edge_capacity),
+            links: Arena::new(),
         }
     }
 }
