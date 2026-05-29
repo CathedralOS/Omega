@@ -34,6 +34,11 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert_eq!(state_summary.checks().len(), 5);
     assert_eq!(state_summary.rejected_checks().count(), 0);
     assert!(state_summary.borrow.evidence_count > 0);
+    assert_eq!(state_summary.borrow.diagnostic_count, 0);
+    assert_eq!(
+        state_summary.borrow.provenance,
+        omega_checked_trees::AcceptanceCheckProvenance::AcceptedByEvidence
+    );
     assert_eq!(state_summary.proof.evidence_count, 1);
     assert_eq!(state_acceptance.statements().len(), 1);
     assert_eq!(state_acceptance.calls().len(), 1);
@@ -66,10 +71,43 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         call_summary.termination.verdict,
         omega_checked_trees::AcceptanceCheckVerdict::NotApplicable
     );
+    assert_eq!(
+        call_summary.termination.provenance,
+        omega_checked_trees::AcceptanceCheckProvenance::NotRequired
+    );
     assert!(!call_acceptance.entry_constraints().is_empty());
     assert!(!call_acceptance.requires_constraints().is_empty());
     assert_eq!(call_acceptance.requires().len(), 1);
     assert!(call_acceptance.boundary_edges().is_empty());
+}
+
+#[test]
+fn acceptance_checks_have_diagnostic_provenance_shape_for_rejections() {
+    let rejected = omega_checked_trees::AcceptanceCheck::rejected(
+        omega_checked_trees::AcceptanceDimension::Borrow,
+        2,
+    );
+
+    assert_eq!(
+        rejected.verdict,
+        omega_checked_trees::AcceptanceCheckVerdict::Rejected
+    );
+    assert_eq!(rejected.evidence_count, 0);
+    assert_eq!(rejected.diagnostic_count, 2);
+    assert_eq!(
+        rejected.provenance,
+        omega_checked_trees::AcceptanceCheckProvenance::RejectedByDiagnostic
+    );
+    assert!(!rejected.is_satisfied());
+
+    let pending = omega_checked_trees::AcceptanceCheck::rejected(
+        omega_checked_trees::AcceptanceDimension::Proof,
+        0,
+    );
+    assert_eq!(
+        pending.provenance,
+        omega_checked_trees::AcceptanceCheckProvenance::DiagnosticPending
+    );
 }
 
 fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
