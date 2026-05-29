@@ -71,6 +71,8 @@ meaning, without needing access to pointer descriptor internals.
     known-length and unknown-slice index/subslice validation
   - range expression helpers now split scalar integer/range-bound folding from
     indexable length inference
+  - range fact storage now splits the `RangeFacts` root from local/field
+    length and integer fact lookup/mutation
   - typed-to-checked borrow call discovery now threads recursive expression and
     transition traversal through a named `BorrowCallCollection` context instead
     of raw arena/ordinal/state parameters

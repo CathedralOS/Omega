@@ -130,9 +130,11 @@ Current ownership is:
   They do not yet decide ownership kind, drop policy, or storage shape.
 - `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`
   owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
-  indexed/subslice validation, `checks/ranges/facts.rs` owns local/field range
-  fact storage, `checks/ranges/facts/proofs.rs` owns index/range-bound proof
-  propagation and aliasing, `checks/ranges/guards.rs` owns guard dispatch,
+  indexed/subslice validation, `checks/ranges/facts.rs` owns the `RangeFacts`
+  storage root, `checks/ranges/facts/values.rs` owns local/field length and
+  integer fact lookup/mutation, `checks/ranges/facts/proofs.rs` owns
+  index/range-bound proof propagation and aliasing, `checks/ranges/guards.rs`
+  owns guard dispatch,
   `checks/ranges/guards/bounds.rs` owns comparison-derived length/index/order
   facts, `checks/ranges/indexes.rs` owns indexed-expression traversal,
   `checks/ranges/indexes/validation.rs` owns known-length and unknown-slice
