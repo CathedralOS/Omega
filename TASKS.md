@@ -94,6 +94,8 @@ meaning, without needing access to pointer descriptor internals.
     and object section lookup out of the builder root
   - final-image construction tests now live outside the builder root so
     `builder.rs` stays focused on conversion orchestration
+  - direct image emission now splits input DTOs, target support facts, writer
+    dispatch, and planned-vs-encoded byte validation out of the crate root
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
