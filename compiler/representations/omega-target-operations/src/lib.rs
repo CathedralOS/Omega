@@ -9,8 +9,8 @@ pub use instruction::{
     AbstractDataObjectHandle, FunctionInstructionPlan, HostOperationKey, InstructionOperand,
     InstructionOperandKind, InstructionOperandLike, InstructionPlan, RuntimeStorageRegion,
     RuntimeTextReadSource, RuntimeValueOperand, RuntimeValueOperandHandle,
-    RuntimeValueOperandSource, SelectedInstruction, SelectedInstructionKind, TargetHostBinding,
-    TargetInstructionOperand, TargetInstructionOperandKind, TargetOperation,
+    RuntimeValueOperandSource, SelectedInstruction, SelectedInstructionKind, TargetBoundarySummary,
+    TargetHostBinding, TargetInstructionOperand, TargetInstructionOperandKind, TargetOperation,
     TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetOwnershipSummary,
     TargetValueOperand, TargetValueOperandHandle,
 };

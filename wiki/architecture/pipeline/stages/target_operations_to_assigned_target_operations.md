@@ -28,7 +28,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - Calls: receive physical ABI placement when represented by target operation metadata.
 - Transitions: receive concrete branch/linkage operands where possible, without changing control-flow shape.
 - Effects: remain operation metadata attached to already-authorized operations.
-- Boundary edges: receive physical ABI placement and assigned host-call operands.
+- Boundary edges: preserve target boundary-edge summaries while host-call
+  operands receive physical ABI placement.
 
 ## Ownership Rules
 
@@ -41,3 +42,4 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 Current scratch register assignment is fixed and minimal. Real register allocation, spill insertion, and full stack-frame assignment should grow here or in narrow modules immediately under this stage.
 Ownership summaries are preserved through assignment but not yet lowered into
 assigned copy/cleanup operations.
+Boundary-edge summaries are preserved through assignment.

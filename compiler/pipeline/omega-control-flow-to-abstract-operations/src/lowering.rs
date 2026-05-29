@@ -16,8 +16,10 @@ use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use std::sync::Arc;
 
+mod boundary;
 mod ownership;
 
+use boundary::build_abstract_boundary_summary;
 use ownership::build_abstract_ownership_summary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,6 +75,7 @@ pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
 ) -> AbstractOperationPlan {
     let mut plan = build_instruction_plan(&InstructionSelectionInput::from(input));
+    plan.boundary_edges = build_abstract_boundary_summary(input.host_calls);
     plan.ownership = build_abstract_ownership_summary(input.control_flow);
     plan
 }

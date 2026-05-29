@@ -30,7 +30,7 @@ final bytes, sections, or relocations.
 | Calls | Become symbolic call instructions/sequences. |
 | Transitions | Become symbolic jumps, branches, returns, or dispatch mutations. |
 | Effects | Represented by instruction/call sequences. |
-| Boundary edges | Represented by symbolic imports, calls, syscalls, traps, or runtime sequences. |
+| Boundary edges | Preserve assigned boundary-edge summaries while symbolic host call sequences are emitted. |
 
 ## Ownership Rules
 
@@ -80,3 +80,4 @@ Must not own:
 - Keep instruction selection separate from machine encoding.
 - Ownership summaries are preserved through symbolic instruction emission, but
   not yet consumed to produce explicit copy/drop instruction sequences.
+- Boundary-edge summaries are preserved through symbolic instruction emission.
