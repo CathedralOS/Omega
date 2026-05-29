@@ -80,8 +80,10 @@ The implementation should stay split by identity task:
 - `symbols/domain_facts.rs` stamps domain/proof fact references.
 - `symbols/statements.rs` walks machine states and stamps statement-local calls,
   locals, transition targets, and statement-owned expression references.
-- `symbols/expressions.rs` walks expression tables and delegates expression-local
-  reference stamping after nested expression children are processed.
+- `symbols/expressions.rs` owns only the expression symbol export surface.
+  `symbols/expressions/traversal.rs` walks expression tables and delegates
+  expression-local reference stamping after nested expression children are
+  processed.
   `symbols/expressions/references.rs` owns stamping names, members, calls, and
   domain membership references inside expression tables.
 - `symbols/expression_paths.rs` owns only the expression-path export surface.
