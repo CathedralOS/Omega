@@ -53,6 +53,9 @@ pub fn emit_machine_bytes(
     }
 
     encoded_bytes.byte_count = encoded_bytes.bytes.len();
+    encoded_bytes.values = input.machine_instructions.values.clone();
+    encoded_bytes.boundary_edges = input.machine_instructions.boundary_edges.clone();
+    encoded_bytes.ownership = input.machine_instructions.ownership.clone();
 
     Ok(encoded_bytes)
 }
@@ -401,4 +404,83 @@ fn insert_dispatch_state_write_bytes(
         inserter.insert(byte);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MachineEmissionInput, emit_machine_bytes};
+    use omega_assigned_target_operations::{AssignedTargetOperationPlan, SelectedInstructionKind};
+    use omega_calling_conventions::build_host_abi_plan;
+    use omega_core::arena::HandleSpan;
+    use omega_machine_instructions::{
+        MachineInstruction, MachineInstructionFunction, MachineInstructionKind,
+        MachineInstructionPlan,
+    };
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn copies_machine_semantic_summaries_to_encoded_plan() {
+        let target = NativeTarget::host();
+        let assigned_target_operations = AssignedTargetOperationPlan::default();
+        let host_abi = build_host_abi_plan(target);
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
+        let instructions = machine_instructions
+            .instructions
+            .insert_many([MachineInstruction {
+                selected_instruction_index: 7,
+                source_kind: SelectedInstructionKind::EnterFunction,
+                kind: MachineInstructionKind::NoOp,
+            }]);
+        machine_instructions
+            .functions
+            .insert(MachineInstructionFunction {
+                source_key: Default::default(),
+                instructions,
+            });
+        machine_instructions
+            .values
+            .values
+            .insert(Default::default());
+        machine_instructions
+            .boundary_edges
+            .source_edges
+            .insert(Default::default());
+        machine_instructions
+            .boundary_edges
+            .edges
+            .insert(Default::default());
+        machine_instructions
+            .ownership
+            .moves
+            .insert(Default::default());
+
+        let encoded = emit_machine_bytes(MachineEmissionInput {
+            target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &host_abi,
+            terminal_dispatch_index: 0,
+        })
+        .expect("machine emission should preserve semantic summaries");
+
+        assert_eq!(
+            encoded.values.values.len(),
+            machine_instructions.values.values.len()
+        );
+        assert_eq!(
+            encoded.boundary_edges.source_edges.len(),
+            machine_instructions.boundary_edges.source_edges.len()
+        );
+        assert_eq!(
+            encoded.boundary_edges.edges.len(),
+            machine_instructions.boundary_edges.edges.len()
+        );
+        assert_eq!(
+            encoded.ownership.moves.len(),
+            machine_instructions.ownership.moves.len()
+        );
+        assert_eq!(encoded.instructions.len(), 1);
+        assert!(encoded.byte_count > 0);
+        assert_ne!(instructions, HandleSpan::empty());
+    }
 }

@@ -2,6 +2,10 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
 
+pub type EncodedMachineBoundarySummary = omega_target_operations::TargetBoundarySummary;
+pub type EncodedMachineOwnershipSummary = omega_target_operations::TargetOwnershipSummary;
+pub type EncodedMachineValueSummary = omega_target_operations::TargetValueSummary;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedMachinePlan {
     pub target: NativeTarget,
@@ -9,6 +13,9 @@ pub struct EncodedMachinePlan {
     pub instructions: Arena<EncodedMachineInstruction>,
     pub bytes: Arena<u8>,
     pub byte_count: usize,
+    pub values: EncodedMachineValueSummary,
+    pub boundary_edges: EncodedMachineBoundarySummary,
+    pub ownership: EncodedMachineOwnershipSummary,
 }
 
 impl Default for EncodedMachinePlan {
@@ -30,6 +37,9 @@ impl EncodedMachinePlan {
             instructions: Arena::with_capacity(instruction_capacity),
             bytes: Arena::with_capacity(byte_capacity),
             byte_count: 0,
+            values: EncodedMachineValueSummary::default(),
+            boundary_edges: EncodedMachineBoundarySummary::default(),
+            ownership: EncodedMachineOwnershipSummary::default(),
         }
     }
 }
