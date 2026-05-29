@@ -4,6 +4,7 @@ mod calls;
 mod drops;
 mod events;
 mod moves;
+mod place_types;
 mod type_references;
 
 pub(super) use calls::append_call_ownership_events;
