@@ -1,4 +1,10 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
+mod borrow;
+mod ownership;
+
+pub use borrow::*;
+pub use ownership::*;
+
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::Identifier;
@@ -373,141 +379,6 @@ pub struct InvariantFact {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub constraint_count: usize,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum StateBorrowRootKind {
-    #[default]
-    OwnedData,
-    LocalData,
-    MutableParameter,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowWritableRoot {
-    pub symbol: SymbolHandle,
-    pub kind: StateBorrowRootKind,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum StateBorrowAccessKind {
-    #[default]
-    Read,
-    Mutable,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowArgumentAccess {
-    pub root_symbol: SymbolHandle,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
-    pub kind: StateBorrowAccessKind,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowCall {
-    pub statement_index: usize,
-    pub call_ordinal: usize,
-    pub receiver_symbol: SymbolHandle,
-    pub target_symbol: SymbolHandle,
-    pub has_receiver: bool,
-    pub accesses: HandleSpan<StateBorrowArgumentAccess>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowLoan {
-    pub statement_index: usize,
-    pub last_use_statement_index: usize,
-    pub owner_symbol: SymbolHandle,
-    pub root_symbol: SymbolHandle,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StateBorrowEventSource {
-    Statement {
-        statement_index: usize,
-    },
-    Call {
-        statement_index: usize,
-        call_ordinal: usize,
-        target_symbol: SymbolHandle,
-    },
-}
-
-impl Default for StateBorrowEventSource {
-    fn default() -> Self {
-        Self::Statement { statement_index: 0 }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowActivation {
-    pub source: StateBorrowEventSource,
-    pub loan: Handle<StateBorrowLoan>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum StateBorrowWeakeningReason {
-    #[default]
-    LastUseExpired,
-    StateExit,
-    LocalReassigned,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowWeakening {
-    pub source: StateBorrowEventSource,
-    pub loan: Handle<StateBorrowLoan>,
-    pub reason: StateBorrowWeakeningReason,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateBorrowSummary {
-    pub writable_roots: HandleSpan<StateBorrowWritableRoot>,
-    pub mutable_parameter_count: usize,
-    pub calls: HandleSpan<StateBorrowCall>,
-    pub active_loans: HandleSpan<StateBorrowLoan>,
-    pub activations: HandleSpan<StateBorrowActivation>,
-    pub weakenings: HandleSpan<StateBorrowWeakening>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StateOwnershipEventSource {
-    Statement {
-        statement_index: usize,
-    },
-    Call {
-        statement_index: usize,
-        call_ordinal: usize,
-        target_symbol: SymbolHandle,
-    },
-    StateExit,
-}
-
-impl Default for StateOwnershipEventSource {
-    fn default() -> Self {
-        Self::Statement { statement_index: 0 }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateMoveEvent {
-    pub source: StateOwnershipEventSource,
-    pub root: omega_facts::PlaceRoot,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateDropEvent {
-    pub source: StateOwnershipEventSource,
-    pub root: omega_facts::PlaceRoot,
-    pub segments: HandleSpan<omega_facts::PlaceSegment>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateOwnershipSummary {
-    pub moves: HandleSpan<StateMoveEvent>,
-    pub drops: HandleSpan<StateDropEvent>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
