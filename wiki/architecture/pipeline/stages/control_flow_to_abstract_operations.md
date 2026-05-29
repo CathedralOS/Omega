@@ -17,6 +17,9 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `lib.rs` owns the public stage entrypoint only.
 - `lowering.rs` owns `AbstractOperationLoweringInput` and adapts the current
   control-flow/runtime planning bundle into instruction-selection input.
+- `lowering/ownership.rs` owns the control-flow ownership-event copy into the
+  abstract-operation ownership summary. It should remain a preservation/lowering
+  seam, not a place to invent new move/drop semantics.
 - The actual operation construction currently happens in
   `omega-instruction-selection`; this is a transitional boundary, not the
   desired long-term split.
@@ -29,10 +32,10 @@ Primary responsibility: lower checked control flow into explicit operations with
   registers.
 - Facts: preserved as diagnostic/proven metadata; not re-proved here.
 - Loans: already validated; may remain as assertions or metadata.
-- Moves: should become explicit abstract copies/transfers or no-ops from
-  control-flow ownership events.
-- Drops: should become abstract cleanup/deallocation calls or no-ops from
-  control-flow ownership events.
+- Moves: are preserved as abstract ownership events; they should later become
+  explicit abstract copies/transfers or no-ops.
+- Drops: are preserved as abstract ownership events; they should later become
+  abstract cleanup/deallocation calls or no-ops.
 - Calls: should become abstract call operations.
 - Transitions: should become branches, jumps, returns, exits, and block edges.
 - Effects: should attach to abstract operations for later reporting/lowering.
@@ -53,5 +56,6 @@ Primary responsibility: lower checked control flow into explicit operations with
 This stage is not yet a true representation-to-representation lowering pass.
 Runtime and instruction-selection policy still owns too much of the abstract
 operation construction that should eventually live here.
-It also does not yet consume control-flow move/drop events to build explicit
-transfer and cleanup operations.
+It preserves control-flow move/drop events as abstract ownership summaries, but
+does not yet consume those summaries to build explicit transfer and cleanup
+operations.

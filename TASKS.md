@@ -30,6 +30,8 @@ meaning, without needing access to pointer descriptor internals.
     assignment/local-initializer moves and state-exit local drops
   - checked-flow now emits conservative call-source move events for direct
     by-value machine call arguments while skipping reference parameters
+  - control-flow-to-abstract-operations now preserves control-flow move/drop
+    events into an arena-backed abstract ownership summary
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -37,7 +39,7 @@ meaning, without needing access to pointer descriptor internals.
     ownership-consuming values are distinguished
   - teach transition and nested expression-call analysis to append ownership
     transfer/drop events into the existing checked-flow ownership arenas
-  - lower move/drop events from control flow into explicit backend transfer and
+  - lower abstract ownership summaries into explicit backend transfer and
     cleanup operations
   - define durable value identity in checked trees so proof, borrow,
     allocation, and lowering can talk about values as clearly as places

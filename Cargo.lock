@@ -90,6 +90,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
+ "omega-facts",
 ]
 
 [[package]]
@@ -334,6 +335,8 @@ dependencies = [
  "omega-calling-conventions",
  "omega-checked-trees",
  "omega-control-flow",
+ "omega-core",
+ "omega-facts",
  "omega-instruction-selection",
  "omega-layout",
  "omega-platform-interface",
