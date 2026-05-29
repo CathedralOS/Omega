@@ -3,6 +3,8 @@ mod builder;
 mod model;
 mod output;
 mod symbols;
+#[cfg(test)]
+mod tests;
 mod x86_64_relocations;
 
 pub use aarch64_relocations::apply_aarch64_relocations;

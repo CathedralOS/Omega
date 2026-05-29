@@ -54,6 +54,8 @@ Must not own:
   relocation copying into final-image arenas.
 - `omega-image/src/builder/sections.rs` owns object section size/alignment
   lookup for final-image construction.
+- `omega-image/src/tests.rs` owns final-image construction canaries so
+  `builder.rs` stays focused on conversion orchestration.
 - `omega-image/src/symbols.rs` owns final-image symbol handle mapping, symbol names, import checks, and address queries.
 - `omega-image/src/output.rs` owns emitted image output DTOs.
 - `omega-image/src/*_relocations.rs` owns architecture-specific final relocation patching helpers.

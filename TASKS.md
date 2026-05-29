@@ -92,6 +92,8 @@ meaning, without needing access to pointer descriptor internals.
     `builder.rs` stays focused on the stage conveyor
   - final-image construction now splits object symbol/import/relocation copying
     and object section lookup out of the builder root
+  - final-image construction tests now live outside the builder root so
+    `builder.rs` stays focused on conversion orchestration
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
