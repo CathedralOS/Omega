@@ -1,7 +1,8 @@
 use crate::MachineEmissionContext;
 use crate::host_bindings::host_binding_mechanism;
+use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::{
-    RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
+    SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
@@ -67,22 +68,26 @@ fn machine_instruction_width(
     input: MachineEmissionContext<'_>,
     kind: &SelectedInstructionKind,
 ) -> Result<usize, Diagnostic> {
-    Ok(match kind {
-        SelectedInstructionKind::HostOperation {
-            operation_key,
-            operands,
-        } => {
-            let operands = input
-                .assigned_target_operations
-                .instruction_operands(*operands)
-                .unwrap_or(&[]);
-            match host_binding_mechanism(input, *operation_key) {
+    if let Some(host_operation) = selected_host_operation(kind) {
+        let operands = input
+            .assigned_target_operations
+            .instruction_operands(host_operation.operands)
+            .unwrap_or(&[]);
+        return Ok(
+            match host_binding_mechanism(input, host_operation.operation_key) {
                 Some(HostBindingMechanism::Syscall { number, .. }) => {
                     syscall_sequence_width(input.target.architecture, operands, *number)
                 }
-                _ => host_call_sequence_width(input.target.architecture, *operation_key, operands),
-            }
-        }
+                _ => host_call_sequence_width(
+                    input.target.architecture,
+                    host_operation.operation_key,
+                    operands,
+                ),
+            },
+        );
+    }
+
+    Ok(match kind {
         SelectedInstructionKind::EnterDispatchLoop { .. } => {
             dispatch_loop_enter_width(input.target.architecture)
         }
@@ -393,22 +398,25 @@ fn machine_instruction_width(
             *element_byte_size,
             *field_byte_offset,
         ),
-        SelectedInstructionKind::ReadRuntimeTextLine {
-            byte_capacity,
-            source,
-            ..
-        } => {
-            let RuntimeTextReadSource::HostOperation { operation_key } = source;
-            let Some(binding) = input.assigned_target_operations.host_binding(*operation_key) else {
+        SelectedInstructionKind::ReadRuntimeTextLine { .. } => {
+            let Some(read) = selected_host_text_read(kind) else {
+                return Err(Diagnostic::error(
+                    "cannot lay out runtime text read: missing host operation source",
+                ));
+            };
+            let Some(binding) = input
+                .assigned_target_operations
+                .host_binding(read.operation_key)
+            else {
                 return Err(Diagnostic::error(format!(
                     "missing host binding for runtime text read operation {}.{}",
-                    operation_key.capability_name(),
-                    operation_key.operation_name()
+                    read.operation_key.capability_name(),
+                    read.operation_key.operation_name()
                 )));
             };
             runtime_text_line_read_width(
                 input.target.architecture,
-                *byte_capacity,
+                read.byte_capacity,
                 &binding.mechanism,
             )
         }
@@ -533,5 +541,10 @@ fn machine_instruction_width(
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall => 0,
+        SelectedInstructionKind::HostOperation { .. } => {
+            return Err(Diagnostic::error(
+                "internal error: host operation was not handled by machine layout host query",
+            ));
+        }
     })
 }

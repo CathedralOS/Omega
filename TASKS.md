@@ -606,6 +606,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-relocations` now centralizes selected host-operation and host text
     read payload extraction before relocation collectors consume boundary
     operation details
+  - `omega-machine-emission` now centralizes selected host-operation and host
+    text-read payload extraction before layout/encoding consume boundary
+    operation details
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
