@@ -28,13 +28,15 @@ meaning, without needing access to pointer descriptor internals.
     ownership summaries without nested per-state allocations
   - checked-flow now emits initial conservative move/drop events for path-like
     assignment/local-initializer moves and state-exit local drops
+  - checked-flow now emits conservative call-source move events for direct
+    by-value machine call arguments while skipping reference parameters
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
   - make ownership event production type-aware so Copy/no-drop values and real
     ownership-consuming values are distinguished
-  - teach call and transition analysis to append ownership transfer/drop events
-    into the existing checked-flow ownership arenas
+  - teach transition and nested expression-call analysis to append ownership
+    transfer/drop events into the existing checked-flow ownership arenas
   - lower move/drop events from control flow into explicit backend transfer and
     cleanup operations
   - define durable value identity in checked trees so proof, borrow,
