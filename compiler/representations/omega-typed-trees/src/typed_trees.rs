@@ -8,30 +8,24 @@ use omega_core::symbols::SymbolTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTrees {
-    pub root_data_definitions: HandleSpan<data::DataDefinition>,
+    pub roots: TypedTreeRoots,
     pub data_definitions: Arena<data::DataDefinition>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
-    pub root_domains: HandleSpan<domain::DomainDefinition>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
-    pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
-    pub root_machines: HandleSpan<machine::Machine>,
     pub machines: Arena<machine::Machine>,
-    pub root_operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub operators: Arena<crate::operator::OperatorDefinition>,
     pub machine_contained_objects: Arena<machine::ContainedObject>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
-    pub root_traits: HandleSpan<trait_definition::TraitDefinition>,
     pub traits: Arena<trait_definition::TraitDefinition>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
@@ -43,15 +37,26 @@ pub struct TypedTrees {
     pub symbols: SymbolTable,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TypedTreeRoots {
+    pub data_definitions: HandleSpan<data::DataDefinition>,
+    pub domain_definitions: HandleSpan<domain::DomainDefinition>,
+    pub invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
+    pub machines: HandleSpan<machine::Machine>,
+    pub operators: HandleSpan<crate::operator::OperatorDefinition>,
+    pub platforms: HandleSpan<platform::Platform>,
+    pub traits: HandleSpan<trait_definition::TraitDefinition>,
+}
+
 impl TypedTrees {
     pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
         self.data_definitions
-            .append_to_span(&mut self.root_data_definitions, data_definition);
+            .append_to_span(&mut self.roots.data_definitions, data_definition);
     }
 
     pub fn data_definitions(&self) -> &[data::DataDefinition] {
         self.data_definitions
-            .span_or_empty(self.root_data_definitions)
+            .span_or_empty(self.roots.data_definitions)
     }
 
     pub fn push_data_type_parameter(
@@ -86,7 +91,7 @@ impl TypedTrees {
 
     pub fn push_domain_definition(&mut self, domain_definition: domain::DomainDefinition) {
         self.domain_definitions
-            .append_to_span(&mut self.root_domains, domain_definition);
+            .append_to_span(&mut self.roots.domain_definitions, domain_definition);
     }
 
     pub fn push_domain_operator(
@@ -99,7 +104,8 @@ impl TypedTrees {
     }
 
     pub fn domain_definitions(&self) -> &[domain::DomainDefinition] {
-        self.domain_definitions.span_or_empty(self.root_domains)
+        self.domain_definitions
+            .span_or_empty(self.roots.domain_definitions)
     }
 
     pub fn domain_operators(
@@ -125,26 +131,26 @@ impl TypedTrees {
         invariant_definition: invariant::InvariantDefinition,
     ) {
         self.invariant_definitions
-            .append_to_span(&mut self.root_invariants, invariant_definition);
+            .append_to_span(&mut self.roots.invariant_definitions, invariant_definition);
     }
 
     pub fn invariant_definitions(&self) -> &[invariant::InvariantDefinition] {
         self.invariant_definitions
-            .span_or_empty(self.root_invariants)
+            .span_or_empty(self.roots.invariant_definitions)
     }
 
     pub fn push_platform(&mut self, platform: platform::Platform) {
         self.platforms
-            .append_to_span(&mut self.root_platforms, platform);
+            .append_to_span(&mut self.roots.platforms, platform);
     }
 
     pub fn push_operator(&mut self, operator: crate::operator::OperatorDefinition) {
         self.operators
-            .append_to_span(&mut self.root_operators, operator);
+            .append_to_span(&mut self.roots.operators, operator);
     }
 
     pub fn operators(&self) -> &[crate::operator::OperatorDefinition] {
-        self.operators.span_or_empty(self.root_operators)
+        self.operators.span_or_empty(self.roots.operators)
     }
 
     pub fn push_operator_path_member(
@@ -206,16 +212,16 @@ impl TypedTrees {
     }
 
     pub fn platforms(&self) -> &[platform::Platform] {
-        self.platforms.span_or_empty(self.root_platforms)
+        self.platforms.span_or_empty(self.roots.platforms)
     }
 
     pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
         self.traits
-            .append_to_span(&mut self.root_traits, trait_definition);
+            .append_to_span(&mut self.roots.traits, trait_definition);
     }
 
     pub fn traits(&self) -> &[trait_definition::TraitDefinition] {
-        self.traits.span_or_empty(self.root_traits)
+        self.traits.span_or_empty(self.roots.traits)
     }
 
     pub fn push_trait_requirement(
@@ -271,15 +277,15 @@ impl TypedTrees {
 
     pub fn push_machine(&mut self, machine: machine::Machine) {
         self.machines
-            .append_to_span(&mut self.root_machines, machine);
+            .append_to_span(&mut self.roots.machines, machine);
     }
 
     pub fn machines(&self) -> &[machine::Machine] {
-        self.machines.span_or_empty(self.root_machines)
+        self.machines.span_or_empty(self.roots.machines)
     }
 
     pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
-        self.machines.span_mut_or_empty(self.root_machines)
+        self.machines.span_mut_or_empty(self.roots.machines)
     }
 
     pub fn push_machine_contained_object(
