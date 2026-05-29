@@ -83,12 +83,14 @@ Current ownership is:
   activation, mutation invalidation, and transfer propagation,
   `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
   entry/requires/ensures/effect/invalidation flow facts, and `flow/exits.rs`
-  owns exit/ensures flow facts. `flow/ownership.rs` owns move/drop event
-  production for assignment/local-initializer moves, aggregate literal member
-  moves, by-value direct-call argument moves, nested expression-call argument
-  moves, transition target argument moves, and state-exit local drops, while
-  `flow/ownership/type_resolution.rs` owns the local type-reference resolver
-  that distinguishes copy-like scalar places from ownership-consuming places.
+  owns exit/ensures flow facts. `flow/ownership.rs` is the ownership-event
+  entrypoint, `flow/ownership/moves.rs` owns recursive move-event production
+  for assignments, initializers, aggregate literals, call arguments, nested
+  expression calls, and transition targets, `flow/ownership/calls.rs` owns
+  call-site argument routing, `flow/ownership/drops.rs` owns state-exit local
+  drops, and `flow/ownership/type_resolution.rs` owns the local type-reference
+  resolver that distinguishes copy-like scalar places from ownership-consuming
+  places.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
   `flow/domain/dependencies/expression.rs` owns dependency expression

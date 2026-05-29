@@ -46,6 +46,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow ownership event production now descends into array and struct
     literal initializers/call arguments so owned places nested inside aggregate
     construction produce move facts
+  - checked-flow ownership production is now split into entrypoint, move
+    traversal, call argument routing, state-exit drops, and type-resolution
+    modules instead of concentrating every ownership concern in one file
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
