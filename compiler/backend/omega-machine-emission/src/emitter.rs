@@ -31,8 +31,8 @@ mod tests {
     use omega_calling_conventions::build_host_abi_plan;
     use omega_core::arena::HandleSpan;
     use omega_machine_instructions::{
-        MachineInstruction, MachineInstructionFunction, MachineInstructionKind,
-        MachineInstructionPlan,
+        AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, MachineInstruction,
+        MachineInstructionFunction, MachineInstructionKind, MachineInstructionPlan,
     };
     use omega_target::NativeTarget;
 
@@ -75,6 +75,15 @@ mod tests {
             .insert(Default::default());
         machine_instructions
             .semantics
+            .boundary_edges
+            .policy_checks
+            .insert(AbstractBoundaryPolicyCheck {
+                boundary_policy: "omega::host::targets::linux".into(),
+                verdict: AbstractBoundaryPolicyVerdict::MissingHostBinding,
+                ..Default::default()
+            });
+        machine_instructions
+            .semantics
             .ownership
             .moves
             .insert(Default::default());
@@ -103,6 +112,26 @@ mod tests {
         assert_eq!(
             encoded.semantics.boundary_edges.edges.len(),
             machine_instructions.semantics.boundary_edges.edges.len()
+        );
+        assert_eq!(
+            encoded.semantics.boundary_edges.policy_checks.len(),
+            machine_instructions
+                .semantics
+                .boundary_edges
+                .policy_checks
+                .len()
+        );
+        let check = encoded
+            .semantics
+            .boundary_edges
+            .policy_checks
+            .iter()
+            .next()
+            .map(|(_, check)| check)
+            .expect("encoded boundary policy check");
+        assert_eq!(
+            check.verdict,
+            AbstractBoundaryPolicyVerdict::MissingHostBinding
         );
         assert_eq!(
             encoded.semantics.ownership.moves.len(),

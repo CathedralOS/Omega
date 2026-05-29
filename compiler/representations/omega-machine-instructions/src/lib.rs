@@ -9,4 +9,7 @@ pub use instructions::*;
 pub use plan::*;
 pub use semantics::*;
 
+pub use omega_assigned_target_operations::{
+    AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict,
+};
 pub use omega_machine_program::MachineInstructionKind;

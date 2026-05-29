@@ -1,6 +1,7 @@
 use crate::build_machine_instructions;
 use omega_abstract_operations::{
-    AbstractMoveEvent, AbstractOwnershipEventSource, AbstractSourceBoundaryEdge, AbstractValueFact,
+    AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractMoveEvent,
+    AbstractOwnershipEventSource, AbstractSourceBoundaryEdge, AbstractValueFact,
     AbstractValueOrigin, AbstractValueStatementRole,
 };
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
@@ -132,5 +133,47 @@ fn copies_assigned_ownership_summary_to_machine_instruction_plan() {
             call_ordinal: 2,
             target_symbol,
         }
+    );
+}
+
+#[test]
+fn copies_assigned_boundary_policy_checks_to_machine_instruction_plan() {
+    let mut assigned_operations = AssignedTargetOperationPlan::default();
+    assigned_operations
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .insert(AbstractBoundaryPolicyCheck {
+            boundary_policy: "omega::host::targets::linux".into(),
+            verdict: AbstractBoundaryPolicyVerdict::MissingSourceBoundary,
+            ..Default::default()
+        });
+
+    let machine_instructions =
+        build_machine_instructions(&assigned_operations).expect("machine instructions");
+
+    let check = machine_instructions
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .iter()
+        .next()
+        .map(|(_, check)| check)
+        .expect("machine boundary policy check");
+    assert_eq!(
+        machine_instructions
+            .semantics
+            .boundary_edges
+            .policy_checks
+            .len(),
+        1
+    );
+    assert_eq!(
+        check.verdict,
+        AbstractBoundaryPolicyVerdict::MissingSourceBoundary
+    );
+    assert_eq!(
+        check.boundary_policy.as_ref(),
+        "omega::host::targets::linux"
     );
 }

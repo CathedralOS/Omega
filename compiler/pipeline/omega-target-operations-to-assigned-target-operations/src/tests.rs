@@ -1,6 +1,7 @@
 use crate::build_assigned_target_operations;
 use omega_abstract_operations::{
-    AbstractMoveEvent, AbstractOwnershipEventSource, AbstractValueFact, AbstractValueOrigin,
+    AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractMoveEvent,
+    AbstractOwnershipEventSource, AbstractValueFact, AbstractValueOrigin,
     AbstractValueStatementRole,
 };
 use omega_core::symbols::SymbolHandle;
@@ -85,5 +86,43 @@ fn copies_target_ownership_summary_to_assigned_plan() {
             call_ordinal: 3,
             target_symbol,
         }
+    );
+}
+
+#[test]
+fn copies_target_boundary_policy_checks_to_assigned_plan() {
+    let mut target_operations = TargetOperationPlan::default();
+    target_operations
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .insert(AbstractBoundaryPolicyCheck {
+            boundary_policy: "omega::host::targets::linux".into(),
+            verdict: AbstractBoundaryPolicyVerdict::Accepted,
+            ..Default::default()
+        });
+
+    let assigned_operations = build_assigned_target_operations(&target_operations);
+
+    let check = assigned_operations
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .iter()
+        .next()
+        .map(|(_, check)| check)
+        .expect("assigned boundary policy check");
+    assert_eq!(
+        assigned_operations
+            .semantics
+            .boundary_edges
+            .policy_checks
+            .len(),
+        1
+    );
+    assert_eq!(check.verdict, AbstractBoundaryPolicyVerdict::Accepted);
+    assert_eq!(
+        check.boundary_policy.as_ref(),
+        "omega::host::targets::linux"
     );
 }

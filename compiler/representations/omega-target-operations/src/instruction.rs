@@ -8,7 +8,10 @@ mod semantics;
 mod value;
 
 pub use function::{FunctionInstructionPlan, TargetOperationFunction};
-pub use omega_abstract_operations::{AbstractDataObjectHandle, RuntimeStorageRegion};
+pub use omega_abstract_operations::{
+    AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractDataObjectHandle,
+    RuntimeStorageRegion,
+};
 pub use omega_calling_conventions::{HostBinding, HostBindingMechanism, HostOperationKey};
 pub use operand::{
     InstructionOperand, InstructionOperandKind, InstructionOperandLike, TargetInstructionOperand,

@@ -121,8 +121,10 @@ Current deliberate gaps:
   lowering beyond metadata.
 - Source-level boundary trait calls now preserve as checked, graph,
   control-flow, and abstract source boundary edges. Abstract/backend boundary
-  summaries also preserve lowered host-operation edges as separate metadata;
-  those two layers still need explicit linkage to target policy.
+  summaries also preserve lowered host-operation edges, source-to-lowered
+  links, and target policy-check records. Exact source policy path matching is
+  still pending because target `boundary ...` declarations are not yet carried
+  in the semantic spine.
 
 ## Stages
 
