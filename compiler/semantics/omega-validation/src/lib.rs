@@ -1,13 +1,15 @@
 mod effects;
+mod entry_point;
 mod operators;
 mod symbols;
 #[cfg(test)]
 mod tests;
 
+use crate::entry_point::validate_entry_point;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::{SymbolHandle, SymbolKind};
+use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPlan, ProgramPoint};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
@@ -1229,42 +1231,6 @@ fn validate_type_constraints_node(
             }
         }
     }
-}
-
-fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    if has_entry_point(program, "Main::main", "main") || has_entry_point(program, "main", "entry") {
-        return;
-    }
-
-    diagnostics.push(Diagnostic::error(
-        "missing runtime entry point `Main::main`",
-    ));
-}
-
-fn has_entry_point(program: &TypedTrees, machine_name: &str, state_name: &str) -> bool {
-    let machine_symbol = program.symbols.find_child_by_name_and_kind(
-        program.symbols.root(),
-        machine_name,
-        SymbolKind::Machine,
-    );
-    let Some(machine) = machine_symbol.and_then(|machine_symbol| {
-        program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-    }) else {
-        return false;
-    };
-
-    let state_symbol =
-        program
-            .symbols
-            .find_child_by_name_and_kind(machine.symbol, state_name, SymbolKind::State);
-
-    program
-        .machine_states(machine)
-        .iter()
-        .any(|state| Some(state.symbol) == state_symbol)
 }
 
 fn validate_contained_types(
