@@ -133,8 +133,9 @@ Current ownership is:
   indexed/subslice validation, `checks/ranges/facts.rs` owns the `RangeFacts`
   storage root, `checks/ranges/facts/values.rs` owns local/field length and
   integer fact lookup/mutation, `checks/ranges/facts/proofs.rs` owns
-  index/range-bound proof propagation and aliasing, `checks/ranges/guards.rs`
-  owns guard dispatch,
+  index/range-bound proof storage and queries,
+  `checks/ranges/facts/proofs/aliases.rs` owns proof alias propagation,
+  `checks/ranges/guards.rs` owns guard dispatch,
   `checks/ranges/guards/bounds.rs` owns comparison-derived length/index/order
   facts, `checks/ranges/indexes.rs` owns indexed-expression traversal,
   `checks/ranges/indexes/validation.rs` owns known-length and unknown-slice
