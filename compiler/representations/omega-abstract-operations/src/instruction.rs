@@ -1,14 +1,14 @@
 mod function;
 mod operand;
-mod selected;
+mod operation;
+mod operation_kind;
 mod storage;
 mod value_operand;
 
 pub use function::{AbstractFunctionPlan, FunctionInstructionPlan};
 pub use operand::{InstructionOperand, InstructionOperandKind};
-pub use selected::{
-    AbstractOperation, AbstractOperationKind, SelectedInstruction, SelectedInstructionKind,
-};
+pub use operation::{AbstractOperation, SelectedInstruction};
+pub use operation_kind::{AbstractOperationKind, SelectedInstructionKind};
 pub use storage::RuntimeStorageRegion;
 pub use value_operand::{
     AbstractValueOperand, AbstractValueOperandHandle, RuntimeValueOperand,
