@@ -1,10 +1,11 @@
 use super::TargetOperationKind;
 use crate::RuntimeTextReadSource;
+use omega_core::operations::{OperationDomain, OperationSemanticQuery};
 
-pub type TargetOperationDomain = omega_core::operations::OperationDomain;
+pub type TargetOperationDomain = OperationDomain;
 
-impl TargetOperationKind {
-    pub fn semantic_domain(&self) -> TargetOperationDomain {
+impl OperationSemanticQuery for TargetOperationKind {
+    fn semantic_domain(&self) -> TargetOperationDomain {
         match self {
             Self::EnterFunction | Self::LeaveFunction => TargetOperationDomain::FunctionBoundary,
 
@@ -74,7 +75,7 @@ impl TargetOperationKind {
         }
     }
 
-    pub fn crosses_host_boundary(&self) -> bool {
+    fn crosses_host_boundary(&self) -> bool {
         self.semantic_domain() == TargetOperationDomain::HostBoundary
             || matches!(
                 self,
@@ -84,15 +85,18 @@ impl TargetOperationKind {
                 }
             )
     }
+}
+
+impl TargetOperationKind {
+    pub fn semantic_domain(&self) -> TargetOperationDomain {
+        OperationSemanticQuery::semantic_domain(self)
+    }
+
+    pub fn crosses_host_boundary(&self) -> bool {
+        OperationSemanticQuery::crosses_host_boundary(self)
+    }
 
     pub fn touches_runtime_storage(&self) -> bool {
-        matches!(
-            self.semantic_domain(),
-            TargetOperationDomain::GuardEvaluation
-                | TargetOperationDomain::RuntimeTextAssembly
-                | TargetOperationDomain::RuntimeRead
-                | TargetOperationDomain::RuntimeWrite
-                | TargetOperationDomain::RuntimeCopy
-        )
+        OperationSemanticQuery::touches_runtime_storage(self)
     }
 }

@@ -1,10 +1,11 @@
 use super::AssignedOperationKind;
+use omega_core::operations::{OperationDomain, OperationSemanticQuery};
 use omega_target_operations::RuntimeTextReadSource;
 
-pub type AssignedOperationDomain = omega_core::operations::OperationDomain;
+pub type AssignedOperationDomain = OperationDomain;
 
-impl AssignedOperationKind {
-    pub fn semantic_domain(&self) -> AssignedOperationDomain {
+impl OperationSemanticQuery for AssignedOperationKind {
+    fn semantic_domain(&self) -> AssignedOperationDomain {
         match self {
             Self::EnterFunction | Self::LeaveFunction => AssignedOperationDomain::FunctionBoundary,
 
@@ -76,7 +77,7 @@ impl AssignedOperationKind {
         }
     }
 
-    pub fn crosses_host_boundary(&self) -> bool {
+    fn crosses_host_boundary(&self) -> bool {
         self.semantic_domain() == AssignedOperationDomain::HostBoundary
             || matches!(
                 self,
@@ -86,15 +87,18 @@ impl AssignedOperationKind {
                 }
             )
     }
+}
+
+impl AssignedOperationKind {
+    pub fn semantic_domain(&self) -> AssignedOperationDomain {
+        OperationSemanticQuery::semantic_domain(self)
+    }
+
+    pub fn crosses_host_boundary(&self) -> bool {
+        OperationSemanticQuery::crosses_host_boundary(self)
+    }
 
     pub fn touches_runtime_storage(&self) -> bool {
-        matches!(
-            self.semantic_domain(),
-            AssignedOperationDomain::GuardEvaluation
-                | AssignedOperationDomain::RuntimeTextAssembly
-                | AssignedOperationDomain::RuntimeRead
-                | AssignedOperationDomain::RuntimeWrite
-                | AssignedOperationDomain::RuntimeCopy
-        )
+        OperationSemanticQuery::touches_runtime_storage(self)
     }
 }

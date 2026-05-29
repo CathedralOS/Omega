@@ -597,6 +597,9 @@ meaning, without needing access to pointer descriptor internals.
     enums
   - target/assigned operation conversion now has a canary proving semantic
     domain, host-boundary, and runtime-storage queries survive conversion
+  - `omega-core` now exposes an `OperationSemanticQuery` trait so abstract,
+    target, and assigned operation kinds share one generic semantic query
+    interface while preserving stage-specific aliases and inherent helpers
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures

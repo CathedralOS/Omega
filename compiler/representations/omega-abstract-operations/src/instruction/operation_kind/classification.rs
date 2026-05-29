@@ -1,9 +1,10 @@
 use super::AbstractOperationKind;
+use omega_core::operations::{OperationDomain, OperationSemanticQuery};
 
-pub type AbstractOperationDomain = omega_core::operations::OperationDomain;
+pub type AbstractOperationDomain = OperationDomain;
 
-impl AbstractOperationKind {
-    pub fn semantic_domain(&self) -> AbstractOperationDomain {
+impl OperationSemanticQuery for AbstractOperationKind {
+    fn semantic_domain(&self) -> AbstractOperationDomain {
         match self {
             Self::EnterFunction | Self::LeaveFunction => AbstractOperationDomain::FunctionBoundary,
 
@@ -76,19 +77,22 @@ impl AbstractOperationKind {
         }
     }
 
-    pub fn crosses_host_boundary(&self) -> bool {
+    fn crosses_host_boundary(&self) -> bool {
         self.semantic_domain() == AbstractOperationDomain::HostBoundary
             || matches!(self, Self::ReadRuntimeTextLine { .. })
     }
+}
+
+impl AbstractOperationKind {
+    pub fn semantic_domain(&self) -> AbstractOperationDomain {
+        OperationSemanticQuery::semantic_domain(self)
+    }
+
+    pub fn crosses_host_boundary(&self) -> bool {
+        OperationSemanticQuery::crosses_host_boundary(self)
+    }
 
     pub fn touches_runtime_storage(&self) -> bool {
-        matches!(
-            self.semantic_domain(),
-            AbstractOperationDomain::GuardEvaluation
-                | AbstractOperationDomain::RuntimeTextAssembly
-                | AbstractOperationDomain::RuntimeRead
-                | AbstractOperationDomain::RuntimeWrite
-                | AbstractOperationDomain::RuntimeCopy
-        )
+        OperationSemanticQuery::touches_runtime_storage(self)
     }
 }
