@@ -81,5 +81,7 @@ machine PlayerSystem::xp_required(
     &mut self,
     level: u32
     ) -> u32 {
-    -> 10 + level * 5;
+    transition {
+        _ -> (10 + level * 5)
+    }
 }

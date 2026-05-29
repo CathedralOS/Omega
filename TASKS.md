@@ -436,9 +436,6 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-backend-report` now splits runtime state-flow and dispatch reporting
     out of the root writer into a focused transition/report module
   Next target:
-  - migrate the dungeon sample away from legacy bare `-> ... when ...;`
-    transition syntax so parser sample-project tests can become reliable
-    canaries again
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
   - make ownership event production fully type-aware so Copy/no-drop values and

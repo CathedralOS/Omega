@@ -14,28 +14,32 @@ machine CommandParser::resolve_navigation(
     ) -> Navigation {
     let choice: NavigationChoice = self.resolve_command(line);
 
-    -> self.resolve_exit(level, cell, line) when choice == NavigationChoice::Invalid;
-    -> self.navigation(choice, CellId::Empty) when choice != NavigationChoice::Invalid;
+    transition {
+        choice == NavigationChoice::Invalid -> self.resolve_exit(level, cell, line)
+        choice != NavigationChoice::Invalid -> self.navigation(choice, CellId::Empty)
+    }
 }
 
 machine CommandParser::resolve_command(
     &mut self,
     line: &String
     ) -> NavigationChoice {
-    -> NavigationChoice::Quit when line == "quit";
-    -> NavigationChoice::Quit when line == "exit";
-    -> NavigationChoice::Look when line == "look";
-    -> NavigationChoice::Look when line == "info";
-    -> NavigationChoice::Exits when line == "paths";
-    -> NavigationChoice::Exits when line == "help";
-    -> NavigationChoice::Inventory when line == "inventory";
-    -> NavigationChoice::Inventory when line == "inv";
-    -> NavigationChoice::Character when line == "char";
-    -> NavigationChoice::Character when line == "character";
-    -> NavigationChoice::Character when line == "stats";
-    -> NavigationChoice::UseEvent when line == "use";
-    -> NavigationChoice::Fight when line == "fight";
-    -> NavigationChoice::Invalid;
+    transition {
+        line == "quit" -> NavigationChoice::Quit
+        line == "exit" -> NavigationChoice::Quit
+        line == "look" -> NavigationChoice::Look
+        line == "info" -> NavigationChoice::Look
+        line == "paths" -> NavigationChoice::Exits
+        line == "help" -> NavigationChoice::Exits
+        line == "inventory" -> NavigationChoice::Inventory
+        line == "inv" -> NavigationChoice::Inventory
+        line == "char" -> NavigationChoice::Character
+        line == "character" -> NavigationChoice::Character
+        line == "stats" -> NavigationChoice::Character
+        line == "use" -> NavigationChoice::UseEvent
+        line == "fight" -> NavigationChoice::Fight
+        _ -> NavigationChoice::Invalid
+    }
 }
 
 machine CommandParser::resolve_exit(
@@ -56,7 +60,7 @@ machine CommandParser::find_exit(
     ) -> Navigation {
     let exits: &[Exit] = room.exits.as_slice();
 
-    match room.exit_count > 0 {
+    transition room.exit_count > 0 {
         true -> self.find_exit_at(exits, room.exit_count, command, 0)
         false -> self.invalid_navigation()
     }
@@ -73,13 +77,17 @@ machine CommandParser::find_exit_at(
     let next_index: usize = index + 1;
     let has_next: bool = next_index < exit_count;
 
-    -> self.navigation(NavigationChoice::Move, exits[index].destination) when found;
-    -> self.find_exit_at(exits, exit_count, command, next_index) when has_next;
-    -> self.invalid_navigation();
+    transition {
+        found -> self.navigation(NavigationChoice::Move, exits[index].destination)
+        has_next -> self.find_exit_at(exits, exit_count, command, next_index)
+        _ -> self.invalid_navigation()
+    }
 }
 
 machine CommandParser::invalid_navigation(&mut self) -> Navigation {
-    -> self.navigation(NavigationChoice::Invalid, CellId::Empty);
+    transition {
+        _ -> self.navigation(NavigationChoice::Invalid, CellId::Empty)
+    }
 }
 
 machine CommandParser::navigation(
