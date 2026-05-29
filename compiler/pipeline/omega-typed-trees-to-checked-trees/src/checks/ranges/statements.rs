@@ -1,3 +1,6 @@
+mod aliases;
+
+use self::aliases::seed_local_alias_facts;
 use super::arrays::fixed_array_type_length;
 use super::expressions::{expression_indexable_length, expression_integer_value, expression_name};
 use super::facts::RangeFacts;
@@ -115,43 +118,6 @@ fn expression_member_name(
         return None;
     };
     Some((member.member_symbol, Some(member.member.as_str())))
-}
-
-fn seed_local_alias_facts(
-    program: &omega_typed_trees::TypedTrees,
-    facts: &mut RangeFacts<'_>,
-    value: ExpressionHandle,
-    local_name: Option<&str>,
-) {
-    if !value.is_valid() {
-        return;
-    }
-    let Some(local_name) = local_name else {
-        return;
-    };
-    let Some(source) = alias_source_label(program, value) else {
-        return;
-    };
-
-    facts.alias_collection(&source, local_name);
-    facts.alias_index(&source, local_name);
-}
-
-fn alias_source_label(
-    program: &omega_typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<String> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call)
-            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
-        {
-            Some(program.expression_table.display_name(call.receiver))
-        }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            Some(program.expression_table.display_name(expression))
-        }
-        _ => None,
-    }
 }
 
 fn check_transition_target(
