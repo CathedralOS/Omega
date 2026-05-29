@@ -5,6 +5,7 @@ mod identity;
 mod input;
 mod object;
 mod proof;
+mod runtime_bodies;
 mod runtime_dispatch;
 mod runtime_flow;
 mod runtime_text;
@@ -60,41 +61,7 @@ pub fn backend_report_text(
     schedule::write_state_schedule(&mut output, backend_plan);
     runtime_flow::write_runtime_flow_sections(&mut output, backend_plan);
     runtime_dispatch::write_runtime_dispatch_sections(&mut output, backend_plan);
-
-    output.push_str("\n## Runtime Bodies\n");
-    output.push_str(&format!(
-        "bodies: {}\n",
-        backend_plan.runtime_bodies.bodies.len()
-    ));
-    output.push_str(&format!(
-        "operations: {}\n",
-        backend_plan.runtime_bodies.operations.len()
-    ));
-    if backend_plan.runtime_bodies.bodies.is_empty() {
-        output.push_str("none\n");
-    } else {
-        for (_, body) in backend_plan.runtime_bodies.bodies.iter() {
-            let source_name = backend_state_name(backend_plan, body.key);
-            output.push_str(&format!("- #{} {}\n", body.dispatch_index, source_name));
-
-            match backend_plan.runtime_bodies.operations.span(body.operations) {
-                Some(operations) if operations.is_empty() => {
-                    output.push_str("  operations: none\n");
-                }
-                Some(operations) => {
-                    output.push_str("  operations:\n");
-                    for operation in operations {
-                        let source_name = backend_state_name(backend_plan, operation.source_key);
-                        output.push_str(&format!(
-                            "    - {} statement {} {:?}\n",
-                            source_name, operation.statement_index, operation.kind
-                        ));
-                    }
-                }
-                None => output.push_str("  operations: invalid span\n"),
-            }
-        }
-    }
+    runtime_bodies::write_runtime_bodies_section(&mut output, backend_plan);
 
     output.push_str("\n## Runtime Branching Calls\n");
     output.push_str(&format!(
