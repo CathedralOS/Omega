@@ -16,6 +16,7 @@ mod remap;
 mod segments;
 mod states;
 mod transitions;
+mod values;
 
 pub fn build_state_graph(program: &CheckedTrees) -> Result<StateGraph, Diagnostic> {
     let workers = WorkerPool::with_available_parallelism();
