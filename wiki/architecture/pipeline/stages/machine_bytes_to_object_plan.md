@@ -6,7 +6,8 @@ This stage turns encoded machine bytes, data bytes, layout facts, and host ABI i
 
 ## Stage Contract
 
-Input: encoded machine bytes, target data, layout, host ABI, and entry-point metadata.
+Input: encoded machine bytes under `EncodedMachineCode`, target data, layout,
+host ABI, and entry-point metadata.
 
 Output: object plan.
 
@@ -53,6 +54,9 @@ Must not own:
 - `omega-object-file-planning/src/symbols.rs` owns entry, storage, import, runtime-frame, and data-object symbol construction.
 - `omega-object-file-planning/src/tests.rs` owns object-planning canaries so
   orchestration code stays separate from test fixtures.
+- `omega-machine-bytes/src/plan.rs` is the input representation root:
+  encoded executable byte shape lives under `EncodedMachineCode`, while
+  preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
 - `omega-object-file/src/plan.rs` owns the object-plan container.
 - `omega-object-file/src/sections.rs` owns section records.
 - `omega-object-file/src/symbols.rs` owns symbol records and handles.

@@ -12,9 +12,10 @@ pub(super) fn selected_instruction_text_offset(
 ) -> Result<usize, Diagnostic> {
     let mut offset = 0usize;
 
-    for (_, instruction) in input.encoded_machine.instructions.iter() {
+    for (_, instruction) in input.encoded_machine.code.instructions.iter() {
         let byte_len = input
             .encoded_machine
+            .code
             .bytes
             .span(instruction.bytes)
             .map(|bytes| bytes.len())

@@ -34,12 +34,15 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
     });
 
     let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 1, 0, 0);
-    encoded_machine.byte_count = 64;
-    encoded_machine.functions.insert(EncodedMachineFunction {
-        source_key: Default::default(),
-        byte_offset: 32,
-        byte_count: 12,
-    });
+    encoded_machine.code.byte_count = 64;
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            source_key: Default::default(),
+            byte_offset: 32,
+            byte_count: 12,
+        });
 
     let mut host_abi = HostAbiPlan {
         target,
@@ -139,11 +142,14 @@ fn reports_missing_entry_machine_layout() {
     let host_abi = empty_host_abi(target);
     let layouts = empty_layouts();
     let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 1, 0, 0);
-    encoded_machine.functions.insert(EncodedMachineFunction {
-        source_key: Default::default(),
-        byte_offset: 0,
-        byte_count: 4,
-    });
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            source_key: Default::default(),
+            byte_offset: 0,
+            byte_count: 4,
+        });
     let data = TargetDataPlan::with_capacity(0, 0);
 
     let diagnostic = build_object_plan(ObjectPlanningInput {

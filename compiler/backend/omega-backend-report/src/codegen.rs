@@ -95,11 +95,11 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     ));
     output.push_str(&format!(
         "encoded bytes: {}\n",
-        backend_plan.encoded_machine.bytes.len()
+        backend_plan.encoded_machine.code.bytes.len()
     ));
     output.push_str(&format!(
         "bytes: {}\n",
-        backend_plan.encoded_machine.byte_count
+        backend_plan.encoded_machine.code.byte_count
     ));
     for (_, function) in backend_plan.machine_instructions.code.functions.iter() {
         write_machine_function_code(output, backend_plan, function);
@@ -1091,20 +1091,20 @@ fn machine_instruction_bytes_name(
     backend_plan: &BackendReportInput<'_>,
     instruction: &MachineInstruction,
 ) -> String {
-    let Some((_, encoded_instruction)) =
-        backend_plan
-            .encoded_machine
-            .instructions
-            .iter()
-            .find(|(_, encoded_instruction)| {
-                encoded_instruction.selected_instruction_index
-                    == instruction.selected_instruction_index
-            })
+    let Some((_, encoded_instruction)) = backend_plan
+        .encoded_machine
+        .code
+        .instructions
+        .iter()
+        .find(|(_, encoded_instruction)| {
+            encoded_instruction.selected_instruction_index == instruction.selected_instruction_index
+        })
     else {
         return "invalid".to_owned();
     };
     let Some(bytes) = backend_plan
         .encoded_machine
+        .code
         .bytes
         .span(encoded_instruction.bytes)
     else {

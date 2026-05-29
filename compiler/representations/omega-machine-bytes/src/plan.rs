@@ -3,12 +3,17 @@ use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EncodedMachinePlan {
-    pub target: NativeTarget,
+pub struct EncodedMachineCode {
     pub functions: Arena<EncodedMachineFunction>,
     pub instructions: Arena<EncodedMachineInstruction>,
     pub bytes: Arena<u8>,
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedMachinePlan {
+    pub target: NativeTarget,
+    pub code: EncodedMachineCode,
     pub semantics: EncodedMachineSemanticSummary,
 }
 
@@ -27,10 +32,12 @@ impl EncodedMachinePlan {
     ) -> Self {
         Self {
             target,
-            functions: Arena::with_capacity(function_capacity),
-            instructions: Arena::with_capacity(instruction_capacity),
-            bytes: Arena::with_capacity(byte_capacity),
-            byte_count: 0,
+            code: EncodedMachineCode {
+                functions: Arena::with_capacity(function_capacity),
+                instructions: Arena::with_capacity(instruction_capacity),
+                bytes: Arena::with_capacity(byte_capacity),
+                byte_count: 0,
+            },
             semantics: EncodedMachineSemanticSummary::default(),
         }
     }

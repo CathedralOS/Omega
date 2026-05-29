@@ -22,7 +22,7 @@ pub(super) fn insert_object_sections(
     object_plan.sections.insert_many([
         SectionPlan {
             kind: SectionKind::Text,
-            size: input.encoded_machine.byte_count,
+            size: input.encoded_machine.code.byte_count,
             alignment: 16,
         },
         SectionPlan {

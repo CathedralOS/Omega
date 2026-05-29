@@ -292,6 +292,10 @@ meaning, without needing access to pointer descriptor internals.
     instructions and the current machine-program artifact as metadata
   - encoded machine bytes now preserve value, boundary-edge, and ownership
     summaries from symbolic machine instructions
+  - encoded machine executable bytes, function ranges, instruction byte spans,
+    and byte counts now sit under an explicit `EncodedMachineCode` root on
+    `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
+    semantic summaries
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, value facts, ownership facts, operations,
