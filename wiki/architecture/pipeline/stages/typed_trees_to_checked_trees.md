@@ -169,6 +169,17 @@ Current ownership is:
   substitution, `checks/contracts/labels/domain.rs` owns domain proof label
   substitution, `checks/contracts/places.rs` owns contract-place matching, and
   `checks/contracts/evaluator.rs` owns call-site expression evaluation.
+- `checks/termination.rs` is the termination-check entry point.
+  `checks/termination/order.rs` owns ranking-order recognition,
+  `checks/termination/graph.rs` owns direct recursive graph shape checks,
+  `checks/termination/ranking.rs` owns supported ranking dispatch,
+  `checks/termination/ranking/patterns.rs` owns shared recursive-transition and
+  parameter-expression matching, `checks/termination/ranking/nat.rs` owns
+  natural-number ranking proof shapes, `checks/termination/ranking/nat/guards.rs`
+  owns natural-number guard predicates,
+  `checks/termination/ranking/nat/arguments.rs` owns natural-number next-argument
+  rewrite predicates, and `checks/termination/ranking/slice.rs` owns slice-length
+  ranking proof shapes.
 - `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
   proof/checking modules. They should consume checked facts and emit
   diagnostics, not invent new durable semantic representations.

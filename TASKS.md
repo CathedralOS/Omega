@@ -101,6 +101,8 @@ meaning, without needing access to pointer descriptor internals.
     comparison-derived length/index/order bound seeding
   - comparison-derived range bound seeding now splits length, index/range-bound,
     and ordering fact helpers behind the guard-bound export surface
+  - natural-number termination ranking now splits ranking proof shapes from
+    guard predicates and next-argument rewrite predicates
   - range state-argument fact propagation now splits the merged parameter fact
     model from statement/transition traversal
   - contract checking now keeps its root as an entrypoint, with call
