@@ -24,6 +24,7 @@ use crate::ownership::{
 };
 use crate::states::{remap_parameter_owned, remap_state_owned, remap_states};
 use crate::transitions::{remap_transition_owned, remap_transitions};
+use crate::values::{remap_value_owned, remap_values};
 
 pub(crate) fn build_control_flow_plan(
     state_graph: &StateGraph,
@@ -43,6 +44,7 @@ pub(crate) fn build_control_flow_plan(
         contract_fact_refs: remap_contract_fact_refs(state_graph),
         contract_calls: remap_contract_calls(state_graph),
         contract_exits: remap_contract_exits(state_graph),
+        values: remap_values(state_graph),
         borrow_writable_roots: remap_borrow_writable_roots(state_graph),
         borrow_access_segments: state_graph.borrow_access_segments.clone(),
         borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
@@ -73,6 +75,7 @@ pub(crate) fn build_control_flow_plan_owned(
         contract_fact_refs,
         contract_calls,
         contract_exits,
+        values,
         borrow_writable_roots,
         borrow_access_segments,
         borrow_argument_accesses,
@@ -99,6 +102,7 @@ pub(crate) fn build_control_flow_plan_owned(
         contract_fact_refs: contract_fact_refs.map(remap_contract_fact_ref_owned),
         contract_calls: contract_calls.map(remap_contract_call_owned),
         contract_exits: contract_exits.map(remap_contract_exit_owned),
+        values: values.map(remap_value_owned),
         borrow_writable_roots: borrow_writable_roots.map(remap_borrow_writable_root_owned),
         borrow_access_segments,
         borrow_argument_accesses: borrow_argument_accesses.map(remap_borrow_argument_access_owned),

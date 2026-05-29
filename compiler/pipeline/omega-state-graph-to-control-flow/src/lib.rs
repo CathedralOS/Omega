@@ -12,6 +12,7 @@ mod operations;
 mod ownership;
 mod states;
 mod transitions;
+mod values;
 
 pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPlan, Diagnostic> {
     builder::build_control_flow_plan(state_graph)
