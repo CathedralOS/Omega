@@ -14,7 +14,7 @@ pub fn build_relocation_plan(
         records: Arena::new(),
     };
 
-    for (function_handle, function) in input.instructions.functions.iter() {
+    for (function_handle, function) in input.instructions.code.functions.iter() {
         collect_function_relocations(input, function_handle, function, &mut relocation_plan)?;
     }
 
@@ -27,7 +27,12 @@ fn collect_function_relocations(
     function: &FunctionInstructionPlan,
     relocation_plan: &mut RelocationPlan,
 ) -> Result<(), Diagnostic> {
-    let Some(instructions) = input.instructions.instructions.span(function.instructions) else {
+    let Some(instructions) = input
+        .instructions
+        .code
+        .instructions
+        .span(function.instructions)
+    else {
         return Ok(());
     };
     let function_symbol_handle =

@@ -251,7 +251,7 @@ pub(super) fn backend_plan_to_native_image_payload(
         let emission_plan = plan_emission(&backend.plan);
         ensure_emission_ready(&emission_plan)?;
         let plan = &backend.plan;
-        let text_bytes = plan.encoded_machine.bytes.storage_slice().to_vec();
+        let text_bytes = plan.encoded_machine.code.bytes.storage_slice().to_vec();
         let emitted = EmittedProgram {
             target: plan.target,
             planned_text_bytes: object_text_size(&plan.object),

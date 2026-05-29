@@ -25,6 +25,7 @@ pub(crate) fn entry_function<'plan>(
 ) -> Result<&'plan EncodedMachineFunction, Diagnostic> {
     input
         .encoded_machine
+        .code
         .functions
         .iter()
         .find(|(_, function)| function.source_key == input.entry_state_key)

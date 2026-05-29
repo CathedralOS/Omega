@@ -510,7 +510,7 @@ fn collect_emitted_function_views(
     relocations: &RelocationPlan,
     native_disassembly: Option<&str>,
 ) -> Vec<FunctionView> {
-    let encoded_instructions = encoded_plan.instructions.storage_slice();
+    let encoded_instructions = encoded_plan.code.instructions.storage_slice();
     let machine_instructions = machine_plan.code.instructions.storage_slice();
     let mut current_offset = 0usize;
     let mut views = Vec::<FunctionView>::new();
@@ -525,6 +525,7 @@ fn collect_emitted_function_views(
         );
         if !assigned_plan.code.instructions.is_valid(selected_handle) {
             let bytes = encoded_plan
+                .code
                 .bytes
                 .span(encoded_instruction.bytes)
                 .unwrap_or(&[]);
@@ -538,6 +539,7 @@ fn collect_emitted_function_views(
             .get(selected_handle)
             .source_key;
         let bytes = encoded_plan
+            .code
             .bytes
             .span(encoded_instruction.bytes)
             .unwrap_or(&[]);

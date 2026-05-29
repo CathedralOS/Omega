@@ -39,7 +39,8 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
             }
         };
 
-    if input.encoded_machine.instructions.len() < input.machine_instructions.code.instructions.len()
+    if input.encoded_machine.code.instructions.len()
+        < input.machine_instructions.code.instructions.len()
     {
         blockers.insert(emission_blocker(
             "machine encoding",
@@ -103,8 +104,8 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         data_bytes: input.data.bytes.len(),
         selected_instructions: input.instructions.code.instructions.len(),
         instruction_operands: input.instructions.code.operands.len(),
-        machine_code_bytes: input.encoded_machine.byte_count,
-        encoded_machine_bytes: input.encoded_machine.bytes.len(),
+        machine_code_bytes: input.encoded_machine.code.byte_count,
+        encoded_machine_bytes: input.encoded_machine.code.bytes.len(),
         relocations: input.relocations.records.len(),
         blockers,
     }
@@ -133,7 +134,7 @@ fn estimated_emission_blocker_capacity(input: &EmissionPlanningInput<'_>) -> usi
 
 fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
     can_emit_executable_image(input.target)
-        && input.encoded_machine.instructions.len()
+        && input.encoded_machine.code.instructions.len()
             == input.machine_instructions.code.instructions.len()
 }
 

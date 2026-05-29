@@ -32,7 +32,7 @@ pub fn emit_machine_bytes(
     );
 
     for (_, function) in input.machine_instructions.code.functions.iter() {
-        let byte_offset = encoded_bytes.bytes.len();
+        let byte_offset = encoded_bytes.code.bytes.len();
         emit_function_bytes(
             MachineEmissionContext {
                 target: input.target,
@@ -44,15 +44,15 @@ pub fn emit_machine_bytes(
             &mut encoded_bytes,
             function.instructions,
         )?;
-        let byte_count = encoded_bytes.bytes.len() - byte_offset;
-        encoded_bytes.functions.insert(EncodedMachineFunction {
+        let byte_count = encoded_bytes.code.bytes.len() - byte_offset;
+        encoded_bytes.code.functions.insert(EncodedMachineFunction {
             source_key: function.source_key,
             byte_offset,
             byte_count,
         });
     }
 
-    encoded_bytes.byte_count = encoded_bytes.bytes.len();
+    encoded_bytes.code.byte_count = encoded_bytes.code.bytes.len();
     encoded_bytes.semantics.values = input.machine_instructions.semantics.values.clone();
     encoded_bytes.semantics.boundary_edges =
         input.machine_instructions.semantics.boundary_edges.clone();
@@ -76,7 +76,7 @@ fn emit_function_bytes(
     };
     let laid_out_instructions =
         layout_machine_instructions(emission_context, machine_instructions)?;
-    encoded_plan.bytes.reserve(
+    encoded_plan.code.bytes.reserve(
         laid_out_instructions
             .iter()
             .map(|instruction| instruction.byte_width)
@@ -87,15 +87,18 @@ fn emit_function_bytes(
     {
         let laid_out_instruction = &laid_out_instructions[machine_instruction_index];
         if laid_out_instruction.byte_width == 0 {
-            encoded_plan.instructions.insert(EncodedMachineInstruction {
-                selected_instruction_index: machine_instruction.selected_instruction_index,
-                bytes: HandleSpan::empty(),
-            });
+            encoded_plan
+                .code
+                .instructions
+                .insert(EncodedMachineInstruction {
+                    selected_instruction_index: machine_instruction.selected_instruction_index,
+                    bytes: HandleSpan::empty(),
+                });
             continue;
         }
 
         let byte_span = insert_encoded_machine_instruction(
-            &mut encoded_plan.bytes,
+            &mut encoded_plan.code.bytes,
             emission_context,
             &laid_out_instructions,
             machine_instruction_index,
@@ -130,10 +133,13 @@ fn emit_function_bytes(
                 operand_note,
             )));
         }
-        encoded_plan.instructions.insert(EncodedMachineInstruction {
-            selected_instruction_index: machine_instruction.selected_instruction_index,
-            bytes: byte_span,
-        });
+        encoded_plan
+            .code
+            .instructions
+            .insert(EncodedMachineInstruction {
+                selected_instruction_index: machine_instruction.selected_instruction_index,
+                bytes: byte_span,
+            });
     }
 
     Ok(())
@@ -492,8 +498,8 @@ mod tests {
             encoded.semantics.ownership.moves.len(),
             machine_instructions.semantics.ownership.moves.len()
         );
-        assert_eq!(encoded.instructions.len(), 1);
-        assert!(encoded.byte_count > 0);
+        assert_eq!(encoded.code.instructions.len(), 1);
+        assert!(encoded.code.byte_count > 0);
         assert_ne!(instructions, HandleSpan::empty());
     }
 }
