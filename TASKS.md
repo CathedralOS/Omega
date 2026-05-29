@@ -554,12 +554,14 @@ meaning, without needing access to pointer descriptor internals.
     writer into a focused runtime-bodies module
   - `omega-backend-report` now splits runtime branching call and expansion
     reporting out of the root writer into a focused runtime-branching module
+  - checked operation admissibility checks now carry diagnostic counts and
+    explicit provenance so accepted-by-evidence, not-required, rejected, and
+    diagnostic-pending checks share one durable record shape
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
-  - grow checked operation admissibility summaries from evidence counts into
-    persisted verdict records with diagnostic provenance for proof, borrow,
-    effect/capability, boundary, and termination failures
+  - connect checked operation admissibility checks to real diagnostic sources
+    for proof, borrow, effect/capability, boundary, and termination failures
   - make ownership event production fully type-aware so Copy/no-drop values and
     real ownership-consuming values are distinguished across all transfer sites
   - extend type-aware ownership event production into slice/string operators

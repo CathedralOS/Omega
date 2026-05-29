@@ -24,11 +24,22 @@ pub enum AcceptanceCheckVerdict {
     NotApplicable,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AcceptanceCheckProvenance {
+    #[default]
+    AcceptedByEvidence,
+    NotRequired,
+    DiagnosticPending,
+    RejectedByDiagnostic,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AcceptanceCheck {
     pub dimension: AcceptanceDimension,
     pub verdict: AcceptanceCheckVerdict,
     pub evidence_count: usize,
+    pub diagnostic_count: usize,
+    pub provenance: AcceptanceCheckProvenance,
 }
 
 impl AcceptanceCheck {
@@ -37,6 +48,8 @@ impl AcceptanceCheck {
             dimension,
             verdict: AcceptanceCheckVerdict::Accepted,
             evidence_count,
+            diagnostic_count: 0,
+            provenance: AcceptanceCheckProvenance::AcceptedByEvidence,
         }
     }
 
@@ -45,6 +58,22 @@ impl AcceptanceCheck {
             dimension,
             verdict: AcceptanceCheckVerdict::NotApplicable,
             evidence_count: 0,
+            diagnostic_count: 0,
+            provenance: AcceptanceCheckProvenance::NotRequired,
+        }
+    }
+
+    pub const fn rejected(dimension: AcceptanceDimension, diagnostic_count: usize) -> Self {
+        Self {
+            dimension,
+            verdict: AcceptanceCheckVerdict::Rejected,
+            evidence_count: 0,
+            diagnostic_count,
+            provenance: if diagnostic_count == 0 {
+                AcceptanceCheckProvenance::DiagnosticPending
+            } else {
+                AcceptanceCheckProvenance::RejectedByDiagnostic
+            },
         }
     }
 
