@@ -293,6 +293,9 @@ meaning, without needing access to pointer descriptor internals.
     state-local boundary summaries
   - control-flow-to-abstract-operations now preserves source-level boundary
     edges beside lowered host-operation boundary edges in abstract summaries
+  - abstract boundary summaries now include first-pass links from source
+    boundary edges to lowered host-operation edges when they share state and
+    statement provenance
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`
@@ -529,8 +532,8 @@ meaning, without needing access to pointer descriptor internals.
     ownership kind, drop policy, storage consequences, and backend lowering
     beyond metadata so machine-instruction/object layers can lower value
     consequences deliberately instead of only preserving summaries
-  - link abstract source boundary edges to lowered host-operation boundary
-    edges and validate the pair against target policies
+  - enrich abstract source-to-lowered boundary links with call ordinal and
+    operation provenance, then validate the pair against target policies
   - continue splitting relocation planning where remaining files mix data,
     instruction, symbol, and target-offset responsibilities
   - keep relocation offset helpers paired with the relocation families that
