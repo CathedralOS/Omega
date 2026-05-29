@@ -6,7 +6,9 @@ This stage derives relocation records from selected target operations, assigned 
 
 ## Stage Contract
 
-Input: target operations, assigned target operations, encoded machine bytes, target data, object plan, and host ABI.
+Input: target operations, assigned target operations, encoded machine bytes,
+target data, object plan with artifact layout under `ObjectFileLayout`, and
+host ABI.
 
 Output: relocation plan with records under `RelocationRecordSet`.
 
@@ -47,6 +49,8 @@ Must not own:
 
 - `omega-relocations/src/lib.rs` owns the public relocation-planning API surface only.
 - `omega-relocations/src/input.rs` owns relocation-planning input DTOs.
+- `omega-object-file/src/plan.rs` is the input object representation:
+  sections, symbols, and entry symbol live under `ObjectFileLayout`.
 - `omega-relocations/src/builder.rs` owns the relocation-planning entrypoint and per-function walk.
 - `omega-relocations/src/lookups.rs` owns selected-instruction offset lookup.
 - `omega-relocations/src/data_addresses.rs` owns scanning assigned operands for data/storage address references.

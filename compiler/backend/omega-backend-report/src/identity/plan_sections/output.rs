@@ -14,13 +14,13 @@ pub(in crate::identity) fn count_object_strings(
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    for (_, section) in backend_plan.object.sections.iter() {
+    for (_, section) in backend_plan.object.layout.sections.iter() {
         storage.count_generated_symbol(&omega_object_file::section_name(
             backend_plan.object.target,
             section.kind,
         ));
     }
-    for (_, symbol) in backend_plan.object.symbols.iter() {
+    for (_, symbol) in backend_plan.object.layout.symbols.iter() {
         storage.count_generated_symbol(&symbol.name);
     }
 }

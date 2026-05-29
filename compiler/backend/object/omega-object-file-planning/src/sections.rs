@@ -19,7 +19,7 @@ pub(super) fn insert_object_sections(
         .alignment
         .max(input.runtime_frame_alignment);
 
-    object_plan.sections.insert_many([
+    object_plan.layout.sections.insert_many([
         SectionPlan {
             kind: SectionKind::Text,
             size: input.encoded_machine.code.byte_count,

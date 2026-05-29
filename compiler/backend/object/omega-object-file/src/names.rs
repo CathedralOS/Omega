@@ -4,6 +4,7 @@ use omega_target_operations::RuntimeStorageRegion;
 
 pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
     object
+        .layout
         .symbols
         .iter()
         .find(|(_, symbol)| symbol.name == symbol_name)
@@ -12,15 +13,15 @@ pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> O
 }
 
 pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &str {
-    if object.symbols.is_valid(symbol) {
-        object.symbols.get(symbol).name.as_str()
+    if object.layout.symbols.is_valid(symbol) {
+        object.layout.symbols.get(symbol).name.as_str()
     } else {
         ""
     }
 }
 
 pub fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
-    object_symbol_name(object, object.entry_symbol)
+    object_symbol_name(object, object.layout.entry_symbol)
 }
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {

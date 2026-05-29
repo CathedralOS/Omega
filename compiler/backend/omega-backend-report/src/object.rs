@@ -71,14 +71,17 @@ pub(super) fn write_layout_object_sections(
     output.push_str("\n## Object\n");
     output.push_str(&format!(
         "sections: {}\n",
-        backend_plan.object.sections.len()
+        backend_plan.object.layout.sections.len()
     ));
-    for (_, section) in backend_plan.object.sections.iter() {
+    for (_, section) in backend_plan.object.layout.sections.iter() {
         write_section_plan(output, backend_plan.object.target, section);
     }
 
-    output.push_str(&format!("symbols: {}\n", backend_plan.object.symbols.len()));
-    for (_, symbol) in backend_plan.object.symbols.iter() {
+    output.push_str(&format!(
+        "symbols: {}\n",
+        backend_plan.object.layout.symbols.len()
+    ));
+    for (_, symbol) in backend_plan.object.layout.symbols.iter() {
         write_symbol_plan(output, backend_plan.object.target, symbol);
     }
     output.push('\n');

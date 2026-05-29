@@ -30,14 +30,14 @@ pub(super) fn insert_object_symbols(
     runtime_frame_offset: usize,
     object_plan: &mut ObjectPlan,
 ) {
-    object_plan.entry_symbol = object_plan.symbols.insert(SymbolPlan {
+    object_plan.layout.entry_symbol = object_plan.layout.symbols.insert(SymbolPlan {
         name: entry_symbol_name(input.target),
         section: SymbolSection::Section(SectionKind::Text),
         offset: entry_function.byte_offset,
         size: entry_function.byte_count,
         kind: SymbolKind::Function,
     });
-    object_plan.symbols.insert(SymbolPlan {
+    object_plan.layout.symbols.insert(SymbolPlan {
         name: machine_storage_symbol_name(&main_layout.name),
         section: SymbolSection::Section(SectionKind::Bss),
         offset: 0,
@@ -45,7 +45,7 @@ pub(super) fn insert_object_symbols(
         kind: SymbolKind::Object,
     });
     if input.runtime_frame_size > 0 {
-        object_plan.symbols.insert(SymbolPlan {
+        object_plan.layout.symbols.insert(SymbolPlan {
             name: runtime_frame_storage_symbol_name(),
             section: SymbolSection::Section(SectionKind::Bss),
             offset: runtime_frame_offset,
@@ -55,6 +55,7 @@ pub(super) fn insert_object_symbols(
     }
 
     object_plan
+        .layout
         .symbols
         .insert_many(input.host_abi.bindings.iter().filter_map(|(_, binding)| {
             match &binding.mechanism {
@@ -70,6 +71,7 @@ pub(super) fn insert_object_symbols(
         }));
 
     object_plan
+        .layout
         .symbols
         .insert_many(input.data.objects.iter().filter_map(|(_, data_object)| {
             let bytes = input.data.bytes.span(data_object.bytes)?;

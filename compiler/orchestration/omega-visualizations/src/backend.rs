@@ -1487,6 +1487,7 @@ fn relocations_in_range(relocations: &RelocationPlan, start: usize, end: usize) 
 
 fn emitted_containing_function_symbol(object: &ObjectPlan, offset: usize) -> Option<String> {
     object
+        .layout
         .symbols
         .iter()
         .find(|(_, symbol)| {
@@ -1505,8 +1506,8 @@ fn emitted_symbol_name(
     object: &ObjectPlan,
     symbol: omega_object_file::ObjectSymbolHandle,
 ) -> String {
-    if object.symbols.is_valid(symbol) {
-        object.symbols.get(symbol).name.clone()
+    if object.layout.symbols.is_valid(symbol) {
+        object.layout.symbols.get(symbol).name.clone()
     } else {
         "invalid".to_owned()
     }

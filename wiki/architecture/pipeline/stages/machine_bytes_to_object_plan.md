@@ -9,7 +9,8 @@ This stage turns encoded machine bytes, data bytes, layout facts, and host ABI i
 Input: encoded machine bytes under `EncodedMachineCode`, target data, layout,
 host ABI, and entry-point metadata.
 
-Output: object plan.
+Output: object plan with sections, symbols, and entry symbol under
+`ObjectFileLayout`.
 
 Primary responsibility: construct artifact-level sections and symbols for text, data, bss, imports, runtime frame storage, machine storage, and the entry function.
 
@@ -57,7 +58,8 @@ Must not own:
 - `omega-machine-bytes/src/plan.rs` is the input representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
-- `omega-object-file/src/plan.rs` owns the object-plan container.
+- `omega-object-file/src/plan.rs` owns the object-plan container: artifact
+  sections, symbols, and entry symbol live under `ObjectFileLayout`.
 - `omega-object-file/src/sections.rs` owns section records.
 - `omega-object-file/src/symbols.rs` owns symbol records and handles.
 - `omega-object-file/src/names.rs` owns target-specific object symbol and section names.
