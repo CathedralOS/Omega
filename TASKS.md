@@ -584,8 +584,9 @@ meaning, without needing access to pointer descriptor internals.
     canaries now live in focused expression submodules, matching the typed and
     symbol-resolved expression roots
   - `omega-abstract-operations` operation kinds now expose a semantic-domain
-    classifier so downstream passes can ask whether an operation is dispatch,
-    guard, runtime storage/text, host-boundary, or function-boundary work
+    classifier and host-boundary flag so downstream passes can ask whether an
+    operation is dispatch, guard, runtime storage/text, host-boundary, or
+    function-boundary work without re-matching raw variants
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
