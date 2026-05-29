@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::MachineInstructionPlan;
 
 mod builder;
+mod code;
 mod functions;
 mod shapes;
 #[cfg(test)]
