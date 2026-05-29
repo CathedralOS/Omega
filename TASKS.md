@@ -603,6 +603,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-emission-planning` now centralizes selected-instruction host
     boundary payload queries so host binding/argument blockers reuse the
     operation semantic query surface instead of open-coding boundary matches
+  - `omega-relocations` now centralizes selected host-operation and host text
+    read payload extraction before relocation collectors consume boundary
+    operation details
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures

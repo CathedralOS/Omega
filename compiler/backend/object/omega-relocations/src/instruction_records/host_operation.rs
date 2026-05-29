@@ -4,19 +4,17 @@ use super::super::offsets::{
     external_call_relocation_kind, external_call_relocation_offset, external_call_relocation_width,
 };
 use super::context::InstructionRelocationContext;
+use super::queries::selected_host_operation;
 use omega_calling_conventions::HostBindingMechanism;
+use omega_core::arena::HandleSpan;
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
-use omega_target_operations::SelectedInstructionKind;
+use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
 
 pub(super) fn collect_host_operation_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,
     instruction: &SelectedInstructionKind,
 ) -> bool {
-    let SelectedInstructionKind::HostOperation {
-        operation_key,
-        operands,
-    } = instruction
-    else {
+    let Some((operation_key, operands)) = selected_host_operation(instruction) else {
         return false;
     };
 
@@ -24,27 +22,21 @@ pub(super) fn collect_host_operation_relocations(
         context.input,
         context.function_symbol_handle,
         context.selected_instruction_index,
-        Some(*operation_key),
-        *operands,
+        Some(operation_key),
+        operands,
         context.selected_text_offset,
         context.relocation_plan,
     );
-    collect_host_operation_call_relocation(context, instruction);
+    collect_host_operation_call_relocation(context, operation_key, operands);
     true
 }
 
 fn collect_host_operation_call_relocation(
     context: &mut InstructionRelocationContext<'_, '_>,
-    instruction: &SelectedInstructionKind,
+    operation_key: omega_calling_conventions::HostOperationKey,
+    operands: HandleSpan<InstructionOperand>,
 ) {
-    let SelectedInstructionKind::HostOperation {
-        operation_key,
-        operands,
-    } = instruction
-    else {
-        return;
-    };
-    let Some(binding) = find_host_binding(context.input, *operation_key) else {
+    let Some(binding) = find_host_binding(context.input, operation_key) else {
         return;
     };
     let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
@@ -60,12 +52,12 @@ fn collect_host_operation_call_relocation(
             selected_instruction_index: context.selected_instruction_index,
             text_offset: external_call_relocation_offset(
                 context.input.target.architecture,
-                *operation_key,
+                operation_key,
                 context.selected_text_offset,
                 context
                     .input
                     .assigned_target_operations
-                    .instruction_operands(*operands)
+                    .instruction_operands(operands)
                     .unwrap_or(&[]),
             ),
             byte_width: external_call_relocation_width(context.input.target.architecture),
