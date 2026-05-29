@@ -1,10 +1,7 @@
 mod capacity;
 mod lookups;
 
-use super::{
-    InstructionOperand, TargetBoundarySummary, TargetHostBinding, TargetOwnershipSummary,
-    TargetValueSummary,
-};
+use super::{InstructionOperand, TargetHostBinding, TargetSemanticSummary};
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
@@ -16,9 +13,7 @@ pub struct TargetOperationPlan {
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<super::TargetValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
-    pub values: TargetValueSummary,
-    pub boundary_edges: TargetBoundarySummary,
-    pub ownership: TargetOwnershipSummary,
+    pub semantics: TargetSemanticSummary,
 }
 
 pub type InstructionPlan = TargetOperationPlan;

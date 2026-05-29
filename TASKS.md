@@ -68,6 +68,9 @@ meaning, without needing access to pointer descriptor internals.
     operation records, operation kinds, abstract-to-target conversions, value
     operands, and instruction operands instead of hiding all instruction
     concerns behind `selected.rs`
+  - target operation value facts, ownership facts, and boundary edges now sit
+    under an explicit `TargetSemanticSummary` root on `TargetOperationPlan`
+    instead of appearing as unrelated plan siblings
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve

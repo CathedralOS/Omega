@@ -32,16 +32,20 @@ mod tests {
         let machine_symbol = SymbolHandle::from_arena_index(1);
         let state_symbol = SymbolHandle::from_arena_index(2);
 
-        target_operations.values.values.insert(AbstractValueFact {
-            source_key: Default::default(),
-            machine_symbol,
-            state_symbol,
-            expression: Default::default(),
-            origin: AbstractValueOrigin::Statement {
-                statement_index: 13,
-                role: AbstractValueStatementRole::TransitionTargetValue,
-            },
-        });
+        target_operations
+            .semantics
+            .values
+            .values
+            .insert(AbstractValueFact {
+                source_key: Default::default(),
+                machine_symbol,
+                state_symbol,
+                expression: Default::default(),
+                origin: AbstractValueOrigin::Statement {
+                    statement_index: 13,
+                    role: AbstractValueStatementRole::TransitionTargetValue,
+                },
+            });
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
@@ -71,6 +75,7 @@ mod tests {
         let signature_symbol = SymbolHandle::from_arena_index(4);
 
         target_operations
+            .semantics
             .boundary_edges
             .source_edges
             .insert(AbstractSourceBoundaryEdge {
@@ -104,16 +109,20 @@ mod tests {
         let mut target_operations = InstructionPlan::default();
         let target_symbol = SymbolHandle::from_arena_index(1);
 
-        target_operations.ownership.moves.insert(AbstractMoveEvent {
-            source_key: Default::default(),
-            source: AbstractOwnershipEventSource::Call {
-                statement_index: 22,
-                call_ordinal: 3,
-                target_symbol,
-            },
-            root: Default::default(),
-            segments: Default::default(),
-        });
+        target_operations
+            .semantics
+            .ownership
+            .moves
+            .insert(AbstractMoveEvent {
+                source_key: Default::default(),
+                source: AbstractOwnershipEventSource::Call {
+                    statement_index: 22,
+                    call_ordinal: 3,
+                    target_symbol,
+                },
+                root: Default::default(),
+                segments: Default::default(),
+            });
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
