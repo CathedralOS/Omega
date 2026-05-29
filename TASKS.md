@@ -258,9 +258,9 @@ meaning, without needing access to pointer descriptor internals.
     facts, invariants, borrow facts, value facts, ownership facts, operations,
     and transitions
   - `omega-assigned-target-operations` now has a thin crate root and
-    noun-shaped modules for assigned operands, value homes, operation kinds,
-    operation conversions, operation records, function metadata, plan storage,
-    and runtime-value source behavior
+    noun-shaped modules for assigned instruction operands, assigned value
+    operands, value homes, operation kinds, operation conversions, operation
+    records, function metadata, plan storage, and runtime-value source behavior
   - `omega-machine-instructions` now has a thin crate root and noun-shaped
     modules for symbolic instruction records, function metadata, plan storage,
     and machine-program conversions
@@ -383,8 +383,9 @@ meaning, without needing access to pointer descriptor internals.
     high-level layout orchestration and output assembly
   - link final-image imports/fixups back to source and lowered boundary-edge
     summaries for reporting and target-policy validation
-  - consider breaking `omega-assigned-target-operations` operation conversions
-    into semantic families if the conversion table keeps growing
+  - split `omega-assigned-target-operations` operation conversions into
+    semantic families so the target/assigned bidirectional mapping stops being
+    a 1,000-line table
   - continue splitting `omega-validation` where files still mix semantic
     families, especially type-reference validation, state-signature validation,
     and effect diagnostics

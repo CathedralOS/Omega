@@ -1,7 +1,7 @@
 use super::operand_handles::{assigned_instruction_handle, assigned_instruction_span};
 use crate::{
     AssignedInstructionOperand, AssignedTargetOperationPlan, AssignedValueHomeHandle,
-    AssignedValueHomeKind, AssignedValueOperand, RuntimeValueOperandHandle, operands,
+    AssignedValueHomeKind, AssignedValueOperand, RuntimeValueOperandHandle, value_operands,
 };
 use omega_core::arena::{Handle, HandleSpan};
 use omega_target_operations::{HostOperationKey, TargetHostBinding};
@@ -36,10 +36,10 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> AssignedValueHomeHandle {
-        if operands::assigned_value_handle(handle).is_valid()
+        if value_operands::assigned_value_handle(handle).is_valid()
             && self
                 .runtime_value_operands
-                .is_valid(operands::assigned_value_handle(handle))
+                .is_valid(value_operands::assigned_value_handle(handle))
         {
             handle
         } else {
@@ -59,7 +59,7 @@ impl AssignedTargetOperationPlan {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<&AssignedValueOperand> {
-        let handle = operands::assigned_value_handle(handle);
+        let handle = value_operands::assigned_value_handle(handle);
         self.runtime_value_operands
             .is_valid(handle)
             .then(|| self.runtime_value_operands.get(handle))
@@ -70,7 +70,7 @@ impl AssignedTargetOperationPlan {
     ) -> impl Iterator<Item = (RuntimeValueOperandHandle, &AssignedValueOperand)> + '_ {
         self.runtime_value_operands
             .iter()
-            .map(|(handle, operand)| (operands::target_value_handle(handle), operand))
+            .map(|(handle, operand)| (value_operands::target_value_handle(handle), operand))
     }
 
     pub fn scratch_home_count(&self) -> usize {

@@ -1,18 +1,20 @@
 mod functions;
 mod homes;
-mod operands;
+mod instruction_operands;
 mod operation_conversions;
 mod operation_kinds;
 mod operations;
 mod plan;
 mod runtime_values;
+mod value_operands;
 
 pub use functions::*;
 pub use homes::*;
-pub use operands::*;
+pub use instruction_operands::*;
 pub use operation_kinds::*;
 pub use operations::*;
 pub use plan::*;
+pub use value_operands::*;
 
 pub use omega_target_operations::{
     HostOperationKey, RuntimeStorageRegion, RuntimeTextReadSource, StateGuardLowering,
