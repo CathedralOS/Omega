@@ -89,6 +89,8 @@ meaning, without needing access to pointer descriptor internals.
   - assigned-to-machine-instructions now has focused unit coverage proving
     value, boundary-edge, and ownership summaries survive symbolic instruction
     emission
+  - assigned-to-machine-instructions now splits function-local instruction
+    appends and metadata preservation tests out of the builder root
   - target-to-machine-program now has focused unit coverage proving value,
     boundary-edge, and ownership summaries survive the aggregate bridge into
     the current machine-program artifact

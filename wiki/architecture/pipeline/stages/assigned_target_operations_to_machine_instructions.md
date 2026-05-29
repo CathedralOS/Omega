@@ -50,7 +50,9 @@ Must not own:
 ## Implementation Map
 
 - `builder.rs` walks assigned target operations and appends symbolic machine
-  instructions.
+  instruction functions while preserving semantic metadata summaries.
+- `functions.rs` owns function-local selected-instruction walking and symbolic
+  instruction arena appends.
 - `shapes.rs` routes selected instruction families to shape-specific helpers.
 - `shapes/dispatch.rs` owns dispatch-loop/case/state/return instruction shapes.
 - `shapes/host.rs` owns host-operation instruction shapes.
@@ -72,6 +74,8 @@ Must not own:
   and read families respectively.
 - `shapes/validation.rs` owns pre-shape checks that assigned runtime value homes
   are present and compatible with the selected instruction.
+- `tests.rs` owns stage-level preservation canaries for values, ownership, and
+  boundary edges.
 
 ## Known Gaps
 
