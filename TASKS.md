@@ -26,6 +26,8 @@ meaning, without needing access to pointer descriptor internals.
     across all durable pipeline stages
   - the syntax-to-symbol-resolved stage doc now explicitly says it owns symbol
     identity only and must not typecheck, prove, borrow-check, or schedule flow
+  - syntax-to-symbol expression traversal now splits nested expression walking
+    from expression-local name/member/call/domain reference stamping
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
