@@ -36,7 +36,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   not a new duplicate values/boundaries/ownership container.
 - `values.rs` owns runtime value operand home assignment, including stack/runtime homes and scratch-register selection.
 - `registers.rs` owns architecture-specific scratch register selection until real allocation replaces the current fixed policy.
-- `tests.rs` owns stage-level preservation canaries for value and ownership metadata.
+- `tests.rs` owns stage-level preservation canaries for value, ownership, and
+  boundary policy-check metadata.
 
 ## Semantic Ownership
 
@@ -51,7 +52,7 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 | Calls | Receive physical ABI placement when represented by target operation metadata. |
 | Transitions | Receive concrete branch/linkage operands where possible, without changing control-flow shape. |
 | Effects | Remain operation metadata attached to already-authorized operations. |
-| Boundary edges | Preserve target boundary-edge summaries while host-call operands receive physical ABI placement. |
+| Boundary edges | Preserve target boundary-edge summaries, including source/lowered links and policy-check records, while host-call operands receive physical ABI placement. |
 
 ## Ownership Rules
 
@@ -64,7 +65,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 Current scratch register assignment is fixed and minimal. Real register allocation, spill insertion, and full stack-frame assignment should grow here or in narrow modules immediately under this stage.
 Ownership summaries are preserved through assignment but not yet lowered into
 assigned copy/cleanup operations.
-Boundary-edge summaries are preserved through assignment.
+Boundary-edge summaries and target boundary policy-check records are preserved
+through assignment.
 Value summaries are preserved through assignment, but their storage/drop
 consequences are still metadata rather than explicit assigned cleanup or move
 operations.
