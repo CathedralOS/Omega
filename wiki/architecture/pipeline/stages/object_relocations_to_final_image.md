@@ -59,7 +59,11 @@ Must not own:
 - `omega-image/src/symbols.rs` owns final-image symbol handle mapping, symbol names, import checks, and address queries.
 - `omega-image/src/output.rs` owns emitted image output DTOs.
 - `omega-image/src/*_relocations.rs` owns architecture-specific final relocation patching helpers.
-- `omega-image-emission/src/lib.rs` owns target-to-image-writer dispatch and checked direct-executable emission.
+- `omega-image-emission/src/lib.rs` owns the public direct-image emission API surface only.
+- `omega-image-emission/src/input.rs` owns the executable image input DTO.
+- `omega-image-emission/src/support.rs` owns direct image writer support facts by target.
+- `omega-image-emission/src/dispatch.rs` owns target-to-image-writer dispatch and final-image construction handoff.
+- `omega-image-emission/src/checked.rs` owns planned-vs-encoded byte validation before direct image emission.
 - `omega-image-elf/src/lib.rs` owns ELF emission orchestration; ELF constants, byte writing, entry-symbol lookup, layout helpers, and header/program-header writing live in focused sibling modules.
 - `omega-image-pe/src/lib.rs` owns PE emission orchestration; PE constants, byte writing, layout helpers, imports, entry-symbol lookup, and headers live in focused sibling modules.
 - `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; import thunks, bind info, AArch64 thunk patching, and entry-symbol lookup live in focused sibling modules.
