@@ -86,8 +86,10 @@ meaning, without needing access to pointer descriptor internals.
     object plans, sections, symbols, relocations, naming, and container
     serialization
   - relocation instruction-record extraction now routes through a thin module
-    entrypoint with runtime-value and runtime-storage relocation families split
-    out of the dispatch table
+    entrypoint with runtime-value, runtime-text-read, and runtime-storage
+    relocation families split out of the dispatch table; runtime storage is
+    further split into address, compare, copy, string, and write relocation
+    families
   - `omega-validation` now has a thin validation entrypoint plus semantic
     modules for tests, runtime entry-point checks, local writable roots,
     assignment places, calls, transitions, proof facts, domain membership,
@@ -109,11 +111,10 @@ meaning, without needing access to pointer descriptor internals.
     consequences deliberately instead of only preserving summaries
   - link abstract source boundary edges to lowered host-operation boundary
     edges and validate the pair against target policies
-  - give object planning and relocation planning the same semantic ownership
-    table treatment as the earlier pipeline stages
   - continue splitting `omega-relocations/src/instruction_records/*` by
-    selected instruction family so runtime text, host calls, storage, data, and
-    branch-like relocation extraction stay separately owned
+    selected instruction family so runtime text buffer/materialize/append
+    cases, host calls, data, and branch-like relocation extraction stay
+    separately owned
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic

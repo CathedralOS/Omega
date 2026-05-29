@@ -48,11 +48,13 @@ Must not own:
 - `omega-relocations/src/lib.rs` owns the relocation-planning entrypoint and per-function walk.
 - `omega-relocations/src/lookups.rs` owns selected-instruction offset lookup.
 - `omega-relocations/src/data_addresses.rs` owns data/storage address relocations.
-- `omega-relocations/src/instruction_records/*` owns instruction-family relocation extraction.
+- `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
+- `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.
+- `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families, with host-backed line reads split from general text buffer references.
+- `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data.
 
 ## Known Gaps
 
-- `instruction_records/mod.rs` is still a large dispatch table and should be split by selected instruction family.
-- Runtime-text relocation helpers are still relatively dense; split further if new text/storage families land.
+- Runtime-text relocation helpers are still relatively dense; split buffer/materialize/append families if new text cases land.
 - Boundary summaries are preserved beside this stage, but target policy validation still needs explicit linkage between source boundary edges and lowered host-operation relocations.
