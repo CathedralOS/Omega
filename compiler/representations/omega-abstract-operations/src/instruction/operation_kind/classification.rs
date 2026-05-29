@@ -88,6 +88,7 @@ impl AbstractOperationKind {
 
     pub fn crosses_host_boundary(&self) -> bool {
         self.semantic_domain() == AbstractOperationDomain::HostBoundary
+            || matches!(self, Self::ReadRuntimeTextLine { .. })
     }
 
     pub fn touches_runtime_storage(&self) -> bool {

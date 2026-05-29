@@ -53,6 +53,7 @@ fn operation_kinds_expose_runtime_storage_domains() {
     assert!(guard.touches_runtime_storage());
     assert!(copy.touches_runtime_storage());
     assert!(read.touches_runtime_storage());
+    assert!(read.crosses_host_boundary());
 }
 
 #[test]
