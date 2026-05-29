@@ -1,9 +1,13 @@
+mod bindings;
+
+use self::bindings::{
+    Binding, BindingScope, ScopedBindings, append_name_suffix, simple_local_bindings,
+};
 use crate::StateValueRole;
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
-    BinaryExpression, CallExpression, Expression, ExpressionHandle, ExpressionNode,
-    ExpressionTable, IndexedExpression, MemberExpression, NamePath, StructLiteral,
-    StructLiteralField,
+    BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression,
+    StructLiteral, StructLiteralField,
 };
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
@@ -107,185 +111,6 @@ pub fn simplify_state_expression_for_role(
         &bindings,
         preserve_call_locals,
     )
-}
-
-#[derive(Debug, Clone)]
-struct Binding {
-    symbol: SymbolHandle,
-    name: omega_checked_trees::name::Identifier,
-    value: Expression,
-}
-
-impl Default for Binding {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: omega_checked_trees::name::Identifier::generated_static(""),
-            value: Expression::Integer(0),
-        }
-    }
-}
-
-trait BindingScope {
-    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding>;
-}
-
-impl BindingScope for [Binding] {
-    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
-        self.iter()
-            .find(|binding| binding_matches_path(binding, path))
-    }
-}
-
-impl BindingScope for Arena<Binding> {
-    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
-        self.iter()
-            .map(|(_, binding)| binding)
-            .find(|binding| binding_matches_path(binding, path))
-    }
-}
-
-struct ScopedBindings<'scope, Parent: BindingScope + ?Sized> {
-    parent: &'scope Parent,
-    locals: &'scope Arena<Binding>,
-}
-
-impl<Parent: BindingScope + ?Sized> BindingScope for ScopedBindings<'_, Parent> {
-    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
-        self.parent.find_path_binding(path).or_else(|| {
-            self.locals
-                .iter()
-                .map(|(_, binding)| binding)
-                .find(|binding| binding_matches_path(binding, path))
-        })
-    }
-}
-
-fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
-    if binding.symbol.is_valid() && path.head_symbol().is_valid() {
-        return binding.symbol == path.head_symbol();
-    }
-
-    path.first().is_some_and(|name| *name == binding.name)
-}
-
-fn simple_local_bindings(
-    program: &CheckedTrees,
-    state: &State,
-    statement_index: usize,
-) -> Arena<Binding> {
-    let local_binding_capacity = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .filter(|statement| {
-            matches!(
-                statement,
-                StatementNode::LocalData(local_data) if local_data.initial_value.is_valid()
-            )
-        })
-        .count();
-    let mut bindings = Arena::with_capacity(local_binding_capacity);
-
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-    {
-        let StatementNode::LocalData(local_data) = statement else {
-            continue;
-        };
-        if !local_data.initial_value.is_valid() {
-            continue;
-        }
-        let Some(value) = simple_local_binding_value_from_table(
-            &program.expression_table,
-            local_data.initial_value,
-        ) else {
-            continue;
-        };
-        bindings.insert(Binding {
-            symbol: local_data.symbol,
-            name: local_data.name.clone(),
-            value,
-        });
-    }
-
-    bindings
-}
-
-fn simple_local_binding_value_from_table(
-    table: &ExpressionTable,
-    expression: ExpressionHandle,
-) -> Option<Expression> {
-    match table.expression(expression) {
-        ExpressionNode::Binary(binary) => Some(Expression::Binary(Box::new(BinaryExpression {
-            left: simple_local_binding_value_from_table(table, binary.left)?,
-            operator: binary.operator,
-            right: simple_local_binding_value_from_table(table, binary.right)?,
-        }))),
-        ExpressionNode::Boolean(value) => Some(Expression::Boolean(*value)),
-        ExpressionNode::Float(value) => Some(Expression::Float(*value)),
-        ExpressionNode::Integer(value) => Some(Expression::Integer(*value)),
-        ExpressionNode::String(value) => Some(Expression::String(value.clone())),
-        ExpressionNode::Indexed(indexed) => {
-            Some(Expression::Indexed(Box::new(IndexedExpression {
-                collection: simple_local_binding_value_from_table(table, indexed.collection)?,
-                index: simple_local_binding_value_from_table(table, indexed.index)?,
-            })))
-        }
-        ExpressionNode::Range(range) => Some(Expression::Range(Box::new(
-            omega_checked_trees::expression::RangeExpression {
-                start: range
-                    .start
-                    .is_valid()
-                    .then(|| simple_local_binding_value_from_table(table, range.start))
-                    .flatten()
-                    .map(Box::new),
-                end: range
-                    .end
-                    .is_valid()
-                    .then(|| simple_local_binding_value_from_table(table, range.end))
-                    .flatten()
-                    .map(Box::new),
-            },
-        ))),
-        ExpressionNode::Call(call) => Some(Expression::Call(Box::new(CallExpression {
-            receiver: call.receiver.is_valid().then(|| {
-                simple_local_binding_value_from_table(table, call.receiver).map(Box::new)
-            })?,
-            target_symbol: call.target_symbol,
-            target: call.target.clone(),
-            arguments: table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| simple_local_binding_value_from_table(table, *argument))
-                .collect::<Option<Arc<[_]>>>()?,
-        }))),
-        ExpressionNode::Mutable(inner) => simple_local_binding_value_from_table(table, *inner)
-            .map(|value| Expression::Mutable(Box::new(value))),
-        ExpressionNode::Name(path) => {
-            Some(Expression::Name(NamePath::resolved_with_member_symbols(
-                table.name_path_members(path.members).to_vec(),
-                table.name_path_member_symbols(path.member_symbols).to_vec(),
-                path.head_symbol,
-                path.symbol,
-            )))
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = simple_local_binding_value_from_table(table, member.receiver)?;
-            Some(Expression::Member(Box::new(MemberExpression {
-                receiver,
-                member_symbol: member.member_symbol,
-                member: member.member.clone(),
-            })))
-        }
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::StructLiteral(_) => None,
-    }
 }
 
 fn simplify_expression_with_bindings(
@@ -921,23 +746,6 @@ fn helper_state_model(
     }
 
     Some(HelperStateModel { transitions })
-}
-
-fn append_name_suffix(
-    base: &Expression,
-    suffix: &[omega_checked_trees::name::Identifier],
-) -> Expression {
-    let mut expression = base.clone();
-
-    for member in suffix {
-        expression = Expression::Member(Box::new(MemberExpression {
-            receiver: expression,
-            member_symbol: SymbolHandle::invalid(),
-            member: member.clone(),
-        }));
-    }
-
-    expression
 }
 
 #[derive(Debug, Clone)]
@@ -1714,6 +1522,7 @@ mod tests {
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
+            ..Machine::default()
         };
         let mut program = CheckedTrees::default();
         push_state_statements(
@@ -1933,6 +1742,7 @@ mod tests {
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
+            ..Machine::default()
         };
         let program = CheckedTrees::default();
         let roll_symbol = SymbolHandle::from_arena_index(99);
@@ -1969,6 +1779,7 @@ mod tests {
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
+            ..Machine::default()
         };
         let program = CheckedTrees::default();
         let health_symbol = SymbolHandle::from_arena_index(100);
