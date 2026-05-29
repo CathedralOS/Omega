@@ -29,10 +29,10 @@ Primary responsibility: lower checked control flow into explicit operations with
   registers.
 - Facts: preserved as diagnostic/proven metadata; not re-proved here.
 - Loans: already validated; may remain as assertions or metadata.
-- Moves: should become explicit abstract copies/transfers or no-ops once durable
-  move events exist upstream.
-- Drops: should become abstract cleanup/deallocation calls or no-ops once durable
-  drop events exist upstream.
+- Moves: should become explicit abstract copies/transfers or no-ops from
+  control-flow ownership events.
+- Drops: should become abstract cleanup/deallocation calls or no-ops from
+  control-flow ownership events.
 - Calls: should become abstract call operations.
 - Transitions: should become branches, jumps, returns, exits, and block edges.
 - Effects: should attach to abstract operations for later reporting/lowering.
@@ -53,3 +53,5 @@ Primary responsibility: lower checked control flow into explicit operations with
 This stage is not yet a true representation-to-representation lowering pass.
 Runtime and instruction-selection policy still owns too much of the abstract
 operation construction that should eventually live here.
+It also does not yet consume control-flow move/drop events to build explicit
+transfer and cleanup operations.
