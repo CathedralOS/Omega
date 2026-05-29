@@ -6,6 +6,7 @@ use crate::{
 };
 
 mod borrow_lifetimes;
+mod boundaries;
 mod builder;
 mod calls;
 mod common;
@@ -21,6 +22,7 @@ mod statements;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
+use boundaries::append_call_boundary_edges;
 pub(crate) use builder::build_flow_facts;
 use calls::build_call_flow_fact;
 use common::{
