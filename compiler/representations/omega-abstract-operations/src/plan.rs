@@ -38,7 +38,7 @@ impl AbstractOperationPlan {
                 operands: Arena::with_capacity(operand_capacity),
                 runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             },
-            semantics: AbstractSemanticSummary::default(),
+            semantics: AbstractSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
         }
     }
 }

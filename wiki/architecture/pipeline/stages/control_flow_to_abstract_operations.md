@@ -22,7 +22,8 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `lowering/semantics.rs` owns construction of `AbstractSemanticSummary` from
   control-flow semantic roots and lowered host-call evidence. The top-level
   lowering code should assign this root as a unit instead of mutating individual
-  semantic sub-arenas.
+  semantic sub-arenas, and should use `AbstractSemanticSummary` constructors
+  rather than spelling out its internal fields.
 - `omega-control-flow/src/semantics.rs` is the source semantic root for this
   stage: `ControlFlowSemanticRoots` keeps proof, invariant, contract, value,
   boundary, borrow, and ownership arenas visibly separate from executable
@@ -36,6 +37,8 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `omega-abstract-operations/src/plan.rs` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.
+- `omega-abstract-operations/src/semantics.rs` owns grouped semantic-root
+  construction for abstract values, boundary edges, and ownership summaries.
   `instruction/function.rs`
   owns abstract function plans,
   `instruction/operation.rs` owns abstract operation records and source
