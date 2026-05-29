@@ -548,6 +548,8 @@ meaning, without needing access to pointer descriptor internals.
     into a focused codegen helper module
   - `omega-backend-report` now keeps codegen section orchestration thin and
     moves target-operation report rendering into a focused target-op module
+  - `omega-backend-report` now splits runtime guard and dispatch-loop
+    reporting out of the root writer into a focused runtime-dispatch module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
