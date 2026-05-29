@@ -72,6 +72,8 @@ meaning, without needing access to pointer descriptor internals.
     contract summary construction from worker-local graph remapping
   - checked-tree-to-state-graph borrow preservation now splits call argument
     access summaries from active-loan, activation, and weakening summaries
+  - checked-tree-to-state-graph ownership preservation now splits state-local
+    move/drop preservation from worker-local ownership arena remapping
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership

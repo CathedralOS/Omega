@@ -82,7 +82,8 @@ preservation:
   graph merging.
 - `ownership.rs` preserves checked-flow move/drop events into graph-shaped
   ownership summaries and remaps worker-local ownership arenas during graph
-  merging.
+  merging. `ownership/summary.rs` owns state-local move/drop preservation,
+  while `ownership/remap.rs` owns worker-local ownership arena remapping.
 - `values.rs` preserves checked value facts into state-local graph value
   summaries and remaps worker-local value arenas during graph merging.
 - `remap.rs` owns narrow operation/transition/expression remap helpers used by
