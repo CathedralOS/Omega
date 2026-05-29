@@ -1,6 +1,7 @@
 use super::{AssignedOperationDomain, AssignedOperationKind};
 use crate::TargetValueOperandHandle;
 use omega_core::arena::HandleSpan;
+use omega_core::operations::OperationSemanticQuery;
 use omega_target_operations::{
     HostOperationKey, RuntimeStorageRegion, RuntimeTextReadSource, StateGuardLowering,
     StateGuardOperator, TargetDataObjectHandle,
@@ -113,6 +114,18 @@ fn operation_kind_conversion_preserves_semantic_queries() {
         assigned_read.touches_runtime_storage(),
         target_read.touches_runtime_storage()
     );
+    assert_generic_semantic_query(
+        &target_read,
+        AssignedOperationDomain::RuntimeRead,
+        true,
+        true,
+    );
+    assert_generic_semantic_query(
+        &assigned_read,
+        AssignedOperationDomain::RuntimeRead,
+        true,
+        true,
+    );
 
     let assigned_copy = AssignedOperationKind::CopyRuntimeStorage {
         source_region: RuntimeStorageRegion::Machine,
@@ -135,4 +148,27 @@ fn operation_kind_conversion_preserves_semantic_queries() {
         target_copy.touches_runtime_storage(),
         assigned_copy.touches_runtime_storage()
     );
+    assert_generic_semantic_query(
+        &target_copy,
+        AssignedOperationDomain::RuntimeCopy,
+        false,
+        true,
+    );
+    assert_generic_semantic_query(
+        &assigned_copy,
+        AssignedOperationDomain::RuntimeCopy,
+        false,
+        true,
+    );
+}
+
+fn assert_generic_semantic_query(
+    operation: &impl OperationSemanticQuery,
+    domain: AssignedOperationDomain,
+    crosses_host_boundary: bool,
+    touches_runtime_storage: bool,
+) {
+    assert_eq!(operation.semantic_domain(), domain);
+    assert_eq!(operation.crosses_host_boundary(), crosses_host_boundary);
+    assert_eq!(operation.touches_runtime_storage(), touches_runtime_storage);
 }
