@@ -21,8 +21,8 @@ pub(crate) fn build_machine_program(
 mod tests {
     use super::*;
     use omega_abstract_operations::{
-        AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin,
-        AbstractValueStatementRole,
+        AbstractMoveEvent, AbstractOwnershipEventSource, AbstractSourceBoundaryEdge,
+        AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
     };
     use omega_core::symbols::SymbolHandle;
 
@@ -97,5 +97,41 @@ mod tests {
         assert_eq!(edge.call_ordinal, 2);
         assert_eq!(edge.boundary_trait_symbol, trait_symbol);
         assert_eq!(edge.boundary_signature_symbol, signature_symbol);
+    }
+
+    #[test]
+    fn preserves_target_ownership_summary_into_machine_program() {
+        let mut target_operations = InstructionPlan::default();
+        let target_symbol = SymbolHandle::from_arena_index(1);
+
+        target_operations.ownership.moves.insert(AbstractMoveEvent {
+            source_key: Default::default(),
+            source: AbstractOwnershipEventSource::Call {
+                statement_index: 22,
+                call_ordinal: 3,
+                target_symbol,
+            },
+            root: Default::default(),
+            segments: Default::default(),
+        });
+
+        let machine_program = build_machine_program(&target_operations).expect("machine program");
+
+        assert_eq!(machine_program.ownership.moves.len(), 1);
+        let event = machine_program
+            .ownership
+            .moves
+            .iter()
+            .next()
+            .map(|(_, event)| event)
+            .expect("machine-program ownership event");
+        assert_eq!(
+            event.source,
+            AbstractOwnershipEventSource::Call {
+                statement_index: 22,
+                call_ordinal: 3,
+                target_symbol,
+            }
+        );
     }
 }
