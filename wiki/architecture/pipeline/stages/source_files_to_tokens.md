@@ -23,16 +23,18 @@ Primary responsibility: preserve source identity and split text into tokens.
 
 ## Semantic Ownership
 
-- Places: not known; source spans are text coordinates, not program places.
-- Values: not known; literal text may be decoded, but typed values are created later.
-- Facts: not known; numeric/string metadata is lexical payload only.
-- Loans: not known.
-- Moves: not known.
-- Drops: not known.
-- Calls: not known.
-- Transitions: not known.
-- Effects: not known.
-- Boundary edges: not known; `boundary` is only token text here.
+| Noun | Ownership |
+| --- | --- |
+| Places | Not known; source spans are text coordinates, not program places. |
+| Values | Not known; literal text may be decoded, but typed values are created later. |
+| Facts | Not known; numeric/string metadata is lexical payload only. |
+| Loans | Not known. |
+| Moves | Not known. |
+| Drops | Not known. |
+| Calls | Not known. |
+| Transitions | Not known. |
+| Effects | Not known. |
+| Boundary edges | Not known; `boundary` is only token text here. |
 
 ## Ownership Rules
 
