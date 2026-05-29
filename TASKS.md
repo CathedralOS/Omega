@@ -70,6 +70,8 @@ meaning, without needing access to pointer descriptor internals.
     domain proof label substitution
   - checked-tree-to-state-graph contract preservation now splits state-local
     contract summary construction from worker-local graph remapping
+  - checked-tree-to-state-graph borrow preservation now splits call argument
+    access summaries from active-loan, activation, and weakening summaries
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership

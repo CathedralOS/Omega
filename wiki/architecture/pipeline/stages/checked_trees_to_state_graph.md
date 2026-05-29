@@ -74,7 +74,9 @@ preservation:
   `contracts/remap.rs` owns contract-summary arena remapping when worker-local
   graph fragments are merged.
   `borrows/remap.rs` owns borrow-summary arena remapping when worker-local graph
-  fragments are merged.
+  fragments are merged. `borrows/calls.rs` owns call argument access
+  preservation, while `borrows/lifetimes.rs` owns active-loan,
+  activation, and weakening preservation from checked flow.
 - `boundaries.rs` preserves checked-flow boundary edges into graph-shaped
   state-local boundary summaries and remaps worker-local boundary arenas during
   graph merging.
