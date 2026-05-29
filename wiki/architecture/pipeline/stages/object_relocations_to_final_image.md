@@ -50,12 +50,12 @@ Must not own:
 ## Implementation Map
 
 - `omega-image/src/lib.rs` owns the public final-image API surface only.
-- `omega-image/src/model.rs` owns final-image arena-backed data records:
-  bytes and BSS facts live under `FinalImageMemory`, entry/symbol/import facts
-  live under `FinalImageSymbolTable`, and final fixups live under
-  `FinalImageRelocationTable`. Root construction should go through
-  `FinalImage::with_capacity` so callers do not manually assemble every
-  sub-root arena.
+- `omega-image/src/model/` owns final-image arena-backed data records:
+  `memory.rs` owns bytes and BSS facts, `symbols.rs` owns
+  entry/symbol/import facts, `relocations.rs` owns final fixups, `layout.rs`
+  owns final section addresses, and `root.rs` owns `FinalImage` construction.
+  Root construction should go through `FinalImage::with_capacity` so callers
+  do not manually assemble every sub-root arena.
 - `omega-image/src/builder.rs` owns object-plan and relocation-plan conversion into `FinalImage`.
 - `omega-image/src/builder/copies.rs` owns object symbol, import, and
   relocation copying into final-image arenas.
