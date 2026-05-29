@@ -1,4 +1,6 @@
-use crate::{FinalImage, FinalImageLayout, final_image_symbol_address, final_image_symbol_name};
+use crate::{
+    FinalImage, FinalImageLayout, final_image_symbol_address, final_image_symbol_name, patch_bytes,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_object_file::RelocationKind;
 
@@ -19,7 +21,12 @@ pub fn apply_x86_64_relocations(
 
         match relocation.kind {
             RelocationKind::X86_64Absolute64 => {
-                write_u64(&mut image.text, relocation.text_offset, symbol_address)?;
+                patch_bytes::write_u64(
+                    &mut image.text,
+                    relocation.text_offset,
+                    symbol_address,
+                    "x86_64",
+                )?;
             }
             RelocationKind::X86_64Relative32 => {
                 let relocation_address = layout.text_address + relocation.text_offset as u64 + 4;
@@ -29,7 +36,7 @@ pub fn apply_x86_64_relocations(
                         "{output_name} x86_64 relative relocation is out of range: {delta} byte(s)"
                     ))
                 })?;
-                write_i32(&mut image.text, relocation.text_offset, value)?;
+                patch_bytes::write_i32(&mut image.text, relocation.text_offset, value, "x86_64")?;
             }
             RelocationKind::Aarch64Page21
             | RelocationKind::Aarch64PageOffset12
@@ -41,33 +48,5 @@ pub fn apply_x86_64_relocations(
         }
     }
 
-    Ok(())
-}
-
-fn write_u64(bytes: &mut [u8], offset: usize, value: u64) -> Result<(), Diagnostic> {
-    let end = offset
-        .checked_add(8)
-        .ok_or_else(|| Diagnostic::error("x86_64 relocation offset overflow"))?;
-    let Some(slice) = bytes.get_mut(offset..end) else {
-        return Err(Diagnostic::error(format!(
-            "x86_64 relocation offset {offset} is outside text section"
-        )));
-    };
-
-    slice.copy_from_slice(&value.to_le_bytes());
-    Ok(())
-}
-
-fn write_i32(bytes: &mut [u8], offset: usize, value: i32) -> Result<(), Diagnostic> {
-    let end = offset
-        .checked_add(4)
-        .ok_or_else(|| Diagnostic::error("x86_64 relocation offset overflow"))?;
-    let Some(slice) = bytes.get_mut(offset..end) else {
-        return Err(Diagnostic::error(format!(
-            "x86_64 relocation offset {offset} is outside text section"
-        )));
-    };
-
-    slice.copy_from_slice(&value.to_le_bytes());
     Ok(())
 }

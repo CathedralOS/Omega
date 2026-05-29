@@ -1,6 +1,6 @@
 use crate::{
     FinalImage, FinalImageLayout, final_image_imports_symbol, final_image_symbol_address,
-    final_image_symbol_name,
+    final_image_symbol_name, patch_bytes,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_object_file::RelocationKind;
@@ -82,10 +82,10 @@ fn patch_aarch64_adrp(
     let immediate = (page_delta as u32) & 0x1f_ffff;
     let immediate_low = immediate & 0b11;
     let immediate_high = (immediate >> 2) & 0x7ffff;
-    let mut instruction = read_u32(text, offset)?;
+    let mut instruction = patch_bytes::read_u32(text, offset, "AArch64")?;
     instruction &= !((0b11 << 29) | (0x7ffff << 5));
     instruction |= (immediate_low << 29) | (immediate_high << 5);
-    write_u32(text, offset, instruction)
+    patch_bytes::write_u32(text, offset, instruction, "AArch64")
 }
 
 fn patch_aarch64_add_page_offset(
@@ -94,10 +94,10 @@ fn patch_aarch64_add_page_offset(
     symbol_address: u64,
 ) -> Result<(), Diagnostic> {
     let page_offset = (symbol_address & 0xfff) as u32;
-    let mut instruction = read_u32(text, offset)?;
+    let mut instruction = patch_bytes::read_u32(text, offset, "AArch64")?;
     instruction &= !(0xfff << 10);
     instruction |= page_offset << 10;
-    write_u32(text, offset, instruction)
+    patch_bytes::write_u32(text, offset, instruction, "AArch64")
 }
 
 fn patch_aarch64_branch26(
@@ -119,37 +119,8 @@ fn patch_aarch64_branch26(
         )));
     }
 
-    let mut instruction = read_u32(text, offset)?;
+    let mut instruction = patch_bytes::read_u32(text, offset, "AArch64")?;
     instruction &= !0x03ff_ffff;
     instruction |= (immediate as u32) & 0x03ff_ffff;
-    write_u32(text, offset, instruction)
-}
-
-fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
-    let end = offset
-        .checked_add(4)
-        .ok_or_else(|| Diagnostic::error("AArch64 relocation offset overflow"))?;
-    let Some(slice) = bytes.get(offset..end) else {
-        return Err(Diagnostic::error(format!(
-            "AArch64 relocation offset {offset} is outside text section"
-        )));
-    };
-
-    Ok(u32::from_le_bytes(
-        slice.try_into().expect("u32 relocation slice has length 4"),
-    ))
-}
-
-fn write_u32(bytes: &mut [u8], offset: usize, value: u32) -> Result<(), Diagnostic> {
-    let end = offset
-        .checked_add(4)
-        .ok_or_else(|| Diagnostic::error("AArch64 relocation offset overflow"))?;
-    let Some(slice) = bytes.get_mut(offset..end) else {
-        return Err(Diagnostic::error(format!(
-            "AArch64 relocation offset {offset} is outside text section"
-        )));
-    };
-
-    slice.copy_from_slice(&value.to_le_bytes());
-    Ok(())
+    patch_bytes::write_u32(text, offset, instruction, "AArch64")
 }
