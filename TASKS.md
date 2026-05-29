@@ -90,6 +90,8 @@ meaning, without needing access to pointer descriptor internals.
   - object-file planning now has a focused unit canary for text/data/bss
     section sizing, runtime-frame bss placement, entry/import symbols, and
     data-object symbol emission
+  - object-file planning now has focused unit canaries for missing
+    entry-machine layout and missing encoded entry-function diagnostics
   - relocation instruction-record extraction now routes through a thin module
     entrypoint with runtime-value, runtime-text, and runtime-storage relocation
     families split out of the dispatch table; runtime text is split into
@@ -144,8 +146,6 @@ meaning, without needing access to pointer descriptor internals.
     high-level layout orchestration and output assembly
   - link final-image imports/fixups back to source and lowered boundary-edge
     summaries for reporting and target-policy validation
-  - add focused object-planning canaries for missing entry-machine layout and
-    missing encoded entry-function diagnostics
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic

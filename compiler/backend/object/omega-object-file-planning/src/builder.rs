@@ -200,4 +200,93 @@ mod tests {
             && symbol.offset == 32
             && symbol.size == 8));
     }
+
+    #[test]
+    fn reports_missing_entry_machine_layout() {
+        let target = NativeTarget::host();
+        let host_abi = empty_host_abi(target);
+        let layouts = empty_layouts();
+        let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 1, 0, 0);
+        encoded_machine.functions.insert(EncodedMachineFunction {
+            source_key: Default::default(),
+            byte_offset: 0,
+            byte_count: 4,
+        });
+        let data = TargetDataPlan::with_capacity(0, 0);
+
+        let diagnostic = build_object_plan(ObjectPlanningInput {
+            target,
+            host_abi: &host_abi,
+            layouts: &layouts,
+            entry_machine_symbol: SymbolHandle::invalid(),
+            entry_machine_name: "Main",
+            entry_state_key: Default::default(),
+            encoded_machine: &encoded_machine,
+            data: &data,
+            runtime_frame_size: 0,
+            runtime_frame_alignment: 1,
+        })
+        .expect_err("object planning should require the entry machine layout");
+
+        assert_eq!(
+            diagnostic.message,
+            "missing native layout for entry machine `Main`"
+        );
+    }
+
+    #[test]
+    fn reports_missing_encoded_entry_function() {
+        let target = NativeTarget::host();
+        let machine_symbol = SymbolHandle::invalid();
+        let host_abi = empty_host_abi(target);
+        let mut layouts = empty_layouts();
+        layouts.machine_layouts.insert(MachineLayout {
+            symbol: machine_symbol,
+            layout: TypeLayout {
+                size: 8,
+                alignment: 8,
+            },
+            ..MachineLayout::default()
+        });
+        let encoded_machine = EncodedMachinePlan::with_capacity(target, 0, 0, 0);
+        let data = TargetDataPlan::with_capacity(0, 0);
+
+        let diagnostic = build_object_plan(ObjectPlanningInput {
+            target,
+            host_abi: &host_abi,
+            layouts: &layouts,
+            entry_machine_symbol: machine_symbol,
+            entry_machine_name: "Main",
+            entry_state_key: Default::default(),
+            encoded_machine: &encoded_machine,
+            data: &data,
+            runtime_frame_size: 0,
+            runtime_frame_alignment: 1,
+        })
+        .expect_err("object planning should require an encoded entry function");
+
+        assert!(
+            diagnostic
+                .message
+                .starts_with("missing encoded entry function for state key")
+        );
+    }
+
+    fn empty_host_abi(target: NativeTarget) -> HostAbiPlan {
+        HostAbiPlan {
+            target,
+            bindings: Arena::<HostBinding>::new(),
+            host_operations: Arena::<HostOperationReference>::new(),
+            platform_call_lowerings: Arena::new(),
+        }
+    }
+
+    fn empty_layouts() -> LayoutPlan {
+        LayoutPlan {
+            data_layouts: Arena::<DataLayout>::new(),
+            fields: Arena::<FieldLayout>::new(),
+            machine_layouts: Arena::<MachineLayout>::new(),
+            variants: Arena::<VariantLayout>::new(),
+        }
+    }
 }
