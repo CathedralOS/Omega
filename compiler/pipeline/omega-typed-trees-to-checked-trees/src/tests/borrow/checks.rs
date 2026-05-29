@@ -54,6 +54,7 @@ fn accepts_mutable_local_named_place_arguments() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -163,6 +164,7 @@ fn accepts_disjoint_member_borrow_arguments() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -256,6 +258,7 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -320,6 +323,7 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -373,6 +377,7 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -431,6 +436,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -473,6 +479,7 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,
@@ -526,6 +533,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
+        values: Default::default(),
         borrow,
         invariants: Default::default(),
         domains,

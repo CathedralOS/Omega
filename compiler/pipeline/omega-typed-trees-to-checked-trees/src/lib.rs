@@ -6,6 +6,7 @@ mod invariants;
 mod labels;
 mod lookup;
 mod validation;
+mod values;
 
 use omega_checked_trees::CheckedTrees;
 
@@ -35,6 +36,8 @@ pub(crate) use flow::{build_domain_facts, build_flow_facts};
 #[cfg(test)]
 pub(crate) use proof::build_proof_facts;
 pub(crate) use proof::contract_target_from_state_symbol;
+#[cfg(test)]
+pub(crate) use values::build_value_facts;
 mod borrow;
 mod flow;
 
