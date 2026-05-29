@@ -56,5 +56,4 @@ Must not own:
 
 ## Known Gaps
 
-- This stage should gain focused canaries for entry-symbol lookup, import symbol construction, and runtime-frame bss sizing.
 - The stage docs now state the semantic cutoff, but diagnostics/reporting still need a clear consumer for encoded-machine semantic summaries at artifact time.
