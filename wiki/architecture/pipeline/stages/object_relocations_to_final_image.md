@@ -53,7 +53,9 @@ Must not own:
 - `omega-image/src/model.rs` owns final-image arena-backed data records:
   bytes and BSS facts live under `FinalImageMemory`, entry/symbol/import facts
   live under `FinalImageSymbolTable`, and final fixups live under
-  `FinalImageRelocationTable`.
+  `FinalImageRelocationTable`. Root construction should go through
+  `FinalImage::with_capacity` so callers do not manually assemble every
+  sub-root arena.
 - `omega-image/src/builder.rs` owns object-plan and relocation-plan conversion into `FinalImage`.
 - `omega-image/src/builder/copies.rs` owns object symbol, import, and
   relocation copying into final-image arenas.

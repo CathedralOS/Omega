@@ -40,23 +40,17 @@ pub(super) fn copy_object_relocations(image: &mut FinalImage, relocations: &Relo
     image
         .relocation_table
         .relocations
-        .insert_many(
-            relocations
-                .record_set
-                .records
-                .iter()
-                .map(|(_, relocation)| {
-                    let symbol_handle = final_image_symbol_handle(relocation.symbol_handle);
-                    FinalImageRelocation {
-                        text_offset: relocation.text_offset,
-                        byte_width: relocation.byte_width,
-                        symbol_handle: symbol_handle
-                            .is_valid()
-                            .then_some(symbol_handle)
-                            .filter(|handle| symbols.is_valid(*handle))
-                            .unwrap_or_else(Handle::invalid),
-                        kind: relocation.kind,
-                    }
-                }),
-        );
+        .insert_many(relocations.records().map(|(_, relocation)| {
+            let symbol_handle = final_image_symbol_handle(relocation.symbol_handle);
+            FinalImageRelocation {
+                text_offset: relocation.text_offset,
+                byte_width: relocation.byte_width,
+                symbol_handle: symbol_handle
+                    .is_valid()
+                    .then_some(symbol_handle)
+                    .filter(|handle| symbols.is_valid(*handle))
+                    .unwrap_or_else(Handle::invalid),
+                kind: relocation.kind,
+            }
+        }));
 }

@@ -32,11 +32,37 @@ pub struct FinalImageRelocationTable {
 
 impl Default for FinalImage {
     fn default() -> Self {
+        Self::with_capacity(
+            NativeTarget::host(),
+            FinalImageMemory::default(),
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        )
+    }
+}
+
+impl FinalImage {
+    pub fn with_capacity(
+        target: NativeTarget,
+        memory: FinalImageMemory,
+        entry_symbol: FinalImageSymbolHandle,
+        symbol_capacity: usize,
+        import_capacity: usize,
+        relocation_capacity: usize,
+    ) -> Self {
         Self {
-            target: NativeTarget::host(),
-            memory: FinalImageMemory::default(),
-            symbol_table: FinalImageSymbolTable::default(),
-            relocation_table: FinalImageRelocationTable::default(),
+            target,
+            memory,
+            symbol_table: FinalImageSymbolTable {
+                entry_symbol,
+                symbols: Arena::with_capacity(symbol_capacity),
+                imports: Arena::with_capacity(import_capacity),
+            },
+            relocation_table: FinalImageRelocationTable {
+                relocations: Arena::with_capacity(relocation_capacity),
+            },
         }
     }
 }
