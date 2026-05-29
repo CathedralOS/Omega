@@ -17,6 +17,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - `builder.rs` owns the stage conveyor from target operation arenas into assigned target operation arenas.
 - `functions.rs` owns function metadata remapping while operation ordering is preserved.
 - `operations.rs` owns target operation and instruction-operand conversion into assigned operation records.
+- `instruction_operands.rs` owns assigned instruction operand records such as immediates, data addresses, and runtime string descriptors.
+- `value_operands.rs` owns assigned runtime value operand records and their target/assigned handle bridge.
 - `values.rs` owns runtime value operand home assignment, including stack/runtime homes and scratch-register selection.
 - `registers.rs` owns architecture-specific scratch register selection until real allocation replaces the current fixed policy.
 - `tests.rs` owns stage-level preservation canaries for value and ownership metadata.
