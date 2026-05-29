@@ -14,6 +14,9 @@ use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use serde::Serialize;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypedTreesSnapshot {
     pub roots: TypedRootsSnapshot,
@@ -986,19 +989,4 @@ fn type_constraint_snapshot(
 
 fn path_snapshot(path: &[Identifier]) -> Vec<String> {
     path.iter().map(ToString::to_string).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::TypedTreesSnapshot;
-    use crate::TypedTrees;
-
-    #[test]
-    fn snapshots_empty_typed_tree_as_json() {
-        let program = TypedTrees::default();
-        let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
-
-        assert_eq!(snapshot.roots.data_definitions.len(), 0);
-        assert!(snapshot.to_json_pretty().is_ok());
-    }
 }
