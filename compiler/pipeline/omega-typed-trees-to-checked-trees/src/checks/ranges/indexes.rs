@@ -123,6 +123,9 @@ fn check_index(
                 if facts.index_is_proven(&collection_label, &index_label) {
                     return;
                 }
+                if facts.index_upper_bound_is_proven(&index_label, length) {
+                    return;
+                }
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot prove index `{}` is within length {}",
                     index_label, length

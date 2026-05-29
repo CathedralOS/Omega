@@ -4,9 +4,9 @@ use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, Expression
 
 use super::facts::RangeFacts;
 use bounds::{
-    seed_at_most_fact, seed_length_at_least_fact, seed_length_equality_fact,
-    seed_length_greater_than_fact, seed_length_not_zero_fact, seed_less_than_len_fact,
-    seed_successor_at_most_len_fact,
+    seed_at_most_fact, seed_index_at_most_integer_fact, seed_index_less_than_integer_fact,
+    seed_length_at_least_fact, seed_length_equality_fact, seed_length_greater_than_fact,
+    seed_length_not_zero_fact, seed_less_than_len_fact, seed_successor_at_most_len_fact,
 };
 
 pub(super) fn seed_guard_facts(
@@ -26,6 +26,7 @@ pub(super) fn seed_guard_facts(
         BinaryOperator::Less => {
             seed_length_greater_than_fact(program, facts, binary.right, binary.left);
             seed_less_than_len_fact(program, facts, binary.left, binary.right);
+            seed_index_less_than_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
         }
         BinaryOperator::Greater => {
@@ -34,6 +35,7 @@ pub(super) fn seed_guard_facts(
         BinaryOperator::LessOrEqual => {
             seed_length_at_least_fact(program, facts, binary.right, binary.left);
             seed_successor_at_most_len_fact(program, facts, binary.left, binary.right);
+            seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
         }
         BinaryOperator::GreaterOrEqual => {

@@ -15,12 +15,11 @@ meaning, without needing access to pointer descriptor internals.
   Keep pipeline stages organized around the nouns they truly own: places,
   values, facts, loans, moves, drops, calls, transitions, effects, and boundary
   edges.
-  Next:
-  - teach typed-to-checked range validation to consume proven scalar range facts
-    such as `requires index < array_length` for machine-owned array indexing,
-    so dynamic indexed contract preservation can be accepted instead of
-    rejected before the contract proof is evaluated
   Landed:
+  - typed-to-checked range validation now consumes proven scalar upper-bound
+    facts such as `requires index < array_length` for known-length indexing,
+    so dynamic indexed contract preservation can reach contract proof instead
+    of failing early in range validation
   - pipeline architecture docs now define the ownership rule for when a stage
     owns a semantic noun versus merely preserving or lowering it
   - pipeline architecture docs now include a central semantic ownership matrix

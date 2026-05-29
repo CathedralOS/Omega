@@ -380,6 +380,7 @@ fn rejects_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_after_
 
         data Main {
             items: [Item; 2];
+            index: usize;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1079,7 +1080,8 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
 }
 
 #[test]
-fn rejects_requires_dynamic_indexed_boolean_expression_when_index_range_fact_is_not_consumed() {
+fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
+ {
     let source = r#"
         data Item {
             value: i32;
@@ -1092,7 +1094,6 @@ fn rejects_requires_dynamic_indexed_boolean_expression_when_index_range_fact_is_
 
         data Main {
             items: [Item; 2];
-            index: usize;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1122,14 +1123,9 @@ fn rejects_requires_dynamic_indexed_boolean_expression_when_index_range_fact_is_
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
-        "dynamic indexed requires should fail until array indexing consumes range facts",
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "dynamic indexed requires boolean expression should be preserved across disjoint mutating call",
     );
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot prove index `index` is within length 2")
-    }));
 }
 
 #[test]
@@ -1146,6 +1142,7 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
 
         data Main {
             items: [Item; 2];
+            index: usize;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1182,7 +1179,8 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
 }
 
 #[test]
-fn rejects_exit_ensures_dynamic_indexed_boolean_expression_when_index_range_fact_is_not_consumed() {
+fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
+ {
     let source = r#"
         data Item {
             value: i32;
@@ -1195,7 +1193,6 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_when_index_range_fact
 
         data Main {
             items: [Item; 2];
-            index: usize;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1221,14 +1218,9 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_when_index_range_fact
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
-        "dynamic indexed ensures should fail until array indexing consumes range facts",
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "dynamic indexed exit boolean ensures should be preserved across disjoint mutating call",
     );
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot prove index `index` is within length 2")
-    }));
 }
 
 #[test]

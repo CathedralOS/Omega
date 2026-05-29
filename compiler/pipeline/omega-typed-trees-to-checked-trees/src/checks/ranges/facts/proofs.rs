@@ -32,6 +32,14 @@ impl RangeFacts<'_> {
             return;
         }
 
+        for (_, upper_bound) in self
+            .proven_index_upper_bounds
+            .clone()
+            .into_iter()
+            .filter(|(index, _)| index == original)
+        {
+            self.prove_index_upper_bound(alias.to_owned(), upper_bound);
+        }
         for (collection, _) in self
             .proven_indexes
             .clone()
@@ -86,6 +94,42 @@ impl RangeFacts<'_> {
             .any(|(known_collection, known_index)| {
                 known_collection == collection && known_index == index
             })
+    }
+
+    pub(in crate::checks::ranges) fn prove_index_upper_bound(
+        &mut self,
+        index: String,
+        exclusive_upper_bound: i64,
+    ) {
+        if exclusive_upper_bound <= 0 {
+            return;
+        }
+
+        if let Some((_, known_upper_bound)) = self
+            .proven_index_upper_bounds
+            .iter_mut()
+            .find(|(known_index, _)| known_index == &index)
+        {
+            *known_upper_bound = (*known_upper_bound).min(exclusive_upper_bound);
+            return;
+        }
+
+        self.proven_index_upper_bounds
+            .push((index, exclusive_upper_bound));
+    }
+
+    pub(in crate::checks::ranges) fn index_upper_bound_is_proven(
+        &self,
+        index: &str,
+        length: usize,
+    ) -> bool {
+        let Ok(length) = i64::try_from(length) else {
+            return false;
+        };
+
+        self.proven_index_upper_bounds
+            .iter()
+            .any(|(known_index, upper_bound)| known_index == index && *upper_bound <= length)
     }
 
     pub(in crate::checks::ranges) fn index_value_is_proven(
