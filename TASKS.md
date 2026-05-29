@@ -85,6 +85,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-object-file` now has a thin crate root and noun-shaped modules for
     object plans, sections, symbols, relocations, naming, and container
     serialization
+  - `omega-object-file-planning` now has a thin crate root plus modules for
+    planning input, build orchestration, section sizing, and symbol planning
   - relocation instruction-record extraction now routes through a thin module
     entrypoint with runtime-value, runtime-text, and runtime-storage relocation
     families split out of the dispatch table; runtime text is split into
@@ -120,6 +122,8 @@ meaning, without needing access to pointer descriptor internals.
   - keep relocation offset helpers paired with the relocation families that
     consume them; do not let `offsets.rs` grow back into a cross-family bag of
     byte constants
+  - add focused object-planning canaries for entry-symbol lookup, import symbol
+    construction, runtime-frame bss sizing, and data-object symbol emission
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic
