@@ -139,7 +139,10 @@ Current ownership is:
   index/subslice proof diagnostics, `checks/ranges/initializers.rs` owns
   data-field and machine-owned integer fact seeding,
   `checks/ranges/proofs.rs` owns proof lookups,
-  `checks/ranges/requirements.rs` owns requires-derived proof seeding,
+  `checks/ranges/expressions.rs` owns the helper export surface,
+  `checks/ranges/expressions/integers.rs` owns scalar integer/range-bound
+  expression folding, `checks/ranges/expressions/lengths.rs` owns indexable
+  length inference, `checks/ranges/requirements.rs` owns requires-derived proof seeding,
   `checks/ranges/statements.rs` owns statement and transition-target range
   routing plus local alias seeding, `checks/ranges/state_arguments.rs` owns
   transition argument facts, and `checks/ranges/types.rs` owns expression
