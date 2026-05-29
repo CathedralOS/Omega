@@ -1,8 +1,8 @@
 use omega_core::symbols::SymbolHandle;
 
 use crate::{
-    AcceptanceSummary, AcceptanceVerdict, CallAcceptance, CheckedTrees, ExitAcceptance,
-    FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact, StateAcceptance,
+    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, CheckedTrees,
+    ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact, StateAcceptance,
     StatementAcceptance,
     admissibility::helpers::{
         borrow_constraint_count, effect_evidence_count, machine_decrease_count,
@@ -31,16 +31,8 @@ impl CheckedTrees {
     }
 }
 
-impl<'facts> StateAcceptance<'facts> {
-    pub fn verdict(&self) -> AcceptanceVerdict {
-        self.summary().verdict
-    }
-
-    pub fn is_accepted(&self) -> bool {
-        self.summary().is_accepted()
-    }
-
-    pub fn summary(&self) -> AcceptanceSummary {
+impl<'facts> AcceptanceView for StateAcceptance<'facts> {
+    fn summary(&self) -> AcceptanceSummary {
         let statements = self.statements();
         let calls = self.calls();
         let exits = self.exits();
@@ -87,6 +79,20 @@ impl<'facts> StateAcceptance<'facts> {
             boundary_evidence,
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )
+    }
+}
+
+impl<'facts> StateAcceptance<'facts> {
+    pub fn verdict(&self) -> AcceptanceVerdict {
+        AcceptanceView::verdict(self)
+    }
+
+    pub fn is_accepted(&self) -> bool {
+        AcceptanceView::is_accepted(self)
+    }
+
+    pub fn summary(&self) -> AcceptanceSummary {
+        AcceptanceView::summary(self)
     }
 
     pub fn state(&self) -> &'facts FlowStateFact {

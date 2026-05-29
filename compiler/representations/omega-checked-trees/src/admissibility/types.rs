@@ -95,6 +95,18 @@ pub struct AcceptanceSummary {
     pub termination: AcceptanceCheck,
 }
 
+pub trait AcceptanceView {
+    fn summary(&self) -> AcceptanceSummary;
+
+    fn verdict(&self) -> AcceptanceVerdict {
+        self.summary().verdict
+    }
+
+    fn is_accepted(&self) -> bool {
+        self.summary().is_accepted()
+    }
+}
+
 impl AcceptanceSummary {
     pub const fn with_checks(
         borrow: AcceptanceCheck,

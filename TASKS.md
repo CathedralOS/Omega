@@ -560,9 +560,10 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility summaries can now be built from dimension
     records and derive the aggregate accepted/rejected verdict from those
     records
+  - checked operation admissibility now exposes an `AcceptanceView` trait so
+    states, statements, calls, and exits share one query surface for summary,
+    verdict, and acceptance checks
   Next target:
-  - normalize the remaining stage pages to use the same compact ownership table
-    format where prose is currently vague
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
   - make ownership event production fully type-aware so Copy/no-drop values and

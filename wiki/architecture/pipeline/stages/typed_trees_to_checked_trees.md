@@ -129,9 +129,11 @@ Current ownership is:
   exposes an `AcceptanceSummary` with borrow, proof, effect, boundary, and
   termination dimensions. The summary derives its aggregate accepted/rejected
   verdict from those dimension records instead of duplicating a caller-supplied
-  decision. Each dimension carries verdict, evidence count, diagnostic count,
-  and provenance so accepted-by-construction checks and future diagnostic-backed
-  rejections share one durable status shape.
+  decision. `AcceptanceView` is the shared query surface for states,
+  statements, calls, and exits, so later stages can ask the same question of
+  every checked operation-like thing. Each dimension carries verdict, evidence
+  count, diagnostic count, and provenance so accepted-by-construction checks and
+  future diagnostic-backed rejections share one durable status shape.
   `types.rs` owns the
   public acceptance handles/verdict/summary records, `state.rs`,
   `statement.rs`, `call.rs`, and `exit.rs` own the corresponding view APIs,
