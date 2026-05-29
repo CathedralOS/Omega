@@ -20,7 +20,7 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 ## Semantic Ownership
 
 - Places: forwarded into assignment and symbolic instruction emission; no new place semantics are created here.
-- Values: forwarded into assignment and symbolic instruction emission; no new value semantics are created here.
+- Values: forwarded into assignment, symbolic instruction emission, and the current `MachineProgram` artifact; no new value semantics are created here.
 - Facts: not active except diagnostics/debug metadata carried by lower stages.
 - Loans: not active.
 - Moves: ownership summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact.
@@ -44,3 +44,5 @@ The bridge preserves ownership summaries as metadata, but explicit transfer and
 cleanup instruction lowering remains future work.
 The bridge also preserves boundary-edge summaries as metadata; those summaries
 still need source-level checked boundary contract linkage.
+The bridge preserves value summaries as metadata, but explicit storage/drop
+consequence lowering remains future work.

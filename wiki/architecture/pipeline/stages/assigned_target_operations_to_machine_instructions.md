@@ -22,7 +22,7 @@ final bytes, sections, or relocations.
 | Noun | Ownership |
 | --- | --- |
 | Places | Encoded as assigned memory/register operands. |
-| Values | Become instruction operands or immediates. |
+| Values | Become instruction operands or immediates; assigned value summaries are preserved as machine-instruction metadata. |
 | Facts | Optional diagnostics/debug metadata only. |
 | Loans | Not active. |
 | Moves | Preserve assigned ownership summaries while symbolic instructions are emitted; explicit machine copy lowering is still pending. |
@@ -81,3 +81,6 @@ Must not own:
 - Ownership summaries are preserved through symbolic instruction emission, but
   not yet consumed to produce explicit copy/drop instruction sequences.
 - Boundary-edge summaries are preserved through symbolic instruction emission.
+- Value summaries are preserved through symbolic instruction emission, but
+  storage/drop consequences are not yet lowered from metadata into explicit
+  instruction behavior.

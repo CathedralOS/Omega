@@ -85,7 +85,8 @@ Current deliberate gaps:
   event production still needs type-aware precision plus transition and nested
   call coverage.
 - Checked values now preserve through state graph, control flow, abstract
-  operations, target operations, and assigned target operations, but still need
+  operations, target operations, assigned target operations, symbolic machine
+  instructions, and the current machine-program artifact, but still need
   type-aware ownership kind, drop policy, storage consequences, and backend
   lowering beyond metadata.
 - Backend boundary-edge summaries now preserve lowered host-operation trust
