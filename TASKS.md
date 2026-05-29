@@ -54,6 +54,9 @@ meaning, without needing access to pointer descriptor internals.
     dispatch root
   - typed-to-checked semantic fact assembly now splits contract fact place
     recovery and contract payload construction out of the semantic root
+  - typed-to-checked semantic call-site lookup now threads recursive
+    statement/expression/transition discovery through an explicit
+    `CallSiteTraversal` context instead of raw call ordinal coordinates
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
