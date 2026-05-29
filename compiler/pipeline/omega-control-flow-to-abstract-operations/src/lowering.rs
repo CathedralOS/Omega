@@ -16,6 +16,10 @@ use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use std::sync::Arc;
 
+mod ownership;
+
+use ownership::build_abstract_ownership_summary;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationLoweringInput<'plan> {
     pub runtime_abi: &'plan RuntimeAbiPlan,
@@ -68,5 +72,7 @@ impl<'plan> From<&'plan AbstractOperationLoweringInput<'plan>>
 pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
 ) -> AbstractOperationPlan {
-    build_instruction_plan(&InstructionSelectionInput::from(input))
+    let mut plan = build_instruction_plan(&InstructionSelectionInput::from(input));
+    plan.ownership = build_abstract_ownership_summary(input.control_flow);
+    plan
 }

@@ -1,5 +1,6 @@
 pub mod data;
 pub mod instruction;
+pub mod ownership;
 
 pub use data::{
     AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,
@@ -12,6 +13,9 @@ pub use instruction::{
     InstructionOperandKind, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
     SelectedInstruction, SelectedInstructionKind,
 };
+pub use ownership::{
+    AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
+};
 
 use omega_core::arena::Arena;
 
@@ -21,6 +25,7 @@ pub struct AbstractOperationPlan {
     pub instructions: Arena<AbstractOperation>,
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<AbstractValueOperand>,
+    pub ownership: AbstractOwnershipSummary,
 }
 
 impl Default for AbstractOperationPlan {
@@ -41,6 +46,7 @@ impl AbstractOperationPlan {
             instructions: Arena::with_capacity(instruction_capacity),
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
+            ownership: AbstractOwnershipSummary::default(),
         }
     }
 }
