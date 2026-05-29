@@ -329,6 +329,9 @@ meaning, without needing access to pointer descriptor internals.
   - target-to-assigned lowering now builds assigned executable code through a
     dedicated `code.rs` root builder, leaving `builder.rs` as the stage
     conveyor that assembles target identity, code, and preserved semantics
+  - assigned-to-machine-instructions now builds symbolic instruction code
+    through a dedicated `code.rs` root builder, leaving `builder.rs` as the
+    stage conveyor that assembles target identity, code, and preserved semantics
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved

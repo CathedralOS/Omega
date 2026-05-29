@@ -52,6 +52,10 @@ Must not own:
 
 - `builder.rs` walks assigned target operations and appends symbolic machine
   instruction functions while preserving semantic metadata summaries.
+  It should stay the stage conveyor that assembles target identity, symbolic
+  code, and preserved semantic evidence.
+- `code.rs` owns symbolic executable-code root construction from assigned
+  target operation functions and operation spans.
 - `omega-assigned-target-operations/src/plan.rs` is the input representation
   root: assigned executable shape and host bindings live under
   `AssignedTargetOperationCode`, while preserved semantic evidence lives under
