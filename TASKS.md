@@ -583,6 +583,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-syntax-trees` expression display helpers and expression table
     canaries now live in focused expression submodules, matching the typed and
     symbol-resolved expression roots
+  - `omega-abstract-operations` operation kinds now expose a semantic-domain
+    classifier so downstream passes can ask whether an operation is dispatch,
+    guard, runtime storage/text, host-boundary, or function-boundary work
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
