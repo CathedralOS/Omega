@@ -1,10 +1,10 @@
 use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
+use crate::lowerer::Lowerer;
 use crate::machine::lower_machine_into;
 use crate::operator::lower_operator_definition;
 use crate::platform::lower_platform;
-use crate::program::Lowerer;
 use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};

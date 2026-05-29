@@ -1,5 +1,5 @@
 use crate::expression::lower_expression_into_table;
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use crate::state::{lower_signature_contracts, lower_signature_effects, lower_state_node};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;

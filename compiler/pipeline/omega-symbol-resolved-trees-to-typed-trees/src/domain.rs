@@ -1,9 +1,9 @@
 use crate::expression::{
     lower_expression_handle_from_table, lower_expression_handle_from_table_in_program,
 };
+use crate::lowerer::Lowerer;
 use crate::name::lower_name;
 use crate::operator::lower_operator_definition;
-use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;

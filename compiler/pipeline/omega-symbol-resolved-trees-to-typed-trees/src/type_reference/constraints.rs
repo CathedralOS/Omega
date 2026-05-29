@@ -1,5 +1,5 @@
 use crate::expression::lower_expression_handle_from_table;
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;

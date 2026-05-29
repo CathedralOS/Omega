@@ -1,5 +1,5 @@
 use crate::expression::lower_expression_into_table;
-use crate::program::Lowerer;
+use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
