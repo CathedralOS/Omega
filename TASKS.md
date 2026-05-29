@@ -122,6 +122,8 @@ meaning, without needing access to pointer descriptor internals.
     invariants, data shapes/types, machine data, expression types,
     type-reference validation, state signatures, trait requirements,
     trait conformance, and top-level versus machine-local symbol scopes
+  - `omega-backend-report` now separates backend report input/timing DTOs from
+    the large report text writer root while preserving the public report API
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -151,6 +153,9 @@ meaning, without needing access to pointer descriptor internals.
   - continue splitting `omega-validation` where files still mix semantic
     families, especially type-reference validation, state-signature validation,
     and effect diagnostics
+  - continue splitting `omega-backend-report` into report-section modules so
+    call lowering, storage, runtime text, scheduling, dispatch, proof, object,
+    and codegen reporting do not live in one root
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 
