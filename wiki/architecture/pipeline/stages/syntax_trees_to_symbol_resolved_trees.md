@@ -60,8 +60,10 @@ The implementation should stay split by identity task:
   `symbols/symbol_table/names.rs` owns symbol-name seeding and operator display
   names.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.
-- `symbols/top_level.rs` stamps declaration symbols for roots, data members,
-  platforms, traits, and operators.
+- `symbols/top_level.rs` owns only root-level stamping order.
+  `symbols/top_level/{data,domains,operators,platforms,traits}.rs` stamp
+  declaration-family symbols and type-reference symbols for their owned
+  signatures.
   `symbols/top_level/machines.rs` owns machine symbol stamping, including
   contained objects, owned data, state parameters, state locals, trait
   conformances, and inherited attached-data field offsets.
