@@ -2,6 +2,7 @@ mod data;
 mod domains;
 mod effects;
 mod entry_point;
+mod expression_types;
 mod invariants;
 mod locals;
 mod operators;
@@ -16,6 +17,10 @@ mod type_references;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
 use crate::entry_point::validate_entry_point;
+use crate::expression_types::{
+    ExpressionTypeOwner, argument_matches_type_reference_handle, expression_type_name_handle,
+    validate_expression_type_handle,
+};
 use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
 use crate::state_signatures::{
@@ -36,7 +41,7 @@ use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
 };
-use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::TypeReferenceHandle;
 use std::fmt;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -225,27 +230,6 @@ impl fmt::Display for InitialValueOwner<'_> {
         match self {
             Self::MachineOwnedData { machine, data } => {
                 write!(formatter, "machine `{machine}` owned data `{data}`")
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ExpressionTypeOwner<'program> {
-    StateTerminalExpression {
-        machine: &'program str,
-        state: &'program str,
-    },
-}
-
-impl fmt::Display for ExpressionTypeOwner<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::StateTerminalExpression { machine, state } => {
-                write!(
-                    formatter,
-                    "machine `{machine}` state `{state}` terminal expression"
-                )
             }
         }
     }
@@ -538,127 +522,6 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
             .first()
             .map(|name| name.as_str()),
         _ => None,
-    }
-}
-
-fn argument_matches_type_reference_handle(
-    program: &TypedTrees,
-    argument: ExpressionHandle,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    if let ExpressionNode::Mutable(inner_expression) = program.expression_table.expression(argument)
-    {
-        return argument_matches_type_reference_handle(program, *inner_expression, type_reference);
-    }
-
-    let argument_node = program.expression_table.expression(argument);
-
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            argument_matches_type_reference_handle(program, argument, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            argument_matches_type_reference_handle(program, argument, *base_type)
-        }
-        TypeReferenceNode::FixedArray { .. } => matches!(
-            argument_node,
-            ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        ),
-        TypeReferenceNode::Slice { .. } => matches!(
-            argument_node,
-            ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        ),
-        TypeReferenceNode::Generic { .. } => matches!(
-            argument_node,
-            ExpressionNode::Binary(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Cast(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Integer(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-                | ExpressionNode::StructLiteral(_)
-        ),
-        TypeReferenceNode::Named {
-            name: type_name, ..
-        } => {
-            if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
-                return matches!(argument_node, ExpressionNode::Boolean(_))
-                    && primitive_type == PrimitiveType::Bool
-                    || matches!(argument_node, ExpressionNode::String(_))
-                        && primitive_type == PrimitiveType::String
-                    || matches!(argument_node, ExpressionNode::Float(_))
-                        && primitive_type.accepts_float_literal()
-                    || matches!(argument_node, ExpressionNode::Integer(_))
-                        && primitive_type.accepts_integer_literal()
-                    || matches!(
-                        argument_node,
-                        ExpressionNode::Binary(_)
-                            | ExpressionNode::Call(_)
-                            | ExpressionNode::Cast(_)
-                            | ExpressionNode::Indexed(_)
-                            | ExpressionNode::Member(_)
-                            | ExpressionNode::Name(_)
-                            | ExpressionNode::StructLiteral(_)
-                    );
-            }
-
-            matches!(
-                argument_node,
-                ExpressionNode::Binary(_)
-                    | ExpressionNode::Call(_)
-                    | ExpressionNode::Cast(_)
-                    | ExpressionNode::Indexed(_)
-                    | ExpressionNode::Member(_)
-                    | ExpressionNode::Name(_)
-                    | ExpressionNode::StructLiteral(_)
-            )
-        }
-        TypeReferenceNode::Unit => false,
-    }
-}
-
-fn validate_expression_type_handle(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    type_reference: TypeReferenceHandle,
-    diagnostics: &mut Vec<Diagnostic>,
-    owner: ExpressionTypeOwner<'_>,
-) {
-    if !argument_matches_type_reference_handle(program, expression, type_reference) {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} expects `{}`, got `{}`",
-            program.display_type_reference_with_constraints(type_reference),
-            expression_type_name_handle(program, expression)
-        )));
-    }
-}
-
-fn expression_type_name_handle(program: &TypedTrees, argument: ExpressionHandle) -> &'static str {
-    match program.expression_table.expression(argument) {
-        ExpressionNode::ArrayLiteral(_) => "array literal",
-        ExpressionNode::Binary(_) => "binary expression",
-        ExpressionNode::Boolean(_) => "bool",
-        ExpressionNode::Call(_) => "call expression",
-        ExpressionNode::Cast(_) => "cast expression",
-        ExpressionNode::Float(_) => "float literal",
-        ExpressionNode::Indexed(_) => "indexed value",
-        ExpressionNode::Integer(_) => "integer literal",
-        ExpressionNode::Member(_) => "member access",
-        ExpressionNode::Mutable(inner_expression) => {
-            expression_type_name_handle(program, *inner_expression)
-        }
-        ExpressionNode::Name(_) => "named value",
-        ExpressionNode::Range(_) => "range expression",
-        ExpressionNode::StructLiteral(_) => "struct literal",
-        ExpressionNode::String(_) => "String",
     }
 }
 
