@@ -30,8 +30,9 @@ Primary responsibility: lower checked control flow into explicit operations with
   summary copy. It records the backend-visible trust edge, not source-level
   authorization.
 - `omega-abstract-operations/src/plan.rs` owns the representation root:
-  function/instruction/operand arenas plus an `AbstractSemanticSummary` for
-  value facts, ownership facts, and boundary edges. `instruction/function.rs`
+  executable operation shape lives under `AbstractOperationCode`, while
+  preserved semantic evidence lives under `AbstractSemanticSummary`.
+  `instruction/function.rs`
   owns abstract function plans,
   `instruction/operation.rs` owns abstract operation records and source
   coordinates, `instruction/operation_kind.rs` owns abstract operation kinds,

@@ -26,16 +26,19 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
 
     let instructions = select_entry_instructions(
         input,
-        &mut instruction_plan.operands,
-        &mut instruction_plan.runtime_value_operands,
-        &mut instruction_plan.instructions,
+        &mut instruction_plan.code.operands,
+        &mut instruction_plan.code.runtime_value_operands,
+        &mut instruction_plan.code.instructions,
     );
 
-    instruction_plan.functions.insert(AbstractFunctionPlan {
-        symbol: input.entry_symbol.clone(),
-        source_key: input.entry_key,
-        instructions,
-    });
+    instruction_plan
+        .code
+        .functions
+        .insert(AbstractFunctionPlan {
+            symbol: input.entry_symbol.clone(),
+            source_key: input.entry_key,
+            instructions,
+        });
 
     instruction_plan
 }

@@ -18,30 +18,30 @@ pub(crate) fn build_target_operation_plan(
 ) -> TargetOperationPlan {
     let mut target_operations = TargetOperationPlan::with_capacity(
         target,
-        abstract_operations.functions.len(),
-        abstract_operations.instructions.len(),
-        abstract_operations.operands.len(),
-        abstract_operations.runtime_value_operands.len(),
+        abstract_operations.code.functions.len(),
+        abstract_operations.code.instructions.len(),
+        abstract_operations.code.operands.len(),
+        abstract_operations.code.runtime_value_operands.len(),
     );
 
-    for (_, operand) in abstract_operations.operands.iter() {
+    for (_, operand) in abstract_operations.code.operands.iter() {
         target_operations
             .operands
             .insert(translate_operand(operand));
     }
-    for (_, operand) in abstract_operations.runtime_value_operands.iter() {
+    for (_, operand) in abstract_operations.code.runtime_value_operands.iter() {
         target_operations
             .runtime_value_operands
             .insert(translate_runtime_value_operand(operand));
     }
 
-    for (_, instruction) in abstract_operations.instructions.iter() {
+    for (_, instruction) in abstract_operations.code.instructions.iter() {
         target_operations
             .instructions
             .insert(translate_instruction(host_calls, instruction));
     }
 
-    for (_, function) in abstract_operations.functions.iter() {
+    for (_, function) in abstract_operations.code.functions.iter() {
         target_operations.functions.insert(TargetOperationFunction {
             symbol: std::sync::Arc::clone(&function.symbol),
             source_key: function.source_key,

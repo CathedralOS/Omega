@@ -10,7 +10,7 @@ pub(crate) fn copy_runtime_text_host_bindings(
     abstract_operations: &AbstractOperationPlan,
     target_operations: &mut TargetOperationPlan,
 ) {
-    for (instruction_key, instruction) in abstract_operations.instructions.iter() {
+    for (instruction_key, instruction) in abstract_operations.code.instructions.iter() {
         let AbstractOperationKind::ReadRuntimeTextLine { .. } = &instruction.kind else {
             continue;
         };
