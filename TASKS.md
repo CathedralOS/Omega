@@ -190,6 +190,8 @@ meaning, without needing access to pointer descriptor internals.
     widths
   - runtime-storage relocation offset math now splits compare, copy,
     string-descriptor, and write/binary operand offsets into focused modules
+  - runtime-text relocation offset math now splits append, materialize, and
+    host-backed line-read offsets into focused modules
   - host-operation relocation routing now owns both data-address operand
     relocation scanning and external import call relocation insertion, leaving
     the instruction-record router as family dispatch
