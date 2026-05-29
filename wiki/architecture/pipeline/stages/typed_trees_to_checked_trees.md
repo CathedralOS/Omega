@@ -64,8 +64,9 @@ Current ownership is:
   loans, call accesses, and last-use updates,
   `borrow/loans.rs` owns local loan creation/rebasing,
   `borrow/loans/types.rs` owns reference-type classification for loan
-  creation, `borrow/calls.rs` owns statement-level borrow call-site discovery
-  and the shared `BorrowCallCollection` arena/ordinal context,
+  creation, `borrow/calls.rs` owns statement-level borrow call-site discovery,
+  `borrow/calls/collection.rs` owns the shared `BorrowCallCollection`
+  arena/ordinal context,
   `borrow/calls/expression.rs` owns expression-local borrow call discovery,
   `borrow/calls/transitions.rs` owns
   transition-target borrow call discovery, `borrow/tracker.rs` owns per-state
