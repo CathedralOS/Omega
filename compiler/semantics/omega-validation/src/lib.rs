@@ -5,6 +5,7 @@ mod entry_point;
 mod expression_types;
 mod invariants;
 mod locals;
+mod machine_data;
 mod operators;
 mod proof_facts;
 mod state_signatures;
@@ -23,26 +24,22 @@ use crate::expression_types::{
 };
 use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
+use crate::machine_data::{validate_contained_types, validate_owned_data};
 use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
     validate_machine_effects,
 };
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::traits::{validate_machine_trait_conformances, validate_trait_requirements};
-use crate::type_references::{
-    TypeReferenceOwner, type_reference_label, type_references_match, validate_type_reference_handle,
-};
+use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
 };
-use omega_typed_trees::types::TypeReferenceHandle;
-use std::fmt;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -213,90 +210,6 @@ fn validate_assignment_target_handle(
     if !writable_roots.contains(root_name) {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` because it is not mutable in this state"
-        )));
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum InitialValueOwner<'program> {
-    MachineOwnedData {
-        machine: &'program str,
-        data: &'program str,
-    },
-}
-
-impl fmt::Display for InitialValueOwner<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MachineOwnedData { machine, data } => {
-                write!(formatter, "machine `{machine}` owned data `{data}`")
-            }
-        }
-    }
-}
-
-fn validate_contained_types(
-    program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
-    symbols: &TopLevelSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for contained_object in program.machine_contained_objects(machine) {
-        if !symbols.is_callable_receiver_type(&contained_object.type_name) {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` contains `{}` with unknown type `{}`",
-                machine.name, contained_object.name, contained_object.type_name
-            )));
-        }
-    }
-}
-
-fn validate_owned_data(
-    program: &TypedTrees,
-    machine: &Machine,
-    symbols: &TopLevelSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for owned_data in program.machine_owned_data(machine) {
-        validate_type_reference_handle(
-            program,
-            owned_data.type_reference,
-            symbols,
-            diagnostics,
-            TypeReferenceOwner::MachineOwnedData {
-                machine: machine.name.as_str(),
-                data: owned_data.name.as_str(),
-                generic_depth: 0,
-            },
-        );
-
-        if owned_data.initial_value.is_valid() {
-            validate_initial_value_handle(
-                program,
-                owned_data.type_reference,
-                owned_data.initial_value,
-                diagnostics,
-                InitialValueOwner::MachineOwnedData {
-                    machine: machine.name.as_str(),
-                    data: owned_data.name.as_str(),
-                },
-            );
-        }
-    }
-}
-
-fn validate_initial_value_handle(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    initial_value: ExpressionHandle,
-    diagnostics: &mut Vec<Diagnostic>,
-    owner: InitialValueOwner<'_>,
-) {
-    if !argument_matches_type_reference_handle(program, initial_value, type_reference) {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} initializer expects `{}`, got `{}`",
-            program.display_type_reference_with_constraints(type_reference),
-            expression_type_name_handle(program, initial_value)
         )));
     }
 }
