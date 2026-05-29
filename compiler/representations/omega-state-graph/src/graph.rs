@@ -6,9 +6,9 @@ use omega_typed_trees::name::Identifier;
 use crate::{
     ContainedGraph, InvariantFact, MachineGraph, MachineOwnedDataGraph, Operation,
     ProofObligationFact, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
-    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateContractCall,
-    StateContractExit, StateContractFactRef, StateDropEvent, StateKey, StateMoveEvent, StateNode,
-    StateParameterNode, StateValueFact, TransitionEdge,
+    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateBoundaryEdge,
+    StateContractCall, StateContractExit, StateContractFactRef, StateDropEvent, StateKey,
+    StateMoveEvent, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub struct StateGraph {
     pub contract_calls: Arena<StateContractCall>,
     pub contract_exits: Arena<StateContractExit>,
     pub values: Arena<StateValueFact>,
+    pub boundary_edges: Arena<StateBoundaryEdge>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
@@ -53,6 +54,7 @@ impl StateGraph {
         contract_call_capacity: usize,
         contract_exit_capacity: usize,
         value_capacity: usize,
+        boundary_edge_capacity: usize,
         borrow_writable_root_capacity: usize,
         borrow_access_segment_capacity: usize,
         borrow_argument_access_capacity: usize,
@@ -79,6 +81,7 @@ impl StateGraph {
             contract_calls: Arena::with_capacity(contract_call_capacity),
             contract_exits: Arena::with_capacity(contract_exit_capacity),
             values: Arena::with_capacity(value_capacity),
+            boundary_edges: Arena::with_capacity(boundary_edge_capacity),
             borrow_writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
             borrow_access_segments: Arena::with_capacity(borrow_access_segment_capacity),
             borrow_argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),

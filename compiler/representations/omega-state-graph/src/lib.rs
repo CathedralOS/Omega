@@ -1,4 +1,5 @@
 mod borrow;
+mod boundaries;
 mod contracts;
 mod graph;
 mod invariants;
@@ -11,6 +12,7 @@ mod transitions;
 mod values;
 
 pub use borrow::*;
+pub use boundaries::*;
 pub use contracts::*;
 pub use graph::*;
 pub use invariants::*;

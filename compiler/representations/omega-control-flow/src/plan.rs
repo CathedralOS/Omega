@@ -6,9 +6,9 @@ use omega_typed_trees::name::Identifier;
 use crate::{
     ContainedFlow, InvariantFact, MachineFlow, MachineOwnedDataFlow, Operation,
     ProofObligationFact, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
-    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateContractCall,
-    StateContractExit, StateContractFactRef, StateDropEvent, StateFlow, StateKey, StateMoveEvent,
-    StateParameterFlow, StateValueFact, TransitionFlow,
+    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateBoundaryEdge,
+    StateContractCall, StateContractExit, StateContractFactRef, StateDropEvent, StateFlow,
+    StateKey, StateMoveEvent, StateParameterFlow, StateValueFact, TransitionFlow,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub struct ControlFlowPlan {
     pub contract_calls: Arena<StateContractCall>,
     pub contract_exits: Arena<StateContractExit>,
     pub values: Arena<StateValueFact>,
+    pub boundary_edges: Arena<StateBoundaryEdge>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,

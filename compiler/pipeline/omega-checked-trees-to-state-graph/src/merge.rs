@@ -2,12 +2,13 @@ use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     MachineGraph, Operation, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
-    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateContractCall,
-    StateContractExit, StateContractFactRef, StateDropEvent, StateGraph, StateMoveEvent, StateNode,
-    StateParameterNode, StateValueFact, TransitionEdge,
+    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateBoundaryEdge,
+    StateContractCall, StateContractExit, StateContractFactRef, StateDropEvent, StateGraph,
+    StateMoveEvent, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
 };
 
 use crate::borrows::remap_state_borrow_summary;
+use crate::boundaries::remap_state_boundary_summary;
 use crate::contracts::remap_state_contract_summary;
 use crate::ownership::remap_state_ownership_summary;
 use crate::remap::{append_remapped_operations, append_remapped_transitions};
@@ -31,6 +32,7 @@ pub(crate) fn merge_machine_graph(
         contract_calls,
         contract_exits,
         values,
+        boundary_edges,
         borrow_writable_roots,
         borrow_access_segments,
         borrow_argument_accesses,
@@ -54,6 +56,7 @@ pub(crate) fn merge_machine_graph(
         &contract_calls,
         &contract_exits,
         &values,
+        &boundary_edges,
         &borrow_writable_roots,
         &borrow_access_segments,
         &borrow_argument_accesses,
@@ -97,6 +100,7 @@ fn append_remapped_states(
     source_contract_calls: &Arena<StateContractCall>,
     source_contract_exits: &Arena<StateContractExit>,
     source_values: &Arena<StateValueFact>,
+    source_boundary_edges: &Arena<StateBoundaryEdge>,
     source_borrow_writable_roots: &Arena<StateBorrowWritableRoot>,
     source_borrow_access_segments: &Arena<omega_facts::PlaceSegment>,
     source_borrow_argument_accesses: &Arena<StateBorrowArgumentAccess>,
@@ -140,6 +144,8 @@ fn append_remapped_states(
             &state.contracts,
         );
         let values = remap_state_value_summary(target, source_values, &state.values);
+        let boundaries =
+            remap_state_boundary_summary(target, source_boundary_edges, &state.boundaries);
         let borrow = remap_state_borrow_summary(
             target,
             source_borrow_writable_roots,
@@ -169,6 +175,7 @@ fn append_remapped_states(
                 parameters,
                 contracts,
                 values,
+                boundaries,
                 borrow,
                 ownership,
                 operations,
