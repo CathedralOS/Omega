@@ -78,6 +78,9 @@ meaning, without needing access to pointer descriptor internals.
     ownership summary spans and owned move-event call sources across the handoff
   - abstract-to-target lowering now has focused unit coverage proving ownership
     summaries survive target-operation legalization beside values and boundaries
+  - abstract-to-target lowering now splits instruction legalization, instruction
+    operand translation, runtime value translation, and metadata preservation
+    tests out of the translator root
   - target-to-assigned lowering now has focused unit coverage proving ownership
     summaries survive physical-home assignment beside value summaries
   - assigned-to-machine-instructions now has focused unit coverage proving
