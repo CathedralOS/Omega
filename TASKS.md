@@ -188,6 +188,8 @@ meaning, without needing access to pointer descriptor internals.
   - data-address relocation offset math now lives with relocation offset
     families and has a focused canary for architecture-specific prior operand
     widths
+  - runtime-storage relocation offset math now splits compare, copy,
+    string-descriptor, and write/binary operand offsets into focused modules
   - host-operation relocation routing now owns both data-address operand
     relocation scanning and external import call relocation insertion, leaving
     the instruction-record router as family dispatch
