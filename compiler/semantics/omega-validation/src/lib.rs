@@ -1,6 +1,7 @@
 mod domains;
 mod effects;
 mod entry_point;
+mod invariants;
 mod locals;
 mod operators;
 mod proof_facts;
@@ -10,13 +11,13 @@ mod tests;
 
 use crate::domains::validate_domain_definitions;
 use crate::entry_point::validate_entry_point;
+use crate::invariants::validate_invariant_definitions;
 use crate::locals::{WritableRoots, validate_local_data_names};
 use crate::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_facts::{FactPlan, ProgramPoint};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -88,29 +89,6 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
-    }
-}
-
-fn validate_invariant_definitions(
-    program: &TypedTrees,
-    fact_plan: &FactPlan,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for invariant in program.invariant_definitions() {
-        let constraint_fact_count = fact_plan
-            .contexts_at_point(ProgramPoint::Definition {
-                symbol: invariant.symbol,
-            })
-            .flat_map(|context| context.type_constraints())
-            .count();
-
-        if constraint_fact_count != invariant.constraints.len() {
-            diagnostics.push(Diagnostic::error(format!(
-                "invariant `{}` references invalid constraint storage",
-                invariant.name
-            )));
-            continue;
-        }
     }
 }
 
