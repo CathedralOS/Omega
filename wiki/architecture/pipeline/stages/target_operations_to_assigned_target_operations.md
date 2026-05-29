@@ -20,7 +20,7 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 ## Semantic Ownership
 
 - Places: become concrete stack/runtime homes or target-addressable memory shapes.
-- Values: receive assigned homes such as immediates, stack slots, runtime storage, runtime pointees, indexed runtime-frame locations, or scratch registers.
+- Values: receive assigned homes such as immediates, stack slots, runtime storage, runtime pointees, indexed runtime-frame locations, or scratch registers; target value summaries are preserved as assigned value metadata.
 - Facts: diagnostic metadata only; this stage does not discharge proof obligations.
 - Loans: prior-stage invariant only; borrow state is not rechecked here.
 - Moves: preserve target ownership summaries while physical homes are assigned; explicit assigned transfer operation lowering is still pending.
@@ -43,3 +43,6 @@ Current scratch register assignment is fixed and minimal. Real register allocati
 Ownership summaries are preserved through assignment but not yet lowered into
 assigned copy/cleanup operations.
 Boundary-edge summaries are preserved through assignment.
+Value summaries are preserved through assignment, but their storage/drop
+consequences are still metadata rather than explicit assigned cleanup or move
+operations.
