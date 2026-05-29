@@ -3,8 +3,10 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::NativeTarget;
 use std::sync::Arc;
 
+mod homes;
 mod operands;
 
+pub use homes::*;
 pub use operands::*;
 
 pub use omega_target_operations::{
@@ -365,78 +367,6 @@ pub type TargetOperationKind = AssignedOperationKind;
 pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
 
 pub type AssignedValueHomeHandle = AssignedValueOperandHandle;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum AssignedRegisterBank {
-    #[default]
-    GeneralPurpose,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64AssignedRegister {
-    R10,
-    R11,
-    R12,
-    R13,
-    R14,
-    R15,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssignedRegisterName {
-    Aarch64X(u8),
-    X86_64(X86_64AssignedRegister),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssignedValueHomeKind {
-    Immediate,
-    StackSlot {
-        byte_offset: usize,
-        byte_size: usize,
-    },
-    RuntimeStorage {
-        region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-    },
-    RuntimePointee {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    RuntimeFrameIndexed {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    RuntimeFrameBaseIndexed {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    RuntimeFrameFixedIndexed {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    ScratchRegister {
-        bank: AssignedRegisterBank,
-        name: AssignedRegisterName,
-    },
-}
-
-impl Default for AssignedValueHomeKind {
-    fn default() -> Self {
-        Self::Immediate
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedOperation {
