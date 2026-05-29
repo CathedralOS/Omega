@@ -344,6 +344,9 @@ meaning, without needing access to pointer descriptor internals.
   - final-image root construction now goes through `FinalImage::with_capacity`
     so the builder does not manually assemble memory, symbol-table, and
     relocation-table roots
+  - checked-flow representation data moved out of one large `flow.rs` file into
+    noun-shaped modules for contexts, invalidations, borrow lifetimes,
+    ownership, boundaries, control facts, and `FlowFacts` roots/query helpers
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
