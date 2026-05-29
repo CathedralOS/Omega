@@ -2,6 +2,7 @@ mod aarch64_relocations;
 mod builder;
 mod model;
 mod output;
+mod patch_bytes;
 mod symbols;
 #[cfg(test)]
 mod tests;

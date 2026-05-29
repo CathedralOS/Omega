@@ -58,7 +58,8 @@ Must not own:
   `builder.rs` stays focused on conversion orchestration.
 - `omega-image/src/symbols.rs` owns final-image symbol handle mapping, symbol names, import checks, and address queries.
 - `omega-image/src/output.rs` owns emitted image output DTOs.
-- `omega-image/src/*_relocations.rs` owns architecture-specific final relocation patching helpers.
+- `omega-image/src/*_relocations.rs` owns architecture-specific final relocation math.
+- `omega-image/src/patch_bytes.rs` owns checked text-section byte reads/writes for final relocation patching.
 - `omega-image-emission/src/lib.rs` owns the public direct-image emission API surface only.
 - `omega-image-emission/src/input.rs` owns the executable image input DTO.
 - `omega-image-emission/src/support.rs` owns direct image writer support facts by target.

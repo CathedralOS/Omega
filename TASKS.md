@@ -94,6 +94,9 @@ meaning, without needing access to pointer descriptor internals.
     and object section lookup out of the builder root
   - final-image construction tests now live outside the builder root so
     `builder.rs` stays focused on conversion orchestration
+  - final-image relocation application now splits checked text-section byte
+    patching out of architecture relocation math, with a canary for
+    out-of-bounds relocation patches
   - direct image emission now splits input DTOs, target support facts, writer
     dispatch, and planned-vs-encoded byte validation out of the crate root
   - control-flow-to-abstract-operations now preserves control-flow move/drop
