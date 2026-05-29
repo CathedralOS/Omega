@@ -55,7 +55,9 @@ The stage should stay organized around semantic nouns instead of pass history.
 Current ownership is:
 
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
-  collection, `borrow/accesses/read.rs` owns recursive read-access traversal,
+  routing, `borrow/accesses/collection.rs` owns the shared
+  `BorrowAccessCollection` arena/context bundle, `borrow/accesses/read.rs`
+  owns recursive read-access traversal,
   `borrow/accesses/place.rs` owns borrow-access place construction,
   `borrow/accesses/contextual.rs` owns state-local contextual name/member
   resolution for those borrow-access places, `borrow/accesses/records.rs` owns
