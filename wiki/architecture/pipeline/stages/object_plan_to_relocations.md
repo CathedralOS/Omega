@@ -64,8 +64,9 @@ Must not own:
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data:
   patch records live under `RelocationRecordSet`, keeping artifact relocation
   shape explicit at the plan root. Callers should use `RelocationPlan`
-  helpers such as `with_target`, `push_record`, `record_count`, and `records`
-  instead of constructing or walking the record arena directly.
+  helpers such as `with_target`, `with_record_capacity`, `push_record`,
+  `record_count`, and `records` instead of constructing or walking the record
+  arena directly.
 - `omega-object-file/src/container.rs` owns compatibility object-container serialization orchestration.
 - `omega-object-file/src/container/bytes.rs` owns primitive byte writing for the compatibility object container.
 - `omega-object-file/src/container/ids.rs` owns stable object-container enum IDs.

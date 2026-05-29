@@ -9,7 +9,10 @@ use omega_target_operations::FunctionInstructionPlan;
 pub fn build_relocation_plan(
     input: RelocationPlanningInput<'_>,
 ) -> Result<RelocationPlan, Diagnostic> {
-    let mut relocation_plan = RelocationPlan::with_target(input.target);
+    let mut relocation_plan = RelocationPlan::with_record_capacity(
+        input.target,
+        input.instructions.code.instructions.len(),
+    );
 
     for (function_handle, function) in input.instructions.code.functions.iter() {
         collect_function_relocations(input, function_handle, function, &mut relocation_plan)?;

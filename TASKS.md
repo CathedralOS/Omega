@@ -365,6 +365,8 @@ meaning, without needing access to pointer descriptor internals.
   - relocation records now stay behind `RelocationPlan` root helpers for plan
     construction, insertion, counting, and iteration instead of requiring
     callers to reach through `RelocationRecordSet.records`
+  - relocation roots now expose capacity-aware construction, and relocation
+    planning sizes the record arena from the selected-instruction stream
   - final-image root construction now goes through `FinalImage::with_capacity`
     so the builder does not manually assemble memory, symbol-table, and
     relocation-table roots
