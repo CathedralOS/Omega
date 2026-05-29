@@ -531,6 +531,8 @@ meaning, without needing access to pointer descriptor internals.
     reach directly through encoded-machine internals
   - `omega-backend-report` now has an artifact semantic-spine section for
     preserved values, move/drop summaries, and boundary policy-check verdicts
+  - `omega-backend-report` now splits checked proof/invariant reporting out of
+    the root writer into a focused proof report module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
