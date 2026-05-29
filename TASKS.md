@@ -99,6 +99,8 @@ meaning, without needing access to pointer descriptor internals.
     seeding and statement/transition range routing split into focused modules
   - guard-derived range facts now split boolean guard dispatch from
     comparison-derived length/index/order bound seeding
+  - comparison-derived range bound seeding now splits length, index/range-bound,
+    and ordering fact helpers behind the guard-bound export surface
   - range state-argument fact propagation now splits the merged parameter fact
     model from statement/transition traversal
   - contract checking now keeps its root as an entrypoint, with call

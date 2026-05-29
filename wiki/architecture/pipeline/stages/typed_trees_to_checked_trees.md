@@ -136,8 +136,11 @@ Current ownership is:
   index/range-bound proof storage and queries,
   `checks/ranges/facts/proofs/aliases.rs` owns proof alias propagation,
   `checks/ranges/guards.rs` owns guard dispatch,
-  `checks/ranges/guards/bounds.rs` owns comparison-derived length/index/order
-  facts, `checks/ranges/indexes.rs` owns indexed-expression traversal,
+  `checks/ranges/guards/bounds.rs` owns the comparison-derived fact export
+  surface, `checks/ranges/guards/bounds/lengths.rs` owns length fact seeding,
+  `checks/ranges/guards/bounds/indexes.rs` owns index and range-bound fact
+  seeding, `checks/ranges/guards/bounds/orderings.rs` owns ordering fact
+  seeding, `checks/ranges/indexes.rs` owns indexed-expression traversal,
   `checks/ranges/indexes/validation.rs` owns known-length and unknown-slice
   index/subslice proof diagnostics, `checks/ranges/initializers.rs` owns
   data-field and machine-owned integer fact seeding,
