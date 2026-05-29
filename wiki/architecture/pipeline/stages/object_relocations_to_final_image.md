@@ -55,10 +55,11 @@ Must not own:
 - `omega-image/src/*_relocations.rs` owns architecture-specific final relocation patching helpers.
 - `omega-image-emission/src/lib.rs` owns target-to-image-writer dispatch and checked direct-executable emission.
 - `omega-image-pe/src/lib.rs` owns PE emission orchestration; PE constants, byte writing, layout helpers, imports, and headers live in focused sibling modules.
-- `omega-image-elf`, `omega-image-macho`, and the remaining PE modules own format-specific executable layout and byte writing.
+- `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; import thunks, bind info, and AArch64 thunk patching live in `imports.rs`.
+- `omega-image-elf`, the remaining Mach-O modules, and the remaining PE modules own format-specific executable layout and byte writing.
 
 ## Known Gaps
 
-- The image writers still need the same single-responsibility pressure as earlier backend crates; PE and Mach-O roots are likely next cleanup seams.
+- The image writers still need the same single-responsibility pressure as earlier backend crates; ELF and the remaining Mach-O/PE orchestration are likely next cleanup seams.
 - Source boundary summaries and final host imports are not yet explicitly linked by a validation/reporting pass.
 - Direct executable image output exists, but object-container output and linker/image flows still need clearer relationship docs.
