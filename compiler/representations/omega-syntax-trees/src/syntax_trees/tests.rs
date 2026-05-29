@@ -1,0 +1,272 @@
+use super::SyntaxTrees;
+use crate::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
+};
+use crate::identifier::Identifier;
+use crate::item::{Item, Machine, State};
+use crate::statement::{
+    StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
+    TransitionTargetNode,
+};
+use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_core::arena::HandleSpan;
+
+#[test]
+fn syntax_trees_collect_state_expression_and_type_payloads() {
+    let mut syntax_trees = SyntaxTrees::new(Default::default());
+    let guard = syntax_trees
+        .expressions
+        .insert(crate::expression::ExpressionNode::Integer(1));
+    let target = syntax_trees
+        .statements
+        .insert_transition_target(TransitionTargetNode::Terminal);
+    let statement = syntax_trees
+        .statements
+        .insert(StatementNode::Transition(TableTransition {
+            target,
+            continuation: crate::statement::TransitionTargetHandle::invalid(),
+            guard: TransitionGuardNode::When(guard),
+        }));
+    let statement_handle = syntax_trees.items.append_statement_handle(statement);
+    let statements = HandleSpan::from_parts(statement_handle, 1);
+    let return_type = syntax_trees
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+    let state = syntax_trees.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type,
+        statements,
+    });
+    let state_handle = syntax_trees.items.append_state_handle(state);
+
+    syntax_trees.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("Main"),
+        attached_data: None,
+        satisfies: HandleSpan::empty(),
+        terminates: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        effects: HandleSpan::empty(),
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state_handle, 1),
+    }));
+
+    assert_eq!(syntax_trees.root_item_count(), 1);
+    assert_eq!(syntax_trees.type_references.type_reference_count(), 1);
+    assert_eq!(syntax_trees.expressions.expression_count(), 1);
+    assert_eq!(syntax_trees.statements.statement_count(), 1);
+    assert_eq!(syntax_trees.items.machine_count(), 1);
+    assert_eq!(syntax_trees.items.state_count(), 1);
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_root_payload_handles() {
+    let mut file = SyntaxTrees::new(Default::default());
+    let return_type = file
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+    let state = file.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type,
+        statements: HandleSpan::empty(),
+    });
+    let state = file.items.append_state_handle(state);
+    file.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("main"),
+        attached_data: None,
+        satisfies: HandleSpan::empty(),
+        terminates: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        effects: HandleSpan::empty(),
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    assert_eq!(state.name.as_str(), "entry");
+    assert!(state.return_type.is_valid());
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_statement_call_arguments() {
+    let mut file = SyntaxTrees::new(Default::default());
+    let receiver = file
+        .statements
+        .append_identifier_path_member(Identifier::generated("self"));
+    let receiver = HandleSpan::from_parts(receiver, 1);
+    let argument = file
+        .expressions
+        .insert(crate::expression::ExpressionNode::Integer(0));
+    let argument = file.statements.append_expression_handle(argument);
+    let call = file.statements.insert(StatementNode::Call(TableCall {
+        receiver,
+        receiver_starts_at_self: true,
+        target: Identifier::generated("take_non_negative"),
+        arguments: HandleSpan::from_parts(argument, 1),
+    }));
+    let call = file.items.append_statement_handle(call);
+    let state = file.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type: TypeReferenceHandle::invalid(),
+        statements: HandleSpan::from_parts(call, 1),
+    });
+    let state = file.items.append_state_handle(state);
+    file.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("main"),
+        attached_data: None,
+        satisfies: HandleSpan::empty(),
+        terminates: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        effects: HandleSpan::empty(),
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    let statement_handle = assembled
+        .items
+        .statements(state.statements)
+        .first()
+        .copied()
+        .expect("call statement");
+    let StatementNode::Call(call) = assembled.statements.statement(statement_handle) else {
+        panic!("expected call statement");
+    };
+    assert_eq!(
+        assembled
+            .statements
+            .expression_handles(call.arguments)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
+    let mut file = SyntaxTrees::new(Default::default());
+    let target_name = file
+        .expressions
+        .append_identifier_path_member(Identifier::generated("xp"));
+    let target = file
+        .expressions
+        .insert(ExpressionNode::Name(HandleSpan::from_parts(target_name, 1)));
+
+    let player_name = file
+        .expressions
+        .append_identifier_path_member(Identifier::generated("player"));
+    let player = file
+        .expressions
+        .insert(ExpressionNode::Name(HandleSpan::from_parts(player_name, 1)));
+    let player_level = file
+        .expressions
+        .insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: player,
+            member: Identifier::generated("level"),
+        }));
+
+    let self_value = file.expressions.insert(ExpressionNode::SelfValue);
+    let nested_arguments = file.expressions.insert_expression_handles([player_level]);
+    let nested_call = file
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
+            receiver: self_value,
+            target: Identifier::generated("xp_required"),
+            arguments: nested_arguments,
+        }));
+
+    let zero = file.expressions.insert(ExpressionNode::Integer(0));
+    let max_arguments = file
+        .expressions
+        .insert_expression_handles([zero, nested_call]);
+    let max_call = file
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
+            receiver: ExpressionHandle::invalid(),
+            target: Identifier::generated("max"),
+            arguments: max_arguments,
+        }));
+
+    let statement = file
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment {
+            target,
+            value: max_call,
+        }));
+    let statement = file.items.append_statement_handle(statement);
+    let state = file.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type: TypeReferenceHandle::invalid(),
+        statements: HandleSpan::from_parts(statement, 1),
+    });
+    let state = file.items.append_state_handle(state);
+    file.push_root_item(Item::Machine(Machine {
+        name: Identifier::generated("main"),
+        attached_data: None,
+        satisfies: HandleSpan::empty(),
+        terminates: false,
+        decreases: HandleSpan::empty(),
+        decrease_order: HandleSpan::empty(),
+        effects: HandleSpan::empty(),
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }));
+
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(&file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    let statement_handle = assembled
+        .items
+        .statements(state.statements)
+        .first()
+        .copied()
+        .expect("assignment statement");
+    let StatementNode::Assignment(assignment) = assembled.statements.statement(statement_handle)
+    else {
+        panic!("expected assignment statement");
+    };
+
+    assert_eq!(
+        assembled.expressions.display_name(assignment.value),
+        "max(0, self.xp_required(player.level))"
+    );
+}
