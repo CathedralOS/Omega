@@ -1,5 +1,6 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances;
+use crate::code::build_encoded_machine_code;
 use crate::encoding::encode_machine_instruction_bytes;
 use crate::layout::{self, layout_machine_instructions};
 use omega_assigned_target_operations::{
@@ -7,7 +8,7 @@ use omega_assigned_target_operations::{
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
+use omega_machine_bytes::{EncodedMachineCode, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target::NativeTarget;
 
@@ -24,44 +25,17 @@ pub struct MachineEmissionInput<'plan, 'machine> {
 pub fn emit_machine_bytes(
     input: MachineEmissionInput<'_, '_>,
 ) -> Result<EncodedMachinePlan, Diagnostic> {
-    let mut encoded_bytes = EncodedMachinePlan::with_capacity(
-        input.target,
-        input.machine_instructions.code.functions.len(),
-        input.machine_instructions.code.instructions.len(),
-        0,
-    );
-
-    for (_, function) in input.machine_instructions.code.functions.iter() {
-        let byte_offset = encoded_bytes.code.bytes.len();
-        emit_function_bytes(
-            MachineEmissionContext {
-                target: input.target,
-                assigned_target_operations: input.assigned_target_operations,
-                host_abi: input.host_abi,
-                terminal_dispatch_index: input.terminal_dispatch_index,
-            },
-            input.machine_instructions,
-            &mut encoded_bytes,
-            function.instructions,
-        )?;
-        let byte_count = encoded_bytes.code.bytes.len() - byte_offset;
-        encoded_bytes.code.functions.insert(EncodedMachineFunction {
-            source_key: function.source_key,
-            byte_offset,
-            byte_count,
-        });
-    }
-
-    encoded_bytes.code.byte_count = encoded_bytes.code.bytes.len();
-    encoded_bytes.semantics = input.machine_instructions.semantics.clone();
-
-    Ok(encoded_bytes)
+    Ok(EncodedMachinePlan {
+        target: input.target,
+        code: build_encoded_machine_code(&input)?,
+        semantics: input.machine_instructions.semantics.clone(),
+    })
 }
 
-fn emit_function_bytes(
+pub(crate) fn emit_function_bytes(
     emission_context: MachineEmissionContext<'_>,
     machine_instructions: &MachineInstructionPlan,
-    encoded_plan: &mut EncodedMachinePlan,
+    encoded_code: &mut EncodedMachineCode,
     machine_instructions_span: HandleSpan<MachineInstruction>,
 ) -> Result<(), Diagnostic> {
     let Some(machine_instructions) = machine_instructions
@@ -73,7 +47,7 @@ fn emit_function_bytes(
     };
     let laid_out_instructions =
         layout_machine_instructions(emission_context, machine_instructions)?;
-    encoded_plan.code.bytes.reserve(
+    encoded_code.bytes.reserve(
         laid_out_instructions
             .iter()
             .map(|instruction| instruction.byte_width)
@@ -84,18 +58,15 @@ fn emit_function_bytes(
     {
         let laid_out_instruction = &laid_out_instructions[machine_instruction_index];
         if laid_out_instruction.byte_width == 0 {
-            encoded_plan
-                .code
-                .instructions
-                .insert(EncodedMachineInstruction {
-                    selected_instruction_index: machine_instruction.selected_instruction_index,
-                    bytes: HandleSpan::empty(),
-                });
+            encoded_code.instructions.insert(EncodedMachineInstruction {
+                selected_instruction_index: machine_instruction.selected_instruction_index,
+                bytes: HandleSpan::empty(),
+            });
             continue;
         }
 
         let byte_span = insert_encoded_machine_instruction(
-            &mut encoded_plan.code.bytes,
+            &mut encoded_code.bytes,
             emission_context,
             &laid_out_instructions,
             machine_instruction_index,
@@ -130,13 +101,10 @@ fn emit_function_bytes(
                 operand_note,
             )));
         }
-        encoded_plan
-            .code
-            .instructions
-            .insert(EncodedMachineInstruction {
-                selected_instruction_index: machine_instruction.selected_instruction_index,
-                bytes: byte_span,
-            });
+        encoded_code.instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: machine_instruction.selected_instruction_index,
+            bytes: byte_span,
+        });
     }
 
     Ok(())

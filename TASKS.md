@@ -332,6 +332,9 @@ meaning, without needing access to pointer descriptor internals.
   - assigned-to-machine-instructions now builds symbolic instruction code
     through a dedicated `code.rs` root builder, leaving `builder.rs` as the
     stage conveyor that assembles target identity, code, and preserved semantics
+  - machine emission now builds encoded executable bytes through a dedicated
+    `code.rs` root builder, leaving `emitter.rs` as the stage entrypoint that
+    assembles target identity, code, and preserved semantics
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
