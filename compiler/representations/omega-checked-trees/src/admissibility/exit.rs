@@ -1,16 +1,27 @@
 use crate::{
-    AcceptanceVerdict, ContractProofFactRef, ExitAcceptance, FlowConstraintRef, FlowExitFact,
-    FlowSemanticContextRef,
-    admissibility::helpers::{constraints, semantic_contexts},
+    AcceptanceSummary, AcceptanceVerdict, ContractProofFactRef, ExitAcceptance, FlowConstraintRef,
+    FlowExitFact, FlowSemanticContextRef,
+    admissibility::helpers::{borrow_constraint_count, constraints, semantic_contexts},
 };
 
 impl<'facts> ExitAcceptance<'facts> {
     pub fn verdict(&self) -> AcceptanceVerdict {
-        AcceptanceVerdict::Accepted
+        self.summary().verdict
     }
 
     pub fn is_accepted(&self) -> bool {
-        self.verdict() == AcceptanceVerdict::Accepted
+        self.summary().is_accepted()
+    }
+
+    pub fn summary(&self) -> AcceptanceSummary {
+        AcceptanceSummary::accepted(
+            borrow_constraint_count(&self.facts.flow, self.exit.entry_constraints)
+                + borrow_constraint_count(&self.facts.flow, self.exit.ensures_constraints),
+            self.exit.ensures.len(),
+            0,
+            0,
+            0,
+        )
     }
 
     pub fn exit(&self) -> &'facts FlowExitFact {

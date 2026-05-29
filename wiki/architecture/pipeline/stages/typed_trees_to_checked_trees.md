@@ -125,10 +125,13 @@ Current ownership is:
 - `omega-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
-  methods so later stages and reports have one obvious doorway. `types.rs`
-  owns the public acceptance handles/verdict, `state.rs`, `statement.rs`,
-  `call.rs`, and `exit.rs` own the corresponding view APIs, and `helpers.rs`
-  owns shared arena-span accessors.
+  methods so later stages and reports have one obvious doorway. Each view also
+  exposes an `AcceptanceSummary` with borrow, proof, effect, boundary, and
+  termination dimensions so accepted-by-construction evidence has a durable
+  status shape that can grow real rejection records later. `types.rs` owns the
+  public acceptance handles/verdict/summary records, `state.rs`,
+  `statement.rs`, `call.rs`, and `exit.rs` own the corresponding view APIs,
+  and `helpers.rs` owns shared arena-span accessors.
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
@@ -254,8 +257,9 @@ Current ownership is:
   transfer/drop events into the existing checked-flow ownership arenas.
 - Connect checked boundary edges to backend host-operation boundary summaries
   and target policy decisions.
-- Grow the checked operation acceptance views from read-only evidence views
-  into the durable verdict model for effect/capability authorization, proof
-  discharge status, and backend policy linkage.
+- Grow the checked operation acceptance summaries from accepted evidence counts
+  into persisted verdict records with diagnostic provenance for effect/capability
+  authorization, proof discharge status, borrow failures, termination failures,
+  and backend policy linkage.
 - Keep contract, proof, borrow, range, termination, and effect checks split by
   noun ownership instead of letting `checks` files become semantic junk drawers.
