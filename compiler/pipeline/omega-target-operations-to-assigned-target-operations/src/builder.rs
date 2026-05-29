@@ -1,10 +1,7 @@
-use omega_assigned_target_operations::{
-    AssignedOperation, AssignedRegisterBank, AssignedTargetOperationPlan, AssignedValueHomeKind,
-    AssignedValueOperand, assigned_operation_span_from_target,
-};
+use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_target_operations::TargetOperationPlan;
 
-use crate::registers;
+use crate::{functions, operations, values};
 
 pub(crate) fn build_assigned_target_operations(
     target_operations: &TargetOperationPlan,
@@ -19,211 +16,27 @@ pub(crate) fn build_assigned_target_operations(
     );
 
     for (_, function) in target_operations.functions.iter() {
-        assigned_target_operations.functions.insert(
-            omega_assigned_target_operations::AssignedTargetOperationFunction {
-                symbol: std::sync::Arc::clone(&function.symbol),
-                source_key: function.source_key,
-                instructions: assigned_operation_span_from_target(function.instructions),
-            },
-        );
+        assigned_target_operations
+            .functions
+            .insert(functions::assign_function(function));
     }
 
     for (_, instruction) in target_operations.instructions.iter() {
         assigned_target_operations
             .instructions
-            .insert(AssignedOperation {
-                kind: instruction.kind.clone().into(),
-                source_key: instruction.source_key,
-                source_statement: instruction.source_statement,
-            });
+            .insert(operations::assign_operation(instruction));
     }
     for (_, operand) in target_operations.operands.iter() {
-        assigned_target_operations.operands.insert(
-            omega_assigned_target_operations::AssignedInstructionOperand {
-                kind: operand.kind.clone().into(),
-            },
-        );
+        assigned_target_operations
+            .operands
+            .insert(operations::assign_instruction_operand(operand));
     }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
     assigned_target_operations.values = target_operations.values.clone();
     assigned_target_operations.boundary_edges = target_operations.boundary_edges.clone();
     assigned_target_operations.ownership = target_operations.ownership.clone();
 
-    let mut next_scratch_slot = 0u16;
-    for (_, operand) in target_operations.runtime_value_operands.iter() {
-        let kind = match operand {
-            omega_target_operations::TargetValueOperand::Immediate(_) => {
-                AssignedValueHomeKind::Immediate
-            }
-            omega_target_operations::TargetValueOperand::Storage {
-                region,
-                byte_offset,
-                byte_size,
-            } => match region {
-                omega_target_operations::RuntimeStorageRegion::Machine => {
-                    AssignedValueHomeKind::RuntimeStorage {
-                        region: *region,
-                        byte_offset: *byte_offset,
-                        byte_size: *byte_size,
-                    }
-                }
-                omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
-                    AssignedValueHomeKind::StackSlot {
-                        byte_offset: *byte_offset,
-                        byte_size: *byte_size,
-                    }
-                }
-            },
-            omega_target_operations::TargetValueOperand::Pointee {
-                pointer_byte_offset,
-                field_byte_offset,
-                byte_size,
-            } => AssignedValueHomeKind::RuntimePointee {
-                pointer_byte_offset: *pointer_byte_offset,
-                field_byte_offset: *field_byte_offset,
-                byte_size: *byte_size,
-            },
-            omega_target_operations::TargetValueOperand::FrameIndexed {
-                descriptor_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                byte_size,
-            } => AssignedValueHomeKind::RuntimeFrameIndexed {
-                descriptor_offset: *descriptor_offset,
-                index_offset: *index_offset,
-                element_byte_size: *element_byte_size,
-                field_byte_offset: *field_byte_offset,
-                byte_size: *byte_size,
-            },
-            omega_target_operations::TargetValueOperand::FrameBaseIndexed {
-                base_byte_offset,
-                index_offset,
-                element_byte_size,
-                field_byte_offset,
-                byte_size,
-            } => AssignedValueHomeKind::RuntimeFrameBaseIndexed {
-                base_byte_offset: *base_byte_offset,
-                index_offset: *index_offset,
-                element_byte_size: *element_byte_size,
-                field_byte_offset: *field_byte_offset,
-                byte_size: *byte_size,
-            },
-            omega_target_operations::TargetValueOperand::FrameFixedIndexed {
-                descriptor_offset,
-                element_index,
-                element_byte_size,
-                field_byte_offset,
-                byte_size,
-            } => AssignedValueHomeKind::RuntimeFrameFixedIndexed {
-                descriptor_offset: *descriptor_offset,
-                element_index: *element_index,
-                element_byte_size: *element_byte_size,
-                field_byte_offset: *field_byte_offset,
-                byte_size: *byte_size,
-            },
-            omega_target_operations::TargetValueOperand::Binary { .. } => {
-                let name = registers::scratch_register_name(
-                    target_operations.target.architecture,
-                    next_scratch_slot,
-                );
-                next_scratch_slot = next_scratch_slot.saturating_add(1);
-                AssignedValueHomeKind::ScratchRegister {
-                    bank: AssignedRegisterBank::GeneralPurpose,
-                    name,
-                }
-            }
-        };
-
-        assigned_target_operations
-            .runtime_value_operands
-            .insert(AssignedValueOperand {
-                kind: operand.clone().into(),
-                home: kind,
-            });
-    }
+    values::assign_runtime_value_operands(target_operations, &mut assigned_target_operations);
 
     assigned_target_operations
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use omega_abstract_operations::{
-        AbstractMoveEvent, AbstractOwnershipEventSource, AbstractValueFact, AbstractValueOrigin,
-        AbstractValueStatementRole,
-    };
-    use omega_core::symbols::SymbolHandle;
-
-    #[test]
-    fn copies_target_value_summary_to_assigned_plan() {
-        let mut target_operations = TargetOperationPlan::default();
-        let machine_symbol = SymbolHandle::from_arena_index(1);
-        let state_symbol = SymbolHandle::from_arena_index(2);
-
-        target_operations.values.values.insert(AbstractValueFact {
-            source_key: Default::default(),
-            machine_symbol,
-            state_symbol,
-            expression: Default::default(),
-            origin: AbstractValueOrigin::Statement {
-                statement_index: 7,
-                role: AbstractValueStatementRole::CallArgument,
-            },
-        });
-
-        let assigned_operations = build_assigned_target_operations(&target_operations);
-
-        assert_eq!(assigned_operations.values.values.len(), 1);
-        let value = assigned_operations
-            .values
-            .values
-            .iter()
-            .next()
-            .map(|(_, value)| value)
-            .expect("assigned value");
-        assert_eq!(
-            value.origin,
-            AbstractValueOrigin::Statement {
-                statement_index: 7,
-                role: AbstractValueStatementRole::CallArgument,
-            }
-        );
-    }
-
-    #[test]
-    fn copies_target_ownership_summary_to_assigned_plan() {
-        let mut target_operations = TargetOperationPlan::default();
-        let target_symbol = SymbolHandle::from_arena_index(1);
-
-        target_operations.ownership.moves.insert(AbstractMoveEvent {
-            source_key: Default::default(),
-            source: AbstractOwnershipEventSource::Call {
-                statement_index: 9,
-                call_ordinal: 3,
-                target_symbol,
-            },
-            root: Default::default(),
-            segments: Default::default(),
-        });
-
-        let assigned_operations = build_assigned_target_operations(&target_operations);
-
-        assert_eq!(assigned_operations.ownership.moves.len(), 1);
-        let event = assigned_operations
-            .ownership
-            .moves
-            .iter()
-            .next()
-            .map(|(_, event)| event)
-            .expect("assigned ownership event");
-        assert_eq!(
-            event.source,
-            AbstractOwnershipEventSource::Call {
-                statement_index: 9,
-                call_ordinal: 3,
-                target_symbol,
-            }
-        );
-    }
 }
