@@ -50,11 +50,11 @@ Must not own:
 - `omega-relocations/src/data_addresses.rs` owns data/storage address relocations.
 - `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
 - `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.
-- `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families, with host-backed line reads split from general text buffer references.
+- `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families, with append and host-backed line reads split from general text buffer references.
 - `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data.
 
 ## Known Gaps
 
-- Runtime-text relocation helpers are still relatively dense; split buffer/materialize/append families if new text cases land.
+- Runtime-text relocation helpers are still relatively dense; split compare/write/materialize families if new text cases land.
 - Boundary summaries are preserved beside this stage, but target policy validation still needs explicit linkage between source boundary edges and lowered host-operation relocations.
