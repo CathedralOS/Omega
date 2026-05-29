@@ -23,8 +23,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - Values: receive assigned homes such as immediates, stack slots, runtime storage, runtime pointees, indexed runtime-frame locations, or scratch registers.
 - Facts: diagnostic metadata only; this stage does not discharge proof obligations.
 - Loans: prior-stage invariant only; borrow state is not rechecked here.
-- Moves: become assigned copies, spills, or already-legal value transfers.
-- Drops: become assigned cleanup operations only if already explicit in target operations.
+- Moves: preserve target ownership summaries while physical homes are assigned; explicit assigned transfer operation lowering is still pending.
+- Drops: preserve target ownership summaries while physical homes are assigned; explicit assigned cleanup operation lowering is still pending.
 - Calls: receive physical ABI placement when represented by target operation metadata.
 - Transitions: receive concrete branch/linkage operands where possible, without changing control-flow shape.
 - Effects: remain operation metadata attached to already-authorized operations.
@@ -39,3 +39,5 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 ## Known Gaps
 
 Current scratch register assignment is fixed and minimal. Real register allocation, spill insertion, and full stack-frame assignment should grow here or in narrow modules immediately under this stage.
+Ownership summaries are preserved through assignment but not yet lowered into
+assigned copy/cleanup operations.

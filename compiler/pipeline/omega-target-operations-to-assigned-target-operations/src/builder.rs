@@ -45,6 +45,7 @@ pub(crate) fn build_assigned_target_operations(
         );
     }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
+    assigned_target_operations.ownership = target_operations.ownership.clone();
 
     let mut next_scratch_slot = 0u16;
     for (_, operand) in target_operations.runtime_value_operands.iter() {

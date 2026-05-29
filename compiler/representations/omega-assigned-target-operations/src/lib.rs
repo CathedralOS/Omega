@@ -2040,6 +2040,7 @@ pub struct AssignedTargetOperationPlan {
     pub operands: Arena<AssignedInstructionOperand>,
     pub runtime_value_operands: Arena<AssignedValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
+    pub ownership: omega_target_operations::TargetOwnershipSummary,
 }
 
 impl Default for AssignedTargetOperationPlan {
@@ -2064,6 +2065,7 @@ impl AssignedTargetOperationPlan {
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::with_capacity(host_binding_capacity),
+            ownership: omega_target_operations::TargetOwnershipSummary::default(),
         }
     }
 
@@ -2393,6 +2395,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
+            ownership: plan.ownership,
         }
     }
 }
@@ -2441,6 +2444,7 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
+            ownership: plan.ownership,
         }
     }
 }

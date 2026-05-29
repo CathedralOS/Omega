@@ -24,8 +24,8 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - Values: re-expressed as target value operands; this stage may choose target-legal operand shapes but should not invent semantic values.
 - Facts: consumed only as already-lowered operation shape; proof and type facts are not re-proved here.
 - Loans: not owned; borrow legality must already be decided before abstract operations exist.
-- Moves: lowered only if they are already represented as abstract copies, loads, stores, or value transfers.
-- Drops: lowered only from explicit abstract cleanup operations; this stage should not decide destructor reachability.
+- Moves: preserve abstract ownership summaries while target operations are legalized; explicit transfer operation lowering is still pending.
+- Drops: preserve abstract ownership summaries while target operations are legalized; explicit cleanup operation lowering is still pending.
 - Calls: host/runtime operation ordinals become target operation keys and ABI bindings.
 - Transitions: preserved as target-aware branch/jump/return operations, not re-scheduled.
 - Effects: carried through as concrete runtime/host operation choices.
@@ -40,3 +40,5 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 ## Known Gaps
 
 This stage still needs a richer distinction between target legalization, ABI lowering, and later physical assignment once target operations grow beyond the current direct mapping.
+It also preserves ownership summaries without yet lowering them into target
+copy/cleanup operations.

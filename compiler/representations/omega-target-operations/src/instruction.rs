@@ -19,6 +19,7 @@ pub use value::{
     TargetValueOperandHandle,
 };
 pub type TargetHostBinding = HostBinding;
+pub type TargetOwnershipSummary = omega_abstract_operations::AbstractOwnershipSummary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTextReadSource {
