@@ -5,6 +5,7 @@ mod identity;
 mod input;
 mod object;
 mod runtime_text;
+mod schedule;
 mod source_surface;
 mod state_calls;
 mod stats;
@@ -20,9 +21,6 @@ use omega_runtime_branching::{
 use omega_state_calls::StateCall;
 use omega_state_dispatch::state_dispatch_label;
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_state_schedule::{
-    StateScheduleContext, build_entry_state_schedule, scheduled_state_flow,
-};
 
 use crate::host::host_call_display_name;
 
@@ -55,47 +53,7 @@ pub fn backend_report_text(
 
     codegen::write_codegen_sections(&mut output, backend_plan);
     source_surface::write_source_native_surface(&mut output, backend_surface);
-
-    output.push_str("## State Schedule\n");
-    let schedule_context = StateScheduleContext::new(
-        &backend_plan.control_flow,
-        &backend_plan.host_calls,
-        &backend_plan.state_calls,
-    );
-    match build_entry_state_schedule(&schedule_context, backend_plan.entry_key) {
-        Ok(schedule) if schedule.is_empty() => output.push_str("states: 0\nnone\n"),
-        Ok(schedule) => {
-            output.push_str(&format!("states: {}\n", schedule.len()));
-            for scheduled_state in schedule {
-                if let Some(state_flow) = scheduled_state_flow(&schedule_context, &scheduled_state)
-                {
-                    output.push_str(&format!(
-                        "- {}.{}#{}\n",
-                        backend_plan
-                            .control_flow
-                            .machines
-                            .iter()
-                            .find(|(_, machine)| machine.symbol == state_flow.key.machine)
-                            .map(|(_, machine)| machine.name.as_str())
-                            .unwrap_or("<missing-machine>"),
-                        state_flow.name,
-                        state_flow.key.segment_index
-                    ));
-                } else {
-                    output.push_str(&format!(
-                        "- symbol {}.{}#{}\n",
-                        scheduled_state.key.machine.arena_index(),
-                        scheduled_state.key.state.arena_index(),
-                        scheduled_state.key.segment_index
-                    ));
-                }
-            }
-        }
-        Err(reason) => {
-            output.push_str("status: blocked\n");
-            output.push_str(&format!("reason: {reason}\n"));
-        }
-    }
+    schedule::write_state_schedule(&mut output, backend_plan);
 
     output.push_str("\n## Runtime State Flow\n");
     output.push_str(&format!(
