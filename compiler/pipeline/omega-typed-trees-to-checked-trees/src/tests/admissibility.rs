@@ -1,0 +1,63 @@
+use super::*;
+
+#[test]
+fn exposes_checked_operation_acceptance_from_one_query_surface() {
+    let source = r#"
+        data Main {}
+
+        machine Main::echo(&mut self)
+        requires
+            true
+        {
+        }
+
+        machine Main::main(&mut self) {
+            self.echo();
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source)).expect("program should check");
+    let main = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = checked.machine_states(main).first().expect("main state");
+
+    let state_acceptance = checked
+        .state_acceptance(main.symbol, main_state.symbol)
+        .expect("main state acceptance should be queryable");
+
+    assert!(state_acceptance.is_accepted());
+    assert_eq!(state_acceptance.statements().len(), 1);
+    assert_eq!(state_acceptance.calls().len(), 1);
+
+    let statement_acceptance = state_acceptance
+        .statement(0)
+        .expect("call statement acceptance should be queryable");
+    assert!(statement_acceptance.is_accepted());
+    assert!(!statement_acceptance.entry_constraints().is_empty());
+
+    let call_fact = state_acceptance.calls()[0].clone();
+    let call_acceptance = state_acceptance
+        .call(
+            call_fact.statement_index,
+            call_fact.call_ordinal,
+            call_fact.target_symbol,
+            call_fact.receiver_symbol,
+        )
+        .expect("call acceptance should be queryable");
+
+    assert!(call_acceptance.is_accepted());
+    assert!(!call_acceptance.entry_constraints().is_empty());
+    assert!(!call_acceptance.requires_constraints().is_empty());
+    assert_eq!(call_acceptance.requires().len(), 1);
+    assert!(call_acceptance.boundary_edges().is_empty());
+}
+
+fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    lower_symbol_resolved_trees(&resolved).expect("type")
+}

@@ -24,6 +24,7 @@ use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use omega_tokens_to_syntax_trees::parse_syntax_trees;
 use std::sync::Arc;
 
+mod admissibility;
 mod borrow;
 mod contracts;
 mod flow;

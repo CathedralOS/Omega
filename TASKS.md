@@ -313,6 +313,9 @@ meaning, without needing access to pointer descriptor internals.
     values/boundaries/ownership structs per representation
   - backend semantic preservation handoffs now copy the whole summary spine
     instead of repeating field-by-field values/boundaries/ownership transfer
+  - checked trees now expose a first unified operation-admissibility query
+    doorway over state, statement, call, and exit evidence instead of requiring
+    callers to know every proof/borrow/flow/effect sub-arena
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved
@@ -443,6 +446,9 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
+  - grow checked operation admissibility from accepted-by-construction evidence
+    views into durable verdict records that can represent proof, borrow,
+    effect/capability, boundary, and termination status uniformly
   - make ownership event production fully type-aware so Copy/no-drop values and
     real ownership-consuming values are distinguished across all transfer sites
   - extend type-aware ownership event production into slice/string operators
