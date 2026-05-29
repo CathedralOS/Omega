@@ -66,6 +66,8 @@ meaning, without needing access to pointer descriptor internals.
   - contract checking now keeps its root as an entrypoint, with call
     `requires` validation and exit `ensures` validation split into focused
     modules
+  - contract label helpers now split call-site argument substitution from
+    domain proof label substitution
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
