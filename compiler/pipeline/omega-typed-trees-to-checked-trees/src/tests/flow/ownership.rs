@@ -155,6 +155,27 @@ fn does_not_materialize_assignment_moves_for_copy_scalar_locals() {
 }
 
 #[test]
+fn does_not_materialize_indexed_assignment_moves_for_copy_scalar_elements() {
+    let source = r#"
+        data Main {
+            values: [i32; 4];
+            selected: i32;
+        }
+
+        machine Main::main(&mut self) {
+            let copied: i32 = self.values[0];
+            self.selected = copied;
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
+    assert!(flow.drops.span_or_empty(state_flow.drops).is_empty());
+}
+
+#[test]
 fn does_not_materialize_by_value_call_argument_moves_for_copy_scalar_parameters() {
     let source = r#"
         data Main {
