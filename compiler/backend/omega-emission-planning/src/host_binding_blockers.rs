@@ -17,7 +17,7 @@ pub(super) fn collect_host_binding_blockers(
         return;
     }
 
-    for (_, instruction) in input.instructions.instructions.iter() {
+    for (_, instruction) in input.instructions.code.instructions.iter() {
         if !matches!(
             instruction.kind,
             SelectedInstructionKind::ReadRuntimeTextLine {

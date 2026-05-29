@@ -86,11 +86,11 @@ fn collect_selected_runtime_text_buffer_host_blockers(
     input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    for (_, instruction) in input.instructions.instructions.iter() {
+    for (_, instruction) in input.instructions.code.instructions.iter() {
         let SelectedInstructionKind::HostOperation { operands, .. } = instruction.kind else {
             continue;
         };
-        let Some(operands) = input.instructions.operands.span(operands) else {
+        let Some(operands) = input.instructions.code.operands.span(operands) else {
             continue;
         };
 
@@ -130,6 +130,7 @@ fn host_call_has_selected_operation(
 ) -> bool {
     input
         .instructions
+        .code
         .instructions
         .iter()
         .any(|(_, instruction)| {
@@ -148,6 +149,7 @@ fn host_text_argument_has_planned_text_operands(
 ) -> bool {
     input
         .instructions
+        .code
         .instructions
         .iter()
         .any(|(_, instruction)| {
@@ -160,7 +162,7 @@ fn host_text_argument_has_planned_text_operands(
             let SelectedInstructionKind::HostOperation { operands, .. } = instruction.kind else {
                 return false;
             };
-            let Some(operands) = input.instructions.operands.span(operands) else {
+            let Some(operands) = input.instructions.code.operands.span(operands) else {
                 return false;
             };
 
@@ -284,6 +286,7 @@ fn runtime_text_buffer_has_selected_producer(
 ) -> bool {
     input
         .instructions
+        .code
         .instructions
         .iter()
         .any(|(_, instruction)| {
@@ -329,6 +332,7 @@ fn selected_instruction_writes_runtime_text_buffer(
         {
             input
                 .instructions
+                .code
                 .operands
                 .span(*operands)
                 .unwrap_or(&[])

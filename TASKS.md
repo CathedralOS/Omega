@@ -228,6 +228,9 @@ meaning, without needing access to pointer descriptor internals.
   - machine-instruction value facts, ownership facts, and boundary edges now
     sit under an explicit `MachineInstructionSemanticSummary` root on
     `MachineInstructionPlan`
+  - machine-instruction executable shape now sits under an explicit
+    `MachineInstructionCode` root on `MachineInstructionPlan`, keeping
+    symbolic instruction arenas separate from preserved semantic summaries
   - target-to-machine-program now has focused unit coverage proving value,
     boundary-edge, and ownership summaries survive the aggregate bridge into
     the current machine-program artifact

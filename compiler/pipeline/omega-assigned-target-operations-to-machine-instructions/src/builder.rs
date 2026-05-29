@@ -21,10 +21,11 @@ pub(crate) fn build_machine_instructions(
         let function_instructions = functions::append_machine_instructions(
             assigned_target_operations,
             function,
-            &mut machine_instructions.instructions,
+            &mut machine_instructions.code.instructions,
         )?;
 
         machine_instructions
+            .code
             .functions
             .insert(MachineInstructionFunction {
                 source_key: function.source_key,

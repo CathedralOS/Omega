@@ -15,6 +15,7 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                 continue;
             };
             let inserted = plan
+                .code
                 .instructions
                 .try_insert_many(function_instructions.iter().map(|instruction| {
                     Ok::<MachineInstruction, Infallible>(MachineInstruction {
@@ -24,7 +25,7 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                     })
                 }))
                 .expect("machine instruction arena insertion should not fail");
-            plan.functions.insert(MachineInstructionFunction {
+            plan.code.functions.insert(MachineInstructionFunction {
                 source_key: function.source_key,
                 instructions: inserted,
             });
@@ -40,11 +41,12 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
     fn from(plan: MachineInstructionPlan) -> Self {
         let mut program = omega_machine_program::MachineProgram::with_capacity(
             plan.target,
-            plan.functions.len(),
-            plan.instructions.len(),
+            plan.code.functions.len(),
+            plan.code.instructions.len(),
         );
-        for (_, function) in plan.functions.iter() {
-            let Some(function_instructions) = plan.instructions.span(function.instructions) else {
+        for (_, function) in plan.code.functions.iter() {
+            let Some(function_instructions) = plan.code.instructions.span(function.instructions)
+            else {
                 continue;
             };
             let inserted = program

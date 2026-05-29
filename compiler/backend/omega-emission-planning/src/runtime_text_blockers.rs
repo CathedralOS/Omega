@@ -88,6 +88,7 @@ fn state_value_has_planned_storage_write(
 
     input
         .instructions
+        .code
         .instructions
         .iter()
         .any(|(_, instruction)| {
@@ -278,6 +279,7 @@ fn runtime_text_write_has_selected_instruction(
 ) -> bool {
     input
         .instructions
+        .code
         .instructions
         .iter()
         .any(|(_, instruction)| {

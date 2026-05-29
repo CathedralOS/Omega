@@ -61,6 +61,10 @@ Must not own:
 - `omega-machine-instructions/src/semantics.rs` owns the symbolic
   machine-instruction semantic summary root for value facts, ownership facts,
   and boundary edges.
+- `omega-machine-instructions/src/plan.rs` is the output representation root:
+  symbolic executable instruction shape lives under `MachineInstructionCode`,
+  while preserved semantic evidence lives under
+  `MachineInstructionSemanticSummary`.
 - `shapes.rs` routes selected instruction families to shape-specific helpers.
 - `shapes/dispatch.rs` owns dispatch-loop/case/state/return instruction shapes.
 - `shapes/host.rs` owns host-operation instruction shapes.

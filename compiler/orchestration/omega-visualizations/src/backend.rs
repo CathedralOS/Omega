@@ -476,7 +476,7 @@ fn collect_machine_function_views(
 ) -> Vec<FunctionView> {
     let mut views = Vec::<FunctionView>::new();
 
-    for (index, instruction) in plan.instructions.storage_slice().iter().enumerate() {
+    for (index, instruction) in plan.code.instructions.storage_slice().iter().enumerate() {
         let handle =
             omega_core::arena::Handle::from_arena_index(instruction.selected_instruction_index);
         if handle.arena_index() as usize >= assigned_plan.code.instructions.len() {
@@ -511,7 +511,7 @@ fn collect_emitted_function_views(
     native_disassembly: Option<&str>,
 ) -> Vec<FunctionView> {
     let encoded_instructions = encoded_plan.instructions.storage_slice();
-    let machine_instructions = machine_plan.instructions.storage_slice();
+    let machine_instructions = machine_plan.code.instructions.storage_slice();
     let mut current_offset = 0usize;
     let mut views = Vec::<FunctionView>::new();
     let mut first_offsets = Vec::<(StateKey, usize)>::new();

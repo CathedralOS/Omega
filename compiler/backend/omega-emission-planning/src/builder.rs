@@ -39,7 +39,8 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
             }
         };
 
-    if input.encoded_machine.instructions.len() < input.machine_instructions.instructions.len() {
+    if input.encoded_machine.instructions.len() < input.machine_instructions.code.instructions.len()
+    {
         blockers.insert(emission_blocker(
             "machine encoding",
             "not all selected native instructions are encoded into target bytes yet",
@@ -100,8 +101,8 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         host_bindings: input.host_abi.bindings.len(),
         host_calls: input.host_calls.calls.len(),
         data_bytes: input.data.bytes.len(),
-        selected_instructions: input.instructions.instructions.len(),
-        instruction_operands: input.instructions.operands.len(),
+        selected_instructions: input.instructions.code.instructions.len(),
+        instruction_operands: input.instructions.code.operands.len(),
         machine_code_bytes: input.encoded_machine.byte_count,
         encoded_machine_bytes: input.encoded_machine.bytes.len(),
         relocations: input.relocations.records.len(),
@@ -132,7 +133,8 @@ fn estimated_emission_blocker_capacity(input: &EmissionPlanningInput<'_>) -> usi
 
 fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
     can_emit_executable_image(input.target)
-        && input.encoded_machine.instructions.len() == input.machine_instructions.instructions.len()
+        && input.encoded_machine.instructions.len()
+            == input.machine_instructions.code.instructions.len()
 }
 
 fn unsupported_host_call_reason_text(reason: UnsupportedHostCallReason) -> String {
