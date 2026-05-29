@@ -114,10 +114,13 @@ Current ownership is:
   indexed/subslice validation, `checks/ranges/facts.rs` owns local/field range
   fact storage, `checks/ranges/facts/proofs.rs` owns index/range-bound proof
   propagation and aliasing, `checks/ranges/guards.rs` owns guard-derived facts,
-  `checks/ranges/proofs.rs` owns proof lookups,
+  `checks/ranges/initializers.rs` owns data-field and machine-owned integer
+  fact seeding, `checks/ranges/proofs.rs` owns proof lookups,
   `checks/ranges/requirements.rs` owns requires-derived proof seeding,
-  `checks/ranges/state_arguments.rs` owns transition argument facts, and
-  `checks/ranges/types.rs` owns expression type/slice classification.
+  `checks/ranges/statements.rs` owns statement and transition-target range
+  routing plus local alias seeding, `checks/ranges/state_arguments.rs` owns
+  transition argument facts, and `checks/ranges/types.rs` owns expression
+  type/slice classification.
 - `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
   owns expression traversal that discovers nested state calls.

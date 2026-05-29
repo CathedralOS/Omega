@@ -57,6 +57,8 @@ meaning, without needing access to pointer descriptor internals.
     modules instead of concentrating all value concerns in one file
   - checked value facts now cover machine decreases and attached-data field
     initializers, with focused canaries for both top-level value origins
+  - range checking now keeps its root as an entrypoint, with initializer fact
+    seeding and statement/transition range routing split into focused modules
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
@@ -552,6 +554,8 @@ meaning, without needing access to pointer descriptor internals.
   Next target:
   - quantified or sequence-style facts for text/slice invariants
   - reusable proof lemmas for length, bounds, and window transformations
+  - repair dynamic indexed domain-fact preservation across disjoint mutating
+    calls; the current unit baseline still rejects some `self.index` proofs
   - better diagnostics when a proof-backed operator is missing a required fact
   - boundary proof boundaries for host/core primitive implementations
 
@@ -572,6 +576,8 @@ meaning, without needing access to pointer descriptor internals.
   - borrow diagnostics now print indexed places with source expression labels
     instead of internal expression arena indexes
   Next target:
+  - repair direct owner assignment rejection while a local borrow alias remains
+    active; the current unit baseline has this borrow diagnostic expectation red
   - distinguish more disjoint fixed windows and bounded range/range cases where provable
   - ensure `Vec` mutation/reallocation is rejected while borrowed views exist
   - add canaries for array, slice, and future vec aliasing cases
