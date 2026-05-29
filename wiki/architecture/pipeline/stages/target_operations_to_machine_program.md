@@ -1,6 +1,6 @@
 # Target Operations To Machine Program
 
-[Pipeline](../pipeline.md) | Previous: [Assigned Target Operations To Machine Instructions](assigned_target_operations_to_machine_instructions.md) | Next: none
+[Pipeline](../pipeline.md) | Previous: [Target Operations To Assigned Target Operations](target_operations_to_assigned_target_operations.md) | Next: [Assigned Target Operations To Machine Instructions](assigned_target_operations_to_machine_instructions.md)
 
 This aggregate stage builds the current `MachineProgram` artifact from target-operation data by composing assignment and symbolic instruction emission.
 
@@ -35,11 +35,11 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 
 - Must stay a thin composition bridge while `MachineProgram` is the current backend artifact.
 - Must not absorb assignment policy, instruction-shape policy, object encoding, final image layout, semantic validation, proof discharge, or borrow checking.
-- Must not pretend object files or final images are current pipeline outputs until those representation crates/stages exist.
+- Must not absorb object planning, relocation planning, or final-image policy now that those representation crates/stages exist.
 
 ## Known Gaps
 
-This is an aggregate bridge, not the final backend architecture. Object-file emission and direct final-image construction remain future representation boundaries, but they should be documented as future backend work rather than current pipeline stages.
+This is an aggregate bridge, not the final backend architecture. Object-plan, relocation-plan, and direct final-image construction now have their own representation boundaries; this bridge should keep shrinking rather than becoming a second backend truth.
 The bridge preserves ownership summaries as metadata, but explicit transfer and
 cleanup instruction lowering remains future work.
 The bridge also preserves boundary-edge summaries as metadata; those summaries

@@ -76,11 +76,12 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
 | Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target metadata |
 | Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
+| Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact metadata |
 | Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction metadata |
 | Machine Instructions To Machine Bytes | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
 | Machine Bytes To Object Plan | artifact | artifact | metadata | none | metadata | metadata | symbol metadata | section metadata | artifact | sibling metadata |
 | Object Plan To Relocations | artifact | artifact | metadata | none | metadata | metadata | relocation records | relocation records | artifact | sibling metadata |
-| Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact metadata |
+| Object Relocations To Final Image | final | final | final layout | none | metadata | metadata | final import/fixup | final branch fixup | final artifact | final metadata |
 
 Current deliberate gaps:
 
@@ -110,8 +111,9 @@ Current deliberate gaps:
 - [Control Flow To Abstract Operations](stages/control_flow_to_abstract_operations.md)
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
+- [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)
 - [Machine Instructions To Machine Bytes](stages/machine_instructions_to_machine_bytes.md)
 - [Machine Bytes To Object Plan](stages/machine_bytes_to_object_plan.md)
 - [Object Plan To Relocations](stages/object_plan_to_relocations.md)
-- [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
+- [Object Relocations To Final Image](stages/object_relocations_to_final_image.md)
