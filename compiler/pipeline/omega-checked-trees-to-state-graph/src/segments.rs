@@ -1,19 +1,24 @@
 mod branching;
 mod operations;
 mod parameters;
+mod transitions;
 
 use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::state::State;
-use omega_checked_trees::statement::{StatementNode, TableTransition, TransitionGuardNode};
+use omega_checked_trees::statement::StatementNode;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{Operation, StateGraph, StateKey, StateParameterNode};
 
 use self::branching::BranchCallTargetResolver;
 use self::operations::{operation_expression_refs, operation_kind};
 use self::parameters::state_parameters_for_segment;
+use self::transitions::branch_call_transitions;
+pub(super) use self::transitions::{
+    SegmentTransition, copy_statement_expression_span, segment_has_unconditional_transition,
+    table_transition_guard_expression,
+};
 
 #[derive(Debug, Clone)]
 pub(super) struct StateSegment {
@@ -23,31 +28,6 @@ pub(super) struct StateSegment {
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<SegmentTransition>,
     pub next_segment_key: StateKey,
-}
-
-#[derive(Debug, Clone)]
-pub(super) enum SegmentTransition {
-    Tree {
-        statement_index: usize,
-        table: TableTransition,
-    },
-    ReturnExpression {
-        statement_index: usize,
-        expression: ExpressionHandle,
-    },
-    BranchCall {
-        statement_index: usize,
-        has_continuation_segment: bool,
-    },
-}
-
-impl Default for SegmentTransition {
-    fn default() -> Self {
-        Self::Tree {
-            statement_index: 0,
-            table: TableTransition::default(),
-        }
-    }
 }
 
 pub(super) fn split_state_segments(
@@ -193,57 +173,6 @@ pub(super) fn split_state_segments(
     }
 }
 
-fn branch_call_transitions(
-    statement_index: usize,
-    has_continuation_segment: bool,
-    segment_transitions: &mut Arena<SegmentTransition>,
-) -> HandleSpan<SegmentTransition> {
-    let mut transitions = HandleSpan::empty();
-    segment_transitions.append_to_span(
-        &mut transitions,
-        SegmentTransition::BranchCall {
-            statement_index,
-            has_continuation_segment,
-        },
-    );
-    transitions
-}
-
-pub(super) fn segment_has_unconditional_transition(
-    segment: &StateSegment,
-    segment_transitions: &Arena<SegmentTransition>,
-) -> bool {
-    segment_transitions
-        .span_or_empty(segment.transitions)
-        .iter()
-        .any(|transition| match transition {
-            SegmentTransition::Tree { table, .. } => {
-                matches!(table.guard, TransitionGuardNode::Always)
-            }
-            SegmentTransition::ReturnExpression { .. } => true,
-            SegmentTransition::BranchCall { .. } => true,
-        })
-}
-
 fn segment_name(state_name: &Identifier, _segment_index: usize) -> Identifier {
     state_name.clone()
-}
-
-pub(super) fn copy_statement_expression_span(
-    state_graph: &mut StateGraph,
-    source_expressions: &ExpressionTable,
-    statement_table: &omega_checked_trees::statement::StatementTable,
-    expressions: omega_core::arena::HandleSpan<ExpressionHandle>,
-) -> omega_core::arena::HandleSpan<ExpressionHandle> {
-    state_graph.expressions.copy_expression_handles_from_slice(
-        source_expressions,
-        statement_table.expression_handles(expressions),
-    )
-}
-
-pub(super) fn table_transition_guard_expression(transition: TableTransition) -> ExpressionHandle {
-    match transition.guard {
-        TransitionGuardNode::Always => ExpressionHandle::invalid(),
-        TransitionGuardNode::When(expression) => expression,
-    }
 }
