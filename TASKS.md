@@ -65,6 +65,8 @@ meaning, without needing access to pointer descriptor internals.
   - typed-to-checked borrow access collection now threads read/mutable access
     traversal through a named `BorrowAccessCollection` context instead of raw
     arena/state parameters
+  - typed-to-checked call flow now splits call mutation/domain invalidation out
+    of the call phase routing module
   - typed-to-checked borrow call discovery now threads recursive expression and
     transition traversal through a named `BorrowCallCollection` context instead
     of raw arena/ordinal/state parameters
