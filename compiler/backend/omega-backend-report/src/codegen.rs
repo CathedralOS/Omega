@@ -2,6 +2,7 @@ mod abstract_ops;
 mod assigned;
 mod machine;
 mod native_data;
+mod operands;
 mod runtime_values;
 
 use super::backend_state_name;
@@ -11,9 +12,9 @@ use crate::BackendReportInput;
 use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
-    InstructionOperand, InstructionOperandKind, SelectedInstructionKind, TargetOperation,
-    TargetOperationFunction, TargetOperationKind,
+    SelectedInstructionKind, TargetOperation, TargetOperationFunction, TargetOperationKind,
 };
+use operands::selected_instruction_operands_name;
 use runtime_values::{runtime_text_read_source_name, runtime_value_operand_name};
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -700,40 +701,4 @@ fn selected_instruction_name(
         }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
     }
-}
-
-fn selected_instruction_operands_name(
-    backend_plan: &BackendReportInput<'_>,
-    operands: omega_core::arena::HandleSpan<InstructionOperand>,
-) -> String {
-    let Some(operands) = backend_plan.target_operations.code.operands.span(operands) else {
-        return "invalid operands".to_owned();
-    };
-
-    operands
-        .iter()
-        .map(|operand| match &operand.kind {
-            InstructionOperandKind::DataAddress { data } => {
-                let symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
-                format!("addr {symbol}")
-            }
-            InstructionOperandKind::RuntimeStringPointer {
-                region,
-                byte_offset,
-            } => {
-                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
-                format!("string ptr {symbol}@{byte_offset}")
-            }
-            InstructionOperandKind::RuntimeStringLength {
-                region,
-                byte_offset,
-            } => {
-                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
-                format!("string len {symbol}@{byte_offset}")
-            }
-            InstructionOperandKind::ImmediateInteger(value) => value.to_string(),
-            InstructionOperandKind::ByteLength(value) => format!("len {value}"),
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }

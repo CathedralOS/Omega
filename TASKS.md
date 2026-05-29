@@ -544,6 +544,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-backend-report` now splits runtime value/source name rendering into
     a shared codegen helper module instead of coupling assigned-home reporting
     to target-operation formatting
+  - `omega-backend-report` now splits selected-instruction operand rendering
+    into a focused codegen helper module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
