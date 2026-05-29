@@ -7,13 +7,14 @@ pub(super) fn build_abstract_ownership_summary(
     control_flow: &ControlFlowPlan,
 ) -> AbstractOwnershipSummary {
     let mut summary = AbstractOwnershipSummary::with_capacity(
-        control_flow.ownership_segments.len(),
-        control_flow.move_events.len(),
-        control_flow.drop_events.len(),
+        control_flow.semantics.ownership_segments.len(),
+        control_flow.semantics.move_events.len(),
+        control_flow.semantics.drop_events.len(),
     );
 
     for (_, state) in control_flow.states.iter() {
         for event in control_flow
+            .semantics
             .move_events
             .span_or_empty(state.ownership.moves)
         {
@@ -23,6 +24,7 @@ pub(super) fn build_abstract_ownership_summary(
                 root: event.root,
                 segments: summary.segments.insert_many(
                     control_flow
+                        .semantics
                         .ownership_segments
                         .span_or_empty(event.segments)
                         .iter()
@@ -32,6 +34,7 @@ pub(super) fn build_abstract_ownership_summary(
         }
 
         for event in control_flow
+            .semantics
             .drop_events
             .span_or_empty(state.ownership.drops)
         {
@@ -41,6 +44,7 @@ pub(super) fn build_abstract_ownership_summary(
                 root: event.root,
                 segments: summary.segments.insert_many(
                     control_flow
+                        .semantics
                         .ownership_segments
                         .span_or_empty(event.segments)
                         .iter()
@@ -87,7 +91,10 @@ mod tests {
         let segment = omega_facts::PlaceSegment::Field {
             symbol: SymbolHandle::from_arena_index(7),
         };
-        let segments = control_flow.ownership_segments.insert_many([segment]);
+        let segments = control_flow
+            .semantics
+            .ownership_segments
+            .insert_many([segment]);
         let mut state = StateFlow {
             key: StateKey {
                 machine: SymbolHandle::from_arena_index(1),
@@ -96,7 +103,7 @@ mod tests {
             },
             ..StateFlow::default()
         };
-        control_flow.move_events.append_to_span(
+        control_flow.semantics.move_events.append_to_span(
             &mut state.ownership.moves,
             StateMoveEvent {
                 source: StateOwnershipEventSource::Statement { statement_index: 3 },
@@ -104,7 +111,7 @@ mod tests {
                 segments,
             },
         );
-        control_flow.drop_events.append_to_span(
+        control_flow.semantics.drop_events.append_to_span(
             &mut state.ownership.drops,
             StateDropEvent {
                 source: StateOwnershipEventSource::StateExit,

@@ -71,6 +71,10 @@ meaning, without needing access to pointer descriptor internals.
   - target operation value facts, ownership facts, and boundary edges now sit
     under an explicit `TargetSemanticSummary` root on `TargetOperationPlan`
     instead of appearing as unrelated plan siblings
+  - control-flow proof, invariant, contract, value, boundary, borrow, and
+    ownership arenas now sit under an explicit `ControlFlowSemanticRoots` root
+    on `ControlFlowPlan`, keeping executable flow shape separate from preserved
+    semantic evidence
   - assigned target operation value facts, ownership facts, and boundary edges
     now sit under an explicit `AssignedSemanticSummary` root on
     `AssignedTargetOperationPlan`, preserving the same semantic spine through

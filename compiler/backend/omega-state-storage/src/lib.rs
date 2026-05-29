@@ -37,6 +37,7 @@ impl StateStoragePlanningContext {
         self.state_flow_by_key(state_key)
             .and_then(|state| {
                 self.control_flow
+                    .semantics
                     .borrow_writable_roots
                     .span(state.borrow.writable_roots)
             })

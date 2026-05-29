@@ -88,6 +88,7 @@ fn argument_is_mutable_alias(
     if let Some(call) = context.borrow_call_by_key(source_key, statement_index, call_ordinal)
         && let Some(access) = context
             .control_flow
+            .semantics
             .borrow_argument_accesses
             .span(call.accesses)
             .and_then(|accesses| accesses.get(index))
