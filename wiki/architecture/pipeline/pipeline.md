@@ -57,6 +57,27 @@ Use this rule when a pass starts to sprawl:
 - If it chooses storage, ABI, instruction, relocation, or image form, it belongs
   in the backend lowering stages.
 
+## Representation Root Shape
+
+Durable representations should make their semantic spine visible at the root.
+When a representation has both executable/data shape and preserved semantic
+evidence, those should be separate named roots rather than a flat bag of arenas.
+
+Current preferred shapes:
+
+- Source-shaped representations use `roots` plus `tables` when identity and
+  contiguous storage are the main concerns, for example `TypedTrees`.
+- Checked representations use a source/program root plus a facts root, for
+  example `CheckedTrees { typed, facts }`.
+- Graph/control/backend representations use a code/shape root plus a semantic
+  evidence root, for example `StateGraph { code, semantics }`,
+  `ControlFlowPlan { code, semantics }`, and backend operation plans.
+
+This is not ceremony. It makes it obvious whether a pass is changing executable
+shape, preserving semantic evidence, or doing both. If a stage starts reaching
+through unrelated roots to answer a question, that is a sign the query belongs
+behind a unified view or helper instead of being reconstructed ad hoc.
+
 ## Semantic Ownership Matrix
 
 This table is intentionally blunt. Each cell says the main relationship between
