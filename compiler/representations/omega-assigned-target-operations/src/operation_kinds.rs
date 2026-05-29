@@ -5,6 +5,12 @@ use omega_target_operations::{
     StateGuardOperator,
 };
 
+mod classification;
+#[cfg(test)]
+mod tests;
+
+pub use classification::AssignedOperationDomain;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedOperationKind {
     EnterFunction,

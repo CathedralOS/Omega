@@ -590,6 +590,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-target-operations` now mirrors the operation-domain and
     host-boundary query surface so semantic ownership remains explicit after
     target-aware lowering
+  - `omega-assigned-target-operations` now keeps the same operation-domain and
+    host-boundary predicates after register/stack assignment
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
