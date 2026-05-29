@@ -59,6 +59,8 @@ meaning, without needing access to pointer descriptor internals.
     initializers, with focused canaries for both top-level value origins
   - range checking now keeps its root as an entrypoint, with initializer fact
     seeding and statement/transition range routing split into focused modules
+  - guard-derived range facts now split boolean guard dispatch from
+    comparison-derived length/index/order bound seeding
   - contract checking now keeps its root as an entrypoint, with call
     `requires` validation and exit `ensures` validation split into focused
     modules
