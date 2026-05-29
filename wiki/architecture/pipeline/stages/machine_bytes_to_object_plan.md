@@ -51,6 +51,8 @@ Must not own:
   encoded entry-function lookup diagnostics.
 - `omega-object-file-planning/src/sections.rs` owns text/data/bss section sizing and runtime-frame offset placement.
 - `omega-object-file-planning/src/symbols.rs` owns entry, storage, import, runtime-frame, and data-object symbol construction.
+- `omega-object-file-planning/src/tests.rs` owns object-planning canaries so
+  orchestration code stays separate from test fixtures.
 - `omega-object-file/src/plan.rs` owns the object-plan container.
 - `omega-object-file/src/sections.rs` owns section records.
 - `omega-object-file/src/symbols.rs` owns symbol records and handles.
