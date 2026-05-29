@@ -2,6 +2,7 @@ mod context;
 mod host_operation;
 mod runtime_storage;
 mod runtime_storage_addresses;
+mod runtime_storage_compares;
 mod runtime_storage_copies;
 mod runtime_storage_strings;
 mod runtime_text;
