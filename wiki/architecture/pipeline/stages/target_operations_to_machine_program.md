@@ -38,7 +38,7 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 | Calls | Already represented by target/assigned/symbolic instruction stages. |
 | Transitions | Already represented by target/assigned/symbolic instruction stages. |
 | Effects | Already represented by target/assigned/symbolic instruction stages. |
-| Boundary edges | Boundary-edge summaries are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact. |
+| Boundary edges | Boundary-edge summaries and policy-check records are forwarded through assignment, symbolic instruction emission, and the current `MachineProgram` artifact. |
 
 ## Ownership Rules
 
@@ -51,7 +51,7 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 This is an aggregate bridge, not the final backend architecture. Object-plan, relocation-plan, and direct final-image construction now have their own representation boundaries; this bridge should keep shrinking rather than becoming a second backend truth.
 The bridge preserves ownership summaries as metadata, but explicit transfer and
 cleanup instruction lowering remains future work.
-The bridge also preserves boundary-edge summaries as metadata; those summaries
-still need source-level checked boundary contract linkage.
+The bridge also preserves boundary-edge summaries and policy-check records as
+metadata; exact source policy path matching remains future work.
 The bridge preserves value summaries as metadata, but explicit storage/drop
 consequence lowering remains future work.

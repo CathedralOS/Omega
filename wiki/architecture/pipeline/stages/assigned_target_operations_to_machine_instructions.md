@@ -31,7 +31,7 @@ relocations.
 | Calls | Become symbolic call instructions/sequences. |
 | Transitions | Become symbolic jumps, branches, returns, or dispatch mutations. |
 | Effects | Represented by instruction/call sequences. |
-| Boundary edges | Preserve assigned boundary-edge summaries while symbolic host call sequences are emitted. |
+| Boundary edges | Preserve assigned boundary-edge summaries, including policy-check records, while symbolic host call sequences are emitted. |
 
 ## Ownership Rules
 

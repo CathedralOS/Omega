@@ -30,7 +30,7 @@ This stage owns byte encoding and instruction byte spans. It does not create new
 | Calls | Encoded into call/syscall/import sequences. |
 | Transitions | Encoded into branches, dispatch mutations, and returns. |
 | Effects | Encoded as concrete instruction bytes for the already-selected operation sequences. |
-| Boundary edges | Preserved as encoded-machine metadata beside host-operation byte sequences. |
+| Boundary edges | Preserved as encoded-machine metadata beside host-operation byte sequences, including policy-check records. |
 
 ## Ownership Rules
 
