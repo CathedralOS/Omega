@@ -69,7 +69,7 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Tokens To Syntax Trees | syntax | syntax | syntax | none | none | none | syntax | syntax | syntax | syntax |
 | Syntax Trees To Symbol Resolved Trees | identity | identity | identity | none | none | none | identity | identity | identity | identity |
 | Symbol Resolved Trees To Typed Trees | typed | typed | typed | type surface | planned | planned | typed | typed | typed | typed |
-| Typed Trees To Checked Trees | checked | checked | checked | checked | checked gap | checked gap | checked | checked | checked | checked |
+| Typed Trees To Checked Trees | checked | checked | checked | checked | checked | checked | checked | checked | checked | checked |
 | Checked Trees To State Graph | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | graph | scheduled | scheduled |
 | State Graph To Control Flow | lowered | lowered | preserved | preserved | lowered | lowered | control flow | control flow | preserved | control flow |
 | Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | abstract op |
@@ -80,8 +80,9 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 
 Current deliberate gaps:
 
-- Moves and drops are not durable enough yet. They should become checked-tree
-  facts/events before graph and control-flow lowering.
+- Moves and drops now have durable checked/control-flow event plumbing, but
+  event production still needs type-aware precision plus transition and nested
+  call coverage.
 - Values are still weaker than places in checked trees. We need a durable value
   identity/story that survives proof, borrow, allocation, and lowering work.
 - Boundary edges are visible, but the checked representation should make

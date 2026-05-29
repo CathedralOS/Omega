@@ -84,3 +84,88 @@ fn materializes_basic_move_and_drop_events() {
             .is_empty()
     );
 }
+
+#[test]
+fn materializes_by_value_call_argument_moves() {
+    let source = r#"
+        data Item {
+            value: i32;
+        }
+
+        data Main {
+            left: Item;
+            right: Item;
+        }
+
+        machine Main::consume(&mut self, value: Item) {}
+
+        machine Main::touch(&mut self, value: &mut Item) {}
+
+        machine Main::main(&mut self) {
+            self.consume(self.left);
+            self.touch(&mut self.right);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+
+    let main_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let main_state = typed
+        .machine_states(main_machine)
+        .iter()
+        .find(|state| state.name.as_str() == "main")
+        .expect("main state");
+    let state_flow = flow
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)
+                .then_some(state)
+        })
+        .expect("main flow state");
+
+    let moves = flow.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 1);
+    let omega_checked_trees::FlowOwnershipEventSource::Call {
+        statement_index,
+        call_ordinal,
+        target_symbol,
+    } = moves[0].source
+    else {
+        panic!("expected call ownership event source");
+    };
+    assert_eq!(statement_index, 0);
+    assert_eq!(call_ordinal, 0);
+
+    let consume = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::consume")
+        .expect("consume machine");
+    let consume_state = typed
+        .machine_states(consume)
+        .iter()
+        .find(|state| state.name.as_str() == "consume")
+        .expect("consume state");
+    assert_eq!(target_symbol, consume_state.symbol);
+    assert!(
+        !flow
+            .ownership_segments
+            .span_or_empty(moves[0].segments)
+            .is_empty()
+    );
+}

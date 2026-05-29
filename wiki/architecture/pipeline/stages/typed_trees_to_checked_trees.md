@@ -24,7 +24,7 @@ effect, and boundary validation.
 | Values | Partially owned; expressions and symbols still stand in for durable value instances. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
-| Moves | First-class checked-flow event arenas/spans exist, with initial path-like assignment/local-initializer producers. |
+| Moves | First-class checked-flow event arenas/spans exist, with initial path-like assignment/local-initializer and by-value call-argument producers. |
 | Drops | First-class checked-flow event arenas/spans exist, with initial state-exit local drop producers. |
 | Calls | First-class call facts for contracts, borrows, flow, and effects. |
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
@@ -82,8 +82,8 @@ Current ownership is:
   `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
   entry/requires/ensures/effect/invalidation flow facts, and `flow/exits.rs`
   owns exit/ensures flow facts. `flow/ownership.rs` owns the first move/drop
-  event producers for path-like assignment/local-initializer moves and
-  state-exit local drops.
+  event producers for path-like assignment/local-initializer moves, by-value
+  direct-call argument moves, and state-exit local drops.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
   `flow/domain/dependencies/expression.rs` owns dependency expression
@@ -123,8 +123,8 @@ Current ownership is:
 - Make move/drop event production type-aware, so Copy/no-drop values and true
   ownership-consuming values are distinguished instead of using the current
   conservative path-like evidence.
-- Teach call and transition analysis to append ownership transfer/drop events
-  into the existing checked-flow ownership arenas.
+- Teach transition and nested expression-call analysis to append ownership
+  transfer/drop events into the existing checked-flow ownership arenas.
 - Make boundary edges first-class checked-flow events, not just contract/effect
   side data.
 - Keep contract, proof, borrow, range, termination, and effect checks split by
