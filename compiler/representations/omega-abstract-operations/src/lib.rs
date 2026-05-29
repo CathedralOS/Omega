@@ -22,7 +22,7 @@ pub use instruction::{
 pub use ownership::{
     AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,
 };
-pub use plan::AbstractOperationPlan;
+pub use plan::{AbstractOperationCode, AbstractOperationPlan};
 pub use semantics::AbstractSemanticSummary;
 pub use values::{
     AbstractValueFact, AbstractValueFactHandle, AbstractValueOrigin, AbstractValueStatementRole,

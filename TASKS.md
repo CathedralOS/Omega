@@ -64,6 +64,9 @@ meaning, without needing access to pointer descriptor internals.
   - abstract operation value facts, ownership facts, and boundary edges now sit
     under an explicit `AbstractSemanticSummary` root on `AbstractOperationPlan`
     instead of appearing as unrelated plan siblings
+  - abstract operation executable shape now sits under an explicit
+    `AbstractOperationCode` root on `AbstractOperationPlan`, keeping operation
+    arenas separate from preserved semantic summaries
   - target-operation representation roots now split target function plans,
     operation records, operation kinds, abstract-to-target conversions, value
     operands, and instruction operands instead of hiding all instruction

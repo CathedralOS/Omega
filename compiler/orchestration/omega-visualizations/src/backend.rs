@@ -18,7 +18,7 @@ pub fn abstract_operations_html(
 ) -> String {
     let function_views = collect_state_function_views(
         "abstract block",
-        plan.instructions.storage_slice(),
+        plan.code.instructions.storage_slice(),
         |instruction| instruction.source_key,
         abstract_instruction_line,
     );
