@@ -27,7 +27,7 @@ pub(crate) fn state_contract_summary(
 
         let requires = append_state_contract_fact_refs(state_graph, program, call.requires);
         let ensures = append_state_contract_fact_refs(state_graph, program, call.ensures);
-        state_graph.contract_calls.append_to_span(
+        state_graph.semantics.contract_calls.append_to_span(
             &mut calls,
             StateContractCall {
                 statement_index: call.statement_index,
@@ -55,7 +55,7 @@ pub(crate) fn state_contract_summary(
         }
 
         let ensures = append_state_contract_fact_refs(state_graph, program, exit.ensures);
-        state_graph.contract_exits.append_to_span(
+        state_graph.semantics.contract_exits.append_to_span(
             &mut exits,
             StateContractExit {
                 statement_index: exit.statement_index,
@@ -106,7 +106,7 @@ fn append_state_contract_fact_refs(
 
     for reference in program.facts.proof.contract_fact_refs.span_or_empty(refs) {
         let contract_fact = program.facts.proof.contract_facts.get(reference.fact);
-        state_graph.contract_fact_refs.append_to_span(
+        state_graph.semantics.contract_fact_refs.append_to_span(
             &mut fact_refs,
             StateContractFactRef {
                 kind: match contract_fact.kind {

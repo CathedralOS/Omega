@@ -7,6 +7,7 @@ mod operations;
 mod ownership;
 mod proof;
 mod runtime_flow;
+mod semantics;
 mod topology;
 mod transitions;
 mod values;
@@ -27,3 +28,4 @@ pub use runtime_flow::{
     RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
     RuntimeTransitionTarget, build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls,
 };
+pub use semantics::*;

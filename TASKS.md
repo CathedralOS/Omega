@@ -83,6 +83,10 @@ meaning, without needing access to pointer descriptor internals.
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
     ownership summaries without nested per-state allocations
+  - state-graph proof, invariant, contract, value, boundary, borrow, and
+    ownership arenas now sit under an explicit `StateGraphSemanticRoots` root
+    on `StateGraph`, keeping scheduling topology separate from preserved
+    semantic evidence
   - checked-flow now emits initial conservative move/drop events for path-like
     assignment/local-initializer moves and state-exit local drops
   - checked-flow now emits conservative call-source move events for direct

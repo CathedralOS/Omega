@@ -4,7 +4,8 @@ use omega_state_graph::{
     MachineGraph, Operation, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
     StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateBoundaryEdge,
     StateContractCall, StateContractExit, StateContractFactRef, StateDropEvent, StateGraph,
-    StateMoveEvent, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
+    StateGraphSemanticRoots, StateMoveEvent, StateNode, StateParameterNode, StateValueFact,
+    TransitionEdge,
 };
 
 use crate::borrows::remap_state_borrow_summary;
@@ -26,6 +27,11 @@ pub(crate) fn merge_machine_graph(
         machine_owned_data,
         states,
         state_parameters,
+        semantics,
+        operations,
+        transitions,
+    } = source;
+    let StateGraphSemanticRoots {
         proof_obligations: _,
         invariants: _,
         contract_fact_refs,
@@ -43,9 +49,7 @@ pub(crate) fn merge_machine_graph(
         ownership_segments,
         move_events,
         drop_events,
-        operations,
-        transitions,
-    } = source;
+    } = semantics;
 
     let source_arenas = SourceStateArenas {
         expressions: &expressions,

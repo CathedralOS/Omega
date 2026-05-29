@@ -17,6 +17,7 @@ Primary responsibility: lower state-machine structure into explicit blocks, bran
 This stage owns control-flow shape. It should turn graph topology into explicit
 blocks and operations without changing the semantic truth established by checked
 trees and preserved by the state graph.
+The input semantic source is `StateGraphSemanticRoots`.
 The representation root is `ControlFlowPlan`: executable shape lives in the
 machine/state/operation/transition arenas, while preserved semantic evidence
 lives under `ControlFlowSemanticRoots`.
