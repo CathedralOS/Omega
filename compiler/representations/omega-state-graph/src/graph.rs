@@ -8,7 +8,7 @@ use crate::{
     ProofObligationFact, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
     StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateContractCall,
     StateContractExit, StateContractFactRef, StateDropEvent, StateKey, StateMoveEvent, StateNode,
-    StateParameterNode, TransitionEdge,
+    StateParameterNode, StateValueFact, TransitionEdge,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -24,6 +24,7 @@ pub struct StateGraph {
     pub contract_fact_refs: Arena<StateContractFactRef>,
     pub contract_calls: Arena<StateContractCall>,
     pub contract_exits: Arena<StateContractExit>,
+    pub values: Arena<StateValueFact>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
@@ -51,6 +52,7 @@ impl StateGraph {
         contract_fact_ref_capacity: usize,
         contract_call_capacity: usize,
         contract_exit_capacity: usize,
+        value_capacity: usize,
         borrow_writable_root_capacity: usize,
         borrow_access_segment_capacity: usize,
         borrow_argument_access_capacity: usize,
@@ -76,6 +78,7 @@ impl StateGraph {
             contract_fact_refs: Arena::with_capacity(contract_fact_ref_capacity),
             contract_calls: Arena::with_capacity(contract_call_capacity),
             contract_exits: Arena::with_capacity(contract_exit_capacity),
+            values: Arena::with_capacity(value_capacity),
             borrow_writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
             borrow_access_segments: Arena::with_capacity(borrow_access_segment_capacity),
             borrow_argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),

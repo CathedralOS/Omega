@@ -11,6 +11,7 @@ use crate::machine_metadata::state_effect_bits;
 use crate::ownership::state_ownership_summary;
 use crate::segments::{SegmentTransition, StateSegment, segment_has_unconditional_transition};
 use crate::transitions::plan_transition;
+use crate::values::state_value_summary;
 
 pub(crate) fn append_machine_states(
     state_graph: &mut StateGraph,
@@ -30,6 +31,7 @@ pub(crate) fn append_machine_states(
             segment_transitions,
         )?;
         let contracts = state_contract_summary(state_graph, program, segment, segment_transitions);
+        let values = state_value_summary(state_graph, program, segment.key);
         let borrow = state_borrow_summary(state_graph, program, segment.key);
         let ownership = state_ownership_summary(state_graph, program, segment.key);
         state_graph.states.append_to_span(
@@ -42,6 +44,7 @@ pub(crate) fn append_machine_states(
                 reached_effects,
                 parameters: segment.parameters,
                 contracts,
+                values,
                 borrow,
                 ownership,
                 operations: segment.operations,

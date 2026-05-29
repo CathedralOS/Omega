@@ -20,6 +20,7 @@ pub(crate) struct StateGraphCapacity {
     contract_fact_refs: usize,
     contract_calls: usize,
     contract_exits: usize,
+    values: usize,
     borrow_writable_roots: usize,
     borrow_access_segments: usize,
     borrow_argument_accesses: usize,
@@ -48,6 +49,7 @@ impl StateGraphCapacity {
             contract_fact_refs: program.facts.proof.contract_fact_refs.len(),
             contract_calls: program.facts.proof.contract_calls.len(),
             contract_exits: program.facts.proof.contract_exits.len(),
+            values: program.facts.values.values.len(),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
@@ -95,6 +97,7 @@ impl StateGraphCapacity {
             contract_fact_refs: machine_contract_fact_ref_count(program, machine),
             contract_calls: machine_contract_call_count(program, machine),
             contract_exits: machine_contract_exit_count(program, machine),
+            values: machine_value_count(program, machine),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
@@ -123,6 +126,7 @@ impl StateGraphCapacity {
             self.contract_fact_refs,
             self.contract_calls,
             self.contract_exits,
+            self.values,
             self.borrow_writable_roots,
             self.borrow_access_segments,
             self.borrow_argument_accesses,
@@ -137,6 +141,22 @@ impl StateGraphCapacity {
             self.transitions,
         )
     }
+}
+
+fn machine_value_count(program: &CheckedTrees, machine: &Machine) -> usize {
+    program
+        .facts
+        .values
+        .values
+        .iter()
+        .filter(|(_, value)| {
+            matches!(
+                value.origin,
+                omega_checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. }
+                    if machine_symbol == machine.symbol
+            )
+        })
+        .count()
 }
 
 pub(crate) fn machine_statement_count(program: &CheckedTrees, machine: &Machine) -> usize {

@@ -8,6 +8,7 @@ mod proof;
 mod runtime_flow;
 mod topology;
 mod transitions;
+mod values;
 
 pub use borrow::*;
 pub use contracts::*;
@@ -18,6 +19,7 @@ pub use ownership::*;
 pub use proof::*;
 pub use topology::*;
 pub use transitions::*;
+pub use values::*;
 
 pub use runtime_flow::{
     RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
