@@ -49,6 +49,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         bindings: Arena::<HostBinding>::new(),
         host_operations: Arena::<HostOperationReference>::new(),
         platform_call_lowerings: Arena::new(),
+        boundary_policies: Arena::new(),
     };
     host_abi.bindings.insert(HostBinding {
         mechanism: HostBindingMechanism::Import {
@@ -221,6 +222,7 @@ fn empty_host_abi(target: NativeTarget) -> HostAbiPlan {
         bindings: Arena::<HostBinding>::new(),
         host_operations: Arena::<HostOperationReference>::new(),
         platform_call_lowerings: Arena::new(),
+        boundary_policies: Arena::new(),
     }
 }
 

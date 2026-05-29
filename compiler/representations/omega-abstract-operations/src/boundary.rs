@@ -37,6 +37,7 @@ pub enum AbstractBoundaryPolicyVerdict {
     Accepted,
     MissingSourceBoundary,
     MissingHostBinding,
+    DisallowedBoundaryPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

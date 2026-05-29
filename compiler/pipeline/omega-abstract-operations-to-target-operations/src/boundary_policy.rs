@@ -92,7 +92,11 @@ fn append_policy_check(
             lowered_edge,
             operation_key,
             boundary_policy: binding.boundary_policy.clone(),
-            verdict: AbstractBoundaryPolicyVerdict::Accepted,
+            verdict: if host_abi.allows_boundary_policy(binding.boundary_policy.as_ref()) {
+                AbstractBoundaryPolicyVerdict::Accepted
+            } else {
+                AbstractBoundaryPolicyVerdict::DisallowedBoundaryPolicy
+            },
         });
 }
 

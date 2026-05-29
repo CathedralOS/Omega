@@ -1,6 +1,6 @@
 use crate::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, PlatformCallData, host_operation,
-    insert_platform_lowering,
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostBoundaryPolicy, PlatformCallData,
+    host_operation, insert_platform_lowering,
 };
 use omega_target::Architecture;
 
@@ -12,6 +12,11 @@ struct LinuxSyscallNumbers {
 }
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    plan.boundary_policies.insert(HostBoundaryPolicy {
+        path: "omega::host::targets::linux".into(),
+        checked: true,
+    });
+
     let syscall_numbers = linux_syscall_numbers(plan.target.architecture);
     plan.bindings.insert_many([
         linux_syscall("Stdin", "read", syscall_numbers.read),
