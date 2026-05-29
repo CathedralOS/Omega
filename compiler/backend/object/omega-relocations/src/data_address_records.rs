@@ -30,7 +30,7 @@ fn insert_data_address_relocations_for_architecture(
 ) {
     match architecture {
         Architecture::Aarch64 => {
-            relocation_plan.record_set.records.insert(RelocationRecord {
+            relocation_plan.push_record(RelocationRecord {
                 function_symbol_handle,
                 selected_instruction_index,
                 text_offset: operand_text_offset,
@@ -38,7 +38,7 @@ fn insert_data_address_relocations_for_architecture(
                 symbol_handle,
                 kind: RelocationKind::Aarch64Page21,
             });
-            relocation_plan.record_set.records.insert(RelocationRecord {
+            relocation_plan.push_record(RelocationRecord {
                 function_symbol_handle,
                 selected_instruction_index,
                 text_offset: operand_text_offset + 4,
@@ -48,7 +48,7 @@ fn insert_data_address_relocations_for_architecture(
             });
         }
         Architecture::X86_64 => {
-            relocation_plan.record_set.records.insert(RelocationRecord {
+            relocation_plan.push_record(RelocationRecord {
                 function_symbol_handle,
                 selected_instruction_index,
                 text_offset: operand_text_offset,
@@ -63,7 +63,7 @@ fn insert_data_address_relocations_for_architecture(
 #[cfg(test)]
 mod tests {
     use super::insert_data_address_relocations_for_architecture;
-    use omega_core::arena::{Arena, Handle};
+    use omega_core::arena::Handle;
     use omega_object_file::{RelocationKind, RelocationPlan};
     use omega_target::{Architecture, NativeTarget};
 
@@ -72,12 +72,7 @@ mod tests {
         let function_symbol = Handle::from_arena_index(1);
         let data_symbol = Handle::from_arena_index(2);
 
-        let mut aarch64_plan = RelocationPlan {
-            target: NativeTarget::linux_arm64(),
-            record_set: omega_object_file::RelocationRecordSet {
-                records: Arena::new(),
-            },
-        };
+        let mut aarch64_plan = RelocationPlan::with_target(NativeTarget::linux_arm64());
         insert_data_address_relocations_for_architecture(
             Architecture::Aarch64,
             &mut aarch64_plan,
@@ -86,12 +81,7 @@ mod tests {
             12,
             data_symbol,
         );
-        let aarch64_records: Vec<_> = aarch64_plan
-            .record_set
-            .records
-            .iter()
-            .map(|(_, record)| record)
-            .collect();
+        let aarch64_records: Vec<_> = aarch64_plan.records().map(|(_, record)| record).collect();
 
         assert_eq!(aarch64_records.len(), 2);
         assert_eq!(aarch64_records[0].kind, RelocationKind::Aarch64Page21);
@@ -101,12 +91,7 @@ mod tests {
         assert_eq!(aarch64_records[1].text_offset, 16);
         assert_eq!(aarch64_records[1].byte_width, 4);
 
-        let mut x86_plan = RelocationPlan {
-            target: NativeTarget::windows_x64(),
-            record_set: omega_object_file::RelocationRecordSet {
-                records: Arena::new(),
-            },
-        };
+        let mut x86_plan = RelocationPlan::with_target(NativeTarget::windows_x64());
         insert_data_address_relocations_for_architecture(
             Architecture::X86_64,
             &mut x86_plan,
@@ -115,12 +100,7 @@ mod tests {
             12,
             data_symbol,
         );
-        let x86_records: Vec<_> = x86_plan
-            .record_set
-            .records
-            .iter()
-            .map(|(_, record)| record)
-            .collect();
+        let x86_records: Vec<_> = x86_plan.records().map(|(_, record)| record).collect();
 
         assert_eq!(x86_records.len(), 1);
         assert_eq!(x86_records[0].kind, RelocationKind::X86_64Absolute64);

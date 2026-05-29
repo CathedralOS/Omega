@@ -1,20 +1,15 @@
 use crate::RelocationPlanningInput;
 use crate::instruction_records::collect_instruction_relocations;
 use crate::lookups::selected_instruction_text_offset;
-use omega_core::arena::{Arena, Handle};
+use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
-use omega_object_file::{RelocationPlan, RelocationRecordSet, object_symbol_handle_by_name};
+use omega_object_file::{RelocationPlan, object_symbol_handle_by_name};
 use omega_target_operations::FunctionInstructionPlan;
 
 pub fn build_relocation_plan(
     input: RelocationPlanningInput<'_>,
 ) -> Result<RelocationPlan, Diagnostic> {
-    let mut relocation_plan = RelocationPlan {
-        target: input.target,
-        record_set: RelocationRecordSet {
-            records: Arena::new(),
-        },
-    };
+    let mut relocation_plan = RelocationPlan::with_target(input.target);
 
     for (function_handle, function) in input.instructions.code.functions.iter() {
         collect_function_relocations(input, function_handle, function, &mut relocation_plan)?;

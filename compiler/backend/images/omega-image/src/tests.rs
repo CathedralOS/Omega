@@ -59,13 +59,8 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
     });
     object.layout.entry_symbol = entry_symbol;
 
-    let mut relocations = RelocationPlan {
-        target,
-        record_set: omega_object_file::RelocationRecordSet {
-            records: Arena::new(),
-        },
-    };
-    relocations.record_set.records.insert(RelocationRecord {
+    let mut relocations = RelocationPlan::with_target(target);
+    relocations.push_record(RelocationRecord {
         function_symbol_handle: entry_symbol,
         selected_instruction_index: 0,
         text_offset: 4,

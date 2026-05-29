@@ -51,12 +51,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
                     entry_symbol: Handle::<SymbolPlan>::invalid(),
                 },
             },
-            relocations: RelocationPlan {
-                target: input.target,
-                record_set: omega_object_file::RelocationRecordSet {
-                    records: omega_core::arena::Arena::new(),
-                },
-            },
+            relocations: RelocationPlan::with_target(input.target),
         },
         host_abi: input.host_abi,
         host_calls: Arc::new(input.host_calls),

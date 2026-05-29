@@ -15,12 +15,30 @@ pub struct RelocationRecordSet {
 
 impl Default for RelocationPlan {
     fn default() -> Self {
+        Self::with_target(NativeTarget::host())
+    }
+}
+
+impl RelocationPlan {
+    pub fn with_target(target: NativeTarget) -> Self {
         Self {
-            target: NativeTarget::host(),
+            target,
             record_set: RelocationRecordSet {
                 records: Arena::new(),
             },
         }
+    }
+
+    pub fn push_record(&mut self, record: RelocationRecord) -> Handle<RelocationRecord> {
+        self.record_set.records.insert(record)
+    }
+
+    pub fn record_count(&self) -> usize {
+        self.record_set.records.len()
+    }
+
+    pub fn records(&self) -> impl Iterator<Item = (Handle<RelocationRecord>, &RelocationRecord)> {
+        self.record_set.records.iter()
     }
 }
 
