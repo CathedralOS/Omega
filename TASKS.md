@@ -65,6 +65,8 @@ meaning, without needing access to pointer descriptor internals.
   - typed-to-checked borrow call discovery now threads recursive expression and
     transition traversal through a named `BorrowCallCollection` context instead
     of raw arena/ordinal/state parameters
+  - typed-to-checked borrow call discovery now keeps the shared borrow-call
+    arena/ordinal context in its own module instead of the statement router
   - typed-to-checked borrow fact production now splits state-local writable
     root, loan, call-access, and last-use assembly out of the program-level
     borrow entrypoint
