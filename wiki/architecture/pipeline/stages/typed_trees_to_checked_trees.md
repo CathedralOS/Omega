@@ -54,6 +54,12 @@ Must not own:
 The stage should stay organized around semantic nouns instead of pass history.
 Current ownership is:
 
+- `semantic.rs` owns semantic fact-plan assembly and public semantic lookup
+  exports. `semantic/contracts.rs` owns contract semantic fact assembly,
+  `semantic/contracts/places.rs` owns contract fact place recovery, and
+  `semantic/contracts/payload.rs` owns contract semantic payload construction.
+  `semantic/points.rs` owns proof-obligation and contract program-point/origin
+  mapping.
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
   routing, `borrow/accesses/collection.rs` owns the shared
   `BorrowAccessCollection` arena/context bundle, `borrow/accesses/read.rs`
