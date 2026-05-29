@@ -116,6 +116,8 @@ meaning, without needing access to pointer descriptor internals.
     parameter/local/indexed-literal/struct-field expression resolution
   - contract call-site evaluation now splits boolean, integer, and
     collection-length folding behind the evaluator context
+  - contract proof checking now splits contract fact/call-entry dispatch from
+    recursive boolean expression proof traversal
   - checked-tree-to-state-graph contract preservation now splits state-local
     contract summary construction from worker-local graph remapping
   - checked-tree-to-state-graph borrow preservation now splits call argument

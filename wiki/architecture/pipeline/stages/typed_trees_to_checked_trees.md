@@ -162,8 +162,10 @@ Current ownership is:
 - `checks/contracts.rs` is the contract-check entry point.
   `checks/contracts/calls.rs` owns call `requires` validation and domain
   invalidation explanations, `checks/contracts/exits.rs` owns exit `ensures`
-  validation, `checks/contracts/prover.rs` owns recursive proof orchestration,
-  `checks/contracts/direct.rs` owns direct boolean fact matching,
+  validation, `checks/contracts/prover.rs` owns contract fact and call-entry
+  proof dispatch, `checks/contracts/prover/booleans.rs` owns recursive boolean
+  expression proof traversal, `checks/contracts/direct.rs` owns direct boolean
+  fact matching,
   `checks/contracts/domains.rs` owns domain-membership proof fallback,
   `checks/contracts/labels/calls.rs` owns call-site contract expression label
   substitution, `checks/contracts/labels/domain.rs` owns domain proof label
