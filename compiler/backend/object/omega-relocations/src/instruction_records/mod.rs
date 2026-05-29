@@ -2,6 +2,7 @@ mod context;
 mod host_operation;
 mod runtime_storage;
 mod runtime_text;
+mod runtime_text_read;
 mod runtime_values;
 
 use super::data_addresses::collect_data_address_relocations;
