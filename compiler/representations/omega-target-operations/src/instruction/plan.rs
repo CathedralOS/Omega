@@ -1,6 +1,6 @@
 use super::{
     HostOperationKey, InstructionOperand, TargetBoundarySummary, TargetHostBinding,
-    TargetOwnershipSummary,
+    TargetOwnershipSummary, TargetValueSummary,
 };
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
@@ -13,6 +13,7 @@ pub struct TargetOperationPlan {
     pub operands: Arena<InstructionOperand>,
     pub runtime_value_operands: Arena<super::TargetValueOperand>,
     pub host_bindings: Arena<TargetHostBinding>,
+    pub values: TargetValueSummary,
     pub boundary_edges: TargetBoundarySummary,
     pub ownership: TargetOwnershipSummary,
 }
@@ -40,6 +41,7 @@ impl TargetOperationPlan {
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::new(),
+            values: TargetValueSummary::default(),
             boundary_edges: TargetBoundarySummary::default(),
             ownership: TargetOwnershipSummary::default(),
         }

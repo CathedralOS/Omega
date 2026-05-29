@@ -12,6 +12,6 @@ pub use instruction::{
     RuntimeValueOperandSource, SelectedInstruction, SelectedInstructionKind, TargetBoundarySummary,
     TargetHostBinding, TargetInstructionOperand, TargetInstructionOperandKind, TargetOperation,
     TargetOperationFunction, TargetOperationKind, TargetOperationPlan, TargetOwnershipSummary,
-    TargetValueOperand, TargetValueOperandHandle,
+    TargetValueOperand, TargetValueOperandHandle, TargetValueSummary,
 };
 pub use omega_abstract_operations::{StateGuardLowering, StateGuardOperator};
