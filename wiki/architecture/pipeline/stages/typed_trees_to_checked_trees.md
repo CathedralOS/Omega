@@ -79,10 +79,11 @@ Current ownership is:
   traversal for last-use detection.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow legality, `checks/borrows/statements.rs` owns local
-  borrow and mutation conflicts, `checks/borrows/overlap.rs` owns place/index
-  root and segment overlap policy, `checks/borrows/overlap/indexes.rs` owns
-  index and range overlap policy, and `checks/borrows/details.rs` owns
-  diagnostic lifetime explanations.
+  borrow and mutation conflicts, `checks/borrows/overlap.rs` owns borrow
+  overlap entry dispatch and root matching, `checks/borrows/overlap/segments.rs`
+  owns place-segment overlap policy, `checks/borrows/overlap/indexes.rs` owns
+  index and range overlap policy, and `checks/borrows/details.rs` owns diagnostic
+  lifetime explanations.
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
