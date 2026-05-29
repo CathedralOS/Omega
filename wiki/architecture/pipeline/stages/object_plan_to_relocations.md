@@ -48,6 +48,7 @@ Must not own:
 - `omega-relocations/src/lib.rs` owns the relocation-planning entrypoint and per-function walk.
 - `omega-relocations/src/lookups.rs` owns selected-instruction offset lookup.
 - `omega-relocations/src/data_addresses.rs` owns data/storage address relocations.
+- `omega-relocations/src/offsets/*` owns target-specific relocation offset math by family: external calls, runtime frame indexing, runtime storage, and runtime text.
 - `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
 - `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.
 - `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families, with append and host-backed line reads split from general text buffer references.
