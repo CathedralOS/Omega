@@ -36,8 +36,9 @@ fn copies_abstract_value_summary_to_target_plan() {
         &abstract_operations,
     );
 
-    assert_eq!(target_operations.values.values.len(), 1);
+    assert_eq!(target_operations.semantics.values.values.len(), 1);
     let value = target_operations
+        .semantics
         .values
         .values
         .iter()
@@ -82,8 +83,16 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
         &abstract_operations,
     );
 
-    assert_eq!(target_operations.boundary_edges.source_edges.len(), 1);
+    assert_eq!(
+        target_operations
+            .semantics
+            .boundary_edges
+            .source_edges
+            .len(),
+        1
+    );
     let edge = target_operations
+        .semantics
         .boundary_edges
         .source_edges
         .iter()
@@ -122,8 +131,9 @@ fn copies_abstract_ownership_summary_to_target_plan() {
         &abstract_operations,
     );
 
-    assert_eq!(target_operations.ownership.moves.len(), 1);
+    assert_eq!(target_operations.semantics.ownership.moves.len(), 1);
     let event = target_operations
+        .semantics
         .ownership
         .moves
         .iter()

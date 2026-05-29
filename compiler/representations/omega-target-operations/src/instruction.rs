@@ -4,6 +4,7 @@ mod operand;
 mod operation;
 mod operation_kind;
 mod plan;
+mod semantics;
 mod value;
 
 pub use function::{FunctionInstructionPlan, TargetOperationFunction};
@@ -16,14 +17,14 @@ pub use operand::{
 pub use operation::{SelectedInstruction, TargetOperation};
 pub use operation_kind::{SelectedInstructionKind, TargetOperationKind};
 pub use plan::{InstructionPlan, TargetOperationPlan};
+pub use semantics::{
+    TargetBoundarySummary, TargetOwnershipSummary, TargetSemanticSummary, TargetValueSummary,
+};
 pub use value::{
     RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource, TargetValueOperand,
     TargetValueOperandHandle,
 };
 pub type TargetHostBinding = HostBinding;
-pub type TargetBoundarySummary = omega_abstract_operations::AbstractBoundarySummary;
-pub type TargetOwnershipSummary = omega_abstract_operations::AbstractOwnershipSummary;
-pub type TargetValueSummary = omega_abstract_operations::AbstractValueSummary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTextReadSource {
