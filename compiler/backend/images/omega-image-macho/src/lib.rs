@@ -1,12 +1,10 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{
-    ExecutableImageOutput, FinalImage, FinalImageLayout, FinalImageSection,
-    apply_aarch64_relocations, final_image_symbol_name,
-};
+use omega_image::{ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations};
 
 mod bytes;
 mod code_signature;
 mod constants;
+mod entry;
 mod imports;
 mod layout;
 mod load_commands;
@@ -20,6 +18,7 @@ use constants::{
     MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE,
     MACHO_UUID_COMMAND_SIZE,
 };
+use entry::macho_entry_text_offset;
 use imports::{install_import_thunks, macho_bind_info, patch_import_thunks};
 use layout::{align_to, align_to_u64};
 use load_commands::{
@@ -155,26 +154,4 @@ pub fn emit_macho_aarch64_executable(
         imports: image.imports.len(),
         relocations: image.relocations.len(),
     })
-}
-
-fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
-    let entry_symbol = image
-        .symbols
-        .is_valid(image.entry_symbol)
-        .then(|| image.symbols.get(image.entry_symbol))
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "Mach-O entry symbol `{}` is missing from the final image",
-                final_image_symbol_name(image, image.entry_symbol)
-            ))
-        })?;
-
-    if entry_symbol.section != FinalImageSection::Text {
-        return Err(Diagnostic::error(format!(
-            "Mach-O entry symbol `{}` is not in the text section",
-            final_image_symbol_name(image, image.entry_symbol)
-        )));
-    }
-
-    Ok(entry_symbol.offset)
 }
