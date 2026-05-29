@@ -85,6 +85,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-object-file` now has a thin crate root and noun-shaped modules for
     object plans, sections, symbols, relocations, naming, and container
     serialization
+  - relocation instruction-record extraction now routes through a thin module
+    entrypoint with runtime-value and runtime-storage relocation families split
+    out of the dispatch table
   - `omega-validation` now has a thin validation entrypoint plus semantic
     modules for tests, runtime entry-point checks, local writable roots,
     assignment places, calls, transitions, proof facts, domain membership,
@@ -108,9 +111,9 @@ meaning, without needing access to pointer descriptor internals.
     edges and validate the pair against target policies
   - give object planning and relocation planning the same semantic ownership
     table treatment as the earlier pipeline stages
-  - split `omega-relocations/src/instruction_records/mod.rs` by selected
-    instruction family so relocation extraction has the same shape as
-    instruction selection and machine emission
+  - continue splitting `omega-relocations/src/instruction_records/*` by
+    selected instruction family so runtime text, host calls, storage, data, and
+    branch-like relocation extraction stay separately owned
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic
