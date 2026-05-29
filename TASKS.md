@@ -71,6 +71,10 @@ meaning, without needing access to pointer descriptor internals.
   - target operation value facts, ownership facts, and boundary edges now sit
     under an explicit `TargetSemanticSummary` root on `TargetOperationPlan`
     instead of appearing as unrelated plan siblings
+  - assigned target operation value facts, ownership facts, and boundary edges
+    now sit under an explicit `AssignedSemanticSummary` root on
+    `AssignedTargetOperationPlan`, preserving the same semantic spine through
+    physical-home assignment
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve

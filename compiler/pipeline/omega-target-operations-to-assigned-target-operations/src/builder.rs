@@ -32,9 +32,10 @@ pub(crate) fn build_assigned_target_operations(
             .insert(operations::assign_instruction_operand(operand));
     }
     assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
-    assigned_target_operations.values = target_operations.semantics.values.clone();
-    assigned_target_operations.boundary_edges = target_operations.semantics.boundary_edges.clone();
-    assigned_target_operations.ownership = target_operations.semantics.ownership.clone();
+    assigned_target_operations.semantics.values = target_operations.semantics.values.clone();
+    assigned_target_operations.semantics.boundary_edges =
+        target_operations.semantics.boundary_edges.clone();
+    assigned_target_operations.semantics.ownership = target_operations.semantics.ownership.clone();
 
     values::assign_runtime_value_operands(target_operations, &mut assigned_target_operations);
 

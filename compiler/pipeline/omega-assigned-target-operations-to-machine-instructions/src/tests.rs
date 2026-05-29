@@ -12,16 +12,20 @@ fn copies_assigned_value_summary_to_machine_instruction_plan() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);
 
-    assigned_operations.values.values.insert(AbstractValueFact {
-        source_key: Default::default(),
-        machine_symbol,
-        state_symbol,
-        expression: Default::default(),
-        origin: AbstractValueOrigin::Statement {
-            statement_index: 11,
-            role: AbstractValueStatementRole::TransitionGuard,
-        },
-    });
+    assigned_operations
+        .semantics
+        .values
+        .values
+        .insert(AbstractValueFact {
+            source_key: Default::default(),
+            machine_symbol,
+            state_symbol,
+            expression: Default::default(),
+            origin: AbstractValueOrigin::Statement {
+                statement_index: 11,
+                role: AbstractValueStatementRole::TransitionGuard,
+            },
+        });
 
     let machine_instructions =
         build_machine_instructions(&assigned_operations).expect("machine instructions");
@@ -50,6 +54,7 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
     let signature_symbol = SymbolHandle::from_arena_index(2);
 
     assigned_operations
+        .semantics
         .boundary_edges
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
@@ -85,6 +90,7 @@ fn copies_assigned_ownership_summary_to_machine_instruction_plan() {
     let target_symbol = SymbolHandle::from_arena_index(1);
 
     assigned_operations
+        .semantics
         .ownership
         .moves
         .insert(AbstractMoveEvent {

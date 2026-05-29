@@ -1,4 +1,4 @@
-use crate::{AssignedTargetOperationPlan, AssignedValueSummary};
+use crate::AssignedTargetOperationPlan;
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
@@ -18,9 +18,7 @@ impl AssignedTargetOperationPlan {
             operands: Arena::with_capacity(operand_capacity),
             runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
             host_bindings: Arena::with_capacity(host_binding_capacity),
-            values: AssignedValueSummary::default(),
-            boundary_edges: omega_target_operations::TargetBoundarySummary::default(),
-            ownership: omega_target_operations::TargetOwnershipSummary::default(),
+            semantics: Default::default(),
         }
     }
 }

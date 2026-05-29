@@ -11,9 +11,10 @@ pub(crate) fn build_machine_instructions(
         assigned_target_operations.functions.len(),
         assigned_target_operations.instructions.len(),
     );
-    machine_instructions.values = assigned_target_operations.values.clone();
-    machine_instructions.boundary_edges = assigned_target_operations.boundary_edges.clone();
-    machine_instructions.ownership = assigned_target_operations.ownership.clone();
+    machine_instructions.values = assigned_target_operations.semantics.values.clone();
+    machine_instructions.boundary_edges =
+        assigned_target_operations.semantics.boundary_edges.clone();
+    machine_instructions.ownership = assigned_target_operations.semantics.ownership.clone();
 
     for (_, function) in assigned_target_operations.functions.iter() {
         let function_instructions = functions::append_machine_instructions(
