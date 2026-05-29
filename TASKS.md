@@ -286,7 +286,8 @@ meaning, without needing access to pointer descriptor internals.
     for artifact instruction records, function metadata, semantic summaries,
     and plan storage
   - `omega-machine-bytes` now has a thin crate root and noun-shaped modules
-    for encoded function ranges, encoded instruction byte spans, and encoded
+    for encoded function ranges, encoded instruction byte spans, semantic
+    summaries, and encoded
     plan storage
   - `omega-object-file` now has a thin crate root and noun-shaped modules for
     object plans, sections, symbols, relocations, naming, and container
