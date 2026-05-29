@@ -44,12 +44,7 @@ mod tests {
                 entry_symbol: Handle::invalid(),
             },
         };
-        let relocations = RelocationPlan {
-            target,
-            record_set: omega_object_file::RelocationRecordSet {
-                records: Arena::new(),
-            },
-        };
+        let relocations = RelocationPlan::with_target(target);
 
         let diagnostic = emit_checked_executable_image(
             ExecutableImageInput {

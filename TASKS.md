@@ -338,6 +338,9 @@ meaning, without needing access to pointer descriptor internals.
   - machine-emission instruction byte insertion now lives in
     `instruction_bytes.rs`, leaving `emitter.rs` out of fixed encoding and
     width-validation details
+  - relocation records now stay behind `RelocationPlan` root helpers for plan
+    construction, insertion, counting, and iteration instead of requiring
+    callers to reach through `RelocationRecordSet.records`
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved

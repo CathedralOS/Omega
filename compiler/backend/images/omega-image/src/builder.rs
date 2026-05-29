@@ -39,7 +39,7 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
             imports: Arena::with_capacity(import_count),
         },
         relocation_table: FinalImageRelocationTable {
-            relocations: Arena::with_capacity(input.relocations.record_set.records.len()),
+            relocations: Arena::with_capacity(input.relocations.record_count()),
         },
     };
 
