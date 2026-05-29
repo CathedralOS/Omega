@@ -50,7 +50,8 @@ Must not own:
 - `omega-machine-emission/src/layout.rs` owns instruction width and byte-offset layout.
 - `omega-machine-emission/src/encoding.rs` and `encoding/*` own target byte emission helpers.
 - `omega-machine-emission/src/branch_distances.rs` and submodules own byte-distance queries used by branch encoding.
-- `omega-machine-bytes/src/plan.rs` owns the encoded plan and preserved summaries.
+- `omega-machine-bytes/src/plan.rs` owns the encoded plan root.
+- `omega-machine-bytes/src/semantics.rs` owns the encoded semantic summary root for value facts, ownership facts, and boundary edges.
 - `omega-machine-bytes/src/functions.rs` owns encoded function ranges.
 - `omega-machine-bytes/src/instructions.rs` owns encoded instruction byte spans.
 

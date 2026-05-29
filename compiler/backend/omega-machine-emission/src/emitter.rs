@@ -53,9 +53,10 @@ pub fn emit_machine_bytes(
     }
 
     encoded_bytes.byte_count = encoded_bytes.bytes.len();
-    encoded_bytes.values = input.machine_instructions.semantics.values.clone();
-    encoded_bytes.boundary_edges = input.machine_instructions.semantics.boundary_edges.clone();
-    encoded_bytes.ownership = input.machine_instructions.semantics.ownership.clone();
+    encoded_bytes.semantics.values = input.machine_instructions.semantics.values.clone();
+    encoded_bytes.semantics.boundary_edges =
+        input.machine_instructions.semantics.boundary_edges.clone();
+    encoded_bytes.semantics.ownership = input.machine_instructions.semantics.ownership.clone();
 
     Ok(encoded_bytes)
 }
@@ -464,11 +465,11 @@ mod tests {
         .expect("machine emission should preserve semantic summaries");
 
         assert_eq!(
-            encoded.values.values.len(),
+            encoded.semantics.values.values.len(),
             machine_instructions.semantics.values.values.len()
         );
         assert_eq!(
-            encoded.boundary_edges.source_edges.len(),
+            encoded.semantics.boundary_edges.source_edges.len(),
             machine_instructions
                 .semantics
                 .boundary_edges
@@ -476,11 +477,11 @@ mod tests {
                 .len()
         );
         assert_eq!(
-            encoded.boundary_edges.edges.len(),
+            encoded.semantics.boundary_edges.edges.len(),
             machine_instructions.semantics.boundary_edges.edges.len()
         );
         assert_eq!(
-            encoded.ownership.moves.len(),
+            encoded.semantics.ownership.moves.len(),
             machine_instructions.semantics.ownership.moves.len()
         );
         assert_eq!(encoded.instructions.len(), 1);
