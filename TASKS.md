@@ -68,6 +68,8 @@ meaning, without needing access to pointer descriptor internals.
     modules
   - contract label helpers now split call-site argument substitution from
     domain proof label substitution
+  - checked-tree-to-state-graph contract preservation now splits state-local
+    contract summary construction from worker-local graph remapping
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
