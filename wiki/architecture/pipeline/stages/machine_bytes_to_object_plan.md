@@ -17,7 +17,8 @@ Primary responsibility: construct artifact-level sections and symbols for text, 
 Backend orchestration shape: the aggregate `BackendPlan` keeps symbolic machine
 instructions, encoded machine bytes, object layout, and relocation records under
 `BackendArtifactRoots`. Individual stages still own their artifact type, but the
-orchestration root now makes the final artifact chain visible as one spine.
+orchestration root now makes the final artifact chain visible as one spine and
+exposes semantic-summary accessors for artifact-time diagnostics.
 
 ## Semantic Ownership
 
@@ -75,4 +76,6 @@ Must not own:
 
 ## Known Gaps
 
-- The stage docs now state the semantic cutoff, but diagnostics/reporting still need a clear consumer for encoded-machine semantic summaries at artifact time.
+- Artifact-time diagnostics can now query preserved semantic evidence through
+  `BackendArtifactRoots`; the remaining gap is adding concrete diagnostics that
+  use that view instead of reaching directly through encoded-machine internals.
