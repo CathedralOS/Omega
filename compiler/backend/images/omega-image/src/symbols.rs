@@ -15,11 +15,11 @@ pub fn final_image_symbol_address(
     symbol: FinalImageSymbolHandle,
     layout: &FinalImageLayout,
 ) -> Option<u64> {
-    if !image.symbols.is_valid(symbol) {
+    if !image.symbol_table.symbols.is_valid(symbol) {
         return None;
     }
 
-    let symbol = image.symbols.get(symbol);
+    let symbol = image.symbol_table.symbols.get(symbol);
     let section_address = match symbol.section {
         FinalImageSection::Text => layout.text_address,
         FinalImageSection::Data => layout.data_address,
@@ -32,14 +32,15 @@ pub fn final_image_symbol_address(
 
 pub fn final_image_imports_symbol(image: &FinalImage, symbol: FinalImageSymbolHandle) -> bool {
     image
+        .symbol_table
         .imports
         .iter()
         .any(|(_, import)| import.symbol_handle == symbol)
 }
 
 pub fn final_image_symbol_name(image: &FinalImage, symbol: FinalImageSymbolHandle) -> &str {
-    if image.symbols.is_valid(symbol) {
-        image.symbols.get(symbol).name.as_str()
+    if image.symbol_table.symbols.is_valid(symbol) {
+        image.symbol_table.symbols.get(symbol).name.as_str()
     } else {
         ""
     }

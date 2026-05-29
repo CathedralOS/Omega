@@ -10,7 +10,7 @@ pub fn apply_aarch64_relocations(
     layout: &FinalImageLayout,
     output_name: &str,
 ) -> Result<(), Diagnostic> {
-    for (_, relocation) in image.relocations.iter() {
+    for (_, relocation) in image.relocation_table.relocations.iter() {
         let Some(symbol_address) =
             final_image_symbol_address(image, relocation.symbol_handle, layout)
         else {
@@ -31,7 +31,7 @@ pub fn apply_aarch64_relocations(
         match relocation.kind {
             RelocationKind::Aarch64Page21 => {
                 patch_aarch64_adrp(
-                    &mut image.text,
+                    &mut image.memory.text,
                     relocation.text_offset,
                     layout.text_address + relocation.text_offset as u64,
                     symbol_address,
@@ -39,14 +39,14 @@ pub fn apply_aarch64_relocations(
             }
             RelocationKind::Aarch64PageOffset12 => {
                 patch_aarch64_add_page_offset(
-                    &mut image.text,
+                    &mut image.memory.text,
                     relocation.text_offset,
                     symbol_address,
                 )?;
             }
             RelocationKind::Aarch64Branch26 => {
                 patch_aarch64_branch26(
-                    &mut image.text,
+                    &mut image.memory.text,
                     relocation.text_offset,
                     layout.text_address + relocation.text_offset as u64,
                     symbol_address,

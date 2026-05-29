@@ -1,7 +1,9 @@
 mod copies;
 mod sections;
 
-use crate::model::FinalImage;
+use crate::model::{
+    FinalImage, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolTable,
+};
 use crate::symbols::final_image_symbol_handle;
 use omega_core::arena::Arena;
 use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind};
@@ -25,14 +27,20 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
         .count();
     let mut image = FinalImage {
         target: input.target,
-        entry_symbol: final_image_symbol_handle(input.object.layout.entry_symbol),
-        text: input.text_bytes.to_vec(),
-        data: input.data_bytes.to_vec(),
-        bss_size: sections::section_size(input.object, SectionKind::Bss),
-        bss_alignment: sections::section_alignment(input.object, SectionKind::Bss),
-        symbols: Arena::with_capacity(input.object.layout.symbols.len()),
-        imports: Arena::with_capacity(import_count),
-        relocations: Arena::with_capacity(input.relocations.record_set.records.len()),
+        memory: FinalImageMemory {
+            text: input.text_bytes.to_vec(),
+            data: input.data_bytes.to_vec(),
+            bss_size: sections::section_size(input.object, SectionKind::Bss),
+            bss_alignment: sections::section_alignment(input.object, SectionKind::Bss),
+        },
+        symbol_table: FinalImageSymbolTable {
+            entry_symbol: final_image_symbol_handle(input.object.layout.entry_symbol),
+            symbols: Arena::with_capacity(input.object.layout.symbols.len()),
+            imports: Arena::with_capacity(import_count),
+        },
+        relocation_table: FinalImageRelocationTable {
+            relocations: Arena::with_capacity(input.relocations.record_set.records.len()),
+        },
     };
 
     copies::copy_object_symbols(&mut image, input.object);

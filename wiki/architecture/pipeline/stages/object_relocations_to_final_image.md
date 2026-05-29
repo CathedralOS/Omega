@@ -9,7 +9,8 @@ This stage combines encoded machine bytes, data bytes, object sections/symbols, 
 Input: target, object layout under `ObjectFileLayout`, relocation records under
 `RelocationRecordSet`, encoded text bytes, and data bytes.
 
-Output: final image model and emitted executable image output.
+Output: final image model with memory, symbol/import, and relocation data under
+named roots, plus emitted executable image output.
 
 Primary responsibility: preserve object-level symbols/imports/relocations in a final-image representation, apply target image layout and fixups, and emit executable bytes for supported formats.
 
@@ -49,7 +50,10 @@ Must not own:
 ## Implementation Map
 
 - `omega-image/src/lib.rs` owns the public final-image API surface only.
-- `omega-image/src/model.rs` owns final-image arena-backed data records.
+- `omega-image/src/model.rs` owns final-image arena-backed data records:
+  bytes and BSS facts live under `FinalImageMemory`, entry/symbol/import facts
+  live under `FinalImageSymbolTable`, and final fixups live under
+  `FinalImageRelocationTable`.
 - `omega-image/src/builder.rs` owns object-plan and relocation-plan conversion into `FinalImage`.
 - `omega-image/src/builder/copies.rs` owns object symbol, import, and
   relocation copying into final-image arenas.

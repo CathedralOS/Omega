@@ -35,12 +35,12 @@ impl PeSections {
 }
 
 pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) -> PeSections {
-    let text_virtual_size = image.text.len();
+    let text_virtual_size = image.memory.text.len();
     let rdata_rva = align_to_u32(TEXT_RVA + text_virtual_size as u32, SECTION_ALIGNMENT);
     let data_rva = align_to_u32(rdata_rva + rdata_virtual_size as u32, SECTION_ALIGNMENT);
-    let bss_rva = align_to_u32(data_rva + image.data.len() as u32, SECTION_ALIGNMENT);
-    let has_data = !image.data.is_empty();
-    let has_bss = image.bss_size > 0;
+    let bss_rva = align_to_u32(data_rva + image.memory.data.len() as u32, SECTION_ALIGNMENT);
+    let has_data = !image.memory.data.is_empty();
+    let has_bss = image.memory.bss_size > 0;
     let section_count = 2 + usize::from(has_data) + usize::from(has_bss);
     let headers_size = align_to(
         DOS_HEADER_SIZE
@@ -50,13 +50,13 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
             + section_count * SECTION_HEADER_SIZE,
         FILE_ALIGNMENT,
     );
-    let text_raw_size = align_to(image.text.len(), FILE_ALIGNMENT);
+    let text_raw_size = align_to(image.memory.text.len(), FILE_ALIGNMENT);
     let rdata_raw_size = align_to(rdata_virtual_size, FILE_ALIGNMENT);
-    let data_raw_size = align_to(image.data.len(), FILE_ALIGNMENT);
+    let data_raw_size = align_to(image.memory.data.len(), FILE_ALIGNMENT);
     let text_raw = headers_size;
     let rdata_raw = text_raw + text_raw_size;
     let data_raw = rdata_raw + rdata_raw_size;
-    let size_of_image = align_to_u32(bss_rva + image.bss_size as u32, SECTION_ALIGNMENT);
+    let size_of_image = align_to_u32(bss_rva + image.memory.bss_size as u32, SECTION_ALIGNMENT);
 
     PeSections {
         text_virtual_size,
@@ -87,9 +87,12 @@ mod tests {
     #[test]
     fn plans_pe_sections_with_data_and_bss() {
         let image = FinalImage {
-            text: vec![0; 3],
-            data: vec![0; 5],
-            bss_size: 7,
+            memory: omega_image::FinalImageMemory {
+                text: vec![0; 3],
+                data: vec![0; 5],
+                bss_size: 7,
+                ..Default::default()
+            },
             ..FinalImage::default()
         };
 

@@ -42,17 +42,17 @@ pub fn emit_macho_aarch64_executable(
     write_macho_executable_text_segment(
         &mut bytes,
         plan.text_offset,
-        image.text.len(),
+        image.memory.text.len(),
         plan.text_file_size,
     );
     if plan.has_data_segment {
         write_macho_executable_data_segment(
             &mut bytes,
             plan.data_offset,
-            image.data.len(),
-            image.bss_size,
+            image.memory.data.len(),
+            image.memory.bss_size,
             plan.data_vm_size,
-            image.bss_alignment,
+            image.memory.bss_alignment,
         );
     }
     write_macho_load_dylinker_command(&mut bytes);
@@ -78,10 +78,10 @@ pub fn emit_macho_aarch64_executable(
         plan.code_signature_size,
     );
     bytes.resize(plan.text_offset, 0);
-    bytes.extend(&image.text);
+    bytes.extend(&image.memory.text);
     if plan.has_data_segment {
         bytes.resize(plan.data_offset, 0);
-        bytes.extend(&image.data);
+        bytes.extend(&image.memory.data);
     }
     bytes.resize(plan.bind_offset, 0);
     bytes.extend(bind_info);
@@ -94,11 +94,11 @@ pub fn emit_macho_aarch64_executable(
         bytes,
         file_name: "omega-program".to_owned(),
         format: "mach-o-arm64-executable".to_owned(),
-        text_bytes: image.text.len(),
-        data_bytes: image.data.len(),
-        bss_bytes: image.bss_size,
-        symbols: image.symbols.len(),
-        imports: image.imports.len(),
-        relocations: image.relocations.len(),
+        text_bytes: image.memory.text.len(),
+        data_bytes: image.memory.data.len(),
+        bss_bytes: image.memory.bss_size,
+        symbols: image.symbol_table.symbols.len(),
+        imports: image.symbol_table.imports.len(),
+        relocations: image.relocation_table.relocations.len(),
     })
 }

@@ -5,13 +5,28 @@ use omega_target::NativeTarget;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImage {
     pub target: NativeTarget,
-    pub entry_symbol: FinalImageSymbolHandle,
+    pub memory: FinalImageMemory,
+    pub symbol_table: FinalImageSymbolTable,
+    pub relocation_table: FinalImageRelocationTable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinalImageMemory {
     pub text: Vec<u8>,
     pub data: Vec<u8>,
     pub bss_size: usize,
     pub bss_alignment: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinalImageSymbolTable {
+    pub entry_symbol: FinalImageSymbolHandle,
     pub symbols: Arena<FinalImageSymbol>,
     pub imports: Arena<FinalImageImport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinalImageRelocationTable {
     pub relocations: Arena<FinalImageRelocation>,
 }
 
@@ -19,13 +34,37 @@ impl Default for FinalImage {
     fn default() -> Self {
         Self {
             target: NativeTarget::host(),
-            entry_symbol: Handle::invalid(),
+            memory: FinalImageMemory::default(),
+            symbol_table: FinalImageSymbolTable::default(),
+            relocation_table: FinalImageRelocationTable::default(),
+        }
+    }
+}
+
+impl Default for FinalImageMemory {
+    fn default() -> Self {
+        Self {
             text: Vec::new(),
             data: Vec::new(),
             bss_size: 0,
             bss_alignment: 1,
+        }
+    }
+}
+
+impl Default for FinalImageSymbolTable {
+    fn default() -> Self {
+        Self {
+            entry_symbol: Handle::invalid(),
             symbols: Arena::new(),
             imports: Arena::new(),
+        }
+    }
+}
+
+impl Default for FinalImageRelocationTable {
+    fn default() -> Self {
+        Self {
             relocations: Arena::new(),
         }
     }

@@ -240,6 +240,10 @@ meaning, without needing access to pointer descriptor internals.
     `builder.rs` stays focused on the stage conveyor
   - final-image construction now splits object symbol/import/relocation copying
     and object section lookup out of the builder root
+  - final image memory, symbol/import, and relocation data now sit under
+    explicit `FinalImageMemory`, `FinalImageSymbolTable`, and
+    `FinalImageRelocationTable` roots, keeping final artifact concerns
+    visible before format-specific image writing
   - final-image construction tests now live outside the builder root so
     `builder.rs` stays focused on conversion orchestration
   - final-image relocation application now splits checked text-section byte

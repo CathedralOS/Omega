@@ -46,7 +46,8 @@ pub(crate) fn plan_macho_image(
     bind_size: usize,
 ) -> MachOImagePlan {
     let has_imports = import_count > 0;
-    let data_section_count = usize::from(!image.data.is_empty()) + usize::from(image.bss_size > 0);
+    let data_section_count =
+        usize::from(!image.memory.data.is_empty()) + usize::from(image.memory.bss_size > 0);
     let has_data_segment = data_section_count > 0;
     let command_count = 11 + usize::from(has_data_segment) + usize::from(has_imports);
     let sizeofcmds = MACHO_SEGMENT_COMMAND_SIZE
@@ -64,30 +65,30 @@ pub(crate) fn plan_macho_image(
         + MACHO_SEGMENT_COMMAND_SIZE
         + MACHO_CODE_SIGNATURE_COMMAND_SIZE;
     let text_offset = align_to(MACHO_HEADER_SIZE + sizeofcmds, 16);
-    let data_offset = align_to(text_offset + image.text.len(), MACHO_ARM64_PAGE_SIZE);
+    let data_offset = align_to(text_offset + image.memory.text.len(), MACHO_ARM64_PAGE_SIZE);
     let text_address = MACHO_EXECUTABLE_BASE + text_offset as u64;
     let data_address = MACHO_EXECUTABLE_BASE + data_offset as u64;
     let bss_address = align_to_u64(
-        data_address + image.data.len() as u64,
-        image.bss_alignment as u64,
+        data_address + image.memory.data.len() as u64,
+        image.memory.bss_alignment as u64,
     );
     let text_file_size = if has_data_segment {
         data_offset
     } else {
-        align_to(text_offset + image.text.len(), MACHO_ARM64_PAGE_SIZE)
+        align_to(text_offset + image.memory.text.len(), MACHO_ARM64_PAGE_SIZE)
     };
     let data_memory_size = if has_data_segment {
         (bss_address - data_address)
-            .checked_add(image.bss_size as u64)
+            .checked_add(image.memory.bss_size as u64)
             .expect("Mach-O data memory size overflow")
     } else {
         0
     };
     let data_vm_size = align_to_u64(data_memory_size, MACHO_ARM64_PAGE_SIZE as u64);
     let unsigned_file_end = if has_data_segment {
-        data_offset + image.data.len()
+        data_offset + image.memory.data.len()
     } else {
-        text_offset + image.text.len()
+        text_offset + image.memory.text.len()
     };
     let bind_offset = align_to(unsigned_file_end, MACHO_ARM64_PAGE_SIZE);
     let code_signature_offset = align_to(bind_offset + bind_size, MACHO_ARM64_PAGE_SIZE);
@@ -126,10 +127,12 @@ mod tests {
     #[test]
     fn plans_macho_data_bss_and_linkedit_layout() {
         let image = FinalImage {
-            text: vec![0; 3],
-            data: vec![0; 5],
-            bss_size: 7,
-            bss_alignment: 8,
+            memory: omega_image::FinalImageMemory {
+                text: vec![0; 3],
+                data: vec![0; 5],
+                bss_size: 7,
+                bss_alignment: 8,
+            },
             ..FinalImage::default()
         };
 

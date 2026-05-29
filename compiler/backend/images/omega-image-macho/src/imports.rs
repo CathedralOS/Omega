@@ -11,10 +11,12 @@ pub(crate) struct MachoImportThunk {
 
 pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportThunk> {
     let imports = image
+        .symbol_table
         .imports
         .iter()
         .filter_map(|(_, import)| {
             image
+                .symbol_table
                 .symbols
                 .is_valid(import.symbol_handle)
                 .then_some(import.symbol_handle)
@@ -23,14 +25,17 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportTh
     let mut thunks = Vec::new();
 
     for symbol_handle in imports {
-        let symbol = image.symbols.get(symbol_handle).name.clone();
-        let text_offset = image.text.len();
-        image.data.resize(align_to(image.data.len(), 8), 0);
-        let data_offset = image.data.len();
-        image.text.extend([0u8; 12]);
-        image.data.extend([0u8; 8]);
+        let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
+        let text_offset = image.memory.text.len();
+        image
+            .memory
+            .data
+            .resize(align_to(image.memory.data.len(), 8), 0);
+        let data_offset = image.memory.data.len();
+        image.memory.text.extend([0u8; 12]);
+        image.memory.data.extend([0u8; 8]);
 
-        let image_symbol = image.symbols.get_mut(symbol_handle);
+        let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
         image_symbol.section = FinalImageSection::Text;
         image_symbol.offset = text_offset;
         image_symbol.size = 12;
@@ -54,19 +59,19 @@ pub(crate) fn patch_import_thunks(
         let instruction_address = layout.text_address + thunk.text_offset as u64;
         let pointer_address = layout.data_address + thunk.data_offset as u64;
         patch_aarch64_adrp(
-            &mut image.text,
+            &mut image.memory.text,
             thunk.text_offset,
             instruction_address,
             pointer_address,
         )?;
         patch_aarch64_ldr_x_from_page(
-            &mut image.text,
+            &mut image.memory.text,
             thunk.text_offset + 4,
             pointer_address,
             16,
             16,
         )?;
-        write_u32_at(&mut image.text, thunk.text_offset + 8, 0xd61f_0200)?;
+        write_u32_at(&mut image.memory.text, thunk.text_offset + 8, 0xd61f_0200)?;
     }
 
     Ok(())

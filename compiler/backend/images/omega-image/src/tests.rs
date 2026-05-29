@@ -83,28 +83,47 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
     });
 
     assert_eq!(image.target, target);
-    assert_eq!(image.text, vec![0xaa; 8]);
-    assert_eq!(image.data, vec![1, 2, 3]);
-    assert_eq!((image.bss_size, image.bss_alignment), (24, 8));
-    assert_eq!(image.symbols.len(), 3);
-    assert_eq!(image.imports.len(), 1);
-    assert_eq!(image.relocations.len(), 1);
+    assert_eq!(image.memory.text, vec![0xaa; 8]);
+    assert_eq!(image.memory.data, vec![1, 2, 3]);
+    assert_eq!((image.memory.bss_size, image.memory.bss_alignment), (24, 8));
+    assert_eq!(image.symbol_table.symbols.len(), 3);
+    assert_eq!(image.symbol_table.imports.len(), 1);
+    assert_eq!(image.relocation_table.relocations.len(), 1);
 
-    let entry = image.symbols.get(image.entry_symbol);
+    let entry = image
+        .symbol_table
+        .symbols
+        .get(image.symbol_table.entry_symbol);
     assert_eq!(entry.name, "_start");
     assert_eq!(entry.section, FinalImageSection::Text);
     assert_eq!(entry.offset, 4);
 
-    let import = image.imports.iter().next().expect("expected import").1;
-    assert_eq!(image.symbols.get(import.symbol_handle).name, "host_write");
+    let import = image
+        .symbol_table
+        .imports
+        .iter()
+        .next()
+        .expect("expected import")
+        .1;
     assert_eq!(
-        image.relocations.iter().next().unwrap().1.symbol_handle,
+        image.symbol_table.symbols.get(import.symbol_handle).name,
+        "host_write"
+    );
+    assert_eq!(
+        image
+            .relocation_table
+            .relocations
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .symbol_handle,
         import.symbol_handle
     );
     assert_eq!(
         final_image_symbol_address(
             &image,
-            image.entry_symbol,
+            image.symbol_table.entry_symbol,
             &FinalImageLayout {
                 text_address: 0x1000,
                 data_address: 0x2000,

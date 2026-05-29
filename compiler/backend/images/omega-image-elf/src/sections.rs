@@ -28,15 +28,15 @@ pub(crate) fn plan_elf_sections(image: &FinalImage) -> ElfSections {
         ELF_HEADER_SIZE + PROGRAM_HEADER_SIZE * PROGRAM_HEADER_COUNT,
         PAGE_SIZE,
     );
-    let data_offset = align_to(text_offset + image.text.len(), PAGE_SIZE);
+    let data_offset = align_to(text_offset + image.memory.text.len(), PAGE_SIZE);
     let text_address = IMAGE_BASE + text_offset as u64;
     let data_address = IMAGE_BASE + data_offset as u64;
     let bss_address = align_to_u64(
-        data_address + image.data.len() as u64,
-        image.bss_alignment as u64,
+        data_address + image.memory.data.len() as u64,
+        image.memory.bss_alignment as u64,
     );
     let data_memory_size = (bss_address - data_address)
-        .checked_add(image.bss_size as u64)
+        .checked_add(image.memory.bss_size as u64)
         .expect("ELF data memory size overflow");
 
     ElfSections {
@@ -58,10 +58,12 @@ mod tests {
     #[test]
     fn plans_elf_text_data_and_bss_layout() {
         let image = FinalImage {
-            text: vec![0; 3],
-            data: vec![0; 5],
-            bss_size: 7,
-            bss_alignment: 8,
+            memory: omega_image::FinalImageMemory {
+                text: vec![0; 3],
+                data: vec![0; 5],
+                bss_size: 7,
+                bss_alignment: 8,
+            },
             ..FinalImage::default()
         };
 
