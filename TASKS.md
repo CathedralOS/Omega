@@ -550,6 +550,8 @@ meaning, without needing access to pointer descriptor internals.
     moves target-operation report rendering into a focused target-op module
   - `omega-backend-report` now splits runtime guard and dispatch-loop
     reporting out of the root writer into a focused runtime-dispatch module
+  - `omega-backend-report` now splits runtime body reporting out of the root
+    writer into a focused runtime-bodies module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
