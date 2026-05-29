@@ -316,6 +316,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked trees now expose a first unified operation-admissibility query
     doorway over state, statement, call, and exit evidence instead of requiring
     callers to know every proof/borrow/flow/effect sub-arena
+  - checked operation admissibility moved out of one large file into type,
+    state, statement, call, exit, and shared-helper modules while preserving
+    the single query doorway
   - state-graph scheduling shape now sits under an explicit `StateGraphCode`
     root on `StateGraph`, keeping expressions, graph topology, operations, and
     transitions separate from preserved semantic evidence
