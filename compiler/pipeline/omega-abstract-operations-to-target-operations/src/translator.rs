@@ -4,6 +4,7 @@ use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{TargetOperationFunction, TargetOperationPlan};
 
+use crate::boundary_policy::validate_boundary_policies;
 use crate::host;
 use crate::instructions::translate_instruction;
 use crate::operands::translate_operand;
@@ -57,6 +58,7 @@ pub(crate) fn build_target_operation_plan(
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);
     target_operations.semantics = abstract_operations.semantics.clone();
+    validate_boundary_policies(host_abi, &mut target_operations.semantics.boundary_edges);
 
     target_operations
 }

@@ -8,7 +8,8 @@ pub mod semantics;
 pub mod values;
 
 pub use boundary::{
-    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundarySummary, AbstractSourceBoundaryEdge,
+    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyCheck,
+    AbstractBoundaryPolicyVerdict, AbstractBoundarySummary, AbstractSourceBoundaryEdge,
 };
 pub use data::{
     AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,

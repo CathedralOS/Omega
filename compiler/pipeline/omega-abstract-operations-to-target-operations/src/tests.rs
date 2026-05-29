@@ -1,9 +1,12 @@
 use crate::build_target_operation_plan;
 use omega_abstract_operations::{
-    AbstractMoveEvent, AbstractOperationPlan, AbstractOwnershipEventSource,
-    AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict, AbstractMoveEvent,
+    AbstractOperationPlan, AbstractOwnershipEventSource, AbstractSourceBoundaryEdge,
+    AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
 };
-use omega_calling_conventions::build_host_abi_plan;
+use omega_calling_conventions::{
+    HostCapability, HostOperation, HostOperationKey, build_host_abi_plan,
+};
 use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
@@ -103,6 +106,117 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
     assert_eq!(edge.call_ordinal, 1);
     assert_eq!(edge.boundary_trait_symbol, trait_symbol);
     assert_eq!(edge.boundary_signature_symbol, signature_symbol);
+}
+
+#[test]
+fn validates_linked_boundary_operation_against_host_binding() {
+    let mut abstract_operations = AbstractOperationPlan::default();
+    let source_edge = abstract_operations
+        .semantics
+        .boundary_edges
+        .source_edges
+        .insert(AbstractSourceBoundaryEdge {
+            source_key: Default::default(),
+            statement_index: 9,
+            call_ordinal: 1,
+            receiver_symbol: SymbolHandle::from_arena_index(1),
+            target_symbol: SymbolHandle::from_arena_index(2),
+            boundary_trait_symbol: SymbolHandle::from_arena_index(3),
+            boundary_signature_symbol: SymbolHandle::from_arena_index(4),
+        });
+    let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
+    let lowered_edge =
+        abstract_operations
+            .semantics
+            .boundary_edges
+            .edges
+            .insert(AbstractBoundaryEdge {
+                source_key: Default::default(),
+                statement_index: 9,
+                call_ordinal: 1,
+                operation_ordinal: 0,
+                operation_key,
+            });
+    abstract_operations
+        .semantics
+        .boundary_edges
+        .links
+        .insert(AbstractBoundaryLink {
+            source_edge,
+            lowered_edge,
+        });
+
+    let target_operations = build_target_operation_plan(
+        NativeTarget::linux_arm64(),
+        &build_host_abi_plan(NativeTarget::linux_arm64()),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+
+    let checks: Vec<_> = target_operations
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .iter()
+        .map(|(_, check)| check)
+        .collect();
+    assert_eq!(checks.len(), 1);
+    assert_eq!(checks[0].source_edge, source_edge);
+    assert_eq!(checks[0].lowered_edge, lowered_edge);
+    assert_eq!(checks[0].operation_key, operation_key);
+    assert_eq!(
+        checks[0].boundary_policy.as_ref(),
+        "omega::host::targets::linux"
+    );
+    assert_eq!(checks[0].verdict, AbstractBoundaryPolicyVerdict::Accepted);
+}
+
+#[test]
+fn records_missing_source_boundary_for_unlinked_host_operation() {
+    let mut abstract_operations = AbstractOperationPlan::default();
+    let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
+    let lowered_edge =
+        abstract_operations
+            .semantics
+            .boundary_edges
+            .edges
+            .insert(AbstractBoundaryEdge {
+                source_key: Default::default(),
+                statement_index: 9,
+                call_ordinal: 1,
+                operation_ordinal: 0,
+                operation_key,
+            });
+
+    let target_operations = build_target_operation_plan(
+        NativeTarget::linux_arm64(),
+        &build_host_abi_plan(NativeTarget::linux_arm64()),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+
+    let check = target_operations
+        .semantics
+        .boundary_edges
+        .policy_checks
+        .iter()
+        .next()
+        .map(|(_, check)| check)
+        .expect("boundary policy check");
+    assert_eq!(
+        target_operations
+            .semantics
+            .boundary_edges
+            .policy_checks
+            .len(),
+        1
+    );
+    assert!(!check.source_edge.is_valid());
+    assert_eq!(check.lowered_edge, lowered_edge);
+    assert_eq!(
+        check.verdict,
+        AbstractBoundaryPolicyVerdict::MissingSourceBoundary
+    );
 }
 
 #[test]
