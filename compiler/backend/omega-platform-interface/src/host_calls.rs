@@ -155,6 +155,7 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
         target.calls.insert(HostCall {
             source_key: call.source_key,
             statement_index: call.statement_index,
+            call_ordinal: call.call_ordinal,
             lowering: call.lowering,
             data: call.data,
             operations,
@@ -248,5 +249,6 @@ mod tests {
             PlatformCallData::MutableOutputBuffer { byte_capacity: 256 }
         );
         assert_eq!(call.statement_index, 0);
+        assert_eq!(call.call_ordinal, 0);
     }
 }
