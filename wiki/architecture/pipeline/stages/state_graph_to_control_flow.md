@@ -21,7 +21,7 @@ trees and preserved by the state graph.
 | Noun | Ownership |
 | --- | --- |
 | Places | Become control-flow-accessible storage/value references. |
-| Values | Become explicit data-flow operands, temporaries, or carried payloads. |
+| Values | Graph value summaries are preserved as control-flow value summaries. |
 | Facts | Preserved as annotations/diagnostic support; not re-proved. |
 | Loans | Preserved only as correctness metadata/assertions; not revalidated. |
 | Moves | Preserved from graph ownership summaries into control-flow ownership events. |
@@ -38,6 +38,8 @@ Must own:
 - Explicit block/operation/branch/exit structure for state-machine execution.
 - Preservation of graph-carried contracts, borrows, facts, effects, and boundary
   edges as control-flow metadata or events.
+- Preservation of graph-carried value summaries without inventing storage or
+  ownership policy.
 - Scheduling of already-checked cleanup and ownership events once those events
   exist in the graph input.
 
@@ -55,7 +57,7 @@ noun preserved in a focused file:
   only top-level orchestration.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
-  contract, borrow, ownership, operation, transition, and effect summaries.
+  contract, value, borrow, ownership, operation, transition, and effect summaries.
 - `operations.rs` remaps graph operations into control-flow operations.
 - `transitions.rs` remaps graph transition edges and transition targets.
 - `facts.rs` preserves proof obligations and invariant facts.
@@ -68,11 +70,15 @@ noun preserved in a focused file:
   activation, and weakening conversion from graph form into control-flow form.
 - `ownership.rs` owns move/drop event conversion from graph form into
   control-flow form.
+- `values.rs` owns value-summary conversion from graph form into control-flow
+  form.
 - `handles.rs` owns handle-span remapping helpers only.
 
 ## Known Gaps
 
 - Control-flow now preserves move/drop ownership events, but backend lowering
   still needs to decide how moves become transfers and drops become cleanup.
+- Control-flow now preserves value summaries, but later lowering still needs
+  type-aware ownership, storage, and operand consequences.
 - Boundary edges should get the same first-class checked/graph/control-flow
   preservation shape that ownership events now have.

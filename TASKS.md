@@ -48,9 +48,12 @@ meaning, without needing access to pointer descriptor internals.
   - typed-to-checked now builds initial checked value facts for decreases
     clauses, initializers, statement values, call arguments, transition
     guards/targets, and nested expression children
+  - checked value facts now preserve through state graph and control flow as
+    state-local value summaries
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
-    facts, invariants, borrow facts, ownership facts, operations, and transitions
+    facts, invariants, borrow facts, value facts, ownership facts, operations,
+    and transitions
   - `omega-assigned-target-operations` now has a thin crate root and
     noun-shaped modules for assigned operands, value homes, operation kinds,
     operation conversions, operation records, function metadata, plan storage,
@@ -70,8 +73,8 @@ meaning, without needing access to pointer descriptor internals.
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
     cleanup operations
-  - refine checked value facts with type-aware ownership kind, drop policy,
-    storage consequences, and lowering preservation so proof, borrow,
+  - refine checked/control-flow value summaries with type-aware ownership kind,
+    drop policy, storage consequences, and backend lowering preservation so proof, borrow,
     allocation, and backend stages can talk about values as clearly as places
   - make boundary edges as queryable in checked/control-flow representations as
     calls, effects, and contracts
