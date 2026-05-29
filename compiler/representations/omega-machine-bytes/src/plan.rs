@@ -38,7 +38,7 @@ impl EncodedMachinePlan {
                 bytes: Arena::with_capacity(byte_capacity),
                 byte_count: 0,
             },
-            semantics: EncodedMachineSemanticSummary::default(),
+            semantics: EncodedMachineSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
         }
     }
 }

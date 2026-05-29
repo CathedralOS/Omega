@@ -319,9 +319,10 @@ meaning, without needing access to pointer descriptor internals.
     values/boundaries/ownership structs per representation
   - backend semantic preservation handoffs now copy the whole summary spine
     instead of repeating field-by-field values/boundaries/ownership transfer
-  - target, assigned, symbolic-machine, and machine-program plan constructors
-    now initialize their preserved semantic summary aliases through the shared
-    semantic-root constructor instead of opaque default construction
+  - target, assigned, symbolic-machine, encoded-machine, and machine-program
+    plan constructors now initialize their preserved semantic summary aliases
+    through the shared semantic-root constructor instead of opaque default
+    construction
   - checked trees now expose a first unified operation-admissibility query
     doorway over state, statement, call, and exit evidence instead of requiring
     callers to know every proof/borrow/flow/effect sub-arena
