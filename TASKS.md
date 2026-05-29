@@ -569,6 +569,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-symbol-resolved-trees` expression representation now follows the
     same data/display/test split, and stale machine-storage test fixtures were
     updated to include termination/decrease fields
+  - `omega-syntax-trees` root syntax container canaries now live in a focused
+    `syntax_trees/tests.rs` module instead of stretching the representation
+    root file
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
