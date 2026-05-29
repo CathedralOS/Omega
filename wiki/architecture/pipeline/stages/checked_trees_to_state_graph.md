@@ -86,7 +86,8 @@ preservation:
 ## Known Gaps
 
 - Transition ownership transfer should be as explicit as call ownership transfer.
-- Move/drop event producers are still incomplete upstream, so this stage mostly
-  preserves empty ownership summaries today.
+- Move/drop event producers are still conservative upstream, so this stage
+  preserves the available ownership evidence but cannot yet expect complete
+  type-aware transfer/drop coverage.
 - Boundary edges should have an explicit graph representation instead of only
   being implied by contracts/effects/operations.
