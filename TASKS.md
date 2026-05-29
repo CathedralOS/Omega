@@ -552,6 +552,8 @@ meaning, without needing access to pointer descriptor internals.
     reporting out of the root writer into a focused runtime-dispatch module
   - `omega-backend-report` now splits runtime body reporting out of the root
     writer into a focused runtime-bodies module
+  - `omega-backend-report` now splits runtime branching call and expansion
+    reporting out of the root writer into a focused runtime-branching module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
