@@ -595,6 +595,8 @@ meaning, without needing access to pointer descriptor internals.
   - operation-domain taxonomy now lives in `omega-core` and each operation
     representation exports a stage-specific alias instead of copying category
     enums
+  - target/assigned operation conversion now has a canary proving semantic
+    domain, host-boundary, and runtime-storage queries survive conversion
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
