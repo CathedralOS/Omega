@@ -50,6 +50,8 @@ meaning, without needing access to pointer descriptor internals.
     guards/targets, and nested expression children
   - checked value facts now preserve through state graph and control flow as
     state-local value summaries
+  - control-flow value summaries now preserve into abstract operations as an
+    abstract value summary beside ownership and boundary summaries
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, value facts, ownership facts, operations,
@@ -73,9 +75,10 @@ meaning, without needing access to pointer descriptor internals.
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
     cleanup operations
-  - refine checked/control-flow value summaries with type-aware ownership kind,
-    drop policy, storage consequences, and backend lowering preservation so proof, borrow,
-    allocation, and backend stages can talk about values as clearly as places
+  - refine checked/control-flow/abstract value summaries with type-aware
+    ownership kind, drop policy, storage consequences, and backend lowering
+    beyond metadata so proof, borrow, allocation, and backend stages can talk
+    about values as clearly as places
   - make boundary edges as queryable in checked/control-flow representations as
     calls, effects, and contracts
   - connect backend boundary-edge summaries back to checked source-level
