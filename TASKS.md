@@ -76,6 +76,8 @@ meaning, without needing access to pointer descriptor internals.
     move/drop preservation from worker-local ownership arena remapping
   - state-graph-to-control-flow now has focused unit canaries for preserving
     ownership summary spans and owned move-event call sources across the handoff
+  - abstract-to-target lowering now has focused unit coverage proving ownership
+    summaries survive target-operation legalization beside values and boundaries
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
