@@ -170,6 +170,63 @@ fn materializes_transition_argument_moves() {
 }
 
 #[test]
+fn materializes_nested_call_argument_moves() {
+    let source = r#"
+        data Item {
+            value: i32;
+        }
+
+        data Main {
+            left: Item;
+        }
+
+        machine Main::identity(&mut self, value: Item) -> Item {
+            value
+        }
+
+        machine Main::consume(&mut self, value: Item) {}
+
+        machine Main::main(&mut self) {
+            self.consume(self.identity(self.left));
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    let moves = flow.moves.span_or_empty(state_flow.moves);
+    assert_eq!(moves.len(), 1);
+    let omega_checked_trees::FlowOwnershipEventSource::Call {
+        statement_index,
+        call_ordinal,
+        target_symbol,
+    } = moves[0].source
+    else {
+        panic!("expected nested call ownership event source");
+    };
+    assert_eq!(statement_index, 0);
+    assert_eq!(call_ordinal, 1);
+
+    let identity = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::identity")
+        .expect("identity machine");
+    let identity_state = typed
+        .machine_states(identity)
+        .iter()
+        .find(|state| state.name.as_str() == "identity")
+        .expect("identity state");
+    assert_eq!(target_symbol, identity_state.symbol);
+    assert!(
+        !flow
+            .ownership_segments
+            .span_or_empty(moves[0].segments)
+            .is_empty()
+    );
+}
+
+#[test]
 fn does_not_materialize_move_or_drop_events_for_copy_scalar_locals() {
     let source = r#"
         data Main {
