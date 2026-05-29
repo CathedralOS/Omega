@@ -1,6 +1,7 @@
 mod context;
 mod host_operation;
 mod runtime_text;
+mod runtime_values;
 
 use super::data_addresses::collect_data_address_relocations;
 use super::offsets::{
@@ -17,14 +18,13 @@ use super::offsets::{
 };
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
-use omega_assigned_target_operations::RuntimeValueOperand;
 use omega_instruction_selection::runtime_machine_indexed_integer_runtime_frame_address_offset;
 use omega_object_file::{ObjectSymbolHandle, RelocationPlan};
 use omega_target::Architecture;
 use omega_target_operations::{
-    RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
-    StateGuardOperator,
+    SelectedInstruction, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
+use runtime_values::collect_runtime_value_operand_relocations;
 
 pub(super) fn collect_instruction_relocations(
     input: RelocationPlanningInput<'_>,
@@ -428,47 +428,5 @@ pub(super) fn collect_instruction_relocations(
             );
         }
         _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),
-    }
-}
-
-fn collect_runtime_value_operand_relocations(
-    context: &mut InstructionRelocationContext<'_, '_>,
-    operand_text_offset: usize,
-    operand: RuntimeValueOperandHandle,
-) {
-    let Some(operand) = context
-        .input
-        .assigned_target_operations
-        .runtime_value_operand(operand)
-    else {
-        return;
-    };
-
-    match &operand.kind {
-        RuntimeValueOperand::Immediate(_) => {}
-        RuntimeValueOperand::Storage { region, .. } => {
-            let symbol = context.storage_region_symbol_handle(*region);
-            context.insert_data_address(operand_text_offset, symbol);
-        }
-        RuntimeValueOperand::Pointee { .. }
-        | RuntimeValueOperand::FrameBaseIndexed { .. }
-        | RuntimeValueOperand::FrameIndexed { .. }
-        | RuntimeValueOperand::FrameFixedIndexed { .. } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address(operand_text_offset, symbol);
-        }
-        RuntimeValueOperand::Binary { left, right, .. } => {
-            collect_runtime_value_operand_relocations(context, operand_text_offset, *left);
-            let left_width = omega_instruction_selection::runtime_value_operand_width(
-                context.input.target.architecture,
-                context.input.assigned_target_operations,
-                *left,
-            );
-            collect_runtime_value_operand_relocations(
-                context,
-                operand_text_offset + left_width,
-                *right,
-            );
-        }
     }
 }
