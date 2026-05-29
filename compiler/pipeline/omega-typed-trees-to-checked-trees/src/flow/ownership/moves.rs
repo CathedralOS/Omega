@@ -38,6 +38,24 @@ pub(super) fn append_move_events_for_expression(
                 );
             }
         }
+        ExpressionNode::Binary(binary) => {
+            append_move_events_for_expression(
+                program,
+                ctx,
+                state_symbol,
+                statement_index,
+                binary.left,
+                source,
+            );
+            append_move_events_for_expression(
+                program,
+                ctx,
+                state_symbol,
+                statement_index,
+                binary.right,
+                source,
+            );
+        }
         ExpressionNode::Cast(cast) => append_move_events_for_expression(
             program,
             ctx,
@@ -61,16 +79,36 @@ pub(super) fn append_move_events_for_expression(
                 );
             }
         }
+        ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                append_move_events_for_expression(
+                    program,
+                    ctx,
+                    state_symbol,
+                    statement_index,
+                    range.start,
+                    source,
+                );
+            }
+            if range.end.is_valid() {
+                append_move_events_for_expression(
+                    program,
+                    ctx,
+                    state_symbol,
+                    statement_index,
+                    range.end,
+                    source,
+                );
+            }
+        }
         ExpressionNode::Mutable(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
-        | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::Range(_)
         | ExpressionNode::String(_) => {}
     }
 }

@@ -24,7 +24,7 @@ effect, and boundary validation.
 | Values | First checked value fact layer via `CheckedValueFacts`, keyed by typed expression handles and value origins. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
-| Moves | First-class checked-flow event arenas/spans exist. Initial producers are type-aware for direct assignments, local initializers, indexed element reads, aggregate literals, by-value direct-call arguments, nested expression-call arguments, and transition target arguments. |
+| Moves | First-class checked-flow event arenas/spans exist. Initial producers are type-aware for direct assignments, local initializers, indexed element reads, aggregate literals, binary/range operands, by-value direct-call arguments, nested expression-call arguments, and transition target arguments. |
 | Drops | First-class checked-flow event arenas/spans exist. Initial state-exit local drop producers skip copy-like scalar locals. |
 | Calls | First-class call facts for contracts, borrows, flow, and effects. |
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
@@ -85,8 +85,9 @@ Current ownership is:
   entry/requires/ensures/effect/invalidation flow facts, and `flow/exits.rs`
   owns exit/ensures flow facts. `flow/ownership.rs` is the ownership-event
   entrypoint, `flow/ownership/moves.rs` owns recursive move-event production
-  for assignments, initializers, aggregate literals, call arguments, nested
-  expression calls, and transition targets, `flow/ownership/calls.rs` owns
+  for assignments, initializers, aggregate literals, binary/range operands,
+  call arguments, nested expression calls, and transition targets,
+  `flow/ownership/calls.rs` owns
   call-site argument routing, `flow/ownership/drops.rs` owns state-exit local
   drops, and `flow/ownership/type_resolution.rs` owns the local type-reference
   resolver that distinguishes copy-like scalar places from ownership-consuming
@@ -132,7 +133,7 @@ Current ownership is:
   storage/lowering consequences instead of leaving those decisions attached
   only to flow ownership events.
 - Finish move/drop event production across all transfer sites, including
-  slice/string operations, binary/operator expressions, and future user-defined
+  slice/string operators beyond binary expressions and future user-defined
   copy/drop policy.
 - Teach remaining value-expression analysis to append ownership
   transfer/drop events into the existing checked-flow ownership arenas.
