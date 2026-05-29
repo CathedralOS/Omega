@@ -84,9 +84,9 @@ Current deliberate gaps:
 - Moves and drops now have durable checked/control-flow event plumbing, but
   event production still needs type-aware precision plus transition and nested
   call coverage.
-- Checked values now preserve through state graph, control flow, and abstract
-  operations, but still need type-aware ownership kind, drop policy, storage
-  consequences, and backend lowering preservation beyond metadata.
+- Checked values now preserve through state graph, control flow, abstract
+  operations, and target operations, but still need type-aware ownership kind,
+  drop policy, storage consequences, and backend lowering beyond metadata.
 - Backend boundary-edge summaries now preserve lowered host-operation trust
   edges as metadata. The checked representation should still connect those
   edges back to source-level boundary contracts and target policies.

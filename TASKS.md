@@ -52,6 +52,8 @@ meaning, without needing access to pointer descriptor internals.
     state-local value summaries
   - control-flow value summaries now preserve into abstract operations as an
     abstract value summary beside ownership and boundary summaries
+  - abstract value summaries now preserve through target-operation legalization
+    as target value metadata
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, value facts, ownership facts, operations,
@@ -75,7 +77,7 @@ meaning, without needing access to pointer descriptor internals.
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
     cleanup operations
-  - refine checked/control-flow/abstract value summaries with type-aware
+  - refine checked/control-flow/abstract/target value summaries with type-aware
     ownership kind, drop policy, storage consequences, and backend lowering
     beyond metadata so proof, borrow, allocation, and backend stages can talk
     about values as clearly as places

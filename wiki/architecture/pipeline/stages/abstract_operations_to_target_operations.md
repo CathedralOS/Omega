@@ -21,7 +21,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 ## Semantic Ownership
 
 - Places: re-expressed as target-aware storage operands; no new language-level places are born here.
-- Values: re-expressed as target value operands; this stage may choose target-legal operand shapes but should not invent semantic values.
+- Values: re-expressed as target value operands while abstract value summaries
+  are preserved as target value metadata; this stage may choose target-legal
+  operand shapes but should not invent semantic values.
 - Facts: consumed only as already-lowered operation shape; proof and type facts are not re-proved here.
 - Loans: not owned; borrow legality must already be decided before abstract operations exist.
 - Moves: preserve abstract ownership summaries while target operations are legalized; explicit transfer operation lowering is still pending.
@@ -43,4 +45,6 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 This stage still needs a richer distinction between target legalization, ABI lowering, and later physical assignment once target operations grow beyond the current direct mapping.
 It also preserves ownership summaries without yet lowering them into target
 copy/cleanup operations.
+Value summaries are preserved through target legalization, but are not yet used
+to drive target storage or ownership policy.
 Boundary-edge summaries are preserved through target legalization.
