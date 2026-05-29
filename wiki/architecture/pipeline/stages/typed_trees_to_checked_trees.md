@@ -106,9 +106,14 @@ Current ownership is:
   `checks/borrows/overlap/segments.rs` owns place-segment overlap policy,
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
-- `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model:
-  state-local spans point into grouped `FlowFacts` roots for contexts,
-  invalidations, borrow lifetimes, ownership, boundaries, and control.
+- `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
+  export surface. The model is split by semantic noun under
+  `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
+  constraint refs, `invalidations.rs` owns mutation/domain invalidation facts,
+  `borrow_lifetimes.rs` owns activation/weakening facts, `ownership.rs` owns
+  move/drop facts, `boundaries.rs` owns boundary-edge facts, `control.rs` owns
+  state/statement/call/exit facts, and `roots.rs` owns grouped `FlowFacts`
+  roots plus query helpers.
 - `omega-checked-trees/src/admissibility.rs` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
