@@ -1,7 +1,9 @@
+mod abstract_conversions;
 mod function;
 mod operand;
+mod operation;
+mod operation_kind;
 mod plan;
-mod selected;
 mod value;
 
 pub use function::{FunctionInstructionPlan, TargetOperationFunction};
@@ -11,10 +13,9 @@ pub use operand::{
     InstructionOperand, InstructionOperandKind, InstructionOperandLike, TargetInstructionOperand,
     TargetInstructionOperandKind,
 };
+pub use operation::{SelectedInstruction, TargetOperation};
+pub use operation_kind::{SelectedInstructionKind, TargetOperationKind};
 pub use plan::{InstructionPlan, TargetOperationPlan};
-pub use selected::{
-    SelectedInstruction, SelectedInstructionKind, TargetOperation, TargetOperationKind,
-};
 pub use value::{
     RuntimeValueOperand, RuntimeValueOperandHandle, RuntimeValueOperandSource, TargetValueOperand,
     TargetValueOperandHandle,

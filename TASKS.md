@@ -60,9 +60,10 @@ meaning, without needing access to pointer descriptor internals.
   - abstract-operation representation roots now split function plans,
     operation kinds, value operands, and runtime storage regions instead of
     hiding all instruction-adjacent data in one selected-instruction file
-  - target-operation representation roots now split target function plans out
-    of selected operation kinds, matching the abstract-operation representation
-    shape
+  - target-operation representation roots now split target function plans,
+    operation records, operation kinds, abstract-to-target conversions, value
+    operands, and instruction operands instead of hiding all instruction
+    concerns behind `selected.rs`
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
