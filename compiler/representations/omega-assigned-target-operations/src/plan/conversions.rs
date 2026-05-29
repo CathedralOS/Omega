@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperationPlan {
     fn from(plan: omega_target_operations::TargetOperationPlan) -> Self {
-        let mut functions = Arena::with_capacity(plan.functions.len());
-        for (_, function) in plan.functions.iter() {
+        let mut functions = Arena::with_capacity(plan.code.functions.len());
+        for (_, function) in plan.code.functions.iter() {
             functions.insert(AssignedTargetOperationFunction {
                 symbol: Arc::clone(&function.symbol),
                 source_key: function.source_key,
@@ -17,8 +17,8 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             });
         }
 
-        let mut instructions = Arena::with_capacity(plan.instructions.len());
-        for (_, instruction) in plan.instructions.iter() {
+        let mut instructions = Arena::with_capacity(plan.code.instructions.len());
+        for (_, instruction) in plan.code.instructions.iter() {
             instructions.insert(AssignedOperation {
                 kind: instruction.kind.clone().into(),
                 source_key: instruction.source_key,
@@ -26,8 +26,9 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             });
         }
 
-        let mut runtime_value_operands = Arena::with_capacity(plan.runtime_value_operands.len());
-        for (_, operand) in plan.runtime_value_operands.iter() {
+        let mut runtime_value_operands =
+            Arena::with_capacity(plan.code.runtime_value_operands.len());
+        for (_, operand) in plan.code.runtime_value_operands.iter() {
             runtime_value_operands.insert(AssignedValueOperand {
                 kind: operand.clone().into(),
                 home: AssignedValueHomeKind::Immediate,
@@ -39,8 +40,8 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             functions,
             instructions,
             operands: {
-                let mut operands = Arena::with_capacity(plan.operands.len());
-                for (_, operand) in plan.operands.iter() {
+                let mut operands = Arena::with_capacity(plan.code.operands.len());
+                for (_, operand) in plan.code.operands.iter() {
                     operands.insert(AssignedInstructionOperand {
                         kind: operand.kind.clone().into(),
                     });
@@ -48,7 +49,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
                 operands
             },
             runtime_value_operands,
-            host_bindings: plan.host_bindings,
+            host_bindings: plan.code.host_bindings,
             semantics: crate::AssignedSemanticSummary {
                 values: plan.semantics.values,
                 boundary_edges: plan.semantics.boundary_edges,
@@ -86,22 +87,25 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             }
             runtime_value_operands
         };
+        let operands = {
+            let mut operands = Arena::with_capacity(plan.operands.len());
+            for (_, operand) in plan.operands.iter() {
+                operands.insert(omega_target_operations::TargetInstructionOperand {
+                    kind: operand.kind.clone().into(),
+                });
+            }
+            operands
+        };
 
         Self {
             target: plan.target,
-            functions,
-            instructions,
-            operands: {
-                let mut operands = Arena::with_capacity(plan.operands.len());
-                for (_, operand) in plan.operands.iter() {
-                    operands.insert(omega_target_operations::TargetInstructionOperand {
-                        kind: operand.kind.clone().into(),
-                    });
-                }
-                operands
+            code: omega_target_operations::TargetOperationCode {
+                functions,
+                instructions,
+                operands,
+                runtime_value_operands,
+                host_bindings: plan.host_bindings,
             },
-            runtime_value_operands,
-            host_bindings: plan.host_bindings,
             semantics: omega_target_operations::TargetSemanticSummary {
                 values: plan.semantics.values,
                 boundary_edges: plan.semantics.boundary_edges,

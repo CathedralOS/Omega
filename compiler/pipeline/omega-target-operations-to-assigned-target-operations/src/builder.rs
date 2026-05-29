@@ -8,30 +8,30 @@ pub(crate) fn build_assigned_target_operations(
 ) -> AssignedTargetOperationPlan {
     let mut assigned_target_operations = AssignedTargetOperationPlan::with_capacity(
         target_operations.target,
-        target_operations.functions.len(),
-        target_operations.instructions.len(),
-        target_operations.operands.len(),
-        target_operations.runtime_value_operands.len(),
-        target_operations.host_bindings.len(),
+        target_operations.code.functions.len(),
+        target_operations.code.instructions.len(),
+        target_operations.code.operands.len(),
+        target_operations.code.runtime_value_operands.len(),
+        target_operations.code.host_bindings.len(),
     );
 
-    for (_, function) in target_operations.functions.iter() {
+    for (_, function) in target_operations.code.functions.iter() {
         assigned_target_operations
             .functions
             .insert(functions::assign_function(function));
     }
 
-    for (_, instruction) in target_operations.instructions.iter() {
+    for (_, instruction) in target_operations.code.instructions.iter() {
         assigned_target_operations
             .instructions
             .insert(operations::assign_operation(instruction));
     }
-    for (_, operand) in target_operations.operands.iter() {
+    for (_, operand) in target_operations.code.operands.iter() {
         assigned_target_operations
             .operands
             .insert(operations::assign_instruction_operand(operand));
     }
-    assigned_target_operations.host_bindings = target_operations.host_bindings.clone();
+    assigned_target_operations.host_bindings = target_operations.code.host_bindings.clone();
     assigned_target_operations.semantics.values = target_operations.semantics.values.clone();
     assigned_target_operations.semantics.boundary_edges =
         target_operations.semantics.boundary_edges.clone();

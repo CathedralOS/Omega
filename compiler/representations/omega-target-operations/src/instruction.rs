@@ -16,7 +16,7 @@ pub use operand::{
 };
 pub use operation::{SelectedInstruction, TargetOperation};
 pub use operation_kind::{SelectedInstructionKind, TargetOperationKind};
-pub use plan::{InstructionPlan, TargetOperationPlan};
+pub use plan::{InstructionPlan, TargetOperationCode, TargetOperationPlan};
 pub use semantics::{
     TargetBoundarySummary, TargetOwnershipSummary, TargetSemanticSummary, TargetValueSummary,
 };
