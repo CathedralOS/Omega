@@ -317,6 +317,9 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-machine-program` now has a thin crate root and noun-shaped modules
     for artifact instruction records, function metadata, semantic summaries,
     and plan storage
+  - machine-program executable artifact shape now sits under an explicit
+    `MachineProgramCode` root on `MachineProgram`, keeping the transitional
+    aggregate bridge consistent with the surrounding code/semantic split
   - `omega-machine-bytes` now has a thin crate root and noun-shaped modules
     for encoded function ranges, encoded instruction byte spans, semantic
     summaries, and encoded plan storage
