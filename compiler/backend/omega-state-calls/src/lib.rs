@@ -95,6 +95,7 @@ impl StateCallPlanningContext {
     ) -> Option<&omega_control_flow::StateBorrowCall> {
         let state = self.control_flow.state_by_key(source_key)?;
         self.control_flow
+            .semantics
             .borrow_calls
             .span(state.borrow.calls)?
             .iter()

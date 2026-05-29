@@ -37,6 +37,7 @@ pub(super) fn state_call_receiver_name(
 pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
     let obligation_count = input
         .control_flow
+        .semantics
         .proof_obligations
         .iter()
         .filter(|(_, obligation)| {
@@ -45,6 +46,7 @@ pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKe
         .count();
     let guarded_count = input
         .control_flow
+        .semantics
         .proof_obligations
         .iter()
         .filter(|(_, obligation)| {

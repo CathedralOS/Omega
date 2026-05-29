@@ -17,6 +17,9 @@ Primary responsibility: lower state-machine structure into explicit blocks, bran
 This stage owns control-flow shape. It should turn graph topology into explicit
 blocks and operations without changing the semantic truth established by checked
 trees and preserved by the state graph.
+The representation root is `ControlFlowPlan`: executable shape lives in the
+machine/state/operation/transition arenas, while preserved semantic evidence
+lives under `ControlFlowSemanticRoots`.
 
 | Noun | Ownership |
 | --- | --- |
@@ -56,6 +59,9 @@ noun preserved in a focused file:
 - `builder.rs` assembles the final `ControlFlowPlan` from graph arenas and owns
   only top-level orchestration. `builder/borrowed.rs` owns borrowed graph
   remapping, while `builder/owned.rs` owns owned graph remapping.
+- `omega-control-flow/src/semantics.rs` owns the `ControlFlowSemanticRoots`
+  bundle for preserved proof, invariant, contract, value, boundary, borrow, and
+  ownership arenas.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
   contract, value, boundary, borrow, ownership, operation, transition, and effect summaries.

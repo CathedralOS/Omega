@@ -568,12 +568,17 @@ fn write_checked_semantics_section(output: &mut String, backend_plan: &BackendRe
     output.push_str("## Checked Semantics\n");
     output.push_str(&format!(
         "proof obligations: {}\n",
-        backend_plan.control_flow.proof_obligations.len()
+        backend_plan.control_flow.semantics.proof_obligations.len()
     ));
-    if backend_plan.control_flow.proof_obligations.is_empty() {
+    if backend_plan
+        .control_flow
+        .semantics
+        .proof_obligations
+        .is_empty()
+    {
         output.push_str("none\n");
     } else {
-        for (_, obligation) in backend_plan.control_flow.proof_obligations.iter() {
+        for (_, obligation) in backend_plan.control_flow.semantics.proof_obligations.iter() {
             output.push_str(&format!(
                 "- {:?}: {}\n",
                 obligation.kind,
@@ -584,12 +589,12 @@ fn write_checked_semantics_section(output: &mut String, backend_plan: &BackendRe
 
     output.push_str(&format!(
         "invariants: {}\n",
-        backend_plan.control_flow.invariants.len()
+        backend_plan.control_flow.semantics.invariants.len()
     ));
-    if backend_plan.control_flow.invariants.is_empty() {
+    if backend_plan.control_flow.semantics.invariants.is_empty() {
         output.push_str("none\n");
     } else {
-        for (_, invariant) in backend_plan.control_flow.invariants.iter() {
+        for (_, invariant) in backend_plan.control_flow.semantics.invariants.iter() {
             output.push_str(&format!(
                 "- `{}` constraints {}\n",
                 invariant.name, invariant.constraint_count

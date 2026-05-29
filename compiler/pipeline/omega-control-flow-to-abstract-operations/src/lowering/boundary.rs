@@ -9,12 +9,13 @@ pub(super) fn build_abstract_boundary_summary(
     host_calls: &HostCallPlan,
 ) -> AbstractBoundarySummary {
     let mut summary = AbstractBoundarySummary::with_source_and_host_capacity(
-        control_flow.boundary_edges.len(),
+        control_flow.semantics.boundary_edges.len(),
         host_calls.operations.len(),
     );
 
     for (_, state) in control_flow.states.iter() {
         for edge in control_flow
+            .semantics
             .boundary_edges
             .span_or_empty(state.boundaries.edges)
         {
@@ -92,7 +93,7 @@ mod tests {
             segment_index: 0,
         };
         let mut edge_span = HandleSpan::empty();
-        control_flow.boundary_edges.append_to_span(
+        control_flow.semantics.boundary_edges.append_to_span(
             &mut edge_span,
             omega_control_flow::StateBoundaryEdge {
                 statement_index: 8,
