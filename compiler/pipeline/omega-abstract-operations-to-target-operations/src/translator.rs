@@ -26,27 +26,33 @@ pub(crate) fn build_target_operation_plan(
 
     for (_, operand) in abstract_operations.code.operands.iter() {
         target_operations
+            .code
             .operands
             .insert(translate_operand(operand));
     }
     for (_, operand) in abstract_operations.code.runtime_value_operands.iter() {
         target_operations
+            .code
             .runtime_value_operands
             .insert(translate_runtime_value_operand(operand));
     }
 
     for (_, instruction) in abstract_operations.code.instructions.iter() {
         target_operations
+            .code
             .instructions
             .insert(translate_instruction(host_calls, instruction));
     }
 
     for (_, function) in abstract_operations.code.functions.iter() {
-        target_operations.functions.insert(TargetOperationFunction {
-            symbol: std::sync::Arc::clone(&function.symbol),
-            source_key: function.source_key,
-            instructions: remap::instruction_span(function.instructions),
-        });
+        target_operations
+            .code
+            .functions
+            .insert(TargetOperationFunction {
+                symbol: std::sync::Arc::clone(&function.symbol),
+                source_key: function.source_key,
+                instructions: remap::instruction_span(function.instructions),
+            });
     }
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);

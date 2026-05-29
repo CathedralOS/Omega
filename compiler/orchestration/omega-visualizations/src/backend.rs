@@ -31,7 +31,7 @@ pub fn target_operations_html(
 ) -> String {
     let function_views = collect_state_function_views(
         "target block",
-        plan.instructions.storage_slice(),
+        plan.code.instructions.storage_slice(),
         |instruction| instruction.source_key,
         target_instruction_line,
     );

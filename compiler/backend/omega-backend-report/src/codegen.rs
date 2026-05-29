@@ -44,17 +44,17 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     output.push_str("## Target Operations\n");
     output.push_str(&format!(
         "functions: {}\n",
-        backend_plan.target_operations.functions.len()
+        backend_plan.target_operations.code.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        backend_plan.target_operations.instructions.len()
+        backend_plan.target_operations.code.instructions.len()
     ));
     output.push_str(&format!(
         "operands: {}\n",
-        backend_plan.target_operations.operands.len()
+        backend_plan.target_operations.code.operands.len()
     ));
-    for (_, function) in backend_plan.target_operations.functions.iter() {
+    for (_, function) in backend_plan.target_operations.code.functions.iter() {
         write_function_instruction_plan(output, backend_plan, function);
     }
     output.push('\n');
@@ -164,6 +164,7 @@ fn write_function_instruction_plan(
 
     match backend_plan
         .target_operations
+        .code
         .instructions
         .span(function.instructions)
     {
@@ -998,7 +999,7 @@ fn selected_instruction_operands_name(
     backend_plan: &BackendReportInput<'_>,
     operands: omega_core::arena::HandleSpan<InstructionOperand>,
 ) -> String {
-    let Some(operands) = backend_plan.target_operations.operands.span(operands) else {
+    let Some(operands) = backend_plan.target_operations.code.operands.span(operands) else {
         return "invalid operands".to_owned();
     };
 
@@ -1060,6 +1061,7 @@ fn machine_function_symbol(
 ) -> String {
     backend_plan
         .target_operations
+        .code
         .functions
         .iter()
         .find(|(_, instruction_function)| instruction_function.source_key == function.source_key)

@@ -10,7 +10,7 @@ pub(crate) fn assign_runtime_value_operands(
     assigned_target_operations: &mut AssignedTargetOperationPlan,
 ) {
     let mut next_scratch_slot = 0u16;
-    for (_, operand) in target_operations.runtime_value_operands.iter() {
+    for (_, operand) in target_operations.code.runtime_value_operands.iter() {
         let home = assign_value_home(target_operations, operand, &mut next_scratch_slot);
         assigned_target_operations
             .runtime_value_operands

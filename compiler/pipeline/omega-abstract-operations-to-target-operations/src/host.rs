@@ -19,6 +19,7 @@ pub(crate) fn copy_runtime_text_host_bindings(
             source: RuntimeTextReadSource::HostOperation { operation_key },
             ..
         } = &target_operations
+            .code
             .instructions
             .get(remap::instruction_handle(instruction_key))
             .kind
@@ -35,7 +36,7 @@ pub(crate) fn copy_runtime_text_host_bindings(
             .iter()
             .find(|(_, binding)| binding.operation_key == *operation_key)
         {
-            target_operations.host_bindings.insert(binding.clone());
+            target_operations.code.host_bindings.insert(binding.clone());
         }
     }
 }

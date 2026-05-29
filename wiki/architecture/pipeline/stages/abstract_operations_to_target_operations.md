@@ -24,6 +24,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `omega-target-operations/src/instruction/operation.rs` owns target operation records and source coordinates.
 - `omega-target-operations/src/instruction/operation_kind.rs` owns target operation kinds.
 - `omega-target-operations/src/instruction/abstract_conversions.rs` owns abstract-operation to target-operation conversion.
+- `omega-target-operations/src/instruction/plan.rs` owns the representation
+  root: executable target operation shape and host bindings live under
+  `TargetOperationCode`, while preserved semantic evidence lives under
+  `TargetSemanticSummary`.
 - `omega-target-operations/src/instruction/semantics.rs` owns the target semantic summary root for value facts, ownership facts, and boundary edges.
 - `omega-target-operations/src/instruction/value.rs` owns target value operands.
 - `omega-target-operations/src/instruction/operand.rs` owns target instruction operands.
