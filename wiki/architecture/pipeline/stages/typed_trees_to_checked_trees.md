@@ -125,7 +125,9 @@ Current ownership is:
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
   owns expression traversal that discovers nested state calls.
 - `checks/contracts.rs` is the contract-check entry point.
-  `checks/contracts/prover.rs` owns recursive proof orchestration,
+  `checks/contracts/calls.rs` owns call `requires` validation and domain
+  invalidation explanations, `checks/contracts/exits.rs` owns exit `ensures`
+  validation, `checks/contracts/prover.rs` owns recursive proof orchestration,
   `checks/contracts/direct.rs` owns direct boolean fact matching,
   `checks/contracts/domains.rs` owns domain-membership proof fallback,
   `checks/contracts/places.rs` owns contract-place matching, and

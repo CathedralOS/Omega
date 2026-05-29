@@ -59,6 +59,9 @@ meaning, without needing access to pointer descriptor internals.
     initializers, with focused canaries for both top-level value origins
   - range checking now keeps its root as an entrypoint, with initializer fact
     seeding and statement/transition range routing split into focused modules
+  - contract checking now keeps its root as an entrypoint, with call
+    `requires` validation and exit `ensures` validation split into focused
+    modules
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
