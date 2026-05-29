@@ -1,11 +1,9 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{
-    ExecutableImageOutput, FinalImage, FinalImageLayout, FinalImageSection,
-    apply_x86_64_relocations, final_image_symbol_name,
-};
+use omega_image::{ExecutableImageOutput, FinalImage, FinalImageLayout, apply_x86_64_relocations};
 
 mod bytes;
 mod constants;
+mod entry;
 mod headers;
 mod imports;
 mod layout;
@@ -14,6 +12,7 @@ use constants::{
     COFF_HEADER_SIZE, DOS_HEADER_SIZE, FILE_ALIGNMENT, IMAGE_BASE, OPTIONAL_HEADER_SIZE,
     SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
 };
+use entry::pe_entry_rva;
 use headers::{PeHeaderInput, write_dos_header, write_pe_headers, write_section_header};
 use imports::{build_import_table, install_import_thunks, patch_import_thunks};
 use layout::{align_to, align_to_u32};
@@ -138,26 +137,4 @@ pub fn emit_pe_x86_64_executable(
         imports: image.imports.len(),
         relocations: image.relocations.len(),
     })
-}
-
-fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
-    let entry_symbol = image
-        .symbols
-        .is_valid(image.entry_symbol)
-        .then(|| image.symbols.get(image.entry_symbol))
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "PE entry symbol `{}` is missing from the final image",
-                final_image_symbol_name(image, image.entry_symbol)
-            ))
-        })?;
-
-    if entry_symbol.section != FinalImageSection::Text {
-        return Err(Diagnostic::error(format!(
-            "PE entry symbol `{}` is not in the text section",
-            final_image_symbol_name(image, image.entry_symbol)
-        )));
-    }
-
-    Ok(TEXT_RVA + entry_symbol.offset as u32)
 }
