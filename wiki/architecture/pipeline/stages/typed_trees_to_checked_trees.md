@@ -109,7 +109,10 @@ Current ownership is:
 - `flow/place/*` owns canonical place construction, comparison, and
   type/member resolution used by proof, borrow, and invalidation checks.
   `flow/place/canonicalization.rs` owns conversion from expressions, symbols,
-  and semantic fact places into checked-flow `CanonicalPlace` values.
+  and semantic fact places into checked-flow `CanonicalPlace` values,
+  `flow/place/contextual.rs` owns state-local name/member recovery for
+  canonical places, `flow/place/comparison.rs` owns overlap/equality policy,
+  and `flow/place/resolution.rs` owns member/type symbol resolution helpers.
 - `values.rs` owns the first durable checked value fact layer entrypoint.
   `values/statement.rs` owns statement-role routing, `values/transition.rs`
   owns transition target value routing, and `values/expression.rs` owns nested
