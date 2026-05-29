@@ -64,6 +64,8 @@ meaning, without needing access to pointer descriptor internals.
     value metadata beside ownership and boundary summaries
   - assigned value summaries now preserve through symbolic machine
     instructions and the current machine-program artifact as metadata
+  - encoded machine bytes now preserve value, boundary-edge, and ownership
+    summaries from symbolic machine instructions
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, value facts, ownership facts, operations,
@@ -77,6 +79,9 @@ meaning, without needing access to pointer descriptor internals.
     and machine-program conversions
   - `omega-machine-program` now has a thin crate root and noun-shaped modules
     for artifact instruction records, function metadata, and plan storage
+  - `omega-machine-bytes` now has a thin crate root and noun-shaped modules
+    for encoded function ranges, encoded instruction byte spans, and encoded
+    plan storage
   - `omega-validation` now has a thin validation entrypoint plus semantic
     modules for tests, runtime entry-point checks, local writable roots,
     assignment places, calls, transitions, proof facts, domain membership,
@@ -98,6 +103,8 @@ meaning, without needing access to pointer descriptor internals.
     consequences deliberately instead of only preserving summaries
   - link abstract source boundary edges to lowered host-operation boundary
     edges and validate the pair against target policies
+  - give object planning and relocation planning the same semantic ownership
+    table treatment as the earlier pipeline stages
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic

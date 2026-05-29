@@ -77,6 +77,7 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target metadata |
 | Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
 | Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction metadata |
+| Machine Instructions To Machine Bytes | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
 | Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact metadata |
 
 Current deliberate gaps:
@@ -86,7 +87,8 @@ Current deliberate gaps:
   call coverage.
 - Checked values now preserve through state graph, control flow, abstract
   operations, target operations, assigned target operations, symbolic machine
-  instructions, and the current machine-program artifact, but still need
+  instructions, encoded machine bytes, and the current machine-program
+  artifact, but still need
   type-aware ownership kind, drop policy, storage consequences, and backend
   lowering beyond metadata.
 - Source-level boundary trait calls now preserve as checked, graph,
@@ -107,4 +109,5 @@ Current deliberate gaps:
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)
+- [Machine Instructions To Machine Bytes](stages/machine_instructions_to_machine_bytes.md)
 - [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
