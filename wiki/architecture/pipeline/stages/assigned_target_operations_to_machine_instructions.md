@@ -59,8 +59,9 @@ Must not own:
 - `functions.rs` owns function-local selected-instruction walking and symbolic
   instruction arena appends.
 - `omega-machine-instructions/src/semantics.rs` owns the symbolic
-  machine-instruction semantic summary root for value facts, ownership facts,
-  and boundary edges.
+  machine-instruction semantic aliases. `MachineInstructionSemanticSummary`
+  is the preserved assigned/target/abstract semantic spine, not a new
+  duplicate values/boundaries/ownership container.
 - `omega-machine-instructions/src/plan.rs` is the output representation root:
   symbolic executable instruction shape lives under `MachineInstructionCode`,
   while preserved semantic evidence lives under
