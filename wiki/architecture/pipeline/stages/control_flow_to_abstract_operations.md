@@ -25,6 +25,12 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level
   authorization.
+- `omega-abstract-operations/src/plan.rs` owns the representation root:
+  function/instruction/operand arenas plus value, ownership, and boundary
+  summaries. `instruction/function.rs` owns abstract function plans,
+  `instruction/selected.rs` owns abstract operation kinds,
+  `instruction/value_operand.rs` owns abstract value operands, and
+  `instruction/storage.rs` owns runtime storage regions.
 - The actual operation construction currently happens in
   `omega-instruction-selection`; this is a transitional boundary, not the
   desired long-term split.
