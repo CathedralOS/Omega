@@ -335,6 +335,9 @@ meaning, without needing access to pointer descriptor internals.
   - machine emission now builds encoded executable bytes through a dedicated
     `code.rs` root builder, leaving `emitter.rs` as the stage entrypoint that
     assembles target identity, code, and preserved semantics
+  - machine-emission instruction byte insertion now lives in
+    `instruction_bytes.rs`, leaving `emitter.rs` out of fixed encoding and
+    width-validation details
   - encoded machine executable bytes, function ranges, instruction byte spans,
     and byte counts now sit under an explicit `EncodedMachineCode` root on
     `EncodedMachinePlan`, keeping emitted byte shape separate from preserved

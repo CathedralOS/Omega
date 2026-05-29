@@ -7,6 +7,7 @@ mod code;
 mod emitter;
 mod encoding;
 mod host_bindings;
+mod instruction_bytes;
 mod layout;
 pub use emitter::{MachineEmissionInput, emit_machine_bytes};
 
