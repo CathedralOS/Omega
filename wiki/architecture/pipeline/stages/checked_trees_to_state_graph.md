@@ -63,6 +63,9 @@ preservation:
   branch-flow discovery. `segments/operations.rs` owns graph operation kind
   selection and expression-ref copying. `segments/parameters.rs` owns
   state-parameter payload materialization for graph segments.
+  `segments/transitions.rs` owns segment-transition payloads, branch-call
+  transition spans, unconditional-transition detection, and expression-copy
+  helpers used by graph transition planning.
 - `states.rs` assembles graph state nodes from segments, including state-local
   contract, value, boundary, borrow, ownership, effect, operation, and transition summaries.
 - `transitions.rs` assembles graph transition edges, guards, and transition

@@ -77,6 +77,8 @@ meaning, without needing access to pointer descriptor internals.
     access summaries from active-loan, activation, and weakening summaries
   - checked-tree-to-state-graph ownership preservation now splits state-local
     move/drop preservation from worker-local ownership arena remapping
+  - checked-tree-to-state-graph segment scheduling now splits segment-transition
+    payload helpers out of the statement-to-segment splitter
   - state-graph-to-control-flow now has focused unit canaries for preserving
     ownership summary spans and owned move-event call sources across the handoff
   - abstract-to-target lowering now has focused unit coverage proving ownership
