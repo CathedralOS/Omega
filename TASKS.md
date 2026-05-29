@@ -55,7 +55,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-validation` has started shedding its overloaded root by moving
     validation tests, runtime entry-point checks, local writable-place checks,
     proof-fact validation, domain membership checks, invariant checks, and data
-    shape/type validation into dedicated modules
+    shape/type validation, type-reference validation, state-signature
+    validation, and trait conformance validation into dedicated modules
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -73,9 +74,9 @@ meaning, without needing access to pointer descriptor internals.
     boundary contracts and target policies
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
-  - keep splitting `omega-validation` by semantic family: type references,
-    trait conformance, calls/transitions, machine owned-data checks, and
-    expression type checks should not remain one root file
+  - keep splitting `omega-validation` by semantic family: calls/transitions,
+    machine owned-data checks, and expression type checks should not remain one
+    root file
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 
