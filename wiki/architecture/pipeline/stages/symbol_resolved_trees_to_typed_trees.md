@@ -69,8 +69,12 @@ The implementation should make typed semantic surfaces visible by file:
 - `type_reference/constraints.rs` owns typed constraint lowering, including
   named constraints and range constraints whose bounds lower through typed
   expressions.
-- `statement.rs`, `state.rs`, and `machine.rs` own typed call/transition/state
-  signatures, not checked-flow liveness or borrow legality.
+- `statement.rs` owns statement-kind dispatch only.
+  `statement/arguments.rs` lowers statement-local expression spans and name
+  paths, `statement/calls.rs` lowers typed call statements, and
+  `statement/transitions.rs` lowers typed transition guards/targets.
+- `state.rs` and `machine.rs` own typed state/machine signatures, not
+  checked-flow liveness or borrow legality.
 
 ## Known Gaps
 

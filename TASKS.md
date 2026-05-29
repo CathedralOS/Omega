@@ -49,6 +49,9 @@ meaning, without needing access to pointer descriptor internals.
   - symbol-resolved-to-typed expression-table lowering now uses an
     `ExpressionTableLowerer` context to own recursive source-table to
     typed-table lowering, including expression-handle and struct-field spans
+  - symbol-resolved-to-typed statement lowering now splits statement-local
+    arguments/name paths, calls, and transitions out of the statement-kind
+    dispatch root
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
