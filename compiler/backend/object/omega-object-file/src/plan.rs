@@ -9,8 +9,31 @@ pub struct ObjectFileLayout {
     pub entry_symbol: ObjectSymbolHandle,
 }
 
+impl ObjectFileLayout {
+    pub fn with_capacity(section_capacity: usize, symbol_capacity: usize) -> Self {
+        Self {
+            sections: Arena::with_capacity(section_capacity),
+            symbols: Arena::with_capacity(symbol_capacity),
+            entry_symbol: ObjectSymbolHandle::invalid(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {
     pub target: NativeTarget,
     pub layout: ObjectFileLayout,
+}
+
+impl ObjectPlan {
+    pub fn with_capacity(
+        target: NativeTarget,
+        section_capacity: usize,
+        symbol_capacity: usize,
+    ) -> Self {
+        Self {
+            target,
+            layout: ObjectFileLayout::with_capacity(section_capacity, symbol_capacity),
+        }
+    }
 }

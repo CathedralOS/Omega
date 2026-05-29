@@ -66,7 +66,9 @@ Must not own:
 - `omega-machine-bytes/src/semantics.rs` keeps encoded semantic summary names
   as aliases over the preserved backend semantic spine.
 - `omega-object-file/src/plan.rs` owns the object-plan container: artifact
-  sections, symbols, and entry symbol live under `ObjectFileLayout`.
+  sections, symbols, and entry symbol live under `ObjectFileLayout`. Object
+  planning should use the representation-level constructors for `ObjectPlan`
+  and `ObjectFileLayout`, not hand-build their arena roots.
 - `omega-object-file/src/sections.rs` owns section records.
 - `omega-object-file/src/symbols.rs` owns symbol records and handles.
 - `omega-object-file/src/names.rs` owns target-specific object symbol and section names.
