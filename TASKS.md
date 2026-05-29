@@ -39,6 +39,9 @@ meaning, without needing access to pointer descriptor internals.
   - control-flow-to-abstract-operations now records lowered host operations as
     abstract boundary-edge summaries, and downstream backend representations
     preserve those summaries as metadata
+  - `omega-facts` is now split around fact model definitions, fact-plan arena
+    storage/query helpers, context views, place resolution, definition fact
+    extraction, and tests instead of hiding every fact concern in `lib.rs`
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
