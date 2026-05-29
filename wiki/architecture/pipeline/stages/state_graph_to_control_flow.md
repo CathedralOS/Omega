@@ -29,7 +29,7 @@ trees and preserved by the state graph.
 | Calls | Become explicit control-flow operations. |
 | Transitions | Lower into branches, calls, exits, continuations, and block edges. |
 | Effects | Attach to operations/blocks for later reporting and validation. |
-| Boundary edges | Attach to operations that lower to imported/compiler/runtime code. |
+| Boundary edges | Graph boundary summaries are preserved as control-flow boundary summaries. |
 
 ## Ownership Rules
 
@@ -57,7 +57,7 @@ noun preserved in a focused file:
   only top-level orchestration.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
-  contract, value, borrow, ownership, operation, transition, and effect summaries.
+  contract, value, boundary, borrow, ownership, operation, transition, and effect summaries.
 - `operations.rs` remaps graph operations into control-flow operations.
 - `transitions.rs` remaps graph transition edges and transition targets.
 - `facts.rs` preserves proof obligations and invariant facts.
@@ -68,6 +68,8 @@ noun preserved in a focused file:
   call, and exit conversion from graph form into control-flow form.
   `borrows/conversions.rs` owns individual borrow root, access, call, loan,
   activation, and weakening conversion from graph form into control-flow form.
+- `boundaries.rs` owns boundary-edge conversion from graph form into
+  control-flow form.
 - `ownership.rs` owns move/drop event conversion from graph form into
   control-flow form.
 - `values.rs` owns value-summary conversion from graph form into control-flow
@@ -80,5 +82,6 @@ noun preserved in a focused file:
   still needs to decide how moves become transfers and drops become cleanup.
 - Control-flow now preserves value summaries, but later lowering still needs
   type-aware ownership, storage, and operand consequences.
-- Boundary edges should get the same first-class checked/graph/control-flow
-  preservation shape that ownership events now have.
+- Control-flow boundary summaries preserve source-level boundary trait edges,
+  but abstract/backend host-operation summaries still need explicit linkage
+  back to them.
