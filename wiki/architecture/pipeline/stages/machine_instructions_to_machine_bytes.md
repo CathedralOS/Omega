@@ -1,6 +1,6 @@
 # Machine Instructions To Machine Bytes
 
-[Pipeline](../pipeline.md) | Previous: [Assigned Target Operations To Machine Instructions](assigned_target_operations_to_machine_instructions.md) | Next: [Target Operations To Machine Program](target_operations_to_machine_program.md)
+[Pipeline](../pipeline.md) | Previous: [Assigned Target Operations To Machine Instructions](assigned_target_operations_to_machine_instructions.md) | Next: [Machine Bytes To Object Plan](machine_bytes_to_object_plan.md)
 
 This stage encodes symbolic machine instructions into target machine bytes while preserving semantic summaries for diagnostics, reports, relocation planning, and later artifact policy.
 
