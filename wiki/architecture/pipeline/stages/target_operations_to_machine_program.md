@@ -16,6 +16,8 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 
 - `lib.rs` owns the public stage entrypoint only.
 - `builder.rs` owns composition of `omega-target-operations-to-assigned-target-operations` and `omega-assigned-target-operations-to-machine-instructions`, then wraps the result as a `MachineProgram`.
+- `omega-machine-program/src/semantics.rs` owns the aggregate machine-program
+  semantic summary root for value facts, ownership facts, and boundary edges.
 
 ## Semantic Ownership
 

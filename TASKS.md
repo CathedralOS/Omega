@@ -283,7 +283,8 @@ meaning, without needing access to pointer descriptor internals.
     modules for symbolic instruction records, function metadata, plan storage,
     semantic summaries, and machine-program conversions
   - `omega-machine-program` now has a thin crate root and noun-shaped modules
-    for artifact instruction records, function metadata, and plan storage
+    for artifact instruction records, function metadata, semantic summaries,
+    and plan storage
   - `omega-machine-bytes` now has a thin crate root and noun-shaped modules
     for encoded function ranges, encoded instruction byte spans, and encoded
     plan storage

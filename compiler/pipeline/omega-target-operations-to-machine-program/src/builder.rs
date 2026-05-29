@@ -49,8 +49,9 @@ mod tests {
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
-        assert_eq!(machine_program.values.values.len(), 1);
+        assert_eq!(machine_program.semantics.values.values.len(), 1);
         let value = machine_program
+            .semantics
             .values
             .values
             .iter()
@@ -90,8 +91,12 @@ mod tests {
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
-        assert_eq!(machine_program.boundary_edges.source_edges.len(), 1);
+        assert_eq!(
+            machine_program.semantics.boundary_edges.source_edges.len(),
+            1
+        );
         let edge = machine_program
+            .semantics
             .boundary_edges
             .source_edges
             .iter()
@@ -126,8 +131,9 @@ mod tests {
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
-        assert_eq!(machine_program.ownership.moves.len(), 1);
+        assert_eq!(machine_program.semantics.ownership.moves.len(), 1);
         let event = machine_program
+            .semantics
             .ownership
             .moves
             .iter()
