@@ -1,16 +1,16 @@
+mod canonicalization;
 mod comparison;
-mod construction;
 mod resolution;
 
 use super::*;
+pub(crate) use canonicalization::{
+    canonical_place_from_expression, canonical_place_from_expression_in_state,
+    canonical_place_from_semantic_place, canonical_place_from_symbol,
+};
 pub(crate) use comparison::{
     canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,
     canonical_place_overlaps_segments, canonical_place_segments_equal,
     canonical_place_segments_may_overlap,
-};
-pub(crate) use construction::{
-    canonical_place_from_expression, canonical_place_from_expression_in_state,
-    canonical_place_from_semantic_place, canonical_place_from_symbol,
 };
 pub(crate) use resolution::{
     effective_member_symbol, expression_type_symbol, resolve_member_symbol_from_type_symbol,
