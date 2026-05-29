@@ -1,19 +1,11 @@
 use crate::{
-    AcceptanceSummary, AcceptanceVerdict, ContractProofFactRef, ExitAcceptance, FlowConstraintRef,
-    FlowExitFact, FlowSemanticContextRef,
+    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, ContractProofFactRef, ExitAcceptance,
+    FlowConstraintRef, FlowExitFact, FlowSemanticContextRef,
     admissibility::helpers::{borrow_constraint_count, constraints, semantic_contexts},
 };
 
-impl<'facts> ExitAcceptance<'facts> {
-    pub fn verdict(&self) -> AcceptanceVerdict {
-        self.summary().verdict
-    }
-
-    pub fn is_accepted(&self) -> bool {
-        self.summary().is_accepted()
-    }
-
-    pub fn summary(&self) -> AcceptanceSummary {
+impl<'facts> AcceptanceView for ExitAcceptance<'facts> {
+    fn summary(&self) -> AcceptanceSummary {
         AcceptanceSummary::accepted(
             borrow_constraint_count(&self.facts.flow, self.exit.entry_constraints)
                 + borrow_constraint_count(&self.facts.flow, self.exit.ensures_constraints),
@@ -22,6 +14,20 @@ impl<'facts> ExitAcceptance<'facts> {
             0,
             0,
         )
+    }
+}
+
+impl<'facts> ExitAcceptance<'facts> {
+    pub fn verdict(&self) -> AcceptanceVerdict {
+        AcceptanceView::verdict(self)
+    }
+
+    pub fn is_accepted(&self) -> bool {
+        AcceptanceView::is_accepted(self)
+    }
+
+    pub fn summary(&self) -> AcceptanceSummary {
+        AcceptanceView::summary(self)
     }
 
     pub fn exit(&self) -> &'facts FlowExitFact {

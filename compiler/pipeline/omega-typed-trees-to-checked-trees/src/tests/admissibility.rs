@@ -28,6 +28,7 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         .state_acceptance(main.symbol, main_state.symbol)
         .expect("main state acceptance should be queryable");
 
+    assert_acceptance_view_is_queryable(&state_acceptance);
     assert!(state_acceptance.is_accepted());
     let state_summary = state_acceptance.summary();
     assert!(state_summary.is_accepted());
@@ -46,6 +47,7 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     let statement_acceptance = state_acceptance
         .statement(0)
         .expect("call statement acceptance should be queryable");
+    assert_acceptance_view_is_queryable(&statement_acceptance);
     assert!(statement_acceptance.is_accepted());
     assert!(statement_acceptance.summary().borrow.evidence_count > 0);
     assert!(!statement_acceptance.entry_constraints().is_empty());
@@ -60,6 +62,7 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         )
         .expect("call acceptance should be queryable");
 
+    assert_acceptance_view_is_queryable(&call_acceptance);
     assert!(call_acceptance.is_accepted());
     let call_summary = call_acceptance.summary();
     assert!(call_summary.is_accepted());
@@ -154,4 +157,12 @@ fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
+}
+
+fn assert_acceptance_view_is_queryable(view: &impl omega_checked_trees::AcceptanceView) {
+    let summary = view.summary();
+
+    assert_eq!(view.verdict(), summary.verdict);
+    assert_eq!(view.is_accepted(), summary.is_accepted());
+    assert_eq!(summary.checks().len(), 5);
 }

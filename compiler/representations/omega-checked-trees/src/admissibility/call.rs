@@ -1,7 +1,7 @@
 use omega_core::arena::HandleSpan;
 
 use crate::{
-    AcceptanceSummary, AcceptanceVerdict, BorrowArgumentAccessFact, CallAcceptance,
+    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, BorrowArgumentAccessFact, CallAcceptance,
     ContractProofFactRef, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef,
     FlowInvalidationFact, FlowSemanticContextRef,
     admissibility::helpers::{
@@ -9,16 +9,8 @@ use crate::{
     },
 };
 
-impl<'facts> CallAcceptance<'facts> {
-    pub fn verdict(&self) -> AcceptanceVerdict {
-        self.summary().verdict
-    }
-
-    pub fn is_accepted(&self) -> bool {
-        self.summary().is_accepted()
-    }
-
-    pub fn summary(&self) -> AcceptanceSummary {
+impl<'facts> AcceptanceView for CallAcceptance<'facts> {
+    fn summary(&self) -> AcceptanceSummary {
         AcceptanceSummary::accepted(
             self.call.accesses.len()
                 + borrow_constraint_count(&self.facts.flow, self.call.entry_constraints)
@@ -29,6 +21,20 @@ impl<'facts> CallAcceptance<'facts> {
             self.call.boundary_edges.len(),
             0,
         )
+    }
+}
+
+impl<'facts> CallAcceptance<'facts> {
+    pub fn verdict(&self) -> AcceptanceVerdict {
+        AcceptanceView::verdict(self)
+    }
+
+    pub fn is_accepted(&self) -> bool {
+        AcceptanceView::is_accepted(self)
+    }
+
+    pub fn summary(&self) -> AcceptanceSummary {
+        AcceptanceView::summary(self)
     }
 
     pub fn call(&self) -> &'facts FlowCallFact {
