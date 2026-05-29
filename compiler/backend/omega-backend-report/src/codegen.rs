@@ -1,3 +1,5 @@
+mod native_data;
+
 use super::backend_state_name;
 use super::host::host_call_display_name;
 
@@ -10,21 +12,11 @@ use omega_object_file::storage_region_symbol_name;
 use omega_state_dispatch::state_dispatch_label;
 use omega_target_operations::{
     InstructionOperand, InstructionOperandKind, RuntimeValueOperandHandle, SelectedInstructionKind,
-    TargetDataObject, TargetOperation, TargetOperationFunction, TargetOperationKind,
+    TargetOperation, TargetOperationFunction, TargetOperationKind,
 };
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
-    output.push_str("## Native Data\n");
-    output.push_str(&format!("objects: {}\n", backend_plan.data.objects.len()));
-    output.push_str(&format!("bytes: {}\n", backend_plan.data.bytes.len()));
-    if backend_plan.data.objects.is_empty() {
-        output.push_str("none\n");
-    } else {
-        for (_, data_object) in backend_plan.data.objects.iter() {
-            write_target_data_object(output, backend_plan, data_object);
-        }
-    }
-    output.push('\n');
+    native_data::write_native_data_section(output, backend_plan);
 
     output.push_str("## Abstract Operations\n");
     output.push_str(&format!(
@@ -105,29 +97,6 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
         write_machine_function_code(output, backend_plan, function);
     }
     output.push('\n');
-}
-
-fn write_target_data_object(
-    output: &mut String,
-    backend_plan: &BackendReportInput<'_>,
-    data_object: &TargetDataObject,
-) {
-    let byte_count = backend_plan
-        .data
-        .bytes
-        .span(data_object.bytes)
-        .map_or(0, |bytes| bytes.len());
-    let source_name = backend_state_name(backend_plan, data_object.source_key);
-
-    output.push_str(&format!(
-        "- {} @{} bytes {} align {} from {} statement {}\n",
-        data_object.symbol,
-        data_object.offset,
-        byte_count,
-        data_object.alignment,
-        source_name,
-        data_object.source_statement
-    ));
 }
 
 fn write_assigned_value_homes(output: &mut String, backend_plan: &BackendReportInput<'_>) {

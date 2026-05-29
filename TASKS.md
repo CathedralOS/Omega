@@ -533,6 +533,8 @@ meaning, without needing access to pointer descriptor internals.
     preserved values, move/drop summaries, and boundary policy-check verdicts
   - `omega-backend-report` now splits checked proof/invariant reporting out of
     the root writer into a focused proof report module
+  - `omega-backend-report` now splits native data codegen reporting out of the
+    large codegen report module
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
