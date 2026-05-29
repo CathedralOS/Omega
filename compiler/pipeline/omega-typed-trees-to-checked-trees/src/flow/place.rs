@@ -1,5 +1,6 @@
 mod canonicalization;
 mod comparison;
+mod contextual;
 mod resolution;
 
 use super::*;
