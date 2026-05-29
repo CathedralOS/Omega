@@ -49,7 +49,12 @@ Must not own:
 
 ## Implementation Map
 
-- `omega-machine-emission/src/emitter.rs` owns the public stage entrypoint and copies semantic summaries into the encoded plan.
+- `omega-machine-emission/src/emitter.rs` owns the public stage entrypoint and
+  assembles target identity, encoded code, and preserved semantic summaries
+  into the encoded plan.
+- `omega-machine-emission/src/code.rs` owns `EncodedMachineCode` construction,
+  including encoded function ranges, instruction byte spans, final byte count,
+  and delegation to function/instruction byte insertion helpers.
 - `omega-machine-instructions/src/plan.rs` is the input representation root:
   symbolic executable instruction shape lives under `MachineInstructionCode`,
   while preserved semantic evidence lives under

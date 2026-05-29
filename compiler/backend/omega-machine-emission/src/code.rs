@@ -1,0 +1,39 @@
+use crate::MachineEmissionContext;
+use crate::emitter::{MachineEmissionInput, emit_function_bytes};
+use omega_core::diagnostics::Diagnostic;
+use omega_machine_bytes::{EncodedMachineCode, EncodedMachineFunction, EncodedMachinePlan};
+
+pub(crate) fn build_encoded_machine_code(
+    input: &MachineEmissionInput<'_, '_>,
+) -> Result<EncodedMachineCode, Diagnostic> {
+    let EncodedMachinePlan { mut code, .. } = EncodedMachinePlan::with_capacity(
+        input.target,
+        input.machine_instructions.code.functions.len(),
+        input.machine_instructions.code.instructions.len(),
+        0,
+    );
+
+    for (_, function) in input.machine_instructions.code.functions.iter() {
+        let byte_offset = code.bytes.len();
+        emit_function_bytes(
+            MachineEmissionContext {
+                target: input.target,
+                assigned_target_operations: input.assigned_target_operations,
+                host_abi: input.host_abi,
+                terminal_dispatch_index: input.terminal_dispatch_index,
+            },
+            input.machine_instructions,
+            &mut code,
+            function.instructions,
+        )?;
+        let byte_count = code.bytes.len() - byte_offset;
+        code.functions.insert(EncodedMachineFunction {
+            source_key: function.source_key,
+            byte_offset,
+            byte_count,
+        });
+    }
+
+    code.byte_count = code.bytes.len();
+    Ok(code)
+}

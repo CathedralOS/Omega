@@ -3,6 +3,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_target::NativeTarget;
 
 mod branch_distances;
+mod code;
 mod emitter;
 mod encoding;
 mod host_bindings;
