@@ -168,9 +168,13 @@ Current ownership is:
   `checks/contracts/labels/calls.rs` owns call-site contract expression label
   substitution, `checks/contracts/labels/domain.rs` owns domain proof label
   substitution, `checks/contracts/places.rs` owns contract-place matching, and
-  `checks/contracts/evaluator.rs` owns call-site expression value evaluation,
-  while `checks/contracts/evaluator/resolution.rs` owns call-site parameter,
-  local, indexed-literal, and struct-field expression resolution.
+  `checks/contracts/evaluator.rs` owns the call-site expression evaluator
+  context and entry surface, `checks/contracts/evaluator/booleans.rs` owns
+  boolean expression folding, `checks/contracts/evaluator/integers.rs` owns
+  integer expression folding, `checks/contracts/evaluator/collections.rs` owns
+  collection-length folding, and `checks/contracts/evaluator/resolution.rs`
+  owns call-site parameter, local, indexed-literal, and struct-field expression
+  resolution.
 - `checks/termination.rs` is the termination-check entry point.
   `checks/termination/order.rs` owns ranking-order recognition,
   `checks/termination/graph.rs` owns direct recursive graph shape checks,
