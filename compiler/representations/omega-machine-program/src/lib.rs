@@ -2,11 +2,14 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
 
+pub type MachineValueSummary = omega_target_operations::TargetValueSummary;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineProgram {
     pub target: NativeTarget,
     pub functions: Arena<MachineFunction>,
     pub instructions: Arena<MachineInstruction>,
+    pub values: MachineValueSummary,
     pub boundary_edges: omega_target_operations::TargetBoundarySummary,
     pub ownership: omega_target_operations::TargetOwnershipSummary,
 }
@@ -27,6 +30,7 @@ impl MachineProgram {
             target,
             functions: Arena::with_capacity(function_capacity),
             instructions: Arena::with_capacity(instruction_capacity),
+            values: MachineValueSummary::default(),
             boundary_edges: omega_target_operations::TargetBoundarySummary::default(),
             ownership: omega_target_operations::TargetOwnershipSummary::default(),
         }

@@ -6,11 +6,14 @@ use std::convert::Infallible;
 
 pub use omega_machine_program::MachineInstructionKind;
 
+pub type MachineInstructionValueSummary = omega_assigned_target_operations::AssignedValueSummary;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineInstructionPlan {
     pub target: NativeTarget,
     pub functions: Arena<MachineInstructionFunction>,
     pub instructions: Arena<MachineInstruction>,
+    pub values: MachineInstructionValueSummary,
     pub boundary_edges: omega_target_operations::TargetBoundarySummary,
     pub ownership: omega_target_operations::TargetOwnershipSummary,
 }
@@ -31,6 +34,7 @@ impl MachineInstructionPlan {
             target,
             functions: Arena::with_capacity(function_capacity),
             instructions: Arena::with_capacity(instruction_capacity),
+            values: MachineInstructionValueSummary::default(),
             boundary_edges: omega_target_operations::TargetBoundarySummary::default(),
             ownership: omega_target_operations::TargetOwnershipSummary::default(),
         }
@@ -96,6 +100,7 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                 instructions: inserted,
             });
         }
+        plan.values = program.values;
         plan.boundary_edges = program.boundary_edges;
         plan.ownership = program.ownership;
         plan
@@ -131,6 +136,7 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
                     instructions: inserted,
                 });
         }
+        program.values = plan.values;
         program.boundary_edges = plan.boundary_edges;
         program.ownership = plan.ownership;
         program
