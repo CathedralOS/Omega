@@ -53,8 +53,10 @@ The implementation should stay split by identity task:
 - `program.rs` owns stage entry and the top-level lowering conveyor. Integration
   coverage belongs in `program/tests.rs`, not inline with the entrypoint.
 - `symbols/symbol_table.rs` creates the root symbol tree and reserves top-level
-  child order. `symbols/symbol_table/children.rs` owns declaration child layout,
-  including inherited attached-data fields and state locals.
+  child order. `symbols/symbol_table/children.rs` is only the declaration-child
+  export surface; `symbols/symbol_table/children/{builtin,data,machines,operators,platforms,traits}.rs`
+  own child layout for each declaration family. Machine child layout includes
+  inherited attached-data fields and state locals.
   `symbols/symbol_table/names.rs` owns symbol-name seeding and operator display
   names.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.

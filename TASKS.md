@@ -32,6 +32,9 @@ meaning, without needing access to pointer descriptor internals.
     from receiver/member/indexed path lookup behind an export surface
   - syntax-to-symbol scoped path resolution now splits base-segment lookup
     policy out of path walking
+  - syntax-to-symbol symbol-table child layout now splits declaration-family
+    child insertion for builtins, data, machines, operators, platforms, and
+    traits behind a narrow child export surface
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
