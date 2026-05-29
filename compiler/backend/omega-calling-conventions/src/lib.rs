@@ -115,6 +115,7 @@ pub struct HostAbiPlan {
     pub bindings: Arena<HostBinding>,
     pub host_operations: Arena<HostOperationReference>,
     pub platform_call_lowerings: Arena<PlatformCallLowering>,
+    pub boundary_policies: Arena<HostBoundaryPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,6 +123,12 @@ pub struct HostBinding {
     pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
     pub boundary_policy: Arc<str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct HostBoundaryPolicy {
+    pub path: Arc<str>,
+    pub checked: bool,
 }
 
 impl Default for HostBinding {
@@ -203,6 +210,7 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
         bindings: Arena::new(),
         host_operations: Arena::new(),
         platform_call_lowerings: Arena::new(),
+        boundary_policies: Arena::new(),
     };
 
     match target.object_format {
@@ -212,6 +220,14 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
     }
 
     plan
+}
+
+impl HostAbiPlan {
+    pub fn allows_boundary_policy(&self, policy: &str) -> bool {
+        self.boundary_policies
+            .iter()
+            .any(|(_, allowed)| allowed.checked && allowed.path.as_ref() == policy)
+    }
 }
 
 fn insert_platform_lowering<const COUNT: usize>(

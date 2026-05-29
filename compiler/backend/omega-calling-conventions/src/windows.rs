@@ -1,9 +1,14 @@
 use crate::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, PlatformCallData, host_operation,
-    insert_platform_lowering,
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostBoundaryPolicy, PlatformCallData,
+    host_operation, insert_platform_lowering,
 };
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    plan.boundary_policies.insert(HostBoundaryPolicy {
+        path: "omega::host::targets::windows".into(),
+        checked: true,
+    });
+
     plan.bindings.insert_many([
         windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
         windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),

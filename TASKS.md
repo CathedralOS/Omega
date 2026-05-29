@@ -301,6 +301,8 @@ meaning, without needing access to pointer descriptor internals.
     lowerings
   - abstract-to-target lowering now records first-pass boundary policy checks
     for linked, unlinked, and host-binding-missing boundary operations
+  - host ABI plans now carry checked boundary-policy allow-lists and target
+    boundary validation can flag disallowed binding policies
   - `omega-facts` is now split around fact model definitions, fact-plan arena
     storage/query helpers, context views, place resolution, definition fact
     extraction, and tests instead of hiding every fact concern in `lib.rs`

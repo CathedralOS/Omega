@@ -1,9 +1,14 @@
 use crate::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, PlatformCallData, host_operation,
-    insert_platform_lowering,
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostBoundaryPolicy, PlatformCallData,
+    host_operation, insert_platform_lowering,
 };
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    plan.boundary_policies.insert(HostBoundaryPolicy {
+        path: "omega::host::targets::darwin".into(),
+        checked: true,
+    });
+
     plan.bindings.insert_many([
         darwin_import("Stdin", "read", "_read"),
         darwin_import("Stdout", "write", "_write"),
