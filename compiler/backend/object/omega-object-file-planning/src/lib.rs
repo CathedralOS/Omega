@@ -1,4 +1,5 @@
 mod builder;
+mod entry;
 mod input;
 mod sections;
 mod symbols;

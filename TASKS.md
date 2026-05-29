@@ -86,6 +86,8 @@ meaning, without needing access to pointer descriptor internals.
   - target-to-machine-program now has focused unit coverage proving value,
     boundary-edge, and ownership summaries survive the aggregate bridge into
     the current machine-program artifact
+  - object-file planning now splits entry machine layout and encoded entry
+    function lookup out of object-plan orchestration
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
