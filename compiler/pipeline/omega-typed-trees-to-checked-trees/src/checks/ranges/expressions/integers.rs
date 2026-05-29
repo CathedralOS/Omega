@@ -1,0 +1,88 @@
+use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
+};
+
+use super::super::facts::RangeFacts;
+
+pub(in crate::checks::ranges) fn provable_range_bounds(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    range: &TableRangeExpression,
+) -> Option<(i64, Option<i64>)> {
+    let start = if range.start.is_valid() {
+        expression_integer_value(program, facts, range.start)?
+    } else {
+        0
+    };
+    let end = if range.end.is_valid() {
+        Some(expression_integer_value(program, facts, range.end)?)
+    } else {
+        None
+    };
+    Some((start, end))
+}
+
+pub(in crate::checks::ranges) fn expression_integer_value(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    if !expression.is_valid() {
+        return None;
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let left = expression_integer_value(program, facts, binary.left)?;
+            let right = expression_integer_value(program, facts, binary.right)?;
+            folded_integer_binary(left, binary.operator, right)
+        }
+        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Name(_) => {
+            let (symbol, name) = expression_name(program, expression)?;
+            facts.local_integer(symbol, name)
+        }
+        ExpressionNode::Member(member) => {
+            facts.field_integer(member.member_symbol, Some(member.member.as_str()))
+        }
+        _ => None,
+    }
+}
+
+pub(in crate::checks::ranges) fn expression_name(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, Option<&str>)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    Some((
+        path.symbol,
+        program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .map(|name| name.as_str()),
+    ))
+}
+
+fn folded_integer_binary(left: i64, operator: BinaryOperator, right: i64) -> Option<i64> {
+    match operator {
+        BinaryOperator::Add => left.checked_add(right),
+        BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),
+        BinaryOperator::Modulo => (right != 0).then(|| left.checked_rem(right)).flatten(),
+        BinaryOperator::Multiply => left.checked_mul(right),
+        BinaryOperator::Subtract => left.checked_sub(right),
+        BinaryOperator::And
+        | BinaryOperator::Equal
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => None,
+    }
+}
