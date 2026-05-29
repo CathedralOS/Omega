@@ -52,6 +52,8 @@ meaning, without needing access to pointer descriptor internals.
     noun-shaped modules for assigned operands, value homes, operation kinds,
     operation conversions, operation records, function metadata, plan storage,
     and runtime-value source behavior
+  - `omega-validation` has started shedding its overloaded root by moving
+    validation tests and runtime entry-point checks into dedicated modules
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -69,6 +71,9 @@ meaning, without needing access to pointer descriptor internals.
     boundary contracts and target policies
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
+  - keep splitting `omega-validation` by semantic family: domains/proof facts,
+    type references, trait conformance, calls/transitions, and local writable
+    place checks should not remain one root file
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 
