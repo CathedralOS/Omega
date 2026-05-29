@@ -1,4 +1,4 @@
-use crate::instruction::plan::TargetOperationPlan;
+use crate::{TargetOperationPlan, TargetSemanticSummary};
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
@@ -19,7 +19,7 @@ impl TargetOperationPlan {
                 runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
                 host_bindings: Arena::new(),
             },
-            semantics: Default::default(),
+            semantics: TargetSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
         }
     }
 }
