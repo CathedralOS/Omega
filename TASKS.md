@@ -592,6 +592,9 @@ meaning, without needing access to pointer descriptor internals.
     target-aware lowering
   - `omega-assigned-target-operations` now keeps the same operation-domain and
     host-boundary predicates after register/stack assignment
+  - operation-domain taxonomy now lives in `omega-core` and each operation
+    representation exports a stage-specific alias instead of copying category
+    enums
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures

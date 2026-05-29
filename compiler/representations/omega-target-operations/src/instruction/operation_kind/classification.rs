@@ -1,17 +1,7 @@
 use super::TargetOperationKind;
 use crate::RuntimeTextReadSource;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetOperationDomain {
-    FunctionBoundary,
-    DispatchControl,
-    GuardEvaluation,
-    RuntimeTextAssembly,
-    RuntimeRead,
-    RuntimeWrite,
-    RuntimeCopy,
-    HostBoundary,
-}
+pub type TargetOperationDomain = omega_core::operations::OperationDomain;
 
 impl TargetOperationKind {
     pub fn semantic_domain(&self) -> TargetOperationDomain {

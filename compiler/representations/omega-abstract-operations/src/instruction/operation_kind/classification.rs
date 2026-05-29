@@ -1,16 +1,6 @@
 use super::AbstractOperationKind;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AbstractOperationDomain {
-    FunctionBoundary,
-    DispatchControl,
-    GuardEvaluation,
-    RuntimeTextAssembly,
-    RuntimeRead,
-    RuntimeWrite,
-    RuntimeCopy,
-    HostBoundary,
-}
+pub type AbstractOperationDomain = omega_core::operations::OperationDomain;
 
 impl AbstractOperationKind {
     pub fn semantic_domain(&self) -> AbstractOperationDomain {
