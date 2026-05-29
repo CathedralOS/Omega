@@ -180,6 +180,9 @@ meaning, without needing access to pointer descriptor internals.
   - host-operation relocation routing now owns both data-address operand
     relocation scanning and external import call relocation insertion, leaving
     the instruction-record router as family dispatch
+  - runtime-storage write relocation planning now routes operand-start and
+    runtime-frame address offsets through the relocation offset family, with a
+    canary for architecture-specific write offsets
   - `omega-image` now has a thin crate root plus modules for final-image model
     records, object/relocation conversion, symbol/address queries, emitted
     output records, and architecture relocation patching
