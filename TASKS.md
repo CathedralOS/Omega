@@ -73,6 +73,8 @@ meaning, without needing access to pointer descriptor internals.
     indexable length inference
   - range fact storage now splits the `RangeFacts` root from local/field
     length and integer fact lookup/mutation
+  - range proof facts now split alias propagation out of proof storage and
+    query helpers
   - range statement checking now splits local alias proof seeding out of
     statement and transition-target routing
   - range statement checking now splits transition-target range routing out of
