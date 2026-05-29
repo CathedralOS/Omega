@@ -8,6 +8,7 @@ mod runtime_storage_strings;
 mod runtime_storage_writes;
 mod runtime_text;
 mod runtime_text_append;
+mod runtime_text_materialize;
 mod runtime_text_read;
 mod runtime_values;
 
