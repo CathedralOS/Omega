@@ -84,8 +84,9 @@ Current deliberate gaps:
 - Moves and drops now have durable checked/control-flow event plumbing, but
   event production still needs type-aware precision plus transition and nested
   call coverage.
-- Values are still weaker than places in checked trees. We need a durable value
-  identity/story that survives proof, borrow, allocation, and lowering work.
+- Checked trees now have an initial checked value fact layer, but values still
+  need type-aware ownership kind, drop policy, storage consequences, and
+  lowering preservation.
 - Backend boundary-edge summaries now preserve lowered host-operation trust
   edges as metadata. The checked representation should still connect those
   edges back to source-level boundary contracts and target policies.

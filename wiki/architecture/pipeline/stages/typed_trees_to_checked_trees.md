@@ -21,7 +21,7 @@ effect, and boundary validation.
 | Noun | Ownership |
 | --- | --- |
 | Places | First strongly useful place layer via `omega_facts::Place` and checked-flow `CanonicalPlace`. |
-| Values | Partially owned; expressions and symbols still stand in for durable value instances. |
+| Values | First checked value fact layer via `CheckedValueFacts`, keyed by typed expression handles and value origins. |
 | Facts | First-class fact contexts, origins, payloads, proof obligations, and contract facts. |
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
 | Moves | First-class checked-flow event arenas/spans exist, with initial path-like assignment/local-initializer and by-value call-argument producers. |
@@ -38,6 +38,8 @@ Must own:
 - Proof obligations and whether current facts discharge them.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
 - Effect summaries and boundary contract facts that later stages must preserve.
+- Checked value origins for decreases clauses, initializers, statement values,
+  call arguments, transition guards/targets, and nested expression children.
 - A durable checked-flow representation of calls and transitions.
 
 Must not own:
@@ -94,6 +96,9 @@ Current ownership is:
   policy.
 - `flow/place/*` owns canonical place construction, comparison, and type/member
   resolution used by proof, borrow, and invalidation checks.
+- `values.rs` owns the first durable checked value fact layer. It records
+  source expression handles and why each value matters, but it does not yet
+  decide ownership kind, drop policy, or storage shape.
 - `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`
   owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
   indexed/subslice validation, `checks/ranges/facts.rs` owns local/field range
@@ -118,8 +123,8 @@ Current ownership is:
 
 ## Known Gaps
 
-- Add durable value identity so proof, borrow, allocation, and lowering can talk
-  about values as clearly as places.
+- Refine checked value facts with type-aware ownership kind, drop policy, and
+  storage/lowering consequences.
 - Make move/drop event production type-aware, so Copy/no-drop values and true
   ownership-consuming values are distinguished instead of using the current
   conservative path-like evidence.

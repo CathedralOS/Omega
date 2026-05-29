@@ -44,7 +44,10 @@ meaning, without needing access to pointer descriptor internals.
     extraction, and tests instead of hiding every fact concern in `lib.rs`
   - `omega-checked-trees` now has noun-shaped representation modules for
     borrow facts, proof facts, invariant/domain facts, checked flow facts,
-    statement wrappers, and the root checked-tree container
+    checked value facts, statement wrappers, and the root checked-tree container
+  - typed-to-checked now builds initial checked value facts for decreases
+    clauses, initializers, statement values, call arguments, transition
+    guards/targets, and nested expression children
   - `omega-state-graph` and `omega-control-flow` now mirror that representation
     shape with modules for topology, graph/plan containers, contracts, proof
     facts, invariants, borrow facts, ownership facts, operations, and transitions
@@ -67,8 +70,9 @@ meaning, without needing access to pointer descriptor internals.
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
     cleanup operations
-  - define durable value identity in checked trees so proof, borrow,
-    allocation, and lowering can talk about values as clearly as places
+  - refine checked value facts with type-aware ownership kind, drop policy,
+    storage consequences, and lowering preservation so proof, borrow,
+    allocation, and backend stages can talk about values as clearly as places
   - make boundary edges as queryable in checked/control-flow representations as
     calls, effects, and contracts
   - connect backend boundary-edge summaries back to checked source-level
