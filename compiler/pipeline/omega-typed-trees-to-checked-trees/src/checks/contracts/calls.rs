@@ -130,7 +130,8 @@ fn explain_domain_requirement_failure(
         let fact_place = facts.semantic.places.get(fact_place);
         let dependency_segments = facts
             .flow
-            .invalidation_segments
+            .invalidations
+            .segments
             .span_or_empty(invalidation.dependency_segments);
         let invalidated =
             joined_place_label(program, &facts.semantic, fact_place, dependency_segments);
@@ -139,7 +140,8 @@ fn explain_domain_requirement_failure(
             invalidation.mutated_root,
             facts
                 .flow
-                .invalidation_segments
+                .invalidations
+                .segments
                 .span_or_empty(invalidation.mutated_segments),
         );
         detail = Some(format!(

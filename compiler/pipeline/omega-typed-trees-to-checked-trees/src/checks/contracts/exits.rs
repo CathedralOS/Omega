@@ -13,6 +13,7 @@ pub(super) fn check_exit_ensures(
 ) {
     let entry_contexts: Vec<_> = facts
         .flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(exit_flow.entry_semantic_contexts)
         .iter()

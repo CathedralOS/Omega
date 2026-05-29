@@ -13,6 +13,7 @@ pub(crate) fn state_ownership_summary(
     let Some(flow_state) = program
         .facts
         .flow
+        .control
         .states
         .iter()
         .find(|(_, state)| state.machine_symbol == key.machine && state.state_symbol == key.state)
@@ -22,7 +23,13 @@ pub(crate) fn state_ownership_summary(
     };
 
     let mut moves = HandleSpan::empty();
-    for event in program.facts.flow.moves.span_or_empty(flow_state.moves) {
+    for event in program
+        .facts
+        .flow
+        .ownership
+        .moves
+        .span_or_empty(flow_state.moves)
+    {
         state_graph.semantics.move_events.append_to_span(
             &mut moves,
             StateMoveEvent {
@@ -32,7 +39,8 @@ pub(crate) fn state_ownership_summary(
                     program
                         .facts
                         .flow
-                        .ownership_segments
+                        .ownership
+                        .segments
                         .span_or_empty(event.segments)
                         .iter()
                         .copied(),
@@ -42,7 +50,13 @@ pub(crate) fn state_ownership_summary(
     }
 
     let mut drops = HandleSpan::empty();
-    for event in program.facts.flow.drops.span_or_empty(flow_state.drops) {
+    for event in program
+        .facts
+        .flow
+        .ownership
+        .drops
+        .span_or_empty(flow_state.drops)
+    {
         state_graph.semantics.drop_events.append_to_span(
             &mut drops,
             StateDropEvent {
@@ -52,7 +66,8 @@ pub(crate) fn state_ownership_summary(
                     program
                         .facts
                         .flow
-                        .ownership_segments
+                        .ownership
+                        .segments
                         .span_or_empty(event.segments)
                         .iter()
                         .copied(),

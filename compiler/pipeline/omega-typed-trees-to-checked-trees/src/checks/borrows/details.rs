@@ -7,8 +7,7 @@ pub(super) fn active_loan_detail(
     statement_index: usize,
 ) -> Option<String> {
     facts
-        .flow
-        .borrow_weakenings
+        .flow.borrow_lifetimes.weakenings
         .span_or_empty(state_flow.borrow_weakenings)
         .iter()
         .find(|weakening| weakening.loan == loan)

@@ -51,17 +51,17 @@ impl StateGraphCapacity {
             contract_calls: program.facts.proof.contract_calls.len(),
             contract_exits: program.facts.proof.contract_exits.len(),
             values: program.facts.values.values.len(),
-            boundary_edges: program.facts.flow.boundary_edges.len(),
+            boundary_edges: program.facts.flow.boundaries.edges.len(),
             borrow_writable_roots: program.facts.borrow.writable_roots.len(),
             borrow_access_segments: program.facts.borrow.access_segments.len(),
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
             borrow_calls: program.facts.borrow.calls.len(),
             borrow_loans: program.facts.borrow.loans.len(),
-            borrow_activations: program.facts.flow.borrow_activations.len(),
-            borrow_weakenings: program.facts.flow.borrow_weakenings.len(),
-            ownership_segments: program.facts.flow.ownership_segments.len(),
-            move_events: program.facts.flow.moves.len(),
-            drop_events: program.facts.flow.drops.len(),
+            borrow_activations: program.facts.flow.borrow_lifetimes.activations.len(),
+            borrow_weakenings: program.facts.flow.borrow_lifetimes.weakenings.len(),
+            ownership_segments: program.facts.flow.ownership.segments.len(),
+            move_events: program.facts.flow.ownership.moves.len(),
+            drop_events: program.facts.flow.ownership.drops.len(),
             operations: program.statement_table.statement_count(),
             transitions: program.statement_table.transition_target_count(),
         };
@@ -106,11 +106,11 @@ impl StateGraphCapacity {
             borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
             borrow_calls: program.facts.borrow.calls.len(),
             borrow_loans: program.facts.borrow.loans.len(),
-            borrow_activations: program.facts.flow.borrow_activations.len(),
-            borrow_weakenings: program.facts.flow.borrow_weakenings.len(),
-            ownership_segments: program.facts.flow.ownership_segments.len(),
-            move_events: program.facts.flow.moves.len(),
-            drop_events: program.facts.flow.drops.len(),
+            borrow_activations: program.facts.flow.borrow_lifetimes.activations.len(),
+            borrow_weakenings: program.facts.flow.borrow_lifetimes.weakenings.len(),
+            ownership_segments: program.facts.flow.ownership.segments.len(),
+            move_events: program.facts.flow.ownership.moves.len(),
+            drop_events: program.facts.flow.ownership.drops.len(),
             operations: statement_capacity,
             transitions: statement_capacity,
         }
@@ -151,6 +151,7 @@ fn machine_boundary_edge_count(program: &CheckedTrees, machine: &Machine) -> usi
     program
         .facts
         .flow
+        .control
         .states
         .iter()
         .filter(|(_, state)| state.machine_symbol == machine.symbol)

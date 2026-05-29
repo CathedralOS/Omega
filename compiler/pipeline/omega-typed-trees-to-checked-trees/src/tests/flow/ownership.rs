@@ -21,7 +21,7 @@ fn materializes_basic_move_and_drop_events() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 2);
     assert_eq!(
         moves[0].source,
@@ -33,17 +33,19 @@ fn materializes_basic_move_and_drop_events() {
     );
     assert!(
         !flow
-            .ownership_segments
+            .ownership
+            .segments
             .span_or_empty(moves[0].segments)
             .is_empty()
     );
     assert!(
-        flow.ownership_segments
+        flow.ownership
+            .segments
             .span_or_empty(moves[1].segments)
             .is_empty()
     );
 
-    let drops = flow.drops.span_or_empty(state_flow.drops);
+    let drops = flow.ownership.drops.span_or_empty(state_flow.drops);
     assert_eq!(drops.len(), 1);
     assert_eq!(
         drops[0].source,
@@ -51,7 +53,8 @@ fn materializes_basic_move_and_drop_events() {
     );
     assert_eq!(drops[0].root, moves[1].root);
     assert!(
-        flow.ownership_segments
+        flow.ownership
+            .segments
             .span_or_empty(drops[0].segments)
             .is_empty()
     );
@@ -82,7 +85,7 @@ fn materializes_by_value_call_argument_moves() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 1);
     let omega_checked_trees::FlowOwnershipEventSource::Call {
         statement_index,
@@ -108,7 +111,8 @@ fn materializes_by_value_call_argument_moves() {
     assert_eq!(target_symbol, consume_state.symbol);
     assert!(
         !flow
-            .ownership_segments
+            .ownership
+            .segments
             .span_or_empty(moves[0].segments)
             .is_empty()
     );
@@ -139,7 +143,7 @@ fn materializes_transition_argument_moves() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 2);
     assert_eq!(
         moves[0].source,
@@ -194,7 +198,7 @@ fn materializes_nested_call_argument_moves() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 1);
     let omega_checked_trees::FlowOwnershipEventSource::Call {
         statement_index,
@@ -220,7 +224,8 @@ fn materializes_nested_call_argument_moves() {
     assert_eq!(target_symbol, identity_state.symbol);
     assert!(
         !flow
-            .ownership_segments
+            .ownership
+            .segments
             .span_or_empty(moves[0].segments)
             .is_empty()
     );
@@ -246,18 +251,19 @@ fn materializes_array_literal_element_moves() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 2);
     assert!(moves.iter().all(|event| event.source
         == omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }));
     assert!(moves.iter().all(|event| {
         !flow
-            .ownership_segments
+            .ownership
+            .segments
             .span_or_empty(event.segments)
             .is_empty()
     }));
 
-    let drops = flow.drops.span_or_empty(state_flow.drops);
+    let drops = flow.ownership.drops.span_or_empty(state_flow.drops);
     assert_eq!(drops.len(), 1);
 }
 
@@ -286,18 +292,19 @@ fn materializes_struct_literal_field_moves() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 2);
     assert!(moves.iter().all(|event| event.source
         == omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }));
     assert!(moves.iter().all(|event| {
         !flow
-            .ownership_segments
+            .ownership
+            .segments
             .span_or_empty(event.segments)
             .is_empty()
     }));
 
-    let drops = flow.drops.span_or_empty(state_flow.drops);
+    let drops = flow.ownership.drops.span_or_empty(state_flow.drops);
     assert_eq!(drops.len(), 1);
 }
 
@@ -317,18 +324,19 @@ fn materializes_binary_operand_moves_for_owned_strings() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    let moves = flow.moves.span_or_empty(state_flow.moves);
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
     assert_eq!(moves.len(), 2);
     assert!(moves.iter().all(|event| event.source
         == omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }));
     assert!(moves.iter().all(|event| {
         !flow
-            .ownership_segments
+            .ownership
+            .segments
             .span_or_empty(event.segments)
             .is_empty()
     }));
 
-    let drops = flow.drops.span_or_empty(state_flow.drops);
+    let drops = flow.ownership.drops.span_or_empty(state_flow.drops);
     assert_eq!(drops.len(), 1);
 }
 
@@ -347,8 +355,18 @@ fn does_not_materialize_move_or_drop_events_for_copy_scalar_locals() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
-    assert!(flow.drops.span_or_empty(state_flow.drops).is_empty());
+    assert!(
+        flow.ownership
+            .moves
+            .span_or_empty(state_flow.moves)
+            .is_empty()
+    );
+    assert!(
+        flow.ownership
+            .drops
+            .span_or_empty(state_flow.drops)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -368,8 +386,18 @@ fn does_not_materialize_assignment_moves_for_copy_scalar_locals() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
-    assert!(flow.drops.span_or_empty(state_flow.drops).is_empty());
+    assert!(
+        flow.ownership
+            .moves
+            .span_or_empty(state_flow.moves)
+            .is_empty()
+    );
+    assert!(
+        flow.ownership
+            .drops
+            .span_or_empty(state_flow.drops)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -389,8 +417,18 @@ fn does_not_materialize_indexed_assignment_moves_for_copy_scalar_elements() {
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
-    assert!(flow.drops.span_or_empty(state_flow.drops).is_empty());
+    assert!(
+        flow.ownership
+            .moves
+            .span_or_empty(state_flow.moves)
+            .is_empty()
+    );
+    assert!(
+        flow.ownership
+            .drops
+            .span_or_empty(state_flow.drops)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -410,7 +448,12 @@ fn does_not_materialize_by_value_call_argument_moves_for_copy_scalar_parameters(
     let (typed, flow) = checked_flow(source);
     let state_flow = main_state_flow(&typed, &flow);
 
-    assert!(flow.moves.span_or_empty(state_flow.moves).is_empty());
+    assert!(
+        flow.ownership
+            .moves
+            .span_or_empty(state_flow.moves)
+            .is_empty()
+    );
 }
 
 fn checked_flow(
@@ -449,7 +492,8 @@ fn main_state_flow<'flow>(
         .find(|state| state.name.as_str() == "main")
         .expect("main state");
 
-    flow.states
+    flow.control
+        .states
         .iter()
         .find_map(|(_, state)| {
             (state.machine_symbol == main_machine.symbol && state.state_symbol == main_state.symbol)

@@ -112,6 +112,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         })
         .expect("caller borrow call");
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -131,10 +132,13 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
             .collect::<Vec<_>>(),
         Vec::<omega_core::arena::Handle<omega_checked_trees::BorrowWritableRootFact>>::new()
     );
-    assert_eq!(flow.calls.span_or_empty(caller_flow.calls).len(), 1);
+    assert_eq!(flow.control.calls.span_or_empty(caller_flow.calls).len(), 1);
 
-    let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
-    let statement_flows = flow.statements.span_or_empty(caller_flow.statements);
+    let call_flow = flow.control.calls.span_or_empty(caller_flow.calls)[0].clone();
+    let statement_flows = flow
+        .control
+        .statements
+        .span_or_empty(caller_flow.statements);
     assert_eq!(statement_flows.len(), 1);
     assert_eq!(statement_flows[0].statement_index, 0);
     assert_eq!(
@@ -149,7 +153,8 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         vec![caller_borrow_state]
     );
     assert!(
-        flow.borrow_activations
+        flow.borrow_lifetimes
+            .activations
             .span_or_empty(caller_flow.borrow_activations)
             .is_empty()
     );
@@ -297,6 +302,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     let flow = build_flow_facts(&program, &borrow, &proof, &mut semantic, &domains, &effects);
 
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -305,13 +311,14 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
                 .then_some(state)
         })
         .expect("caller flow state");
-    let call_flow = flow.calls.span_or_empty(caller_flow.calls)[0].clone();
+    let call_flow = flow.control.calls.span_or_empty(caller_flow.calls)[0].clone();
 
-    assert_eq!(flow.boundary_edges.len(), 1);
+    assert_eq!(flow.boundaries.edges.len(), 1);
     assert_eq!(caller_flow.boundary_edges.count(), 1);
     assert_eq!(call_flow.boundary_edges.count(), 1);
     let boundary = flow
-        .boundary_edges
+        .boundaries
+        .edges
         .span_or_empty(call_flow.boundary_edges)
         .first()
         .expect("boundary edge");
@@ -360,27 +367,35 @@ fn carries_local_borrow_loans_into_later_call_constraints() {
     let domains = build_domain_facts(&typed, &semantic);
     let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
-    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
-    let statement_flows = flow.statements.span_or_empty(state_flow.statements);
+    let state_flow = flow
+        .control
+        .states
+        .iter()
+        .next()
+        .map(|(_, state)| state)
+        .unwrap();
+    let statement_flows = flow.control.statements.span_or_empty(state_flow.statements);
     assert_eq!(statement_flows.len(), 3);
     let statement_loans: Vec<_> = flow
         .borrow_loan_constraints(statement_flows[1].entry_constraints)
         .collect();
     assert_eq!(statement_loans.len(), 1);
-    let call_flow = flow.calls.span_or_empty(state_flow.calls)[0].clone();
+    let call_flow = flow.control.calls.span_or_empty(state_flow.calls)[0].clone();
     let loans: Vec<_> = flow
         .borrow_loan_constraints(call_flow.entry_constraints)
         .collect();
     assert_eq!(loans.len(), 1);
     let activations = flow
-        .borrow_activations
+        .borrow_lifetimes
+        .activations
         .span_or_empty(state_flow.borrow_activations);
     assert_eq!(activations.len(), 1);
     assert_eq!(activations[0].loan, loans[0]);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
     let weakenings = flow
-        .borrow_weakenings
+        .borrow_lifetimes
+        .weakenings
         .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(weakenings[0].loan, loans[0]);
@@ -436,14 +451,21 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
     let domains = build_domain_facts(&typed, &semantic);
     let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
-    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
-    let statement_flows = flow.statements.span_or_empty(state_flow.statements);
+    let state_flow = flow
+        .control
+        .states
+        .iter()
+        .next()
+        .map(|(_, state)| state)
+        .unwrap();
+    let statement_flows = flow.control.statements.span_or_empty(state_flow.statements);
     assert_eq!(statement_flows.len(), 3);
     let statement_loans: Vec<_> = flow
         .borrow_loan_constraints(statement_flows[1].entry_constraints)
         .collect();
     assert_eq!(statement_loans.len(), 1);
     let call_flow = flow
+        .control
         .calls
         .span_or_empty(state_flow.calls)
         .iter()
@@ -455,14 +477,16 @@ fn carries_helper_returned_loans_into_later_call_constraints() {
         .collect();
     assert_eq!(loans.len(), 1);
     let activations = flow
-        .borrow_activations
+        .borrow_lifetimes
+        .activations
         .span_or_empty(state_flow.borrow_activations);
     assert_eq!(activations.len(), 1);
     assert_eq!(activations[0].loan, loans[0]);
     let loan = borrow.loans.get(loans[0]);
     assert!(loan.owner_symbol.is_valid());
     let weakenings = flow
-        .borrow_weakenings
+        .borrow_lifetimes
+        .weakenings
         .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(weakenings[0].loan, loans[0]);
@@ -519,8 +543,14 @@ fn drops_local_borrow_loans_after_last_use() {
     assert_eq!(loan.statement_index, 0);
     assert_eq!(loan.last_use_statement_index, 1);
 
-    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
-    let call_flows = flow.calls.span_or_empty(state_flow.calls);
+    let state_flow = flow
+        .control
+        .states
+        .iter()
+        .next()
+        .map(|(_, state)| state)
+        .unwrap();
+    let call_flows = flow.control.calls.span_or_empty(state_flow.calls);
     assert_eq!(call_flows.len(), 2);
 
     let first_call_loans: Vec<_> = flow
@@ -533,7 +563,8 @@ fn drops_local_borrow_loans_after_last_use() {
         .collect();
     assert!(second_call_loans.is_empty());
     let weakenings = flow
-        .borrow_weakenings
+        .borrow_lifetimes
+        .weakenings
         .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(weakenings[0].loan, first_call_loans[0]);
@@ -576,8 +607,14 @@ fn drops_local_borrow_loans_after_local_reassignment() {
     let domains = build_domain_facts(&typed, &semantic);
     let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
 
-    let state_flow = flow.states.iter().next().map(|(_, state)| state).unwrap();
-    let call_flows = flow.calls.span_or_empty(state_flow.calls);
+    let state_flow = flow
+        .control
+        .states
+        .iter()
+        .next()
+        .map(|(_, state)| state)
+        .unwrap();
+    let call_flows = flow.control.calls.span_or_empty(state_flow.calls);
     assert_eq!(call_flows.len(), 1);
     let call_loans: Vec<_> = flow
         .borrow_loan_constraints(call_flows[0].entry_constraints)
@@ -585,7 +622,8 @@ fn drops_local_borrow_loans_after_local_reassignment() {
     assert!(call_loans.is_empty());
 
     let weakenings = flow
-        .borrow_weakenings
+        .borrow_lifetimes
+        .weakenings
         .span_or_empty(state_flow.borrow_weakenings);
     assert_eq!(weakenings.len(), 1);
     assert_eq!(

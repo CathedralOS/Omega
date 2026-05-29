@@ -7,16 +7,24 @@ pub(crate) fn state_boundary_summary(
     program: &CheckedTrees,
     key: StateKey,
 ) -> StateBoundarySummary {
-    let Some(flow_state) = program.facts.flow.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == key.machine && state.state_symbol == key.state).then_some(state)
-    }) else {
+    let Some(flow_state) = program
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| {
+            (state.machine_symbol == key.machine && state.state_symbol == key.state)
+                .then_some(state)
+        })
+    else {
         return StateBoundarySummary::default();
     };
 
     StateBoundarySummary {
         edges: append_boundary_edges(
             state_graph,
-            &program.facts.flow.boundary_edges,
+            &program.facts.flow.boundaries.edges,
             flow_state.boundary_edges,
         ),
     }
@@ -73,7 +81,7 @@ mod tests {
 
         let mut program = CheckedTrees::default();
         let mut matching_edges = HandleSpan::empty();
-        program.facts.flow.boundary_edges.append_to_span(
+        program.facts.flow.boundaries.edges.append_to_span(
             &mut matching_edges,
             FlowBoundaryEdgeFact {
                 statement_index: 7,
@@ -87,6 +95,7 @@ mod tests {
         program
             .facts
             .flow
+            .control
             .states
             .insert(omega_checked_trees::FlowStateFact {
                 machine_symbol,
@@ -96,7 +105,7 @@ mod tests {
             });
 
         let mut other_edges = HandleSpan::empty();
-        program.facts.flow.boundary_edges.append_to_span(
+        program.facts.flow.boundaries.edges.append_to_span(
             &mut other_edges,
             FlowBoundaryEdgeFact {
                 statement_index: 9,
@@ -110,6 +119,7 @@ mod tests {
         program
             .facts
             .flow
+            .control
             .states
             .insert(omega_checked_trees::FlowStateFact {
                 machine_symbol,

@@ -63,6 +63,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
         .find(|state| state.name.as_str() == "main")
         .expect("main state");
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -70,16 +71,18 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
                 .then_some(state)
         })
         .expect("main flow state");
-    let calls = flow.calls.span_or_empty(caller_flow.calls);
+    let calls = flow.control.calls.span_or_empty(caller_flow.calls);
     assert_eq!(calls.len(), 3);
     assert_eq!(
         flow.invalidations
+            .events
             .span_or_empty(caller_flow.invalidations)
             .len(),
         1
     );
     assert_eq!(
         flow.invalidations
+            .events
             .span_or_empty(calls[1].invalidations)
             .len(),
         1
@@ -87,6 +90,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
 
     let heal_call = &calls[2];
     let (required_place, required_domain) = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(heal_call.requires_contexts)
         .iter()
@@ -108,6 +112,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
         .expect("heal requires domain membership");
 
     let mark_exit_proves = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(calls[0].exit_semantic_contexts)
         .iter()
@@ -118,6 +123,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
                 .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
     let break_entry_proves = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(calls[1].entry_semantic_contexts)
         .iter()
@@ -128,6 +134,7 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
                 .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
     let heal_entry_proves = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(calls[2].entry_semantic_contexts)
         .iter()
@@ -224,6 +231,7 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
         .find(|state| state.name.as_str() == "main")
         .expect("main state");
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -231,21 +239,24 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
                 .then_some(state)
         })
         .expect("main flow state");
-    let calls = flow.calls.span_or_empty(caller_flow.calls);
+    let calls = flow.control.calls.span_or_empty(caller_flow.calls);
     assert_eq!(
         flow.invalidations
+            .events
             .span_or_empty(caller_flow.invalidations)
             .len(),
         1
     );
     assert_eq!(
         flow.invalidations
+            .events
             .span_or_empty(calls[1].invalidations)
             .len(),
         1
     );
     let heal_call = &calls[2];
     let (required_place, required_domain) = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(heal_call.requires_contexts)
         .iter()
@@ -266,6 +277,7 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
         })
         .expect("heal requires domain membership");
     let heal_entry_proves = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(calls[2].entry_semantic_contexts)
         .iter()
@@ -359,6 +371,7 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
         .find(|state| state.name.as_str() == "main")
         .expect("main state");
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -366,14 +379,16 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
                 .then_some(state)
         })
         .expect("main flow state");
-    let calls = flow.calls.span_or_empty(caller_flow.calls);
+    let calls = flow.control.calls.span_or_empty(caller_flow.calls);
     assert!(
         flow.invalidations
+            .events
             .span_or_empty(calls[1].invalidations)
             .is_empty()
     );
     let heal_call = &calls[2];
     let (required_place, required_domain) = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(heal_call.requires_contexts)
         .iter()
@@ -394,6 +409,7 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
         })
         .expect("heal requires domain membership");
     let heal_entry_proves = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(calls[2].entry_semantic_contexts)
         .iter()
@@ -484,6 +500,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
         .find(|state| state.name.as_str() == "main")
         .expect("main state");
     let caller_flow = flow
+        .control
         .states
         .iter()
         .find_map(|(_, state)| {
@@ -491,7 +508,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
                 .then_some(state)
         })
         .expect("main flow state");
-    let calls = flow.calls.span_or_empty(caller_flow.calls);
+    let calls = flow.control.calls.span_or_empty(caller_flow.calls);
     assert_eq!(calls.len(), 4);
     let borrow_calls = borrow.calls.span_or_empty(
         borrow
@@ -554,13 +571,17 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     );
     assert!(
         flow.invalidations
+            .events
             .span_or_empty(calls[2].invalidations)
             .is_empty(),
         "touch_unrelated should not invalidate password domain facts: {:?}",
-        flow.invalidations.span_or_empty(calls[2].invalidations)
+        flow.invalidations
+            .events
+            .span_or_empty(calls[2].invalidations)
     );
     let accept_call = &calls[3];
     let required_facts: Vec<_> = flow
+        .contexts
         .semantic_context_refs
         .span_or_empty(accept_call.requires_contexts)
         .iter()
@@ -583,6 +604,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     assert_eq!(required_facts.len(), 2);
     for (required_place, required_domain) in required_facts {
         let proves = flow
+            .contexts
             .semantic_context_refs
             .span_or_empty(accept_call.entry_semantic_contexts)
             .iter()

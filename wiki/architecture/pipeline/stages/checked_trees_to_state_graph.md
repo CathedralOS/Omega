@@ -17,6 +17,8 @@ Primary responsibility: make machine/state transitions explicit for scheduling, 
 This stage owns scheduling shape, not semantic invention. It takes checked
 facts/events and makes state-machine topology explicit enough that later stages
 can lower without rediscovering machine structure.
+The input semantic source is `CheckFacts`, including grouped checked-flow
+roots under `FlowFacts`.
 The representation root is `StateGraph`: scheduling topology lives in the
 machine/state/operation/transition arenas, while preserved semantic evidence
 lives under `StateGraphSemanticRoots`.
