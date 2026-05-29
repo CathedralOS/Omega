@@ -145,9 +145,10 @@ Current ownership is:
   `checks/ranges/expressions/integers.rs` owns scalar integer/range-bound
   expression folding, `checks/ranges/expressions/lengths.rs` owns indexable
   length inference, `checks/ranges/requirements.rs` owns requires-derived proof seeding,
-  `checks/ranges/statements.rs` owns statement and transition-target range
-  routing, `checks/ranges/statements/aliases.rs` owns local alias proof
-  seeding, `checks/ranges/state_arguments.rs` owns transition argument facts,
+  `checks/ranges/statements.rs` owns statement range routing,
+  `checks/ranges/statements/aliases.rs` owns local alias proof seeding,
+  `checks/ranges/statements/transitions.rs` owns transition-target range
+  routing, `checks/ranges/state_arguments.rs` owns transition argument facts,
   and `checks/ranges/types.rs` owns expression type/slice classification.
 - `checks/ranges/state_arguments/calls.rs` owns merging argument-derived facts
   into target state parameters, while `checks/ranges/state_arguments/expressions.rs`
