@@ -90,6 +90,9 @@ meaning, without needing access to pointer descriptor internals.
     runtime-storage relocation families split out of the dispatch table;
     runtime storage is further split into address, compare, copy, string, and
     write relocation families
+  - relocation offset math now has a thin module entrypoint with separate
+    external-call, runtime-frame-index, runtime-storage, and runtime-text
+    offset families
   - `omega-validation` now has a thin validation entrypoint plus semantic
     modules for tests, runtime entry-point checks, local writable roots,
     assignment places, calls, transitions, proof facts, domain membership,
@@ -115,6 +118,9 @@ meaning, without needing access to pointer descriptor internals.
     selected instruction family so runtime text compare/write/materialize
     cases, host calls, data, and branch-like relocation extraction stay
     separately owned
+  - keep relocation offset helpers paired with the relocation families that
+    consume them; do not let `offsets.rs` grow back into a cross-family bag of
+    byte constants
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
   - continue splitting `omega-validation` where files still mix semantic
