@@ -29,8 +29,9 @@ fn copies_target_value_summary_to_assigned_plan() {
 
     let assigned_operations = build_assigned_target_operations(&target_operations);
 
-    assert_eq!(assigned_operations.values.values.len(), 1);
+    assert_eq!(assigned_operations.semantics.values.values.len(), 1);
     let value = assigned_operations
+        .semantics
         .values
         .values
         .iter()
@@ -68,8 +69,9 @@ fn copies_target_ownership_summary_to_assigned_plan() {
 
     let assigned_operations = build_assigned_target_operations(&target_operations);
 
-    assert_eq!(assigned_operations.ownership.moves.len(), 1);
+    assert_eq!(assigned_operations.semantics.ownership.moves.len(), 1);
     let event = assigned_operations
+        .semantics
         .ownership
         .moves
         .iter()

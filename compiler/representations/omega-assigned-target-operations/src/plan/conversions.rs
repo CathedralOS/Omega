@@ -49,9 +49,11 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
             },
             runtime_value_operands,
             host_bindings: plan.host_bindings,
-            values: plan.semantics.values,
-            boundary_edges: plan.semantics.boundary_edges,
-            ownership: plan.semantics.ownership,
+            semantics: crate::AssignedSemanticSummary {
+                values: plan.semantics.values,
+                boundary_edges: plan.semantics.boundary_edges,
+                ownership: plan.semantics.ownership,
+            },
         }
     }
 }
@@ -101,9 +103,9 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
             runtime_value_operands,
             host_bindings: plan.host_bindings,
             semantics: omega_target_operations::TargetSemanticSummary {
-                values: plan.values,
-                boundary_edges: plan.boundary_edges,
-                ownership: plan.ownership,
+                values: plan.semantics.values,
+                boundary_edges: plan.semantics.boundary_edges,
+                ownership: plan.semantics.ownership,
             },
         }
     }
