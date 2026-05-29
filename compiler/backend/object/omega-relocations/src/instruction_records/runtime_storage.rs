@@ -1,5 +1,6 @@
 use super::super::offsets::runtime_storage_compare_right_address_offset;
 use super::context::InstructionRelocationContext;
+use super::runtime_storage_addresses;
 use super::runtime_storage_copies;
 use super::runtime_storage_strings;
 use super::runtime_values::collect_runtime_value_operand_relocations;
@@ -15,6 +16,10 @@ pub(super) fn collect_runtime_storage_relocations(
         return true;
     }
     if runtime_storage_copies::collect_runtime_storage_copy_relocations(context, instruction) {
+        return true;
+    }
+    if runtime_storage_addresses::collect_runtime_storage_address_relocations(context, instruction)
+    {
         return true;
     }
 
@@ -200,27 +205,6 @@ pub(super) fn collect_runtime_storage_relocations(
                 *left,
             );
             collect_runtime_value_operand_relocations(context, left_offset + left_width, *right);
-            true
-        }
-        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
-            source_region, ..
-        } => {
-            let source_symbol = context.storage_region_symbol_handle(*source_region);
-            context.insert_data_address_at_instruction_start(source_symbol);
-            let frame_offset = match context.input.target.architecture {
-                Architecture::Aarch64 => 12,
-                Architecture::X86_64 => 17,
-            };
-            context.insert_data_address_at_relative_offset(
-                frame_offset,
-                context.runtime_frame_symbol_handle(),
-            );
-            true
-        }
-        SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
-        | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. } => {
-            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
             true
         }
         _ => false,
