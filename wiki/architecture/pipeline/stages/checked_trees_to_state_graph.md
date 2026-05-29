@@ -70,6 +70,9 @@ preservation:
   resolution and continuation segment lookup.
 - `contracts.rs`, `borrows.rs`, and `facts.rs` preserve checked evidence in
   graph-shaped summaries; they should not revalidate proof or borrow legality.
+  `contracts/summary.rs` owns state-local contract summary construction, while
+  `contracts/remap.rs` owns contract-summary arena remapping when worker-local
+  graph fragments are merged.
   `borrows/remap.rs` owns borrow-summary arena remapping when worker-local graph
   fragments are merged.
 - `boundaries.rs` preserves checked-flow boundary edges into graph-shaped
