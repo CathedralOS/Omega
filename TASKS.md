@@ -126,6 +126,8 @@ meaning, without needing access to pointer descriptor internals.
     the large report text writer root while preserving the public report API
   - `omega-backend-report` now splits state-call lowering and alias-flow report
     sections out of the root writer into a focused report-section module
+  - `omega-backend-report` now splits state/runtime storage, state values, and
+    runtime text report sections out of the root writer into focused modules
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
