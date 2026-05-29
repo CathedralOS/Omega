@@ -1,3 +1,4 @@
+use crate::AssignedValueHomeKind;
 use omega_target_operations::{RuntimeStorageRegion, StateGuardOperator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +93,64 @@ impl From<AssignedInstructionOperandKind>
 
 pub type InstructionOperand = AssignedInstructionOperand;
 pub type InstructionOperandKind = AssignedInstructionOperandKind;
+
+impl omega_target_operations::InstructionOperandLike for AssignedInstructionOperand {
+    fn data_address(&self) -> Option<omega_target_operations::TargetDataObjectHandle> {
+        match self.kind {
+            AssignedInstructionOperandKind::DataAddress { data } => Some(data),
+            _ => None,
+        }
+    }
+
+    fn runtime_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            AssignedInstructionOperandKind::RuntimeStringPointer {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            AssignedInstructionOperandKind::RuntimeStringLength {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn immediate_integer(&self) -> Option<i64> {
+        match self.kind {
+            AssignedInstructionOperandKind::ImmediateInteger(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn byte_length(&self) -> Option<usize> {
+        match self.kind {
+            AssignedInstructionOperandKind::ByteLength(value) => Some(value),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedValueOperand {
+    pub kind: AssignedValueOperandKind,
+    pub home: AssignedValueHomeKind,
+}
+
+impl Default for AssignedValueOperand {
+    fn default() -> Self {
+        Self {
+            kind: AssignedValueOperandKind::Immediate(0),
+            home: AssignedValueHomeKind::Immediate,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedValueOperandKind {
