@@ -98,7 +98,11 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
         input = rest;
         expression = match syntax_trees.expressions.expression(expression).clone() {
             ExpressionNode::Name(path) => {
-                let members = syntax_trees.expressions.identifier_path_members(path);
+                let members = syntax_trees
+                    .tables
+                    .expressions
+                    .identifier_path_members(path)
+                    .to_vec();
                 let target = members
                     .last()
                     .cloned()
@@ -107,9 +111,11 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                     ExpressionHandle::invalid()
                 } else {
                     let receiver_path = syntax_trees
+                        .tables
                         .expressions
                         .copy_identifier_path_prefix(path, members.len() - 1);
                     syntax_trees
+                        .tables
                         .expressions
                         .insert(ExpressionNode::Name(receiver_path))
                 };

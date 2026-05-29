@@ -218,8 +218,17 @@ fn copy_expression_handles_to_statement_table(
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
-    for argument in syntax_trees.expressions.expression_handles(arguments) {
-        let handle = syntax_trees.statements.append_expression_handle(*argument);
+    let arguments = syntax_trees
+        .tables
+        .expressions
+        .expression_handles(arguments)
+        .to_vec();
+
+    for argument in arguments {
+        let handle = syntax_trees
+            .tables
+            .statements
+            .append_expression_handle(argument);
         if count == 0 {
             start = handle;
         }
