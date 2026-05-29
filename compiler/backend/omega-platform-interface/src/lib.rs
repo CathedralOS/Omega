@@ -49,6 +49,7 @@ impl HostCallPlan {
 pub struct UnsupportedHostCall {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub platform_call: String,
     pub reason: UnsupportedHostCallReason,
 }
@@ -70,6 +71,7 @@ impl Default for UnsupportedHostCallReason {
 pub struct HostCall {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub lowering: PlatformCallLoweringHandle,
     pub data: PlatformCallData,
     pub operations: HandleSpan<LoweredHostOperation>,
@@ -81,6 +83,7 @@ impl Default for HostCall {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
+            call_ordinal: 0,
             lowering: PlatformCallLoweringHandle::invalid(),
             data: PlatformCallData::None,
             operations: HandleSpan::empty(),

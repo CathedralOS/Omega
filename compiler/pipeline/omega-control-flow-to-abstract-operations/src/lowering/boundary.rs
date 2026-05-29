@@ -36,12 +36,14 @@ pub(super) fn build_abstract_boundary_summary(
             let lowered_edge = summary.edges.insert(AbstractBoundaryEdge {
                 source_key: call.source_key,
                 statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
                 operation_key: operation.operation_key,
             });
             append_boundary_links(
                 &mut summary,
                 call.source_key,
                 call.statement_index,
+                call.call_ordinal,
                 lowered_edge,
             );
         }
@@ -54,13 +56,16 @@ fn append_boundary_links(
     summary: &mut AbstractBoundarySummary,
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
+    call_ordinal: usize,
     lowered_edge: omega_core::arena::Handle<AbstractBoundaryEdge>,
 ) {
     let source_edges: Vec<_> = summary
         .source_edges
         .iter()
         .filter_map(|(source_edge, edge)| {
-            (edge.source_key == source_key && edge.statement_index == statement_index)
+            (edge.source_key == source_key
+                && edge.statement_index == statement_index
+                && edge.call_ordinal == call_ordinal)
                 .then_some(source_edge)
         })
         .collect();
@@ -92,6 +97,7 @@ mod tests {
                 segment_index: 0,
             },
             statement_index: 5,
+            call_ordinal: 2,
             ..HostCall::default()
         };
         let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
@@ -110,6 +116,7 @@ mod tests {
         let edge = summary.edges.iter().next().map(|(_, edge)| edge).unwrap();
         assert_eq!(summary.edges.len(), 1);
         assert_eq!(edge.statement_index, 5);
+        assert_eq!(edge.call_ordinal, 2);
         assert_eq!(edge.operation_key, operation_key);
     }
 
@@ -191,6 +198,7 @@ mod tests {
         let mut call = HostCall {
             source_key: state_key,
             statement_index: 8,
+            call_ordinal: 1,
             ..HostCall::default()
         };
         let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
@@ -220,5 +228,54 @@ mod tests {
             summary.edges.get(link.lowered_edge).operation_key,
             operation_key
         );
+    }
+
+    #[test]
+    fn does_not_link_distinct_call_ordinals_on_same_statement() {
+        let mut control_flow = ControlFlowPlan::default();
+        let state_key = StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(2),
+            segment_index: 0,
+        };
+        let mut edge_span = HandleSpan::empty();
+        control_flow.semantics.boundary_edges.append_to_span(
+            &mut edge_span,
+            omega_control_flow::StateBoundaryEdge {
+                statement_index: 8,
+                call_ordinal: 1,
+                receiver_symbol: SymbolHandle::from_arena_index(3),
+                target_symbol: SymbolHandle::from_arena_index(4),
+                boundary_trait_symbol: SymbolHandle::from_arena_index(5),
+                boundary_signature_symbol: SymbolHandle::from_arena_index(6),
+            },
+        );
+        control_flow.states.insert(omega_control_flow::StateFlow {
+            key: state_key,
+            boundaries: omega_control_flow::StateBoundarySummary { edges: edge_span },
+            ..Default::default()
+        });
+
+        let mut host_calls = HostCallPlan::default();
+        let mut call = HostCall {
+            source_key: state_key,
+            statement_index: 8,
+            call_ordinal: 2,
+            ..HostCall::default()
+        };
+        host_calls.operations.append_to_span(
+            &mut call.operations,
+            LoweredHostOperation {
+                operation_key: HostOperationKey::new(HostCapability::Stdout, HostOperation::Write),
+                fixed_leading_immediate: None,
+            },
+        );
+        host_calls.calls.insert(call);
+
+        let summary = build_abstract_boundary_summary(&control_flow, &host_calls);
+
+        assert_eq!(summary.source_edges.len(), 1);
+        assert_eq!(summary.edges.len(), 1);
+        assert_eq!(summary.links.len(), 0);
     }
 }

@@ -91,6 +91,12 @@ fn collect_call_host_lowering(
     let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
         return Ok(());
     };
+    // Host collection currently lowers statement-level platform calls. Borrow
+    // facts are preferred when the call also participates in ordinary semantic
+    // dispatch; otherwise the statement-level host call is ordinal 0.
+    let call_ordinal =
+        call_ordinal_for_statement_call(program, machine, state, statement_index, call)
+            .unwrap_or(0);
 
     let Some((lowering_handle, lowering)) =
         find_platform_call_lowering(host_abi, &platform_name, call)
@@ -99,6 +105,7 @@ fn collect_call_host_lowering(
         plan.unsupported_calls.insert(UnsupportedHostCall {
             source_key: state_key(machine, state),
             statement_index,
+            call_ordinal,
             platform_call,
             reason: UnsupportedHostCallReason::NoNativeLowering { target },
         });
@@ -126,12 +133,47 @@ fn collect_call_host_lowering(
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
         statement_index,
+        call_ordinal,
         lowering: lowering_handle,
         data: lowering.data,
         operations,
         arguments,
     });
     Ok(())
+}
+
+fn call_ordinal_for_statement_call(
+    program: &CheckedTrees,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    call: &TableCall,
+) -> Option<usize> {
+    program
+        .facts
+        .borrow
+        .states
+        .iter()
+        .find_map(|(_, borrow_state)| {
+            (borrow_state.machine_symbol == machine.symbol
+                && borrow_state.state_symbol == state.symbol)
+                .then_some(borrow_state)
+        })
+        .and_then(|borrow_state| {
+            program
+                .facts
+                .borrow
+                .calls
+                .span(borrow_state.calls)
+                .and_then(|calls| {
+                    calls.iter().find_map(|borrow_call| {
+                        (borrow_call.statement_index == statement_index
+                            && borrow_call.receiver_symbol == call.receiver_symbol
+                            && borrow_call.target_symbol == call.target_symbol)
+                            .then_some(borrow_call.call_ordinal)
+                    })
+                })
+        })
 }
 
 fn state_key(machine: &Machine, state: &State) -> StateKey {

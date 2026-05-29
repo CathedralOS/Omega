@@ -18,6 +18,7 @@ pub struct AbstractSourceBoundaryEdge {
 pub struct AbstractBoundaryEdge {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub operation_key: HostOperationKey,
 }
 

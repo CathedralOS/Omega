@@ -34,7 +34,11 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
   summary copy. It records the backend-visible trust edge, not source-level
   authorization, and links source boundary edges to lowered host-operation
-  edges when they share the same state and statement.
+  edges when they share the same state, statement, and call ordinal.
+  Platform host calls currently carry statement-level ordinal `0` when they do
+  not participate in ordinary borrow-dispatched call facts; expression-level
+  host calls need a dedicated ordinal traversal before this can be fully
+  precise.
 - `omega-abstract-operations/src/plan/` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.
