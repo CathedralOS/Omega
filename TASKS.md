@@ -575,6 +575,8 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-typed-trees` type-reference display helpers and table canaries now
     live in focused type submodules, leaving the root type-reference file
     closer to the arena-backed data model
+  - `omega-symbol-resolved-trees` type-reference display helpers and table
+    canaries now follow the same focused submodule shape
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures

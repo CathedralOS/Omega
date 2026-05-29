@@ -4,6 +4,10 @@ use std::ops::{Deref, DerefMut};
 
 use crate::name::DiagnosticName;
 
+mod display;
+#[cfg(test)]
+mod tests;
+
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -570,79 +574,6 @@ pub enum PrimitiveType {
 }
 
 impl TypeReference {
-    pub fn display_name(&self) -> String {
-        match self {
-            TypeReference::Reference(reference) => {
-                let qualifier = if reference.is_mutable { "mut " } else { "" };
-                format!("&{qualifier}<type>")
-            }
-            TypeReference::Constrained(constrained) => {
-                format!(
-                    "<type>[{}]",
-                    match constrained.constraints.count() {
-                        1 => "1 constraint".to_owned(),
-                        count => format!("{count} constraints"),
-                    }
-                )
-            }
-            TypeReference::FixedArray(fixed_array) => {
-                format!("[<type>; {}]", fixed_array.length)
-            }
-            TypeReference::Slice(slice) => {
-                let _ = slice;
-                "[<type>]".to_owned()
-            }
-            TypeReference::Generic(generic) => {
-                let arguments = match generic.arguments.count() {
-                    1 => "1 argument".to_owned(),
-                    count => format!("{count} arguments"),
-                };
-                format!("{}<{arguments}>", generic.base_name)
-            }
-            TypeReference::Named { name, .. } => name.to_string(),
-            TypeReference::SelfType { .. } => "Self".to_owned(),
-            TypeReference::Unit => "()".to_owned(),
-        }
-    }
-
-    pub fn display_name_with_constraints(
-        &self,
-        type_constraints: &Arena<TypeConstraint>,
-    ) -> String {
-        match self {
-            TypeReference::Reference(reference) => {
-                let qualifier = if reference.is_mutable { "mut " } else { "" };
-                format!("&{qualifier}<type>")
-            }
-            TypeReference::Constrained(constrained) => {
-                let constraints = type_constraints
-                    .span(constrained.constraints)
-                    .unwrap_or(&[]);
-                format!(
-                    "<type>[{}]",
-                    comma_join_display(constraints.iter(), TypeConstraint::display_name)
-                )
-            }
-            TypeReference::FixedArray(fixed_array) => {
-                format!("[<type>; {}]", fixed_array.length)
-            }
-            TypeReference::Slice(slice) => {
-                let _ = slice;
-                "[<type>]".to_owned()
-            }
-            TypeReference::Generic(generic) => {
-                let arguments = match generic.arguments.count() {
-                    1 => "1 argument".to_owned(),
-                    count => format!("{count} arguments"),
-                };
-                format!("{}<{arguments}>", generic.base_name)
-            }
-            TypeReference::Named { name, .. } => name.to_string(),
-            TypeReference::SelfType { .. } => "Self".to_owned(),
-            TypeReference::Unit => "()".to_owned(),
-        }
-    }
-
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
         match self {
             TypeReference::Reference(_) => None,
@@ -653,18 +584,6 @@ impl TypeReference {
             | TypeReference::Generic(_)
             | TypeReference::SelfType { .. }
             | TypeReference::Unit => None,
-        }
-    }
-}
-
-impl TypeConstraint {
-    pub fn display_name(&self) -> String {
-        match self {
-            TypeConstraint::Named(name) => name.to_string(),
-            TypeConstraint::Range { minimum, maximum } => {
-                let _ = (minimum, maximum);
-                "range<expression, expression>".to_owned()
-            }
         }
     }
 }
@@ -714,134 +633,5 @@ impl PrimitiveType {
 
     pub fn accepts_finite_constraint(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
-    }
-}
-
-fn comma_join_display<'item, I, T>(
-    values: I,
-    mut display_name: impl FnMut(&'item T) -> String,
-) -> String
-where
-    I: IntoIterator<Item = &'item T>,
-    T: 'item,
-{
-    let mut output = String::new();
-    let mut first = true;
-
-    for value in values {
-        if first {
-            first = false;
-        } else {
-            output.push_str(", ");
-        }
-
-        output.push_str(&display_name(value));
-    }
-
-    output
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayTypeReference,
-        FixedArrayTypeReferenceStorage, GenericTypeReference, GenericTypeReferenceStorage,
-        TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
-    };
-    use crate::expression::ExpressionTable;
-    use crate::name::DiagnosticName;
-    use omega_core::arena::Arena;
-    use omega_core::symbols::SymbolHandle;
-
-    #[test]
-    fn type_reference_table_stores_nested_typed_references_as_handles() {
-        let mut source_arguments = Arena::<TypeReference>::new();
-        let fixed_array_element = source_arguments.append(TypeReference::Named {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::generated("u8"),
-        });
-        let arguments = source_arguments.insert_many([
-            TypeReference::Named {
-                symbol: SymbolHandle::invalid(),
-                name: DiagnosticName::generated("usize"),
-            },
-            TypeReference::FixedArray(FixedArrayTypeReference {
-                storage: FixedArrayTypeReferenceStorage {
-                    element_type: fixed_array_element,
-                    length: 16,
-                },
-            }),
-        ]);
-        let type_reference = TypeReference::Generic(GenericTypeReference {
-            storage: GenericTypeReferenceStorage {
-                base_symbol: SymbolHandle::invalid(),
-                base_name: DiagnosticName::generated("Result"),
-                arguments,
-            },
-        });
-
-        let source_constraints = Arena::<TypeConstraint>::new();
-        let source_expressions = ExpressionTable::new();
-        let mut expressions = ExpressionTable::new();
-        let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(
-            &type_reference,
-            &mut expressions,
-            &source_arguments,
-            &source_constraints,
-            &source_expressions,
-        );
-
-        assert_eq!(types.type_reference_count(), 4);
-        let TypeReferenceNode::Generic { arguments, .. } = types.type_reference(root) else {
-            panic!("root type reference should be generic");
-        };
-
-        assert_eq!(arguments.count(), 2);
-    }
-
-    #[test]
-    fn type_reference_table_stores_typed_constraints_as_expression_handles() {
-        let mut source_constraints = Arena::<TypeConstraint>::new();
-        let mut source_expressions = ExpressionTable::new();
-        let mut source_arguments = Arena::<TypeReference>::new();
-        let base_type = source_arguments.append(TypeReference::Named {
-            symbol: SymbolHandle::invalid(),
-            name: DiagnosticName::generated("i32"),
-        });
-        let minimum = source_expressions.insert(crate::expression::ExpressionNode::Integer(0));
-        let maximum = source_expressions.insert(crate::expression::ExpressionNode::Integer(10));
-        let constraints =
-            source_constraints.insert_many([TypeConstraint::Range { minimum, maximum }]);
-        let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
-            storage: ConstrainedTypeReferenceStorage {
-                base_type,
-                constraints,
-            },
-        });
-
-        let mut expressions = ExpressionTable::new();
-        let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(
-            &type_reference,
-            &mut expressions,
-            &source_arguments,
-            &source_constraints,
-            &source_expressions,
-        );
-
-        assert_eq!(types.type_reference_count(), 2);
-        assert_eq!(expressions.expression_count(), 2);
-
-        let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(root) else {
-            panic!("root type reference should be constrained");
-        };
-        let [TypeConstraintNode::Range { minimum, maximum }] = types.constraints(*constraints)
-        else {
-            panic!("expected one range constraint");
-        };
-
-        assert!(minimum.is_valid());
-        assert!(maximum.is_valid());
     }
 }
