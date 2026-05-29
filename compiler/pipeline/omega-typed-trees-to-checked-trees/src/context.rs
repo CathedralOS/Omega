@@ -8,10 +8,10 @@ pub(crate) use omega_checked_trees::{
     BorrowWritableRootFact, CheckedTrees, ContractCallFact, ContractExitFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact, FlowBorrowWeakeningFact,
-    FlowBorrowWeakeningReason, FlowCallFact, FlowConstraintKind, FlowConstraintRef,
-    FlowDropEventFact, FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationSource,
-    FlowMoveEventFact, FlowOwnershipEventSource, FlowSemanticContextRef, FlowStateFact,
-    FlowStatementFact, InvariantFact, InvariantFacts, ProofFactKind, ProofFacts,
+    FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintKind,
+    FlowConstraintRef, FlowDropEventFact, FlowExitFact, FlowFacts, FlowInvalidationFact,
+    FlowInvalidationSource, FlowMoveEventFact, FlowOwnershipEventSource, FlowSemanticContextRef,
+    FlowStateFact, FlowStatementFact, InvariantFact, InvariantFacts, ProofFactKind, ProofFacts,
     ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 pub(crate) use omega_core::arena::{Handle, HandleSpan};

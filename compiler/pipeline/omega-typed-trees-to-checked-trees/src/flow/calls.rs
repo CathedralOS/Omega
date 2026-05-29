@@ -135,6 +135,7 @@ pub(super) fn build_call_flow_fact(
         }],
     );
     append_call_ownership_events(program, ctx, state, borrow_call);
+    let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
     *active_contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, exit_contexts);
     *active_constraints = clone_constraint_refs(&mut ctx.constraint_refs, exit_constraints);
 
@@ -152,6 +153,7 @@ pub(super) fn build_call_flow_fact(
         exit_semantic_contexts: exit_contexts,
         exit_constraints,
         invalidations: call_invalidations,
+        boundary_edges,
         requires: contract_call
             .map(|call| call.requires)
             .unwrap_or_else(HandleSpan::empty),
@@ -165,4 +167,106 @@ pub(super) fn build_call_flow_fact(
             .map(|call| call.transitive)
             .unwrap_or_else(omega_effects::EffectSet::empty),
     }
+}
+
+fn append_call_boundary_edges(
+    program: &omega_typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
+    borrow_call: &BorrowCallFact,
+) -> HandleSpan<FlowBoundaryEdgeFact> {
+    let Some((target_machine, target_state)) =
+        target_machine_and_state(program, borrow_call.target_symbol)
+    else {
+        return HandleSpan::empty();
+    };
+
+    let mut span = HandleSpan::empty();
+    let mut visited_traits = Vec::new();
+    for conformance in program.machine_trait_conformances(target_machine) {
+        append_boundary_edges_for_trait(
+            program,
+            ctx,
+            borrow_call,
+            target_state,
+            conformance.symbol,
+            &mut visited_traits,
+            &mut span,
+        );
+    }
+
+    span
+}
+
+fn append_boundary_edges_for_trait(
+    program: &omega_typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
+    borrow_call: &BorrowCallFact,
+    target_state: &omega_typed_trees::state::State,
+    trait_symbol: SymbolHandle,
+    visited_traits: &mut Vec<SymbolHandle>,
+    span: &mut HandleSpan<FlowBoundaryEdgeFact>,
+) {
+    if !trait_symbol.is_valid() || visited_traits.iter().any(|symbol| *symbol == trait_symbol) {
+        return;
+    }
+
+    let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == trait_symbol)
+    else {
+        return;
+    };
+
+    visited_traits.push(trait_symbol);
+
+    if trait_definition.is_boundary {
+        for signature in program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .filter(|signature| signature.name == target_state.name)
+        {
+            ctx.boundary_edges.append_to_span(
+                span,
+                FlowBoundaryEdgeFact {
+                    statement_index: borrow_call.statement_index,
+                    call_ordinal: borrow_call.call_ordinal,
+                    receiver_symbol: borrow_call.receiver_symbol,
+                    target_symbol: borrow_call.target_symbol,
+                    boundary_trait_symbol: trait_definition.symbol,
+                    boundary_signature_symbol: signature.symbol,
+                },
+            );
+        }
+    }
+
+    for requirement in program.trait_requirements(trait_definition) {
+        append_boundary_edges_for_trait(
+            program,
+            ctx,
+            borrow_call,
+            target_state,
+            requirement.symbol,
+            visited_traits,
+            span,
+        );
+    }
+
+    visited_traits.pop();
+}
+
+fn target_machine_and_state(
+    program: &omega_typed_trees::TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<(
+    &omega_typed_trees::machine::Machine,
+    &omega_typed_trees::state::State,
+)> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == target_state_symbol)
+            .map(|state| (machine, state))
+    })
 }
