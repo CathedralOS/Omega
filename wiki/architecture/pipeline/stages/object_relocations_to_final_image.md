@@ -54,7 +54,8 @@ Must not own:
 - `omega-image/src/output.rs` owns emitted image output DTOs.
 - `omega-image/src/*_relocations.rs` owns architecture-specific final relocation patching helpers.
 - `omega-image-emission/src/lib.rs` owns target-to-image-writer dispatch and checked direct-executable emission.
-- `omega-image-elf`, `omega-image-macho`, and `omega-image-pe` own format-specific executable layout and byte writing.
+- `omega-image-pe/src/lib.rs` owns PE emission orchestration; PE constants, byte writing, layout helpers, imports, and headers live in focused sibling modules.
+- `omega-image-elf`, `omega-image-macho`, and the remaining PE modules own format-specific executable layout and byte writing.
 
 ## Known Gaps
 
