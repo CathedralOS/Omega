@@ -108,13 +108,6 @@ fn does_not_seed_machine_ensures_into_machine_entry_contexts() {
     );
 }
 
-fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 #[test]
 fn rejects_unproven_exit_ensures_boolean_expression() {
     let source = r#"
@@ -1049,7 +1042,6 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
 
         data Main {
             items: [Item; 2];
-            index: usize;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1087,8 +1079,7 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
 }
 
 #[test]
-fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
- {
+fn rejects_requires_dynamic_indexed_boolean_expression_when_index_range_fact_is_not_consumed() {
     let source = r#"
         data Item {
             value: i32;
@@ -1121,16 +1112,24 @@ fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_d
         {
         }
 
-        machine Main::main(&mut self) {
-            self.mark_valid(&mut self.items[self.index]);
-            self.touch_tag(&mut self.items[self.index]);
-            self.accept(self.items[self.index]);
+        machine Main::main(&mut self, index: usize)
+        requires
+            index < 2
+        {
+            self.mark_valid(&mut self.items[index]);
+            self.touch_tag(&mut self.items[index]);
+            self.accept(self.items[index]);
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
-        "dynamic indexed requires boolean expression should be preserved across disjoint mutating call",
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "dynamic indexed requires should fail until array indexing consumes range facts",
     );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove index `index` is within length 2")
+    }));
 }
 
 #[test]
@@ -1147,7 +1146,6 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
 
         data Main {
             items: [Item; 2];
-            index: usize;
         }
 
         machine Main::mark_valid(&mut self, item: &mut Item)
@@ -1184,8 +1182,7 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
 }
 
 #[test]
-fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_across_disjoint_mutating_call()
- {
+fn rejects_exit_ensures_dynamic_indexed_boolean_expression_when_index_range_fact_is_not_consumed() {
     let source = r#"
         data Item {
             value: i32;
@@ -1212,19 +1209,26 @@ fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_acro
             item.tag = 0;
         }
 
-        machine Main::main(&mut self) -> i32
+        machine Main::main(&mut self, index: usize) -> i32
+        requires
+            index < 2
         ensures
-            self.items[self.index].value > 0
+            self.items[index].value > 0
         {
-            self.mark_valid(&mut self.items[self.index]);
-            self.touch_tag(&mut self.items[self.index]);
+            self.mark_valid(&mut self.items[index]);
+            self.touch_tag(&mut self.items[index]);
             0
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
-        "dynamic indexed exit boolean ensures should be preserved across disjoint mutating call",
+    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+        "dynamic indexed ensures should fail until array indexing consumes range facts",
     );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove index `index` is within length 2")
+    }));
 }
 
 #[test]
