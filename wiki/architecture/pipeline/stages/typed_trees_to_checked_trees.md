@@ -84,8 +84,9 @@ Current ownership is:
   `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
   activation, mutation invalidation, and transfer propagation,
   `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
-  entry/requires/ensures/effect/invalidation flow facts, and `flow/exits.rs`
-  owns exit/ensures flow facts. `flow/ownership.rs` is the ownership-event
+  entry/requires/ensures/effect/invalidation flow facts, `flow/boundaries.rs`
+  owns checked boundary-edge discovery through boundary trait conformances, and
+  `flow/exits.rs` owns exit/ensures flow facts. `flow/ownership.rs` is the ownership-event
   entrypoint, `flow/ownership/moves.rs` owns recursive move-event production
   for assignments, initializers, aggregate literals, binary/range operands,
   call arguments, nested expression calls, and transition targets,
