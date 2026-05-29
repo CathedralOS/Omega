@@ -8,7 +8,7 @@ pub(super) fn append_move_events_for_expression(
     expression: ExpressionHandle,
     source: FlowOwnershipEventSource,
 ) {
-    if type_resolution::expression_requires_ownership(
+    if type_references::expression_requires_ownership(
         program,
         state_symbol,
         statement_index,
