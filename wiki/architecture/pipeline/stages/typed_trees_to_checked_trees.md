@@ -92,7 +92,8 @@ Current ownership is:
   activation, mutation invalidation, and transfer propagation,
   `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
   fact assembly, `flow/call_phases.rs` owns call entry/requires/invalidation/exit
-  context phases, `flow/boundaries.rs`
+  context phase routing, `flow/call_phases/invalidation.rs` owns call mutation
+  and domain invalidation, `flow/boundaries.rs`
   owns checked boundary-edge discovery through boundary trait conformances, and
   `flow/exits.rs` owns exit/ensures flow facts. `flow/ownership.rs` is the ownership-event
   entrypoint, `flow/ownership/moves.rs` owns recursive move-event production
