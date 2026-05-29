@@ -52,11 +52,12 @@ meaning, without needing access to pointer descriptor internals.
     noun-shaped modules for assigned operands, value homes, operation kinds,
     operation conversions, operation records, function metadata, plan storage,
     and runtime-value source behavior
-  - `omega-validation` has started shedding its overloaded root by moving
-    validation tests, runtime entry-point checks, local writable-place checks,
-    proof-fact validation, domain membership checks, invariant checks, and data
-    shape/type validation, type-reference validation, state-signature
-    validation, and trait conformance validation into dedicated modules
+  - `omega-validation` now has a thin validation entrypoint plus semantic
+    modules for tests, runtime entry-point checks, local writable roots,
+    assignment places, calls, transitions, proof facts, domain membership,
+    invariants, data shapes/types, machine data, expression types,
+    type-reference validation, state signatures, trait requirements,
+    trait conformance, and top-level versus machine-local symbol scopes
   Next target:
   - normalize the remaining stage pages to use the same compact ownership table
     format where prose is currently vague
@@ -74,9 +75,9 @@ meaning, without needing access to pointer descriptor internals.
     boundary contracts and target policies
   - consider breaking `omega-assigned-target-operations` operation conversions
     into semantic families if the conversion table keeps growing
-  - keep splitting `omega-validation` by semantic family: calls/transitions,
-    machine owned-data checks, and expression type checks should not remain one
-    root file
+  - continue splitting `omega-validation` where files still mix semantic
+    families, especially type-reference validation, state-signature validation,
+    and effect diagnostics
   - keep splitting overloaded pipeline files when a helper starts owning a noun
     outside that stage's documented responsibility
 
