@@ -18,9 +18,11 @@ use std::sync::Arc;
 
 mod boundary;
 mod ownership;
+mod values;
 
 use boundary::build_abstract_boundary_summary;
 use ownership::build_abstract_ownership_summary;
+use values::build_abstract_value_summary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationLoweringInput<'plan> {
@@ -77,5 +79,6 @@ pub(crate) fn build_abstract_operation_plan(
     let mut plan = build_instruction_plan(&InstructionSelectionInput::from(input));
     plan.boundary_edges = build_abstract_boundary_summary(input.host_calls);
     plan.ownership = build_abstract_ownership_summary(input.control_flow);
+    plan.values = build_abstract_value_summary(input.control_flow);
     plan
 }

@@ -91,6 +91,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-facts",
+ "omega-typed-trees",
 ]
 
 [[package]]
