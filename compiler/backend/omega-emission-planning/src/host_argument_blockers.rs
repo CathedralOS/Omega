@@ -10,6 +10,7 @@ use omega_target_operations::{
     InstructionOperandKind, SelectedInstructionKind, TargetDataObjectHandle, TargetDataObjectKind,
 };
 
+use super::selected_instruction_queries::{host_operation, host_operation_operands};
 use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
 
@@ -87,7 +88,7 @@ fn collect_selected_runtime_text_buffer_host_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, instruction) in input.instructions.code.instructions.iter() {
-        let SelectedInstructionKind::HostOperation { operands, .. } = instruction.kind else {
+        let Some(operands) = host_operation_operands(&instruction.kind) else {
             continue;
         };
         let Some(operands) = input.instructions.code.operands.span(operands) else {
@@ -136,10 +137,7 @@ fn host_call_has_selected_operation(
         .any(|(_, instruction)| {
             state_key_matches_statement_source(instruction.source_key, host_call.source_key)
                 && instruction.source_statement == host_call.statement_index
-                && matches!(
-                    instruction.kind,
-                    SelectedInstructionKind::HostOperation { .. }
-                )
+                && host_operation(&instruction.kind).is_some()
         })
 }
 
@@ -159,7 +157,7 @@ fn host_text_argument_has_planned_text_operands(
                 return false;
             }
 
-            let SelectedInstructionKind::HostOperation { operands, .. } = instruction.kind else {
+            let Some(operands) = host_operation_operands(&instruction.kind) else {
                 return false;
             };
             let Some(operands) = input.instructions.code.operands.span(operands) else {
@@ -324,20 +322,14 @@ fn selected_instruction_writes_runtime_text_buffer(
         | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
             buffer, ..
         } => *buffer == data_handle,
-        SelectedInstructionKind::HostOperation {
-            operation_key,
-            operands,
-        } if operation_key.capability == HostCapability::Stdin
-            && operation_key.operation == HostOperation::ReadFile =>
-        {
-            input
-                .instructions
-                .code
-                .operands
-                .span(*operands)
-                .unwrap_or(&[])
-                .iter()
-                .any(|operand| {
+        _ => host_operation(kind)
+            .filter(|(operation_key, _)| {
+                operation_key.capability == HostCapability::Stdin
+                    && operation_key.operation == HostOperation::ReadFile
+            })
+            .and_then(|(_, operands)| input.instructions.code.operands.span(operands))
+            .is_some_and(|operands| {
+                operands.iter().any(|operand| {
                     let InstructionOperandKind::DataAddress { data } = operand.kind else {
                         return false;
                     };
@@ -346,8 +338,7 @@ fn selected_instruction_writes_runtime_text_buffer(
                         remapped if remapped == data_handle
                     )
                 })
-        }
-        _ => false,
+            }),
     }
 }
 
