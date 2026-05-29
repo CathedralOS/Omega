@@ -321,6 +321,8 @@ meaning, without needing access to pointer descriptor internals.
     the single query doorway
   - checked invariant and domain fact definitions now live in noun-shaped
     modules instead of a generic `facts.rs` bucket
+  - checked proof facts now split obligations, contract proof indexes, and the
+    grouped `ProofFacts` root into separate modules
   - state-graph scheduling shape now sits under an explicit `StateGraphCode`
     root on `StateGraph`, keeping expressions, graph topology, operations, and
     transitions separate from preserved semantic evidence

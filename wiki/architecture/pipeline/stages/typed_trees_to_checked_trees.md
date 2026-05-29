@@ -118,6 +118,10 @@ Current ownership is:
   part of the temporal flow spine: `invariants.rs` owns invariant definition
   facts, and `domains.rs` owns domain dependency facts and dependency-path
   accessors.
+- `omega-checked-trees/src/proof/` owns proof-facing checked facts:
+  `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
+  contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
+  `ProofFacts` arena root.
 - `omega-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
