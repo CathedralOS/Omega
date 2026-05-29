@@ -1,6 +1,7 @@
 mod bindings;
 mod call_targets;
 mod folding;
+mod helper_stack;
 
 use self::bindings::{
     Binding, BindingScope, ScopedBindings, append_name_suffix, simple_local_bindings,
@@ -9,6 +10,7 @@ use self::call_targets::{resolve_call_target_machine, resolve_call_target_state}
 use self::folding::{
     boolean_and, boolean_not, boolean_or, expressions_equivalent, fold_binary_expression,
 };
+use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
@@ -19,60 +21,7 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use std::sync::Arc;
-
-const INLINE_HELPER_STATE_STACK_COUNT: usize = 16;
-
-struct HelperStateStack {
-    inline: [Option<SymbolHandle>; INLINE_HELPER_STATE_STACK_COUNT],
-    len: usize,
-    overflow: Vec<SymbolHandle>,
-}
-
-impl HelperStateStack {
-    fn with_capacity(state_capacity: usize) -> Self {
-        Self {
-            inline: [None; INLINE_HELPER_STATE_STACK_COUNT],
-            len: 0,
-            overflow: Vec::with_capacity(
-                state_capacity.saturating_sub(INLINE_HELPER_STATE_STACK_COUNT),
-            ),
-        }
-    }
-
-    fn contains(&self, symbol: SymbolHandle) -> bool {
-        self.inline
-            .iter()
-            .take(self.len.min(INLINE_HELPER_STATE_STACK_COUNT))
-            .flatten()
-            .any(|candidate| *candidate == symbol)
-            || self.overflow.contains(&symbol)
-    }
-
-    fn push(&mut self, symbol: SymbolHandle) {
-        if self.len < INLINE_HELPER_STATE_STACK_COUNT {
-            self.inline[self.len] = Some(symbol);
-        } else {
-            self.overflow.push(symbol);
-        }
-
-        self.len += 1;
-    }
-
-    fn pop(&mut self) {
-        if self.len == 0 {
-            return;
-        }
-
-        self.len -= 1;
-        if self.len < INLINE_HELPER_STATE_STACK_COUNT {
-            self.inline[self.len] = None;
-        } else {
-            self.overflow.pop();
-        }
-    }
-}
 
 pub fn simplify_expression(
     program: &CheckedTrees,
