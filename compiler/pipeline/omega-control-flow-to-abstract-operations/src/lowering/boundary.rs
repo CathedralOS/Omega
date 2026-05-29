@@ -1,10 +1,34 @@
-use omega_abstract_operations::{AbstractBoundaryEdge, AbstractBoundarySummary};
+use omega_abstract_operations::{
+    AbstractBoundaryEdge, AbstractBoundarySummary, AbstractSourceBoundaryEdge,
+};
+use omega_control_flow::ControlFlowPlan;
 use omega_platform_interface::HostCallPlan;
 
 pub(super) fn build_abstract_boundary_summary(
+    control_flow: &ControlFlowPlan,
     host_calls: &HostCallPlan,
 ) -> AbstractBoundarySummary {
-    let mut summary = AbstractBoundarySummary::with_capacity(host_calls.operations.len());
+    let mut summary = AbstractBoundarySummary::with_source_and_host_capacity(
+        control_flow.boundary_edges.len(),
+        host_calls.operations.len(),
+    );
+
+    for (_, state) in control_flow.states.iter() {
+        for edge in control_flow
+            .boundary_edges
+            .span_or_empty(state.boundaries.edges)
+        {
+            summary.source_edges.insert(AbstractSourceBoundaryEdge {
+                source_key: state.key,
+                statement_index: edge.statement_index,
+                call_ordinal: edge.call_ordinal,
+                receiver_symbol: edge.receiver_symbol,
+                target_symbol: edge.target_symbol,
+                boundary_trait_symbol: edge.boundary_trait_symbol,
+                boundary_signature_symbol: edge.boundary_signature_symbol,
+            });
+        }
+    }
 
     for (_, call) in host_calls.calls.iter() {
         for operation in host_calls.operations.span_or_empty(call.operations) {
@@ -51,11 +75,59 @@ mod tests {
         call.arguments = HandleSpan::empty();
         host_calls.calls.insert(call);
 
-        let summary = build_abstract_boundary_summary(&host_calls);
+        let summary = build_abstract_boundary_summary(&ControlFlowPlan::default(), &host_calls);
 
         let edge = summary.edges.iter().next().map(|(_, edge)| edge).unwrap();
         assert_eq!(summary.edges.len(), 1);
         assert_eq!(edge.statement_index, 5);
         assert_eq!(edge.operation_key, operation_key);
+    }
+
+    #[test]
+    fn copies_control_flow_boundary_edges_as_source_boundary_edges() {
+        let mut control_flow = ControlFlowPlan::default();
+        let state_key = StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(2),
+            segment_index: 0,
+        };
+        let mut edge_span = HandleSpan::empty();
+        control_flow.boundary_edges.append_to_span(
+            &mut edge_span,
+            omega_control_flow::StateBoundaryEdge {
+                statement_index: 8,
+                call_ordinal: 1,
+                receiver_symbol: SymbolHandle::from_arena_index(3),
+                target_symbol: SymbolHandle::from_arena_index(4),
+                boundary_trait_symbol: SymbolHandle::from_arena_index(5),
+                boundary_signature_symbol: SymbolHandle::from_arena_index(6),
+            },
+        );
+        control_flow.states.insert(omega_control_flow::StateFlow {
+            key: state_key,
+            boundaries: omega_control_flow::StateBoundarySummary { edges: edge_span },
+            ..Default::default()
+        });
+
+        let summary = build_abstract_boundary_summary(&control_flow, &HostCallPlan::default());
+
+        let edge = summary
+            .source_edges
+            .iter()
+            .next()
+            .map(|(_, edge)| edge)
+            .unwrap();
+        assert_eq!(summary.source_edges.len(), 1);
+        assert_eq!(edge.source_key, state_key);
+        assert_eq!(edge.statement_index, 8);
+        assert_eq!(edge.call_ordinal, 1);
+        assert_eq!(
+            edge.boundary_trait_symbol,
+            SymbolHandle::from_arena_index(5)
+        );
+        assert_eq!(
+            edge.boundary_signature_symbol,
+            SymbolHandle::from_arena_index(6)
+        );
     }
 }

@@ -4,7 +4,7 @@ pub mod instruction;
 pub mod ownership;
 pub mod values;
 
-pub use boundary::{AbstractBoundaryEdge, AbstractBoundarySummary};
+pub use boundary::{AbstractBoundaryEdge, AbstractBoundarySummary, AbstractSourceBoundaryEdge};
 pub use data::{
     AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,
     TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan,
