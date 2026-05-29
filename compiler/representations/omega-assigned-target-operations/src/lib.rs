@@ -370,8 +370,6 @@ pub type SelectedInstructionKind = AssignedOperationKind;
 pub type TargetOperationKind = AssignedOperationKind;
 pub type TargetOperationPlan = omega_target_operations::TargetOperationPlan;
 
-pub type AssignedValueHomeHandle = AssignedValueOperandHandle;
-
 impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKind {
     fn from(kind: omega_target_operations::TargetOperationKind) -> Self {
         match kind {

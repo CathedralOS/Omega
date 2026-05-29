@@ -1,4 +1,7 @@
+use crate::AssignedValueOperandHandle;
 use omega_target_operations::RuntimeStorageRegion;
+
+pub type AssignedValueHomeHandle = AssignedValueOperandHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AssignedRegisterBank {
