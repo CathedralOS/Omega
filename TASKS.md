@@ -204,6 +204,9 @@ meaning, without needing access to pointer descriptor internals.
     emission
   - assigned-to-machine-instructions now splits function-local instruction
     appends and metadata preservation tests out of the builder root
+  - machine-instruction value facts, ownership facts, and boundary edges now
+    sit under an explicit `MachineInstructionSemanticSummary` root on
+    `MachineInstructionPlan`
   - target-to-machine-program now has focused unit coverage proving value,
     boundary-edge, and ownership summaries survive the aggregate bridge into
     the current machine-program artifact
@@ -278,7 +281,7 @@ meaning, without needing access to pointer descriptor internals.
     bidirectional conversion table
   - `omega-machine-instructions` now has a thin crate root and noun-shaped
     modules for symbolic instruction records, function metadata, plan storage,
-    and machine-program conversions
+    semantic summaries, and machine-program conversions
   - `omega-machine-program` now has a thin crate root and noun-shaped modules
     for artifact instruction records, function metadata, and plan storage
   - `omega-machine-bytes` now has a thin crate root and noun-shaped modules

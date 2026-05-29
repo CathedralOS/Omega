@@ -53,9 +53,9 @@ pub fn emit_machine_bytes(
     }
 
     encoded_bytes.byte_count = encoded_bytes.bytes.len();
-    encoded_bytes.values = input.machine_instructions.values.clone();
-    encoded_bytes.boundary_edges = input.machine_instructions.boundary_edges.clone();
-    encoded_bytes.ownership = input.machine_instructions.ownership.clone();
+    encoded_bytes.values = input.machine_instructions.semantics.values.clone();
+    encoded_bytes.boundary_edges = input.machine_instructions.semantics.boundary_edges.clone();
+    encoded_bytes.ownership = input.machine_instructions.semantics.ownership.clone();
 
     Ok(encoded_bytes)
 }
@@ -465,19 +465,23 @@ mod tests {
 
         assert_eq!(
             encoded.values.values.len(),
-            machine_instructions.values.values.len()
+            machine_instructions.semantics.values.values.len()
         );
         assert_eq!(
             encoded.boundary_edges.source_edges.len(),
-            machine_instructions.boundary_edges.source_edges.len()
+            machine_instructions
+                .semantics
+                .boundary_edges
+                .source_edges
+                .len()
         );
         assert_eq!(
             encoded.boundary_edges.edges.len(),
-            machine_instructions.boundary_edges.edges.len()
+            machine_instructions.semantics.boundary_edges.edges.len()
         );
         assert_eq!(
             encoded.ownership.moves.len(),
-            machine_instructions.ownership.moves.len()
+            machine_instructions.semantics.ownership.moves.len()
         );
         assert_eq!(encoded.instructions.len(), 1);
         assert!(encoded.byte_count > 0);

@@ -53,6 +53,9 @@ Must not own:
   instruction functions while preserving semantic metadata summaries.
 - `functions.rs` owns function-local selected-instruction walking and symbolic
   instruction arena appends.
+- `omega-machine-instructions/src/semantics.rs` owns the symbolic
+  machine-instruction semantic summary root for value facts, ownership facts,
+  and boundary edges.
 - `shapes.rs` routes selected instruction families to shape-specific helpers.
 - `shapes/dispatch.rs` owns dispatch-loop/case/state/return instruction shapes.
 - `shapes/host.rs` owns host-operation instruction shapes.

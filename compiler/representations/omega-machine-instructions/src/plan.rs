@@ -1,4 +1,4 @@
-use crate::{MachineInstruction, MachineInstructionFunction, MachineInstructionValueSummary};
+use crate::{MachineInstruction, MachineInstructionFunction, MachineInstructionSemanticSummary};
 use omega_core::arena::Arena;
 use omega_target::NativeTarget;
 
@@ -7,9 +7,7 @@ pub struct MachineInstructionPlan {
     pub target: NativeTarget,
     pub functions: Arena<MachineInstructionFunction>,
     pub instructions: Arena<MachineInstruction>,
-    pub values: MachineInstructionValueSummary,
-    pub boundary_edges: omega_target_operations::TargetBoundarySummary,
-    pub ownership: omega_target_operations::TargetOwnershipSummary,
+    pub semantics: MachineInstructionSemanticSummary,
 }
 
 impl Default for MachineInstructionPlan {
@@ -28,9 +26,7 @@ impl MachineInstructionPlan {
             target,
             functions: Arena::with_capacity(function_capacity),
             instructions: Arena::with_capacity(instruction_capacity),
-            values: MachineInstructionValueSummary::default(),
-            boundary_edges: omega_target_operations::TargetBoundarySummary::default(),
-            ownership: omega_target_operations::TargetOwnershipSummary::default(),
+            semantics: MachineInstructionSemanticSummary::default(),
         }
     }
 }
