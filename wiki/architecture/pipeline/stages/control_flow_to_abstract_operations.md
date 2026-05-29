@@ -15,8 +15,10 @@ Primary responsibility: lower checked control flow into explicit operations with
 ## Implementation Map
 
 - `lib.rs` owns the public stage entrypoint only.
-- `lowering.rs` owns `AbstractOperationLoweringInput` and adapts the current
-  control-flow/runtime planning bundle into instruction-selection input.
+- `lowering.rs` owns abstract operation plan assembly and attaches preserved
+  semantic summaries after the transitional instruction-selection adapter runs.
+- `lowering/input.rs` owns `AbstractOperationLoweringInput` and adapts the
+  current control-flow/runtime planning bundle into instruction-selection input.
 - `lowering/ownership.rs` owns the control-flow ownership-event copy into the
   abstract-operation ownership summary. It should remain a preservation/lowering
   seam, not a place to invent new move/drop semantics.

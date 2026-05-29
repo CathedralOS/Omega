@@ -125,6 +125,8 @@ meaning, without needing access to pointer descriptor internals.
   - control-flow-to-abstract-operations now records lowered host operations as
     abstract boundary-edge summaries, and downstream backend representations
     preserve those summaries as metadata
+  - control-flow-to-abstract-operations now splits the transitional
+    instruction-selection input DTO from abstract summary attachment
   - typed-to-checked now records checked-flow boundary edges for calls into
     states supplied by boundary trait signatures
   - typed-to-checked flow construction now splits boundary-edge discovery
