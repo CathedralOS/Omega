@@ -86,10 +86,11 @@ meaning, without needing access to pointer descriptor internals.
     object plans, sections, symbols, relocations, naming, and container
     serialization
   - relocation instruction-record extraction now routes through a thin module
-    entrypoint with runtime-value, runtime-text append/read, and
-    runtime-storage relocation families split out of the dispatch table;
-    runtime storage is further split into address, compare, copy, string, and
-    write relocation families
+    entrypoint with runtime-value, runtime-text, and runtime-storage relocation
+    families split out of the dispatch table; runtime text is split into
+    append, compare, materialize, read, and write relocation families, while
+    runtime storage is split into address, compare, copy, string, and write
+    relocation families
   - relocation offset math now has a thin module entrypoint with separate
     external-call, runtime-frame-index, runtime-storage, and runtime-text
     offset families
@@ -114,10 +115,8 @@ meaning, without needing access to pointer descriptor internals.
     consequences deliberately instead of only preserving summaries
   - link abstract source boundary edges to lowered host-operation boundary
     edges and validate the pair against target policies
-  - continue splitting `omega-relocations/src/instruction_records/*` by
-    selected instruction family so runtime text compare/write/materialize
-    cases, host calls, data, and branch-like relocation extraction stay
-    separately owned
+  - continue splitting relocation planning where remaining files mix data,
+    instruction, symbol, and target-offset responsibilities
   - keep relocation offset helpers paired with the relocation families that
     consume them; do not let `offsets.rs` grow back into a cross-family bag of
     byte constants
