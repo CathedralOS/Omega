@@ -114,10 +114,13 @@ Current ownership is:
   move/drop facts, `boundaries.rs` owns boundary-edge facts, `control.rs` owns
   state/statement/call/exit facts, and `roots.rs` owns grouped `FlowFacts`
   roots plus query helpers.
-- `omega-checked-trees/src/admissibility.rs` owns checked operation acceptance
+- `omega-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
-  methods so later stages and reports have one obvious doorway.
+  methods so later stages and reports have one obvious doorway. `types.rs`
+  owns the public acceptance handles/verdict, `state.rs`, `statement.rs`,
+  `call.rs`, and `exit.rs` own the corresponding view APIs, and `helpers.rs`
+  owns shared arena-span accessors.
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
