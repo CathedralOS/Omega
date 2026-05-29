@@ -1,12 +1,6 @@
-use super::super::offsets::{
-    runtime_storage_compare_right_address_offset,
-    runtime_storage_copy_from_runtime_frame_fixed_indexed_target_address_offset,
-    runtime_storage_copy_from_runtime_frame_indexed_target_address_offset,
-    runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
-    runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
-    runtime_storage_copy_target_address_offset,
-};
+use super::super::offsets::runtime_storage_compare_right_address_offset;
 use super::context::InstructionRelocationContext;
+use super::runtime_storage_copies;
 use super::runtime_storage_strings;
 use super::runtime_values::collect_runtime_value_operand_relocations;
 use omega_instruction_selection::runtime_machine_indexed_integer_runtime_frame_address_offset;
@@ -18,6 +12,9 @@ pub(super) fn collect_runtime_storage_relocations(
     instruction: &SelectedInstructionKind,
 ) -> bool {
     if runtime_storage_strings::collect_runtime_storage_string_relocations(context, instruction) {
+        return true;
+    }
+    if runtime_storage_copies::collect_runtime_storage_copy_relocations(context, instruction) {
         return true;
     }
 
@@ -224,99 +221,6 @@ pub(super) fn collect_runtime_storage_relocations(
         | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
         | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. } => {
             context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeStorage {
-            source_region,
-            target_region,
-            ..
-        } => {
-            let source_symbol = context.storage_region_symbol_handle(*source_region);
-            let target_symbol = context.storage_region_symbol_handle(*target_region);
-            context.insert_data_address_at_instruction_start(source_symbol);
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_target_address_offset(context.input.target.architecture),
-                target_symbol,
-            );
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-        | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
-        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. } => {
-            let symbol = context.runtime_frame_symbol_handle();
-            context.insert_data_address_at_instruction_start(symbol);
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
-            target_region,
-            element_byte_size,
-            field_byte_offset,
-            ..
-        } => {
-            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_frame_indexed_target_address_offset(
-                    context.input.target.architecture,
-                    *element_byte_size,
-                    *field_byte_offset,
-                ),
-                context.storage_region_symbol_handle(*target_region),
-            );
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
-            target_region,
-            element_index,
-            element_byte_size,
-            field_byte_offset,
-            ..
-        } => {
-            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_frame_fixed_indexed_target_address_offset(
-                    context.input.target.architecture,
-                    *element_index,
-                    *element_byte_size,
-                    *field_byte_offset,
-                ),
-                context.storage_region_symbol_handle(*target_region),
-            );
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-            target_region,
-            base_byte_offset,
-            element_byte_size,
-            field_byte_offset,
-            ..
-        } => {
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                ),
-                context.runtime_frame_symbol_handle(),
-            );
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                    *element_byte_size,
-                    *field_byte_offset,
-                ),
-                context.storage_region_symbol_handle(*target_region),
-            );
-            true
-        }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
-            let source_symbol = context.storage_region_symbol_handle(*source_region);
-            context.insert_data_address_at_instruction_start(source_symbol);
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_target_address_offset(context.input.target.architecture),
-                context.runtime_frame_symbol_handle(),
-            );
             true
         }
         _ => false,
