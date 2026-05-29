@@ -52,6 +52,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-flow move traversal now descends into binary/range value
     expressions, with a string-concat ownership canary proving owned operands
     are materialized as move facts
+  - checked value fact production is now split into entrypoint, statement-role
+    routing, transition target value routing, and nested expression traversal
+    modules instead of concentrating all value concerns in one file
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership

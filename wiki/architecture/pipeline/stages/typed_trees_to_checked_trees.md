@@ -102,9 +102,12 @@ Current ownership is:
   policy.
 - `flow/place/*` owns canonical place construction, comparison, and type/member
   resolution used by proof, borrow, and invalidation checks.
-- `values.rs` owns the first durable checked value fact layer. It records
-  source expression handles and why each value matters, but it does not yet
-  decide ownership kind, drop policy, or storage shape.
+- `values.rs` owns the first durable checked value fact layer entrypoint.
+  `values/statement.rs` owns statement-role routing, `values/transition.rs`
+  owns transition target value routing, and `values/expression.rs` owns nested
+  expression traversal. These modules record source expression handles and why
+  each value matters, but they do not yet decide ownership kind, drop policy,
+  or storage shape.
 - `checks/ranges.rs` is the range-check entry point. `checks/ranges/arrays.rs`
   owns fixed-array length discovery, `checks/ranges/indexes.rs` owns
   indexed/subslice validation, `checks/ranges/facts.rs` owns local/field range
