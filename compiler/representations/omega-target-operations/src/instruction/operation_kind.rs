@@ -4,6 +4,12 @@ use crate::{
 };
 use omega_core::arena::HandleSpan;
 
+mod classification;
+#[cfg(test)]
+mod tests;
+
+pub use classification::TargetOperationDomain;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetOperationKind {
     EnterFunction,
