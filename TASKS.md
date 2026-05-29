@@ -30,6 +30,9 @@ meaning, without needing access to pointer descriptor internals.
     assignment/local-initializer moves and state-exit local drops
   - checked-flow now emits conservative call-source move events for direct
     by-value machine call arguments while skipping reference parameters
+  - checked-flow ownership events now skip copy-like scalar locals and
+    by-value scalar call parameters instead of treating every place-like scalar
+    read as an ownership move/drop
   - control-flow-to-abstract-operations now preserves control-flow move/drop
     events into an arena-backed abstract ownership summary
   - abstract-to-target and target-to-assigned lowering now preserve ownership
@@ -139,6 +142,9 @@ meaning, without needing access to pointer descriptor internals.
     format where prose is currently vague
   - make ownership event production type-aware so Copy/no-drop values and real
     ownership-consuming values are distinguished
+  - extend type-aware ownership event production from local declarations and
+    call parameters into assignment targets, transition arguments, nested call
+    arguments, arrays, slices, strings, and future user-defined copy/drop policy
   - teach transition and nested expression-call analysis to append ownership
     transfer/drop events into the existing checked-flow ownership arenas
   - lower abstract ownership summaries into explicit backend transfer and
