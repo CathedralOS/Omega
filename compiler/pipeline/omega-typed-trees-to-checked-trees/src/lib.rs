@@ -1,10 +1,10 @@
-mod builder;
 mod checks;
 mod context;
 mod facts;
 mod invariants;
 mod labels;
 mod lookup;
+mod lowerer;
 mod validation;
 mod values;
 
@@ -13,7 +13,7 @@ use omega_checked_trees::CheckedTrees;
 pub fn lower_typed_trees(
     program: omega_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<omega_core::diagnostics::Diagnostic>> {
-    builder::lower_typed_trees(program)
+    lowerer::lower_typed_trees(program)
 }
 
 mod semantic;
