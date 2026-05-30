@@ -5,6 +5,7 @@ use omega_machine_instructions::MachineInstructionPlan;
 mod builder;
 mod code;
 mod functions;
+mod semantics;
 mod shapes;
 #[cfg(test)]
 mod tests;

@@ -122,6 +122,9 @@ meaning, without needing access to pointer descriptor internals.
     an explicit `AssignedTargetOperationCode` root on
     `AssignedTargetOperationPlan`, keeping assigned operation arenas separate
     from preserved semantic summaries
+  - assigned-target-operations-to-machine-instructions now builds machine code
+    roots and machine semantic roots through separate helpers before joining
+    them with `MachineInstructionPlan::with_roots`
   - checked-flow, state-graph, and control-flow representations now have
     arena-backed move/drop ownership event plumbing with state-local spans
   - checked-tree-to-state-graph and state-graph-to-control-flow preserve
