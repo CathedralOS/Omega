@@ -24,6 +24,12 @@ pub(super) fn check_indexed_access(
     indexed: &TableIndexedExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // TODO(operators-lane): the index/subslice obligations checked below are
+    // currently derived directly from the literal `Indexed`/`Range` shape. Once
+    // the Operators lane lands, the obligations for `[]` should instead be
+    // sourced from the indexing operator's `requires` contract so that this
+    // proof logic is not duplicated against operator declarations. The seam is
+    // here, where we dispatch on the collection's length knowledge.
     if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
         check_known_length_index(
             program,

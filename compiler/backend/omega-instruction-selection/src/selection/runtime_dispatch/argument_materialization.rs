@@ -442,7 +442,11 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Range(
-                    omega_checked_trees::expression::TableRangeExpression { start, end },
+                    omega_checked_trees::expression::TableRangeExpression {
+                        start,
+                        end,
+                        end_inclusive: range.end_inclusive,
+                    },
                 ))
             }
         }

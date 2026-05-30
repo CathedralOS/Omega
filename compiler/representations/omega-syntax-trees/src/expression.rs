@@ -161,6 +161,7 @@ pub struct TableIndexedExpression {
 pub struct TableRangeExpression {
     pub start: ExpressionHandle,
     pub end: ExpressionHandle,
+    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

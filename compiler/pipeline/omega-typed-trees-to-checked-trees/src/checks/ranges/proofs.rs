@@ -3,6 +3,41 @@ use omega_typed_trees::expression::{ExpressionHandle, TableRangeExpression};
 use super::expressions::expression_integer_value;
 use super::facts::RangeFacts;
 
+/// Proves that a range's end bound is within an unknown slice length.
+///
+/// Exclusive ends use the range-bound vocabulary (`b <= len`); inclusive ends
+/// use the strict index vocabulary (`b < len`). This is what connects range
+/// validity to index validity: an inclusive subslice `a..=b` is valid exactly
+/// when `b` is a valid index, so it reuses the same index proofs rather than
+/// duplicating bound logic.
+fn range_end_within_unknown_length_is_proven(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection_label: &str,
+    end: ExpressionHandle,
+    end_inclusive: bool,
+) -> bool {
+    if end_inclusive {
+        index_is_within_unknown_length_proven(program, facts, collection_label, end)
+    } else {
+        range_bound_is_proven(program, facts, collection_label, end)
+    }
+}
+
+/// Proves an index expression is `< len` for an unknown slice length using the
+/// index vocabulary (`prove_index` / `index_value_is_proven`).
+fn index_is_within_unknown_length_proven(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection_label: &str,
+    index: ExpressionHandle,
+) -> bool {
+    let index_label = program.expression_table.display_name(index);
+    facts.index_is_proven(collection_label, &index_label)
+        || expression_integer_value(program, facts, index)
+            .is_some_and(|index| facts.index_value_is_proven(collection_label, index))
+}
+
 pub(super) fn unknown_length_index_is_proven(
     program: &omega_typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
@@ -25,7 +60,13 @@ pub(super) fn unknown_length_range_is_proven(
     let collection_label = program.expression_table.display_name(collection);
     match (range.start.is_valid(), range.end.is_valid()) {
         (true, false) => range_bound_is_proven(program, facts, &collection_label, range.start),
-        (false, true) => range_end_is_proven(program, facts, &collection_label, range.end),
+        (false, true) => range_end_within_unknown_length_is_proven(
+            program,
+            facts,
+            &collection_label,
+            range.end,
+            range.end_inclusive,
+        ),
         (true, true) => {
             let start_label = program.expression_table.display_name(range.start);
             let end_label = program.expression_table.display_name(range.end);
@@ -34,19 +75,16 @@ pub(super) fn unknown_length_range_is_proven(
                 || facts.at_most_is_proven(&start_label, &end_label);
 
             start_is_at_most_end
-                && range_end_is_proven(program, facts, &collection_label, range.end)
+                && range_end_within_unknown_length_is_proven(
+                    program,
+                    facts,
+                    &collection_label,
+                    range.end,
+                    range.end_inclusive,
+                )
         }
         (false, false) => true,
     }
-}
-
-fn range_end_is_proven(
-    program: &omega_typed_trees::TypedTrees,
-    facts: &RangeFacts<'_>,
-    collection_label: &str,
-    end: ExpressionHandle,
-) -> bool {
-    range_bound_is_proven(program, facts, collection_label, end)
 }
 
 fn range_bound_is_proven(
