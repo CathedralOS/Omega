@@ -1,11 +1,12 @@
 use omega_checked_trees::{
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
-    CheckedValueFacts,
+    CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
+    CheckedOperatorUseFact, CheckedValueFacts,
 };
 use omega_core::arena::Arena;
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::domain::DomainDefinition;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::operator::OperatorDefinition;
 
@@ -14,7 +15,7 @@ pub(crate) fn build_operator_facts(
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
     let mut uses = Arena::default();
-    let mut candidate_symbols = Arena::default();
+    let mut candidates = Arena::default();
     let mut seen = Vec::new();
 
     for (_, value) in values.values.iter() {
@@ -23,11 +24,11 @@ pub(crate) fn build_operator_facts(
             value.expression,
             &mut seen,
             &mut uses,
-            &mut candidate_symbols,
+            &mut candidates,
         );
     }
 
-    CheckedOperatorFacts::with_roots(uses, candidate_symbols)
+    CheckedOperatorFacts::with_roots(uses, candidates)
 }
 
 fn collect_expression_operator_use(
@@ -35,7 +36,7 @@ fn collect_expression_operator_use(
     expression: ExpressionHandle,
     seen: &mut Vec<ExpressionHandle>,
     uses: &mut Arena<CheckedOperatorUseFact>,
-    candidate_symbols: &mut Arena<SymbolHandle>,
+    candidates: &mut Arena<CheckedOperatorCandidateFact>,
 ) {
     if !expression.is_valid() || seen.iter().any(|seen| *seen == expression) {
         return;
@@ -45,67 +46,44 @@ fn collect_expression_operator_use(
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(indexed) => {
             let spelling = indexed_operator_spelling(program, indexed.index);
-            uses.append(operator_use_fact(
-                program,
-                expression,
-                spelling,
-                candidate_symbols,
-            ));
-            collect_expression_operator_use(
-                program,
-                indexed.collection,
-                seen,
-                uses,
-                candidate_symbols,
-            );
-            collect_expression_operator_use(program, indexed.index, seen, uses, candidate_symbols);
+            uses.append(operator_use_fact(program, expression, spelling, candidates));
+            collect_expression_operator_use(program, indexed.collection, seen, uses, candidates);
+            collect_expression_operator_use(program, indexed.index, seen, uses, candidates);
         }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_expression_operator_use(program, *value, seen, uses, candidate_symbols);
+                collect_expression_operator_use(program, *value, seen, uses, candidates);
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_expression_operator_use(program, binary.left, seen, uses, candidate_symbols);
-            collect_expression_operator_use(program, binary.right, seen, uses, candidate_symbols);
+            collect_expression_operator_use(program, binary.left, seen, uses, candidates);
+            collect_expression_operator_use(program, binary.right, seen, uses, candidates);
         }
         ExpressionNode::Cast(cast) => {
-            collect_expression_operator_use(program, cast.value, seen, uses, candidate_symbols);
+            collect_expression_operator_use(program, cast.value, seen, uses, candidates);
         }
         ExpressionNode::Call(call) => {
-            collect_expression_operator_use(program, call.receiver, seen, uses, candidate_symbols);
+            collect_expression_operator_use(program, call.receiver, seen, uses, candidates);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_operator_use(program, *argument, seen, uses, candidate_symbols);
+                collect_expression_operator_use(program, *argument, seen, uses, candidates);
             }
         }
         ExpressionNode::Member(member) => {
-            collect_expression_operator_use(
-                program,
-                member.receiver,
-                seen,
-                uses,
-                candidate_symbols,
-            );
+            collect_expression_operator_use(program, member.receiver, seen, uses, candidates);
         }
         ExpressionNode::Mutable(inner) => {
-            collect_expression_operator_use(program, *inner, seen, uses, candidate_symbols);
+            collect_expression_operator_use(program, *inner, seen, uses, candidates);
         }
         ExpressionNode::Range(range) => {
-            collect_expression_operator_use(program, range.start, seen, uses, candidate_symbols);
-            collect_expression_operator_use(program, range.end, seen, uses, candidate_symbols);
+            collect_expression_operator_use(program, range.start, seen, uses, candidates);
+            collect_expression_operator_use(program, range.end, seen, uses, candidates);
         }
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
                 .expression_table
                 .struct_fields(struct_literal.fields)
             {
-                collect_expression_operator_use(
-                    program,
-                    field.value,
-                    seen,
-                    uses,
-                    candidate_symbols,
-                );
+                collect_expression_operator_use(program, field.value, seen, uses, candidates);
             }
         }
         ExpressionNode::Boolean(_)
@@ -133,14 +111,17 @@ fn operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,
     spelling: OperatorSpelling,
-    candidate_symbols: &mut Arena<SymbolHandle>,
+    candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> CheckedOperatorUseFact {
     let candidates = operator_candidates_by_spelling(program, spelling);
     let candidate_count = candidates.len();
-    let candidate_symbols_span =
-        candidate_symbols.insert_many(candidates.iter().map(|candidate| candidate.symbol));
+    let candidate_span = candidate_facts.insert_many(
+        candidates
+            .iter()
+            .map(|candidate| candidate.as_checked_candidate()),
+    );
     let selected_operator_symbol = match candidates.as_slice() {
-        [candidate] => candidate.symbol,
+        [candidate] => candidate.operator.symbol,
         _ => SymbolHandle::invalid(),
     };
     let status = match candidate_count {
@@ -153,25 +134,49 @@ fn operator_use_fact(
         expression,
         spelling,
         selected_operator_symbol,
-        candidate_symbols: candidate_symbols_span,
+        candidates: candidate_span,
         candidate_count,
         status,
+    }
+}
+
+struct OperatorCandidate<'program> {
+    operator: &'program OperatorDefinition,
+    domain: Option<&'program DomainDefinition>,
+}
+
+impl OperatorCandidate<'_> {
+    fn as_checked_candidate(&self) -> CheckedOperatorCandidateFact {
+        if let Some(domain) = self.domain {
+            CheckedOperatorCandidateFact::domain(self.operator.symbol, domain.symbol)
+        } else {
+            CheckedOperatorCandidateFact::root(self.operator.symbol)
+        }
     }
 }
 
 fn operator_candidates_by_spelling(
     program: &TypedTrees,
     spelling: OperatorSpelling,
-) -> Vec<&OperatorDefinition> {
-    program
+) -> Vec<OperatorCandidate<'_>> {
+    let root_candidates = program
         .operators()
         .iter()
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .flat_map(|domain| program.domain_operators(domain).iter()),
-        )
         .filter(|operator| operator.spelling == Some(spelling))
-        .collect()
+        .map(|operator| OperatorCandidate {
+            operator,
+            domain: None,
+        });
+    let domain_candidates = program.domain_definitions().iter().flat_map(|domain| {
+        program
+            .domain_operators(domain)
+            .iter()
+            .filter(move |operator| operator.spelling == Some(spelling))
+            .map(move |operator| OperatorCandidate {
+                operator,
+                domain: Some(domain),
+            })
+    });
+
+    root_candidates.chain(domain_candidates).collect()
 }

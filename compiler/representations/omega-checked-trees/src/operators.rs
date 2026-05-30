@@ -16,7 +16,7 @@ pub struct CheckedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub spelling: OperatorSpelling,
     pub selected_operator_symbol: SymbolHandle,
-    pub candidate_symbols: HandleSpan<SymbolHandle>,
+    pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
     pub candidate_count: usize,
     pub status: CheckedOperatorResolutionStatus,
 }
@@ -27,10 +27,36 @@ impl Default for CheckedOperatorUseFact {
             expression: ExpressionHandle::invalid(),
             spelling: OperatorSpelling::Index,
             selected_operator_symbol: SymbolHandle::invalid(),
-            candidate_symbols: HandleSpan::empty(),
+            candidates: HandleSpan::empty(),
             candidate_count: 0,
             status: CheckedOperatorResolutionStatus::Missing,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckedOperatorCandidateFact {
+    pub operator_symbol: SymbolHandle,
+    pub domain_symbol: SymbolHandle,
+}
+
+impl CheckedOperatorCandidateFact {
+    pub const fn root(operator_symbol: SymbolHandle) -> Self {
+        Self {
+            operator_symbol,
+            domain_symbol: SymbolHandle::invalid(),
+        }
+    }
+
+    pub const fn domain(operator_symbol: SymbolHandle, domain_symbol: SymbolHandle) -> Self {
+        Self {
+            operator_symbol,
+            domain_symbol,
+        }
+    }
+
+    pub const fn is_domain_owned(self) -> bool {
+        self.domain_symbol.is_valid()
     }
 }
 
@@ -50,18 +76,15 @@ impl CheckedOperatorResolutionSummary {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
-    pub candidate_symbols: Arena<SymbolHandle>,
+    pub candidates: Arena<CheckedOperatorCandidateFact>,
 }
 
 impl CheckedOperatorFacts {
     pub fn with_roots(
         uses: Arena<CheckedOperatorUseFact>,
-        candidate_symbols: Arena<SymbolHandle>,
+        candidates: Arena<CheckedOperatorCandidateFact>,
     ) -> Self {
-        Self {
-            uses,
-            candidate_symbols,
-        }
+        Self { uses, candidates }
     }
 
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {
@@ -91,9 +114,20 @@ impl CheckedOperatorFacts {
         self.uses_with_status(CheckedOperatorResolutionStatus::Ambiguous)
     }
 
-    pub fn candidate_symbols(&self, operator_use: &CheckedOperatorUseFact) -> &[SymbolHandle] {
-        self.candidate_symbols
-            .span_or_empty(operator_use.candidate_symbols)
+    pub fn candidates(
+        &self,
+        operator_use: &CheckedOperatorUseFact,
+    ) -> &[CheckedOperatorCandidateFact] {
+        self.candidates.span_or_empty(operator_use.candidates)
+    }
+
+    pub fn candidate_symbols(
+        &self,
+        operator_use: &CheckedOperatorUseFact,
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.candidates(operator_use)
+            .iter()
+            .map(|candidate| candidate.operator_symbol)
     }
 
     pub fn resolution_summary(&self) -> CheckedOperatorResolutionSummary {
@@ -121,12 +155,16 @@ mod tests {
 
     #[test]
     fn checked_operator_facts_constructor_keeps_use_root_explicit() {
-        let mut candidate_symbols = Arena::with_capacity(3);
-        let resolved_candidates =
-            candidate_symbols.insert_many([SymbolHandle::from_arena_index(2)]);
-        let ambiguous_candidates = candidate_symbols.insert_many([
-            SymbolHandle::from_arena_index(4),
-            SymbolHandle::from_arena_index(5),
+        let mut candidates = Arena::with_capacity(3);
+        let resolved_candidates = candidates.insert_many([CheckedOperatorCandidateFact::root(
+            SymbolHandle::from_arena_index(2),
+        )]);
+        let ambiguous_candidates = candidates.insert_many([
+            CheckedOperatorCandidateFact::root(SymbolHandle::from_arena_index(4)),
+            CheckedOperatorCandidateFact::domain(
+                SymbolHandle::from_arena_index(5),
+                SymbolHandle::from_arena_index(6),
+            ),
         ]);
 
         let mut uses = Arena::with_capacity(2);
@@ -135,7 +173,7 @@ mod tests {
             expression,
             spelling: OperatorSpelling::Index,
             selected_operator_symbol: SymbolHandle::from_arena_index(2),
-            candidate_symbols: resolved_candidates,
+            candidates: resolved_candidates,
             candidate_count: 1,
             status: CheckedOperatorResolutionStatus::Resolved,
         });
@@ -143,15 +181,15 @@ mod tests {
             expression: ExpressionHandle::from_arena_index(3),
             spelling: OperatorSpelling::Range,
             selected_operator_symbol: SymbolHandle::invalid(),
-            candidate_symbols: ambiguous_candidates,
+            candidates: ambiguous_candidates,
             candidate_count: 2,
             status: CheckedOperatorResolutionStatus::Ambiguous,
         });
 
-        let facts = CheckedOperatorFacts::with_roots(uses.clone(), candidate_symbols.clone());
+        let facts = CheckedOperatorFacts::with_roots(uses.clone(), candidates.clone());
 
         assert_eq!(facts.uses, uses);
-        assert_eq!(facts.candidate_symbols, candidate_symbols);
+        assert_eq!(facts.candidates, candidates);
         assert_eq!(
             facts
                 .expression_use(expression)
@@ -171,6 +209,14 @@ mod tests {
         assert_eq!(facts.ambiguous_uses().count(), 1);
         assert_eq!(facts.missing_uses().count(), 0);
         let ambiguous_use = facts.ambiguous_uses().next().expect("ambiguous use");
-        assert_eq!(facts.candidate_symbols(ambiguous_use).len(), 2);
+        assert_eq!(facts.candidates(ambiguous_use).len(), 2);
+        assert_eq!(
+            facts.candidate_symbols(ambiguous_use).collect::<Vec<_>>(),
+            vec![
+                SymbolHandle::from_arena_index(4),
+                SymbolHandle::from_arena_index(5),
+            ]
+        );
+        assert!(facts.candidates(ambiguous_use)[1].is_domain_owned());
     }
 }
