@@ -1082,7 +1082,6 @@ mod tests {
     use omega_checked_trees::platform::Platform;
     use omega_checked_trees::signature::StateSignature;
     use omega_checked_trees::state::State;
-    use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
     use super::build_backend_surface_report;
@@ -1101,7 +1100,8 @@ mod tests {
                 symbol: SymbolHandle::default(),
                 name: Identifier::generated("write_line"),
                 parameters: Default::default(),
-                return_type: None,
+                return_type: Default::default(),
+                ..Default::default()
             },
         );
         program.typed.push_platform(platform);
@@ -1113,6 +1113,7 @@ mod tests {
             owned_data: Default::default(),
             satisfies: Default::default(),
             states: Default::default(),
+            ..Default::default()
         };
         program.typed.push_machine_state(
             &mut machine,
@@ -1120,9 +1121,8 @@ mod tests {
                 symbol: SymbolHandle::default(),
                 name: Identifier::generated("entry"),
                 parameters: Default::default(),
-                return_type: None,
-                statements: Vec::new(),
-                statement_nodes: HandleSpan::empty(),
+                return_type: Default::default(),
+                ..Default::default()
             },
         );
         program.typed.push_machine(machine);
