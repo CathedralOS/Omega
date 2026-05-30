@@ -378,6 +378,135 @@ fn narrows_index_operator_candidates_by_receiver_type() {
     );
 }
 
+#[test]
+fn narrows_index_operator_candidates_by_local_receiver_type() {
+    let matching_operator_symbol = SymbolHandle::from_arena_index(130);
+    let mismatched_operator_symbol = SymbolHandle::from_arena_index(131);
+    let machine_symbol = SymbolHandle::from_arena_index(132);
+    let state_symbol = SymbolHandle::from_arena_index(133);
+    let local_symbol = SymbolHandle::from_arena_index(134);
+    let matching_parameter_symbol = SymbolHandle::from_arena_index(135);
+    let mismatched_parameter_symbol = SymbolHandle::from_arena_index(136);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let i32_type = named_type(&mut program, "i32");
+    let slice_of_i32 = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: i32_type,
+        });
+    let reference_to_slice_of_i32 =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: slice_of_i32,
+                is_mutable: false,
+            });
+
+    let mut matching_operator =
+        operator_with_spelling(matching_operator_symbol, OperatorSpelling::Index);
+    program.push_operator_parameter(
+        &mut matching_operator,
+        StateParameter {
+            symbol: matching_parameter_symbol,
+            name: Identifier::generated("items"),
+            type_reference: reference_to_slice_of_i32,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        },
+    );
+    program.push_operator(matching_operator);
+
+    let mut mismatched_operator =
+        operator_with_spelling(mismatched_operator_symbol, OperatorSpelling::Index);
+    program.push_operator_parameter(
+        &mut mismatched_operator,
+        StateParameter {
+            symbol: mismatched_parameter_symbol,
+            name: Identifier::generated("value"),
+            type_reference: i32_type,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        },
+    );
+    program.push_operator(mismatched_operator);
+
+    let collection = program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::generated("items")],
+            local_symbol,
+            local_symbol,
+        )));
+    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let indexed =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }));
+
+    let mut machine = Machine {
+        symbol: machine_symbol,
+        name: Identifier::generated("Main"),
+        ..Default::default()
+    };
+    let mut state = State {
+        symbol: state_symbol,
+        name: Identifier::generated("entry"),
+        ..Default::default()
+    };
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::LocalData(omega_typed_trees::statement::TableLocalData {
+            symbol: local_symbol,
+            name: Identifier::generated("items"),
+            type_reference: reference_to_slice_of_i32,
+            initial_value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        }),
+    );
+    program.statement_table.push_statement(
+        &mut state.statement_nodes,
+        StatementNode::Expression(indexed),
+    );
+    program.push_machine_state(&mut machine, state);
+    program.push_machine(machine);
+
+    let origin = omega_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index: 1,
+        role: omega_checked_trees::CheckedValueStatementRole::Expression,
+    };
+    let mut value_roots = omega_core::arena::Arena::default();
+    value_roots.append(omega_checked_trees::CheckedValueFact {
+        expression: indexed,
+        origin,
+    });
+
+    let values = omega_checked_trees::CheckedValueFacts::with_roots(value_roots);
+    let facts = build_operator_facts(&program, &values);
+    let indexed_use = facts
+        .expression_use_in_origin(indexed, origin)
+        .expect("indexed use");
+
+    assert_eq!(
+        indexed_use.status,
+        omega_checked_trees::CheckedOperatorResolutionStatus::Resolved
+    );
+    assert_eq!(
+        indexed_use.selected_operator_symbol,
+        matching_operator_symbol
+    );
+    assert_eq!(
+        facts.candidate_symbols(indexed_use).collect::<Vec<_>>(),
+        vec![matching_operator_symbol]
+    );
+}
+
 fn checked_values_for(
     expressions: impl IntoIterator<Item = omega_typed_trees::expression::ExpressionHandle>,
 ) -> omega_checked_trees::CheckedValueFacts {
