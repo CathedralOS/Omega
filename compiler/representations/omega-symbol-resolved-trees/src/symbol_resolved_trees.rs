@@ -1,5 +1,6 @@
 use crate::{
-    data, domain, expression, operator, signature, snapshot, state, statement, tables, types,
+    data, domain, expression, measure, operator, signature, snapshot, state, statement, tables,
+    types,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -19,6 +20,7 @@ pub struct SymbolResolvedRoots {
     pub domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
     pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
     pub machines: OrderedRootArena<crate::machine::Machine>,
+    pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub platforms: OrderedRootArena<crate::platform::Platform>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
@@ -39,6 +41,7 @@ impl SymbolResolvedRoots {
             domain_definitions,
             invariant_definitions,
             machines,
+            measures: OrderedRootArena::default(),
             operators,
             platforms,
             traits,
@@ -147,6 +150,16 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .operator_definitions
+            .span_or_empty(span)
+    }
+
+    pub fn measure_path_members(
+        &self,
+        span: HandleSpan<crate::name::DiagnosticName>,
+    ) -> &[crate::name::DiagnosticName] {
+        self.tables
+            .declarations
+            .operator_path_members
             .span_or_empty(span)
     }
 

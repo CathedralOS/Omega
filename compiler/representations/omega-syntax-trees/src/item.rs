@@ -16,6 +16,7 @@ pub enum Item {
     Domain(DomainDefinition),
     Invariant(InvariantDefinition),
     Library(LibraryDefinition),
+    Measure(MeasureDefinition),
     Operator(OperatorDefinition),
     Export(ExportItem),
     Use(UseItem),
@@ -94,6 +95,35 @@ impl Default for LibraryFunction {
             symbol: None,
             calling_convention: None,
             boundaries: HandleSpan::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasureDefinition {
+    /// Fully-qualified declaration path, e.g. `Card::PowerOrder`.
+    pub name: HandleSpan<Identifier>,
+    /// The single parameter being measured (e.g. `card: Card`).
+    pub parameter: StateParameterHandle,
+    /// Well-founded domain type, always `usize` for now.
+    pub return_type: crate::types::TypeReferenceHandle,
+    /// `true` when declared with the `lexicographic { .. }` body form.
+    pub lexicographic: bool,
+    /// Body component expressions: exactly one for the simple form, or the
+    /// ordered tuple of components for the lexicographic form.
+    pub body: HandleSpan<crate::expression::ExpressionHandle>,
+    pub token_count: usize,
+}
+
+impl Default for MeasureDefinition {
+    fn default() -> Self {
+        Self {
+            name: HandleSpan::empty(),
+            parameter: StateParameterHandle::invalid(),
+            return_type: crate::types::TypeReferenceHandle::invalid(),
+            lexicographic: false,
+            body: HandleSpan::empty(),
+            token_count: 0,
         }
     }
 }
@@ -410,6 +440,7 @@ struct DeclarationStorage {
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
     operators: Arena<OperatorDefinition>,
+    measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
     target_host_settings: Arena<TargetHostSetting>,
     boundary_policies: Arena<BoundaryPolicy>,
@@ -493,6 +524,10 @@ impl ItemTable {
 
     pub fn operators(&self, span: HandleSpan<OperatorDefinition>) -> &[OperatorDefinition] {
         self.declaration_storage.operators.span_or_empty(span)
+    }
+
+    pub fn measures(&self, span: HandleSpan<MeasureDefinition>) -> &[MeasureDefinition] {
+        self.declaration_storage.measures.span_or_empty(span)
     }
 
     pub fn proof_facts(&self, span: HandleSpan<ProofFact>) -> &[ProofFact] {
@@ -643,6 +678,10 @@ impl ItemTable {
         self.declaration_storage.operators.append(operator)
     }
 
+    pub fn append_measure(&mut self, measure: MeasureDefinition) -> Handle<MeasureDefinition> {
+        self.declaration_storage.measures.append(measure)
+    }
+
     pub fn append_proof_fact(&mut self, fact: ProofFact) -> Handle<ProofFact> {
         self.declaration_storage.proof_facts.append(fact)
     }
@@ -744,6 +783,7 @@ impl DeclarationStorage {
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
             operators: Arena::new(),
+            measures: Arena::new(),
             proof_facts: Arena::new(),
             target_host_settings: Arena::new(),
             boundary_policies: Arena::new(),

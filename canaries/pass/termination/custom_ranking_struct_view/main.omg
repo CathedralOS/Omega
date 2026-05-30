@@ -2,7 +2,7 @@ data Card {
     power: usize;
 }
 
-operator Card::PowerOrder(card: Card) -> usize;
+measure Card::PowerOrder(card: Card) -> usize { card.power }
 
 data Main {
 }

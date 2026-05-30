@@ -1,11 +1,24 @@
 use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::measure::MeasureDefinition;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The well-founded ordering selected for a `decreases value -> Order` clause.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RankingOrder {
+    /// Built-in descending naturals (also used for a simple `usize`-valued measure
+    /// whose body forwards the parameter directly).
     NatDescending,
+    /// Built-in `Slice::Length`.
     SliceLength,
+    /// A declared `measure` whose body forwards the (already numeric) parameter.
     CustomNatDescending,
+    /// A declared `measure` whose body projects a field of a struct parameter,
+    /// e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`. The
+    /// stored identifier is the projected field name.
+    CustomStructView(omega_typed_trees::name::Identifier),
+    /// A declared lexicographic `measure`; the stored field names are the ordered
+    /// projection components compared left-to-right.
+    Lexicographic(Vec<omega_typed_trees::name::Identifier>),
 }
 
 impl RankingOrder {
@@ -21,46 +34,131 @@ impl RankingOrder {
         if path_matches(order, &["Slice", "Length"]) {
             return Some(Self::SliceLength);
         }
-        if custom_nat_descending_order_is_declared(program, state, decreases, order) {
-            return Some(Self::CustomNatDescending);
+
+        let measure = find_declared_measure(program, order)?;
+
+        if measure.lexicographic {
+            let components = lexicographic_component_fields(program, measure)?;
+            return Some(Self::Lexicographic(components));
         }
 
-        None
+        // Simple measure: validate parameter / return shape, then classify the body.
+        if !measure_return_is_usize(program, measure) {
+            return None;
+        }
+
+        match measure_body_shape(program, measure)? {
+            MeasureBodyShape::ParameterForward => {
+                // The decreasing value is already the numeric quantity.
+                if measure_parameter_is_usize(program, measure)
+                    && expression_type_name(program, state, decreases).as_deref() == Some("usize")
+                {
+                    Some(Self::CustomNatDescending)
+                } else {
+                    None
+                }
+            }
+            MeasureBodyShape::FieldProjection(field) => {
+                // The decreasing value must have the measure's parameter type.
+                let parameter_type = measure
+                    .parameter
+                    .as_ref()
+                    .map(|parameter| {
+                        program
+                            .type_reference_table
+                            .display_name(parameter.type_reference)
+                    })?;
+                if expression_type_name(program, state, decreases).as_deref()
+                    != Some(parameter_type.as_str())
+                {
+                    return None;
+                }
+                Some(Self::CustomStructView(field))
+            }
+        }
     }
 }
 
-fn custom_nat_descending_order_is_declared(
-    program: &omega_typed_trees::TypedTrees,
-    state: &omega_typed_trees::state::State,
-    decreases: ExpressionHandle,
-    order: &[omega_typed_trees::name::Identifier],
-) -> bool {
-    let Some(decrease_type_name) = expression_type_name(program, state, decreases) else {
-        return false;
-    };
+enum MeasureBodyShape {
+    /// `{ param }` — the body forwards the parameter directly.
+    ParameterForward,
+    /// `{ param.field }` — the body projects a single field.
+    FieldProjection(omega_typed_trees::name::Identifier),
+}
 
+fn measure_body_shape(
+    program: &omega_typed_trees::TypedTrees,
+    measure: &MeasureDefinition,
+) -> Option<MeasureBodyShape> {
+    let body = program.expression_table.expression_handles(measure.body);
+    if body.len() != 1 {
+        return None;
+    }
+    match program.expression_table.expression(body[0]) {
+        ExpressionNode::Name(_) => Some(MeasureBodyShape::ParameterForward),
+        ExpressionNode::Member(member) => {
+            Some(MeasureBodyShape::FieldProjection(member.member.clone()))
+        }
+        _ => None,
+    }
+}
+
+fn lexicographic_component_fields(
+    program: &omega_typed_trees::TypedTrees,
+    measure: &MeasureDefinition,
+) -> Option<Vec<omega_typed_trees::name::Identifier>> {
+    let body = program.expression_table.expression_handles(measure.body);
+    if body.is_empty() {
+        return None;
+    }
+    let mut fields = Vec::with_capacity(body.len());
+    for component in body {
+        match program.expression_table.expression(*component) {
+            ExpressionNode::Name(path) => {
+                let member = program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .last()
+                    .cloned()?;
+                fields.push(member);
+            }
+            ExpressionNode::Member(member) => fields.push(member.member.clone()),
+            _ => return None,
+        }
+    }
+    Some(fields)
+}
+
+fn find_declared_measure<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    order: &[omega_typed_trees::name::Identifier],
+) -> Option<&'program MeasureDefinition> {
     program
-        .operators()
+        .measures()
         .iter()
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .flat_map(|domain| program.domain_operators(domain).iter()),
-        )
-        .any(|operator| {
-            let parameters = program.operator_parameters(operator);
-            path_matches_path(program.operator_path_members(operator.name), order)
-                && parameters.len() == 1
-                && program
-                    .type_reference_table
-                    .display_name(parameters[0].type_reference)
-                    == decrease_type_name
-                && program
-                    .type_reference_table
-                    .display_name(operator.return_type)
-                    == "usize"
-        })
+        .find(|measure| path_matches_path(program.measure_path_members(measure.name), order))
+}
+
+fn measure_return_is_usize(
+    program: &omega_typed_trees::TypedTrees,
+    measure: &MeasureDefinition,
+) -> bool {
+    program
+        .type_reference_table
+        .display_name(measure.return_type)
+        == "usize"
+}
+
+fn measure_parameter_is_usize(
+    program: &omega_typed_trees::TypedTrees,
+    measure: &MeasureDefinition,
+) -> bool {
+    measure.parameter.as_ref().is_some_and(|parameter| {
+        program
+            .type_reference_table
+            .display_name(parameter.type_reference)
+            == "usize"
+    })
 }
 
 fn expression_type_name(
