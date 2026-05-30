@@ -4,6 +4,7 @@ mod contexts;
 mod control;
 mod invalidations;
 mod ownership;
+mod queries;
 mod roots;
 
 pub use borrow_lifetimes::*;

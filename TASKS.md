@@ -584,6 +584,8 @@ meaning, without needing access to pointer descriptor internals.
   - checked state admissibility now keeps aggregate borrow/proof/boundary
     evidence counting in a focused helper module, leaving `state.rs` closer to
     lookup and view assembly
+  - checked flow facts now keep arena-backed root containers separate from
+    semantic lookup/query methods, making the flow data spine easier to audit
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
