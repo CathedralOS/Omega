@@ -73,6 +73,17 @@ surfacing) are left to the owning slice.
 
 ## Recent Completed Context
 
+- Wave 1 parallel implementation landed six lanes against the frozen Wave 0
+  decisions: `measure` keyword + lexicographic/struct-view termination (M),
+  `a..=b` inclusive ranges with inclusive-end→index-fact wiring (R),
+  `String`/`string` text rename + `String::NonEmpty` + Array/Vec surface (T),
+  the single `FatDescriptorAbi` descriptor owner collapsing duplicated
+  `{ptr,len}` sites (D), borrow-overlap precision + registered view-aliasing
+  canaries (B), and proof-lemma/quantified-fact/boundary-obligation modules (P).
+  Whole workspace builds; fail/pending canary suites pass; native PE execution
+  canaries remain pre-existing-red in the sandbox (asm-emission gap, not a Wave 1
+  regression). Operators+registry lane (spelling clause + BoundaryProvider) is
+  still in flight.
 - Pipeline architecture docs now define semantic ownership and include the
   stage-by-stage ownership matrix.
 - Syntax, symbol-resolved, typed, checked, state-graph, control-flow, abstract,
@@ -190,19 +201,23 @@ Goal: make runtime slice/string descriptors line up with the proof model.
 Goal: support named well-founded views without saying "cards have one global
 order."
 
-- [ ] Replace temporary operator-like ranking declarations with dedicated
+- [x] Replace temporary operator-like ranking declarations with dedicated
   ranking or measure syntax once selected.
-  (decided: Wave 0 #1 — `measure` keyword; implementation pending.)
+  (done: `measure` keyword implemented; termination checker now looks up
+  declared measures instead of sniffing operator shape.)
 - [x] Decide how order/measure declarations represent "rank this value by this
   view." (decided: Wave 0 #1 — standalone `measure Type::Name(...) -> usize { .. }`.)
 - [ ] Support builtin/default inference for plain `decreases value` only when
   unambiguous.
 - [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
   bounded-distance rankings.
-- [ ] Add lexicographic ranking support.
-- [ ] Support multiple named orders for the same data shape.
-- [ ] Extend custom ranking projections from explicit field expressions to
+- [x] Add lexicographic ranking support.
+  (done: `measure Type::Name lexicographic { a, b }` + lexicographic ranking arm.)
+- [x] Support multiple named orders for the same data shape.
+  (done: multiple `measure` declarations per type.)
+- [x] Extend custom ranking projections from explicit field expressions to
   full user-defined struct views such as `decreases card -> Card::PowerOrder`.
+  (done: struct-view ranking arm; pending canary promoted to pass.)
 - [ ] Broaden termination checking beyond narrow direct self-recursion toward
   SCC/cycle reasoning.
 - [ ] Add a runtime exit canary for shrinking-slice recursion once runtime
@@ -332,8 +347,9 @@ Goal: move beyond local first-order facts without pretending we have Lean.
 
 Known pending canary:
 
-- `canaries/pending/termination/custom_ranking_struct_view_unimplemented`
-  should become a pass when ranking views can project through declared bodies.
+- (cleared) `custom_ranking_struct_view_unimplemented` was promoted to
+  `canaries/pass/termination/custom_ranking_struct_view` once the `measure`
+  keyword let ranking views project through declared bodies.
 
 ## Docs
 
