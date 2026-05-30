@@ -48,11 +48,7 @@ pub(crate) fn build_domain_facts(
         });
     }
 
-    DomainFacts {
-        segments,
-        dependency_paths,
-        dependencies,
-    }
+    DomainFacts::with_roots(segments, dependency_paths, dependencies)
 }
 
 pub(crate) fn domain_dependency_segments<'cache>(
