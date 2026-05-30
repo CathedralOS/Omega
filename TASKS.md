@@ -444,9 +444,9 @@ meaning, without needing access to pointer descriptor internals.
     callers to reach through `RelocationRecordSet.records`
   - relocation roots now expose capacity-aware construction, and relocation
     planning sizes the record arena from the selected-instruction stream
-  - final-image root construction now goes through `FinalImage::with_capacity`
-    so the builder does not manually assemble memory, symbol-table, and
-    relocation-table roots
+  - final-image root construction now goes through `FinalImage::with_roots`
+    and `FinalImage::with_capacity` so the builder does not manually assemble
+    memory, symbol-table, and relocation-table roots
   - final-image model data now lives in noun-shaped modules for memory,
     symbols/imports, relocations, layout, and the `FinalImage` root
   - checked-flow representation data moved out of one large `flow.rs` file into
