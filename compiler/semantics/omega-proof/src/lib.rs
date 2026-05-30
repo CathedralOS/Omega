@@ -590,6 +590,8 @@ mod tests {
                     .expect("contracts should be contiguous")
                     + 1,
             ),
+            spelling: None,
+            provider: None,
             token_count: 1,
         }));
 

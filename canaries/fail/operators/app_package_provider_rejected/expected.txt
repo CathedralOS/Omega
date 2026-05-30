@@ -1,0 +1,1 @@
+boundary provider `app::game::fast_indexing` may only be declared by a whitelisted package

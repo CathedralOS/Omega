@@ -510,6 +510,8 @@ mod tests {
             parameters: HandleSpan::from_parts(items_parameter, 2),
             return_type: generic_type,
             contracts: HandleSpan::empty(),
+            spelling: None,
+            provider: None,
             token_count: 1,
         }));
 
@@ -556,6 +558,8 @@ mod tests {
             parameters: HandleSpan::from_parts(parameter, 1),
             return_type: target_type,
             contracts: HandleSpan::empty(),
+            spelling: None,
+            provider: None,
             token_count: 1,
         });
 

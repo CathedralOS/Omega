@@ -1,0 +1,25 @@
+// Frozen Wave 0 decision #3: named operators may carry an optional `spelling`
+// clause selecting one of the legal operator spellings. Boundary operators may
+// additionally bind a registered provider.
+
+provider omega::host::canary_indexing : SliceIndexing;
+
+operator i32::add(left: i32, right: i32) -> i32 spelling +;
+
+boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+spelling []
+provider omega::host::canary_indexing
+requires
+    index < items.len;
+
+boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+spelling [..]
+provider omega::host::canary_indexing
+requires
+    start <= end && end <= items.len;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
