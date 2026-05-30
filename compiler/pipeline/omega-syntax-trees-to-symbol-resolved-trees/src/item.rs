@@ -54,6 +54,7 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
         syntax::item::Item::Capability(_)
+        | syntax::item::Item::Provider(_)
         | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
         | syntax::item::Item::Target(_)

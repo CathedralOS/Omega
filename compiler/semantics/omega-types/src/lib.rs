@@ -154,7 +154,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     );
                 }
             }
-            Item::Export(_) | Item::Use(_) => {}
+            Item::Provider(_) | Item::Export(_) | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Operator(operator) => {
                 insert_declaration(
