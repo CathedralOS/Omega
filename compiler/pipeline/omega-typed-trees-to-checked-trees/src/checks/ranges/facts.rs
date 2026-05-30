@@ -14,6 +14,11 @@ pub(super) struct RangeFacts<'field> {
     proven_orderings: Vec<(String, String)>,
     proven_range_bounds: Vec<(String, String)>,
     minimum_lengths: Vec<(String, i64)>,
+    boolean_locals: Vec<(
+        SymbolHandle,
+        String,
+        omega_typed_trees::expression::ExpressionHandle,
+    )>,
 }
 
 impl<'field> RangeFacts<'field> {
@@ -28,6 +33,7 @@ impl<'field> RangeFacts<'field> {
             proven_orderings: Vec::new(),
             proven_range_bounds: Vec::new(),
             minimum_lengths: Vec::new(),
+            boolean_locals: Vec::new(),
         }
     }
 }

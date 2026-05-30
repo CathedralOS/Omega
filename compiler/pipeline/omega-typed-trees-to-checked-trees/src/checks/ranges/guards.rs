@@ -18,6 +18,20 @@ pub(super) fn seed_guard_facts(
         return;
     }
 
+    if let ExpressionNode::Name(path) = program.expression_table.expression(guard) {
+        let name = program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .map(|name| name.as_str());
+        if let Some(alias_guard) = facts.boolean_guard_local(path.symbol, name)
+            && alias_guard != guard
+        {
+            seed_guard_facts(program, facts, alias_guard);
+        }
+        return;
+    }
+
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return;
     };
