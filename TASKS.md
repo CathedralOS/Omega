@@ -586,6 +586,9 @@ meaning, without needing access to pointer descriptor internals.
     lookup and view assembly
   - checked flow facts now keep arena-backed root containers separate from
     semantic lookup/query methods, making the flow data spine easier to audit
+  - checked flow queries now split constraint projection from state/call
+    sequencing lookups, so borrow/proof call checks can lean on narrower query
+    seams
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
