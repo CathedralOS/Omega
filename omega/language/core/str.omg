@@ -1,33 +1,60 @@
 // Core text surface.
 //
-// The long-term model is an owned text value plus a borrowed text view. The
-// exact public names may remain Rust-like (`String` and `str`) or move toward
-// `Str` and `StrView`; either way, text views should mirror Slice proof shapes
-// while carrying text-specific domains such as valid encoding and no-NUL.
+// The text model is an owned text value plus a borrowed text window. The owner
+// is spelled `String` (it carries capacity and `push_str`); the borrowed window
+// is its own type spelled `&string` / `&mut string` (lowercase `string`), where
+// capitalization distinguishes owner from window. The window shares the slice
+// `{ptr, len}` descriptor carrier underneath, but at the type and proof level it
+// is referenced as `&string`.
+//
+// Text measures and domains: `length` and `non_empty` are exposed first because
+// they are cheap, O(1) facts. The `no_nul` and `utf8` domains are ESTABLISHED at
+// validating boundary constructors (asserted once, carried as facts, never
+// re-proved per use); they are declared here but not implemented as sequence-wide
+// proofs.
 //
 // Runtime builders and host IO should lower through the private representation
 // layer, not through ad hoc string special cases.
+
+// Owned text measures and operators.
 
 boundary operator String::Length(text: &String) -> usize;
 
 boundary operator String::Capacity(text: &String) -> usize;
 
-boundary operator String::as_view(text: &String) -> &str;
+boundary operator String::as_view(text: &String) -> &string;
 
 boundary operator String::with_capacity(capacity: usize) -> String;
 
-boundary operator String::push_str(text: &mut String, value: &str) -> ()
+boundary operator String::push_str(text: &mut String, value: &string) -> ()
 requires
     text.len + value.len <= text.capacity;
 
-boundary operator StrView::Length(text: &str) -> usize;
+// Owned text domains.
+//
+// `NonEmpty` is a cheap O(1) classifier over the owned length.
+domain String::NonEmpty {
+    self.len > 0;
+}
 
-boundary operator StrView::bytes(text: &str) -> &[u8];
+// `NoNul` and `Utf8` are ESTABLISHED at validating boundary constructors and
+// carried as facts; they are declared here but not proved sequence-wide.
+domain String::NoNul {
+}
 
-boundary operator StrView::byte(text: &str, index: usize) -> u8
+domain String::Utf8 {
+}
+
+// Borrowed text window (`&string`) measures and operators.
+
+boundary operator Str::Length(text: &string) -> usize;
+
+boundary operator Str::bytes(text: &string) -> &[u8];
+
+boundary operator Str::byte(text: &string, index: usize) -> u8
 requires
     index < text.len;
 
-boundary operator StrView::range(text: &str, start: usize, end: usize) -> &str
+boundary operator Str::range(text: &string, start: usize, end: usize) -> &string
 requires
     start <= end && end <= text.len;

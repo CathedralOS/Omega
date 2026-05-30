@@ -1,6 +1,12 @@
 use omega::language::core::array;
 
+// Confirms the fixed-array surface is browsable: native fixed arrays are spelled
+// `[T; N]` (owned contiguous storage with a compile-time length), and the
+// `Array` module declares the length / slice-view contracts (`Array::as_slice`,
+// `Array::as_mut_slice`).
+
 data Main {
+    cells: [i32; 3];
 }
 
 machine Main::main(&mut self) {

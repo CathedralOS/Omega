@@ -263,9 +263,9 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::Named { name, .. } => {
-            if name.as_str() == "str" && !allow_bare_str {
+            if name.as_str() == "string" && !allow_bare_str {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses unsized text view type `str` by value; use `&str`"
+                    "{owner} uses unsized text view type `string` by value; use `&string`"
                 )));
                 return;
             }
@@ -283,7 +283,7 @@ fn validate_type_reference_handle_with_context(
 fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     matches!(
         program.type_reference_table.type_reference(type_reference),
-        TypeReferenceNode::Named { name, .. } if name.as_str() == "str"
+        TypeReferenceNode::Named { name, .. } if name.as_str() == "string"
     )
 }
 

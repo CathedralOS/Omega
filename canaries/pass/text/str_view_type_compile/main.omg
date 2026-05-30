@@ -5,5 +5,5 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let view: &str = self.text.as_view();
+    let view: &string = self.text.as_view();
 }
