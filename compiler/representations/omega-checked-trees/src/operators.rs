@@ -147,6 +147,30 @@ impl CheckedOperatorResolutionIssue<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedOperatorContractUse<'facts> {
+    pub operator_use: &'facts CheckedOperatorUseFact,
+    pub candidate: &'facts CheckedOperatorCandidateFact,
+}
+
+impl CheckedOperatorContractUse<'_> {
+    pub const fn contract_count(&self) -> usize {
+        self.candidate.contract_count
+    }
+
+    pub const fn operator_symbol(&self) -> SymbolHandle {
+        self.candidate.operator_symbol
+    }
+
+    pub const fn domain_symbol(&self) -> SymbolHandle {
+        self.candidate.domain_symbol
+    }
+
+    pub const fn is_boundary(&self) -> bool {
+        self.candidate.is_boundary
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
@@ -209,6 +233,18 @@ impl CheckedOperatorFacts {
             .then(|| CheckedOperatorResolutionIssue {
                 operator_use,
                 candidates: self.candidates(operator_use),
+            })
+        })
+    }
+
+    pub fn resolved_contract_uses(&self) -> impl Iterator<Item = CheckedOperatorContractUse<'_>> {
+        self.resolved_uses().filter_map(|operator_use| {
+            let [candidate] = self.candidates(operator_use) else {
+                return None;
+            };
+            (candidate.contract_count > 0).then_some(CheckedOperatorContractUse {
+                operator_use,
+                candidate,
             })
         })
     }
@@ -333,6 +369,19 @@ mod tests {
         assert_eq!(resolved_candidate.parameter_count, 2);
         assert_eq!(resolved_candidate.contract_count, 3);
         assert!(resolved_candidate.is_boundary);
+        let contract_uses = facts.resolved_contract_uses().collect::<Vec<_>>();
+        assert_eq!(contract_uses.len(), 1);
+        assert_eq!(
+            contract_uses[0].operator_use.selected_operator_symbol,
+            SymbolHandle::from_arena_index(2)
+        );
+        assert_eq!(
+            contract_uses[0].operator_symbol(),
+            SymbolHandle::from_arena_index(2)
+        );
+        assert_eq!(contract_uses[0].domain_symbol(), SymbolHandle::invalid());
+        assert_eq!(contract_uses[0].contract_count(), 3);
+        assert!(contract_uses[0].is_boundary());
         assert_eq!(
             facts.candidate_symbols(ambiguous_use).collect::<Vec<_>>(),
             vec![

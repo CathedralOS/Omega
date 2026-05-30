@@ -88,9 +88,10 @@ surfacing) are left to the owning slice.
   blast-radius manifest + host-call authorization (Cap), plus the first
   expression-level operator spelling facts for `[]` and range indexing, plus
   receiver-aware checked candidate narrowing and candidate signature summaries.
-  Remaining: contract-producing operator dispatch, missing-operator diagnostics
-  after core contracts are wired, lemma consumption, runtime descriptor
-  generalization, and native/asm-emission depth.
+  Resolved contract-bearing operator uses are now queryable. Remaining:
+  contract-producing operator dispatch, missing-operator diagnostics after core
+  contracts are wired, lemma consumption, runtime descriptor generalization, and
+  native/asm-emission depth.
 - Pipeline architecture docs now define semantic ownership and include the
   stage-by-stage ownership matrix.
 - Syntax, symbol-resolved, typed, checked, state-graph, control-flow, abstract,
@@ -259,6 +260,8 @@ without hidden runtime tags.
   candidate signature shape, and summary/query surfaces.)
 - [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
   operator contracts.
+- [x] Expose resolved contract-bearing operator uses as a query surface for the
+  future proof-obligation bridge.
 - [ ] Design boundary implementation bindings for core operators without
   hiding signatures or proof obligations.
 - [ ] Define the first semantic domain-operator representation.
