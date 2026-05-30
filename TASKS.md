@@ -602,6 +602,10 @@ meaning, without needing access to pointer descriptor internals.
     calls, and exits under explicit contract roots
   - state-graph and control-flow semantic roots now group proof obligations
     and invariants under explicit fact roots
+  - state-graph and control-flow semantic roots now group state value facts
+    under explicit value roots
+  - state-graph and control-flow semantic roots now group source boundary
+    edges under explicit boundary roots
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
