@@ -9,7 +9,7 @@ use crate::handles::remap_value_span;
 pub(crate) fn remap_values(state_graph: &StateGraph) -> Arena<StateValueFact> {
     let mut values = Arena::with_capacity(state_graph.semantics.values.values.len());
     for (_, value) in state_graph.semantics.values.values.iter() {
-        values.append(remap_value(value));
+        values.append(remap_value_owned(value.clone()));
     }
     values
 }
@@ -28,15 +28,6 @@ pub(crate) fn remap_value_summary(
 ) -> StateValueSummary {
     StateValueSummary {
         values: remap_value_span(summary.values),
-    }
-}
-
-fn remap_value(value: &omega_state_graph::StateValueFact) -> StateValueFact {
-    StateValueFact {
-        machine_symbol: value.machine_symbol,
-        state_symbol: value.state_symbol,
-        expression: value.expression,
-        origin: remap_value_origin(value.origin),
     }
 }
 
