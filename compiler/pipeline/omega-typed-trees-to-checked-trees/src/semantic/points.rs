@@ -92,7 +92,37 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
             owner_symbol,
             state_symbol,
         },
-        ContractProofFactOwner::OperatorUse { .. } => FactOrigin::Unknown,
+        ContractProofFactOwner::OperatorUse {
+            operator_symbol, ..
+        } => match contract.kind {
+            ContractProofFactKind::Requires => FactOrigin::OperatorRequires { operator_symbol },
+            ContractProofFactKind::Ensures => FactOrigin::OperatorEnsures { operator_symbol },
+            ContractProofFactKind::Boundary => FactOrigin::OperatorBoundary { operator_symbol },
+        },
         ContractProofFactOwner::Unknown => FactOrigin::Unknown,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operator_contract_origin_keeps_contract_kind_and_operator_symbol() {
+        let operator_symbol = SymbolHandle::from_arena_index(8);
+        let contract = ContractProofFact {
+            kind: ContractProofFactKind::Requires,
+            owner: ContractProofFactOwner::OperatorUse {
+                expression: ExpressionHandle::from_arena_index(1),
+                origin: Default::default(),
+                operator_symbol,
+            },
+            fact: Handle::from_arena_index(2),
+        };
+
+        assert_eq!(
+            contract_fact_origin(&contract),
+            FactOrigin::OperatorRequires { operator_symbol }
+        );
     }
 }

@@ -116,6 +116,15 @@ pub enum FactOrigin {
     CallRequires,
     CallEnsures,
     ExitEnsures,
+    OperatorRequires {
+        operator_symbol: SymbolHandle,
+    },
+    OperatorEnsures {
+        operator_symbol: SymbolHandle,
+    },
+    OperatorBoundary {
+        operator_symbol: SymbolHandle,
+    },
     StatementTransfer,
 }
 
