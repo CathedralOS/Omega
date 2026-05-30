@@ -702,6 +702,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph-to-control-flow now assembles `ControlFlowCode` in a focused
     stage-level code mapper, leaving top-level builders to join code roots and
     semantic roots instead of owning remap details
+  - state-graph-to-control-flow operation and transition remapping now use one
+    owned conversion path for both borrowed and owned graph inputs, with
+    code-shape canaries for call operations and transition targets
   - control-flow executable roots now expose `ControlFlowCode::with_roots`
     with canaries, and state-graph-to-control-flow uses that constructor
     instead of raw executable-root field assembly

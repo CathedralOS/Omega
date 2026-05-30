@@ -81,6 +81,8 @@ noun preserved in a focused file:
   contract, value, boundary, borrow, ownership, operation, transition, and effect summaries.
 - `operations.rs` remaps graph operations into control-flow operations.
 - `transitions.rs` remaps graph transition edges and transition targets.
+  Both use one owned conversion path for borrowed and owned graph inputs so
+  arena traversal does not duplicate operation/transition conversion policy.
 - `facts.rs` preserves proof obligations and invariant facts.
   `facts/conversions.rs` owns individual proof obligation, proof owner, proof
   kind, and invariant conversion from graph form into control-flow form.
