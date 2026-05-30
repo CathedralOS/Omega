@@ -1,0 +1,15 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 8];
+}
+
+machine Main::main(&mut self) -> i32 {
+    let view: &[Entry] = self.entries.as_slice();
+    let window: &[Entry] = view[1..5];
+    let inner: &[Entry] = window[1..3];
+    let chosen: Entry = inner[1];
+    chosen.value
+}

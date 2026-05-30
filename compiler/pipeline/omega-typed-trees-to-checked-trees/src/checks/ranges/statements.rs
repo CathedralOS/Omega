@@ -1,7 +1,7 @@
 mod aliases;
 mod transitions;
 
-use self::aliases::seed_local_alias_facts;
+use self::aliases::{seed_local_alias_facts, seed_subslice_window_facts};
 use self::transitions::check_transition_target;
 use super::arrays::fixed_array_type_length;
 use super::expressions::{expression_indexable_length, expression_integer_value, expression_name};
@@ -46,6 +46,7 @@ pub(super) fn check_statement(
                 facts.assign_local(symbol, name, next_length, next_integer);
                 seed_boolean_guard_local(program, facts, symbol, name, assignment.value);
                 seed_local_alias_facts(program, facts, assignment.value, name);
+                seed_subslice_window_facts(program, facts, assignment.value, name);
             } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
             {
                 let next_integer = expression_integer_value(program, facts, assignment.value);
@@ -82,6 +83,12 @@ pub(super) fn check_statement(
                 local.initial_value,
             );
             seed_local_alias_facts(
+                program,
+                facts,
+                local.initial_value,
+                Some(local.name.as_str()),
+            );
+            seed_subslice_window_facts(
                 program,
                 facts,
                 local.initial_value,
