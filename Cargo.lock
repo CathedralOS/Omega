@@ -546,8 +546,8 @@ version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
+ "omega-machine-instructions",
  "omega-target",
- "omega-target-operations",
 ]
 
 [[package]]
