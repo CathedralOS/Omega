@@ -98,6 +98,8 @@ Current ownership is:
   `borrow/last_uses/usage/expressions.rs` owns expression usage traversal, and
   `borrow/last_uses/usage/transitions.rs` owns transition guard/target usage
   traversal for last-use detection.
+  `omega-checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
+  constructor for writable-root, access, call, loan, and state borrow arenas.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

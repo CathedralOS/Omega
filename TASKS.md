@@ -367,6 +367,9 @@ meaning, without needing access to pointer descriptor internals.
     `CheckFacts`, `ProofFacts`, `CheckedValueFacts`, and grouped `FlowFacts`
     roots, and typed-to-checked production uses those constructors instead of
     raw checked-root field assembly
+  - checked borrow facts now expose a `BorrowFacts::with_roots` constructor,
+    and typed-to-checked borrow production joins writable-root, access,
+    call, loan, and state arenas through that root seam
   - typed-to-checked now builds initial checked value facts for decreases
     clauses, initializers, statement values, call arguments, transition
     guards/targets, and nested expression children

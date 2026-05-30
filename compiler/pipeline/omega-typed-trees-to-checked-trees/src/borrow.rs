@@ -47,12 +47,12 @@ pub(crate) fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> Bor
         }
     }
 
-    BorrowFacts {
+    BorrowFacts::with_roots(
         writable_roots,
         access_segments,
         argument_accesses,
         calls,
         loans,
         states,
-    }
+    )
 }
