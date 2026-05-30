@@ -91,6 +91,9 @@ meaning, without needing access to pointer descriptor internals.
   - abstract, target, assigned, and machine-instruction plan construction now
     flows through explicit `with_roots` constructors with canaries proving code
     roots and semantic roots stay visibly separate
+  - abstract-operations-to-target-operations now builds target code roots and
+    target semantic roots through separate stage helpers before joining them
+    with `TargetOperationPlan::with_roots`
   - abstract operation plan roots now follow the backend plan-module convention:
     `plan/code.rs` owns root structs and `plan/capacity.rs` owns root
     construction

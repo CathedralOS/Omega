@@ -1,14 +1,16 @@
 use omega_abstract_operations::{AbstractOperation, AbstractOperationKind, AbstractOperationPlan};
 use omega_calling_conventions::{HostAbiPlan, HostOperationKey};
 use omega_platform_interface::HostCallPlan;
-use omega_target_operations::{RuntimeTextReadSource, TargetOperationKind, TargetOperationPlan};
+use omega_target_operations::{
+    RuntimeTextReadSource, TargetHostBinding, TargetOperationCode, TargetOperationKind,
+};
 
 use crate::remap;
 
 pub(crate) fn copy_runtime_text_host_bindings(
     host_abi: &HostAbiPlan,
     abstract_operations: &AbstractOperationPlan,
-    target_operations: &mut TargetOperationPlan,
+    code: &mut TargetOperationCode,
 ) {
     for (instruction_key, instruction) in abstract_operations.code.instructions.iter() {
         let AbstractOperationKind::ReadRuntimeTextLine { .. } = &instruction.kind else {
@@ -18,8 +20,7 @@ pub(crate) fn copy_runtime_text_host_bindings(
         let TargetOperationKind::ReadRuntimeTextLine {
             source: RuntimeTextReadSource::HostOperation { operation_key },
             ..
-        } = &target_operations
-            .code
+        } = &code
             .instructions
             .get(remap::instruction_handle(instruction_key))
             .kind
@@ -27,7 +28,7 @@ pub(crate) fn copy_runtime_text_host_bindings(
             continue;
         };
 
-        if target_operations.host_binding(*operation_key).is_some() {
+        if target_host_binding(code, *operation_key).is_some() {
             continue;
         }
 
@@ -36,9 +37,19 @@ pub(crate) fn copy_runtime_text_host_bindings(
             .iter()
             .find(|(_, binding)| binding.operation_key == *operation_key)
         {
-            target_operations.code.host_bindings.insert(binding.clone());
+            code.host_bindings.insert(binding.clone());
         }
     }
+}
+
+fn target_host_binding(
+    code: &TargetOperationCode,
+    operation_key: HostOperationKey,
+) -> Option<&TargetHostBinding> {
+    code.host_bindings
+        .iter()
+        .find(|(_, binding)| binding.operation_key == operation_key)
+        .map(|(_, binding)| binding)
 }
 
 pub(crate) fn resolve_operation_key(

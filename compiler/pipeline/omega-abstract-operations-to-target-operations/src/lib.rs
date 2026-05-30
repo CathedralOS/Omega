@@ -5,10 +5,12 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetOperationPlan;
 
 mod boundary_policy;
+mod code;
 mod host;
 mod instructions;
 mod operands;
 mod remap;
+mod semantics;
 #[cfg(test)]
 mod tests;
 mod translator;
