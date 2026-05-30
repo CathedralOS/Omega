@@ -363,6 +363,10 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-checked-trees` now has noun-shaped representation modules for
     borrow facts, proof facts, invariant/domain facts, checked flow facts,
     checked value facts, statement wrappers, and the root checked-tree container
+  - checked-tree roots now expose explicit constructors for `CheckedTrees`,
+    `CheckFacts`, `ProofFacts`, `CheckedValueFacts`, and grouped `FlowFacts`
+    roots, and typed-to-checked production uses those constructors instead of
+    raw checked-root field assembly
   - typed-to-checked now builds initial checked value facts for decreases
     clauses, initializers, statement values, call arguments, transition
     guards/targets, and nested expression children

@@ -58,6 +58,10 @@ pub struct CheckedValueFacts {
 }
 
 impl CheckedValueFacts {
+    pub fn with_roots(values: Arena<CheckedValueFact>) -> Self {
+        Self { values }
+    }
+
     pub fn expression_values(
         &self,
         expression: ExpressionHandle,

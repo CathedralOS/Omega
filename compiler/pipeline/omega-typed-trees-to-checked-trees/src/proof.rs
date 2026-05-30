@@ -47,13 +47,13 @@ pub(crate) fn build_proof_facts(
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
 
-    ProofFacts {
+    ProofFacts::with_roots(
         obligations,
         contract_facts,
         contract_fact_refs,
         contract_calls,
         contract_exits,
-    }
+    )
 }
 
 fn fact_handles(

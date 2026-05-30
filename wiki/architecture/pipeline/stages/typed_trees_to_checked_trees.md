@@ -20,11 +20,13 @@ effect, and boundary validation.
 The representation root is `CheckedTrees`: typed syntax remains under `typed`,
 while durable semantic evidence lives under `CheckFacts`. Checked flow evidence
 is grouped under `FlowFacts` roots for contexts, invalidations, borrow
-lifetimes, ownership, boundaries, and control. `CheckedTrees::state_acceptance`
-is the first unified query doorway over that evidence: a checked tree exists
-only after diagnostics are clear, and the acceptance views expose the proof,
-borrow, boundary, effect, invalidation, and call/exit evidence that made each
-state operation admissible.
+lifetimes, ownership, boundaries, and control. Root construction should flow
+through `CheckedTrees::with_roots`, `CheckFacts::with_roots`, `ProofFacts::with_roots`,
+and `FlowFacts::with_roots` so later stages can see the semantic spine at a
+glance. `CheckedTrees::state_acceptance` is the first unified query doorway over
+that evidence: a checked tree exists only after diagnostics are clear, and the
+acceptance views expose the proof, borrow, boundary, effect, invalidation, and
+call/exit evidence that made each state operation admissible.
 
 | Noun | Ownership |
 | --- | --- |
@@ -113,7 +115,8 @@ Current ownership is:
   `borrow_lifetimes.rs` owns activation/weakening facts, `ownership.rs` owns
   move/drop facts, `boundaries.rs` owns boundary-edge facts, `control.rs` owns
   state/statement/call/exit facts, and `roots.rs` owns grouped `FlowFacts`
-  roots plus query helpers.
+  roots plus query helpers. Flow construction should join each noun root
+  through its root constructor rather than hand-building the grouped fields.
 - `omega-checked-trees/src/facts/` owns checked semantic facts that are not
   part of the temporal flow spine: `invariants.rs` owns invariant definition
   facts, and `domains.rs` owns domain dependency facts and dependency-path
@@ -121,7 +124,7 @@ Current ownership is:
 - `omega-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
-  `ProofFacts` arena root.
+  `ProofFacts` arena root and constructor.
 - `omega-checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query
