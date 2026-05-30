@@ -161,7 +161,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
 
     for call in graph
         .semantics
-        .contract_calls
+        .contracts
+        .calls
         .span_or_empty(state.contracts.calls)
     {
         label.push('\n');
@@ -177,7 +178,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
 
     for exit in graph
         .semantics
-        .contract_exits
+        .contracts
+        .exits
         .span_or_empty(state.contracts.exits)
     {
         label.push('\n');

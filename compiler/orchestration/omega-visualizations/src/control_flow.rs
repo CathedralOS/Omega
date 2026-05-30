@@ -161,7 +161,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
 
     for call in plan
         .semantics
-        .contract_calls
+        .contracts
+        .calls
         .span_or_empty(state.contracts.calls)
     {
         label.push('\n');
@@ -177,7 +178,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
 
     for exit in plan
         .semantics
-        .contract_exits
+        .contracts
+        .exits
         .span_or_empty(state.contracts.exits)
     {
         label.push('\n');
