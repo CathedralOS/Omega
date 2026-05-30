@@ -9,6 +9,12 @@ pub struct StateGraphValueRoots {
     pub values: Arena<StateValueFact>,
 }
 
+impl StateGraphValueRoots {
+    pub fn with_roots(values: Arena<StateValueFact>) -> Self {
+        Self { values }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum StateValueStatementRole {
     #[default]

@@ -107,3 +107,63 @@ pub struct StateGraphBorrowRoots {
     pub activations: Arena<StateBorrowActivation>,
     pub weakenings: Arena<StateBorrowWeakening>,
 }
+
+impl StateGraphBorrowRoots {
+    pub fn with_roots(
+        writable_roots: Arena<StateBorrowWritableRoot>,
+        access_segments: Arena<omega_facts::PlaceSegment>,
+        argument_accesses: Arena<StateBorrowArgumentAccess>,
+        calls: Arena<StateBorrowCall>,
+        loans: Arena<StateBorrowLoan>,
+        activations: Arena<StateBorrowActivation>,
+        weakenings: Arena<StateBorrowWeakening>,
+    ) -> Self {
+        Self {
+            writable_roots,
+            access_segments,
+            argument_accesses,
+            calls,
+            loans,
+            activations,
+            weakenings,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan,
+        StateBorrowWeakening, StateBorrowWritableRoot, StateGraphBorrowRoots,
+    };
+    use omega_core::arena::Arena;
+
+    #[test]
+    fn borrow_roots_constructor_keeps_borrow_noun_roots_explicit() {
+        let writable_roots = Arena::<StateBorrowWritableRoot>::with_capacity(1);
+        let access_segments = Arena::<omega_facts::PlaceSegment>::with_capacity(2);
+        let argument_accesses = Arena::<StateBorrowArgumentAccess>::with_capacity(3);
+        let calls = Arena::<StateBorrowCall>::with_capacity(4);
+        let loans = Arena::<StateBorrowLoan>::with_capacity(5);
+        let activations = Arena::<StateBorrowActivation>::with_capacity(6);
+        let weakenings = Arena::<StateBorrowWeakening>::with_capacity(7);
+
+        let roots = StateGraphBorrowRoots::with_roots(
+            writable_roots.clone(),
+            access_segments.clone(),
+            argument_accesses.clone(),
+            calls.clone(),
+            loans.clone(),
+            activations.clone(),
+            weakenings.clone(),
+        );
+
+        assert_eq!(roots.writable_roots, writable_roots);
+        assert_eq!(roots.access_segments, access_segments);
+        assert_eq!(roots.argument_accesses, argument_accesses);
+        assert_eq!(roots.calls, calls);
+        assert_eq!(roots.loans, loans);
+        assert_eq!(roots.activations, activations);
+        assert_eq!(roots.weakenings, weakenings);
+    }
+}

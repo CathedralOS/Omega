@@ -10,6 +10,18 @@ pub struct StateGraphFactRoots {
     pub invariants: Arena<InvariantFact>,
 }
 
+impl StateGraphFactRoots {
+    pub fn with_roots(
+        proof_obligations: Arena<ProofObligationFact>,
+        invariants: Arena<InvariantFact>,
+    ) -> Self {
+        Self {
+            proof_obligations,
+            invariants,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphSemanticRoots {
     pub facts: StateGraphFactRoots,
