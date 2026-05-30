@@ -635,6 +635,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-trees-to-state-graph capacity planning now mirrors `StateGraph`
     code and semantic roots instead of keeping one flat capacity struct for
     code, fact, contract, value, boundary, borrow, and ownership arenas
+  - checked-trees-to-state-graph capacity construction now composes focused
+    code-root and semantic-root capacity builders instead of making the
+    top-level capacity constructor count every arena directly
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
