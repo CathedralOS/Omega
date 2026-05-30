@@ -2,6 +2,7 @@ use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::StateGraph;
 
+mod arena_remap;
 mod borrows;
 mod boundaries;
 mod builder;

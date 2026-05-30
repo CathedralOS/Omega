@@ -91,6 +91,9 @@ noun preserved in a focused file:
   control-flow form.
 - `values.rs` owns value-summary conversion from graph form into control-flow
   form.
+- `arena_remap.rs` owns the shared borrowed-arena remapping loop. Noun modules
+  still own conversion policy; the helper only preserves arena shape while
+  applying those conversions.
 - `handles.rs` owns handle-span remapping helpers only.
 
 ## Known Gaps

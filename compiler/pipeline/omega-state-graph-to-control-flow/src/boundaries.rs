@@ -2,14 +2,14 @@ use omega_control_flow::{StateBoundaryEdge, StateBoundarySummary};
 use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
 
+use crate::arena_remap::remap_arena;
 use crate::handles::remap_boundary_edge_span;
 
 pub(crate) fn remap_boundary_edges(state_graph: &StateGraph) -> Arena<StateBoundaryEdge> {
-    let mut boundary_edges = Arena::with_capacity(state_graph.semantics.boundaries.edges.len());
-    for (_, edge) in state_graph.semantics.boundaries.edges.iter() {
-        boundary_edges.append(remap_boundary_edge_owned(edge.clone()));
-    }
-    boundary_edges
+    remap_arena(
+        &state_graph.semantics.boundaries.edges,
+        remap_boundary_edge_owned,
+    )
 }
 
 pub(crate) fn remap_boundary_edge_owned(
