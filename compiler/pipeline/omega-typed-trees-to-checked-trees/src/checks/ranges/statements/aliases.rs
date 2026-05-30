@@ -30,11 +30,24 @@ fn alias_source_label(
         ExpressionNode::Call(call)
             if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
         {
-            Some(program.expression_table.display_name(call.receiver))
+            Some(program.expression_table.display_name(alias_source_receiver(
+                program,
+                call.receiver,
+            )))
         }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             Some(program.expression_table.display_name(expression))
         }
         _ => None,
+    }
+}
+
+fn alias_source_receiver(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => expression,
     }
 }

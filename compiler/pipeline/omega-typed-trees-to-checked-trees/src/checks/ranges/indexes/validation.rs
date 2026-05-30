@@ -107,6 +107,8 @@ pub(super) fn check_indexed_access(
     } else if expression_is_slice(program, machine, state, indexed.collection) {
         check_unknown_length_slice_index(
             program,
+            machine,
+            state,
             facts,
             indexed.collection,
             indexed.index,
@@ -134,30 +136,32 @@ fn check_known_length_index(
                 if facts.index_is_proven(&collection_label, &index_label) {
                     return;
                 }
-                if facts.index_upper_bound_is_proven(&index_label, length) {
-                    return;
-                }
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove index `{}` is within length {}",
-                    index_label, length
-                )));
+            if facts.index_upper_bound_is_proven(&index_label, length) {
                 return;
-            };
+            }
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot prove index `{}` is within length {}",
+                index_label, length
+            )));
+            return;
+        };
             let valid =
                 index_value >= 0 && usize::try_from(index_value).is_ok_and(|index| index < length);
             if !valid {
-                diagnostics.push(Diagnostic::error(format!(
+            diagnostics.push(Diagnostic::error(format!(
                     "cannot prove index `{}` is within length {}",
                     program.expression_table.display_name(index),
                     length
                 )));
-            }
         }
     }
+}
 }
 
 fn check_unknown_length_slice_index(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
@@ -176,13 +180,14 @@ fn check_unknown_length_slice_index(
             )));
         }
         _ => {
+            let collection_label = program.expression_table.display_name(collection);
             let index_label = program.expression_table.display_name(index);
             if unknown_length_index_is_proven(program, facts, collection, index) {
                 return;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove index `{}` is within unknown slice length",
-                index_label
+                "cannot prove index `{}` is within unknown slice length of `{}` in {}::{}",
+                index_label, collection_label, machine.name, state.name
             )));
         }
     }

@@ -704,6 +704,113 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
 }
 
 #[test]
+fn accepts_mutable_slice_alias_index_from_fixed_array_field() {
+    let source = r#"
+        data Exit {
+            destination: i32;
+        }
+
+        data Room {
+            exits: [Exit; 4];
+        }
+
+        data Main {
+            room: Room;
+        }
+
+        machine Main::main(&mut self) {
+            let exits: &mut [Exit] = self.room.exits.as_mut_slice();
+            exits[0] = Exit { destination: 1 };
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("mutable slice alias from fixed array field should keep its fixed length");
+}
+
+#[test]
+fn accepts_recursive_slice_parameter_index_proof_from_guard() {
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+        }
+
+        machine Main::main(&mut self) {
+            let entries: &[Entry] = self.entries.as_slice();
+            transition {
+                _ -> self.visit(entries, 0)
+            }
+
+            state visit(&mut self, entries: &[Entry], index: usize) {
+                let value: i32 = entries[index].value;
+                let next_index: usize = index + 1;
+                let has_next: bool = next_index < entries.len;
+
+                transition {
+                    has_next -> self.visit(entries, next_index)
+                    _ -> {}
+                }
+            }
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("recursive slice parameter should keep index proof from length guard");
+}
+
+#[test]
 fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     let source = r#"
         data Main {

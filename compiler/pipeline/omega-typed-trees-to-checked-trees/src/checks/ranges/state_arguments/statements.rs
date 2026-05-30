@@ -110,28 +110,33 @@ fn collect_state_argument_facts_from_target(
         return;
     }
 
-    let TransitionTargetNode::Named { path, arguments } =
-        program.statement_table.transition_target(target)
-    else {
-        return;
-    };
-    let Some(target_state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == path.symbol)
-    else {
-        return;
-    };
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, arguments } => {
+            let Some(target_state) = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == path.symbol)
+            else {
+                return;
+            };
 
-    collect_state_argument_facts_for_call(
-        program,
-        machine,
-        facts,
-        target_state.symbol,
-        Some(&target_state.name),
-        program.statement_table.expression_handles(*arguments),
-        collected,
-    );
+            collect_state_argument_facts_for_call(
+                program,
+                machine,
+                facts,
+                target_state.symbol,
+                Some(&target_state.name),
+                program.statement_table.expression_handles(*arguments),
+                collected,
+            );
+        }
+        TransitionTargetNode::Value(value) => {
+            collect_state_argument_facts_from_expression(
+                program, machine, facts, *value, collected,
+            );
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+    }
 }
 
 fn seed_boolean_guard_local(

@@ -55,7 +55,7 @@ impl<T: Copy + Eq> MergedFact<T> {
     fn merge(&mut self, value: Option<T>) {
         match (*self, value) {
             (Self::Unseen, Some(value)) => *self = Self::Known(value),
-            (Self::Unseen | Self::Known(_), None) => *self = Self::Conflicting,
+            (Self::Unseen | Self::Known(_), None) => {}
             (Self::Known(existing), Some(value)) if existing == value => {}
             (Self::Known(_), Some(_)) | (Self::Conflicting, _) => *self = Self::Conflicting,
         }
@@ -71,6 +71,10 @@ impl<T: Copy + Eq> MergedFact<T> {
 
 impl MergedIndexProofs {
     fn merge(&mut self, incoming: Vec<ParameterIndexProof>) {
+        if incoming.is_empty() {
+            return;
+        }
+
         let Some(existing) = &mut self.proofs else {
             self.proofs = Some(incoming);
             return;
