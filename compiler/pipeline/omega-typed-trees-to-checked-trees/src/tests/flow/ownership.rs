@@ -174,6 +174,73 @@ fn materializes_transition_argument_moves() {
 }
 
 #[test]
+fn materializes_transition_value_target_move() {
+    // A transition `Value` target (`_ -> <expr>`) that moves out an owned local
+    // is a plain value expression no ownership-bearing borrow call covers. Its
+    // move out of the state must still be recorded as an ownership event.
+    let source = r#"
+        data Item {
+            value: i32;
+        }
+
+        data Main {
+            left: Item;
+        }
+
+        machine Main::main(&mut self) -> Item {
+            let first: Item = self.left;
+
+            transition {
+                _ -> first
+            }
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    let moves = flow.ownership.moves.span_or_empty(state_flow.moves);
+    // One move for the `let first = self.left` initializer (statement 0) and one
+    // for moving `first` out through the transition value target (statement 1).
+    assert_eq!(moves.len(), 2);
+    assert_eq!(
+        moves[0].source,
+        omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 0 }
+    );
+    assert_eq!(
+        moves[1].source,
+        omega_checked_trees::FlowOwnershipEventSource::Statement { statement_index: 1 }
+    );
+}
+
+#[test]
+fn does_not_materialize_transition_value_target_move_for_copy_scalar() {
+    let source = r#"
+        data Main {
+            count: i32;
+        }
+
+        machine Main::main(&mut self) -> i32 {
+            let copied: i32 = self.count;
+
+            transition {
+                _ -> copied
+            }
+        }
+    "#;
+
+    let (typed, flow) = checked_flow(source);
+    let state_flow = main_state_flow(&typed, &flow);
+
+    assert!(
+        flow.ownership
+            .moves
+            .span_or_empty(state_flow.moves)
+            .is_empty()
+    );
+}
+
+#[test]
 fn materializes_nested_call_argument_moves() {
     let source = r#"
         data Item {
