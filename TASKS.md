@@ -85,9 +85,10 @@ surfacing) are left to the owning slice.
   regression). Follow-on lanes also landed: operator `spelling` + `BoundaryProvider`
   registry with whitelist/resolution gates (O), dynamic-indexed domain-fact
   preservation coverage + soundness docs (Pd), and capability verb population +
-  blast-radius manifest + host-call authorization (Cap). Remaining: expression-level
-  spelling dispatch wiring, lemma consumption, runtime descriptor generalization,
-  and native/asm-emission depth.
+  blast-radius manifest + host-call authorization (Cap), plus the first
+  expression-level operator spelling facts for `[]` and range indexing.
+  Remaining: contract-producing operator dispatch, ambiguity diagnostics, lemma
+  consumption, runtime descriptor generalization, and native/asm-emission depth.
 - Pipeline architecture docs now define semantic ownership and include the
   stage-by-stage ownership matrix.
 - Syntax, symbol-resolved, typed, checked, state-graph, control-flow, abstract,
@@ -245,6 +246,10 @@ without hidden runtime tags.
   operator declarations by signature and context.
 - [x] Design a declaration form for fixed spellings such as `+`, `[]`, and
   range slicing. (decided: Wave 0 #3 — `spelling` clause on named `operator`.)
+- [x] Materialize expression-level operator-use facts for indexed expressions so
+  `items[index]` and `items[range]` have visible checked-tree spelling
+  resolution status. (done: checked operator facts record spelling, selected
+  symbol, candidate count, and missing/resolved/ambiguous status.)
 - [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
   operator contracts.
 - [ ] Design boundary implementation bindings for core operators without
