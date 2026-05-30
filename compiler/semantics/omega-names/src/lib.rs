@@ -359,7 +359,7 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Target,
                 );
             }
-            Item::Export(_) => {}
+            Item::Provider(_) | Item::Export(_) => {}
         }
     }
 
@@ -1133,7 +1133,11 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Export(_) | Item::Invariant(_) | Item::Target(_) | Item::Use(_) => {}
+            Item::Provider(_)
+            | Item::Export(_)
+            | Item::Invariant(_)
+            | Item::Target(_)
+            | Item::Use(_) => {}
         }
     }
 
@@ -1472,7 +1476,11 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             Item::Trait(trait_definition) => {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
-            Item::Export(_) | Item::Invariant(_) | Item::Target(_) | Item::Use(_) => {}
+            Item::Provider(_)
+            | Item::Export(_)
+            | Item::Invariant(_)
+            | Item::Target(_)
+            | Item::Use(_) => {}
         }
     }
 }
@@ -1516,7 +1524,7 @@ fn root_item_symbol_seed<'syntax>(
             &trait_definition.name,
         )),
         Item::Target(target) => Some(RootSymbolSeed::Identifier(SymbolKind::Object, &target.name)),
-        Item::Export(_) | Item::Use(_) => None,
+        Item::Provider(_) | Item::Export(_) | Item::Use(_) => None,
     }
 }
 
@@ -1531,7 +1539,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Platform(platform) => Some(platform.name.as_str()),
         Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
-        Item::Export(_) | Item::Operator(_) | Item::Use(_) => None,
+        Item::Provider(_) | Item::Export(_) | Item::Operator(_) | Item::Use(_) => None,
     }
 }
 

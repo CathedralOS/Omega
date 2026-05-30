@@ -132,7 +132,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     );
                 }
             }
-            Item::Use(_) | Item::Export(_) => {}
+            Item::Provider(_) | Item::Use(_) | Item::Export(_) => {}
             Item::Operator(operator) => {
                 collect_operator(
                     &mut report,

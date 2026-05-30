@@ -20,6 +20,7 @@ pub(crate) fn lower_operator_definition(
             .transpose()?
             .unwrap_or_else(omega_typed_trees::types::TypeReferenceHandle::invalid),
         contracts: Default::default(),
+        spelling: operator.spelling,
         token_count: operator.token_count,
     };
 

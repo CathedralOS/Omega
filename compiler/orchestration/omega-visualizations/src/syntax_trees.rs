@@ -475,6 +475,16 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             )
         }
         Item::Target(value) => format!("target {}", value.name.as_str()),
+        Item::Provider(value) => {
+            let name = syntax
+                .items
+                .identifier_path_members(value.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!("provider {name}\ncategory: {}", value.category.name())
+        }
         Item::Export(value) => {
             let path = syntax
                 .items
