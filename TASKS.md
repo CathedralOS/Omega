@@ -101,6 +101,9 @@ meaning, without needing access to pointer descriptor internals.
     operation records, operation kinds, abstract-to-target conversions, value
     operands, and instruction operands instead of hiding all instruction
     concerns behind `selected.rs`
+  - target-operations-to-assigned-target-operations now builds assigned code
+    roots and assigned semantic roots through separate helpers before joining
+    them with `AssignedTargetOperationPlan::with_roots`
   - target operation value facts, ownership facts, and boundary edges now sit
     under an explicit `TargetSemanticSummary` root on `TargetOperationPlan`
     instead of appearing as unrelated plan siblings

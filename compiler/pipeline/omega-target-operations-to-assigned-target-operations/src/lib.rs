@@ -6,6 +6,7 @@ mod code;
 mod functions;
 mod operations;
 mod registers;
+mod semantics;
 #[cfg(test)]
 mod tests;
 mod values;
