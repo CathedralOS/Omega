@@ -617,6 +617,9 @@ meaning, without needing access to pointer descriptor internals.
     focused stage-level semantic mapper instead of spelling proof, contract,
     value, boundary, borrow, and ownership root construction inside the
     top-level builders
+  - state-graph-to-control-flow semantic mapping now splits fact, contract,
+    value, boundary, borrow, and ownership root construction into focused
+    helpers for both borrowed and owned source graphs
   - state-graph-to-control-flow now assembles `ControlFlowCode` in a focused
     stage-level code mapper, leaving top-level builders to join code roots and
     semantic roots instead of owning remap details
