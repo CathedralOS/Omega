@@ -598,6 +598,8 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph and control-flow semantic roots now group borrow writable
     roots, access segments, argument accesses, calls, loans, activations, and
     weakenings under explicit borrow roots
+  - state-graph and control-flow semantic roots now group contract fact refs,
+    calls, and exits under explicit contract roots
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model

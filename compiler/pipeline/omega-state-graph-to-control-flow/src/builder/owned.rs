@@ -49,11 +49,14 @@ pub(crate) fn build_control_flow_plan_owned(
                 .proof_obligations
                 .map(remap_proof_obligation_owned),
             invariants: semantics.invariants.map(remap_invariant_owned),
-            contract_fact_refs: semantics
-                .contract_fact_refs
-                .map(remap_contract_fact_ref_owned),
-            contract_calls: semantics.contract_calls.map(remap_contract_call_owned),
-            contract_exits: semantics.contract_exits.map(remap_contract_exit_owned),
+            contracts: omega_control_flow::ControlFlowContractRoots {
+                fact_refs: semantics
+                    .contracts
+                    .fact_refs
+                    .map(remap_contract_fact_ref_owned),
+                calls: semantics.contracts.calls.map(remap_contract_call_owned),
+                exits: semantics.contracts.exits.map(remap_contract_exit_owned),
+            },
             values: semantics.values.map(remap_value_owned),
             boundary_edges: semantics.boundary_edges.map(remap_boundary_edge_owned),
             borrow: omega_control_flow::ControlFlowBorrowRoots {

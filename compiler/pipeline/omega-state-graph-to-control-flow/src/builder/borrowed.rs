@@ -36,9 +36,11 @@ pub(crate) fn build_control_flow_plan(
         semantics: omega_control_flow::ControlFlowSemanticRoots {
             proof_obligations: remap_proof_obligations(state_graph),
             invariants: remap_invariants(state_graph),
-            contract_fact_refs: remap_contract_fact_refs(state_graph),
-            contract_calls: remap_contract_calls(state_graph),
-            contract_exits: remap_contract_exits(state_graph),
+            contracts: omega_control_flow::ControlFlowContractRoots {
+                fact_refs: remap_contract_fact_refs(state_graph),
+                calls: remap_contract_calls(state_graph),
+                exits: remap_contract_exits(state_graph),
+            },
             values: remap_values(state_graph),
             boundary_edges: remap_boundary_edges(state_graph),
             borrow: omega_control_flow::ControlFlowBorrowRoots {
