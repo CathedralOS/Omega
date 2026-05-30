@@ -1,0 +1,1 @@
+invalidated by prior mutation of self.items[0].value

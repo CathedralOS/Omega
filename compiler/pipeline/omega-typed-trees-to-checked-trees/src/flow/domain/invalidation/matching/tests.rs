@@ -138,6 +138,145 @@ fn indexed_domain_dependency_invalidates_same_literal_index_dependency_mutations
 }
 
 #[test]
+fn indexed_domain_dependency_preserves_shared_dynamic_index_disjoint_field() {
+    // A domain fact over `self.entries[self.index].value` must survive a call that
+    // mutates `self.entries[self.index].tag`: the index expression is the SAME dynamic
+    // place, so the disjoint trailing field proves the two places cannot alias.
+    let domain_symbol = SymbolHandle::from_arena_index(130);
+    let entries_symbol = SymbolHandle::from_arena_index(131);
+    let value_symbol = SymbolHandle::from_arena_index(132);
+    let tag_symbol = SymbolHandle::from_arena_index(133);
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let shared_index = name_expression(&mut program);
+    let domains = dependency_facts(
+        domain_symbol,
+        &[omega_facts::PlaceSegment::Field {
+            symbol: value_symbol,
+        }],
+    );
+    let fact = domain_membership_fact(domain_symbol);
+    let fact_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![omega_facts::PlaceSegment::Index {
+            expression: shared_index,
+        }],
+    };
+    let mutated_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![
+            omega_facts::PlaceSegment::Index {
+                expression: shared_index,
+            },
+            omega_facts::PlaceSegment::Field { symbol: tag_symbol },
+        ],
+    };
+
+    assert!(
+        domain_membership_matching_dependency(
+            &program,
+            &domains,
+            &fact,
+            &fact_place,
+            &mutated_place,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn indexed_domain_dependency_invalidates_distinct_dynamic_index_same_field() {
+    // Two DISTINCT occurrences of `self.index` produce distinct expression handles even
+    // though they denote the same place. A same-field mutation through such an index must
+    // still invalidate: we cannot prove the two dynamic indices disagree.
+    let domain_symbol = SymbolHandle::from_arena_index(140);
+    let entries_symbol = SymbolHandle::from_arena_index(141);
+    let value_symbol = SymbolHandle::from_arena_index(142);
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let fact_index = name_expression(&mut program);
+    let mutated_index = name_expression(&mut program);
+    let domains = dependency_facts(
+        domain_symbol,
+        &[omega_facts::PlaceSegment::Field {
+            symbol: value_symbol,
+        }],
+    );
+    let fact = domain_membership_fact(domain_symbol);
+    let fact_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![omega_facts::PlaceSegment::Index {
+            expression: fact_index,
+        }],
+    };
+    let mutated_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![
+            omega_facts::PlaceSegment::Index {
+                expression: mutated_index,
+            },
+            omega_facts::PlaceSegment::Field {
+                symbol: value_symbol,
+            },
+        ],
+    };
+
+    assert!(
+        domain_membership_matching_dependency(
+            &program,
+            &domains,
+            &fact,
+            &fact_place,
+            &mutated_place,
+        )
+        .is_some()
+    );
+}
+
+#[test]
+fn indexed_domain_dependency_is_conservative_for_unknown_indices() {
+    let domain_symbol = SymbolHandle::from_arena_index(120);
+    let entries_symbol = SymbolHandle::from_arena_index(121);
+    let value_symbol = SymbolHandle::from_arena_index(122);
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let literal_zero = integer_expression(&mut program, 0);
+    let unknown_index = name_expression(&mut program);
+    let domains = dependency_facts(
+        domain_symbol,
+        &[omega_facts::PlaceSegment::Field {
+            symbol: value_symbol,
+        }],
+    );
+    let fact = domain_membership_fact(domain_symbol);
+    let fact_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![omega_facts::PlaceSegment::Index {
+            expression: literal_zero,
+        }],
+    };
+    let mutated_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![
+            omega_facts::PlaceSegment::Index {
+                expression: unknown_index,
+            },
+            omega_facts::PlaceSegment::Field {
+                symbol: value_symbol,
+            },
+        ],
+    };
+
+    assert!(
+        domain_membership_matching_dependency(
+            &program,
+            &domains,
+            &fact,
+            &fact_place,
+            &mutated_place,
+        )
+        .is_some()
+    );
+}
+
+#[test]
 fn indexed_domain_dependency_preserves_disjoint_nested_field_under_same_index() {
     // Fact place `entries[0]` is in a domain whose dependency is the nested
     // path `inner.value`. A mutation of `entries[0].inner.tag` shares the index
@@ -192,50 +331,5 @@ fn indexed_domain_dependency_preserves_disjoint_nested_field_under_same_index() 
             &mutated_place,
         )
         .is_none()
-    );
-}
-
-#[test]
-fn indexed_domain_dependency_is_conservative_for_unknown_indices() {
-    let domain_symbol = SymbolHandle::from_arena_index(120);
-    let entries_symbol = SymbolHandle::from_arena_index(121);
-    let value_symbol = SymbolHandle::from_arena_index(122);
-    let mut program = omega_typed_trees::TypedTrees::default();
-    let literal_zero = integer_expression(&mut program, 0);
-    let unknown_index = name_expression(&mut program);
-    let domains = dependency_facts(
-        domain_symbol,
-        &[omega_facts::PlaceSegment::Field {
-            symbol: value_symbol,
-        }],
-    );
-    let fact = domain_membership_fact(domain_symbol);
-    let fact_place = CanonicalPlace {
-        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![omega_facts::PlaceSegment::Index {
-            expression: literal_zero,
-        }],
-    };
-    let mutated_place = CanonicalPlace {
-        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
-        segments: vec![
-            omega_facts::PlaceSegment::Index {
-                expression: unknown_index,
-            },
-            omega_facts::PlaceSegment::Field {
-                symbol: value_symbol,
-            },
-        ],
-    };
-
-    assert!(
-        domain_membership_matching_dependency(
-            &program,
-            &domains,
-            &fact,
-            &fact_place,
-            &mutated_place,
-        )
-        .is_some()
     );
 }

@@ -179,6 +179,20 @@ mod tests {
     }
 }
 
+/// Decide whether two index expressions may select the same element.
+///
+/// Soundness requires defaulting to `true` (overlap) whenever we cannot prove the
+/// indices are distinct, so a genuinely-overlapping or unknown-index mutation always
+/// invalidates a dependent domain fact. We can only prove *disjointness* when both
+/// sides are literal integers with different values; e.g. a domain fact over
+/// `self.entries[0]` survives a mutation of `self.entries[1]`.
+///
+/// Dynamic indices (including repeated `self.index` reads that produce distinct
+/// expression handles) are treated conservatively as possibly-overlapping. Disjoint
+/// dynamic-indexed proofs are instead preserved by trailing-segment divergence — a
+/// mutation of a different field of the same indexed element does not overlap the
+/// fact's dependency path — which the joined-segment matcher handles independently of
+/// this index comparison.
 fn index_expressions_may_overlap(
     program: &omega_typed_trees::TypedTrees,
     left: ExpressionHandle,
