@@ -1,6 +1,7 @@
 use super::*;
 mod calls;
 mod inherited;
+mod operators;
 
 pub(crate) use calls::{
     build_contract_call_facts, build_contract_exit_facts, contract_target_from_state_symbol,
@@ -8,6 +9,7 @@ pub(crate) use calls::{
 pub(crate) use inherited::{
     append_inherited_trait_contract_facts, estimated_contract_fact_capacity,
 };
+pub(crate) use operators::build_contract_operator_use_facts;
 
 pub(crate) fn append_machine_contract_facts(
     program: &omega_typed_trees::TypedTrees,

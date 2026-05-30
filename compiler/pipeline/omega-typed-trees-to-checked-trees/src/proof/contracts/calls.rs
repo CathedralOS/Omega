@@ -146,9 +146,9 @@ fn append_contract_fact_refs(
                 owner_machine_symbol == machine_symbol
                     && state_symbol.is_some_and(|state_symbol| state_symbol == owner_state_symbol)
             }
-            ContractProofFactOwner::Unknown | ContractProofFactOwner::StateSignature { .. } => {
-                false
-            }
+            ContractProofFactOwner::Unknown
+            | ContractProofFactOwner::StateSignature { .. }
+            | ContractProofFactOwner::OperatorUse { .. } => false,
         };
 
         if owner_matches && fact.kind == kind {

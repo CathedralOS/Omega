@@ -59,6 +59,21 @@ pub(super) fn contract_fact_point(contract: &ContractProofFact) -> ProgramPoint 
             machine_symbol: owner_symbol,
             state_symbol,
         },
+        ContractProofFactOwner::OperatorUse {
+            origin:
+                omega_checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    ..
+                },
+            ..
+        } => ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+        },
+        ContractProofFactOwner::OperatorUse { .. } => ProgramPoint::Global,
         ContractProofFactOwner::Unknown => ProgramPoint::Global,
     }
 }
@@ -77,6 +92,7 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
             owner_symbol,
             state_symbol,
         },
+        ContractProofFactOwner::OperatorUse { .. } => FactOrigin::Unknown,
         ContractProofFactOwner::Unknown => FactOrigin::Unknown,
     }
 }

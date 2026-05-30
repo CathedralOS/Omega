@@ -1,8 +1,8 @@
 use omega_core::arena::Arena;
 
 use crate::{
-    ContractCallFact, ContractExitFact, ContractProofFact, ContractProofFactRef,
-    ProofObligationFact,
+    ContractCallFact, ContractExitFact, ContractOperatorUseFact, ContractProofFact,
+    ContractProofFactRef, ProofObligationFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -12,6 +12,7 @@ pub struct ProofFacts {
     pub contract_fact_refs: Arena<ContractProofFactRef>,
     pub contract_calls: Arena<ContractCallFact>,
     pub contract_exits: Arena<ContractExitFact>,
+    pub contract_operator_uses: Arena<ContractOperatorUseFact>,
 }
 
 impl ProofFacts {
@@ -21,6 +22,7 @@ impl ProofFacts {
         contract_fact_refs: Arena<ContractProofFactRef>,
         contract_calls: Arena<ContractCallFact>,
         contract_exits: Arena<ContractExitFact>,
+        contract_operator_uses: Arena<ContractOperatorUseFact>,
     ) -> Self {
         Self {
             obligations,
@@ -28,6 +30,7 @@ impl ProofFacts {
             contract_fact_refs,
             contract_calls,
             contract_exits,
+            contract_operator_uses,
         }
     }
 }
@@ -35,8 +38,8 @@ impl ProofFacts {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ContractCallFact, ContractExitFact, ContractProofFact, ContractProofFactRef, ProofFacts,
-        ProofObligationFact,
+        ContractCallFact, ContractExitFact, ContractOperatorUseFact, ContractProofFact,
+        ContractProofFactRef, ProofFacts, ProofObligationFact,
     };
     use omega_core::arena::Arena;
 
@@ -47,6 +50,7 @@ mod tests {
         let contract_fact_refs = Arena::<ContractProofFactRef>::with_capacity(3);
         let contract_calls = Arena::<ContractCallFact>::with_capacity(4);
         let contract_exits = Arena::<ContractExitFact>::with_capacity(5);
+        let contract_operator_uses = Arena::<ContractOperatorUseFact>::with_capacity(6);
 
         let facts = ProofFacts::with_roots(
             obligations.clone(),
@@ -54,6 +58,7 @@ mod tests {
             contract_fact_refs.clone(),
             contract_calls.clone(),
             contract_exits.clone(),
+            contract_operator_uses.clone(),
         );
 
         assert_eq!(facts.obligations, obligations);
@@ -61,5 +66,6 @@ mod tests {
         assert_eq!(facts.contract_fact_refs, contract_fact_refs);
         assert_eq!(facts.contract_calls, contract_calls);
         assert_eq!(facts.contract_exits, contract_exits);
+        assert_eq!(facts.contract_operator_uses, contract_operator_uses);
     }
 }

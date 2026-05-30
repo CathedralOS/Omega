@@ -1,5 +1,8 @@
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::expression::ExpressionHandle;
+
+use crate::CheckedValueOrigin;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ContractProofFactKind {
@@ -23,6 +26,11 @@ pub enum ContractProofFactOwner {
     StateSignature {
         owner_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
+    },
+    OperatorUse {
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+        operator_symbol: SymbolHandle,
     },
 }
 
@@ -56,4 +64,14 @@ pub struct ContractExitFact {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub ensures: HandleSpan<ContractProofFactRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContractOperatorUseFact {
+    pub expression: ExpressionHandle,
+    pub origin: CheckedValueOrigin,
+    pub operator_symbol: SymbolHandle,
+    pub requires: HandleSpan<ContractProofFactRef>,
+    pub ensures: HandleSpan<ContractProofFactRef>,
+    pub boundary: HandleSpan<ContractProofFactRef>,
 }
