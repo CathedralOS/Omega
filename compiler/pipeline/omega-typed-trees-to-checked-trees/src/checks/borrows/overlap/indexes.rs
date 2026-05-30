@@ -93,8 +93,31 @@ fn range_integer_bounds(
 ) -> (Option<i64>, Option<i64>) {
     (
         integer_expression_value(program, range.start),
-        integer_expression_value(program, range.end),
+        exclusive_end_bound(program, range),
     )
+}
+
+/// The half-open (exclusive) upper bound of a range window.
+///
+/// All overlap reasoning here is in terms of half-open windows `[start, end)`.
+/// An inclusive range `a..=b` covers index `b`, so its exclusive end is `b + 1`.
+/// Normalizing here keeps `range_may_contain_integer`/`ranges_may_overlap` sound:
+/// without it, `view[0..=3]` would be read as `[0, 3)` and a borrow of element 3
+/// (or window `3..5`) would be mis-classified as disjoint.
+///
+/// A `b + 1` that overflows `i64` (the `..=i64::MAX` edge) cannot be represented
+/// as an exclusive bound, so the end is reported as unknown (`None`), which the
+/// overlap checks treat conservatively as possibly-overlapping.
+fn exclusive_end_bound(
+    program: &omega_typed_trees::TypedTrees,
+    range: &TableRangeExpression,
+) -> Option<i64> {
+    let end = integer_expression_value(program, range.end)?;
+    if range.end_inclusive {
+        end.checked_add(1)
+    } else {
+        Some(end)
+    }
 }
 
 fn integer_expression_value(
@@ -108,5 +131,86 @@ fn integer_expression_value(
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn integer(program: &mut omega_typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
+        program
+            .expression_table
+            .insert(ExpressionNode::Integer(value))
+    }
+
+    fn range(
+        program: &mut omega_typed_trees::TypedTrees,
+        start: i64,
+        end: i64,
+        end_inclusive: bool,
+    ) -> ExpressionHandle {
+        let start = integer(program, start);
+        let end = integer(program, end);
+        program
+            .expression_table
+            .insert(ExpressionNode::Range(TableRangeExpression {
+                start,
+                end,
+                end_inclusive,
+            }))
+    }
+
+    #[test]
+    fn exclusive_range_disjoint_from_index_at_end() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        // `[0, 3)` does not contain index 3.
+        let window = range(&mut program, 0, 3, false);
+        let index = integer(&mut program, 3);
+        assert!(!index_expressions_may_overlap(&program, window, index));
+    }
+
+    #[test]
+    fn inclusive_range_overlaps_index_at_end() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        // `0..=3` covers index 3 -- must overlap (soundness).
+        let window = range(&mut program, 0, 3, true);
+        let index = integer(&mut program, 3);
+        assert!(index_expressions_may_overlap(&program, window, index));
+    }
+
+    #[test]
+    fn inclusive_range_overlaps_adjacent_window() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        // `0..=3` = `[0, 4)` overlaps `3..5` = `[3, 5)` at index 3.
+        let left = range(&mut program, 0, 3, true);
+        let right = range(&mut program, 3, 5, false);
+        assert!(index_expressions_may_overlap(&program, left, right));
+    }
+
+    #[test]
+    fn exclusive_adjacent_windows_are_disjoint() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        // `[0, 3)` and `[3, 5)` share no index.
+        let left = range(&mut program, 0, 3, false);
+        let right = range(&mut program, 3, 5, false);
+        assert!(!index_expressions_may_overlap(&program, left, right));
+    }
+
+    #[test]
+    fn disjoint_windows_stay_disjoint() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let left = range(&mut program, 0, 2, false);
+        let right = range(&mut program, 4, 8, false);
+        assert!(!index_expressions_may_overlap(&program, left, right));
+    }
+
+    #[test]
+    fn empty_inclusive_window_overlaps_nothing() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        // `2..=1` normalizes to `[2, 2)` -- empty, disjoint from index 2.
+        let window = range(&mut program, 2, 1, true);
+        let index = integer(&mut program, 2);
+        assert!(!index_expressions_may_overlap(&program, window, index));
     }
 }

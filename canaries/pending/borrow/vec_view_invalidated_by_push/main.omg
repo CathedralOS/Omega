@@ -1,9 +1,22 @@
 // PENDING: Vec mutation/reallocation must reject while borrowed slice views are
-// still active, mirroring the array/slice owner-write rule. This depends on the
-// Vec runtime/lowering being ready and on `Vec<T>` being usable as machine-owned
-// storage with a borrow-producing `as_slice`. Until then this canary is parked
-// here unregistered (see ACTIVE_PENDING_CANARIES) so the intended rule is
-// recorded without asserting a current diagnostic.
+// still active, mirroring the array/slice owner-write rule.
+//
+// STATUS: the borrow-conflict RULE is implemented. `Vec::push` is a `&mut self`
+// mutating call on the owner; the owner-mutation-through-a-call rule in
+// checks/borrows/statements.rs (`check_call_mutation_borrows`) rejects such a
+// call when its mutated places overlap a live borrowed view. That rule is
+// exercised today by the registered fail canary
+// `borrow/slice_view_invalidated_by_owner_call`, the array-form analogue of
+// this Vec case.
+//
+// WHY STILL PENDING: this exact spelling does not yet type-check. `Vec<T>` is
+// not a usable machine-owned data type -- symbol resolution reports
+// `data `Main` field `items` references unknown generic type `Vec``, so the
+// program is rejected at name/type resolution before borrow checking runs. Once
+// `Vec<T>` lowers as machine-owned storage with a borrow-producing `as_slice`
+// and a `&mut self` `push`, promote this to a registered fail canary asserting
+// the borrow-conflict diagnostic at the `push` call. Until then it stays parked
+// here unregistered (see ACTIVE_PENDING_CANARIES).
 
 use omega::language::core::vec;
 

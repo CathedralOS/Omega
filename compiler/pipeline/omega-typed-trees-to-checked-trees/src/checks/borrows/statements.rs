@@ -1,7 +1,7 @@
 use omega_checked_trees::{BorrowAccessKind, CheckFacts, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 
-use crate::flow::statement_mutated_place;
+use crate::flow::{call_mutated_places, statement_mutated_place, StateMutationSummaryCache};
 use crate::labels::symbol_name;
 use crate::semantic_calls::find_state_in_machine;
 
@@ -110,6 +110,86 @@ pub(super) fn check_statement_borrows(
                             loan.statement_index
                         )),
                 )));
+            }
+        }
+    }
+
+    check_call_mutation_borrows(program, facts, state_flow, borrow_state, diagnostics);
+}
+
+/// Vec-views borrow rule (and, generally, owner-mutation-through-a-call vs a
+/// live borrowed view).
+///
+/// A mutating call through an owner -- e.g. `Vec::push`/`Vec::index_mut` or any
+/// `&mut self` boundary/state call that reallocates or writes the owner -- may
+/// invalidate a borrowed slice/string view (`&[T]`/`&mut [T]`/`&string`) taken
+/// from that owner. The owner-write rule already rejects this for *assignment*
+/// statements; this extends the same conflict to *call* statements, whose
+/// mutated places are computed by [`call_mutated_places`] (the receiver place
+/// plus any mutable-argument places). A mutated place overlapping a loan that is
+/// still live at the call point is rejected.
+///
+/// This reuses the existing loan-overlap engine, so it inherits the disjoint
+/// subslice/element precision and stays conservative when a window is unknown.
+fn check_call_mutation_borrows(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    borrow_state: &omega_checked_trees::StateBorrowFact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut summary_cache = StateMutationSummaryCache::default();
+
+    for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
+        let mutated_places = call_mutated_places(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            &facts.borrow,
+            borrow_call,
+            &mut summary_cache,
+        );
+        if mutated_places.is_empty() {
+            continue;
+        }
+
+        // The loans live *at* the call are the entry constraints of the flow
+        // statement the call belongs to.
+        let Some(statement) = facts
+            .flow
+            .control
+            .statements
+            .span_or_empty(state_flow.statements)
+            .iter()
+            .find(|statement| statement.statement_index == borrow_call.statement_index)
+        else {
+            continue;
+        };
+
+        for loan_handle in facts
+            .flow
+            .borrow_loan_constraints(statement.entry_constraints)
+        {
+            let loan = facts.borrow.loans.get(loan_handle);
+            for mutated_place in &mutated_places {
+                if !canonical_place_overlaps_loan(program, mutated_place, loan, &facts.borrow) {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "statement {} mutates `{}` while local borrow `{}` is still active ({})",
+                    borrow_call.statement_index,
+                    canonical_place_label(program, mutated_place),
+                    symbol_name(program, loan.owner_symbol),
+                    active_loan_detail(
+                        state_flow,
+                        facts,
+                        loan_handle,
+                        borrow_call.statement_index,
+                    )
+                    .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
+                )));
+                // One diagnostic per (call, loan) is enough.
+                break;
             }
         }
     }
