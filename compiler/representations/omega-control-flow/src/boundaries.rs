@@ -6,6 +6,12 @@ pub struct ControlFlowBoundaryRoots {
     pub edges: Arena<StateBoundaryEdge>,
 }
 
+impl ControlFlowBoundaryRoots {
+    pub fn with_roots(edges: Arena<StateBoundaryEdge>) -> Self {
+        Self { edges }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBoundaryEdge {
     pub statement_index: usize,

@@ -684,6 +684,9 @@ meaning, without needing access to pointer descriptor internals.
   - control-flow executable roots now expose `ControlFlowCode::with_roots`
     with canaries, and state-graph-to-control-flow uses that constructor
     instead of raw executable-root field assembly
+  - control-flow semantic sub-roots now expose noun-specific constructors, and
+    state-graph-to-control-flow uses those constructors instead of raw
+    fact/contract/value/boundary/borrow/ownership root field assembly
   - control-flow-to-abstract boundary lowering now keeps source/host boundary
     link construction separate from its canaries, leaving the lowering file
     focused on production logic

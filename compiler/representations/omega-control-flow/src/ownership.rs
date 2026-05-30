@@ -46,3 +46,17 @@ pub struct ControlFlowOwnershipRoots {
     pub moves: Arena<StateMoveEvent>,
     pub drops: Arena<StateDropEvent>,
 }
+
+impl ControlFlowOwnershipRoots {
+    pub fn with_roots(
+        segments: Arena<omega_facts::PlaceSegment>,
+        moves: Arena<StateMoveEvent>,
+        drops: Arena<StateDropEvent>,
+    ) -> Self {
+        Self {
+            segments,
+            moves,
+            drops,
+        }
+    }
+}
