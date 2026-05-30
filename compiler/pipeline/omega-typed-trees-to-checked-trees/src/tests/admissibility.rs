@@ -34,7 +34,19 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(state_summary.is_accepted());
     assert_eq!(state_summary.checks().len(), 5);
     assert_eq!(state_summary.rejected_checks().count(), 0);
+    assert_eq!(state_summary.rejected_check_count(), 0);
+    assert_eq!(state_acceptance.rejected_check_count(), 0);
+    assert_eq!(state_acceptance.diagnostic_count(), 0);
+    assert!(!state_acceptance.has_diagnostics());
+    assert!(state_acceptance.evidence_count() > 0);
     assert!(state_summary.borrow.evidence_count > 0);
+    assert_eq!(
+        state_summary
+            .check(omega_checked_trees::AcceptanceDimension::Borrow)
+            .evidence_count,
+        state_summary.borrow.evidence_count
+    );
+    assert!(state_summary.is_dimension_satisfied(omega_checked_trees::AcceptanceDimension::Borrow));
     assert_eq!(state_summary.borrow.diagnostic_count, 0);
     assert_eq!(
         state_summary.borrow.provenance,
@@ -142,6 +154,10 @@ fn acceptance_summary_derives_rejection_from_dimension_records() {
         omega_checked_trees::AcceptanceVerdict::Rejected
     );
     assert!(!summary.is_accepted());
+    assert_eq!(summary.evidence_count(), 4);
+    assert_eq!(summary.diagnostic_count(), 1);
+    assert!(summary.has_diagnostics());
+    assert_eq!(summary.rejected_check_count(), 1);
     assert_eq!(summary.rejected_checks().count(), 1);
     assert_eq!(
         summary
@@ -209,5 +225,17 @@ fn assert_acceptance_view_is_queryable(view: &impl omega_checked_trees::Acceptan
 
     assert_eq!(view.verdict(), summary.verdict);
     assert_eq!(view.is_accepted(), summary.is_accepted());
+    assert_eq!(
+        view.check(omega_checked_trees::AcceptanceDimension::Borrow),
+        summary.borrow
+    );
+    assert_eq!(
+        view.is_dimension_satisfied(omega_checked_trees::AcceptanceDimension::Proof),
+        summary.proof.is_satisfied()
+    );
+    assert_eq!(view.evidence_count(), summary.evidence_count());
+    assert_eq!(view.diagnostic_count(), summary.diagnostic_count());
+    assert_eq!(view.rejected_check_count(), summary.rejected_check_count());
+    assert_eq!(view.has_diagnostics(), summary.has_diagnostics());
     assert_eq!(summary.checks().len(), 5);
 }
