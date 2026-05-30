@@ -6,6 +6,24 @@ impl RangeFacts<'_> {
             return;
         }
 
+        // Conservative subslice overlap: an index/range proof on `original` only
+        // transfers to `alias` if the two may refer to overlapping elements.
+        // Identical labels and any pair that is not a provably-disjoint pair of
+        // same-base windows are assumed to overlap (the safe default); only a
+        // provably-disjoint window pair blocks the transfer.
+        if !self.windows_may_overlap(original, alias) {
+            // Length facts still transfer — a disjoint window is no longer than
+            // the base — but element-position proofs (indexes / range bounds) do
+            // not, because they may name positions outside the disjoint window.
+            if let Some(minimum_length) = self.minimum_length(original) {
+                self.prove_minimum_length(alias.to_owned(), minimum_length);
+            }
+            if let Some(exact_length) = self.exact_length(original) {
+                self.prove_exact_length(alias.to_owned(), exact_length);
+            }
+            return;
+        }
+
         for (_, index) in self
             .proven_indexes
             .clone()
@@ -24,6 +42,9 @@ impl RangeFacts<'_> {
         }
         if let Some(minimum_length) = self.minimum_length(original) {
             self.prove_minimum_length(alias.to_owned(), minimum_length);
+        }
+        if let Some(exact_length) = self.exact_length(original) {
+            self.prove_exact_length(alias.to_owned(), exact_length);
         }
     }
 
