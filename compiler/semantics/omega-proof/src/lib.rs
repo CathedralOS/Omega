@@ -8,7 +8,9 @@ use omega_syntax_trees::item::{
 };
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+pub mod boundary;
 pub mod checker;
+pub mod lemmas;
 pub mod obligations;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
