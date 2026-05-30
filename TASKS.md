@@ -147,6 +147,16 @@ under full-suite parallelism (build-dir race); it passes run alone / with
 
 ### Operators And Domains
 
+- [ ] Consolidate the two operator-resolution surfaces that landed in parallel on
+  two machines. A remote branch added a checked-trees fact layer
+  (`omega-checked-trees/src/operators.rs` +
+  `omega-typed-trees-to-checked-trees/src/operators.rs` + `checks/operators.rs`:
+  operator use facts, spelling candidates, receiver-type narrowing, use origins,
+  ambiguity diagnostics, contract-bearing uses) while the local O2 lane added a
+  typed-trees dispatch API (`omega-typed-trees/src/operator.rs::resolve_spelling`),
+  validation ambiguity (`omega-validation/src/operators/dispatch.rs`), and the
+  bounds-from-`requires` seam. They compile + test together but overlap
+  conceptually — pick one authority and route the other through it.
 - [ ] Prove that only facts in the CURRENT context can select a domain-operator
   meaning. (Spelling dispatch, bounds-from-`requires`, and competing-meaning
   rejection now exist; the positive proof-context selection is the remaining gap.)
