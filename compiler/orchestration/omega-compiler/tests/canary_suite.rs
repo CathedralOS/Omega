@@ -161,6 +161,35 @@ fn contract_canary_visualizes_flow_contract_summaries() {
 }
 
 #[test]
+fn boundary_trait_canary_reports_capability_use() {
+    let canary = pass_canary("traits/boundary_trait_effects_host_call");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-capability-manifest-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("boundary trait canary should compile with capability artifacts");
+
+    let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
+        .expect("capability manifest should be written");
+    assert!(
+        manifest.contains("\"capability_flows\": {\"uses\": 2"),
+        "capability manifest should report both boundary capability uses\n{}",
+        manifest
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_direct_boolean_conjunction_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_direct_boolean_conjunction_exit");
     let main_path = canary.join("main.omg");
