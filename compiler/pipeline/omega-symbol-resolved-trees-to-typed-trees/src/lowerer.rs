@@ -41,6 +41,11 @@ pub fn lower_symbol_resolved_trees(
         lowerer.typed_trees.push_machine(machine);
     }
 
+    for measure in &symbol_resolved_trees.measures {
+        let measure = crate::measure::lower_measure_definition(&mut lowerer, measure)?;
+        lowerer.typed_trees.push_measure(measure);
+    }
+
     for operator in &symbol_resolved_trees.operators {
         let operator = lower_operator_definition(&mut lowerer, operator)?;
         lowerer.typed_trees.push_operator(operator);

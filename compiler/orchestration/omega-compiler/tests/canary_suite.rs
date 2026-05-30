@@ -2923,6 +2923,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/termination_index_distance_compile",
     "termination/custom_ranking_field_countdown_compile",
     "termination/custom_ranking_order_compile",
+    "termination/custom_ranking_struct_view",
     "domains/contracts_domain_membership_surface",
     "domains/string_non_empty_classifier",
     "domains/executable_domain_membership_expression_exit",
@@ -3185,9 +3186,4 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
-    path: "termination/custom_ranking_struct_view_unimplemented",
-    expectation: PendingCanaryExpectation::CurrentlyRejects {
-        fragment: "cannot prove decreases clause",
-    },
-}];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];

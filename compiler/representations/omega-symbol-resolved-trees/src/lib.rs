@@ -4,6 +4,7 @@ pub mod expression;
 pub mod identity;
 pub mod invariant;
 pub mod machine;
+pub mod measure;
 pub mod name;
 pub mod operator;
 pub mod platform;

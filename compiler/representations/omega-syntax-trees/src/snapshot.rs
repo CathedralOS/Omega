@@ -69,6 +69,14 @@ pub enum ItemSnapshot {
         calling_convention: IdentifierSnapshot,
         functions: Vec<LibraryFunctionSnapshot>,
     },
+    Measure {
+        name: Vec<IdentifierSnapshot>,
+        parameter: Option<StateParameterSnapshot>,
+        return_type: TypeReferenceSnapshot,
+        lexicographic: bool,
+        body: Vec<ExpressionSnapshot>,
+        token_count: usize,
+    },
     Operator {
         operator: OperatorSnapshot,
     },
@@ -492,6 +500,24 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|function| snapshot_library_function(syntax_trees, function))
                 .collect(),
+        },
+        Item::Measure(value) => ItemSnapshot::Measure {
+            name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
+            parameter: value.parameter.is_valid().then(|| {
+                snapshot_state_parameter(
+                    syntax_trees,
+                    syntax_trees.items.state_parameter(value.parameter),
+                )
+            }),
+            return_type: snapshot_type_reference_handle(syntax_trees, value.return_type),
+            lexicographic: value.lexicographic,
+            body: syntax_trees
+                .expressions
+                .expression_handles(value.body)
+                .iter()
+                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                .collect(),
+            token_count: value.token_count,
         },
         Item::Operator(value) => ItemSnapshot::Operator {
             operator: snapshot_operator(syntax_trees, value),
