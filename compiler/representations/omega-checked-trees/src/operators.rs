@@ -113,6 +113,40 @@ impl CheckedOperatorResolutionSummary {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedOperatorResolutionIssue<'facts> {
+    pub operator_use: &'facts CheckedOperatorUseFact,
+    pub candidates: &'facts [CheckedOperatorCandidateFact],
+}
+
+impl CheckedOperatorResolutionIssue<'_> {
+    pub const fn status(&self) -> CheckedOperatorResolutionStatus {
+        self.operator_use.status
+    }
+
+    pub const fn is_missing(&self) -> bool {
+        matches!(
+            self.operator_use.status,
+            CheckedOperatorResolutionStatus::Missing
+        )
+    }
+
+    pub const fn is_ambiguous(&self) -> bool {
+        matches!(
+            self.operator_use.status,
+            CheckedOperatorResolutionStatus::Ambiguous
+        )
+    }
+
+    pub const fn spelling(&self) -> OperatorSpelling {
+        self.operator_use.spelling
+    }
+
+    pub const fn candidate_count(&self) -> usize {
+        self.operator_use.candidate_count
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
@@ -163,6 +197,20 @@ impl CheckedOperatorFacts {
 
     pub fn ambiguous_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
         self.uses_with_status(CheckedOperatorResolutionStatus::Ambiguous)
+    }
+
+    pub fn resolution_issues(&self) -> impl Iterator<Item = CheckedOperatorResolutionIssue<'_>> {
+        self.uses.iter().filter_map(|(_, operator_use)| {
+            matches!(
+                operator_use.status,
+                CheckedOperatorResolutionStatus::Missing
+                    | CheckedOperatorResolutionStatus::Ambiguous
+            )
+            .then(|| CheckedOperatorResolutionIssue {
+                operator_use,
+                candidates: self.candidates(operator_use),
+            })
+        })
     }
 
     pub fn candidates(
@@ -264,6 +312,17 @@ mod tests {
         assert_eq!(facts.resolved_uses().count(), 1);
         assert_eq!(facts.ambiguous_uses().count(), 1);
         assert_eq!(facts.missing_uses().count(), 0);
+        let issues = facts.resolution_issues().collect::<Vec<_>>();
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].is_ambiguous());
+        assert!(!issues[0].is_missing());
+        assert_eq!(
+            issues[0].status(),
+            CheckedOperatorResolutionStatus::Ambiguous
+        );
+        assert_eq!(issues[0].spelling(), OperatorSpelling::Range);
+        assert_eq!(issues[0].candidate_count(), 2);
+        assert_eq!(issues[0].candidates.len(), 2);
         let ambiguous_use = facts.ambiguous_uses().next().expect("ambiguous use");
         assert_eq!(facts.candidates(ambiguous_use).len(), 2);
         let resolved_use = facts.resolved_uses().next().expect("resolved use");
