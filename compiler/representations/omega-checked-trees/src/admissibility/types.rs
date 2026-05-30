@@ -9,6 +9,6 @@ pub use dimension::AcceptanceDimension;
 pub use summary::{AcceptanceSummary, AcceptanceVerdict};
 pub use view::AcceptanceView;
 pub use wrappers::{
-    CallAcceptance, ExitAcceptance, StateAcceptance, StateOperationAcceptance,
+    CallAcceptance, ExitAcceptance, OperatorAcceptance, StateAcceptance, StateOperationAcceptance,
     StateOperationAcceptanceKind, StatementAcceptance,
 };

@@ -4,8 +4,9 @@ use omega_core::symbols::SymbolHandle;
 
 use crate::{
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, CheckedTrees,
-    ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact, StateAcceptance,
-    StateOperationAcceptance, StatementAcceptance,
+    ContractOperatorUseFact, ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact,
+    FlowStatementFact, OperatorAcceptance, StateAcceptance, StateOperationAcceptance,
+    StatementAcceptance,
     admissibility::helpers::{effect_evidence_count, machine_decrease_count},
 };
 
@@ -40,12 +41,24 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
         let statements = self.statements();
         let calls = self.calls();
         let exits = self.exits();
+        let operator_proof_evidence = self
+            .operator_uses()
+            .map(|operator_use| {
+                operator_use.requires.len()
+                    + operator_use.ensures.len()
+                    + operator_use.boundary.len()
+            })
+            .sum::<usize>();
+        let operator_boundary_evidence = self
+            .operator_uses()
+            .map(|operator_use| operator_use.boundary.len())
+            .sum::<usize>();
 
         AcceptanceSummary::accepted(
             state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
-            state_proof_evidence_count(calls, exits),
+            state_proof_evidence_count(calls, exits) + operator_proof_evidence,
             effect_evidence_count(self.state.transitive_effects),
-            state_boundary_evidence_count(self.state, calls),
+            state_boundary_evidence_count(self.state, calls) + operator_boundary_evidence,
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )
     }
@@ -98,6 +111,25 @@ impl<'facts> StateAcceptance<'facts> {
             .control
             .exits
             .span_or_empty(self.state.exits)
+    }
+
+    pub fn operator_uses(&self) -> impl Iterator<Item = &'facts ContractOperatorUseFact> + '_ {
+        self.facts
+            .proof
+            .contract_operator_uses
+            .iter()
+            .filter_map(|(_, operator_use)| {
+                matches!(
+                    operator_use.origin,
+                    crate::CheckedValueOrigin::StateStatement {
+                        machine_symbol,
+                        state_symbol,
+                        ..
+                    } if machine_symbol == self.state.machine_symbol
+                        && state_symbol == self.state.state_symbol
+                )
+                .then_some(operator_use)
+            })
     }
 
     pub fn statement(&self, statement_index: usize) -> Option<StatementAcceptance<'facts>> {
@@ -155,7 +187,13 @@ impl<'facts> StateAcceptance<'facts> {
             .exits()
             .iter()
             .map(move |exit| StateOperationAcceptance::Exit(ExitAcceptance { facts, exit }));
+        let operator_uses = self.operator_uses().map(move |operator_use| {
+            StateOperationAcceptance::Operator(OperatorAcceptance {
+                facts,
+                operator_use,
+            })
+        });
 
-        statements.chain(calls).chain(exits)
+        statements.chain(calls).chain(exits).chain(operator_uses)
     }
 }

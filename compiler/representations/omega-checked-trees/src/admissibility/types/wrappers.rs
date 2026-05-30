@@ -1,10 +1,14 @@
-use crate::{CheckFacts, FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact};
+use crate::{
+    CheckFacts, ContractOperatorUseFact, FlowCallFact, FlowExitFact, FlowStateFact,
+    FlowStatementFact,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateOperationAcceptanceKind {
     Statement,
     Call,
     Exit,
+    Operator,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -32,8 +36,15 @@ pub struct ExitAcceptance<'facts> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct OperatorAcceptance<'facts> {
+    pub(crate) facts: &'facts CheckFacts,
+    pub(crate) operator_use: &'facts ContractOperatorUseFact,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum StateOperationAcceptance<'facts> {
     Statement(StatementAcceptance<'facts>),
     Call(CallAcceptance<'facts>),
     Exit(ExitAcceptance<'facts>),
+    Operator(OperatorAcceptance<'facts>),
 }
