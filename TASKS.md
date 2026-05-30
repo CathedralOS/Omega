@@ -381,8 +381,9 @@ meaning, without needing access to pointer descriptor internals.
   - encoded-machine plan roots now follow the backend plan-module convention:
     `plan/code.rs` owns root structs and `plan/capacity.rs` owns root
     construction
-  - object-file layout roots now have representation-level constructors, so
-    object planning no longer hand-builds `ObjectFileLayout` internals
+  - object-file layout roots now expose explicit `ObjectFileLayout::with_roots`
+    and `ObjectPlan::with_layout` constructors with canaries, so object and
+    image fixtures no longer hand-build artifact arena roots
   - backend artifact roots now have a target-aware empty constructor, so
     orchestration skeletons do not hand-build machine/object/relocation roots
   - backend semantic summary names after abstract operations now alias the same

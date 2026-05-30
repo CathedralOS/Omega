@@ -29,21 +29,13 @@ pub fn emit_checked_executable_image(
 mod tests {
     use super::emit_checked_executable_image;
     use crate::ExecutableImageInput;
-    use omega_core::arena::{Arena, Handle};
     use omega_object_file::{ObjectPlan, RelocationPlan};
     use omega_target::NativeTarget;
 
     #[test]
     fn rejects_native_image_when_encoded_text_size_differs_from_plan() {
         let target = NativeTarget::linux_arm64();
-        let object = ObjectPlan {
-            target,
-            layout: omega_object_file::ObjectFileLayout {
-                sections: Arena::new(),
-                symbols: Arena::new(),
-                entry_symbol: Handle::invalid(),
-            },
-        };
+        let object = ObjectPlan::with_capacity(target, 0, 0);
         let relocations = RelocationPlan::with_target(target);
 
         let diagnostic = emit_checked_executable_image(

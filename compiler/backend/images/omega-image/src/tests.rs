@@ -2,24 +2,16 @@ use crate::{
     FinalImageInput, FinalImageLayout, FinalImageSection, build_final_image,
     final_image_symbol_address,
 };
-use omega_core::arena::{Arena, Handle};
 use omega_object_file::{
-    ObjectFileLayout, ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
-    SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+    ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind, SectionPlan,
+    SymbolKind, SymbolPlan, SymbolSection,
 };
 use omega_target::NativeTarget;
 
 #[test]
 fn builds_final_image_from_object_symbols_imports_and_relocations() {
     let target = NativeTarget::host();
-    let mut object = ObjectPlan {
-        target,
-        layout: ObjectFileLayout {
-            sections: Arena::new(),
-            symbols: Arena::new(),
-            entry_symbol: Handle::invalid(),
-        },
-    };
+    let mut object = ObjectPlan::with_capacity(target, 0, 0);
     object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
         size: 8,
