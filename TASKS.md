@@ -370,6 +370,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked borrow facts now expose a `BorrowFacts::with_roots` constructor,
     and typed-to-checked borrow production joins writable-root, access,
     call, loan, and state arenas through that root seam
+  - checked invariant and domain facts now expose root constructors, and
+    typed-to-checked invariant/domain production joins their semantic arenas
+    through those root seams
   - typed-to-checked now builds initial checked value facts for decreases
     clauses, initializers, statement values, call arguments, transition
     guards/targets, and nested expression children

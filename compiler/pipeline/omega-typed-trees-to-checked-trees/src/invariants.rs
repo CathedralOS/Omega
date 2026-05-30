@@ -15,5 +15,5 @@ pub(crate) fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> 
         });
     }
 
-    InvariantFacts { definitions }
+    InvariantFacts::with_roots(definitions)
 }

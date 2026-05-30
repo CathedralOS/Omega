@@ -12,3 +12,9 @@ pub struct InvariantFact {
 pub struct InvariantFacts {
     pub definitions: Arena<InvariantFact>,
 }
+
+impl InvariantFacts {
+    pub fn with_roots(definitions: Arena<InvariantFact>) -> Self {
+        Self { definitions }
+    }
+}

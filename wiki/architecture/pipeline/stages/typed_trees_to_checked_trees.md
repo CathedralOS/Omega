@@ -122,7 +122,8 @@ Current ownership is:
 - `omega-checked-trees/src/facts/` owns checked semantic facts that are not
   part of the temporal flow spine: `invariants.rs` owns invariant definition
   facts, and `domains.rs` owns domain dependency facts and dependency-path
-  accessors.
+  accessors. Both expose root constructors so invariant and domain production
+  joins arena roots explicitly.
 - `omega-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
