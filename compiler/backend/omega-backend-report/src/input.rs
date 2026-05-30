@@ -85,7 +85,7 @@ impl<'plan> BackendReportInput<'plan> {
     }
 
     pub fn boundary_summary(&self) -> &EncodedMachineBoundarySummary {
-        &self.encoded_machine.semantics.boundary_edges
+        &self.encoded_machine.semantics.boundaries
     }
 
     pub fn ownership_summary(&self) -> &EncodedMachineOwnershipSummary {

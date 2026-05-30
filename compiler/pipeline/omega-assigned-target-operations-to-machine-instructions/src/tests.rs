@@ -57,7 +57,7 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
 
     assigned_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
             source_key: Default::default(),
@@ -73,16 +73,12 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
         build_machine_instructions(&assigned_operations).expect("machine instructions");
 
     assert_eq!(
-        machine_instructions
-            .semantics
-            .boundary_edges
-            .source_edges
-            .len(),
+        machine_instructions.semantics.boundaries.source_edges.len(),
         1
     );
     let edge = machine_instructions
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .iter()
         .next()
@@ -141,7 +137,7 @@ fn copies_assigned_boundary_policy_checks_to_machine_instruction_plan() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     assigned_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .insert(AbstractBoundaryPolicyCheck {
             boundary_policy: "omega::host::targets::linux".into(),
@@ -154,7 +150,7 @@ fn copies_assigned_boundary_policy_checks_to_machine_instruction_plan() {
 
     let check = machine_instructions
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .iter()
         .next()
@@ -163,7 +159,7 @@ fn copies_assigned_boundary_policy_checks_to_machine_instruction_plan() {
     assert_eq!(
         machine_instructions
             .semantics
-            .boundary_edges
+            .boundaries
             .policy_checks
             .len(),
         1

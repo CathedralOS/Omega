@@ -58,7 +58,7 @@ pub(crate) fn build_target_operation_plan(
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut target_operations);
     target_operations.semantics = abstract_operations.semantics.clone();
-    validate_boundary_policies(host_abi, &mut target_operations.semantics.boundary_edges);
+    validate_boundary_policies(host_abi, &mut target_operations.semantics.boundaries);
 
     target_operations
 }

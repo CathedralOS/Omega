@@ -78,7 +78,7 @@ mod tests {
 
         target_operations
             .semantics
-            .boundary_edges
+            .boundaries
             .source_edges
             .insert(AbstractSourceBoundaryEdge {
                 source_key: Default::default(),
@@ -92,13 +92,10 @@ mod tests {
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
 
-        assert_eq!(
-            machine_program.semantics.boundary_edges.source_edges.len(),
-            1
-        );
+        assert_eq!(machine_program.semantics.boundaries.source_edges.len(), 1);
         let edge = machine_program
             .semantics
-            .boundary_edges
+            .boundaries
             .source_edges
             .iter()
             .next()
@@ -156,7 +153,7 @@ mod tests {
         let mut target_operations = InstructionPlan::default();
         target_operations
             .semantics
-            .boundary_edges
+            .boundaries
             .policy_checks
             .insert(AbstractBoundaryPolicyCheck {
                 boundary_policy: "omega::host::targets::linux".into(),
@@ -168,16 +165,13 @@ mod tests {
 
         let check = machine_program
             .semantics
-            .boundary_edges
+            .boundaries
             .policy_checks
             .iter()
             .next()
             .map(|(_, check)| check)
             .expect("machine-program boundary policy check");
-        assert_eq!(
-            machine_program.semantics.boundary_edges.policy_checks.len(),
-            1
-        );
+        assert_eq!(machine_program.semantics.boundaries.policy_checks.len(), 1);
         assert_eq!(
             check.verdict,
             AbstractBoundaryPolicyVerdict::DisallowedBoundaryPolicy

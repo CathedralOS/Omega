@@ -79,6 +79,9 @@ meaning, without needing access to pointer descriptor internals.
   - `AbstractSemanticSummary` now owns root construction for value, boundary,
     and ownership summaries instead of requiring lowerings to spell out its
     internal fields
+  - abstract operation semantic roots now name the boundary category
+    `boundaries`, leaving `source_edges`, lowered host-operation edges, links,
+    and policy checks as details inside `AbstractBoundarySummary`
   - encoded-machine semantic aliases now point to the immediate
     machine-instruction semantic aliases instead of skipping back to the target
     operation layer, making the preserved semantic spine easier to follow

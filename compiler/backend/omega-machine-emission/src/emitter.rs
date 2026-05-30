@@ -65,17 +65,17 @@ mod tests {
             .insert(Default::default());
         machine_instructions
             .semantics
-            .boundary_edges
+            .boundaries
             .source_edges
             .insert(Default::default());
         machine_instructions
             .semantics
-            .boundary_edges
+            .boundaries
             .edges
             .insert(Default::default());
         machine_instructions
             .semantics
-            .boundary_edges
+            .boundaries
             .policy_checks
             .insert(AbstractBoundaryPolicyCheck {
                 boundary_policy: "omega::host::targets::linux".into(),
@@ -102,28 +102,24 @@ mod tests {
             machine_instructions.semantics.values.values.len()
         );
         assert_eq!(
-            encoded.semantics.boundary_edges.source_edges.len(),
-            machine_instructions
-                .semantics
-                .boundary_edges
-                .source_edges
-                .len()
+            encoded.semantics.boundaries.source_edges.len(),
+            machine_instructions.semantics.boundaries.source_edges.len()
         );
         assert_eq!(
-            encoded.semantics.boundary_edges.edges.len(),
-            machine_instructions.semantics.boundary_edges.edges.len()
+            encoded.semantics.boundaries.edges.len(),
+            machine_instructions.semantics.boundaries.edges.len()
         );
         assert_eq!(
-            encoded.semantics.boundary_edges.policy_checks.len(),
+            encoded.semantics.boundaries.policy_checks.len(),
             machine_instructions
                 .semantics
-                .boundary_edges
+                .boundaries
                 .policy_checks
                 .len()
         );
         let check = encoded
             .semantics
-            .boundary_edges
+            .boundaries
             .policy_checks
             .iter()
             .next()

@@ -67,7 +67,7 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
 
     abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
             source_key: Default::default(),
@@ -86,17 +86,10 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
         &abstract_operations,
     );
 
-    assert_eq!(
-        target_operations
-            .semantics
-            .boundary_edges
-            .source_edges
-            .len(),
-        1
-    );
+    assert_eq!(target_operations.semantics.boundaries.source_edges.len(), 1);
     let edge = target_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .iter()
         .next()
@@ -113,7 +106,7 @@ fn validates_linked_boundary_operation_against_host_binding() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let source_edge = abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
             source_key: Default::default(),
@@ -128,7 +121,7 @@ fn validates_linked_boundary_operation_against_host_binding() {
     let lowered_edge =
         abstract_operations
             .semantics
-            .boundary_edges
+            .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
                 source_key: Default::default(),
@@ -139,7 +132,7 @@ fn validates_linked_boundary_operation_against_host_binding() {
             });
     abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .links
         .insert(AbstractBoundaryLink {
             source_edge,
@@ -155,7 +148,7 @@ fn validates_linked_boundary_operation_against_host_binding() {
 
     let checks: Vec<_> = target_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .iter()
         .map(|(_, check)| check)
@@ -178,7 +171,7 @@ fn records_missing_source_boundary_for_unlinked_host_operation() {
     let lowered_edge =
         abstract_operations
             .semantics
-            .boundary_edges
+            .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
                 source_key: Default::default(),
@@ -197,18 +190,14 @@ fn records_missing_source_boundary_for_unlinked_host_operation() {
 
     let check = target_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .iter()
         .next()
         .map(|(_, check)| check)
         .expect("boundary policy check");
     assert_eq!(
-        target_operations
-            .semantics
-            .boundary_edges
-            .policy_checks
-            .len(),
+        target_operations.semantics.boundaries.policy_checks.len(),
         1
     );
     assert!(!check.source_edge.is_valid());
@@ -224,7 +213,7 @@ fn records_missing_host_binding_for_unknown_boundary_operation() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let source_edge = abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
             source_key: Default::default(),
@@ -239,7 +228,7 @@ fn records_missing_host_binding_for_unknown_boundary_operation() {
     let lowered_edge =
         abstract_operations
             .semantics
-            .boundary_edges
+            .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
                 source_key: Default::default(),
@@ -250,7 +239,7 @@ fn records_missing_host_binding_for_unknown_boundary_operation() {
             });
     abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .links
         .insert(AbstractBoundaryLink {
             source_edge,
@@ -266,7 +255,7 @@ fn records_missing_host_binding_for_unknown_boundary_operation() {
 
     let check = target_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .iter()
         .next()
@@ -284,7 +273,7 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let source_edge = abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .source_edges
         .insert(AbstractSourceBoundaryEdge {
             source_key: Default::default(),
@@ -299,7 +288,7 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
     let lowered_edge =
         abstract_operations
             .semantics
-            .boundary_edges
+            .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
                 source_key: Default::default(),
@@ -310,7 +299,7 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
             });
     abstract_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .links
         .insert(AbstractBoundaryLink {
             source_edge,
@@ -328,7 +317,7 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
 
     let check = target_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .iter()
         .next()
