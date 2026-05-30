@@ -35,6 +35,11 @@ fn range_may_contain_integer(
     value: i64,
 ) -> bool {
     let (start, end) = range_integer_bounds(program, range);
+    // An empty half-open window `[a, a)` contains nothing, so it is disjoint
+    // from every index even when the index itself is unknown.
+    if range_is_provably_empty(start, end) {
+        return false;
+    }
     if start.is_some_and(|start| value < start) {
         return false;
     }
@@ -52,6 +57,16 @@ fn ranges_may_overlap(
     let (left_start, left_end) = range_integer_bounds(program, left);
     let (right_start, right_end) = range_integer_bounds(program, right);
 
+    // Either window being provably empty makes the pair disjoint regardless of
+    // the other window's bounds.
+    if range_is_provably_empty(left_start, left_end)
+        || range_is_provably_empty(right_start, right_end)
+    {
+        return false;
+    }
+
+    // Two half-open windows `[ls, le)` and `[rs, re)` are disjoint when one ends
+    // at or before the other starts.
     if let (Some(left_end), Some(right_start)) = (left_end, right_start)
         && left_end <= right_start
     {
@@ -63,6 +78,13 @@ fn ranges_may_overlap(
         return false;
     }
     true
+}
+
+/// A half-open window `[start, end)` with `end <= start` is empty and therefore
+/// overlaps nothing. Bounds that are not compile-time integers cannot prove
+/// emptiness.
+fn range_is_provably_empty(start: Option<i64>, end: Option<i64>) -> bool {
+    matches!((start, end), (Some(start), Some(end)) if end <= start)
 }
 
 fn range_integer_bounds(

@@ -41,6 +41,11 @@ pub(super) fn append_statement_ownership_events(
                 );
             }
         }
+        // Transition target/continuation arguments transfer ownership through
+        // their borrow-call facts (resolved as `CallSite::TransitionNamed`), so
+        // their type-aware move events are emitted by
+        // `append_call_ownership_events` during call-flow construction. Emitting
+        // them here as well would double-count the transfer.
         StatementNode::Call(_) | StatementNode::Expression(_) | StatementNode::Transition(_) => {}
     }
 }
