@@ -134,10 +134,10 @@ Current ownership is:
   every checked operation-like thing. Each dimension carries verdict, evidence
   count, diagnostic count, and provenance so accepted-by-construction checks and
   future diagnostic-backed rejections share one durable status shape.
-  `types.rs` owns the
-  public acceptance handles/verdict/summary records, `state.rs`,
-  `statement.rs`, `call.rs`, and `exit.rs` own the corresponding view APIs,
-  and `helpers.rs` owns shared arena-span accessors.
+  `types.rs` owns the public acceptance handles/verdict/summary records,
+  `operation.rs` owns the state-local statement/call/exit operation wrapper,
+  `state.rs`, `statement.rs`, `call.rs`, and `exit.rs` own the corresponding
+  view APIs, and `helpers.rs` owns shared arena-span accessors.
 - `flow.rs` assembles checked flow facts. `flow/builder.rs` owns the
   machine/state conveyor, `flow/state.rs` owns per-state flow fact assembly and
   entry/exit semantic envelopes, `flow/context.rs` owns the mutable arena
