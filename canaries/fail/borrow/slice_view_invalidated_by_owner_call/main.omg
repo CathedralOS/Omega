@@ -1,0 +1,32 @@
+// FAIL canary: a borrowed slice view of an owner field is invalidated by a
+// MUTATING CALL through that owner. Unlike a direct assignment, the mutation is
+// hidden behind a `&mut self` state call, so the conflict point is a call
+// statement rather than an assignment. The owner-mutation-while-borrowed rule
+// must still reject it.
+//
+// This is the lowerable analogue of the Vec `push`-while-borrowed rejection:
+// `Vec::push` is likewise a `&mut self` mutating call on the owner that would
+// invalidate a `&[T]` view. (The Vec spelling stays pending until `Vec<T>` is a
+// usable machine-owned type; this array form exercises the same rule today.)
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    self.clear_entries();
+    self.read_alias(view);
+}
+
+machine Main::clear_entries(&mut self) {
+    self.entries[0] = Entry { value: 0 };
+}
+
+machine Main::read_alias(&mut self, entries: &[Entry]) {
+    let first: Entry = entries[0];
+}
