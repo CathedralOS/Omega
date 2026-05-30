@@ -3,7 +3,12 @@ use omega_control_flow::{
     ControlFlowFactRoots, ControlFlowOwnershipRoots, ControlFlowSemanticRoots,
     ControlFlowValueRoots,
 };
-use omega_state_graph::StateGraph;
+use omega_state_graph::{
+    StateGraph, StateGraphBorrowRoots as SourceBorrowRoots,
+    StateGraphBoundaryRoots as SourceBoundaryRoots, StateGraphContractRoots as SourceContractRoots,
+    StateGraphFactRoots as SourceFactRoots, StateGraphOwnershipRoots as SourceOwnershipRoots,
+    StateGraphSemanticRoots as SourceSemanticRoots, StateGraphValueRoots as SourceValueRoots,
+};
 
 use crate::borrows::{
     remap_borrow_activation_owned, remap_borrow_activations, remap_borrow_argument_access_owned,
@@ -26,88 +31,129 @@ use crate::values::{remap_value_owned, remap_values};
 
 pub(crate) fn remap_semantic_roots(state_graph: &StateGraph) -> ControlFlowSemanticRoots {
     ControlFlowSemanticRoots {
-        facts: ControlFlowFactRoots {
-            proof_obligations: remap_proof_obligations(state_graph),
-            invariants: remap_invariants(state_graph),
-        },
-        contracts: ControlFlowContractRoots {
-            fact_refs: remap_contract_fact_refs(state_graph),
-            calls: remap_contract_calls(state_graph),
-            exits: remap_contract_exits(state_graph),
-        },
-        values: ControlFlowValueRoots {
-            values: remap_values(state_graph),
-        },
-        boundaries: ControlFlowBoundaryRoots {
-            edges: remap_boundary_edges(state_graph),
-        },
-        borrow: ControlFlowBorrowRoots {
-            writable_roots: remap_borrow_writable_roots(state_graph),
-            access_segments: state_graph.semantics.borrow.access_segments.clone(),
-            argument_accesses: remap_borrow_argument_accesses(state_graph),
-            calls: remap_borrow_calls(state_graph),
-            loans: remap_borrow_loans(state_graph),
-            activations: remap_borrow_activations(state_graph),
-            weakenings: remap_borrow_weakenings(state_graph),
-        },
-        ownership: ControlFlowOwnershipRoots {
-            segments: state_graph.semantics.ownership.segments.clone(),
-            moves: remap_move_events(state_graph),
-            drops: remap_drop_events(state_graph),
-        },
+        facts: remap_fact_roots(state_graph),
+        contracts: remap_contract_roots(state_graph),
+        values: remap_value_roots(state_graph),
+        boundaries: remap_boundary_roots(state_graph),
+        borrow: remap_borrow_roots(state_graph),
+        ownership: remap_ownership_roots(state_graph),
     }
 }
 
 pub(crate) fn remap_semantic_roots_owned(
-    semantics: omega_state_graph::StateGraphSemanticRoots,
+    semantics: SourceSemanticRoots,
 ) -> ControlFlowSemanticRoots {
+    let SourceSemanticRoots {
+        facts,
+        contracts,
+        values,
+        boundaries,
+        borrow,
+        ownership,
+    } = semantics;
+
     ControlFlowSemanticRoots {
-        facts: ControlFlowFactRoots {
-            proof_obligations: semantics
-                .facts
-                .proof_obligations
-                .map(remap_proof_obligation_owned),
-            invariants: semantics.facts.invariants.map(remap_invariant_owned),
-        },
-        contracts: ControlFlowContractRoots {
-            fact_refs: semantics
-                .contracts
-                .fact_refs
-                .map(remap_contract_fact_ref_owned),
-            calls: semantics.contracts.calls.map(remap_contract_call_owned),
-            exits: semantics.contracts.exits.map(remap_contract_exit_owned),
-        },
-        values: ControlFlowValueRoots {
-            values: semantics.values.values.map(remap_value_owned),
-        },
-        boundaries: ControlFlowBoundaryRoots {
-            edges: semantics.boundaries.edges.map(remap_boundary_edge_owned),
-        },
-        borrow: ControlFlowBorrowRoots {
-            writable_roots: semantics
-                .borrow
-                .writable_roots
-                .map(remap_borrow_writable_root_owned),
-            access_segments: semantics.borrow.access_segments,
-            argument_accesses: semantics
-                .borrow
-                .argument_accesses
-                .map(remap_borrow_argument_access_owned),
-            calls: semantics.borrow.calls.map(remap_borrow_call_owned),
-            loans: semantics.borrow.loans.map(remap_borrow_loan_owned),
-            activations: semantics
-                .borrow
-                .activations
-                .map(remap_borrow_activation_owned),
-            weakenings: semantics
-                .borrow
-                .weakenings
-                .map(remap_borrow_weakening_owned),
-        },
-        ownership: ControlFlowOwnershipRoots {
-            segments: semantics.ownership.segments,
-            moves: semantics.ownership.moves.map(remap_move_event_owned),
-            drops: semantics.ownership.drops.map(remap_drop_event_owned),
-        },
+        facts: remap_fact_roots_owned(facts),
+        contracts: remap_contract_roots_owned(contracts),
+        values: remap_value_roots_owned(values),
+        boundaries: remap_boundary_roots_owned(boundaries),
+        borrow: remap_borrow_roots_owned(borrow),
+        ownership: remap_ownership_roots_owned(ownership),
+    }
+}
+
+fn remap_fact_roots(state_graph: &StateGraph) -> ControlFlowFactRoots {
+    ControlFlowFactRoots {
+        proof_obligations: remap_proof_obligations(state_graph),
+        invariants: remap_invariants(state_graph),
+    }
+}
+
+fn remap_fact_roots_owned(facts: SourceFactRoots) -> ControlFlowFactRoots {
+    ControlFlowFactRoots {
+        proof_obligations: facts.proof_obligations.map(remap_proof_obligation_owned),
+        invariants: facts.invariants.map(remap_invariant_owned),
+    }
+}
+
+fn remap_contract_roots(state_graph: &StateGraph) -> ControlFlowContractRoots {
+    ControlFlowContractRoots {
+        fact_refs: remap_contract_fact_refs(state_graph),
+        calls: remap_contract_calls(state_graph),
+        exits: remap_contract_exits(state_graph),
+    }
+}
+
+fn remap_contract_roots_owned(contracts: SourceContractRoots) -> ControlFlowContractRoots {
+    ControlFlowContractRoots {
+        fact_refs: contracts.fact_refs.map(remap_contract_fact_ref_owned),
+        calls: contracts.calls.map(remap_contract_call_owned),
+        exits: contracts.exits.map(remap_contract_exit_owned),
+    }
+}
+
+fn remap_value_roots(state_graph: &StateGraph) -> ControlFlowValueRoots {
+    ControlFlowValueRoots {
+        values: remap_values(state_graph),
+    }
+}
+
+fn remap_value_roots_owned(values: SourceValueRoots) -> ControlFlowValueRoots {
+    ControlFlowValueRoots {
+        values: values.values.map(remap_value_owned),
+    }
+}
+
+fn remap_boundary_roots(state_graph: &StateGraph) -> ControlFlowBoundaryRoots {
+    ControlFlowBoundaryRoots {
+        edges: remap_boundary_edges(state_graph),
+    }
+}
+
+fn remap_boundary_roots_owned(boundaries: SourceBoundaryRoots) -> ControlFlowBoundaryRoots {
+    ControlFlowBoundaryRoots {
+        edges: boundaries.edges.map(remap_boundary_edge_owned),
+    }
+}
+
+fn remap_borrow_roots(state_graph: &StateGraph) -> ControlFlowBorrowRoots {
+    ControlFlowBorrowRoots {
+        writable_roots: remap_borrow_writable_roots(state_graph),
+        access_segments: state_graph.semantics.borrow.access_segments.clone(),
+        argument_accesses: remap_borrow_argument_accesses(state_graph),
+        calls: remap_borrow_calls(state_graph),
+        loans: remap_borrow_loans(state_graph),
+        activations: remap_borrow_activations(state_graph),
+        weakenings: remap_borrow_weakenings(state_graph),
+    }
+}
+
+fn remap_borrow_roots_owned(borrow: SourceBorrowRoots) -> ControlFlowBorrowRoots {
+    ControlFlowBorrowRoots {
+        writable_roots: borrow.writable_roots.map(remap_borrow_writable_root_owned),
+        access_segments: borrow.access_segments,
+        argument_accesses: borrow
+            .argument_accesses
+            .map(remap_borrow_argument_access_owned),
+        calls: borrow.calls.map(remap_borrow_call_owned),
+        loans: borrow.loans.map(remap_borrow_loan_owned),
+        activations: borrow.activations.map(remap_borrow_activation_owned),
+        weakenings: borrow.weakenings.map(remap_borrow_weakening_owned),
+    }
+}
+
+fn remap_ownership_roots(state_graph: &StateGraph) -> ControlFlowOwnershipRoots {
+    ControlFlowOwnershipRoots {
+        segments: state_graph.semantics.ownership.segments.clone(),
+        moves: remap_move_events(state_graph),
+        drops: remap_drop_events(state_graph),
+    }
+}
+
+fn remap_ownership_roots_owned(ownership: SourceOwnershipRoots) -> ControlFlowOwnershipRoots {
+    ControlFlowOwnershipRoots {
+        segments: ownership.segments,
+        moves: ownership.moves.map(remap_move_event_owned),
+        drops: ownership.drops.map(remap_drop_event_owned),
     }
 }
