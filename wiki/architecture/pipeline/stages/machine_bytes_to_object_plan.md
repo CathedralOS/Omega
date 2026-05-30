@@ -18,7 +18,10 @@ Backend orchestration shape: the aggregate `BackendPlan` keeps symbolic machine
 instructions, encoded machine bytes, object layout, and relocation records under
 `BackendArtifactRoots`. Individual stages still own their artifact type, but the
 orchestration root now makes the final artifact chain visible as one spine and
-exposes semantic-summary accessors for artifact-time diagnostics.
+exposes semantic-summary accessors for artifact-time diagnostics. Artifact
+fixtures and skeletons should use `BackendArtifactRoots::with_roots` or the
+target-aware empty constructor rather than assembling the artifact spine
+field-by-field.
 
 ## Semantic Ownership
 

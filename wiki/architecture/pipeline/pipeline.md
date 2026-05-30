@@ -74,10 +74,10 @@ Current preferred shapes:
   `ControlFlowPlan { code, semantics }`, and backend operation plans.
 - Aggregate backend artifacts use their own artifact root, for example
   `BackendArtifactRoots`, and orchestration should construct empty artifact
-  spines through that root instead of hand-assembling machine, object, or
-  relocation internals. Artifact roots should expose semantic-summary accessors
-  when the evidence lives beside physical artifacts rather than inside each
-  physical artifact.
+  spines or explicit artifact bundles through that root instead of
+  hand-assembling machine, object, or relocation internals. Artifact roots
+  should expose semantic-summary accessors when the evidence lives beside
+  physical artifacts rather than inside each physical artifact.
 
 This is not ceremony. It makes it obvious whether a pass is changing executable
 shape, preserving semantic evidence, or doing both. If a stage starts reaching
