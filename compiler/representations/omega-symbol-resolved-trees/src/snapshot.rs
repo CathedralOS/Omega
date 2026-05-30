@@ -371,6 +371,7 @@ pub enum ExpressionSnapshot {
     Range {
         start: Option<Box<ExpressionSnapshot>>,
         end: Option<Box<ExpressionSnapshot>>,
+        end_inclusive: bool,
     },
     StructLiteral {
         type_name: String,
@@ -865,6 +866,7 @@ fn table_expression_snapshot(
                 .end
                 .is_valid()
                 .then(|| Box::new(table_expression_snapshot(program, range.end))),
+            end_inclusive: range.end_inclusive,
         },
         ExpressionNode::StructLiteral(struct_literal) => ExpressionSnapshot::StructLiteral {
             type_name: struct_literal.type_name.to_string(),

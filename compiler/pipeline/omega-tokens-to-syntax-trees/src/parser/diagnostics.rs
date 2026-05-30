@@ -115,6 +115,7 @@ fn render_punctuation(punctuation: PunctuationKind) -> &'static str {
         PunctuationKind::Comma => ",",
         PunctuationKind::Dot => ".",
         PunctuationKind::DotDot => "..",
+        PunctuationKind::DotDotEqual => "..=",
         PunctuationKind::Equal => "=",
         PunctuationKind::EqualEqual => "==",
         PunctuationKind::Exclamation => "!",

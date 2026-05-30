@@ -263,7 +263,11 @@ impl ExpressionTable {
                     .is_valid()
                     .then(|| self.copy_from(source, range.end))
                     .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+                self.insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive: range.end_inclusive,
+                }))
             }
             ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
@@ -618,7 +622,11 @@ impl ExpressionTable {
                     .is_valid()
                     .then(|| self.copy_from_self(range.end))
                     .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+                self.insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive: range.end_inclusive,
+                }))
             }
             ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.copy_struct_literal_fields_from_self(struct_literal.fields);
@@ -858,6 +866,7 @@ pub struct TableIndexedExpression {
 pub struct TableRangeExpression {
     pub start: ExpressionHandle,
     pub end: ExpressionHandle,
+    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

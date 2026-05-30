@@ -37,16 +37,20 @@ impl ExpressionNode {
             }
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
             Self::Name(path) => display_identifier_path(table.identifier_path_members(*path), "::"),
-            Self::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
-                (true, true) => format!(
-                    "{}..{}",
-                    table.display_name(range.start),
-                    table.display_name(range.end)
-                ),
-                (true, false) => format!("{}..", table.display_name(range.start)),
-                (false, true) => format!("..{}", table.display_name(range.end)),
-                (false, false) => "..".to_owned(),
-            },
+            Self::Range(range) => {
+                let separator = if range.end_inclusive { "..=" } else { ".." };
+                match (range.start.is_valid(), range.end.is_valid()) {
+                    (true, true) => format!(
+                        "{}{}{}",
+                        table.display_name(range.start),
+                        separator,
+                        table.display_name(range.end)
+                    ),
+                    (true, false) => format!("{}{}", table.display_name(range.start), separator),
+                    (false, true) => format!("{}{}", separator, table.display_name(range.end)),
+                    (false, false) => separator.to_owned(),
+                }
+            }
             Self::SelfValue => "self".to_owned(),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{:?}", value.as_str()),

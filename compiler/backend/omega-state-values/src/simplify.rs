@@ -148,6 +148,7 @@ fn simplify_expression_with_bindings(
                         preserve_call_locals,
                     ))
                 }),
+                end_inclusive: range.end_inclusive,
             }))
         }
         Expression::Member(member) => Expression::Member(Box::new(MemberExpression {
