@@ -1,3 +1,5 @@
+pub mod analysis;
+pub mod host_authority;
 pub mod providers;
 
 use omega_core::arena::Arena;

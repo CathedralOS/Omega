@@ -190,6 +190,102 @@ fn boundary_trait_canary_reports_capability_use() {
 }
 
 #[test]
+fn capability_pass_canaries_compile_in_isolation() {
+    // Verified independently of `pass_canaries_compile`, which aborts on the
+    // pre-existing `calls/mutable_output_host_call` failure.
+    for canary_name in [
+        "capabilities/uses_caller_folder",
+        "capabilities/acquires_filesystem_authority",
+        "capabilities/stores_capability",
+    ] {
+        let canary = pass_canary(canary_name);
+        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+            panic!(
+                "expected capability canary {} to compile, but got diagnostics:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+}
+
+#[test]
+fn capability_manifest_reports_authority_flow_verbs() {
+    for (canary_name, verb) in [
+        ("capabilities/acquires_filesystem_authority", "acquires"),
+        ("capabilities/stores_capability", "stores"),
+    ] {
+        let canary = pass_canary(canary_name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-capability-verb-canary-{}-{}",
+            verb,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{canary_name} should compile, got:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
+            .expect("capability manifest should be written");
+        assert!(
+            !manifest.contains(&format!("\"{verb}\": 0"))
+                && manifest.contains(&format!("\"{verb}\":")),
+            "manifest for {canary_name} should report a non-zero {verb} verb\n{manifest}"
+        );
+
+        let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
+            .expect("boundary report should be written");
+        assert!(
+            boundary.contains("Capability Blast Radius")
+                && boundary.contains("approved provider"),
+            "boundary report for {canary_name} should surface the capability blast radius\n{boundary}"
+        );
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
+fn unapproved_host_call_canary_is_rejected() {
+    let canary = fail_canary("capabilities/unapproved_host_call");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected unapproved host call canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("unapproved host call"),
+        "expected unapproved host call diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn runtime_direct_boolean_conjunction_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_direct_boolean_conjunction_exit");
     let main_path = canary.join("main.omg");
@@ -2904,6 +3000,9 @@ fn executable_name() -> &'static str {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/boundary_trait_effects_host_call",
+    "capabilities/uses_caller_folder",
+    "capabilities/acquires_filesystem_authority",
+    "capabilities/stores_capability",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_boolean_expression_from_domain_fact",
@@ -3092,6 +3191,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "capabilities/unapproved_host_call",
     "domains/call_requires_invalidated_by_mutation",
     "domains/call_requires_domain_intersection_invalidated_by_mutation",
     "domains/call_requires_boolean_expression_invalidated_by_mutating_call",
