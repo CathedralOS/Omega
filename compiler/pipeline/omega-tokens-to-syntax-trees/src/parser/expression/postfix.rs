@@ -117,9 +117,17 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    if input.at_punctuation(PunctuationKind::DotDot) {
-        let input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+    // Leading `..` / `..=` branch: open-start range (`..b`, `..`, `..=b`).
+    if let Some(end_inclusive) = range_separator(&input) {
+        let input = take_range_separator(input, end_inclusive)?;
         let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
+            // A trailing inclusive separator with no end expression is invalid:
+            // `..=` does not name a normalizable end.
+            if end_inclusive {
+                return Err(ParseError::new(
+                    "inclusive range `..=` requires an end expression",
+                ));
+            }
             (ExpressionHandle::invalid(), input)
         } else {
             let (end, input) =
@@ -132,6 +140,7 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
                 .insert(ExpressionNode::Range(TableRangeExpression {
                     start: ExpressionHandle::invalid(),
                     end,
+                    end_inclusive,
                 })),
             input,
         ));
@@ -139,12 +148,18 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
 
     let (start, input) =
         parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
-    if !input.at_punctuation(PunctuationKind::DotDot) {
+    let Some(end_inclusive) = range_separator(&input) else {
         return Ok((start, input));
-    }
+    };
 
-    let input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+    let input = take_range_separator(input, end_inclusive)?;
     let (end, input) = if input.at_punctuation(PunctuationKind::RightBracket) {
+        // `start..=` with no end has no normalizable end bound: reject it.
+        if end_inclusive {
+            return Err(ParseError::new(
+                "inclusive range `..=` requires an end expression",
+            ));
+        }
         (ExpressionHandle::invalid(), input)
     } else {
         let (end, input) =
@@ -154,9 +169,36 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
     Ok((
         syntax_trees
             .expressions
-            .insert(ExpressionNode::Range(TableRangeExpression { start, end })),
+            .insert(ExpressionNode::Range(TableRangeExpression {
+                start,
+                end,
+                end_inclusive,
+            })),
         input,
     ))
+}
+
+/// Returns `Some(end_inclusive)` if the input is positioned at a range separator
+/// (`..` -> `Some(false)`, `..=` -> `Some(true)`), otherwise `None`.
+fn range_separator(input: &Input<'_, '_>) -> Option<bool> {
+    if input.at_punctuation(PunctuationKind::DotDotEqual) {
+        Some(true)
+    } else if input.at_punctuation(PunctuationKind::DotDot) {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+fn take_range_separator<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    end_inclusive: bool,
+) -> Result<Input<'tokens, 'source>, ParseError> {
+    if end_inclusive {
+        input.take_punctuation(PunctuationKind::DotDotEqual, "..=")
+    } else {
+        input.take_punctuation(PunctuationKind::DotDot, "..")
+    }
 }
 
 fn build_call_expression_handle(

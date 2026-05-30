@@ -386,6 +386,7 @@ pub enum ExpressionSnapshot {
     Range {
         start: Option<Box<ExpressionSnapshot>>,
         end: Option<Box<ExpressionSnapshot>>,
+        end_inclusive: bool,
     },
     SelfValue,
     StructLiteral {
@@ -1055,6 +1056,7 @@ fn snapshot_expression_handle(
                 .end
                 .is_valid()
                 .then(|| Box::new(snapshot_expression_handle(syntax_trees, range.end))),
+            end_inclusive: range.end_inclusive,
         },
         ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {

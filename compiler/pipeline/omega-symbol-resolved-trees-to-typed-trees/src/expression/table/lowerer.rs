@@ -131,7 +131,11 @@ impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
                 let start = self.lower_optional(range.start)?;
                 let end = self.lower_optional(range.end)?;
                 Ok(self.target.insert(typed::expression::ExpressionNode::Range(
-                    typed::expression::TableRangeExpression { start, end },
+                    typed::expression::TableRangeExpression {
+                        start,
+                        end,
+                        end_inclusive: range.end_inclusive,
+                    },
                 )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {

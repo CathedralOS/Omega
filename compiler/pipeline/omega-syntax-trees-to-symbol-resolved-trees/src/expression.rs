@@ -188,7 +188,11 @@ fn lower_expression_node_into_table(
                 .then(|| lower_expression_into_table(syntax_trees, expressions, range.end))
                 .transpose()?
                 .unwrap_or_else(ExpressionHandle::invalid);
-            Ok(expressions.insert(ExpressionNode::Range(TableRangeExpression { start, end })))
+            Ok(expressions.insert(ExpressionNode::Range(TableRangeExpression {
+                start,
+                end,
+                end_inclusive: range.end_inclusive,
+            })))
         }
         syntax::expression::ExpressionNode::SelfValue => {
             let mut members = HandleSpan::empty();

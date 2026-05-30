@@ -5,6 +5,14 @@ use omega_typed_trees::expression::{
 
 use super::super::facts::RangeFacts;
 
+/// Resolves the lower bound and the *normalized exclusive* upper bound of a
+/// range to constant integers, when provable.
+///
+/// An inclusive range `a..=b` is normalized to the exclusive range `a..(b + 1)`
+/// per the frozen Wave 0 range spec. The `b + 1` normalization uses
+/// `checked_add`, so an inclusive range whose end is `i64::MAX` (e.g. the
+/// `..=usize::MAX` overflow edge) reports a proof failure (`None`) rather than
+/// silently wrapping — the overflow is surfaced as a diagnostic, never a panic.
 pub(in crate::checks::ranges) fn provable_range_bounds(
     program: &omega_typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
@@ -16,11 +24,27 @@ pub(in crate::checks::ranges) fn provable_range_bounds(
         0
     };
     let end = if range.end.is_valid() {
-        Some(expression_integer_value(program, facts, range.end)?)
+        let end = expression_integer_value(program, facts, range.end)?;
+        Some(normalize_exclusive_end(end, range.end_inclusive)?)
     } else {
         None
     };
     Some((start, end))
+}
+
+/// Normalizes an inclusive end bound `b` to the exclusive end `b + 1`.
+///
+/// Returns `None` on overflow so the caller can report a proof error instead of
+/// wrapping (the `..=` overflow edge is a proof failure, never a panic).
+pub(in crate::checks::ranges) fn normalize_exclusive_end(
+    end: i64,
+    end_inclusive: bool,
+) -> Option<i64> {
+    if end_inclusive {
+        end.checked_add(1)
+    } else {
+        Some(end)
+    }
 }
 
 pub(in crate::checks::ranges) fn expression_integer_value(
