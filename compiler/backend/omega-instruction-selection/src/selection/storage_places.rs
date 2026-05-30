@@ -89,14 +89,7 @@ pub(super) fn resolve_runtime_storage_place(
             slot_matches_path(slot, path)
         })
         .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .find_map(|(_, slot)| {
-                    (slot.dispatch_index == dispatch_index && slot_matches_path(slot, path))
-                        .then_some(slot)
-                })
+            latest_dispatch_frame_slot(input, dispatch_index, |slot| slot_matches_path(slot, path))
         })
     {
         if let Some(place) = runtime_slice_descriptor_member_place(
@@ -266,14 +259,9 @@ pub(super) fn resolve_runtime_storage_place_in_table(
             slot_matches_table_path(slot, &path)
         })
         .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .find_map(|(_, slot)| {
-                    (slot.dispatch_index == dispatch_index && slot_matches_table_path(slot, &path))
-                        .then_some(slot)
-                })
+            latest_dispatch_frame_slot(input, dispatch_index, |slot| {
+                slot_matches_table_path(slot, &path)
+            })
         })
     {
         if let Some(place) = runtime_slice_descriptor_member_place(
@@ -1000,6 +988,9 @@ fn runtime_frame_slot_for_expression<'plan>(
     find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
         slot_matches_path(slot, path)
     })
+    .or_else(|| {
+        latest_dispatch_frame_slot(input, dispatch_index, |slot| slot_matches_path(slot, path))
+    })
 }
 
 fn runtime_frame_slot_for_expression_in_table<'plan>(
@@ -1013,6 +1004,11 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
 
     find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
         slot_matches_table_path(slot, &path)
+    })
+    .or_else(|| {
+        latest_dispatch_frame_slot(input, dispatch_index, |slot| {
+            slot_matches_table_path(slot, &path)
+        })
     })
 }
 
@@ -1042,6 +1038,24 @@ fn find_runtime_frame_slot_for_path<'plan>(
                         && matches_path(slot))
                     .then_some(slot)
                 })
+        })
+}
+
+fn latest_dispatch_frame_slot<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    matches_path: impl Fn(&omega_runtime_storage::RuntimeFrameSlot) -> bool,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .fold(None, |matched_slot, (_, slot)| {
+            if slot.dispatch_index == dispatch_index && matches_path(slot) {
+                Some(slot)
+            } else {
+                matched_slot
+            }
         })
 }
 

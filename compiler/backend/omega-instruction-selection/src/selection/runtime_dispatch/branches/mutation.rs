@@ -27,7 +27,9 @@ use super::super::text_writes::{
     select_runtime_string_descriptor_write, string_literal_data_handle,
 };
 use super::super::writes::{
-    runtime_storage_copy, runtime_storage_copy_in_table, runtime_storage_indirect_copy_in_table,
+    runtime_storage_copy, runtime_storage_copy_in_table,
+    runtime_storage_fixed_indexed_source_copy_in_table,
+    runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -479,6 +481,28 @@ fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
             input,
             dispatch_index,
             target_source_key,
+            expressions,
+            resolved_target,
+            resolved_value,
+        )
+    })
+    .or_else(|| {
+        runtime_storage_indexed_source_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            expressions,
+            resolved_target,
+            resolved_value,
+        )
+    })
+    .or_else(|| {
+        runtime_storage_fixed_indexed_source_copy_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
             expressions,
             resolved_target,
             resolved_value,

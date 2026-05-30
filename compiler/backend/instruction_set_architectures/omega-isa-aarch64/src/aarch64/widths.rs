@@ -600,11 +600,20 @@ pub fn runtime_value_operand_width(
             byte_size,
         ) - runtime_store_data_width(byte_size)
             + runtime_load_data_width(byte_size)
-    } else if let Some((_, _, element_byte_size, field_byte_offset, byte_size)) =
-        runtime_value_operands.frame_fixed_indexed(operand)
+    } else if let Some((
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_fixed_indexed(operand)
     {
-        runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
-            + runtime_load_data_width(byte_size)
+        runtime_frame_fixed_index_setup_width(
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+        ) + runtime_load_data_width(byte_size)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -660,6 +669,19 @@ pub(in crate::aarch64) fn runtime_frame_index_setup_width(
     field_byte_offset: usize,
 ) -> usize {
     20 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
+}
+
+fn runtime_frame_fixed_index_setup_width(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    let source_offset = element_index
+        .saturating_mul(element_byte_size)
+        .saturating_add(field_byte_offset);
+
+    12 + add_constant_width(descriptor_offset) + add_constant_width(source_offset)
 }
 
 pub(in crate::aarch64) fn scale_index_width(element_byte_size: usize) -> usize {
