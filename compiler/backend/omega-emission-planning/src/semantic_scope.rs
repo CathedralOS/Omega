@@ -38,6 +38,7 @@ pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKe
     let obligation_count = input
         .control_flow
         .semantics
+        .facts
         .proof_obligations
         .iter()
         .filter(|(_, obligation)| {
@@ -47,6 +48,7 @@ pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKe
     let guarded_count = input
         .control_flow
         .semantics
+        .facts
         .proof_obligations
         .iter()
         .filter(|(_, obligation)| {

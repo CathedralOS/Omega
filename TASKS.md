@@ -37,6 +37,8 @@ representation machinery behind a deliberate boundary.
   capability-flow counts, even before population is implemented.
 - Boundary-trait calls now populate initial `uses` capability-flow facts from
   checked-flow boundary edge evidence.
+- Direct calls through boundary-trait signatures now also populate `uses`
+  capability-flow facts, with a canary asserting the emitted manifest count.
 - State-graph and control-flow semantic roots now preserve proof, invariant,
   contract, value, boundary, borrow, and ownership evidence as explicit noun
   roots.
