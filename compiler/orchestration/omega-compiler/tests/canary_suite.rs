@@ -2924,6 +2924,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_field_countdown_compile",
     "termination/custom_ranking_order_compile",
     "domains/contracts_domain_membership_surface",
+    "domains/string_non_empty_classifier",
     "domains/executable_domain_membership_expression_exit",
     "domains/executable_domain_membership_intersection_guard_exit",
     "domains/executable_imported_domain_membership_exit",

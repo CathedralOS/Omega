@@ -7,7 +7,7 @@ data Main {
 machine Main::main(&mut self) {
     self.text = "hello";
 
-    let view: &str = self.text.as_view();
+    let view: &string = self.text.as_view();
     self.text = "goodbye";
 
     let bytes: &[u8] = view.bytes();

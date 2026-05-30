@@ -1,1 +1,1 @@
-uses unsized text view type `str` by value; use `&str`
+uses unsized text view type `string` by value; use `&string`
