@@ -267,7 +267,7 @@ the domains must still be distinguishable by mutually exclusive classifiers.
 
 ## Domain-Sensitive Operators
 
-Domains are primarily proof facts about values, but Omega may also allow proven
+Domains are primarily proof facts about values. Omega also allows proven
 domains to participate in operator resolution when the meaning is unique.
 
 The intuition is that operators are shorthand for resolved semantic
@@ -299,24 +299,43 @@ This should stay strict:
 - No hidden runtime tag is introduced for dispatch.
 
 This is especially attractive for semantic abstractions such as strings and
-quantities. For example, `String::Utf8` and `String::NoNul` may want `+` to
-resolve through concatenation while preserving whichever domains the operation
-can soundly guarantee.
+quantities. For example, `String::Utf8` and `String::NoNul` may want the `+`
+spelling to resolve through concatenation while preserving whichever domains
+the operation can soundly guarantee.
 
 ## Operator Definitions And Domain Contexts
 
-Operator overloading should be trait-like in spirit but proof-aware in
+Operator overloading is trait-like in spirit but proof-aware in
 resolution.
 
 Rust maps a fixed operator spelling such as `+` or `[]` to a trait method such
-as `Add::add` or `Index::index`. Omega wants a similar semantic home for
+as `Add::add` or `Index::index`. Omega has a similar semantic home for
 operators, but with one extra axis: the current proof context may determine
 which operator meaning is available.
 
-Working model:
+A fixed operator spelling is declared with an optional `spelling` clause on a
+named `operator`. The named operator carries the full signature and proof
+contract; the `spelling` clause only binds the surface symbol that resolves to
+it.
 
-- Operator spellings are fixed by the language.
-- Core types such as `Slice`, `Array`, `Vec`, `Str`, and `StrView` can expose
+```omega
+domain Quantity {
+    // semantic facts about quantity values
+}
+
+operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+```
+
+Domain operators declared inside a `domain` block may carry a `spelling`.
+Domain-sensitive resolution then selects among spelled candidates by
+receiver/operand type plus proven domain context. Competing domain meanings for
+the same spelling are a compile error.
+
+Decided model:
+
+- Fixed operator spellings are declared with an optional `spelling` clause on a
+  named `operator`.
+- Core types such as `Slice`, `Array`, `Vec`, and `String` can expose
   operator definitions whose implementations are bound to boundary primitive
   compiler/runtime operations below the public core surface.
 - User/library types can expose ordinary operator definitions when the language
@@ -448,7 +467,10 @@ Working interpretation:
 - `Type::Domain` in a match arm is a domain pattern for values of `Type`.
 - `if x in Type::Domain` is a full executable domain check when the domain is
   runtime-checkable.
+- A fixed operator spelling is declared with an optional `spelling` clause on a
+  named `operator`; domain operators may carry a `spelling`.
 - Proven domains may participate in operator resolution when the applicable
-  operator meaning is unique.
+  operator meaning is unique; competing domain meanings for the same spelling
+  are a compile error.
 - Domain facts erase from ordinary runtime code unless a diagnostic build
   explicitly asks for checks.

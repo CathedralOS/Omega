@@ -17,23 +17,38 @@ is carried by the construct that crosses the edge, such as an operator,
 library entry, authority contract, trait, or target policy.
 
 Core operators keep their public contracts visible while primitive lowering
-stays behind the compiler/runtime boundary:
+stays behind the compiler/runtime boundary. A core operator carries a fixed
+`spelling` so the surface symbol resolves to it without hiding the signature or
+proof obligation:
 
 ```omega
 boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+    spelling []
 requires
     index < items.len;
+
+boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+    spelling [..]
+requires
+    start <= end && end <= items.len;
 ```
+
+The `spelling` clause sits above the `boundary` modifier and the `requires`
+clause, so binding a fixed spelling never hides the signature or proof
+obligation.
 
 Working interpretation:
 
 - `requires` remains a proof obligation for callers.
+- `spelling` binds the surface operator symbol (`[]`, `[..]`) to the named
+  operator without hiding its contract.
 - `boundary operator` says implementation lowering is accepted from the
   compiler/runtime provider for that operator.
 - The boundary report records boundary operators, library/authority boundary
   clauses, target policies, and unchecked policies.
-- Ordinary application code should not be able to mint new host/compiler
-  providers as a proof escape hatch.
+- Every boundary implementation binding references a registered
+  `BoundaryProvider` (see "Boundary Primitive Registry"). Ordinary application
+  code cannot mint new host/compiler providers as a proof escape hatch.
 
 This is the current boundary between browsable core semantics and private
 compiler machinery. Users should be able to inspect `Slice::index` and see the
@@ -292,9 +307,20 @@ boundary trait CConsole {
 ```
 
 That keeps encoding and interop requirements inside Omega's ordinary domain
-system. The hard unresolved piece is proving or checking sequence-wide facts
-such as UTF-8 validity efficiently enough that common text handling does not
-turn into byte-by-byte proof boilerplate.
+system. The same shape applies to a borrowed `string` window passed across a
+boundary.
+
+Text measures and text domains split by cost:
+
+- `length` and `non_empty` are exposed first. They are cheap, O(1) facts read
+  from the `{ptr,len}` descriptor.
+- `no_nul` and `utf8` are domains established at a validating boundary
+  constructor. The sequence-wide fact is asserted once at construction, then
+  carried as a fact and never re-proved per use.
+
+Establishing `no_nul` or `utf8` once at the validating constructor is the
+decided answer to the cost of sequence-wide proofs: common text handling
+downstream reads the carried fact instead of re-scanning the byte sequence.
 
 ## Capabilities And Authority Flow
 
@@ -490,7 +516,9 @@ This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.
 - The imported boundary is accepted to satisfy its declared guarantees.
-- The build artifact records which boundary providers were used.
+- The mapping is recorded as a `HostAbiCall` provider in the boundary registry,
+  authored as target-package metadata.
+- The build artifact records which registered boundary providers were used.
 
 The exact provider syntax is provisional. The important design point is that
 raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
@@ -545,9 +573,11 @@ The same split likely applies to other core collection and text concepts:
 
 - `Array` owns fixed-size inline storage and can borrow as `Slice`.
 - `Vec` owns dynamic contiguous storage and can borrow as `Slice`.
-- `Str` owns text storage.
-- `StrView` is the borrowed text view, even if the early syntax stays close to
-  Rust conventions.
+- `String` owns text storage; it has capacity and `push_str`.
+- `string` (lowercase) is the borrowed text window, spelled `&string` /
+  `&mut string`. Capitalization distinguishes the owner (`String`) from the
+  window (`string`); the older `StrView`/`&str` naming is retired. The text
+  window shares the same `{ptr,len}` slice descriptor carrier underneath.
 - Low-level carriers such as `Ptr` or buffer descriptors may exist in core or
   a primitive layer, but they are the boundary where boundary/compiler-managed
   representation begins.
@@ -558,14 +588,15 @@ Working private carrier model:
   pointer plus a length.
 - `&mut [T]` uses the same descriptor shape, plus the type/borrow checker owns
   the uniqueness and writable-region facts.
-- `StrView` / `&str` lowers to a byte pointer plus byte length, with a
-  text-domain fact that the bytes are valid text for the selected encoding.
+- `string` / `&string` lowers to a byte pointer plus byte length (the same
+  `{ptr,len}` slice descriptor carrier), with a text-domain fact that the bytes
+  are valid text for the selected encoding.
 - `Array<T, N>` owns inline storage and can produce a slice descriptor whose
   base points at the first element and whose length is `N`.
 - `Vec<T>` owns a growable buffer carrier with base pointer, length, capacity,
   and allocator/runtime provenance.
 - `String` uses the same owned-buffer shape as `Vec<u8>` plus text-domain
-  facts; borrowed text views are descriptors over its initialized bytes.
+  facts; a borrowed `string` window is a descriptor over its initialized bytes.
 - `Ptr<T>` and pointer-range construction are primitive-boundary concepts, not
   ordinary fields users manipulate through safe collection APIs.
 
@@ -616,17 +647,51 @@ imported libraries and syscall surfaces, the contract must be declared or
 imported from an audited package.
 
 Core primitives use the same discipline. A public declaration such as a slice
-indexing operator should state the visible contract. The implementation should
-then bind to a registered boundary primitive provider such as slice indexing,
-descriptor construction, pointer offset, allocation, or target ABI lowering. The
-root name is not a general-purpose user escape hatch: it must come from the
-toolchain, core package, target configuration, or an explicitly whitelisted
-audited provider, and it should appear in the build boundary report.
+indexing operator states the visible contract. The implementation then binds to
+a registered boundary provider such as slice indexing, descriptor construction,
+pointer offset, allocation, or target ABI lowering. The provider name is not a
+general-purpose user escape hatch: it must come from the toolchain, core
+package, target configuration, or an explicitly whitelisted audited provider,
+and it appears in the build boundary report.
 
 `omega::language::core::ptr` is the natural home for pointer-level primitive
 boundary providers. Safe source should generally work through owners and views, but the
 language still needs a browsable place to audit names such as pointer offset,
 read/write, and pointer-range construction.
+
+## Boundary Primitive Registry
+
+Compiler/runtime boundary providers are tracked, not free-floating names. The
+slice indexing, pointer offset, descriptor construction, allocation, and host
+ABI call surfaces are recorded in a registry of `BoundaryProvider` records.
+
+Each `BoundaryProvider` record carries:
+
+- `name`: the provider name a boundary implementation binds to.
+- `category`: one of `SliceIndexing`, `PointerOffset`, `PointerAccess`,
+  `DescriptorConstruction`, `Allocation`, or `HostAbiCall`.
+- the public contract it implements (a reference, so the proof obligation and
+  signature stay visible).
+- its effect set.
+- its target applicability.
+- the origin package that declared it.
+
+Core primitives are authored as restricted core declarations whose `boundary
+operator` binds a named provider. Host providers are authored as
+target-package metadata.
+
+Decided rules:
+
+- A package may declare providers only if it is whitelisted: core, host, or
+  toolchain packages.
+- Every boundary implementation binding must reference a registered provider.
+- Unregistered provider names outside whitelisted packages are rejected.
+- The emitted boundary build report lists the registered providers actually
+  used, as the audit artifact.
+
+This replaces the earlier state where `boundary operator` names and `boundary
+<name>` host clauses floated free without validation. A bound provider name now
+resolves to a registered record or the build is rejected.
 
 ## Blocking Boundaries
 
@@ -685,9 +750,9 @@ or unusual hardware. Doing so explicitly expands the boundary base.
 
 ## Build Artifacts
 
-Compiler artifacts should list imported libraries, syscall surfaces, boundary
-functions, inferred authority flow, direct/transitive host calls, and unchecked
-policies.
+Compiler artifacts should list imported libraries, syscall surfaces, the
+registered boundary providers used, inferred authority flow, direct/transitive
+host calls, and unchecked policies.
 
 Example shape:
 
@@ -724,14 +789,20 @@ transitive boundary calls:
   omega::host::filesystem::openat
   omega::host::filesystem::write
 
-boundary imported functions:
-  Kernel32.ReadFile boundary omega_windows_kernel32_read_file
-  DarwinLibSystem.write boundary omega_darwin_libsystem_write
+registered boundary providers used:
+  omega_windows_kernel32_read_file  category HostAbiCall  -> Kernel32.ReadFile
+  omega_darwin_libsystem_write      category HostAbiCall  -> DarwinLibSystem.write
+  omega_core_slice_index            category SliceIndexing -> Slice::index
 
 target image imports:
   Kernel32.dll!ReadFile
   libSystem.B.dylib!_write
 ```
+
+The "registered boundary providers used" list is the audit artifact for the
+boundary registry: every entry resolves to a `BoundaryProvider` record, and a
+binding that names no registered provider is rejected before this report is
+emitted.
 
 A build with proofs or contracts disabled should be stamped loudly rather than
 silently behaving like a normal safe build.

@@ -121,9 +121,9 @@ The important semantic piece is a well-founded ordering. A decrease metric is
 accepted only when the compiler knows how to compare successive values in a
 well-founded way.
 
-Likely built-in ranking shapes:
+Built-in ranking shapes:
 
-- natural numbers or bounded integers
+- natural numbers or bounded integers (the default descending-naturals order)
 - slice/view extents such as `items` under `Slice::Length`
 - named domain/type-specific ranking orders such as `Card::PowerOrder`
 - lexicographic tuples of decreasing metrics
@@ -133,6 +133,24 @@ domain membership predicate by itself. It means "rank this slice by its current
 length using the well-founded natural-number order." The name should be visible
 through the core `Slice` surface so users can discover what the termination
 checker is using.
+
+A custom well-founded ordering is declared with a dedicated `measure` keyword as
+a standalone item. A measure is **not** an abused `operator` declaration: it is a
+function from the decreasing value into a well-founded domain such as `usize`.
+
+```omega
+measure Card::PowerOrder(card: Card) -> usize { card.power }
+measure Quest::Difficulty lexicographic { tier, remaining_steps }
+```
+
+`lexicographic { a, b, ... }` declares an ordered tuple compared left-to-right.
+Multiple named measures per type are allowed, so the same type can be ranked
+different ways at different use sites.
+
+The use site is unchanged. `terminates { decreases card -> Card::PowerOrder; }`
+selects the named measure; plain `decreases value` still uses the default
+descending-naturals order; built-in views such as `Slice::Length` remain
+available without a `measure` declaration.
 
 For slices, `decreases items -> Slice::Length` naturally means each back-edge
 must operate on a strictly smaller remaining view, usually by carrying a
