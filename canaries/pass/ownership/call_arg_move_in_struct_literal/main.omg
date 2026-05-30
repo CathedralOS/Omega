@@ -1,0 +1,27 @@
+// PASS canary: an owned value consumed by a call whose result is a
+// struct-literal field. The inner call `self.wrap(self.seed)` appears in a value
+// sub-expression position (the field value), so the ownership lane reaches it by
+// recursing through the aggregate and the owned `Item` argument's transfer is
+// recorded. The program compiles: the owned source is read exactly once.
+
+data Item {
+    value: i32;
+}
+
+data Wrapper {
+    inner: Item;
+}
+
+data Main {
+    seed: Item;
+}
+
+machine Main::wrap(&mut self, item: Item) -> Item {
+    transition {
+        _ -> item
+    }
+}
+
+machine Main::main(&mut self) {
+    let wrapped: Wrapper = Wrapper { inner: self.wrap(self.seed) };
+}

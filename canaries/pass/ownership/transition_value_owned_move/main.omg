@@ -1,0 +1,20 @@
+// PASS canary: an owned value moved out of a state through a transition `Value`
+// target (`_ -> <expr>`). The returned local owns its storage, so the ownership
+// lane records a move out of the state at the transition. The program compiles:
+// the move is the only use of the owned local.
+
+data Item {
+    value: i32;
+}
+
+data Main {
+    seed: Item;
+}
+
+machine Main::main(&mut self) -> Item {
+    let produced: Item = self.seed;
+
+    transition {
+        _ -> produced
+    }
+}
