@@ -33,7 +33,9 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - `operation_conversions/` owns directional conversion between target operation kinds and assigned operation kinds.
 - `semantics.rs` owns the assigned-stage semantic aliases.
   `AssignedSemanticSummary` is the preserved target/abstract semantic spine,
-  not a new duplicate values/boundaries/ownership container.
+  not a new duplicate values/boundaries/ownership container. The stage should
+  still assemble value, boundary, and ownership roots through the shared
+  semantic-summary constructor so preservation remains explicit.
 - `values.rs` owns runtime value operand home assignment, including stack/runtime homes and scratch-register selection.
 - `registers.rs` owns architecture-specific scratch register selection until real allocation replaces the current fixed policy.
 - `tests.rs` owns stage-level preservation canaries for value, ownership, and

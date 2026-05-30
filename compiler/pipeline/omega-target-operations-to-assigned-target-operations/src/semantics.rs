@@ -4,5 +4,9 @@ use omega_target_operations::TargetOperationPlan;
 pub(crate) fn build_assigned_semantic_summary(
     target_operations: &TargetOperationPlan,
 ) -> AssignedSemanticSummary {
-    target_operations.semantics.clone()
+    AssignedSemanticSummary::with_roots(
+        target_operations.semantics.values.clone(),
+        target_operations.semantics.boundaries.clone(),
+        target_operations.semantics.ownership.clone(),
+    )
 }

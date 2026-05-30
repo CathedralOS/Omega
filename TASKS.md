@@ -110,6 +110,9 @@ meaning, without needing access to pointer descriptor internals.
   - target-operations-to-assigned-target-operations now builds assigned code
     roots and assigned semantic roots through separate helpers before joining
     them with `AssignedTargetOperationPlan::with_roots`
+  - target-to-assigned semantic preservation now joins value, boundary, and
+    ownership roots through the shared semantic-summary constructor instead of
+    cloning the whole summary as an opaque blob
   - target operation value facts, ownership facts, and boundary edges now sit
     under an explicit `TargetSemanticSummary` root on `TargetOperationPlan`
     instead of appearing as unrelated plan siblings
