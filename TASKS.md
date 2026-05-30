@@ -650,6 +650,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-trees-to-state-graph contract and ownership merge now use the same
     source-root bundle pattern, so state merge coordinates semantic categories
     instead of spelling out each category's internal arenas
+  - checked-trees-to-state-graph borrow, contract, and ownership merge
+    remappers now have focused canaries proving source semantic root bundles
+    populate target semantic roots coherently
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
