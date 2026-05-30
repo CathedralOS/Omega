@@ -199,9 +199,10 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   (focused on intended diagnostics), `pending` = desired behavior known but
   implementation behind. Promote pending quickly when fixed; don't let
   compile-only pass canaries imply runtime support.
-- Pre-existing red unrelated to current work: `pass_canaries_compile` aborts on
-  `calls/mutable_output_host_call` (missing Stdin host binding), and the
-  `*_canary_runs` execution tests fault until the r12 emission bug is fixed.
+- Known red (see "Next Up"): `pass_canaries_compile` + stdin canaries abort on
+  the missing `Stdin.read` host binding; ~26 `*_canary_runs` still fault on the
+  remaining zero-byte-instruction relocation arms; a few fail to compile on the
+  unimplemented x86_64 runtime value operand. Runtime canaries currently 46 pass.
 
 ### Docs
 
