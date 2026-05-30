@@ -1,0 +1,24 @@
+use omega::language::core::str;
+
+// Exercises a boundary-established text domain. `String::Utf8` is NOT a cheap
+// classifier: it can only be established at the validating boundary operator
+// `String::validate_utf8`, whose `ensures text in String::Utf8` attaches the
+// membership to the validated owned text. The fact is then CARRIED (never
+// re-proved per use) and satisfies the later `requires text in String::Utf8`.
+
+data Main {
+    text: String;
+}
+
+machine Main::consume(&self, text: &String)
+requires
+    text in String::Utf8
+{
+}
+
+machine Main::main(&mut self) {
+    // Validate once at the boundary; the `String::Utf8` fact is established here.
+    self.text.validate_utf8();
+    // Consumed downstream as a carried fact, with no byte re-scan.
+    self.consume(&self.text);
+}
