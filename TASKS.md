@@ -85,14 +85,35 @@ into three causes, none of them relocations:
   Stdin.read` — `runtime_ordered_room_dispatch_loop`, `..._real_show_states` (and
   the same blocks `pass_canaries_compile` on `calls/mutable_output_host_call` and
   the dungeon PE). Wire the Windows x64 `Stdin.read` host binding.
-- **Wrong dispatch branch selection (~7, NEW bucket):** compiles + runs cleanly,
-  no AV, but guarded/ordered state dispatch routes to the WRONG arm — consistently
-  the base/false arm instead of the intended later one (e.g. ambush exits 70
-  instead of 73; boolean conjunction routes to false-arm 10 instead of true-arm 21;
-  `runtime_ordered_room_dispatch_{exit,after_call,game_shape,large_machine}`,
-  `runtime_direct_boolean_conjunction`, `runtime_slice_alias_indexed_string_field_concat`).
-  Relocations are well-formed for these — the bug is branch/transition SELECTION
-  lowering in instruction-selection / branching crates. Needs its own lane.
+- **Wrong dispatch branch selection (~7):** compiles + runs cleanly, no AV, but
+  guarded/ordered state dispatch routes to the WRONG arm — consistently the
+  base/false/earlier arm (`runtime_ordered_room_dispatch_{exit,after_call,game_shape,large_machine}`
+  70/80/90/100 vs 73/83/93/higher; `runtime_direct_boolean_conjunction` 10 vs 21;
+  `runtime_slice_alias_indexed_string_field_concat` 78 vs 77).
+  ROOT CAUSE (diagnosed, fix not yet landed): the dispatch **guards are dropped to
+  zero width** during emission, so every arm enters unconditionally and the first
+  wins. Evidence: `.text` for the ordered-room `route` block emits only
+  `mov r12d,<index>; jmp loop` with NO field-comparison `cmp`; pipeline artifacts
+  show the scrutinee field refs (`current_room`, `bat_defeated`) present in
+  `06_state_graph`/`07_control_flow` but GONE by `08_abstract_operations` (24
+  `Guard` ops survive but with no resolved storage operands). The emission filter
+  (`omega-machine-emission/src/layout.rs:97` width + `instruction_bytes.rs:166`
+  bytes) only emits real `cmp`+`jcc` for `EvaluateDispatchGuard { guard_lowering:
+  CompareStaticValue, has_storage: true }`; any other lowering (e.g.
+  `NeedsRuntimeExpression`) silently gets width 0 / no bytes. So guards resolve to
+  `NeedsRuntimeExpression` because **`resolve_guard_operand_layout` in
+  `omega-state-guards/src/operands/layout.rs` returns `None`** for the `self.field`
+  scrutinee columns of these ordered multi-column transitions (likely
+  `path_targets_source_machine` / `field_layout_by_symbol_or_name` failing to match
+  the machine field layout), forcing `guard_lowering()` (builder.rs:101) to
+  `NeedsRuntimeExpression`. THE FIX is in `omega-state-guards` operand resolution,
+  NOT instruction-selection or relocations. Two follow-ups worth doing alongside:
+  (a) make the emission filter a hard error instead of silently dropping a
+  non-`CompareStaticValue` guard to zero bytes — that silent drop is what let this
+  miscompile instead of failing loudly; (b) instrument `lower_guard_leaf`
+  (`omega-state-guards/src/conjunction.rs` ~L234) printing operand kind/storage/
+  offset + resulting lowering, run the freshly-built `target/debug/omega-cli.exe`
+  directly and capture stderr, to confirm exactly why operand layout is `None`.
 Harness: bin `target/debug/omega.exe`; runtime canaries run as
 `cargo test -p omega-compiler --test canary_suite _runs -- --test-threads=1`;
 regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)
