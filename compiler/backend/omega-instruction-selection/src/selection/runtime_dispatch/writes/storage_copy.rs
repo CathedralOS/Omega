@@ -3,6 +3,7 @@ use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTa
 use omega_control_flow::StateKey;
 
 use super::super::super::storage_places::{
+    resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -49,6 +50,58 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
         target_offset: target_place.byte_offset,
         byte_count: target_place.byte_count,
     })
+}
+
+pub(in crate::selection::runtime_dispatch) fn runtime_storage_fixed_indexed_source_copy(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    target: &Expression,
+    value: &Expression,
+) -> Option<SelectedInstructionKind> {
+    let target_place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        source_machine,
+        source_state,
+        target,
+    )?;
+    if target_place.byte_count == 0 {
+        return None;
+    }
+
+    let fixed_source =
+        resolve_runtime_frame_fixed_indexed_target(input, dispatch_index, value_source_key, value)?;
+    if target_place.byte_count != fixed_source.byte_count {
+        return None;
+    }
+
+    let kind = if target_place.region == RuntimeStorageRegion::RuntimeFrame {
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
+            descriptor_offset: fixed_source.descriptor_offset,
+            element_index: fixed_source.element_index,
+            element_byte_size: fixed_source.element_byte_size,
+            field_byte_offset: fixed_source.field_byte_offset,
+            target_offset: target_place.byte_offset,
+            byte_count: target_place.byte_count,
+        }
+    } else {
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage {
+            descriptor_offset: fixed_source.descriptor_offset,
+            element_index: fixed_source.element_index,
+            element_byte_size: fixed_source.element_byte_size,
+            field_byte_offset: fixed_source.field_byte_offset,
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            byte_count: target_place.byte_count,
+        }
+    };
+
+    Some(kind)
 }
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy_in_table(

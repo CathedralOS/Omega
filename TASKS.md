@@ -139,7 +139,12 @@ under full-suite parallelism (build-dir race); it passes run alone / with
 - [ ] Audit descriptor-backed fixed-index reads/copies now that writes and local
   descriptor materialization work for `rooms[0].exits.as_mut_slice()`. Native
   dungeon initialization no longer crashes at that descriptor shape, but room
-  lookup/render still observes blank room data.
+  lookup/render still observes blank room data. Recent investigation narrowed
+  the immediate bug: leaf branch binding now keeps `out_room -> mut room` from
+  being rewritten through the sibling `room -> rooms[0]` binding, but the source
+  side still falls back to descriptor-header storage copies such as
+  `omega_runtime_frame_storage@16 -> caller_room@...` instead of emitting
+  descriptor element loads for `rooms[0].field`.
 - [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
   copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
   callers past literal fixed-array bases — several `runtime_subslice_*` canaries

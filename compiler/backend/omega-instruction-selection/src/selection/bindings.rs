@@ -694,13 +694,12 @@ pub(super) fn resolve_leaf_binding_expression_handle(
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
-                let resolved = resolve_leaf_binding_expression_handle(
-                    source_table,
-                    table,
+                table.insert_copy_with_member_suffix(
                     expression,
-                    bindings,
-                );
-                table.insert_copy_with_member_suffix(resolved, path.members, path.member_symbols, 1)
+                    path.members,
+                    path.member_symbols,
+                    1,
+                )
             })
             .unwrap_or(expression),
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -882,13 +881,12 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
-                let resolved = resolve_straight_line_binding_expression_handle(
-                    source_table,
-                    table,
+                table.insert_copy_with_member_suffix(
                     expression,
-                    bindings,
-                );
-                table.insert_copy_with_member_suffix(resolved, path.members, path.member_symbols, 1)
+                    path.members,
+                    path.member_symbols,
+                    1,
+                )
             })
             .unwrap_or(expression),
         ExpressionNode::StructLiteral(struct_literal) => {
