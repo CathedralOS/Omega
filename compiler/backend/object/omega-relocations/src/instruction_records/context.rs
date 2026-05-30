@@ -12,6 +12,7 @@ pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
     pub function_symbol_handle: ObjectSymbolHandle,
     pub selected_instruction_index: u32,
     pub selected_text_offset: usize,
+    pub selected_text_width: usize,
     pub relocation_plan: &'relocations mut RelocationPlan,
 }
 
@@ -45,6 +46,10 @@ impl InstructionRelocationContext<'_, '_> {
     }
 
     pub(super) fn insert_data_address(&mut self, byte_offset: usize, symbol: ObjectSymbolHandle) {
+        if self.selected_text_width == 0 {
+            return;
+        }
+
         let byte_offset = match self.input.target.architecture {
             Architecture::Aarch64 => byte_offset,
             Architecture::X86_64 => byte_offset + 2,

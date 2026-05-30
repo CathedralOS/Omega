@@ -25,6 +25,7 @@ pub(super) fn collect_instruction_relocations(
     function_symbol_handle: ObjectSymbolHandle,
     selected_instruction_index: u32,
     selected_text_offset: usize,
+    selected_text_width: usize,
     instruction: &SelectedInstruction,
     relocation_plan: &mut RelocationPlan,
 ) {
@@ -33,6 +34,7 @@ pub(super) fn collect_instruction_relocations(
         function_symbol_handle,
         selected_instruction_index,
         selected_text_offset,
+        selected_text_width,
         relocation_plan,
     };
 

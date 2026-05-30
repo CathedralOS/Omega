@@ -34,6 +34,29 @@ pub(super) fn selected_instruction_text_offset(
     )))
 }
 
+pub(super) fn selected_instruction_text_width(
+    input: RelocationPlanningInput<'_>,
+    selected_instruction_index: u32,
+) -> usize {
+    input
+        .encoded_machine
+        .code
+        .instructions
+        .iter()
+        .find_map(|(_, instruction)| {
+            (instruction.selected_instruction_index == selected_instruction_index).then(|| {
+                input
+                    .encoded_machine
+                    .code
+                    .bytes
+                    .span(instruction.bytes)
+                    .map(|bytes| bytes.len())
+                    .unwrap_or(0)
+            })
+        })
+        .unwrap_or(0)
+}
+
 pub(super) fn find_host_binding<'plan>(
     input: RelocationPlanningInput<'plan>,
     operation_key: HostOperationKey,

@@ -77,15 +77,15 @@ splattered into it and executed as garbage → `0xC0000005`. Fixed for the
 dispatch-guard and text-compare arms by gating `insert_data_address_at_instruction_start`
 on non-zero per-arch instruction width
 (`omega-relocations/src/instruction_records/{runtime_storage_compares.rs,
-runtime_text_compare.rs}`). Result so far: runtime `*_canary_runs` went 12→46
-passing. **Remaining ~26 failures are the SAME bug class in OTHER instruction-record
-arms** — slice indexing/iteration, mutable-parameter writes, machine-owned indexed
-writes, string concat (`runtime_storage_writes`, `runtime_values`, slice/copy
-paths). Audit each `instruction_records` arm that emits a data-address relocation
-and gate it the same way when the owning instruction is zero-byte on the target
-arch. Harness: bin is `target/debug/omega.exe`; runtime canaries run as the
-`pass_canaries_runs` test; regression guard `omega --target windows_x64
-samples/cli_mvp/main.omg` (exit 0) + `windows_x64_cli_mvp_emits_runnable_pe`.
+runtime_text_compare.rs`). Result so far: runtime `*_canary_runs` went 12→46
+passing. Follow-up central guard landed in `omega-relocations`: every
+instruction-record data-address insertion now no-ops when the selected instruction
+encoded to zero bytes, instead of requiring each arm to remember its own width
+gate. **Next:** rerun runtime canaries to measure how many of the remaining ~26
+failures were this bug class versus real lowering/runtime gaps. Harness: bin is
+`target/debug/omega.exe`; runtime canaries run as the `pass_canaries_runs` test;
+regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)
++ `windows_x64_cli_mvp_emits_runnable_pe`.
 
 **EMISSION — unimplemented x86_64 runtime value operand.** A few canaries fail to
 *compile* (not crash) with `X86_64 runtime value operand is not implemented yet`
