@@ -79,6 +79,9 @@ meaning, without needing access to pointer descriptor internals.
   - `AbstractSemanticSummary` now owns root construction for value, boundary,
     and ownership summaries instead of requiring lowerings to spell out its
     internal fields
+  - encoded-machine semantic aliases now point to the immediate
+    machine-instruction semantic aliases instead of skipping back to the target
+    operation layer, making the preserved semantic spine easier to follow
   - abstract operation executable shape now sits under an explicit
     `AbstractOperationCode` root on `AbstractOperationPlan`, keeping operation
     arenas separate from preserved semantic summaries
@@ -609,6 +612,10 @@ meaning, without needing access to pointer descriptor internals.
   - `omega-machine-emission` now centralizes selected host-operation and host
     text-read payload extraction before layout/encoding consume boundary
     operation details
+  - abstract, target, assigned-target, and machine-instruction plan roots now
+    expose `with_roots` constructors so executable code shape and preserved
+    semantic evidence are assembled as explicit sibling roots instead of ad hoc
+    field bags
   Next target:
   - connect checked operation admissibility checks to real diagnostic sources
     for proof, borrow, effect/capability, boundary, and termination failures
