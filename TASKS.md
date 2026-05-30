@@ -81,9 +81,12 @@ runtime_text_compare.rs`). Result so far: runtime `*_canary_runs` went 12→46
 passing. Follow-up central guard landed in `omega-relocations`: every
 instruction-record data-address insertion now no-ops when the selected instruction
 encoded to zero bytes, instead of requiring each arm to remember its own width
-gate. **Next:** rerun runtime canaries to measure how many of the remaining ~26
-failures were this bug class versus real lowering/runtime gaps. Harness: bin is
-`target/debug/omega.exe`; runtime canaries run as the `pass_canaries_runs` test;
+gate. Measured result: filtered runtime canaries now report 68 passing / 5
+failing. Remaining failures are no longer relocation splatter: mutable slice
+element writes return the unmutated exit branch, slice iteration lacks an index
+proof, and native dungeon samples hit known borrow/index proof diagnostics.
+Harness: bin is `target/debug/omega.exe`; runtime canaries run as
+`cargo test -p omega-compiler --test canary_suite _runs -- --test-threads=1`;
 regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)
 + `windows_x64_cli_mvp_emits_runnable_pe`.
 
@@ -129,7 +132,7 @@ under full-suite parallelism (build-dir race); it passes run alone / with
 - [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
   copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
   callers past literal fixed-array bases — several `runtime_subslice_*` canaries
-  still crash, likely the same zero-byte relocation class, verify after that fix).
+  still need runtime verification after the zero-byte relocation fix).
 - [ ] Generalize start-only/end-only/bounded descriptors beyond literal
   fixed-array-backed views.
 - [ ] Promote pending subslice canaries into pass/fail suites as descriptor

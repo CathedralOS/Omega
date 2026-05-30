@@ -1049,9 +1049,7 @@ fn runtime_negated_comparison_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_tuple_transition_exit_canary_runs() {
-    let canary = repo_root()
-        .join("canaries/pass")
-        .join("runtime_tuple_transition_exit");
+    let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-tuple-transition-{}",
