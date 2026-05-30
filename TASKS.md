@@ -405,6 +405,8 @@ meaning, without needing access to pointer descriptor internals.
     object-plan/final-image artifact root convention
   - backend artifact roots now have a target-aware empty constructor, so
     orchestration skeletons do not hand-build machine/object/relocation roots
+  - backend artifact roots now expose an explicit `with_roots` constructor with
+    a canary, matching the rest of the artifact/root spine convention
   - backend semantic summary names after abstract operations now alias the same
     preserved summary spine instead of duplicating identical
     values/boundaries/ownership structs per representation

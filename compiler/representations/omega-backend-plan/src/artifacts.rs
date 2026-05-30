@@ -15,13 +15,27 @@ pub struct BackendArtifactRoots {
 }
 
 impl BackendArtifactRoots {
-    pub fn empty_for_target(target: NativeTarget) -> Self {
+    pub fn with_roots(
+        machine_instructions: MachineInstructionPlan,
+        encoded_machine: EncodedMachinePlan,
+        object: ObjectPlan,
+        relocations: RelocationPlan,
+    ) -> Self {
         Self {
-            machine_instructions: MachineInstructionPlan::with_capacity(target, 0, 0),
-            encoded_machine: EncodedMachinePlan::with_capacity(target, 0, 0, 0),
-            object: ObjectPlan::with_capacity(target, 0, 0),
-            relocations: RelocationPlan::with_record_capacity(target, 0),
+            machine_instructions,
+            encoded_machine,
+            object,
+            relocations,
         }
+    }
+
+    pub fn empty_for_target(target: NativeTarget) -> Self {
+        Self::with_roots(
+            MachineInstructionPlan::with_capacity(target, 0, 0),
+            EncodedMachinePlan::with_capacity(target, 0, 0, 0),
+            ObjectPlan::with_capacity(target, 0, 0),
+            RelocationPlan::with_record_capacity(target, 0),
+        )
     }
 
     pub fn semantic_summary(&self) -> &EncodedMachineSemanticSummary {
@@ -79,5 +93,26 @@ mod tests {
             .expect("boundary policy check should stay visible at artifact root");
         assert_eq!(check.boundary_policy.as_ref(), "omega::core::Slice::Index");
         assert_eq!(check.verdict, AbstractBoundaryPolicyVerdict::Accepted);
+    }
+
+    #[test]
+    fn backend_artifact_constructor_keeps_artifact_roots_explicit() {
+        let target = NativeTarget::host();
+        let machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 2);
+        let encoded_machine = EncodedMachinePlan::with_capacity(target, 3, 4, 5);
+        let object = ObjectPlan::with_capacity(target, 6, 7);
+        let relocations = RelocationPlan::with_record_capacity(target, 8);
+
+        let artifacts = BackendArtifactRoots::with_roots(
+            machine_instructions.clone(),
+            encoded_machine.clone(),
+            object.clone(),
+            relocations.clone(),
+        );
+
+        assert_eq!(artifacts.machine_instructions, machine_instructions);
+        assert_eq!(artifacts.encoded_machine, encoded_machine);
+        assert_eq!(artifacts.object, object);
+        assert_eq!(artifacts.relocations, relocations);
     }
 }
