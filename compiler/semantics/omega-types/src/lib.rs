@@ -154,7 +154,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     );
                 }
             }
-            Item::Export(_) | Item::Use(_) => {}
+            Item::Provider(_) | Item::Export(_) | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Measure(measure) => {
                 insert_declaration(
@@ -536,6 +536,8 @@ mod tests {
             parameters: HandleSpan::from_parts(items_parameter, 2),
             return_type: generic_type,
             contracts: HandleSpan::empty(),
+            spelling: None,
+            provider: None,
             token_count: 1,
         }));
 
@@ -582,6 +584,8 @@ mod tests {
             parameters: HandleSpan::from_parts(parameter, 1),
             return_type: target_type,
             contracts: HandleSpan::empty(),
+            spelling: None,
+            provider: None,
             token_count: 1,
         });
 

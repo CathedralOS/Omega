@@ -11,9 +11,14 @@
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
 
+// Boundary primitive provider for slice indexing/subslicing (Wave 0 #4).
+provider omega::language::core::slice_indexing : SliceIndexing;
+
 boundary operator Slice::Length<T>(items: &[T]) -> usize;
 
 boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+spelling []
+provider omega::language::core::slice_indexing
 requires
     index < items.len;
 
@@ -46,6 +51,8 @@ requires
     end <= items.len;
 
 boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+spelling [..]
+provider omega::language::core::slice_indexing
 requires
     start <= end && end <= items.len;
 

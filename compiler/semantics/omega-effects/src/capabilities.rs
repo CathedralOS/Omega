@@ -1,3 +1,5 @@
+pub mod providers;
+
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 

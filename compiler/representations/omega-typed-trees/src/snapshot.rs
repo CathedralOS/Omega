@@ -145,6 +145,7 @@ pub struct OperatorDefinitionSnapshot {
     pub parameter_count: usize,
     pub has_return_type: bool,
     pub contract_count: usize,
+    pub spelling: Option<&'static str>,
     pub token_count: usize,
 }
 
@@ -175,6 +176,7 @@ fn operator_snapshot(
             .signature_contracts
             .span_or_empty(operator.contracts)
             .len(),
+        spelling: operator.spelling.map(|spelling| spelling.symbol()),
         token_count: operator.token_count,
     }
 }

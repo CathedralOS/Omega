@@ -1,5 +1,6 @@
 use crate::identifier::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::operator_spelling::{OperatorSpelling, ProviderCategory};
 
 pub type ItemHandle = Handle<Item>;
 pub type StateParameterHandle = Handle<StateParameterNode>;
@@ -18,12 +19,30 @@ pub enum Item {
     Library(LibraryDefinition),
     Measure(MeasureDefinition),
     Operator(OperatorDefinition),
+    Provider(ProviderDeclaration),
     Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
     Platform(Platform),
     Trait(TraitDefinition),
     Target(TargetDefinition),
+}
+
+/// A boundary primitive provider declaration (frozen Wave 0 decision #4):
+/// `provider <QualifiedName> : <Category>;`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderDeclaration {
+    pub name: HandleSpan<Identifier>,
+    pub category: ProviderCategory,
+}
+
+impl Default for ProviderDeclaration {
+    fn default() -> Self {
+        Self {
+            name: HandleSpan::empty(),
+            category: ProviderCategory::SliceIndexing,
+        }
+    }
 }
 
 impl Default for Item {
@@ -136,6 +155,11 @@ pub struct OperatorDefinition {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub contracts: HandleSpan<CapabilityContract>,
+    /// Optional `spelling <symbol>` clause (frozen Wave 0 decision #3).
+    pub spelling: Option<OperatorSpelling>,
+    /// Optional `provider <QualifiedName>` clause binding this boundary
+    /// operator to a registered provider (frozen Wave 0 decision #4).
+    pub provider: Option<HandleSpan<Identifier>>,
     pub token_count: usize,
 }
 
