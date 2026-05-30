@@ -1,7 +1,14 @@
-machine WindowShrinkExactLengthIndex {
-    entry(values: &[u8]) {
-        let window: &[u8] = values[0..3];
-        let value: u8 = window[2];
-        return;
-    }
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 8];
+}
+
+machine Main::main(&mut self) -> i32 {
+    let view: &[Entry] = self.entries.as_slice();
+    let window: &[Entry] = view[2..5];
+    let chosen: Entry = window[2];
+    chosen.value
 }
