@@ -282,6 +282,13 @@ impl TypedTrees {
             .append_to_span(&mut operator.contracts, contract);
     }
 
+    pub fn operator_contracts(
+        &self,
+        operator: &crate::operator::OperatorDefinition,
+    ) -> &[signature::SignatureContract] {
+        self.signature_contracts.span_or_empty(operator.contracts)
+    }
+
     pub fn operator_path_members(
         &self,
         span: HandleSpan<crate::name::Identifier>,

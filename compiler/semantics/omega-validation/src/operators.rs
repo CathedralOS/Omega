@@ -1,5 +1,7 @@
+mod dispatch;
 mod signatures;
 
+use dispatch::validate_domain_operator_dispatch;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
@@ -20,6 +22,12 @@ pub(super) fn validate_operator_declarations(
         );
         validate_spelling_overlap(program, program.domain_operators(domain), diagnostics);
     }
+
+    // Chapter 8: competing domain-operator meanings for one spelling are a
+    // compile error. This crosses domain boundaries (the per-domain
+    // `validate_spelling_overlap` above only catches overlaps within a single
+    // domain), so it runs once over the whole program.
+    validate_domain_operator_dispatch(program, diagnostics);
 }
 
 /// Frozen Wave 0 decision #3 ambiguity rule: the same spelling with overlapping
