@@ -9,7 +9,7 @@ use omega_state_graph::{
 
 use calls::state_borrow_calls;
 use lifetimes::state_borrow_lifetime_summary;
-pub(crate) use remap::remap_state_borrow_summary;
+pub(crate) use remap::{SourceBorrowArenas, remap_state_borrow_summary};
 
 pub(crate) fn state_borrow_summary(
     state_graph: &mut StateGraph,
