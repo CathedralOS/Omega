@@ -102,16 +102,118 @@ pub(super) fn append_move_events_for_expression(
                 );
             }
         }
+        // A call appearing in a *value* sub-expression position (a nested
+        // operator/boundary or state call used as an aggregate element/field, a
+        // binary or range operand, or a cast operand) still transfers ownership
+        // of any owned by-value arguments it consumes. Recursion reaches such a
+        // call only *through* an enclosing value expression; the call-flow
+        // discovery pass only records argument moves for state borrow calls, so
+        // for non-state (operator/boundary) calls reached this way the owned
+        // argument transfers would otherwise leave no ownership event. Descend
+        // into the call's owned by-value arguments here.
+        //
+        // State borrow calls (`find_state(target) == Some`) are intentionally
+        // excluded: their by-value argument transfers are emitted by
+        // `append_call_ownership_events` from the discovered `BorrowCallFact`s,
+        // so descending into them here would double-count.
+        ExpressionNode::Call(call) => {
+            append_move_events_for_call_arguments(
+                program,
+                ctx,
+                state_symbol,
+                statement_index,
+                call,
+                source,
+            );
+        }
         ExpressionNode::Mutable(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => {}
     }
+}
+
+/// Append type-aware move events for the owned by-value arguments (and receiver)
+/// of a call that is itself reached as a value sub-expression.
+///
+/// State borrow calls are skipped because the call-flow pass already records
+/// their argument transfers from the discovered borrow-call facts. For an
+/// operator/boundary call the per-parameter ownership policy comes from the
+/// callee's declared parameter types (the same source of truth as
+/// [`classify_operator_result_ownership`]); a parameter whose type copies reads
+/// its argument by value and transfers nothing, so it produces no move event.
+/// When no operator declaration is found the argument expression's own
+/// type-aware policy decides via the recursive descent.
+fn append_move_events_for_call_arguments(
+    program: &omega_typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    call: &omega_typed_trees::expression::TableCallExpression,
+    source: FlowOwnershipEventSource,
+) {
+    // State borrow calls are owned by the call-flow argument-move pass.
+    if find_state(program, call.target_symbol).is_some() {
+        return;
+    }
+
+    if call.receiver.is_valid() {
+        append_move_events_for_expression(
+            program,
+            ctx,
+            state_symbol,
+            statement_index,
+            call.receiver,
+            source,
+        );
+    }
+
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let parameter_ownership = call_parameter_ownership(program, call.target_symbol);
+
+    for (ordinal, argument) in arguments.iter().enumerate() {
+        // When the callee's parameter type is known and copies (does not own),
+        // the argument is read by value without transferring ownership.
+        if let Some(false) = parameter_ownership
+            .as_ref()
+            .and_then(|owns| owns.get(ordinal).copied())
+        {
+            continue;
+        }
+
+        append_move_events_for_expression(
+            program,
+            ctx,
+            state_symbol,
+            statement_index,
+            *argument,
+            source,
+        );
+    }
+}
+
+/// The per-parameter ownership policy of a call's resolved operator/boundary
+/// definition, if one is found. The returned vector excludes the implicit `self`
+/// receiver parameter so its entries line up with the call's positional
+/// arguments. `None` means the callee is not a known operator definition, so the
+/// argument expression's own type should decide.
+fn call_parameter_ownership(
+    program: &omega_typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<Vec<bool>> {
+    let operator = operator_definition_for_call(program, target_symbol)?;
+    Some(
+        program
+            .operator_parameters(operator)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .map(|parameter| type_requires_ownership(program, parameter.type_reference))
+            .collect(),
+    )
 }
 
 /// Whether a `let`-initializer expression produces a freshly owned value through
