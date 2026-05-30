@@ -1,0 +1,27 @@
+// A library that ACQUIRES filesystem authority. The `Disk` boundary is held in a
+// machine-owned field and the package exercises `filesystem_io` directly through
+// it, rather than receiving the authority from a caller. That makes the call an
+// acquisition of host authority. `Disk` has no in-package implementation, so it
+// is an approved (toolchain) provider edge.
+
+boundary trait Disk {
+    machine write_line(text: String)
+    effects
+        filesystem_io;
+}
+
+data Archiver {
+    disk: Disk;
+}
+
+machine Archiver::flush(&mut self) {
+    self.disk.write_line("flush log");
+}
+
+data Main {
+    archiver: Archiver;
+}
+
+machine Main::main(&mut self) {
+    self.archiver.flush();
+}

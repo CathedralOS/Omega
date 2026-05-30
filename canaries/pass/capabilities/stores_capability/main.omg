@@ -1,0 +1,27 @@
+// A library that STORES a capability. The `Console` capability is retained in a
+// machine-owned field and exercised across calls, so the authority is stored
+// beyond any single call. The boundary has no in-package implementation, so the
+// host call is approved.
+
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+}
+
+data Journal {
+    console: Console;
+}
+
+machine Journal::record(&mut self) {
+    self.console.write_line("entry one");
+    self.console.write_line("entry two");
+}
+
+data Main {
+    journal: Journal;
+}
+
+machine Main::main(&mut self) {
+    self.journal.record();
+}

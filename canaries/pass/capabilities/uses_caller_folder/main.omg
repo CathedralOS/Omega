@@ -1,0 +1,26 @@
+// A library that USES a caller-provided capability. The `Folder` writer surface
+// enters through a caller-provided parameter and the boundary write uses that
+// authority without ever minting its own. The boundary has no in-package
+// implementation, so it is an approved provider edge.
+
+boundary trait Folder {
+    machine write_line(text: String)
+    effects
+        filesystem_io;
+}
+
+data Librarian {
+}
+
+machine Librarian::archive(&self, folder: Folder) {
+    folder.write_line("archive entry");
+}
+
+data Main {
+    librarian: Librarian;
+    folder: Folder;
+}
+
+machine Main::main(&mut self) {
+    self.librarian.archive(self.folder);
+}
