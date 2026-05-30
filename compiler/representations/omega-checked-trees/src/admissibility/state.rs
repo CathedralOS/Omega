@@ -1,12 +1,16 @@
+mod evidence;
+
 use omega_core::symbols::SymbolHandle;
 
 use crate::{
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, CheckedTrees,
     ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact, StateAcceptance,
     StatementAcceptance,
-    admissibility::helpers::{
-        borrow_constraint_count, effect_evidence_count, machine_decrease_count,
-    },
+    admissibility::helpers::{effect_evidence_count, machine_decrease_count},
+};
+
+use evidence::{
+    state_borrow_evidence_count, state_boundary_evidence_count, state_proof_evidence_count,
 };
 
 impl CheckedTrees {
@@ -36,47 +40,12 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
         let statements = self.statements();
         let calls = self.calls();
         let exits = self.exits();
-        let borrow_evidence =
-            borrow_constraint_count(&self.facts.flow, self.state.entry_constraints)
-                + self.state.writable_roots.len()
-                + statements
-                    .iter()
-                    .map(|statement| {
-                        borrow_constraint_count(&self.facts.flow, statement.entry_constraints)
-                    })
-                    .sum::<usize>()
-                + calls
-                    .iter()
-                    .map(|call| {
-                        call.accesses.len()
-                            + borrow_constraint_count(&self.facts.flow, call.entry_constraints)
-                            + borrow_constraint_count(&self.facts.flow, call.requires_constraints)
-                            + borrow_constraint_count(&self.facts.flow, call.exit_constraints)
-                    })
-                    .sum::<usize>()
-                + exits
-                    .iter()
-                    .map(|exit| {
-                        borrow_constraint_count(&self.facts.flow, exit.entry_constraints)
-                            + borrow_constraint_count(&self.facts.flow, exit.ensures_constraints)
-                    })
-                    .sum::<usize>();
-        let proof_evidence = calls
-            .iter()
-            .map(|call| call.requires.len() + call.ensures.len())
-            .sum::<usize>()
-            + exits.iter().map(|exit| exit.ensures.len()).sum::<usize>();
-        let boundary_evidence = self.state.boundary_edges.len()
-            + calls
-                .iter()
-                .map(|call| call.boundary_edges.len())
-                .sum::<usize>();
 
         AcceptanceSummary::accepted(
-            borrow_evidence,
-            proof_evidence,
+            state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
+            state_proof_evidence_count(calls, exits),
             effect_evidence_count(self.state.transitive_effects),
-            boundary_evidence,
+            state_boundary_evidence_count(self.state, calls),
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )
     }
