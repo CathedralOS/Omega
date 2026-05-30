@@ -2,6 +2,7 @@ use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
     resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
@@ -81,6 +82,24 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
             index_offset: indexed_target.index_offset,
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            value,
+        });
+    }
+
+    if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && supports_scalar_integer_write(indexed_target.byte_count)
+        && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
+    {
+        set_runtime_static_value_in_table(static_values, expressions, target, value);
+        return Some(SelectedInstructionKind::WriteRuntimePointeeInteger {
+            pointer_byte_offset: indexed_target.descriptor_offset,
+            field_byte_offset,
             byte_size: indexed_target.byte_count,
             value,
         });

@@ -33,3 +33,11 @@ pub(in crate::selection) struct RuntimeFrameFixedIndexedTarget {
     pub(in crate::selection) field_byte_offset: usize,
     pub(in crate::selection) byte_count: usize,
 }
+
+impl RuntimeFrameFixedIndexedTarget {
+    pub(in crate::selection) fn pointee_field_byte_offset(&self) -> Option<usize> {
+        self.element_index
+            .checked_mul(self.element_byte_size)?
+            .checked_add(self.field_byte_offset)
+    }
+}
