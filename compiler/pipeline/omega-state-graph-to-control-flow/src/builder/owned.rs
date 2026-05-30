@@ -71,9 +71,11 @@ pub(crate) fn build_control_flow_plan_owned(
             borrow_weakenings: semantics
                 .borrow_weakenings
                 .map(remap_borrow_weakening_owned),
-            ownership_segments: semantics.ownership_segments,
-            move_events: semantics.move_events.map(remap_move_event_owned),
-            drop_events: semantics.drop_events.map(remap_drop_event_owned),
+            ownership: omega_control_flow::ControlFlowOwnershipRoots {
+                segments: semantics.ownership.segments,
+                moves: semantics.ownership.moves.map(remap_move_event_owned),
+                drops: semantics.ownership.drops.map(remap_drop_event_owned),
+            },
         },
     })
 }

@@ -48,9 +48,11 @@ pub(crate) fn build_control_flow_plan(
             borrow_loans: remap_borrow_loans(state_graph),
             borrow_activations: remap_borrow_activations(state_graph),
             borrow_weakenings: remap_borrow_weakenings(state_graph),
-            ownership_segments: state_graph.semantics.ownership_segments.clone(),
-            move_events: remap_move_events(state_graph),
-            drop_events: remap_drop_events(state_graph),
+            ownership: omega_control_flow::ControlFlowOwnershipRoots {
+                segments: state_graph.semantics.ownership.segments.clone(),
+                moves: remap_move_events(state_graph),
+                drops: remap_drop_events(state_graph),
+            },
         },
     })
 }

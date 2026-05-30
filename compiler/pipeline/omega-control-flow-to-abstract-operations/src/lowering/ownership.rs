@@ -7,15 +7,16 @@ pub(super) fn build_abstract_ownership_summary(
     control_flow: &ControlFlowPlan,
 ) -> AbstractOwnershipSummary {
     let mut summary = AbstractOwnershipSummary::with_capacity(
-        control_flow.semantics.ownership_segments.len(),
-        control_flow.semantics.move_events.len(),
-        control_flow.semantics.drop_events.len(),
+        control_flow.semantics.ownership.segments.len(),
+        control_flow.semantics.ownership.moves.len(),
+        control_flow.semantics.ownership.drops.len(),
     );
 
     for (_, state) in control_flow.states.iter() {
         for event in control_flow
             .semantics
-            .move_events
+            .ownership
+            .moves
             .span_or_empty(state.ownership.moves)
         {
             summary.moves.insert(AbstractMoveEvent {
@@ -25,7 +26,8 @@ pub(super) fn build_abstract_ownership_summary(
                 segments: summary.segments.insert_many(
                     control_flow
                         .semantics
-                        .ownership_segments
+                        .ownership
+                        .segments
                         .span_or_empty(event.segments)
                         .iter()
                         .copied(),
@@ -35,7 +37,8 @@ pub(super) fn build_abstract_ownership_summary(
 
         for event in control_flow
             .semantics
-            .drop_events
+            .ownership
+            .drops
             .span_or_empty(state.ownership.drops)
         {
             summary.drops.insert(AbstractDropEvent {
@@ -45,7 +48,8 @@ pub(super) fn build_abstract_ownership_summary(
                 segments: summary.segments.insert_many(
                     control_flow
                         .semantics
-                        .ownership_segments
+                        .ownership
+                        .segments
                         .span_or_empty(event.segments)
                         .iter()
                         .copied(),
@@ -93,7 +97,8 @@ mod tests {
         };
         let segments = control_flow
             .semantics
-            .ownership_segments
+            .ownership
+            .segments
             .insert_many([segment]);
         let mut state = StateFlow {
             key: StateKey {
@@ -103,7 +108,7 @@ mod tests {
             },
             ..StateFlow::default()
         };
-        control_flow.semantics.move_events.append_to_span(
+        control_flow.semantics.ownership.moves.append_to_span(
             &mut state.ownership.moves,
             StateMoveEvent {
                 source: StateOwnershipEventSource::Statement { statement_index: 3 },
@@ -111,7 +116,7 @@ mod tests {
                 segments,
             },
         );
-        control_flow.semantics.drop_events.append_to_span(
+        control_flow.semantics.ownership.drops.append_to_span(
             &mut state.ownership.drops,
             StateDropEvent {
                 source: StateOwnershipEventSource::StateExit,

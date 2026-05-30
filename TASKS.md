@@ -592,6 +592,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked flow queries now split constraint projection from state/call
     sequencing lookups, so borrow/proof call checks can lean on narrower query
     seams
+  - state-graph and control-flow semantic roots now group ownership segments,
+    moves, and drops under explicit ownership roots instead of leaving the
+    ownership noun spread across flat semantic fields
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model

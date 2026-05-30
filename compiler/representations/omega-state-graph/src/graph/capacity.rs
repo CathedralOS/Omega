@@ -1,7 +1,7 @@
 use omega_core::arena::Arena;
 use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 
-use crate::{StateGraph, StateGraphCode, StateGraphSemanticRoots};
+use crate::{StateGraph, StateGraphCode, StateGraphOwnershipRoots, StateGraphSemanticRoots};
 
 impl StateGraph {
     pub fn with_capacity(
@@ -57,9 +57,11 @@ impl StateGraph {
                 borrow_loans: Arena::with_capacity(borrow_loan_capacity),
                 borrow_activations: Arena::with_capacity(borrow_activation_capacity),
                 borrow_weakenings: Arena::with_capacity(borrow_weakening_capacity),
-                ownership_segments: Arena::with_capacity(ownership_segment_capacity),
-                move_events: Arena::with_capacity(move_event_capacity),
-                drop_events: Arena::with_capacity(drop_event_capacity),
+                ownership: StateGraphOwnershipRoots {
+                    segments: Arena::with_capacity(ownership_segment_capacity),
+                    moves: Arena::with_capacity(move_event_capacity),
+                    drops: Arena::with_capacity(drop_event_capacity),
+                },
             },
         }
     }

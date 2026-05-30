@@ -3,8 +3,8 @@ use omega_core::arena::Arena;
 use crate::{
     InvariantFact, ProofObligationFact, StateBorrowActivation, StateBorrowArgumentAccess,
     StateBorrowCall, StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot,
-    StateBoundaryEdge, StateContractCall, StateContractExit, StateContractFactRef, StateDropEvent,
-    StateMoveEvent, StateValueFact,
+    StateBoundaryEdge, StateContractCall, StateContractExit, StateContractFactRef,
+    StateGraphOwnershipRoots, StateValueFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -23,7 +23,5 @@ pub struct StateGraphSemanticRoots {
     pub borrow_loans: Arena<StateBorrowLoan>,
     pub borrow_activations: Arena<StateBorrowActivation>,
     pub borrow_weakenings: Arena<StateBorrowWeakening>,
-    pub ownership_segments: Arena<omega_facts::PlaceSegment>,
-    pub move_events: Arena<StateMoveEvent>,
-    pub drop_events: Arena<StateDropEvent>,
+    pub ownership: StateGraphOwnershipRoots,
 }
