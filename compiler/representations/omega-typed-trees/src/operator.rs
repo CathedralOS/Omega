@@ -89,6 +89,74 @@ pub fn candidates_for_spelling(
         .collect()
 }
 
+/// The human-readable attribution label for the boundary operator governing a
+/// spelling, taken from the `requires` contract owner of the first spelled
+/// candidate that carries one (e.g. ``operator `Slice::range```). This is the
+/// `for <operator>` clause appended to a failed subslice/index bounds
+/// diagnostic so the failure points at the operator contract that sourced the
+/// obligation rather than a generic message.
+///
+/// Returns `None` when no spelled candidate carries a `requires` contract.
+pub fn operator_contract_label(
+    program: &TypedTrees,
+    operators: &[OperatorDefinition],
+    spelling: OperatorSpelling,
+) -> Option<String> {
+    operators
+        .iter()
+        .filter(|operator| operator.spelling == Some(spelling))
+        .find(|operator| {
+            program
+                .operator_contracts(operator)
+                .iter()
+                .any(|contract| contract.kind == crate::signature::SignatureContractKind::Requires)
+        })
+        .map(|operator| {
+            let path = program
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str().to_owned())
+                .collect::<Vec<_>>()
+                .join("::");
+            if path.is_empty() {
+                "operator".to_owned()
+            } else {
+                format!("operator `{path}`")
+            }
+        })
+}
+
+/// The `requires` clauses for a spelling, rendered as readable bound
+/// obligations. The clause text is keyed on the spelling so a failed bound
+/// reports the precise obligation (e.g.
+/// `requires start <= end && end <= items.len` for `[..]`). Returns an empty
+/// vector when no spelled candidate carries a `requires` contract, signalling
+/// the caller that the obligation is not operator-sourced.
+pub fn operator_requires_clauses(
+    program: &TypedTrees,
+    operators: &[OperatorDefinition],
+    spelling: OperatorSpelling,
+) -> Vec<String> {
+    let has_requires = operators
+        .iter()
+        .filter(|operator| operator.spelling == Some(spelling))
+        .any(|operator| {
+            program
+                .operator_contracts(operator)
+                .iter()
+                .any(|contract| contract.kind == crate::signature::SignatureContractKind::Requires)
+        });
+    if !has_requires {
+        return Vec::new();
+    }
+
+    match spelling {
+        OperatorSpelling::Index => vec!["index < items.len".to_owned()],
+        OperatorSpelling::Range => vec!["start <= end".to_owned(), "end <= items.len".to_owned()],
+        _ => Vec::new(),
+    }
+}
+
 /// The canonical operand-type signature for an operator: its parameter types
 /// normalized over the operator's own type parameters. The operator name and
 /// return type are deliberately excluded — only operand types discriminate

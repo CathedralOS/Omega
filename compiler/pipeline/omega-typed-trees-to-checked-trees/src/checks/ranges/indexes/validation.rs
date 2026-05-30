@@ -54,8 +54,8 @@ fn operator_attribution(
     spelling: OperatorSpelling,
 ) -> Option<String> {
     let operators = program.operators();
-    let label = operator_contract_label(operators, spelling)?;
-    let clauses = operator_requires_clauses(operators, spelling);
+    let label = operator_contract_label(program, operators, spelling)?;
+    let clauses = operator_requires_clauses(program, operators, spelling);
     if clauses.is_empty() {
         return None;
     }
