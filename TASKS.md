@@ -67,6 +67,45 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
+**RESUME POINT (next session).** main `d20d1c06`, synced, clean. Wave A landed
+(Cv/Tm/Cap/R/B). Wave B-1: E3 Stdin host binding landed; DB dispatch-branch
+diagnosed-not-fixed (see below). The two highest-value backend fixes, both with a
+confirmed root cause, are ready to drive (with a human in the loop — autonomous
+solo agents reliably DIAGNOSE these but keep failing to LAND them):
+
+1. **Dispatch-guard zero-width fix (~7 wrong-exit canaries).** REPRO CONFIRMED:
+   `cargo run -p omega-cli -- canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit/main.omg`
+   then run `.../build/omega-program.exe` → exits 10, want 21. Root cause (full
+   detail in the "Wrong dispatch branch selection" bullet below): guards drop to
+   `NeedsRuntimeExpression` because `resolve_guard_operand_layout`
+   (`omega-state-guards/src/operands/layout.rs`) returns `None` for the
+   `self.field` scrutinee columns; emission then silently emits zero bytes for
+   them. NEXT STEP: instrument `lower_guard_leaf`
+   (`omega-state-guards/src/conjunction.rs` ~L234) to print the operand
+   kind/storage/byte_offset + resulting lowering, run the freshly-built
+   `target/debug/omega-cli.exe` directly, confirm WHY operand layout is `None`
+   (suspect `path_targets_source_machine` / `field_layout_by_symbol_or_name`
+   failing to match the machine field for multi-column ordered transitions), then
+   fix it there. Also add a loud error in the emission filter
+   (`omega-machine-emission/src/layout.rs:97` + `instruction_bytes.rs:166`) so a
+   non-`CompareStaticValue` guard fails instead of silently emitting zero bytes.
+2. **E2 x86_64 runtime value operand + line-read encoder (5 canaries + makes E3's
+   stdin PEs actually run).** `X86_64 runtime value operand is not implemented yet`
+   on `runtime_machine_owned_indexed_integer_write`,
+   `runtime_mutable_local_indexed_parameter_write`,
+   `runtime_nested_subslice_dynamic_index`, `runtime_slice_index_read`,
+   `runtime_slice_index_read_dispatch`; plus `encode_runtime_text_line_read`
+   returns `unsupported_x86_64_encoding` (width/offset helpers return 0) so stdin
+   PEs emit zero bytes and segfault (exit 139). Port from the working aarch64
+   impls in `omega-isa-aarch64` / `omega-instruction-selection`. (A read-only E2
+   diagnosis agent was launched then stopped at session end before reporting —
+   re-run it or implement directly from the aarch64 reference.)
+
+Lower priority backend: D (dungeon blank-text render — string/text descriptor
+materialization; a diagnosis agent was launched+stopped before reporting) and Sd
+(generalize subslice descriptors beyond literal fixed-array). Then the solo
+operator-resolution consolidation (Operators section).
+
 **EMISSION — runtime canary tail (57 pass / 14 fail, filtered `_runs` suite).**
 The `0xC0000005` access-violation class is CLOSED: zero-byte instructions (e.g.
 `EvaluateDispatchGuard`/`CompareRuntimeText`, whose compare folds into the next
