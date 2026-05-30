@@ -65,7 +65,9 @@ Must not own:
 - `omega-machine-instructions/src/semantics.rs` owns the symbolic
   machine-instruction semantic aliases. `MachineInstructionSemanticSummary`
   is the preserved assigned/target/abstract semantic spine, not a new
-  duplicate values/boundaries/ownership container.
+  duplicate values/boundaries/ownership container. The stage should still
+  assemble value, boundary, and ownership roots through the shared
+  semantic-summary constructor so preservation remains explicit.
 - `omega-machine-instructions/src/plan/` is the output representation root:
   symbolic executable instruction shape lives under `MachineInstructionCode`,
   while preserved semantic evidence lives under
