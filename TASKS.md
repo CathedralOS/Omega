@@ -249,7 +249,8 @@ without hidden runtime tags.
 - [x] Materialize expression-level operator-use facts for indexed expressions so
   `items[index]` and `items[range]` have visible checked-tree spelling
   resolution status. (done: checked operator facts record spelling, selected
-  symbol, candidate count, and missing/resolved/ambiguous status.)
+  symbol, candidate count, missing/resolved/ambiguous status, and summary/query
+  surfaces.)
 - [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
   operator contracts.
 - [ ] Design boundary implementation bindings for core operators without
