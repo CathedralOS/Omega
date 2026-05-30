@@ -23,12 +23,12 @@ fn append_remapped_move_events(
     let mut remapped = HandleSpan::empty();
 
     for event in source_moves.span_or_empty(moves) {
-        target.semantics.move_events.append_to_span(
+        target.semantics.ownership.moves.append_to_span(
             &mut remapped,
             StateMoveEvent {
                 source: event.source,
                 root: event.root,
-                segments: target.semantics.ownership_segments.insert_many(
+                segments: target.semantics.ownership.segments.insert_many(
                     source_segments
                         .span_or_empty(event.segments)
                         .iter()
@@ -50,12 +50,12 @@ fn append_remapped_drop_events(
     let mut remapped = HandleSpan::empty();
 
     for event in source_drops.span_or_empty(drops) {
-        target.semantics.drop_events.append_to_span(
+        target.semantics.ownership.drops.append_to_span(
             &mut remapped,
             StateDropEvent {
                 source: event.source,
                 root: event.root,
-                segments: target.semantics.ownership_segments.insert_many(
+                segments: target.semantics.ownership.segments.insert_many(
                     source_segments
                         .span_or_empty(event.segments)
                         .iter()

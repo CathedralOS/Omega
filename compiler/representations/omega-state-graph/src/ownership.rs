@@ -1,4 +1,4 @@
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,4 +38,11 @@ pub struct StateDropEvent {
 pub struct StateOwnershipSummary {
     pub moves: HandleSpan<StateMoveEvent>,
     pub drops: HandleSpan<StateDropEvent>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateGraphOwnershipRoots {
+    pub segments: Arena<omega_facts::PlaceSegment>,
+    pub moves: Arena<StateMoveEvent>,
+    pub drops: Arena<StateDropEvent>,
 }

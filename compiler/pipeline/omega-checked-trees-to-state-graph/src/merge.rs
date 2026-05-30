@@ -46,9 +46,7 @@ pub(crate) fn merge_machine_graph(
         borrow_loans,
         borrow_activations,
         borrow_weakenings,
-        ownership_segments,
-        move_events,
-        drop_events,
+        ownership,
     } = semantics;
 
     let source_arenas = SourceStateArenas {
@@ -66,9 +64,9 @@ pub(crate) fn merge_machine_graph(
         borrow_loans: &borrow_loans,
         borrow_activations: &borrow_activations,
         borrow_weakenings: &borrow_weakenings,
-        ownership_segments: &ownership_segments,
-        move_events: &move_events,
-        drop_events: &drop_events,
+        ownership_segments: &ownership.segments,
+        move_events: &ownership.moves,
+        drop_events: &ownership.drops,
         operations: &operations,
         transitions: &transitions,
     };
