@@ -365,6 +365,7 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Domain(_) => "domain",
         Item::Export(_) => "export",
         Item::Machine(_) | Item::Platform(_) => "machine",
+        Item::Measure(_) => "measure",
         Item::Operator(_) => "operator",
         Item::Trait(_) => "trait",
         _ => "state",
@@ -452,6 +453,20 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 append_entry_statements(&mut label, syntax, entry_state);
             }
             label
+        }
+        Item::Measure(value) => {
+            let name = syntax
+                .items
+                .identifier_path_members(value.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "measure {name}\nlexicographic: {}\ncomponents: {}",
+                value.lexicographic,
+                value.body.len(),
+            )
         }
         Item::Platform(value) => {
             format!(

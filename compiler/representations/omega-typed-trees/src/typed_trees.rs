@@ -1,6 +1,6 @@
 use crate::{
-    data, domain, expression, invariant, machine, platform, signature, snapshot, trait_definition,
-    types,
+    data, domain, expression, invariant, machine, measure, platform, signature, snapshot,
+    trait_definition, types,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -25,6 +25,8 @@ pub struct TypedTreeTables {
     pub operator_path_members: Arena<crate::name::Identifier>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub machines: Arena<machine::Machine>,
+    pub measures: Arena<measure::MeasureDefinition>,
+    pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: Arena<crate::operator::OperatorDefinition>,
     pub machine_contained_objects: Arena<machine::ContainedObject>,
     pub machine_owned_data: Arena<machine::OwnedData>,
@@ -49,6 +51,7 @@ pub struct TypedTreeRoots {
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
     pub invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
     pub machines: HandleSpan<machine::Machine>,
+    pub measures: HandleSpan<measure::MeasureDefinition>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub platforms: HandleSpan<platform::Platform>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
@@ -69,6 +72,7 @@ impl TypedTreeRoots {
             domain_definitions,
             invariant_definitions,
             machines,
+            measures: HandleSpan::default(),
             operators,
             platforms,
             traits,
@@ -189,6 +193,32 @@ impl TypedTrees {
         self.tables
             .platforms
             .append_to_span(&mut self.roots.platforms, platform);
+    }
+
+    pub fn push_measure(&mut self, measure: measure::MeasureDefinition) {
+        self.tables
+            .measures
+            .append_to_span(&mut self.roots.measures, measure);
+    }
+
+    pub fn measures(&self) -> &[measure::MeasureDefinition] {
+        self.tables.measures.span_or_empty(self.roots.measures)
+    }
+
+    pub fn push_measure_path_member(
+        &mut self,
+        measure: &mut measure::MeasureDefinition,
+        member: crate::name::Identifier,
+    ) {
+        self.measure_path_members
+            .append_to_span(&mut measure.name, member);
+    }
+
+    pub fn measure_path_members(
+        &self,
+        span: HandleSpan<crate::name::Identifier>,
+    ) -> &[crate::name::Identifier] {
+        self.measure_path_members.span_or_empty(span)
     }
 
     pub fn push_operator(&mut self, operator: crate::operator::OperatorDefinition) {

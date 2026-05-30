@@ -8,7 +8,8 @@ use crate::item::{
     BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
     DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable,
-    LibraryDefinition, LibraryFunction, Machine, OperatorDefinition, Platform, ProofFact,
+    LibraryDefinition, LibraryFunction, Machine, MeasureDefinition, OperatorDefinition, Platform,
+    ProofFact,
     ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
     StateSignature, StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting,
     TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem,
@@ -107,6 +108,7 @@ impl SyntaxTrees {
             | Item::Export(_)
             | Item::Invariant(_)
             | Item::Library(_)
+            | Item::Measure(_)
             | Item::Operator(_)
             | Item::Target(_)
             | Item::Use(_) => {}
@@ -150,6 +152,7 @@ impl SyntaxTrees {
                 constraints: self.copy_constraint_span(other, invariant.constraints),
             }),
             Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
+            Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
             Item::Operator(operator) => {
                 Item::Operator(self.copy_operator_definition(other, operator))
             }
@@ -218,6 +221,37 @@ impl SyntaxTrees {
             return_type: self.copy_type_reference_handle(other, operator.return_type),
             contracts: self.copy_capability_contract_span(other, operator.contracts),
             token_count: operator.token_count,
+        }
+    }
+
+    fn copy_measure_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        measure: &MeasureDefinition,
+    ) -> MeasureDefinition {
+        let parameter = if measure.parameter.is_valid() {
+            let source_parameter = other.items.state_parameter(measure.parameter);
+            let type_reference =
+                self.copy_type_reference_handle(other, source_parameter.type_reference);
+            self.items
+                .insert_state_parameter_node(StateParameterNode {
+                    name: source_parameter.name.clone(),
+                    type_reference,
+                    is_const: source_parameter.is_const,
+                    is_mutable: source_parameter.is_mutable,
+                    is_self: source_parameter.is_self,
+                })
+        } else {
+            StateParameterHandle::invalid()
+        };
+
+        MeasureDefinition {
+            name: self.copy_item_identifier_span(other, measure.name),
+            parameter,
+            return_type: self.copy_type_reference_handle(other, measure.return_type),
+            lexicographic: measure.lexicographic,
+            body: self.copy_expression_handle_list(other, measure.body),
+            token_count: measure.token_count,
         }
     }
 

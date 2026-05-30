@@ -125,6 +125,25 @@ impl SymbolResolvedTreeTables {
             );
         }
 
+        for measure in &roots.measures {
+            if let Some(parameter) = &measure.parameter {
+                tables.insert_type_reference(
+                    &parameter.type_reference,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                );
+            }
+            if let Some(return_type) = &measure.return_type {
+                tables.insert_type_reference(
+                    return_type,
+                    child_type_references,
+                    type_constraints,
+                    source_expressions,
+                );
+            }
+        }
+
         tables
     }
 

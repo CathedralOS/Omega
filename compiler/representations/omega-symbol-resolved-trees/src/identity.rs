@@ -194,7 +194,39 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_operator(program, operator, &mut counts);
     }
 
+    for measure in &program.measures {
+        count_measure(program, measure, &mut counts);
+    }
+
     counts
+}
+
+fn count_measure(
+    program: &SymbolResolvedTrees,
+    measure: &crate::measure::MeasureDefinition,
+    counts: &mut IdentityStorageCounts,
+) {
+    let child_type_references = &program.tables.declarations.child_type_references;
+    let expression_table = &program.tables.bodies.expressions;
+
+    for member in program.measure_path_members(measure.name) {
+        count_declaration_name(member, counts);
+    }
+    if let Some(parameter) = &measure.parameter {
+        count_declaration_name(&parameter.name, counts);
+        count_type_reference(
+            &parameter.type_reference,
+            child_type_references,
+            expression_table,
+            counts,
+        );
+    }
+    if let Some(return_type) = &measure.return_type {
+        count_type_reference(return_type, child_type_references, expression_table, counts);
+    }
+    for expression in expression_table.expression_handles(measure.body) {
+        count_expression_handle(expression_table, *expression, counts);
+    }
 }
 
 fn count_operator(

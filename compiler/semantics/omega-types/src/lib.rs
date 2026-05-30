@@ -156,6 +156,32 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             }
             Item::Export(_) | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
+            Item::Measure(measure) => {
+                insert_declaration(
+                    &mut report,
+                    &operator_name(syntax_trees, measure.name),
+                    TypeDeclarationKind::Operator,
+                );
+                if measure.parameter.is_valid() {
+                    let parameter = syntax_trees.items.state_parameter(measure.parameter);
+                    collect_type_reference(
+                        &mut report,
+                        syntax_trees,
+                        parameter.type_reference,
+                        TypeReferenceUseKind::Parameter,
+                        "measure declaration",
+                    );
+                }
+                if measure.return_type.is_valid() {
+                    collect_type_reference(
+                        &mut report,
+                        syntax_trees,
+                        measure.return_type,
+                        TypeReferenceUseKind::ReturnType,
+                        "measure declaration",
+                    );
+                }
+            }
             Item::Operator(operator) => {
                 insert_declaration(
                     &mut report,
