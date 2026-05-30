@@ -623,6 +623,9 @@ meaning, without needing access to pointer descriptor internals.
   - control-flow-to-abstract boundary lowering now keeps source/host boundary
     link construction separate from its canaries, leaving the lowering file
     focused on production logic
+  - control-flow-to-abstract value and ownership lowering now keep semantic
+    summary construction separate from their canaries, matching the boundary
+    lowering test layout
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
