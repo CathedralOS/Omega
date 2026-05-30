@@ -12,6 +12,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     plan.bindings.insert_many([
         windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
         windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
+        // Runtime text-read lowering tags the `ReadRuntimeTextLine` instruction with
+        // the portable `Stdin.read` operation key (see omega-target-operations'
+        // abstract_conversions), mirroring the single-call Linux/Darwin shape. The
+        // Windows line read is a GetStdHandle + ReadFile sequence emitted inline, so
+        // bind the portable `Stdin.read` key to the same kernel32 `ReadFile` import
+        // that the explicit `Stdin.read_file` operation uses. Without this the
+        // emission planner fails the read-line binding lookup with "missing host
+        // binding for runtime text read operation Stdin.read".
+        windows_import("Stdin", "read", "Kernel32.dll", "ReadFile"),
         windows_import("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
         windows_import("Stdout", "write", "Kernel32.dll", "WriteFile"),
         windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
