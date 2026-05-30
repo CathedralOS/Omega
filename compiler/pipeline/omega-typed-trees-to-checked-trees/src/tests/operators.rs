@@ -155,6 +155,47 @@ fn records_domain_owned_operator_candidates() {
 }
 
 #[test]
+fn records_operator_contract_span_for_proof_bridge() {
+    let operator_symbol = SymbolHandle::from_arena_index(105);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let mut operator = operator_with_spelling(operator_symbol, OperatorSpelling::Index);
+    program.push_operator_contract(
+        &mut operator,
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: HandleSpan::empty(),
+            token_count: 1,
+        },
+    );
+    let operator_contracts = operator.contracts;
+    program.push_operator(operator);
+
+    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
+    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let indexed =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }));
+
+    let values = checked_values_for([indexed]);
+    let facts = build_operator_facts(&program, &values);
+    let indexed_use = facts.expression_use(indexed).expect("indexed use");
+    let candidate = facts.candidates(indexed_use)[0];
+
+    assert_eq!(indexed_use.selected_operator_symbol, operator_symbol);
+    assert_eq!(candidate.contracts, operator_contracts);
+    assert_eq!(candidate.contract_count, 1);
+    let contract_uses = facts.resolved_contract_uses().collect::<Vec<_>>();
+    assert_eq!(contract_uses.len(), 1);
+    assert_eq!(contract_uses[0].operator_symbol(), operator_symbol);
+    assert_eq!(contract_uses[0].contracts(), operator_contracts);
+}
+
+#[test]
 fn records_operator_uses_per_semantic_origin() {
     let operator_symbol = SymbolHandle::from_arena_index(110);
     let first_state = SymbolHandle::from_arena_index(111);

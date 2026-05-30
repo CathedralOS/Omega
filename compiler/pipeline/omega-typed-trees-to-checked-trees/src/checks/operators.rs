@@ -62,16 +62,23 @@ mod tests {
             CheckedOperatorCandidateFact::root(SymbolHandle::from_arena_index(10)).with_signature(
                 Default::default(),
                 Default::default(),
+                HandleSpan::from_parts(omega_core::arena::Handle::from_arena_index(20), 1),
                 0,
                 2,
-                1,
                 false,
             ),
             CheckedOperatorCandidateFact::domain(
                 SymbolHandle::from_arena_index(11),
                 SymbolHandle::from_arena_index(12),
             )
-            .with_signature(Default::default(), Default::default(), 1, 2, 3, false),
+            .with_signature(
+                Default::default(),
+                Default::default(),
+                HandleSpan::from_parts(omega_core::arena::Handle::from_arena_index(30), 3),
+                1,
+                2,
+                false,
+            ),
         ]);
         let mut uses = Arena::default();
         uses.append(CheckedOperatorUseFact {
