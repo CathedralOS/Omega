@@ -632,6 +632,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-trees-to-state-graph value and boundary preservation now keep
     state-local selection canaries in focused test modules instead of inline in
     production preservation files
+  - checked-trees-to-state-graph capacity planning now mirrors `StateGraph`
+    code and semantic roots instead of keeping one flat capacity struct for
+    code, fact, contract, value, boundary, borrow, and ownership arenas
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
