@@ -43,11 +43,6 @@ Omega/
 |   |   |-- [CRATE] omega-intern/                       # String/symbol interning.
 |   |   `-- [CRATE] omega-profiling/                    # Timings, phase counters, artifact metrics.
 |   |
-|   |-- frontend/
-|   |   |-- [CRATE] omega-concrete-syntax-tree/         # Comments and lossless parse nodes (CST).
-|   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure; expressions and child lists should be arena handles, not recursive boxes.
-|   |   `-- [CRATE] omega-format/                       # Formatter and syntax-preserving rewrites.
-|   |
 |   |-- packages/
 |   |   |-- [CRATE] omega-manifest/                     # Package manifests, target declarations, metadata.
 |   |   |-- [CRATE] omega-package-graph/                # Package discovery, dependency graph, workspace graph.
@@ -222,8 +217,9 @@ Omega/
 
 - `foundation/` stays dependency-light. If it needs semantic or target details,
   it is in the wrong layer.
-- `frontend/` owns source-preserving syntax tools. Durable parsed output belongs
-  in `representations/`.
+- Source-preserving syntax data belongs in `representations/`; source-to-syntax
+  transforms belong in `pipeline/`. Do not add a `frontend/` layer unless a
+  concrete formatter/lossless-CST subsystem earns its own home.
 - `packages/` owns manifests, package graphs, and loading. It does not own
   language semantics.
 - Source discovery/loading should remain an orchestration subsystem, not parser
@@ -286,8 +282,8 @@ Omega/
 ### Identity And Data Shape
 
 - Internal identity is handle-first, not string-first.
-- Source text is frontend/diagnostic/debug payload, not semantic identity after
-  resolution.
+- Source text is source-loading, diagnostic, and debug payload, not semantic
+  identity after resolution.
 - User string literals are program payload. Debug names and linker names are
   edge metadata.
 - Repeated durable children should prefer arena `Handle<T>` and `HandleSpan<T>`

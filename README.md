@@ -187,7 +187,7 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 - Do not wrap handles in `Option` just to model absence. The zero handle is the absence state; `Option<Handle<T>>` needs a semantic reason beyond “maybe missing.”
 - Arena handles must be generational. Freed or stale handles resolve to dummy entries, not reused storage.
 - Symbols are handle-first. String names are debug/export/import metadata, not durable identity inside semantic or native compiler layers.
-- Source text is a frontend concern. Beyond resolution, source-backed names are technical debt unless they are literal program strings, diagnostics/debug metadata, or final-image import/export payload.
+- Source text is source-loading, diagnostic, and debug payload. Beyond resolution, source-backed names are technical debt unless they are literal program strings, diagnostics/debug metadata, or final-image import/export payload.
 - Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 - Comments should explain non-obvious intent. Do not add “doing X unlike Rust” commentary unless the contrast changes implementation.
 
