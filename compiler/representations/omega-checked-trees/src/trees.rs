@@ -1,4 +1,7 @@
-use crate::{BorrowFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts, ProofFacts};
+use crate::{
+    BorrowFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts, InvariantFacts,
+    ProofFacts,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
@@ -8,6 +11,7 @@ pub struct CheckFacts {
     pub values: CheckedValueFacts,
     pub invariants: InvariantFacts,
     pub domains: DomainFacts,
+    pub operators: CheckedOperatorFacts,
     pub effects: omega_effects::EffectPlan,
     pub capabilities: omega_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
@@ -21,6 +25,7 @@ impl CheckFacts {
         values: CheckedValueFacts,
         invariants: InvariantFacts,
         domains: DomainFacts,
+        operators: CheckedOperatorFacts,
         effects: omega_effects::EffectPlan,
         capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
@@ -32,6 +37,7 @@ impl CheckFacts {
             values,
             invariants,
             domains,
+            operators,
             effects,
             capabilities,
             flow,

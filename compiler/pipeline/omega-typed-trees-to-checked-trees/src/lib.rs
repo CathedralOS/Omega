@@ -6,6 +6,7 @@ mod invariants;
 mod labels;
 mod lookup;
 mod lowerer;
+mod operators;
 mod validation;
 mod values;
 
@@ -34,6 +35,8 @@ mod proof;
 pub(crate) use borrow::build_borrow_facts;
 #[cfg(test)]
 pub(crate) use flow::{build_domain_facts, build_flow_facts};
+#[cfg(test)]
+pub(crate) use operators::build_operator_facts;
 #[cfg(test)]
 pub(crate) use proof::build_proof_facts;
 pub(crate) use proof::contract_target_from_state_symbol;

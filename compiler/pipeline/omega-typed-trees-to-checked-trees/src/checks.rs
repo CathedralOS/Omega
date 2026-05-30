@@ -1,6 +1,7 @@
 mod borrows;
 mod capabilities;
 mod contracts;
+mod operators;
 mod ranges;
 mod termination;
 
@@ -18,6 +19,10 @@ pub(crate) fn check_checked_facts(
 
     if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(program, facts) {
         diagnostics.append(&mut contract_diagnostics);
+    }
+
+    if let Err(mut operator_diagnostics) = operators::check_operator_resolution(facts) {
+        diagnostics.append(&mut operator_diagnostics);
     }
 
     if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(program) {
