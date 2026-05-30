@@ -52,6 +52,10 @@ Must not own:
 - `omega-machine-emission/src/emitter.rs` owns the public stage entrypoint and
   assembles target identity, encoded code, and preserved semantic summaries
   into the encoded plan.
+- `omega-machine-emission/src/semantics.rs` owns encoded semantic summary
+  assembly. It should preserve value, boundary, and ownership roots through the
+  shared semantic-summary constructor instead of cloning the whole summary as an
+  opaque blob.
 - `omega-machine-emission/src/code.rs` owns `EncodedMachineCode` construction,
   including encoded function ranges, instruction byte spans, final byte count,
   and delegation to function/instruction byte insertion helpers.

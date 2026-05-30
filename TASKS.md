@@ -97,6 +97,9 @@ meaning, without needing access to pointer descriptor internals.
   - encoded-machine-byte roots now expose the same `with_roots` constructor,
     and machine emission builds encoded code roots and preserved semantic roots
     through separate helpers before joining them
+  - machine-emission semantic preservation now joins value, boundary, and
+    ownership roots through the shared semantic-summary constructor instead of
+    cloning the whole summary as an opaque blob
   - abstract-operations-to-target-operations now builds target code roots and
     target semantic roots through separate stage helpers before joining them
     with `TargetOperationPlan::with_roots`
