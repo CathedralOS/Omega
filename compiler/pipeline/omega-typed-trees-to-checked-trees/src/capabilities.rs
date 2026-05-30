@@ -181,7 +181,128 @@ pub(crate) fn build_capability_facts(
         }
     }
 
+    // Propagate `returns`/`derives` across nested, in-package calls. A boundary
+    // capability that a nested (non-boundary) call returns or derives flows the
+    // same verb up to its caller, following the call graph one or more levels.
+    propagate_nested_capability_flows(program, effects, &mut flows);
+
     CapabilityFlowPlan::with_roots(flows)
+}
+
+/// A nested-call edge in the effect plan's call graph: a caller state calling a
+/// target state, with the source location of the call.
+struct CallEdge {
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+    target_state_symbol: SymbolHandle,
+}
+
+/// Flows `returns`/`derives` capability verbs from nested in-package callees up
+/// to their callers. If a call's target state itself returns (resp. derives) a
+/// boundary capability, and the caller's enclosing state qualifies, the caller
+/// records the same verb for that capability. Iterated to a fixpoint so the verb
+/// can travel several call levels.
+fn propagate_nested_capability_flows(
+    program: &TypedTrees,
+    effects: &EffectPlan,
+    flows: &mut Arena<CapabilityFlowFact>,
+) {
+    let edges = collect_call_edges(effects);
+
+    loop {
+        let mut added = false;
+
+        for edge in &edges {
+            for kind in [CapabilityFlowKind::Returns, CapabilityFlowKind::Derives] {
+                // Capabilities the callee state already carries with this verb.
+                let propagated: Vec<SymbolHandle> = flows
+                    .iter()
+                    .filter(|(_, fact)| {
+                        fact.kind == kind && fact.state_symbol == edge.target_state_symbol
+                    })
+                    .map(|(_, fact)| fact.capability_symbol)
+                    .collect();
+
+                if propagated.is_empty() {
+                    continue;
+                }
+
+                if !caller_qualifies(program, edge, kind) {
+                    continue;
+                }
+
+                for capability_symbol in propagated {
+                    if push_unique(
+                        flows,
+                        kind,
+                        capability_symbol,
+                        edge.caller_machine_symbol,
+                        edge.caller_state_symbol,
+                        edge.statement_index,
+                        edge.call_ordinal,
+                    ) {
+                        added = true;
+                    }
+                }
+            }
+        }
+
+        if !added {
+            break;
+        }
+    }
+}
+
+fn collect_call_edges(effects: &EffectPlan) -> Vec<CallEdge> {
+    let mut edges = Vec::new();
+    for machine_effects in effects.machines() {
+        for state_effects in effects.states.span_or_empty(machine_effects.states) {
+            for call in effects.calls.span_or_empty(state_effects.calls) {
+                if !call.target_state_symbol.is_valid() {
+                    continue;
+                }
+                edges.push(CallEdge {
+                    caller_machine_symbol: machine_effects.symbol,
+                    caller_state_symbol: state_effects.symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    target_state_symbol: call.target_state_symbol,
+                });
+            }
+        }
+    }
+    edges
+}
+
+/// Whether a caller state qualifies to receive a propagated `kind` verb. Mirrors
+/// the direct-boundary gating: `returns` requires the caller's enclosing state to
+/// return a capability type; `derives` requires the caller to return a capability
+/// or to hold a capability parameter that feeds the nested derivation.
+fn caller_qualifies(program: &TypedTrees, edge: &CallEdge, kind: CapabilityFlowKind) -> bool {
+    let Some(machine) = machine_for_symbol(program, edge.caller_machine_symbol) else {
+        return false;
+    };
+    let Some(state) = enclosing_state(program, machine, edge.caller_state_symbol) else {
+        return false;
+    };
+
+    let returns_capability = is_capability_type(program, state.return_type);
+
+    match kind {
+        CapabilityFlowKind::Returns => returns_capability,
+        CapabilityFlowKind::Derives => returns_capability || state_has_capability_parameter(program, state),
+        _ => false,
+    }
+}
+
+/// Whether `state` declares a non-self capability-typed parameter.
+fn state_has_capability_parameter(program: &TypedTrees, state: &State) -> bool {
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| !parameter.is_self && is_capability_type(program, parameter.type_reference))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -193,7 +314,7 @@ fn push_unique(
     state_symbol: SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
-) {
+) -> bool {
     let fact = CapabilityFlowFact {
         kind,
         capability_symbol,
@@ -207,6 +328,7 @@ fn push_unique(
     if !exists {
         flows.append(fact);
     }
+    !exists
 }
 
 fn call_effects(
@@ -453,4 +575,213 @@ fn boundary_capability<'program>(
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_checked_trees::FlowFacts;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn capability_plan(source: &str) -> (TypedTrees, CapabilityFlowPlan) {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let effects = omega_effects::infer_effects(&typed);
+        // Capability-flow verbs (returns/derives) are derived from the effect
+        // plan and the call graph, independent of the control-flow facts, so an
+        // empty FlowFacts exercises the nested-propagation logic.
+        let plan = build_capability_facts(&typed, &effects, &FlowFacts::default());
+        (typed, plan)
+    }
+
+    fn state_symbol(program: &TypedTrees, state_name: &str) -> SymbolHandle {
+        program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine))
+            .find(|state| state.name.as_str() == state_name)
+            .map(|state| state.symbol)
+            .unwrap_or_else(|| panic!("state {state_name} should exist"))
+    }
+
+    fn has_flow(plan: &CapabilityFlowPlan, kind: CapabilityFlowKind, state: SymbolHandle) -> bool {
+        plan.flows()
+            .any(|flow| flow.kind == kind && flow.state_symbol == state)
+    }
+
+    #[test]
+    fn returns_propagates_to_nested_caller() {
+        // RootDir::open mints a Folder. Vault::open_folder calls it and returns
+        // the Folder (direct `returns`). Vault::expose only calls open_folder and
+        // returns the Folder, so `returns` must follow the call graph up to it.
+        let (program, plan) = capability_plan(
+            r#"
+            boundary trait Folder {
+                machine write_line(text: String)
+                effects
+                    filesystem_io;
+            }
+
+            boundary trait RootDir {
+                machine open() -> Folder
+                effects
+                    filesystem_io;
+            }
+
+            data Vault {
+                root: RootDir;
+            }
+
+            machine Vault::open_folder(&self) -> Folder {
+                self.root.open();
+            }
+
+            machine Vault::expose(&self) -> Folder {
+                self.open_folder();
+            }
+
+            data Main {
+                vault: Vault;
+            }
+
+            machine Main::main(&mut self) {
+                self.vault.expose();
+            }
+            "#,
+        );
+
+        let open_folder = state_symbol(&program, "open_folder");
+        let expose = state_symbol(&program, "expose");
+
+        assert!(
+            has_flow(&plan, CapabilityFlowKind::Returns, open_folder),
+            "nested helper that returns a minted capability should record `returns`"
+        );
+        assert!(
+            has_flow(&plan, CapabilityFlowKind::Returns, expose),
+            "`returns` must propagate to the caller that only reaches the boundary \
+             through the nested helper"
+        );
+    }
+
+    #[test]
+    fn derives_propagates_to_nested_caller() {
+        // Workspace::subfolder derives a SubFolder from a parent Folder argument.
+        // Broker::narrow calls it with a caller-provided Folder and returns the
+        // derived SubFolder (direct `derives`). Broker::delegate forwards its own
+        // Folder to narrow, so `derives` must follow the call graph up to it.
+        let (program, plan) = capability_plan(
+            r#"
+            boundary trait Folder {
+                machine write_line(text: String)
+                effects
+                    filesystem_io;
+            }
+
+            boundary trait SubFolder {
+                machine write_line(text: String)
+                effects
+                    filesystem_io;
+            }
+
+            boundary trait Workspace {
+                machine subfolder(parent: Folder) -> SubFolder
+                effects
+                    filesystem_io;
+            }
+
+            data Broker {
+                workspace: Workspace;
+            }
+
+            machine Broker::narrow(&self, folder: Folder) -> SubFolder {
+                self.workspace.subfolder(folder);
+            }
+
+            machine Broker::delegate(&self, folder: Folder) -> SubFolder {
+                self.narrow(folder);
+            }
+
+            data Main {
+                broker: Broker;
+                folder: Folder;
+            }
+
+            machine Main::main(&mut self) {
+                self.broker.delegate(self.folder);
+            }
+            "#,
+        );
+
+        let narrow = state_symbol(&program, "narrow");
+        let delegate = state_symbol(&program, "delegate");
+
+        assert!(
+            has_flow(&plan, CapabilityFlowKind::Derives, narrow),
+            "nested helper that derives a capability should record `derives`"
+        );
+        assert!(
+            has_flow(&plan, CapabilityFlowKind::Derives, delegate),
+            "`derives` must propagate to the caller that only reaches the boundary \
+             through the nested helper"
+        );
+    }
+
+    #[test]
+    fn returns_does_not_propagate_to_non_capability_caller() {
+        // The caller `Vault::touch` returns nothing, so the nested `returns` verb
+        // must not flow up to it.
+        let (program, plan) = capability_plan(
+            r#"
+            boundary trait Folder {
+                machine write_line(text: String)
+                effects
+                    filesystem_io;
+            }
+
+            boundary trait RootDir {
+                machine open() -> Folder
+                effects
+                    filesystem_io;
+            }
+
+            data Vault {
+                root: RootDir;
+            }
+
+            machine Vault::open_folder(&self) -> Folder {
+                self.root.open();
+            }
+
+            machine Vault::touch(&self) {
+                self.open_folder();
+            }
+
+            data Main {
+                vault: Vault;
+            }
+
+            machine Main::main(&mut self) {
+                self.vault.touch();
+            }
+            "#,
+        );
+
+        let open_folder = state_symbol(&program, "open_folder");
+        let touch = state_symbol(&program, "touch");
+
+        assert!(
+            has_flow(&plan, CapabilityFlowKind::Returns, open_folder),
+            "nested helper should still record its own direct `returns`"
+        );
+        assert!(
+            !has_flow(&plan, CapabilityFlowKind::Returns, touch),
+            "`returns` must not propagate to a caller that returns no capability"
+        );
+    }
 }
