@@ -12,7 +12,7 @@ use super::super::super::storage_places::{
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
 };
 use super::fixed_array_slices::{
-    literal_fixed_array_slice_source_in_table, literal_subslice_bounds,
+    literal_subslice_range_bounds, resolved_subslice_descriptor_base_in_table,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -256,11 +256,12 @@ fn emit_slice_descriptor_length(
     length: usize,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
             target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
-            byte_size: input.runtime_abi.pointer_size,
+            byte_offset: slot.byte_offset + descriptor.len_offset(),
+            byte_size: descriptor.len_size(),
             value: length as i64,
         },
         source_key: value_source_key,
@@ -285,7 +286,7 @@ fn emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
     let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
         return false;
     };
-    let Some(source) = literal_fixed_array_slice_source_in_table(
+    let Some(source) = resolved_subslice_descriptor_base_in_table(
         input,
         dispatch_index,
         value_source_key,
@@ -294,13 +295,17 @@ fn emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
     ) else {
         return false;
     };
-    let Some((start, length)) = literal_subslice_bounds(expressions, range, source.length) else {
+    let Some((start, end)) = literal_subslice_range_bounds(expressions, range, source.length) else {
         return false;
     };
-    let Some(source_offset) = start
-        .checked_mul(source.element_byte_size)
-        .and_then(|offset| source.place.byte_offset.checked_add(offset))
-    else {
+    // Uniform subslice: new.ptr = base.ptr + start * element_byte_size,
+    // new.len = end - start. The shape is owned by omega-runtime-abi.
+    let Some(subslice) = input.runtime_abi.slice_descriptor().subslice(
+        source.place.byte_offset,
+        source.element_byte_size,
+        start,
+        end,
+    ) else {
         return false;
     };
 
@@ -310,8 +315,8 @@ fn emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
         statement_index,
         slot,
         source.place.region,
-        source_offset,
-        length,
+        subslice.ptr_delta,
+        subslice.len,
         selected_instructions,
     );
     true
