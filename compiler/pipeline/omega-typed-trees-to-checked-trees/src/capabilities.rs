@@ -74,9 +74,8 @@ pub(crate) fn build_capability_facts(
     for machine_effects in effects.machines() {
         let machine = machine_for_symbol(program, machine_effects.symbol);
         for state_effects in effects.states.span_or_empty(machine_effects.states) {
-            let enclosing = machine.and_then(|machine| {
-                enclosing_state(program, machine, state_effects.symbol)
-            });
+            let enclosing =
+                machine.and_then(|machine| enclosing_state(program, machine, state_effects.symbol));
             for call in effects.calls.span_or_empty(state_effects.calls) {
                 let Some((capability_symbol, signature)) =
                     boundary_capability(program, call.target_state_symbol)
@@ -112,9 +111,7 @@ pub(crate) fn build_capability_facts(
                 // assignment target.
                 let stored_into_field = matches!(provenance, ReceiverProvenance::MachineOwned)
                     || enclosing
-                        .map(|state| {
-                            call_stored_into_field(program, state, call.statement_index)
-                        })
+                        .map(|state| call_stored_into_field(program, state, call.statement_index))
                         .unwrap_or(false);
                 if stored_into_field {
                     push_unique(
@@ -365,7 +362,11 @@ fn assignment_target_is_field(
         ExpressionNode::Mutable(inner) => assignment_target_is_field(program, *inner),
         ExpressionNode::Name(name) => {
             // A multi-segment name path rooted at `self` (e.g. `self.field`).
-            program.expression_table.name_path_members(name.members).len() > 1
+            program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                > 1
         }
         _ => false,
     }
@@ -453,4 +454,3 @@ fn boundary_capability<'program>(
 
     None
 }
-

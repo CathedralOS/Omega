@@ -238,10 +238,7 @@ fn count_operator(
         count_contract(syntax_trees, contract, counts);
     }
     if let Some(provider) = operator.provider {
-        count_identifier_members(
-            syntax_trees.items.identifier_path_members(provider),
-            counts,
-        );
+        count_identifier_members(syntax_trees.items.identifier_path_members(provider), counts);
     }
 }
 

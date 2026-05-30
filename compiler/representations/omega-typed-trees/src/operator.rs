@@ -93,10 +93,7 @@ pub fn candidates_for_spelling(
 /// normalized over the operator's own type parameters. The operator name and
 /// return type are deliberately excluded — only operand types discriminate
 /// within a spelling. Shared so dispatch and ambiguity validation agree.
-pub fn operator_operand_signature(
-    program: &TypedTrees,
-    operator: &OperatorDefinition,
-) -> String {
+pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefinition) -> String {
     let mut normalizer = TypeParameterNormalizer::new(
         program
             .operator_type_parameters(operator)

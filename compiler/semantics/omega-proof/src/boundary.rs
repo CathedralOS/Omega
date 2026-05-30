@@ -79,11 +79,7 @@ pub struct BoundaryProofObligation {
 
 impl BoundaryProofObligation {
     /// A guarantee the boundary establishes on exit.
-    pub fn establishes(
-        kind: BoundaryKind,
-        operation: Identifier,
-        fact: Identifier,
-    ) -> Self {
+    pub fn establishes(kind: BoundaryKind, operation: Identifier, fact: Identifier) -> Self {
         Self {
             kind,
             mode: BoundaryObligationMode::Establish,

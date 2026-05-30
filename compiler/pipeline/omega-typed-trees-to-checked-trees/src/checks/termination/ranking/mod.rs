@@ -40,7 +40,9 @@ pub(super) fn machine_has_proven_supported_decrease(
         .iter()
         .filter(|component| graph::component_is_cyclic(&adjacency, component))
         .all(|component| {
-            component_has_proven_decrease(program, machine, &adjacency, component, decreases, &order)
+            component_has_proven_decrease(
+                program, machine, &adjacency, component, decreases, &order,
+            )
         })
 }
 
@@ -99,9 +101,7 @@ fn edge_has_proven_decrease(
             .statement_table
             .statements(source.statement_nodes)
             .iter()
-            .filter_map(|statement| {
-                patterns::guarded_edge_to(program, statement, target.symbol)
-            })
+            .filter_map(|statement| patterns::guarded_edge_to(program, statement, target.symbol))
             .any(|edge| {
                 nat::edge_decrease_proven(
                     program,

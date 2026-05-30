@@ -1565,7 +1565,11 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Platform(platform) => Some(platform.name.as_str()),
         Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
-        Item::Provider(_) | Item::Export(_) | Item::Measure(_) | Item::Operator(_) | Item::Use(_) => None,
+        Item::Provider(_)
+        | Item::Export(_)
+        | Item::Measure(_)
+        | Item::Operator(_)
+        | Item::Use(_) => None,
     }
 }
 

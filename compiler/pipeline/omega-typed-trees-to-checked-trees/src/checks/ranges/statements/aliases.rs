@@ -30,10 +30,11 @@ fn alias_source_label(
         ExpressionNode::Call(call)
             if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
         {
-            Some(program.expression_table.display_name(alias_source_receiver(
-                program,
-                call.receiver,
-            )))
+            Some(
+                program
+                    .expression_table
+                    .display_name(alias_source_receiver(program, call.receiver)),
+            )
         }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             Some(program.expression_table.display_name(expression))

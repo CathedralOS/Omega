@@ -1,4 +1,4 @@
-use super::type_references::{classify_operator_result_ownership, OperatorResultOwnership};
+use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use super::*;
 
 pub(super) fn append_move_events_for_expression(

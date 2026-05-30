@@ -91,7 +91,12 @@ impl RangeExpression {
         let separator = if self.end_inclusive { "..=" } else { ".." };
         match (&self.start, &self.end) {
             (Some(start), Some(end)) => {
-                format!("{}{}{}", start.display_name(), separator, end.display_name())
+                format!(
+                    "{}{}{}",
+                    start.display_name(),
+                    separator,
+                    end.display_name()
+                )
             }
             (Some(start), None) => format!("{}{}", start.display_name(), separator),
             (None, Some(end)) => format!("{}{}", separator, end.display_name()),

@@ -136,26 +136,26 @@ fn check_known_length_index(
                 if facts.index_is_proven(&collection_label, &index_label) {
                     return;
                 }
-            if facts.index_upper_bound_is_proven(&index_label, length) {
+                if facts.index_upper_bound_is_proven(&index_label, length) {
+                    return;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot prove index `{}` is within length {}",
+                    index_label, length
+                )));
                 return;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot prove index `{}` is within length {}",
-                index_label, length
-            )));
-            return;
-        };
+            };
             let valid =
                 index_value >= 0 && usize::try_from(index_value).is_ok_and(|index| index < length);
             if !valid {
-            diagnostics.push(Diagnostic::error(format!(
+                diagnostics.push(Diagnostic::error(format!(
                     "cannot prove index `{}` is within length {}",
                     program.expression_table.display_name(index),
                     length
                 )));
+            }
         }
     }
-}
 }
 
 fn check_unknown_length_slice_index(

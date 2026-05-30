@@ -16,7 +16,11 @@ pub(crate) fn lower_measure_definition(
     let name = lower_measure_name(lowerer, syntax_trees, measure.name);
 
     let parameter = if measure.parameter.is_valid() {
-        Some(lower_state_parameter(lowerer, syntax_trees, measure.parameter)?)
+        Some(lower_state_parameter(
+            lowerer,
+            syntax_trees,
+            measure.parameter,
+        )?)
     } else {
         None
     };

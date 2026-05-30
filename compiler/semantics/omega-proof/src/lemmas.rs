@@ -107,9 +107,9 @@ impl ProofLemma {
     /// check site ask "is there a named lemma that discharges this fact from what
     /// I already know?" without hard-coding which lemma applies.
     pub fn discharging(goal: LemmaFact, established: &[LemmaFact]) -> Option<ProofLemma> {
-        ProofLemma::ALL.into_iter().find(|lemma| {
-            lemma.conclusion() == goal && lemma.apply(established) == Some(goal)
-        })
+        ProofLemma::ALL
+            .into_iter()
+            .find(|lemma| lemma.conclusion() == goal && lemma.apply(established) == Some(goal))
     }
 }
 
@@ -154,11 +154,7 @@ pub struct ForAllInRangeFact {
 
 impl ForAllInRangeFact {
     /// Build a `for all i in start..end, P(i)` fact.
-    pub fn new(
-        predicate: impl Into<String>,
-        start: QuantifiedBound,
-        end: QuantifiedBound,
-    ) -> Self {
+    pub fn new(predicate: impl Into<String>, start: QuantifiedBound, end: QuantifiedBound) -> Self {
         Self {
             predicate: predicate.into(),
             start,

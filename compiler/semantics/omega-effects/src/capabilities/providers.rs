@@ -8,8 +8,8 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::operator_spelling::ProviderCategory;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::Item;
 use omega_syntax_trees::identifier::Identifier;
+use omega_syntax_trees::item::Item;
 
 use crate::EffectSet;
 
@@ -60,9 +60,7 @@ impl BoundaryProviderRegistry {
 
     /// Look up a registered provider by its fully-qualified name.
     pub fn resolve(&self, name: &str) -> Option<&BoundaryProvider> {
-        self.providers
-            .iter()
-            .find(|provider| provider.name == name)
+        self.providers.iter().find(|provider| provider.name == name)
     }
 }
 

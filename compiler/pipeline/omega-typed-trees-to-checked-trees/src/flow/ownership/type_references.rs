@@ -60,9 +60,7 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
             OperatorResultOwnership::BorrowedView
         }
         // Unit results (`Vec::push`, `String::push_str`) transfer nothing.
-        omega_typed_trees::types::TypeReferenceNode::Unit => {
-            OperatorResultOwnership::NoTransfer
-        }
+        omega_typed_trees::types::TypeReferenceNode::Unit => OperatorResultOwnership::NoTransfer,
         // A constrained result classifies by its base type.
         omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             classify_operator_result_ownership(program, *base_type)
