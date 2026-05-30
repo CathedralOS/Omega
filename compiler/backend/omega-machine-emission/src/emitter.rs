@@ -1,4 +1,5 @@
 use crate::code::build_encoded_machine_code;
+use crate::semantics::build_encoded_machine_semantic_summary;
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::EncodedMachinePlan;
 use omega_machine_instructions::MachineInstructionPlan;
@@ -17,11 +18,11 @@ pub struct MachineEmissionInput<'plan, 'machine> {
 pub fn emit_machine_bytes(
     input: MachineEmissionInput<'_, '_>,
 ) -> Result<EncodedMachinePlan, Diagnostic> {
-    Ok(EncodedMachinePlan {
-        target: input.target,
-        code: build_encoded_machine_code(&input)?,
-        semantics: input.machine_instructions.semantics.clone(),
-    })
+    Ok(EncodedMachinePlan::with_roots(
+        input.target,
+        build_encoded_machine_code(&input)?,
+        build_encoded_machine_semantic_summary(&input),
+    ))
 }
 
 #[cfg(test)]

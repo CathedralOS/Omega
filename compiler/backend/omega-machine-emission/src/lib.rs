@@ -10,6 +10,7 @@ mod host_bindings;
 mod instruction_bytes;
 mod layout;
 mod selected_instruction_queries;
+mod semantics;
 pub use emitter::{MachineEmissionInput, emit_machine_bytes};
 
 #[derive(Debug, Clone, Copy)]
