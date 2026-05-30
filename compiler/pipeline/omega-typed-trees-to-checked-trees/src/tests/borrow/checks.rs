@@ -644,6 +644,66 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
 }
 
 #[test]
+fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
+    // `&mut self` in the signature is not by itself a write. Once the target is
+    // known, an empty mutation summary means this helper is read-only for borrow
+    // invalidation purposes; only unknown calls need the conservative receiver
+    // fallback.
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+        }
+
+        machine Main::main(&mut self) {
+            let view: &[Entry] = self.entries.as_slice();
+            let value: i32 = self.identity(1);
+            self.read_alias(view, value);
+        }
+
+        machine Main::identity(&mut self, value: i32) -> i32 {
+            transition {
+                _ -> value
+            }
+        }
+
+        machine Main::read_alias(&self, entries: &[Entry], value: i32) {
+            let count: usize = entries.len;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("known pure mutable receiver helper should not invalidate a live view");
+}
+
+#[test]
 fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     let source = r#"
         data Main {
