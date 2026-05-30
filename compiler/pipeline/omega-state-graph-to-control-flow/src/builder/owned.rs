@@ -10,8 +10,8 @@ pub(crate) fn build_control_flow_plan_owned(
 ) -> Result<ControlFlowPlan, Diagnostic> {
     let StateGraph { code, semantics } = state_graph;
 
-    Ok(ControlFlowPlan {
-        code: remap_code_roots_owned(code),
-        semantics: remap_semantic_roots_owned(semantics),
-    })
+    Ok(ControlFlowPlan::with_roots(
+        remap_code_roots_owned(code),
+        remap_semantic_roots_owned(semantics),
+    ))
 }

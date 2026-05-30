@@ -139,6 +139,9 @@ meaning, without needing access to pointer descriptor internals.
     ownership arenas now sit under an explicit `StateGraphSemanticRoots` root
     on `StateGraph`, keeping scheduling topology separate from preserved
     semantic evidence
+  - state-graph and control-flow roots now expose explicit `with_roots`
+    constructors with canaries, and state-graph-to-control-flow joins code and
+    semantic roots through that constructor seam instead of raw struct literals
   - checked-flow now emits initial conservative move/drop events for path-like
     assignment/local-initializer moves and state-exit local drops
   - checked-flow now emits conservative call-source move events for direct

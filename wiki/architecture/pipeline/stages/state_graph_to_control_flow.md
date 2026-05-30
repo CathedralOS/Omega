@@ -60,10 +60,14 @@ noun preserved in a focused file:
 
 - `builder.rs` assembles the final `ControlFlowPlan` from graph arenas and owns
   only top-level orchestration. `builder/borrowed.rs` owns borrowed graph
-  remapping, while `builder/owned.rs` owns owned graph remapping.
+  remapping, while `builder/owned.rs` owns owned graph remapping. Both paths
+  join executable roots and preserved semantic roots through
+  `ControlFlowPlan::with_roots`.
 - `omega-control-flow/src/plan.rs` owns the representation roots:
   executable control-flow shape lives under `ControlFlowCode`, while preserved
-  semantic evidence lives under `ControlFlowSemanticRoots`.
+  semantic evidence lives under `ControlFlowSemanticRoots`. The plan
+  constructor should keep those roots explicit instead of relying on ad hoc
+  field assembly.
 - `omega-control-flow/src/semantics.rs` owns the `ControlFlowSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas.
