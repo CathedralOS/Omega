@@ -27,6 +27,12 @@ pub struct StateGraph {
     pub semantics: StateGraphSemanticRoots,
 }
 
+impl StateGraph {
+    pub fn with_roots(code: StateGraphCode, semantics: StateGraphSemanticRoots) -> Self {
+        Self { code, semantics }
+    }
+}
+
 impl std::ops::Deref for StateGraph {
     type Target = StateGraphCode;
 
@@ -38,5 +44,31 @@ impl std::ops::Deref for StateGraph {
 impl std::ops::DerefMut for StateGraph {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.code
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{StateGraph, StateGraphCode, StateGraphSemanticRoots};
+    use omega_core::arena::Arena;
+
+    #[test]
+    fn graph_constructor_keeps_code_and_semantic_roots_explicit() {
+        let code = StateGraphCode {
+            expressions: Default::default(),
+            machines: Arena::with_capacity(1),
+            contained_machines: Arena::with_capacity(2),
+            machine_owned_data: Arena::with_capacity(3),
+            states: Arena::with_capacity(4),
+            state_parameters: Arena::with_capacity(5),
+            operations: Arena::with_capacity(6),
+            transitions: Arena::with_capacity(7),
+        };
+        let semantics = StateGraphSemanticRoots::default();
+
+        let graph = StateGraph::with_roots(code.clone(), semantics.clone());
+
+        assert_eq!(graph.code, code);
+        assert_eq!(graph.semantics, semantics);
     }
 }

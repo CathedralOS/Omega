@@ -35,8 +35,8 @@ impl StateGraph {
         operation_capacity: usize,
         transition_capacity: usize,
     ) -> Self {
-        Self {
-            code: StateGraphCode {
+        Self::with_roots(
+            StateGraphCode {
                 expressions: ExpressionTable::with_capacities(expression_capacity),
                 machines: Arena::with_capacity(machine_capacity),
                 contained_machines: Arena::with_capacity(contained_machine_capacity),
@@ -46,7 +46,7 @@ impl StateGraph {
                 operations: Arena::with_capacity(operation_capacity),
                 transitions: Arena::with_capacity(transition_capacity),
             },
-            semantics: StateGraphSemanticRoots {
+            StateGraphSemanticRoots {
                 facts: StateGraphFactRoots {
                     proof_obligations: Arena::with_capacity(proof_obligation_capacity),
                     invariants: Arena::with_capacity(invariant_capacity),
@@ -77,6 +77,6 @@ impl StateGraph {
                     drops: Arena::with_capacity(drop_event_capacity),
                 },
             },
-        }
+        )
     }
 }
