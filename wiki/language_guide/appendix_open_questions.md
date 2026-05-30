@@ -21,7 +21,10 @@ This page tracks design pressure that is not fully nailed down yet.
   They are built-in borrowed views with proof-visible facts such as `len` and
   type-scoped invariant parameters such as `&[T, [non_empty]]`; indexing is
   valid when the current facts prove the index is inside the slice bounds.
-- Old bracketed refinement syntax is dead. The open question is how much range-heavy proof vocabulary should live directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`, versus being packaged into named domains or helper proof constructs.
+- Old bracketed refinement syntax is dead. Range-heavy proof vocabulary lives directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`. The inclusive/exclusive forms are now resolved: `a..b` is exclusive and `a..=b` is inclusive, with `a..=b` normalizing to `a..(b+1)`. Against a length `len`, an exclusive end requires `b <= len` and an inclusive end requires `b < len` (so inclusive-end validity equals index validity); a non-empty inclusive range establishes a `non_empty` fact. These are the same `..` / `..=` forms used for subslicing.
+- Text type naming is resolved. The owned type is `String`; the borrowed window
+  is `&string` (lowercase). Casing distinguishes the owner from the window. The
+  earlier `Str` / `StrView` (and `&str`) naming is retired.
 - Omega should distinguish proof numbers from machine numbers. `UInt`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and boundary. Values carry facts; operations have contracts; contracts create obligations; boundary names the authority for accepting unproved guarantees.
@@ -30,6 +33,17 @@ This page tracks design pressure that is not fully nailed down yet.
   terminating root like `Main::main` should implicitly require every reachable
   recursive/cyclic path to prove progress through a well-founded ranking view
   such as naturals, slice length, or a named domain/type-specific order.
+- Termination syntax sugar and custom ranking views are resolved. The core shape
+  stays `terminates { decreases value -> OrderOrMeasure; }`; plain
+  `decreases value` uses the default descending-naturals order. Built-in views
+  such as `Slice::Length` and descending naturals remain automatic. A custom
+  well-founded ordering is declared with a dedicated `measure` keyword as a
+  standalone item, not by abusing an `operator` declaration: a `measure` is a
+  function from the decreasing value into a well-founded domain such as `usize`,
+  e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`.
+  `lexicographic { a, b, ... }` declares an ordered tuple compared left-to-right
+  (e.g. `measure Quest::Difficulty lexicographic { tier, remaining_steps }`), and
+  multiple named measures per type are allowed.
 - Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
 - A machine enters at the top of its body. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
@@ -40,15 +54,11 @@ This page tracks design pressure that is not fully nailed down yet.
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond
   explicit `when` clauses and executable domain bodies?
-- How much explicit sugar should Omega support beyond the core
-  `terminates { decreases value -> OrderOrMeasure; }` shape?
-- Which built-in ranking views should be automatic, and when should
-  libraries/domains be allowed to provide named custom orders or measures?
 - What exact source form should core operator declarations use for `[]`,
   subslicing, arithmetic, and string concatenation?
 - Which core semantic types should be browsable source declarations, and which
   primitive carriers should remain compiler-managed? Current direction:
-  `Array`, `Vec`, `Slice`, `Str`, and `StrView` are public core concepts;
+  `Array`, `Vec`, `Slice`, `String`, and `&string` are public core concepts;
   `Ptr` and descriptor-like carriers sit at the low-level boundary.
 - How should Omega express and prove sequence-wide domains over runtime text,
   such as `String::Utf8` or `String::NoNul`, without turning ordinary string

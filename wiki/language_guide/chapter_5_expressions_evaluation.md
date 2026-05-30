@@ -60,11 +60,41 @@ not as syntax with a completely separate meaning model. In that sense,
 `left + right` is conceptually like a call to the appropriate add/concat
 operation for the operand meaning in scope.
 
+A fixed operator spelling such as `+`, `[]`, or the range slice `[..]` is
+declared with an optional `spelling` clause on a named `operator` declaration.
+The named path stays the canonical identity; the spelling is the surface syntax
+that resolves to it.
+
+```omega
+operator i32::add(left: i32, right: i32) -> i32 spelling +;
+```
+
+So `left + right` resolves to `i32::add` for `i32` operands. The public
+signature and any proof obligations stay visible on the declaration; only the
+primitive lowering hides behind `boundary` when the operator is a boundary
+operator.
+
 This model also applies to privileged syntax. `items[index]` should be
 understood as an indexing operator, not as raw pointer syntax. `items[1..]`
-should be understood as a range-slice operator. Those operators should have a
-semantic home that users and tools can inspect, while their boundary primitive
-implementation is bound through the compiler/runtime layer.
+should be understood as a range-slice operator. Both resolve to a spelled core
+`Slice`/`Array`/`Vec` operator whose `requires` clause is the bounds proof
+obligation:
+
+```omega
+boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+spelling []
+requires
+    index < items.len;
+
+boundary operator Slice::range<T>(items: &[T], start: usize, end: usize) -> &[T]
+spelling [..]
+requires
+    start <= end && end <= items.len;
+```
+
+Those operators have a semantic home that users and tools can inspect, while
+their boundary primitive implementation is bound through the compiler/runtime
+layer.
 
 This chapter only defines ordinary evaluation. Domain-sensitive operator
 resolution, if Omega adopts it, belongs to the domains chapter because it
@@ -80,8 +110,8 @@ Likely core collection and text concepts:
 - `Array[T; N]`: fixed-size owned inline storage.
 - `Vec[T]`: owned dynamic contiguous storage.
 - `Slice[T]`: borrowed contiguous view over elements.
-- `Str`: owned string/text storage.
-- `StrView`: borrowed string/text view.
+- `String`: owned string/text storage, with capacity and `push_str`.
+- `&string`: borrowed string/text window (`&mut string` for a mutable window).
 
 The exact surface spelling may stay Rust-like for a while:
 
@@ -93,9 +123,10 @@ let text: String;
 
 But semantically, `Array`, `Vec`, and `Slice` should be visible core concepts,
 not just implicit compiler behavior. `Array` and `Vec` are owners. `Slice` is
-the common borrowed view they can produce. Likewise, an owned string can produce
-a string view. The borrowed text spelling `&str` is the current source-facing
-view type name, backed by the core `StrView` semantic surface.
+the common borrowed view they can produce. Likewise, an owned `String` can
+produce a borrowed text window. The owned text type is `String`; a borrowed text
+window is its own type spelled `&string` (or `&mut string`). The capitalization
+distinguishes owner from window.
 
 The implementation can still use privileged internal carriers. A slice view is
 likely lowered as a descriptor such as pointer plus length. A vector is likely
@@ -129,10 +160,25 @@ Working interpretation:
   element or view is uniquely writable.
 - Slice ranges such as `items[1..]` resolve to a range-slice operator that
   creates a new view with a narrower extent and updated facts.
-- Text views expose byte-oriented operations such as `StrView::byte` and
-  `StrView::range`; character or grapheme indexing must be a separate semantic
+- Text windows expose byte-oriented operations such as `string::byte` and
+  `string::range`; character or grapheme indexing must be a separate semantic
   operation because UTF-8 byte positions are not the same as user-visible
   characters.
+
+Omega uses `a..b` for an exclusive range and `a..=b` for an inclusive range.
+The open-ended forms `a..`, `..b`, and `..` are also supported. An inclusive
+range `a..=b` is defined to mean the same as `a..(b+1)` and is normalized to the
+exclusive form internally.
+
+This normalization fixes the proof obligations for a range end:
+
+- An exclusive end `b` must satisfy `b <= len`.
+- An inclusive end `b` must satisfy `b < len`. Inclusive-end validity is exactly
+  index-`b` validity, because `b` is an indexed position.
+- An inclusive non-empty range additionally establishes a `non_empty` fact.
+
+The overflow edge of an inclusive range, such as `..=len-1` when `len` is `0`,
+or `..=MAX` where `b+1` would overflow, is a proof error, not a runtime panic.
 
 Omega loops often look like repeated transitions over either:
 
@@ -150,18 +196,22 @@ The visible core declaration should therefore look like a normal contract on a
 
 ```omega
 boundary operator Array::index<T>(items: &Array<T>, index: usize) -> T
+spelling []
 requires
     index < items.len;
 
 boundary operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
+spelling []
 requires
     index < items.len;
 
 boundary operator Slice::index_mut<T>(items: &mut [T], index: usize) -> &mut T
+spelling []
 requires
     index < items.len;
 
 boundary operator Slice::range_mut<T>(items: &mut [T], start: usize, end: usize) -> &mut [T]
+spelling [..]
 requires
     start <= end && end <= items.len;
 
@@ -169,11 +219,12 @@ boundary operator Slice::from<T>(items: &[T], start: usize) -> &[T]
 requires
     start <= items.len;
 
-boundary operator StrView::byte(text: &str, index: usize) -> u8
+boundary operator string::byte(text: &string, index: usize) -> u8
 requires
     index < text.len;
 
-boundary operator StrView::range(text: &str, start: usize, end: usize) -> &str
+boundary operator string::range(text: &string, start: usize, end: usize) -> &string
+spelling [..]
 requires
     start <= end && end <= text.len;
 
@@ -181,7 +232,7 @@ boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>;
 
 boundary operator String::with_capacity(capacity: usize) -> String;
 
-boundary operator String::push_str(text: &mut String, value: &str) -> ()
+boundary operator String::push_str(text: &mut String, value: &string) -> ()
 requires
     text.len + value.len <= text.capacity;
 ```
@@ -194,11 +245,11 @@ declaration owns the source meaning while the boundary primitive owns allocator
 and buffer initialization details.
 Mutating growth operations such as `String::push_str` have both a capacity proof
 obligation and a borrow-checking obligation: the string must be uniquely
-writable, and any active text view borrowed from it must not be invalidated.
+writable, and any active text window borrowed from it must not be invalidated.
 
-Operator declarations form overload sets by call signature. The call signature
-is the operator path plus parameter types; return type alone does not create a
-distinct overload. Generic signatures are compared by structure, not by the
+Operator declarations form overload sets by call signature. Overload resolution
+keys on the operator path plus parameter types; return type alone never
+distinguishes overloads. Generic signatures are compared by structure, not by the
 spelling or declaration order of type parameters, so these two declarations
 describe the same candidate and must be rejected as a duplicate:
 

@@ -84,6 +84,14 @@ shape, preserving semantic evidence, or doing both. If a stage starts reaching
 through unrelated roots to answer a question, that is a sign the query belongs
 behind a unified view or helper instead of being reconstructed ad hoc.
 
+Concrete field layout for backend-ABI carriers is a separate concern from these
+representation roots. Fat-descriptor field layout (for slices and text windows,
+the shared `{ ptr, len }` carrier) is a backend-ABI concern owned at the
+runtime-abi boundary, not redefined by later lowering. Owned and borrowed
+carriers share that layout and differ only by an ownership tag in the semantic
+spine. Layout and instruction-selection stages consume the descriptor shape
+through its owner rather than re-deriving offsets and sizes.
+
 ## Semantic Ownership Matrix
 
 This table is intentionally blunt. Each cell says the main relationship between

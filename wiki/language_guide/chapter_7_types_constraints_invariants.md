@@ -23,8 +23,8 @@ Working interpretation:
 
 - `mass: i32` stays plain type information.
 - Contracts carry the proof surface.
-- Rust-style ranges such as `1..10` and `1..=10` are the intended interval
-  syntax in contracts and flow facts.
+- Rust-style ranges such as `1..10` and `1..=10` are the interval syntax in
+  contracts and flow facts.
 - Contract facts are compile-time proof facts, not RTTI.
 - If the compiler cannot prove a constraint, the normal result is a diagnostic.
 - Debug or proof builds may emit validation, but validation is instrumentation,
@@ -103,6 +103,25 @@ The match partitions create facts:
 
 Those facts are what let the compiler discharge the postcondition
 `out in min..=max`.
+
+## Range Forms
+
+Ranges have two spellings, and they are the same `..` / `..=` syntax used for
+subslicing:
+
+- `a..b` is exclusive of the end.
+- `a..=b` is inclusive of the end.
+
+An inclusive range normalizes to its exclusive form: `a..=b` becomes
+`a..(b+1)`. The two forms therefore carry different validity obligations against
+a length `len`:
+
+- an exclusive end requires `b <= len`.
+- an inclusive end requires `b < len`, so inclusive-end validity is the same as
+  index validity.
+
+A non-empty inclusive range establishes a `non_empty` fact, which downstream
+contracts and slice operations can consume.
 
 ## Local And Named Facts
 

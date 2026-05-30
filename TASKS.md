@@ -20,6 +20,57 @@ representation machinery behind a deliberate boundary.
 - Keep `pass`, `fail`, and `pending` canaries honest. Do not let compile-only
   success imply runtime or proof support.
 
+## Resolved Design Decisions (Wave 0)
+
+These forks are now decided and frozen. Implementation slices below build against
+them. Minor/easily-reversible details (exact namespace casing, builtin view
+surfacing) are left to the owning slice.
+
+1. **Measure declarations (termination).** Custom well-founded orderings use a
+   dedicated `measure` keyword as a standalone item, replacing the temporary
+   `operator Type::Order(...)` hack the checker sniffs by shape today:
+   `measure Card::PowerOrder(card: Card) -> usize { card.power }` and
+   `measure Quest::Difficulty lexicographic { tier, remaining_steps }`. Use site
+   `decreases value -> Type::Name` is unchanged. Multiple measures per type and
+   lexicographic tuples are supported.
+2. **Range forms.** `a..b` exclusive, `a..=b` inclusive (plus open `a..`, `..b`,
+   `..`). Inclusive normalizes to `a..(b+1)`. Exclusive end requires `b <= len`
+   (range-bound facts); inclusive end requires `b < len` (index facts) — this is
+   how range validity connects to index validity; inclusive non-empty ranges
+   also establish a `non_empty` fact. The `..=MAX` overflow edge is a proof
+   error (`checked_add`), not a panic.
+3. **Operator spellings.** Fixed spellings are declared with an optional
+   `spelling` clause on a named `operator`
+   (`... -> T spelling [] requires index < items.len;`). Overload key stays path
+   + parameter types. `items[index]`/`items[1..]` resolve to the spelled core
+   operator and its `requires` IS the bounds obligation. The spelling sits above
+   the `boundary` modifier, so it never hides signature or proof obligations.
+4. **Boundary primitive registry.** One `BoundaryProvider { name, category,
+   contract_ref, effect_set, target_applicability, origin_package }` record.
+   Categories: `SliceIndexing | PointerOffset | PointerAccess |
+   DescriptorConstruction | Allocation | HostAbiCall`. Core primitives authored
+   as restricted core declarations binding a named provider; host providers as
+   target-package metadata (generalizing the existing
+   `HostAbiPlan`/`HostBoundaryPolicy` whitelist). Only whitelisted
+   (core/host/toolchain) packages may declare providers; every boundary binding
+   must resolve to a registered provider; unregistered names are rejected. The
+   emitted boundary report is the audit artifact.
+5. **Text types.** Owned text stays `String` (capacity/`push_str`); the borrowed
+   text window is its own type spelled `&string`/`&mut string` (lowercase
+   `string`, casing distinguishes owner from window). `StrView`/`&str` naming is
+   retired. The window shares the slice `{ptr,len}` descriptor carrier. Expose
+   `length`/`non_empty` measures first (cheap, O(1)); `no_nul`/`utf8` are
+   domains established at validating boundary constructors and carried as facts,
+   never re-proved per use.
+6. **Fat descriptor model + owner.** One `FatDescriptor { ptr@0, len@pointer_size
+   }` (size `2*pointer_size`, pointer-aligned) covers slices and text windows;
+   slice `len` is an element count, text `len` a byte count (kind tag). Owned vs
+   borrowed share layout, differing only by an ownership tag in the semantic
+   spine. `omega-runtime-abi` owns the shape (field-offset + subslice
+   accessors); `omega-layout` and instruction-selection are consumers and stop
+   re-deriving the layout. Migration is byte-identical refactor steps that keep
+   the working macOS ARM64 / Windows x64 PE paths green.
+
 ## Recent Completed Context
 
 - Pipeline architecture docs now define semantic ownership and include the
@@ -87,8 +138,10 @@ providers should be auditable.
 - [ ] Define the language-authored registry shape for compiler/runtime
   primitive providers such as slice indexing, pointer offset, descriptor
   construction, allocation, and host ABI calls.
-- [ ] Decide whether the registry is package/target metadata, restricted core
+- [x] Decide whether the registry is package/target metadata, restricted core
   declarations, emitted compiler inventory, or a combination.
+  (decided: Wave 0 #4 — combination: `BoundaryProvider` record, core decls +
+  target metadata, emitted report as audit.)
 - [ ] Require boundary implementation bindings to reference registered
   providers once binding syntax exists.
 - [ ] Reject unregistered boundary provider names outside explicitly
@@ -109,7 +162,8 @@ special cases with bolted-on checks.
   paths instead of direct-call/transition seeds only.
 - [ ] Extend guard facts into recursive and cyclic state-call argument
   propagation.
-- [ ] Decide how inclusive/exclusive range forms spell and lower.
+- [x] Decide how inclusive/exclusive range forms spell and lower.
+  (decided: Wave 0 #2 — `a..b`/`a..=b`, normalize inclusive to `a..(b+1)`.)
 - [ ] Represent non-empty facts, length facts, and window-shrinking facts as
   first-class slice proof vocabulary.
 - [ ] Ensure alias and borrow facts understand subslice overlap
@@ -123,8 +177,10 @@ Goal: make runtime slice/string descriptors line up with the proof model.
   copy special cases.
 - [ ] Generalize start-only/end-only/bounded descriptors beyond literal
   fixed-array-backed views.
-- [ ] Choose one clear backend representation owner for descriptor writes,
-  reads, pointer offsets, and lengths.
+- [x] Choose one clear backend representation owner for descriptor writes,
+  reads, pointer offsets, and lengths. (decided: Wave 0 #6 —
+  `omega-runtime-abi` owns the `FatDescriptor` shape; layout/instruction
+  selection are consumers.)
 - [ ] Promote pending subslice canaries into pass/fail suites as descriptor
   lowering becomes real.
 - [ ] Keep backend reports explicit about descriptor construction and mutation.
@@ -136,8 +192,9 @@ order."
 
 - [ ] Replace temporary operator-like ranking declarations with dedicated
   ranking or measure syntax once selected.
-- [ ] Decide how order/measure declarations represent "rank this value by this
-  view."
+  (decided: Wave 0 #1 — `measure` keyword; implementation pending.)
+- [x] Decide how order/measure declarations represent "rank this value by this
+  view." (decided: Wave 0 #1 — standalone `measure Type::Name(...) -> usize { .. }`.)
 - [ ] Support builtin/default inference for plain `decreases value` only when
   unambiguous.
 - [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
@@ -158,8 +215,8 @@ without hidden runtime tags.
 
 - [ ] Use operator symbols during overload resolution and validate ambiguous
   operator declarations by signature and context.
-- [ ] Design a declaration form for fixed spellings such as `+`, `[]`, and
-  range slicing.
+- [x] Design a declaration form for fixed spellings such as `+`, `[]`, and
+  range slicing. (decided: Wave 0 #3 — `spelling` clause on named `operator`.)
 - [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
   operator contracts.
 - [ ] Design boundary implementation bindings for core operators without
@@ -204,11 +261,14 @@ Goal: owners and borrowed views should share one proof/runtime story.
 - [ ] Design `Vec[T]` as owned dynamic storage with length and capacity.
 - [ ] Define how `Vec` borrowing prevents reallocation or mutation that would
   invalidate active slices.
-- [ ] Decide whether current `String` remains the public owned text name or
-  evolves toward `Str`.
-- [ ] Define `StrView` or equivalent borrowed text view semantics.
-- [ ] Decide whether string views are byte slices with text domains or their
-  own core view type.
+- [x] Decide whether current `String` remains the public owned text name or
+  evolves toward `Str`. (decided: Wave 0 #5 — keep `String`.)
+- [x] Define `StrView` or equivalent borrowed text view semantics.
+  (decided: Wave 0 #5 — borrowed window type spelled `&string`/`&mut string`;
+  `StrView` retired.)
+- [x] Decide whether string views are byte slices with text domains or their
+  own core view type. (decided: Wave 0 #5 — own view type sharing the slice
+  `{ptr,len}` descriptor carrier.)
 - [ ] Expose string/text measures and domains such as length, non-empty, UTF-8,
   and no-NUL from a browsable core surface.
 
@@ -217,8 +277,9 @@ Goal: owners and borrowed views should share one proof/runtime story.
 Goal: reduce special-case bring-up behavior and make native output less
 fictional.
 
-- [ ] Identify one representation model for fat descriptors and pointer-based
-  carriers.
+- [x] Identify one representation model for fat descriptors and pointer-based
+  carriers. (decided: Wave 0 #6 — `FatDescriptor { ptr@0, len@pointer_size }`
+  owned by `omega-runtime-abi`.)
 - [ ] Reduce duplicate descriptor assumptions across backend crates.
 - [ ] Strengthen assigned-target allocation toward a real register/stack
   allocation story with register classes, spills, and post-assignment cleanup.

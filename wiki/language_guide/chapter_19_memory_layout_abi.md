@@ -45,6 +45,43 @@ Layout reports should include:
 Padding is not semantic data. Proofs and wire protocols must not rely on
 uninitialized padding bytes.
 
+## Fat Descriptors
+
+Omega uses one representation model for fat descriptors and the pointer-based
+carriers built on them: slices and text windows. The shape is:
+
+```text
+FatDescriptor {
+    ptr;   // byte offset 0
+    len;   // byte offset pointer_size
+}
+```
+
+Total size is `2 * pointer_size` and the descriptor is pointer-aligned. For a
+slice, `len` is an element count; for a text window, `len` is a byte count. A
+kind tag distinguishes the two interpretations.
+
+Owned and borrowed carriers share the identical in-memory layout. They differ
+only by an ownership tag carried in the semantic spine, which records drop
+responsibility, not by layout. A borrowed slice and an owned slice are byte-for-byte
+the same `FatDescriptor` in memory.
+
+Subslicing is expressed uniformly:
+
+```text
+new.ptr = base.ptr + start * element_byte_size
+new.len = end - start
+```
+
+This descriptor shape is owned by exactly one crate, `omega-runtime-abi`, which
+exposes field-offset accessors and a subslice accessor. `omega-layout` and
+instruction selection are consumers: they must not re-derive the `+ pointer_size`
+and `2 * pointer_size` layout independently. Owning the shape in one place keeps
+descriptor layout from drifting between the layout pass and code generation.
+
+A future growable `Vec` carrier `{ ptr, len, cap }` is the same model
+parameterized by word count, so it stays under the same owner.
+
 ## Calling Conventions
 
 Machine calls inside Omega use Omega calling rules.
