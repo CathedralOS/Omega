@@ -93,7 +93,7 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
             SymbolKind::BuiltinType,
             SymbolNameRef::Static(BuiltinType::Real.name()),
         ),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("str")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("string")),
     ]
 }
 

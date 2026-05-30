@@ -1,0 +1,23 @@
+use omega::language::core::str;
+
+// Exercises the cheap O(1) text classifier `String::NonEmpty` (`when self.len > 0`).
+// The owned-text domain membership is carried as a fact across a call: `main`
+// requires `self.text in String::NonEmpty`, and that membership satisfies the
+// `consume` precondition that asks for the same classifier.
+
+data Main {
+    text: String;
+}
+
+machine Main::consume(&self, text: &String)
+requires
+    text in String::NonEmpty
+{
+}
+
+machine Main::main(&mut self)
+requires
+    self.text in String::NonEmpty
+{
+    self.consume(&self.text);
+}
