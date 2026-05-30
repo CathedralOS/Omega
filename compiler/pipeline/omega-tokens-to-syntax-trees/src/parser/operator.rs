@@ -103,8 +103,7 @@ fn parse_operator_spelling<'tokens, 'source>(
     let mut symbol = String::new();
     let mut rest = input;
     while rest.tokens.first().is_some_and(|token| {
-        token.punctuation().is_some()
-            && token.punctuation() != Some(PunctuationKind::Semicolon)
+        token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
     }) {
         let (token, next) = rest.expect_token()?;
         symbol.push_str(token.lexeme.as_str());

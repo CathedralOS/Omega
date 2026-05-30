@@ -91,9 +91,7 @@ impl DomainFacts {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        DomainDependencyFact, DomainDependencyPathFact, DomainElementFact, DomainFacts,
-    };
+    use crate::{DomainDependencyFact, DomainDependencyPathFact, DomainElementFact, DomainFacts};
     use omega_core::arena::Arena;
     use omega_core::symbols::SymbolHandle;
 
@@ -132,7 +130,10 @@ mod tests {
             element_facts,
         );
 
-        assert_eq!(facts.element_domain(collection_domain), Some(element_domain));
+        assert_eq!(
+            facts.element_domain(collection_domain),
+            Some(element_domain)
+        );
         assert_eq!(facts.element_domain(element_domain), None);
     }
 }

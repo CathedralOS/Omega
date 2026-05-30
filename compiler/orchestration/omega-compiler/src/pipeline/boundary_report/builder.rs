@@ -33,34 +33,42 @@ pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checke
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let approved_provider = provider.map(|provider| provider.whitelisted).unwrap_or(true);
+        let approved_provider = provider
+            .map(|provider| provider.whitelisted)
+            .unwrap_or(true);
 
-        report.capability_blast_radius.insert(CapabilityBlastRadius {
-            capability: trait_definition.name.to_string(),
-            authority_effects,
-            approved_provider,
-            uses: capability_verb_count(checked, trait_definition.symbol, CapabilityFlowKind::Uses),
-            returns: capability_verb_count(
-                checked,
-                trait_definition.symbol,
-                CapabilityFlowKind::Returns,
-            ),
-            acquires: capability_verb_count(
-                checked,
-                trait_definition.symbol,
-                CapabilityFlowKind::Acquires,
-            ),
-            stores: capability_verb_count(
-                checked,
-                trait_definition.symbol,
-                CapabilityFlowKind::Stores,
-            ),
-            derives: capability_verb_count(
-                checked,
-                trait_definition.symbol,
-                CapabilityFlowKind::Derives,
-            ),
-        });
+        report
+            .capability_blast_radius
+            .insert(CapabilityBlastRadius {
+                capability: trait_definition.name.to_string(),
+                authority_effects,
+                approved_provider,
+                uses: capability_verb_count(
+                    checked,
+                    trait_definition.symbol,
+                    CapabilityFlowKind::Uses,
+                ),
+                returns: capability_verb_count(
+                    checked,
+                    trait_definition.symbol,
+                    CapabilityFlowKind::Returns,
+                ),
+                acquires: capability_verb_count(
+                    checked,
+                    trait_definition.symbol,
+                    CapabilityFlowKind::Acquires,
+                ),
+                stores: capability_verb_count(
+                    checked,
+                    trait_definition.symbol,
+                    CapabilityFlowKind::Stores,
+                ),
+                derives: capability_verb_count(
+                    checked,
+                    trait_definition.symbol,
+                    CapabilityFlowKind::Derives,
+                ),
+            });
     }
 }
 

@@ -9,7 +9,9 @@ pub(super) fn collect_runtime_text_compare_relocations(
     instruction: &SelectedInstructionKind,
 ) -> bool {
     match instruction {
-        SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal, .. } => {
+        SelectedInstructionKind::CompareRuntimeTextLiteral {
+            buffer, literal, ..
+        } => {
             // Only emit the buffer-address relocation when the comparison actually occupies
             // bytes (and therefore carries an inline 64-bit buffer-address immediate). On targets
             // where the comparison folds into the following `DispatchCaseEnter` and emits zero

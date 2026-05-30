@@ -255,8 +255,7 @@ fn capability_manifest_reports_authority_flow_verbs() {
         let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
             .expect("boundary report should be written");
         assert!(
-            boundary.contains("Capability Blast Radius")
-                && boundary.contains("approved provider"),
+            boundary.contains("Capability Blast Radius") && boundary.contains("approved provider"),
             "boundary report for {canary_name} should surface the capability blast radius\n{boundary}"
         );
 

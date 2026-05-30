@@ -47,7 +47,8 @@ pub fn build_host_authority_registry(program: &TypedTrees) -> HostAuthorityRegis
             effects.insert_all(signature_effects(program, signature));
         }
 
-        let implemented_in_package = boundary_trait_is_implemented(program, trait_definition.symbol);
+        let implemented_in_package =
+            boundary_trait_is_implemented(program, trait_definition.symbol);
         registry.register(HostAuthorityProvider::new(
             trait_definition.symbol,
             authority_effects(effects),
@@ -214,7 +215,10 @@ mod tests {
         let effects = infer_effects(&program);
         let registry = build_host_authority_registry(&program);
         let unapproved = audit_host_calls(&program, &effects, &registry);
-        assert!(unapproved.is_empty(), "abstract provider should be approved");
+        assert!(
+            unapproved.is_empty(),
+            "abstract provider should be approved"
+        );
     }
 
     #[test]

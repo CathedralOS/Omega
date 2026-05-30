@@ -47,7 +47,9 @@ fn argument_decreases_lexicographically(
     else {
         return false;
     };
-    let literal_fields = program.expression_table.struct_fields(struct_literal.fields);
+    let literal_fields = program
+        .expression_table
+        .struct_fields(struct_literal.fields);
 
     for field in fields.iter() {
         let Some(value) = literal_fields

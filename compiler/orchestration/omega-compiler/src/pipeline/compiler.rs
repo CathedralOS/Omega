@@ -75,11 +75,7 @@ impl Compiler {
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         write_checked_snapshot(&self.options, &checked.program)?;
-        write_boundary_report_with_capabilities(
-            &self.options,
-            &syntax_trees,
-            &checked.program,
-        )?;
+        write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
         let backend_surface = build_backend_surface_report(&checked.program);
 
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;

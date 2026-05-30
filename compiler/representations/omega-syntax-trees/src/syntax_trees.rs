@@ -9,8 +9,7 @@ use crate::item::{
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
     DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable,
     LibraryDefinition, LibraryFunction, Machine, MeasureDefinition, OperatorDefinition, Platform,
-    ProofFact,
-    ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
+    ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
     StateSignature, StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting,
     TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem,
 };
@@ -242,14 +241,13 @@ impl SyntaxTrees {
             let source_parameter = other.items.state_parameter(measure.parameter);
             let type_reference =
                 self.copy_type_reference_handle(other, source_parameter.type_reference);
-            self.items
-                .insert_state_parameter_node(StateParameterNode {
-                    name: source_parameter.name.clone(),
-                    type_reference,
-                    is_const: source_parameter.is_const,
-                    is_mutable: source_parameter.is_mutable,
-                    is_self: source_parameter.is_self,
-                })
+            self.items.insert_state_parameter_node(StateParameterNode {
+                name: source_parameter.name.clone(),
+                type_reference,
+                is_const: source_parameter.is_const,
+                is_mutable: source_parameter.is_mutable,
+                is_self: source_parameter.is_self,
+            })
         } else {
             StateParameterHandle::invalid()
         };

@@ -60,14 +60,11 @@ impl RankingOrder {
             }
             MeasureBodyShape::FieldProjection(field) => {
                 // The decreasing value must have the measure's parameter type.
-                let parameter_type = measure
-                    .parameter
-                    .as_ref()
-                    .map(|parameter| {
-                        program
-                            .type_reference_table
-                            .display_name(parameter.type_reference)
-                    })?;
+                let parameter_type = measure.parameter.as_ref().map(|parameter| {
+                    program
+                        .type_reference_table
+                        .display_name(parameter.type_reference)
+                })?;
                 if expression_type_name(program, state, decreases).as_deref()
                     != Some(parameter_type.as_str())
                 {

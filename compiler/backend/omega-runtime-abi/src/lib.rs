@@ -183,10 +183,7 @@ mod tests {
     fn shims_match_total_size() {
         let p = plan(8);
         assert_eq!(p.slice_descriptor_size(), p.slice_descriptor().total_size());
-        assert_eq!(
-            p.string_descriptor_size(),
-            p.text_descriptor().total_size()
-        );
+        assert_eq!(p.string_descriptor_size(), p.text_descriptor().total_size());
         assert_eq!(p.slice_descriptor_size(), p.string_descriptor_size());
     }
 

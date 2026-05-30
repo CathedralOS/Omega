@@ -229,7 +229,10 @@ mod tests {
         let authority = authority_effects(mixed);
         assert_eq!(authority.names().collect::<Vec<_>>(), ["filesystem_io"]);
         assert!(requires_host_authority(mixed));
-        assert!(!requires_host_authority(effects(&["alloc", "thread_spawn"])));
+        assert!(!requires_host_authority(effects(&[
+            "alloc",
+            "thread_spawn"
+        ])));
     }
 
     #[test]

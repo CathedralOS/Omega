@@ -1,7 +1,7 @@
 use omega_checked_trees::{BorrowAccessKind, CheckFacts, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 
-use crate::flow::{call_mutated_places, statement_mutated_place, StateMutationSummaryCache};
+use crate::flow::{StateMutationSummaryCache, call_mutated_places, statement_mutated_place};
 use crate::labels::symbol_name;
 use crate::semantic_calls::find_state_in_machine;
 
