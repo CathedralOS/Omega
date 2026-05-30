@@ -335,6 +335,9 @@ meaning, without needing access to pointer descriptor internals.
   - abstract-to-target boundary policy validation now splits linked-edge
     discovery, unlinked-edge discovery, and policy-check record construction
     so target boundary admissibility has a narrower growth seam
+  - abstract-to-target semantic summary assembly now joins value, boundary, and
+    ownership roots through `AbstractSemanticSummary::with_roots`, isolating
+    target boundary policy validation to the boundary root
   - host ABI plans now carry checked boundary-policy allow-lists and target
     boundary validation can flag disallowed binding policies
   - checked acceptance summaries now expose a stable ordered check list and

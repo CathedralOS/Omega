@@ -15,6 +15,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 ## Implementation Map
 
 - `translator.rs` owns the conveyor from abstract operation arenas into target operation arenas and preserves semantic metadata summaries across the stage boundary.
+- `semantics.rs` owns target semantic summary assembly. It should join value,
+  boundary, and ownership roots through the shared semantic-summary constructor,
+  with boundary policy validation isolated to the boundary root.
 - `instructions.rs` owns abstract instruction legalization, including host-operation remapping into target operation keys.
 - `operands.rs` owns instruction operand translation and abstract data-handle remapping.
 - `values.rs` owns runtime value operand translation and runtime value handle remapping.
