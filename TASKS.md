@@ -88,8 +88,9 @@ surfacing) are left to the owning slice.
   blast-radius manifest + host-call authorization (Cap), plus the first
   expression-level operator spelling facts for `[]` and range indexing, plus
   receiver-aware checked candidate narrowing and candidate signature summaries.
-  Remaining: contract-producing operator dispatch, ambiguity diagnostics, lemma
-  consumption, runtime descriptor generalization, and native/asm-emission depth.
+  Remaining: contract-producing operator dispatch, missing-operator diagnostics
+  after core contracts are wired, lemma consumption, runtime descriptor
+  generalization, and native/asm-emission depth.
 - Pipeline architecture docs now define semantic ownership and include the
   stage-by-stage ownership matrix.
 - Syntax, symbol-resolved, typed, checked, state-graph, control-flow, abstract,
@@ -243,8 +244,11 @@ order."
 Goal: operators should have visible semantic homes and domain-selected meanings
 without hidden runtime tags.
 
-- [ ] Use operator symbols during overload resolution and validate ambiguous
+- [x] Use operator symbols during overload resolution and validate ambiguous
   operator declarations by signature and context.
+  (done: declaration overlap validation plus checked-use ambiguity diagnostics
+  with candidate signature details; missing operators stay pending until core
+  contracts are wired.)
 - [x] Design a declaration form for fixed spellings such as `+`, `[]`, and
   range slicing. (decided: Wave 0 #3 — `spelling` clause on named `operator`.)
 - [x] Materialize expression-level operator-use facts for indexed expressions so
