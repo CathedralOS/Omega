@@ -159,7 +159,8 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   seam. They compile + test together but overlap conceptually — pick one
   authority and route the other through it. Recent progress: checked candidates
   now preserve the exact typed contract span, so proof lowering can inspect the
-  selected operator's contracts rather than relying on a count.
+  selected operator's contracts rather than relying on a count; resolved
+  operator contracts now materialize under `ProofFacts.contract_operator_uses`.
 - [ ] Prove that only facts in the CURRENT context can select a domain-operator
   meaning. (Spelling dispatch, bounds-from-`requires`, and competing-meaning
   rejection now exist; the positive proof-context selection is the remaining gap.)

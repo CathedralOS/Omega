@@ -5,14 +5,29 @@ mod obligations;
 use contracts::{
     append_inherited_trait_contract_facts, append_machine_contract_facts,
     append_state_signature_contract_facts, build_contract_call_facts, build_contract_exit_facts,
-    estimated_contract_fact_capacity,
+    build_contract_operator_use_facts, estimated_contract_fact_capacity,
 };
 use obligations::lower_proof_obligation;
 
+#[cfg(test)]
 pub(crate) fn build_proof_facts(
     program: &omega_typed_trees::TypedTrees,
     proof_plan: &omega_proof::obligations::ProofPlan,
     borrow: &BorrowFacts,
+) -> ProofFacts {
+    build_proof_facts_with_operators(
+        program,
+        proof_plan,
+        borrow,
+        &CheckedOperatorFacts::default(),
+    )
+}
+
+pub(crate) fn build_proof_facts_with_operators(
+    program: &omega_typed_trees::TypedTrees,
+    proof_plan: &omega_proof::obligations::ProofPlan,
+    borrow: &BorrowFacts,
+    operators: &CheckedOperatorFacts,
 ) -> ProofFacts {
     let mut obligations = omega_core::arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts =
@@ -44,6 +59,12 @@ pub(crate) fn build_proof_facts(
     }
     let (mut contract_fact_refs, contract_calls) =
         build_contract_call_facts(program, borrow, &contract_facts);
+    let contract_operator_uses = build_contract_operator_use_facts(
+        program,
+        operators,
+        &mut contract_facts,
+        &mut contract_fact_refs,
+    );
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
 
@@ -53,6 +74,7 @@ pub(crate) fn build_proof_facts(
         contract_fact_refs,
         contract_calls,
         contract_exits,
+        contract_operator_uses,
     )
 }
 

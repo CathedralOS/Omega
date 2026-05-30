@@ -133,7 +133,9 @@ fn contract_owner_self_symbol(
                     })
                 });
         }
-        ContractProofFactOwner::Unknown => return None,
+        ContractProofFactOwner::Unknown | ContractProofFactOwner::OperatorUse { .. } => {
+            return None;
+        }
     };
 
     let state = find_state(program, state_symbol)?;

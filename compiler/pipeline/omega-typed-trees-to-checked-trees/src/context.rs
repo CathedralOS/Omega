@@ -5,7 +5,8 @@ pub(crate) use omega_checked_trees::statement::{
 };
 pub(crate) use omega_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowRootKind,
-    BorrowWritableRootFact, CheckedTrees, ContractCallFact, ContractExitFact, ContractProofFact,
+    BorrowWritableRootFact, CheckedOperatorContractUse, CheckedOperatorFacts, CheckedTrees,
+    ContractCallFact, ContractExitFact, ContractOperatorUseFact, ContractProofFact,
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, FlowBorrowActivationFact, FlowBorrowLifetimeFacts,
     FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts,
