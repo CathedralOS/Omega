@@ -68,10 +68,22 @@ machine InventorySystem::add_item(
     let existing_index: Option<usize> = self.find_item(inventory, kind);
 
     transition existing_index.is_some() {
-        true -> increment_item(&mut inventory.items[existing_index.unwrap()], 1)
+        true -> increment_existing(inventory, kind, existing_index.unwrap())
         false -> append_item(inventory, kind)
     }
 
+
+    state increment_existing(
+        &mut self,
+        inventory: &mut Inventory,
+        kind: ItemKind,
+        index: usize
+    ) {
+        transition index < 32 {
+            true -> increment_item(&mut inventory.items[index], 1)
+            false -> append_item(inventory, kind)
+        }
+    }
 
     state append_item(
         &mut self,
@@ -97,8 +109,23 @@ machine InventorySystem::append_item(
 ) {
     let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
     let index: usize = inventory.item_count;
-    items[index] = InventoryItem { kind: kind, count: 1 };
-    inventory.item_count = inventory.item_count + 1;
+
+    transition index < 32 {
+        true -> append_item_at(inventory, items, kind, index)
+        false -> {}
+    }
+
+
+    state append_item_at(
+        &mut self,
+        inventory: &mut Inventory,
+        items: &mut [InventoryItem],
+        kind: ItemKind,
+        index: usize
+    ) {
+        items[index] = InventoryItem { kind: kind, count: 1 };
+        inventory.item_count = inventory.item_count + 1;
+    }
 }
 
 machine InventorySystem::find_item(
@@ -120,12 +147,25 @@ machine InventorySystem::find_item_at(
     kind: ItemKind,
     index: usize
     ) -> Option<usize> {
-    let found: bool = items[index].kind == kind;
-    let next_index: usize = index + 1;
+    transition index < items.len {
+        true -> inspect_item(items, kind, index)
+        false -> None
+    }
 
-    match found {
-        true -> index
-        false -> self.find_item_after(items, kind, next_index)
+
+    state inspect_item(
+        &mut self,
+        items: &[InventoryItem],
+        kind: ItemKind,
+        index: usize
+    ) {
+        let found: bool = items[index].kind == kind;
+        let next_index: usize = index + 1;
+
+        match found {
+            true -> index
+            false -> self.find_item_after(items, kind, next_index)
+        }
     }
 }
 

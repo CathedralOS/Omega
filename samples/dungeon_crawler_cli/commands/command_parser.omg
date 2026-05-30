@@ -73,14 +73,28 @@ machine CommandParser::find_exit_at(
     command: &String,
     index: usize
     ) -> Navigation {
-    let found: bool = exits[index].command == command;
-    let next_index: usize = index + 1;
-    let has_next: bool = next_index < exit_count;
+    transition index < exits.len {
+        true -> inspect_exit(exits, exit_count, command, index)
+        false -> self.invalid_navigation()
+    }
 
-    transition {
-        found -> self.navigation(NavigationChoice::Move, exits[index].destination)
-        has_next -> self.find_exit_at(exits, exit_count, command, next_index)
-        _ -> self.invalid_navigation()
+
+    state inspect_exit(
+        &mut self,
+        exits: &[Exit],
+        exit_count: usize,
+        command: &String,
+        index: usize
+    ) {
+        let found: bool = exits[index].command == command;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < exit_count && next_index < exits.len;
+
+        transition {
+            found -> self.navigation(NavigationChoice::Move, exits[index].destination)
+            has_next -> self.find_exit_at(exits, exit_count, command, next_index)
+            _ -> self.invalid_navigation()
+        }
     }
 }
 
