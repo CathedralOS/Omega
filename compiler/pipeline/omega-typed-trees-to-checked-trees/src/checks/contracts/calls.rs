@@ -78,6 +78,9 @@ pub(super) fn check_call_requires(
                             domain_symbol,
                         )
                     }
+                    FactPayload::ContractBooleanExpression { expression, .. } => {
+                        explain_missing_boolean_fact(program, expression)
+                    }
                     _ => None,
                 };
                 diagnostics.push(Diagnostic::error(format!(
@@ -92,6 +95,24 @@ pub(super) fn check_call_requires(
             }
         }
     }
+}
+
+/// Clear "needs fact X here" guidance for a proof-backed operator/contract that
+/// is missing a required boolean fact (for example an index bound or a
+/// domain-sensitive operator precondition). The caller has not established the
+/// fact in the entry context, so name exactly what must hold before the call.
+fn explain_missing_boolean_fact(
+    program: &omega_typed_trees::TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<String> {
+    let fact = program.expression_table.display_name(expression);
+    if fact.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "needs fact `{fact}` here; establish it before the call via a prior \
+         contract guarantee, domain membership, or guard"
+    ))
 }
 
 fn explain_domain_requirement_failure(
