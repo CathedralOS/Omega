@@ -54,7 +54,8 @@ Must not own:
   `memory.rs` owns bytes and BSS facts, `symbols.rs` owns
   entry/symbol/import facts, `relocations.rs` owns final fixups, `layout.rs`
   owns final section addresses, and `root.rs` owns `FinalImage` construction.
-  Root construction should go through `FinalImage::with_capacity` so callers
+  Root construction should join memory, symbol-table, and relocation-table
+  roots through `FinalImage::with_roots` or the capacity constructor so callers
   do not manually assemble every sub-root arena.
 - `omega-image/src/builder.rs` owns object-plan and relocation-plan conversion into `FinalImage`.
 - `omega-image/src/builder/copies.rs` owns object symbol, import, and

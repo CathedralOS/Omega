@@ -9,10 +9,12 @@ pub struct FinalImageRelocationTable {
 }
 
 impl FinalImageRelocationTable {
+    pub fn with_roots(relocations: Arena<FinalImageRelocation>) -> Self {
+        Self { relocations }
+    }
+
     pub fn with_capacity(relocation_capacity: usize) -> Self {
-        Self {
-            relocations: Arena::with_capacity(relocation_capacity),
-        }
+        Self::with_roots(Arena::with_capacity(relocation_capacity))
     }
 }
 
@@ -38,5 +40,20 @@ impl Default for FinalImageRelocation {
             symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::{FinalImageRelocation, FinalImageRelocationTable};
+    use omega_core::arena::Arena;
+
+    #[test]
+    fn relocation_table_constructor_keeps_relocation_root_explicit() {
+        let relocations = Arena::<FinalImageRelocation>::with_capacity(3);
+
+        let table = FinalImageRelocationTable::with_roots(relocations.clone());
+
+        assert_eq!(table.relocations, relocations);
     }
 }

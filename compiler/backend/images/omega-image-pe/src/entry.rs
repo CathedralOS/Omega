@@ -34,17 +34,22 @@ pub(crate) fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
 mod tests {
     use super::pe_entry_rva;
     use crate::constants::TEXT_RVA;
+    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
 
     #[test]
     fn resolves_pe_entry_rva_from_final_image_entry_symbol() {
-        let mut image = FinalImage {
-            memory: omega_image::FinalImageMemory {
+        let mut image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            omega_image::FinalImageMemory {
                 text: vec![0; 16],
                 ..Default::default()
             },
-            ..FinalImage::default()
-        };
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
         let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "_start".into(),
             section: FinalImageSection::Text,

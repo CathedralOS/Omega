@@ -384,6 +384,9 @@ meaning, without needing access to pointer descriptor internals.
   - object-file layout roots now expose explicit `ObjectFileLayout::with_roots`
     and `ObjectPlan::with_layout` constructors with canaries, so object and
     image fixtures no longer hand-build artifact arena roots
+  - final-image memory, symbol-table, and relocation-table roots now join
+    through explicit final-image constructors with canaries, so format tests no
+    longer assemble `FinalImage` with struct-update defaults
   - backend artifact roots now have a target-aware empty constructor, so
     orchestration skeletons do not hand-build machine/object/relocation roots
   - backend semantic summary names after abstract operations now alias the same

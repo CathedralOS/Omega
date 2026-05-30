@@ -82,19 +82,24 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
 mod tests {
     use super::plan_pe_sections;
     use crate::constants::{FILE_ALIGNMENT, SECTION_ALIGNMENT, TEXT_RVA};
+    use omega_core::arena::Handle;
     use omega_image::FinalImage;
 
     #[test]
     fn plans_pe_sections_with_data_and_bss() {
-        let image = FinalImage {
-            memory: omega_image::FinalImageMemory {
+        let image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            omega_image::FinalImageMemory {
                 text: vec![0; 3],
                 data: vec![0; 5],
                 bss_size: 7,
                 ..Default::default()
             },
-            ..FinalImage::default()
-        };
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
 
         let sections = plan_pe_sections(&image, 9);
 

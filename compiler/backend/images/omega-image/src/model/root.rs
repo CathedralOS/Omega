@@ -27,6 +27,20 @@ impl Default for FinalImage {
 }
 
 impl FinalImage {
+    pub fn with_roots(
+        target: NativeTarget,
+        memory: FinalImageMemory,
+        symbol_table: FinalImageSymbolTable,
+        relocation_table: FinalImageRelocationTable,
+    ) -> Self {
+        Self {
+            target,
+            memory,
+            symbol_table,
+            relocation_table,
+        }
+    }
+
     pub fn with_capacity(
         target: NativeTarget,
         memory: FinalImageMemory,
@@ -35,15 +49,45 @@ impl FinalImage {
         import_capacity: usize,
         relocation_capacity: usize,
     ) -> Self {
-        Self {
+        Self::with_roots(
             target,
             memory,
-            symbol_table: FinalImageSymbolTable::with_capacity(
-                entry_symbol,
-                symbol_capacity,
-                import_capacity,
-            ),
-            relocation_table: FinalImageRelocationTable::with_capacity(relocation_capacity),
-        }
+            FinalImageSymbolTable::with_capacity(entry_symbol, symbol_capacity, import_capacity),
+            FinalImageRelocationTable::with_capacity(relocation_capacity),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::{
+        FinalImage, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolTable,
+    };
+    use omega_core::arena::Handle;
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn final_image_constructor_keeps_artifact_roots_explicit() {
+        let target = NativeTarget::linux_arm64();
+        let memory = FinalImageMemory {
+            text: vec![0xaa],
+            data: vec![0xbb],
+            bss_size: 3,
+            bss_alignment: 4,
+        };
+        let symbol_table = FinalImageSymbolTable::with_capacity(Handle::invalid(), 1, 2);
+        let relocation_table = FinalImageRelocationTable::with_capacity(3);
+
+        let image = FinalImage::with_roots(
+            target,
+            memory.clone(),
+            symbol_table.clone(),
+            relocation_table.clone(),
+        );
+
+        assert_eq!(image.target, target);
+        assert_eq!(image.memory, memory);
+        assert_eq!(image.symbol_table, symbol_table);
+        assert_eq!(image.relocation_table, relocation_table);
     }
 }

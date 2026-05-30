@@ -122,19 +122,24 @@ pub(crate) fn plan_macho_image(
 mod tests {
     use super::plan_macho_image;
     use crate::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
+    use omega_core::arena::Handle;
     use omega_image::FinalImage;
 
     #[test]
     fn plans_macho_data_bss_and_linkedit_layout() {
-        let image = FinalImage {
-            memory: omega_image::FinalImageMemory {
+        let image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            omega_image::FinalImageMemory {
                 text: vec![0; 3],
                 data: vec![0; 5],
                 bss_size: 7,
                 bss_alignment: 8,
             },
-            ..FinalImage::default()
-        };
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
 
         let plan = plan_macho_image(&image, 1, 12);
 
