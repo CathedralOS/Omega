@@ -8,6 +8,10 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TableCall};
 
+pub use capabilities::providers::{
+    BoundaryProvider, BoundaryProviderRegistry, HostCallAuthorization, HOST_AUTHORITY_EFFECT_NAMES,
+    authority_effects, host_authority_effects, requires_host_authority,
+};
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 
 pub type EffectBits = u64;
