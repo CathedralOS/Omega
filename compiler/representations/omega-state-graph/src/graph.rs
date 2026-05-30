@@ -21,6 +21,30 @@ pub struct StateGraphCode {
     pub transitions: Arena<TransitionEdge>,
 }
 
+impl StateGraphCode {
+    pub fn with_roots(
+        expressions: ExpressionTable,
+        machines: Arena<MachineGraph>,
+        contained_machines: Arena<ContainedGraph>,
+        machine_owned_data: Arena<MachineOwnedDataGraph>,
+        states: Arena<StateNode>,
+        state_parameters: Arena<StateParameterNode>,
+        operations: Arena<Operation>,
+        transitions: Arena<TransitionEdge>,
+    ) -> Self {
+        Self {
+            expressions,
+            machines,
+            contained_machines,
+            machine_owned_data,
+            states,
+            state_parameters,
+            operations,
+            transitions,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraph {
     pub code: StateGraphCode,
@@ -54,21 +78,56 @@ mod tests {
 
     #[test]
     fn graph_constructor_keeps_code_and_semantic_roots_explicit() {
-        let code = StateGraphCode {
-            expressions: Default::default(),
-            machines: Arena::with_capacity(1),
-            contained_machines: Arena::with_capacity(2),
-            machine_owned_data: Arena::with_capacity(3),
-            states: Arena::with_capacity(4),
-            state_parameters: Arena::with_capacity(5),
-            operations: Arena::with_capacity(6),
-            transitions: Arena::with_capacity(7),
-        };
+        let code = state_graph_code_fixture();
         let semantics = StateGraphSemanticRoots::default();
 
         let graph = StateGraph::with_roots(code.clone(), semantics.clone());
 
         assert_eq!(graph.code, code);
         assert_eq!(graph.semantics, semantics);
+    }
+
+    #[test]
+    fn code_constructor_keeps_executable_roots_explicit() {
+        let expressions = Default::default();
+        let machines = Arena::with_capacity(1);
+        let contained_machines = Arena::with_capacity(2);
+        let machine_owned_data = Arena::with_capacity(3);
+        let states = Arena::with_capacity(4);
+        let state_parameters = Arena::with_capacity(5);
+        let operations = Arena::with_capacity(6);
+        let transitions = Arena::with_capacity(7);
+
+        let code = StateGraphCode::with_roots(
+            expressions,
+            machines.clone(),
+            contained_machines.clone(),
+            machine_owned_data.clone(),
+            states.clone(),
+            state_parameters.clone(),
+            operations.clone(),
+            transitions.clone(),
+        );
+
+        assert_eq!(code.machines, machines);
+        assert_eq!(code.contained_machines, contained_machines);
+        assert_eq!(code.machine_owned_data, machine_owned_data);
+        assert_eq!(code.states, states);
+        assert_eq!(code.state_parameters, state_parameters);
+        assert_eq!(code.operations, operations);
+        assert_eq!(code.transitions, transitions);
+    }
+
+    fn state_graph_code_fixture() -> StateGraphCode {
+        StateGraphCode::with_roots(
+            Default::default(),
+            Arena::with_capacity(1),
+            Arena::with_capacity(2),
+            Arena::with_capacity(3),
+            Arena::with_capacity(4),
+            Arena::with_capacity(5),
+            Arena::with_capacity(6),
+            Arena::with_capacity(7),
+        )
     }
 }

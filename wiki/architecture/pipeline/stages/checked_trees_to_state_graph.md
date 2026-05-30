@@ -64,8 +64,9 @@ preservation:
 - `omega-state-graph/src/graph.rs` owns the representation roots: executable
   scheduling shape lives under `StateGraphCode`, while preserved semantic
   evidence lives under `StateGraphSemanticRoots`. Graph construction should
-  join those roots through `StateGraph::with_roots` so code topology and
-  semantic evidence stay visibly separate.
+  join executable roots through `StateGraphCode::with_roots` and then join
+  code plus semantic roots through `StateGraph::with_roots` so code topology
+  and semantic evidence stay visibly separate.
 - `omega-state-graph/src/semantics.rs` owns the `StateGraphSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas. Its constructor names those noun roots explicitly so later

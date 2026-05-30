@@ -36,16 +36,16 @@ impl StateGraph {
         transition_capacity: usize,
     ) -> Self {
         Self::with_roots(
-            StateGraphCode {
-                expressions: ExpressionTable::with_capacities(expression_capacity),
-                machines: Arena::with_capacity(machine_capacity),
-                contained_machines: Arena::with_capacity(contained_machine_capacity),
-                machine_owned_data: Arena::with_capacity(machine_owned_data_capacity),
-                states: Arena::with_capacity(state_capacity),
-                state_parameters: Arena::with_capacity(state_parameter_capacity),
-                operations: Arena::with_capacity(operation_capacity),
-                transitions: Arena::with_capacity(transition_capacity),
-            },
+            StateGraphCode::with_roots(
+                ExpressionTable::with_capacities(expression_capacity),
+                Arena::with_capacity(machine_capacity),
+                Arena::with_capacity(contained_machine_capacity),
+                Arena::with_capacity(machine_owned_data_capacity),
+                Arena::with_capacity(state_capacity),
+                Arena::with_capacity(state_parameter_capacity),
+                Arena::with_capacity(operation_capacity),
+                Arena::with_capacity(transition_capacity),
+            ),
             StateGraphSemanticRoots::with_roots(
                 StateGraphFactRoots {
                     proof_obligations: Arena::with_capacity(proof_obligation_capacity),
