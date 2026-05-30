@@ -171,6 +171,52 @@ impl ForAllInRangeFact {
         Self::new(predicate, QuantifiedBound::Zero, QuantifiedBound::Length)
     }
 
+    /// Whether this quantified fact discharges "element at `index` satisfies
+    /// `predicate`". It does so when the predicate matches and `index` provably
+    /// lies inside the quantified range. A vacuous range proves nothing (there
+    /// is no such element), so it never discharges a concrete element goal.
+    ///
+    /// This is the consumer side of the sequence-style invariant: a guard or
+    /// contract that established "every element in 0..len is `P`" lets an
+    /// element access at a proven-in-range index be treated as `P` without a
+    /// per-element runtime check.
+    pub fn proves_element(&self, predicate: &str, index: ElementIndex) -> bool {
+        if self.predicate != predicate || self.is_vacuous() {
+            return false;
+        }
+        self.contains_index(index)
+    }
+
+    /// Whether `index` provably lies within `[start, end)`. Symbolic bounds are
+    /// treated conservatively: an index is only proven in-range when it can be
+    /// compared against concrete literal bounds, or it is the literal `0` paired
+    /// with a non-vacuous lower bound of `0`.
+    fn contains_index(&self, index: ElementIndex) -> bool {
+        let ElementIndex::Literal(index) = index else {
+            // A symbolic (in-bounds) index is covered only by a full-extent
+            // quantifier, whose range is exactly the collection's valid offsets.
+            return matches!(
+                (self.start, self.end),
+                (QuantifiedBound::Zero, QuantifiedBound::Length)
+            );
+        };
+
+        let lower_ok = match self.start {
+            QuantifiedBound::Zero => index >= 0,
+            QuantifiedBound::Literal(start) => index >= start,
+            QuantifiedBound::Length => false,
+        };
+        let upper_ok = match self.end {
+            QuantifiedBound::Zero => false,
+            QuantifiedBound::Literal(end) => index < end,
+            // `0..length`: any non-negative literal offset is in range only when
+            // we also know it is a valid offset, which a bare literal does not
+            // tell us. Conservatively reject symbolic upper bounds for literals.
+            QuantifiedBound::Length => false,
+        };
+        lower_ok && upper_ok
+    }
+
     /// Whether the quantified range is provably empty, in which case the fact
     /// holds vacuously. Only literal bounds can be compared; symbolic bounds are
     /// treated conservatively as possibly non-empty.
@@ -182,6 +228,16 @@ impl ForAllInRangeFact {
             _ => false,
         }
     }
+}
+
+/// An index into a quantified range, used when discharging a per-element goal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ElementIndex {
+    /// A concrete literal offset.
+    Literal(i64),
+    /// A symbolic index already proven to be a valid in-bounds offset (for
+    /// example via [`ProofLemma::IndexInBounds`]).
+    InBounds,
 }
 
 /// A bound of a quantified index range.
@@ -314,5 +370,42 @@ mod tests {
     fn zero_to_length_is_not_assumed_vacuous() {
         let fact = ForAllInRangeFact::new("Ascii", QuantifiedBound::Zero, QuantifiedBound::Length);
         assert!(!fact.is_vacuous());
+    }
+
+    #[test]
+    fn full_extent_fact_proves_in_bounds_element() {
+        let fact = ForAllInRangeFact::over_full_extent("Ascii");
+        // A symbolic in-bounds index is covered by the full extent.
+        assert!(fact.proves_element("Ascii", ElementIndex::InBounds));
+        // Wrong predicate is not discharged.
+        assert!(!fact.proves_element("Digit", ElementIndex::InBounds));
+    }
+
+    #[test]
+    fn literal_range_proves_literal_element_in_range() {
+        let fact = ForAllInRangeFact::new(
+            "Positive",
+            QuantifiedBound::Literal(1),
+            QuantifiedBound::Literal(4),
+        );
+        assert!(fact.proves_element("Positive", ElementIndex::Literal(1)));
+        assert!(fact.proves_element("Positive", ElementIndex::Literal(3)));
+        // Out of range below and at/above the exclusive end.
+        assert!(!fact.proves_element("Positive", ElementIndex::Literal(0)));
+        assert!(!fact.proves_element("Positive", ElementIndex::Literal(4)));
+        // A literal index is not discharged by a symbolic upper bound.
+        let symbolic = ForAllInRangeFact::over_full_extent("Positive");
+        assert!(!symbolic.proves_element("Positive", ElementIndex::Literal(2)));
+    }
+
+    #[test]
+    fn vacuous_range_proves_no_element() {
+        let fact = ForAllInRangeFact::new(
+            "Ascii",
+            QuantifiedBound::Literal(3),
+            QuantifiedBound::Literal(3),
+        );
+        assert!(!fact.proves_element("Ascii", ElementIndex::Literal(3)));
+        assert!(!fact.proves_element("Ascii", ElementIndex::InBounds));
     }
 }
