@@ -1,14 +1,12 @@
 use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
-    MachineGraph, Operation, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
-    StateBorrowLoan, StateBorrowWeakening, StateBorrowWritableRoot, StateBoundaryEdge,
-    StateContractCall, StateContractExit, StateContractFactRef, StateDropEvent, StateGraph,
-    StateGraphCode, StateGraphSemanticRoots, StateMoveEvent, StateNode, StateParameterNode,
-    StateValueFact, TransitionEdge,
+    MachineGraph, Operation, StateBoundaryEdge, StateContractCall, StateContractExit,
+    StateContractFactRef, StateDropEvent, StateGraph, StateGraphCode, StateGraphSemanticRoots,
+    StateMoveEvent, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
 };
 
-use crate::borrows::remap_state_borrow_summary;
+use crate::borrows::{SourceBorrowArenas, remap_state_borrow_summary};
 use crate::boundaries::remap_state_boundary_summary;
 use crate::contracts::remap_state_contract_summary;
 use crate::ownership::remap_state_ownership_summary;
@@ -55,7 +53,7 @@ pub(crate) fn merge_machine_graph(
             },
             values: &values.values,
             boundaries: &boundaries.edges,
-            borrow: SourceStateBorrowArenas {
+            borrow: SourceBorrowArenas {
                 writable_roots: &borrow.writable_roots,
                 access_segments: &borrow.access_segments,
                 argument_accesses: &borrow.argument_accesses,
@@ -113,7 +111,7 @@ struct SourceStateSemanticArenas<'a> {
     contracts: SourceStateContractArenas<'a>,
     values: &'a Arena<StateValueFact>,
     boundaries: &'a Arena<StateBoundaryEdge>,
-    borrow: SourceStateBorrowArenas<'a>,
+    borrow: SourceBorrowArenas<'a>,
     ownership: SourceStateOwnershipArenas<'a>,
 }
 
@@ -121,16 +119,6 @@ struct SourceStateContractArenas<'a> {
     fact_refs: &'a Arena<StateContractFactRef>,
     calls: &'a Arena<StateContractCall>,
     exits: &'a Arena<StateContractExit>,
-}
-
-struct SourceStateBorrowArenas<'a> {
-    writable_roots: &'a Arena<StateBorrowWritableRoot>,
-    access_segments: &'a Arena<omega_facts::PlaceSegment>,
-    argument_accesses: &'a Arena<StateBorrowArgumentAccess>,
-    calls: &'a Arena<StateBorrowCall>,
-    loans: &'a Arena<StateBorrowLoan>,
-    activations: &'a Arena<StateBorrowActivation>,
-    weakenings: &'a Arena<StateBorrowWeakening>,
 }
 
 struct SourceStateOwnershipArenas<'a> {
@@ -178,17 +166,7 @@ fn append_remapped_states(
         let values = remap_state_value_summary(target, source.semantics.values, &state.values);
         let boundaries =
             remap_state_boundary_summary(target, source.semantics.boundaries, &state.boundaries);
-        let borrow = remap_state_borrow_summary(
-            target,
-            source.semantics.borrow.writable_roots,
-            source.semantics.borrow.access_segments,
-            source.semantics.borrow.argument_accesses,
-            source.semantics.borrow.calls,
-            source.semantics.borrow.loans,
-            source.semantics.borrow.activations,
-            source.semantics.borrow.weakenings,
-            &state.borrow,
-        );
+        let borrow = remap_state_borrow_summary(target, &source.semantics.borrow, &state.borrow);
         let ownership = remap_state_ownership_summary(
             target,
             source.semantics.ownership.segments,
