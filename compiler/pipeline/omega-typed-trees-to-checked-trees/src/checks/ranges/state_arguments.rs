@@ -15,6 +15,7 @@ use self::statements::collect_state_argument_facts_from_statement;
 pub(super) struct StateArgumentFacts {
     state: SymbolHandle,
     parameters: Vec<ParameterFacts>,
+    index_proofs: MergedIndexProofs,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +32,17 @@ enum MergedFact<T> {
     Unseen,
     Known(T),
     Conflicting,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ParameterIndexProof {
+    collection_parameter: usize,
+    index_parameter: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct MergedIndexProofs {
+    proofs: Option<Vec<ParameterIndexProof>>,
 }
 
 impl<T> Default for MergedFact<T> {
@@ -54,6 +66,21 @@ impl<T: Copy + Eq> MergedFact<T> {
             Self::Known(value) => Some(value),
             Self::Unseen | Self::Conflicting => None,
         }
+    }
+}
+
+impl MergedIndexProofs {
+    fn merge(&mut self, incoming: Vec<ParameterIndexProof>) {
+        let Some(existing) = &mut self.proofs else {
+            self.proofs = Some(incoming);
+            return;
+        };
+
+        existing.retain(|proof| incoming.contains(proof));
+    }
+
+    fn get(&self) -> &[ParameterIndexProof] {
+        self.proofs.as_deref().unwrap_or(&[])
     }
 }
 
@@ -128,5 +155,16 @@ pub(super) fn seed_state_argument_facts(
             parameter.length.get(),
             parameter.integer.get(),
         );
+    }
+
+    for proof in state_facts.index_proofs.get() {
+        let Some(collection) = state_facts.parameters.get(proof.collection_parameter) else {
+            continue;
+        };
+        let Some(index) = state_facts.parameters.get(proof.index_parameter) else {
+            continue;
+        };
+        facts.prove_index(collection.name.clone(), index.name.clone());
+        facts.prove_range_bound(collection.name.clone(), index.name.clone());
     }
 }

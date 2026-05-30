@@ -5,6 +5,7 @@ use omega_typed_trees::machine::Machine;
 use super::{MergedFact, ParameterFacts, StateArgumentFacts};
 use crate::checks::ranges::expressions::{expression_indexable_length, expression_integer_value};
 use crate::checks::ranges::facts::RangeFacts;
+use crate::checks::ranges::proofs::unknown_length_index_is_proven;
 
 pub(super) fn collect_state_argument_facts_for_call(
     program: &omega_typed_trees::TypedTrees,
@@ -41,11 +42,21 @@ pub(super) fn collect_state_argument_facts_for_call(
                     integer: MergedFact::Unseen,
                 })
                 .collect(),
+            index_proofs: Default::default(),
         });
         collected
             .last_mut()
             .expect("state argument facts were just inserted")
     };
+
+    let parameter_arguments: Vec<(usize, ExpressionHandle)> = entry
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| !parameter.is_self)
+        .zip(arguments.iter().copied())
+        .map(|((index, _), argument)| (index, argument))
+        .collect();
 
     for (parameter, argument) in entry
         .parameters
@@ -60,4 +71,41 @@ pub(super) fn collect_state_argument_facts_for_call(
             .integer
             .merge(expression_integer_value(program, facts, argument));
     }
+
+    let mut index_proofs = Vec::new();
+    for (collection_parameter, collection) in parameter_arguments.iter().copied() {
+        for (index_parameter, index) in parameter_arguments.iter().copied() {
+            if collection_parameter == index_parameter {
+                continue;
+            }
+            if argument_is_proven_index_for_collection(program, facts, collection, index) {
+                index_proofs.push(super::ParameterIndexProof {
+                    collection_parameter,
+                    index_parameter,
+                });
+            }
+        }
+    }
+    entry.index_proofs.merge(index_proofs);
+}
+
+fn argument_is_proven_index_for_collection(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
+    index: ExpressionHandle,
+) -> bool {
+    if let Some(length) = expression_indexable_length(program, facts, collection) {
+        if let Some(index_value) = expression_integer_value(program, facts, index) {
+            return index_value >= 0
+                && usize::try_from(index_value).is_ok_and(|index| index < length);
+        }
+
+        let collection_label = program.expression_table.display_name(collection);
+        let index_label = program.expression_table.display_name(index);
+        return facts.index_is_proven(&collection_label, &index_label)
+            || facts.index_upper_bound_is_proven(&index_label, length);
+    }
+
+    unknown_length_index_is_proven(program, facts, collection, index)
 }

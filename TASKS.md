@@ -82,9 +82,9 @@ instruction-record data-address insertion now no-ops when the selected instructi
 encoded to zero bytes, instead of requiring each arm to remember its own width
 gate. Follow-up fixed mutable slice literal-index writes by lowering
 fixed-indexed slice descriptor targets through the descriptor's pointee word.
-Measured result: filtered runtime canaries now report 70 passing / 3 failing.
-Remaining failures are no longer relocation splatter: slice iteration lacks an
-index proof, and native dungeon samples hit known borrow/index proof diagnostics.
+Measured result: filtered runtime canaries now report 71 passing / 2 failing.
+Remaining failures are no longer relocation splatter: native dungeon samples hit
+known borrow/index proof diagnostics.
 Harness: bin is `target/debug/omega.exe`; runtime canaries run as
 `cargo test -p omega-compiler --test canary_suite _runs -- --test-threads=1`;
 regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)

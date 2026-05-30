@@ -44,6 +44,7 @@ pub(super) fn check_statement(
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
                 facts.assign_local(symbol, name, next_length, next_integer);
+                seed_boolean_guard_local(program, facts, symbol, name, assignment.value);
                 seed_local_alias_facts(program, facts, assignment.value, name);
             } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
             {
@@ -73,6 +74,13 @@ pub(super) fn check_statement(
                 .or_else(|| fixed_array_type_length(program, local.type_reference));
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
+            seed_boolean_guard_local(
+                program,
+                facts,
+                local.symbol,
+                Some(local.name.as_str()),
+                local.initial_value,
+            );
             seed_local_alias_facts(
                 program,
                 facts,
@@ -109,6 +117,21 @@ pub(super) fn check_statement(
                 diagnostics,
             );
         }
+    }
+}
+
+fn seed_boolean_guard_local(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    symbol: omega_core::symbols::SymbolHandle,
+    name: Option<&str>,
+    expression: ExpressionHandle,
+) {
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Binary(_)
+    ) {
+        facts.define_boolean_guard_local(symbol, name.unwrap_or_default().to_owned(), expression);
     }
 }
 

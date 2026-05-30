@@ -1,4 +1,5 @@
 use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::expression::ExpressionHandle;
 
 use super::RangeFacts;
 
@@ -151,10 +152,46 @@ impl RangeFacts<'_> {
         self.integer_fields.clear();
     }
 
+    pub(in crate::checks::ranges) fn define_boolean_guard_local(
+        &mut self,
+        symbol: SymbolHandle,
+        name: impl Into<String>,
+        guard: ExpressionHandle,
+    ) {
+        self.boolean_locals.push((symbol, name.into(), guard));
+    }
+
+    pub(in crate::checks::ranges) fn boolean_guard_local(
+        &self,
+        symbol: SymbolHandle,
+        name: Option<&str>,
+    ) -> Option<ExpressionHandle> {
+        if symbol.is_valid() {
+            if let Some(guard) = self
+                .boolean_locals
+                .iter()
+                .rev()
+                .find_map(|(local, _, guard)| (*local == symbol).then_some(*guard))
+            {
+                return Some(guard);
+            }
+        }
+
+        self.boolean_locals
+            .iter()
+            .rev()
+            .find_map(|(_, local_name, guard)| {
+                name.is_some_and(|name| name == local_name)
+                    .then_some(*guard)
+            })
+    }
+
     fn forget_local(&mut self, symbol: SymbolHandle, name: Option<&str>) {
         self.locals
             .retain(|(local, local_name, _)| !value_fact_matches(*local, local_name, symbol, name));
         self.integer_locals
+            .retain(|(local, local_name, _)| !value_fact_matches(*local, local_name, symbol, name));
+        self.boolean_locals
             .retain(|(local, local_name, _)| !value_fact_matches(*local, local_name, symbol, name));
     }
 
