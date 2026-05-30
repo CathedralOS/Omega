@@ -572,6 +572,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility now supports dimension-level queries so
     callers can ask for the borrow/proof/effect/boundary/termination check
     without matching summary fields by hand
+  - checked operation admissibility summaries now expose aggregate evidence,
+    diagnostic, and rejected-check counts through the shared `AcceptanceView`
+    query surface
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
