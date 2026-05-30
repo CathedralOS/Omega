@@ -24,7 +24,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   whether each lowered host operation is linked to a source boundary edge and
   whether the target ABI has a binding/policy for that operation. It also
   checks that the binding policy is allowed by the selected target ABI policy
-  set.
+  set. Linked-edge discovery, unlinked-edge discovery, and policy-check record
+  construction should stay separate so later diagnostics can grow without
+  re-matching boundary summaries by hand.
 - `omega-target-operations/src/instruction/function.rs` owns target operation function plans.
 - `omega-target-operations/src/instruction/operation.rs` owns target operation records and source coordinates.
 - `omega-target-operations/src/instruction/operation_kind.rs` owns target operation kinds.
