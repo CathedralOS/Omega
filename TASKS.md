@@ -67,32 +67,33 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
-**EMISSION — runtime canary tail failures after zero-byte relocation fix.** Root cause (confirmed): some instructions lower to ZERO
-bytes on x86_64 (e.g. `EvaluateDispatchGuard`/`CompareRuntimeText`, whose compare
-folds into the following `cmp`/`movabs`), yet the relocation pass still emitted an
-`Absolute64` storage-address relocation anchored at the zero-byte instruction's
-text offset — which equals the NEXT instruction's start, so the 8-byte address
-splattered into it and executed as garbage → `0xC0000005`. Fixed for the
-dispatch-guard and text-compare arms by gating `insert_data_address_at_instruction_start`
-on non-zero per-arch instruction width
-(`omega-relocations/src/instruction_records/{runtime_storage_compares.rs,
-runtime_text_compare.rs`). Result so far: runtime `*_canary_runs` went 12→46
-passing. Follow-up central guard landed in `omega-relocations`: every
-instruction-record data-address insertion now no-ops when the selected instruction
-encoded to zero bytes, instead of requiring each arm to remember its own width
-gate. Follow-up fixed mutable slice literal-index writes by lowering
-fixed-indexed slice descriptor targets through the descriptor's pointee word.
-Measured result before the dungeon proof push: filtered runtime canaries reported
-71 passing / 2 failing. Recent progress cleared the native dungeon borrow/index
-diagnostics and the call-argument value-lowering blocker for local mutable aliases
-initialized by helper calls. Nested fixed-array-backed slice descriptors now
-materialize for `rooms[0].exits.as_mut_slice()`, and descriptor-backed
-fixed-index string writes route through the descriptor pointee instead of
-corrupting machine storage. The native dungeon tail has moved from startup
-memory-safety failure to runtime behavior: room data still renders blank/invalid
-after initialization, and EOF/empty stdin loops can spam invalid-command output
-instead of terminating cleanly.
-Harness: bin is `target/debug/omega.exe`; runtime canaries run as
+**EMISSION — runtime canary tail (57 pass / 14 fail, filtered `_runs` suite).**
+The `0xC0000005` access-violation class is CLOSED: zero-byte instructions (e.g.
+`EvaluateDispatchGuard`/`CompareRuntimeText`, whose compare folds into the next
+instruction) used to anchor an `Absolute64` data-address relocation at the next
+instruction's start and splatter the address into it; a central guard in
+`omega-relocations/.../instruction_records/context.rs` (`insert_data_address`
+no-ops when `selected_text_width == 0`) now covers every data-address arm. No
+remaining failures are relocation bugs. The 14 remaining `_runs` failures bucket
+into three causes, none of them relocations:
+- **x86 runtime value operand unimplemented (5):** `not implemented yet` compile
+  error — `runtime_machine_owned_indexed_integer_write`,
+  `runtime_mutable_local_indexed_parameter_write`, `runtime_nested_subslice_dynamic_index`,
+  `runtime_slice_index_read`, `runtime_slice_index_read_dispatch`. Implement the
+  x86_64 runtime value operand lowering in instruction selection / `omega-isa-x86_64`.
+- **Stdin host binding (2):** `missing host binding for runtime text read operation
+  Stdin.read` — `runtime_ordered_room_dispatch_loop`, `..._real_show_states` (and
+  the same blocks `pass_canaries_compile` on `calls/mutable_output_host_call` and
+  the dungeon PE). Wire the Windows x64 `Stdin.read` host binding.
+- **Wrong dispatch branch selection (~7, NEW bucket):** compiles + runs cleanly,
+  no AV, but guarded/ordered state dispatch routes to the WRONG arm — consistently
+  the base/false arm instead of the intended later one (e.g. ambush exits 70
+  instead of 73; boolean conjunction routes to false-arm 10 instead of true-arm 21;
+  `runtime_ordered_room_dispatch_{exit,after_call,game_shape,large_machine}`,
+  `runtime_direct_boolean_conjunction`, `runtime_slice_alias_indexed_string_field_concat`).
+  Relocations are well-formed for these — the bug is branch/transition SELECTION
+  lowering in instruction-selection / branching crates. Needs its own lane.
+Harness: bin `target/debug/omega.exe`; runtime canaries run as
 `cargo test -p omega-compiler --test canary_suite _runs -- --test-threads=1`;
 regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)
 + `windows_x64_cli_mvp_emits_runnable_pe`.
