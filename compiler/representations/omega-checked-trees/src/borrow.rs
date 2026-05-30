@@ -71,6 +71,24 @@ pub struct BorrowFacts {
 }
 
 impl BorrowFacts {
+    pub fn with_roots(
+        writable_roots: Arena<BorrowWritableRootFact>,
+        access_segments: Arena<omega_facts::PlaceSegment>,
+        argument_accesses: Arena<BorrowArgumentAccessFact>,
+        calls: Arena<BorrowCallFact>,
+        loans: Arena<BorrowLoanFact>,
+        states: Arena<StateBorrowFact>,
+    ) -> Self {
+        Self {
+            writable_roots,
+            access_segments,
+            argument_accesses,
+            calls,
+            loans,
+            states,
+        }
+    }
+
     pub fn access_segments(
         &self,
         access: &BorrowArgumentAccessFact,
@@ -115,4 +133,39 @@ fn place_segments_overlap(
         .take(shared_len)
         .zip(right.iter().take(shared_len))
         .all(|(left_segment, right_segment)| left_segment == right_segment)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact,
+        BorrowWritableRootFact, StateBorrowFact,
+    };
+    use omega_core::arena::Arena;
+
+    #[test]
+    fn borrow_facts_constructor_keeps_borrow_roots_explicit() {
+        let writable_roots = Arena::<BorrowWritableRootFact>::with_capacity(1);
+        let access_segments = Arena::<omega_facts::PlaceSegment>::with_capacity(2);
+        let argument_accesses = Arena::<BorrowArgumentAccessFact>::with_capacity(3);
+        let calls = Arena::<BorrowCallFact>::with_capacity(4);
+        let loans = Arena::<BorrowLoanFact>::with_capacity(5);
+        let states = Arena::<StateBorrowFact>::with_capacity(6);
+
+        let facts = BorrowFacts::with_roots(
+            writable_roots.clone(),
+            access_segments.clone(),
+            argument_accesses.clone(),
+            calls.clone(),
+            loans.clone(),
+            states.clone(),
+        );
+
+        assert_eq!(facts.writable_roots, writable_roots);
+        assert_eq!(facts.access_segments, access_segments);
+        assert_eq!(facts.argument_accesses, argument_accesses);
+        assert_eq!(facts.calls, calls);
+        assert_eq!(facts.loans, loans);
+        assert_eq!(facts.states, states);
+    }
 }
