@@ -23,6 +23,23 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     Compiler::new(options).compile()
 }
 
+/// Builds the boundary provider registry from `provider` declarations, enforces
+/// the package whitelist, and rejects boundary operator bindings that do not
+/// resolve to a registered provider (frozen Wave 0 decision #4).
+fn validate_boundary_providers(
+    syntax: &omega_syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let registry = omega_effects::build_provider_registry(syntax, &mut diagnostics);
+    omega_effects::validate_provider_bindings(syntax, &registry, &mut diagnostics);
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 pub struct Compiler {
     options: CompileOptions,
 }
@@ -45,6 +62,7 @@ impl Compiler {
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;
         write_boundary_report(&self.options, &syntax.syntax_trees)?;
+        validate_boundary_providers(&syntax.syntax_trees)?;
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         write_resolved_snapshot(&self.options, &resolved)?;

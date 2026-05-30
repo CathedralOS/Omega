@@ -8,10 +8,18 @@
 // operators are the implementation edges for the unsafe representation work
 // beneath those contracts.
 
-boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: usize) -> Ptr<T>;
+// Boundary primitive providers for the pointer edge (Wave 0 #4).
+provider omega::language::core::ptr_offset : PointerOffset;
+provider omega::language::core::ptr_access : PointerAccess;
 
-boundary operator Ptr::read<T>(ptr: Ptr<T>) -> T;
+boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: usize) -> Ptr<T>
+provider omega::language::core::ptr_offset;
 
-boundary operator Ptr::write<T>(ptr: Ptr<T>, value: T) -> ();
+boundary operator Ptr::read<T>(ptr: Ptr<T>) -> T
+provider omega::language::core::ptr_access;
 
-boundary operator Ptr::range<T>(ptr: Ptr<T>, len: usize) -> PtrRange<T>;
+boundary operator Ptr::write<T>(ptr: Ptr<T>, value: T) -> ()
+provider omega::language::core::ptr_access;
+
+boundary operator Ptr::range<T>(ptr: Ptr<T>, len: usize) -> PtrRange<T>
+provider omega::language::core::ptr_offset;

@@ -24,6 +24,31 @@ pub(super) fn operator_signature_key(
     format!("{}({parameter_types})", operator_name(program, operator))
 }
 
+/// The canonical operand-type key for an operator (its parameter types,
+/// normalized over type parameters) without the operator name. Used by the
+/// spelling-overlap ambiguity rule, where the spelling already serves as the
+/// first-level discriminator.
+pub(super) fn operator_operand_key(
+    program: &TypedTrees,
+    operator: &omega_typed_trees::operator::OperatorDefinition,
+) -> String {
+    let mut type_parameters = TypeParameterNormalizer::new(
+        program
+            .operator_type_parameters(operator)
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .collect(),
+    );
+    program
+        .operator_parameters(operator)
+        .iter()
+        .map(|parameter| {
+            canonical_type_reference(program, parameter.type_reference, &mut type_parameters)
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 pub(super) fn operator_name(
     program: &TypedTrees,
     operator: &omega_typed_trees::operator::OperatorDefinition,

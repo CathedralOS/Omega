@@ -1,0 +1,13 @@
+// Frozen Wave 0 decision #3 ambiguity rule: the same spelling with overlapping
+// receiver/operand types is a compile error. Both operators spell `+` over the
+// same `(i32, i32)` operand types, so they are ambiguous.
+
+operator i32::add(left: i32, right: i32) -> i32 spelling +;
+
+operator i32::plus(left: i32, right: i32) -> i32 spelling +;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

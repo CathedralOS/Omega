@@ -1,0 +1,15 @@
+// Frozen Wave 0 decision #4: every boundary binding must resolve to a registered
+// provider. This operator binds a provider name that was never declared, so the
+// binding is rejected.
+
+boundary operator Slice::index<T>(items: &[T], index: usize) -> T
+spelling []
+provider omega::language::core::missing_provider
+requires
+    index < items.len;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

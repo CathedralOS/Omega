@@ -1,0 +1,1 @@
+boundary operator `Slice::index` binds unregistered provider `omega::language::core::missing_provider`

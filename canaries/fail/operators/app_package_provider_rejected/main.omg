@@ -1,0 +1,11 @@
+// Frozen Wave 0 decision #4: only whitelisted packages (omega::language::core,
+// omega::host::**, toolchain) may declare boundary providers. An application
+// package declaring a provider is rejected.
+
+provider app::game::fast_indexing : SliceIndexing;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
