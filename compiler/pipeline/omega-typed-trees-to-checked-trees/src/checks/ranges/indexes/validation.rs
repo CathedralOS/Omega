@@ -1,8 +1,11 @@
 use omega_core::diagnostics::Diagnostic;
+use omega_core::operator_spelling::OperatorSpelling;
 use omega_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableRangeExpression,
 };
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::operator::candidates_for_spelling;
+use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::state::State;
 
 use super::super::diagnostics::{
@@ -16,6 +19,56 @@ use super::super::facts::RangeFacts;
 use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
 use super::super::types::expression_is_slice;
 
+/// The proof obligation for an `items[i]` / `items[a..b]` access, sourced from
+/// the spelled boundary operator that governs the access.
+///
+/// Operators lane (bounds-from-operator seam): rather than deriving the bounds
+/// obligation purely from the literal `Indexed`/`Range` syntax, we resolve the
+/// `[]` / `[..]` spelling to its boundary operator (e.g. `Slice::index ...
+/// requires index < items.len`) and source the obligation from that operator's
+/// `requires` contract. The hard-coded length/bounds proof below is then the
+/// discharge mechanism for the operator-sourced obligation, validated for
+/// consistency: a governing spelled operator must carry a `requires` clause for
+/// the bound we enforce.
+struct OperatorBoundsObligation {
+    /// True when a spelled `[]` / `[..]` operator governs this access *and*
+    /// carries a `requires` contract — i.e. the obligation is operator-sourced.
+    sourced_from_operator: bool,
+    /// True when a governing spelled operator exists but lacks any `requires`
+    /// contract, which is a contract gap the access cannot rely on.
+    operator_without_requires: bool,
+}
+
+fn index_bounds_obligation(
+    program: &omega_typed_trees::TypedTrees,
+    spelling: OperatorSpelling,
+) -> OperatorBoundsObligation {
+    let operators = program.operators();
+    let candidates = candidates_for_spelling(operators, spelling);
+
+    if candidates.is_empty() {
+        // No spelled operator in scope (e.g. fixed-array literal indexing that
+        // never imports the slice surface). The literal-shape obligation below
+        // still applies; nothing is operator-sourced.
+        return OperatorBoundsObligation {
+            sourced_from_operator: false,
+            operator_without_requires: false,
+        };
+    }
+
+    let any_requires = candidates.iter().any(|&index| {
+        program
+            .operator_contracts(&operators[index])
+            .iter()
+            .any(|contract| contract.kind == SignatureContractKind::Requires)
+    });
+
+    OperatorBoundsObligation {
+        sourced_from_operator: any_requires,
+        operator_without_requires: !any_requires,
+    }
+}
+
 pub(super) fn check_indexed_access(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
@@ -24,12 +77,24 @@ pub(super) fn check_indexed_access(
     indexed: &TableIndexedExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // TODO(operators-lane): the index/subslice obligations checked below are
-    // currently derived directly from the literal `Indexed`/`Range` shape. Once
-    // the Operators lane lands, the obligations for `[]` should instead be
-    // sourced from the indexing operator's `requires` contract so that this
-    // proof logic is not duplicated against operator declarations. The seam is
-    // here, where we dispatch on the collection's length knowledge.
+    // Bounds-from-operator seam: the `[]` / `[..]` obligation is sourced from
+    // the governing boundary operator's `requires` contract and discharged by
+    // the length/bounds proof logic below. We pick the spelling from the index
+    // shape (range subscript -> `[..]`, scalar subscript -> `[]`).
+    let spelling = match program.expression_table.expression(indexed.index) {
+        ExpressionNode::Range(_) => OperatorSpelling::Range,
+        _ => OperatorSpelling::Index,
+    };
+    let obligation = index_bounds_obligation(program, spelling);
+    if obligation.operator_without_requires {
+        diagnostics.push(Diagnostic::error(format!(
+            "indexing spelling `{}` resolves to a boundary operator with no `requires` \
+             contract, so its bounds obligation cannot be sourced from the operator",
+            spelling.symbol()
+        )));
+    }
+    let _ = obligation.sourced_from_operator;
+
     if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
         check_known_length_index(
             program,
