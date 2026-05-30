@@ -1,9 +1,33 @@
 use omega::language::core::array;
+use omega::language::core::slice;
 
 // Confirms the fixed-array surface is browsable: native fixed arrays are spelled
 // `[T; N]` (owned contiguous storage with a compile-time length), and the
-// `Array` module declares the length / slice-view contracts (`Array::as_slice`,
-// `Array::as_mut_slice`).
+// `Array` module declares the length measure and the slice-view contracts
+// (`Array::as_slice`, `Array::as_mut_slice`) with `requires`/`ensures` that
+// type-check against borrowed `Slice` views.
+
+operator Probe::array_len(items: &Array<i32>) -> usize
+{
+    items.len
+}
+
+operator Probe::array_first(items: &Array<i32>) -> i32
+requires
+    items.len > 0
+{
+    items[0]
+}
+
+operator Probe::array_view(items: &Array<i32>) -> &[i32]
+{
+    Array::as_slice(items)
+}
+
+operator Probe::array_view_mut(items: &mut Array<i32>) -> &mut [i32]
+{
+    Array::as_mut_slice(items)
+}
 
 data Main {
     cells: [i32; 3];

@@ -1,18 +1,36 @@
 // Core Vec surface.
 //
-// Vec is the growable owner for contiguous storage. It should eventually expose
-// source-visible contracts for length, capacity, allocation, push/pop, and
-// borrowing as Slice views.
+// Vec is the growable owner for contiguous storage. It owns a heap buffer and
+// tracks a length (`len`) and a capacity (`capacity`, always >= len). It is the
+// owned counterpart to the borrowed `Slice` view: `Vec::as_slice` lends the
+// elements as a `&[T]` window without giving up ownership.
 //
-// The allocation buffer and reallocation mechanics are compiler/runtime
-// internals; the visible contracts belong here so slices derived from Vec can
-// participate in borrow checking and proof obligations.
+// This module is the source-visible SURFACE: the length/capacity measures and
+// the push / with_capacity / as_slice / as_mut_slice operator contracts with
+// their `requires`/`ensures`, mirroring how `String` surfaces capacity/push_str
+// and how `Slice`/`Array` surface their length and view contracts. The actual
+// runtime storage and reallocation mechanics (allocation, growth, element
+// moves) are compiler/runtime internals and are OUT OF SCOPE here; only the
+// proof-facing contracts and the boundary provider binding live in this layer.
 
+// Boundary primitive provider for constructing borrowed slice views over an
+// owned vector buffer (Wave 0 decision #4). `as_slice` / `as_mut_slice` lower
+// through this descriptor-construction edge, the same category the slice and
+// pointer surfaces bind their view/offset boundaries to.
+provider omega::language::core::vec_views : DescriptorConstruction;
+
+// Length in elements. Cheap O(1) measure used by `requires`/`ensures`.
 boundary operator Vec::Length<T>(items: &Vec<T>) -> usize;
 
-boundary operator Vec::Capacity<T>(items: &Vec<T>) -> usize;
+// Capacity in elements; always at least the current length. Cheap O(1) measure.
+boundary operator Vec::Capacity<T>(items: &Vec<T>) -> usize
+ensures
+    result >= items.len;
 
-boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>;
+// Construct an empty vector with at least `capacity` worth of spare storage.
+boundary operator Vec::with_capacity<T>(capacity: usize) -> Vec<T>
+ensures
+    result.capacity >= capacity;
 
 boundary operator Vec::index<T>(items: &Vec<T>, index: usize) -> T
 requires
@@ -22,10 +40,19 @@ boundary operator Vec::index_mut<T>(items: &mut Vec<T>, index: usize) -> &mut T
 requires
     index < items.len;
 
-boundary operator Vec::as_slice<T>(items: &Vec<T>) -> &[T];
+// Borrow the elements as a slice view; the view length matches the vector.
+boundary operator Vec::as_slice<T>(items: &Vec<T>) -> &[T]
+provider omega::language::core::vec_views
+ensures
+    result.len == items.len;
 
-boundary operator Vec::as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T];
+boundary operator Vec::as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T]
+provider omega::language::core::vec_views
+ensures
+    result.len == items.len;
 
+// Append a value. Requires spare capacity; growth/reallocation when full is a
+// runtime internal handled below this surface (OUT OF SCOPE here).
 boundary operator Vec::push<T>(items: &mut Vec<T>, value: T) -> ()
 requires
     items.len < items.capacity;
