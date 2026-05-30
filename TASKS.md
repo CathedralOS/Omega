@@ -387,6 +387,9 @@ meaning, without needing access to pointer descriptor internals.
   - final-image memory, symbol-table, and relocation-table roots now join
     through explicit final-image constructors with canaries, so format tests no
     longer assemble `FinalImage` with struct-update defaults
+  - relocation record sets now expose explicit `RelocationRecordSet::with_roots`
+    and `RelocationPlan::with_roots` constructors with canaries, matching the
+    object-plan/final-image artifact root convention
   - backend artifact roots now have a target-aware empty constructor, so
     orchestration skeletons do not hand-build machine/object/relocation roots
   - backend semantic summary names after abstract operations now alias the same
