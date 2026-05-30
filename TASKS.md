@@ -71,6 +71,40 @@ surfacing) are left to the owning slice.
    re-deriving the layout. Migration is byte-identical refactor steps that keep
    the working macOS ARM64 / Windows x64 PE paths green.
 
+## Next Session / Resume Notes
+
+**HIGH-VALUE KNOWN BUG — x86_64 r12 codegen (unblocks ~68 runtime canaries).**
+Native Windows x64 PEs for multi-state dispatch machines crash with `0xC0000005`
+(access violation). Diagnosed root cause (high confidence, NOT environmental —
+`cli_mvp` runs fine): the dispatch-loop / state-write path loads `r12` with a
+32-bit `mov r12d, imm32` (opcode `41 BC`, 4-byte immediate) at sites where the
+relocation stage registers a 64-bit `Absolute64` (8-byte) relocation. The reloc
+writes 8 bytes into the 4-byte immediate field; the high 4 bytes (`01 00 00 00`
+of image base `0x140000000`) spill past the instruction and execute as
+`add [rax],eax` → AV. Every other register load already uses `movabs reg64,imm64`
+(REX.W: r15=`49 BF`, r10=`49 BA`, r11=`49 BB`, rax=`48 B8`); r12 is the only
+32-bit one. Fix: emit `movabs r12, imm64` (REX.W.B = `49 BC`, 10 bytes) for r12
+loads carrying an `Absolute64` relocation (keep the 32-bit form for small
+non-relocated dispatch indices). Files: `omega-isa-x86_64/src/lib.rs`
+`append_mov_r12d_imm32` (~L748) + `encode_dispatch_loop_enter_bytes` /
+`encode_dispatch_state_write_bytes` (~L74-98); reconcile reloc byte_offset/width
+in `omega-relocations/`. Repro: build+run
+`canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit` (must
+exit 76, currently AVs). Fixing this turns the `*_canary_runs` suite green and
+unblocks all runtime/backend verification.
+
+**Wave 3 remaining lanes (not yet started — stopped before first commit):**
+O2 (expression-level operator `spelling` dispatch + bounds-from-`requires` +
+domain-operator ambiguity), Pr (consume the proof-lemma/quantified-fact shapes;
+boundary proof obligations; runtime-checkable domain unions; the `result`-binder
+substitution so `ensures result in Domain` flows to a call's return value — TODO
+left in core str.omg `from_utf8`/`from_no_nul`), Tm (termination SCC/cycle
+reasoning + recursive/cyclic state-arg & guard propagation), Ow (ownership events
+into slice/string operators; sharper borrow overlap; `Vec` mutation-while-borrowed
+rule + promote `canaries/pending/borrow/vec_view_invalidated_by_push`). Tx (text
+domains) already landed on main. Lane briefs preserved in session history; see
+[[parallel-agent-orchestration]] memory for the parallel-wave workflow.
+
 ## Recent Completed Context
 
 - Wave 1 parallel implementation landed six lanes against the frozen Wave 0
