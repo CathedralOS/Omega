@@ -85,6 +85,34 @@ impl ProofLemma {
     }
 }
 
+impl ProofLemma {
+    /// Apply this lemma to a set of already-established premises. Returns the
+    /// concluded [`LemmaFact`] when *every* premise the lemma requires is
+    /// present, otherwise `None`.
+    ///
+    /// This is the single entry point check sites use to discharge a recurring
+    /// length/bounds/window fact through a *named* lemma instead of re-deriving
+    /// the arithmetic locally. Routing through here keeps the reasoning auditable
+    /// (the lemma name appears in evidence/diagnostics) and consistent across
+    /// every call site.
+    pub fn apply(self, established: &[LemmaFact]) -> Option<LemmaFact> {
+        self.premises()
+            .iter()
+            .all(|premise| established.contains(premise))
+            .then(|| self.conclusion())
+    }
+
+    /// The first lemma (in stable [`ProofLemma::ALL`] order) whose premises are
+    /// all satisfied by `established` and that concludes `goal`. This lets a
+    /// check site ask "is there a named lemma that discharges this fact from what
+    /// I already know?" without hard-coding which lemma applies.
+    pub fn discharging(goal: LemmaFact, established: &[LemmaFact]) -> Option<ProofLemma> {
+        ProofLemma::ALL.into_iter().find(|lemma| {
+            lemma.conclusion() == goal && lemma.apply(established) == Some(goal)
+        })
+    }
+}
+
 /// A first-order fact a lemma can consume as a premise or produce as a
 /// conclusion. These are the recurring length/bounds/window relationships,
 /// kept abstract over which concrete collection/index they describe.
@@ -206,6 +234,41 @@ mod tests {
         assert_eq!(
             ProofLemma::WindowSubrange.conclusion(),
             LemmaFact::WindowWithinParent
+        );
+    }
+
+    #[test]
+    fn apply_requires_all_premises() {
+        // Premise present: bounds lemma fires.
+        assert_eq!(
+            ProofLemma::IndexInBounds.apply(&[LemmaFact::IndexLessThanLength]),
+            Some(LemmaFact::InBounds)
+        );
+        // Premise missing: lemma does not fire.
+        assert_eq!(ProofLemma::IndexInBounds.apply(&[]), None);
+        assert_eq!(
+            ProofLemma::IndexInBounds.apply(&[LemmaFact::NonEmpty]),
+            None
+        );
+    }
+
+    #[test]
+    fn discharging_finds_named_lemma_for_goal() {
+        // `InBounds` can be discharged from `NonEmpty` via NonEmptyHasFirst, or
+        // from `IndexLessThanLength` via IndexInBounds. With only NonEmpty
+        // established, the non-empty lemma is the one that discharges it.
+        assert_eq!(
+            ProofLemma::discharging(LemmaFact::InBounds, &[LemmaFact::NonEmpty]),
+            Some(ProofLemma::NonEmptyHasFirst)
+        );
+        assert_eq!(
+            ProofLemma::discharging(LemmaFact::InBounds, &[LemmaFact::IndexLessThanLength]),
+            Some(ProofLemma::IndexInBounds)
+        );
+        // No premise for the goal: nothing discharges it.
+        assert_eq!(
+            ProofLemma::discharging(LemmaFact::InBounds, &[LemmaFact::WindowWithinLength]),
+            None
         );
     }
 
