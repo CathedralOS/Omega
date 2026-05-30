@@ -331,6 +331,19 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         boundary.boundary_signature_symbol,
         boundary_signature_symbol
     );
+
+    let capabilities = crate::capabilities::build_capability_facts(&program, &effects, &flow);
+    assert_eq!(
+        capabilities.count_by_kind(omega_effects::CapabilityFlowKind::Uses),
+        1
+    );
+    let capability = capabilities.flows().next().expect("capability flow");
+    assert_eq!(capability.kind, omega_effects::CapabilityFlowKind::Uses);
+    assert_eq!(capability.capability_symbol, boundary_trait_symbol);
+    assert_eq!(capability.machine_symbol, caller_machine_symbol);
+    assert_eq!(capability.state_symbol, caller_state_symbol);
+    assert_eq!(capability.statement_index, 0);
+    assert_eq!(capability.call_ordinal, 0);
 }
 
 #[test]

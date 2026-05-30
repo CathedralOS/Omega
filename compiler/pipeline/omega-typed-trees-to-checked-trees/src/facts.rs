@@ -21,8 +21,8 @@ pub(crate) fn build_check_facts(
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
-    let capabilities = build_capability_facts(program, &effects);
     let flow = build_flow_facts(program, &borrow, &proof, &mut semantic, &domains, &effects);
+    let capabilities = build_capability_facts(program, &effects, &flow);
 
     CheckFacts::with_roots(
         semantic,
