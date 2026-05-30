@@ -1,0 +1,21 @@
+// A domain-selected operator (chapter 8). The `Quantity::Additive` domain
+// classifies `Quantity` values whose `value` field is non-negative, and binds
+// the `+` spelling to a single `add` meaning for `(Quantity, Quantity)`. Because
+// no competing domain meaning exists for that spelling + operand types over the
+// same target type, the meaning is uniquely selectable and must compile.
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
