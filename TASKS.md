@@ -67,53 +67,41 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
-**KNOWN BUG — mislocated dispatch-guard relocation (unblocks ~68 runtime
-`*_canary_runs`).** Native Windows x64 PEs for multi-state dispatch machines
-crash with `0xC0000005`. Two diagnosis passes; the SECOND corrected the first.
-Symptom: an 8-byte `Absolute64` data-address relocation lands on a
-`mov r12d, imm32` (`41 BC`, 4-byte) `SetDispatchState` instruction; the high 4
-bytes (`01 00 00 00` of image base `0x140000000`) spill past the immediate and
-execute as `add [rax],eax` → write to addr 1 → AV. **NOT the fix:** widening
-that r12 load to `movabs` — `mov r12d` legitimately holds a small dispatch index
-immediately consumed by `cmp r12d, idx`; it is NOT itself a relocation site
-(no `SetDispatchState` reloc handler exists). **Real root cause:** the relocation
-belongs to a DIFFERENT instruction — the second `EvaluateDispatchGuard`'s storage
-load (its own `movabs r15`) — but is anchored at the previous instruction's text
-offset. Evidence (`build/backend_report.html` reloc table on the repro): relocs
-#4/#5/#6 correctly land on `49 bf` (movabs r15) storage loads; reloc #7 wrongly
-lands at offset `0xA1`, inside instruction #7's (`SetDispatchState`) `mov r12d`
-immediate, instead of instruction #8's (`EvaluateDispatchGuard`) movabs. The
-first guard places correctly; divergence is specific to the second guard right
-after a `SetDispatchState`. **Where to fix:** `omega-relocations/src/lookups.rs`
-`selected_instruction_text_offset` (the index→text-offset walk over
-`input.encoded_machine.code.instructions` for the second guard) and/or the
-`EvaluateDispatchGuard` arm in
-`omega-relocations/src/instruction_records/runtime_storage_compares.rs`
-(`insert_data_address_at_instruction_start` anchoring at the wrong
-`selected_instruction_index`). The ISA encoder (`omega-isa-x86_64`) is CORRECT —
-do not touch it. Harness: bin is `target/debug/omega.exe`; repro
-`omega.exe canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit/main.omg`
-then run `build/omega-program.exe` (must exit 76, currently AVs); regression
-guard `omega.exe --target windows_x64 samples/cli_mvp/main.omg` (escapes the bug
-today); suite runtime canaries run as `pass_canaries_runs`. Fixing this unblocks
-all runtime/backend verification.
+**EMISSION — zero-byte-instruction relocation bug (partially fixed; ~26 runtime
+canaries still red).** Root cause (confirmed): some instructions lower to ZERO
+bytes on x86_64 (e.g. `EvaluateDispatchGuard`/`CompareRuntimeText`, whose compare
+folds into the following `cmp`/`movabs`), yet the relocation pass still emitted an
+`Absolute64` storage-address relocation anchored at the zero-byte instruction's
+text offset — which equals the NEXT instruction's start, so the 8-byte address
+splattered into it and executed as garbage → `0xC0000005`. Fixed for the
+dispatch-guard and text-compare arms by gating `insert_data_address_at_instruction_start`
+on non-zero per-arch instruction width
+(`omega-relocations/src/instruction_records/{runtime_storage_compares.rs,
+runtime_text_compare.rs}`). Result so far: runtime `*_canary_runs` went 12→46
+passing. **Remaining ~26 failures are the SAME bug class in OTHER instruction-record
+arms** — slice indexing/iteration, mutable-parameter writes, machine-owned indexed
+writes, string concat (`runtime_storage_writes`, `runtime_values`, slice/copy
+paths). Audit each `instruction_records` arm that emits a data-address relocation
+and gate it the same way when the owning instruction is zero-byte on the target
+arch. Harness: bin is `target/debug/omega.exe`; runtime canaries run as the
+`pass_canaries_runs` test; regression guard `omega --target windows_x64
+samples/cli_mvp/main.omg` (exit 0) + `windows_x64_cli_mvp_emits_runnable_pe`.
 
-**`salvage-tm-scc` branch — partial SCC/cycle termination.** Adds
-`checks/termination/cycles.rs`, SCC graph reasoning, cyclic state-arg facts, and
-mutual-recursion canaries, but does NOT compile as-is: de-dup the duplicated
-`GuardedEdge` block in `checks/termination/ranking/patterns.rs`, fix ~4 build
-errors, and resolve a `canary_suite.rs` registration conflict, then merge.
+**EMISSION — unimplemented x86_64 runtime value operand.** A few canaries fail to
+*compile* (not crash) with `X86_64 runtime value operand is not implemented yet`
+(e.g. `runtime_machine_owned_indexed_integer_write`,
+`runtime_mutable_local_indexed_parameter_write`). Implement the missing x86_64
+runtime-value operand lowering in instruction selection / `omega-isa-x86_64`.
 
-**Unfinished parallel lanes (no work landed; clean re-run).** O2 = expression-
-level operator `spelling` dispatch + sourcing `items[i]` bounds from the
-selected operator's `requires` + domain-operator ambiguity validation. Pr =
-consume the proof-lemma/quantified-fact shapes in the checker + boundary proof
-obligations + runtime-checkable domain-union validation + the `result`-binder
-substitution (so `ensures result in Domain` flows to a call's return value; TODO
-left in core `str.omg` `from_utf8`/`from_no_nul`). Ow = ownership events into
-slice/string operators + the `Vec`-mutation-while-borrowed rule. See the
-[[parallel-agent-orchestration]] memory for the parallel-wave workflow and its
-gotchas (verify `cargo build` first).
+**EMISSION — Stdin host binding (5 canaries + dungeon PE).** `pass_canaries_compile`
+and the stdin/ordered-room canaries abort with `missing host binding for runtime
+text read operation Stdin.read`; `windows_x64_dungeon_crawler_emits_runnable_pe`
+depends on it. Wire the Windows x64 Stdin.read host binding (this is the
+pre-existing red that predates the parallel waves).
+
+Note: `capability_pass_canaries_compile_in_isolation` can show a spurious FAILED
+under full-suite parallelism (build-dir race); it passes run alone / with
+`--test-threads=1`. Not a real failure.
 
 ## Vertical Slices
 
@@ -130,9 +118,8 @@ gotchas (verify `cargo build` first).
 ### Proof-Backed Indexing And Subslicing
 
 - [ ] Thread refined subslice diagnostics through operator-contract errors once
-  `Slice::from/to/range` contracts drive checking directly.
-- [ ] Broaden state-argument fact propagation, and extend guard facts, into
-  recursive/cyclic state-call argument paths (started on `salvage-tm-scc`).
+  `Slice::from/to/range` contracts drive checking directly. (Bounds obligation
+  now sources from the spelled operator's `requires` — extend the diagnostics.)
 - [ ] Represent length facts and window-shrinking facts as first-class slice
   proof vocabulary (non-empty already exists).
 - [ ] Ensure alias and borrow facts understand subslice overlap conservatively.
@@ -141,7 +128,8 @@ gotchas (verify `cargo build` first).
 
 - [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
   copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
-  callers past literal fixed-array bases — needs the r12 emission fix to verify).
+  callers past literal fixed-array bases — several `runtime_subslice_*` canaries
+  still crash, likely the same zero-byte relocation class, verify after that fix).
 - [ ] Generalize start-only/end-only/bounded descriptors beyond literal
   fixed-array-backed views.
 - [ ] Promote pending subslice canaries into pass/fail suites as descriptor
@@ -154,34 +142,24 @@ gotchas (verify `cargo build` first).
   unambiguous.
 - [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
   bounded-distance rankings.
-- [ ] Broaden termination checking toward SCC/cycle reasoning (partial on
-  `salvage-tm-scc`).
 - [ ] Add a runtime exit canary for shrinking-slice recursion once runtime
   dispatch reliably executes descriptor updates (blocked on emission).
 
 ### Operators And Domains
 
-- [ ] Use operator symbols during expression-level overload resolution; validate
-  ambiguous operator declarations by signature and context (O2 lane).
-- [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
-  operator contracts whose `requires` drives bounds checking (O2 lane).
-- [ ] Define the first semantic domain-operator representation; validate
-  ambiguous domain-operator candidates by signature, receiver, and proof context;
-  prove only current-context facts can select a domain-operator meaning; add
-  pass/ambiguity canaries.
+- [ ] Prove that only facts in the CURRENT context can select a domain-operator
+  meaning. (Spelling dispatch, bounds-from-`requires`, and competing-meaning
+  rejection now exist; the positive proof-context selection is the remaining gap.)
 
 ### Ownership, Borrowing, And Views
 
-- [ ] Extend type-aware ownership events into slice/string operators and future
-  user-defined copy/drop policy.
-- [ ] Teach remaining value-expression analysis to append ownership
-  transfer/drop events into checked-flow ownership arenas.
+- [ ] Continue appending ownership transfer/drop events from the remaining
+  value-expression sites (operator-result + let-init seams now covered).
 - [ ] Lower abstract ownership summaries into explicit backend transfer and
   cleanup operations.
-- [ ] Distinguish more disjoint fixed windows and bounded range/range cases
-  where provable.
-- [ ] Ensure `Vec` mutation/reallocation rejects while borrowed views exist
-  (pending canary `borrow/vec_view_invalidated_by_push`).
+- [ ] Promote `borrow/vec_view_invalidated_by_push` from pending once `Vec[T]`
+  lowering exists (the borrow rule fires; blocked only on the `Vec<T>` type being
+  usable — exercised today via an array/call-mutation analogue).
 
 ### Array, Vec, String, And Views
 
