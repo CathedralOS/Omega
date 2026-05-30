@@ -199,9 +199,9 @@ impl OperatorCandidate<'_> {
                 .map(|parameter| parameter.type_reference)
                 .unwrap_or_else(TypeReferenceHandle::invalid),
             self.operator.return_type,
+            self.operator.contracts,
             program.operator_type_parameters(self.operator).len(),
             program.operator_parameters(self.operator).len(),
-            program.operator_contracts(self.operator).len(),
             self.operator.is_boundary,
         )
     }

@@ -152,11 +152,14 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   (`omega-checked-trees/src/operators.rs` +
   `omega-typed-trees-to-checked-trees/src/operators.rs` + `checks/operators.rs`:
   operator use facts, spelling candidates, receiver-type narrowing, use origins,
-  ambiguity diagnostics, contract-bearing uses) while the local O2 lane added a
-  typed-trees dispatch API (`omega-typed-trees/src/operator.rs::resolve_spelling`),
-  validation ambiguity (`omega-validation/src/operators/dispatch.rs`), and the
-  bounds-from-`requires` seam. They compile + test together but overlap
-  conceptually — pick one authority and route the other through it.
+  ambiguity diagnostics, candidate contract spans, contract-bearing uses) while
+  the local O2 lane added a typed-trees dispatch API
+  (`omega-typed-trees/src/operator.rs::resolve_spelling`), validation ambiguity
+  (`omega-validation/src/operators/dispatch.rs`), and the bounds-from-`requires`
+  seam. They compile + test together but overlap conceptually — pick one
+  authority and route the other through it. Recent progress: checked candidates
+  now preserve the exact typed contract span, so proof lowering can inspect the
+  selected operator's contracts rather than relying on a count.
 - [ ] Prove that only facts in the CURRENT context can select a domain-operator
   meaning. (Spelling dispatch, bounds-from-`requires`, and competing-meaning
   rejection now exist; the positive proof-context selection is the remaining gap.)
