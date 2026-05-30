@@ -17,3 +17,9 @@ pub struct AbstractOperationPlan {
     pub code: AbstractOperationCode,
     pub semantics: AbstractSemanticSummary,
 }
+
+impl AbstractOperationPlan {
+    pub fn with_roots(code: AbstractOperationCode, semantics: AbstractSemanticSummary) -> Self {
+        Self { code, semantics }
+    }
+}

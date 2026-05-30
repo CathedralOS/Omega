@@ -14,3 +14,17 @@ pub struct MachineInstructionPlan {
     pub code: MachineInstructionCode,
     pub semantics: MachineInstructionSemanticSummary,
 }
+
+impl MachineInstructionPlan {
+    pub fn with_roots(
+        target: NativeTarget,
+        code: MachineInstructionCode,
+        semantics: MachineInstructionSemanticSummary,
+    ) -> Self {
+        Self {
+            target,
+            code,
+            semantics,
+        }
+    }
+}
