@@ -43,7 +43,9 @@ pub(crate) fn build_control_flow_plan(
                 calls: remap_contract_calls(state_graph),
                 exits: remap_contract_exits(state_graph),
             },
-            values: remap_values(state_graph),
+            values: omega_control_flow::ControlFlowValueRoots {
+                values: remap_values(state_graph),
+            },
             boundary_edges: remap_boundary_edges(state_graph),
             borrow: omega_control_flow::ControlFlowBorrowRoots {
                 writable_roots: remap_borrow_writable_roots(state_graph),

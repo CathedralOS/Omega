@@ -46,7 +46,7 @@ pub(crate) fn merge_machine_graph(
         contract_fact_refs: &contracts.fact_refs,
         contract_calls: &contracts.calls,
         contract_exits: &contracts.exits,
-        values: &values,
+        values: &values.values,
         boundary_edges: &boundary_edges,
         borrow_writable_roots: &borrow.writable_roots,
         borrow_access_segments: &borrow.access_segments,
