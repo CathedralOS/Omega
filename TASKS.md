@@ -82,8 +82,12 @@ surfacing) are left to the owning slice.
   canaries (B), and proof-lemma/quantified-fact/boundary-obligation modules (P).
   Whole workspace builds; fail/pending canary suites pass; native PE execution
   canaries remain pre-existing-red in the sandbox (asm-emission gap, not a Wave 1
-  regression). Operators+registry lane (spelling clause + BoundaryProvider) is
-  still in flight.
+  regression). Follow-on lanes also landed: operator `spelling` + `BoundaryProvider`
+  registry with whitelist/resolution gates (O), dynamic-indexed domain-fact
+  preservation coverage + soundness docs (Pd), and capability verb population +
+  blast-radius manifest + host-call authorization (Cap). Remaining: expression-level
+  spelling dispatch wiring, lemma consumption, runtime descriptor generalization,
+  and native/asm-emission depth.
 - Pipeline architecture docs now define semantic ownership and include the
   stage-by-stage ownership matrix.
 - Syntax, symbol-resolved, typed, checked, state-graph, control-flow, abstract,
@@ -128,14 +132,17 @@ surfacing) are left to the owning slice.
 Goal: make authority flow visible at package, language, and host-boundary
 levels without drowning the language in keywords.
 
-- [ ] Broaden checked capability fact population beyond boundary-trait `uses`
+- [x] Broaden checked capability fact population beyond boundary-trait `uses`
   into returns, acquires, stores, derives, package declarations, and host calls.
-- [ ] Extend the initial entry capability manifest into a package/report
+  (done: all five verbs derived from boundary-call sites off the effect plan.)
+- [x] Extend the initial entry capability manifest into a package/report
   surface for theoretical blast radius: what a library can use, acquire,
-  return, store, or derive.
-- [ ] Connect boundary/host calls to capability facts so target policy checks
-  can say whether a host call is allowed for the package.
-- [ ] Add canaries for:
+  return, store, or derive. (done: `CapabilityBlastRadius` rows in the boundary
+  report / `10_boundary.html`.)
+- [x] Connect boundary/host calls to capability facts so target policy checks
+  can say whether a host call is allowed for the package. (done: host-authority
+  provider registry + `authorize_host_call` + `unapproved host call` check.)
+- [x] Add canaries for:
   - library uses caller-provided folder capability
   - library acquires filesystem authority
   - library stores a capability
@@ -146,19 +153,24 @@ levels without drowning the language in keywords.
 Goal: stop treating `boundary operator` names as vibes. Core/compiler/runtime
 providers should be auditable.
 
-- [ ] Define the language-authored registry shape for compiler/runtime
+- [x] Define the language-authored registry shape for compiler/runtime
   primitive providers such as slice indexing, pointer offset, descriptor
   construction, allocation, and host ABI calls.
+  (done: `BoundaryProvider { name, category, contract_ref, effect_set,
+  target_applicability, origin_package }` + `provider <Name> : <Category>;` item.)
 - [x] Decide whether the registry is package/target metadata, restricted core
   declarations, emitted compiler inventory, or a combination.
   (decided: Wave 0 #4 — combination: `BoundaryProvider` record, core decls +
   target metadata, emitted report as audit.)
-- [ ] Require boundary implementation bindings to reference registered
+- [x] Require boundary implementation bindings to reference registered
   providers once binding syntax exists.
-- [ ] Reject unregistered boundary provider names outside explicitly
-  whitelisted toolchain/core packages.
-- [ ] Add canaries for accepted core primitive bindings and rejected
-  unregistered bindings.
+  (done: `provider <name>` clause on boundary operators + resolution gate.)
+- [x] Reject unregistered boundary provider names outside explicitly
+  whitelisted toolchain/core packages. (done: whitelist gate on declaring
+  package + resolution gate on every binding.)
+- [x] Add canaries for accepted core primitive bindings and rejected
+  unregistered bindings. (done: operators/accepted_core_provider_binding +
+  unregistered_provider_binding + app_package_provider_rejected.)
 
 ### Proof-Backed Indexing And Subslicing
 
@@ -167,8 +179,9 @@ special cases with bolted-on checks.
 
 - [ ] Thread refined subslice diagnostics through operator-contract errors once
   `Slice::from/to/range` contracts drive checking directly.
-- [ ] Connect range validity facts to indexing validity facts instead of
-  duplicating proof logic.
+- [x] Connect range validity facts to indexing validity facts instead of
+  duplicating proof logic. (done: inclusive-end `a..=b` validity reuses the
+  strict index vocabulary `b < len`; exclusive stays on range-bound facts.)
 - [ ] Broaden state-argument fact propagation to recursive/cyclic control-flow
   paths instead of direct-call/transition seeds only.
 - [ ] Extend guard facts into recursive and cyclic state-call argument
