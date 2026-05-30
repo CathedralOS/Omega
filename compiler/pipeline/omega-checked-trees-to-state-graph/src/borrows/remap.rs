@@ -188,3 +188,6 @@ fn remapped_loan_handle(
     loan_map.push((source_loan, mapped));
     mapped
 }
+
+#[cfg(test)]
+mod tests;

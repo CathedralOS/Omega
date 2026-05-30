@@ -71,3 +71,6 @@ fn append_remapped_drop_events(
 
     remapped
 }
+
+#[cfg(test)]
+mod tests;

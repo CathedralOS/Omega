@@ -82,3 +82,6 @@ fn append_remapped_contract_exits(
 
     remapped_exits
 }
+
+#[cfg(test)]
+mod tests;
