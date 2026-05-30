@@ -99,7 +99,12 @@ domain-operator ambiguity), Pr (consume the proof-lemma/quantified-fact shapes;
 boundary proof obligations; runtime-checkable domain unions; the `result`-binder
 substitution so `ensures result in Domain` flows to a call's return value — TODO
 left in core str.omg `from_utf8`/`from_no_nul`), Tm (termination SCC/cycle
-reasoning + recursive/cyclic state-arg & guard propagation), Ow (ownership events
+reasoning + recursive/cyclic state-arg & guard propagation — **PARTIAL WORK on
+branch `salvage-tm-scc`**: adds SCC graph reasoning + cyclic state-arg facts +
+mutual-recursion canaries, but does NOT compile as-is — de-dup the duplicated
+`GuardedEdge` block in `checks/termination/ranking/patterns.rs`, fix ~4 build
+errors, and resolve a `canary_suite.rs` registration conflict before merging),
+Ow (ownership events
 into slice/string operators; sharper borrow overlap; `Vec` mutation-while-borrowed
 rule + promote `canaries/pending/borrow/vec_view_invalidated_by_push`). Tx (text
 domains) already landed on main. Lane briefs preserved in session history; see
