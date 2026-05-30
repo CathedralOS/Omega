@@ -147,6 +147,43 @@ impl BoundaryObligationSet {
     pub fn is_empty(&self) -> bool {
         self.obligations.is_empty()
     }
+
+    /// Check this boundary's obligations against the facts currently established
+    /// at the boundary site. Returns the obligations that are *not* discharged:
+    ///
+    /// - an `Establish` obligation is discharged trivially (the boundary is the
+    ///   authority for it), so it is never reported here;
+    /// - a `Preserve` obligation requires the invariant to already hold on entry
+    ///   (`available` must contain its fact) and is reported when it does not.
+    ///
+    /// Reporting only `Preserve` failures keeps the diagnostic honest: the
+    /// compiler cannot derive a boundary's guarantees, but it *can* insist that
+    /// an invariant the boundary promises to preserve was actually present.
+    pub fn unmet_preservations<'a>(
+        &'a self,
+        available: &'a [Identifier],
+    ) -> impl Iterator<Item = &'a BoundaryProofObligation> + 'a {
+        self.preserved()
+            .filter(move |obligation| !available.contains(&obligation.fact))
+    }
+
+    /// Clear "needs fact X here" diagnostics for every boundary invariant that
+    /// must be preserved but is not established at the call site. Empty when all
+    /// preserved invariants hold (or the boundary only establishes facts).
+    pub fn missing_fact_diagnostics(&self, available: &[Identifier]) -> Vec<String> {
+        self.unmet_preservations(available)
+            .map(|obligation| {
+                format!(
+                    "{}: needs fact `{}` established before the call so the {} can \
+                     preserve it across `{}`",
+                    obligation.describe(),
+                    obligation.fact,
+                    obligation.kind.label(),
+                    obligation.operation
+                )
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -188,6 +225,46 @@ mod tests {
         assert!(described.contains("String::Utf8"));
         assert!(described.contains("write_all"));
         assert!(described.contains("host boundary"));
+    }
+
+    #[test]
+    fn preserve_obligation_reports_missing_fact() {
+        let mut set = BoundaryObligationSet::new();
+        set.push(BoundaryProofObligation::establishes(
+            BoundaryKind::CorePrimitive,
+            ident("Slice::index"),
+            ident("InBounds"),
+        ));
+        set.push(BoundaryProofObligation::preserves(
+            BoundaryKind::CorePrimitive,
+            ident("Slice::index"),
+            ident("Slice::Length"),
+        ));
+
+        // Nothing established: the preserved invariant is reported, the
+        // established guarantee is not.
+        let diagnostics = set.missing_fact_diagnostics(&[]);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].contains("Slice::Length"));
+        assert!(diagnostics[0].contains("needs fact"));
+
+        // Once the invariant is available, no diagnostic is produced.
+        assert!(
+            set.missing_fact_diagnostics(&[ident("Slice::Length")])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn establish_only_boundary_never_reports_missing_facts() {
+        let mut set = BoundaryObligationSet::new();
+        set.push(BoundaryProofObligation::establishes(
+            BoundaryKind::Host,
+            ident("from_utf8"),
+            ident("String::Utf8"),
+        ));
+        assert!(set.missing_fact_diagnostics(&[]).is_empty());
+        assert_eq!(set.unmet_preservations(&[]).count(), 0);
     }
 
     #[test]
