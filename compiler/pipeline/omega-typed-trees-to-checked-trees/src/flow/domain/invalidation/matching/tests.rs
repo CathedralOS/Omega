@@ -138,6 +138,64 @@ fn indexed_domain_dependency_invalidates_same_literal_index_dependency_mutations
 }
 
 #[test]
+fn indexed_domain_dependency_preserves_disjoint_nested_field_under_same_index() {
+    // Fact place `entries[0]` is in a domain whose dependency is the nested
+    // path `inner.value`. A mutation of `entries[0].inner.tag` shares the index
+    // and the `inner` prefix but diverges on the final field, so it must not
+    // invalidate the indexed domain fact (regression guard for disjoint
+    // mutation across a multi-segment dependency).
+    let domain_symbol = SymbolHandle::from_arena_index(130);
+    let entries_symbol = SymbolHandle::from_arena_index(131);
+    let inner_symbol = SymbolHandle::from_arena_index(132);
+    let value_symbol = SymbolHandle::from_arena_index(133);
+    let tag_symbol = SymbolHandle::from_arena_index(134);
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let zero_left = integer_expression(&mut program, 0);
+    let zero_right = integer_expression(&mut program, 0);
+    let domains = dependency_facts(
+        domain_symbol,
+        &[
+            omega_facts::PlaceSegment::Field {
+                symbol: inner_symbol,
+            },
+            omega_facts::PlaceSegment::Field {
+                symbol: value_symbol,
+            },
+        ],
+    );
+    let fact = domain_membership_fact(domain_symbol);
+    let fact_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![omega_facts::PlaceSegment::Index {
+            expression: zero_left,
+        }],
+    };
+    let mutated_place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(entries_symbol),
+        segments: vec![
+            omega_facts::PlaceSegment::Index {
+                expression: zero_right,
+            },
+            omega_facts::PlaceSegment::Field {
+                symbol: inner_symbol,
+            },
+            omega_facts::PlaceSegment::Field { symbol: tag_symbol },
+        ],
+    };
+
+    assert!(
+        domain_membership_matching_dependency(
+            &program,
+            &domains,
+            &fact,
+            &fact_place,
+            &mutated_place,
+        )
+        .is_none()
+    );
+}
+
+#[test]
 fn indexed_domain_dependency_is_conservative_for_unknown_indices() {
     let domain_symbol = SymbolHandle::from_arena_index(120);
     let entries_symbol = SymbolHandle::from_arena_index(121);
