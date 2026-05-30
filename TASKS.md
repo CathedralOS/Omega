@@ -332,6 +332,9 @@ meaning, without needing access to pointer descriptor internals.
     lowerings
   - abstract-to-target lowering now records first-pass boundary policy checks
     for linked, unlinked, and host-binding-missing boundary operations
+  - abstract-to-target boundary policy validation now splits linked-edge
+    discovery, unlinked-edge discovery, and policy-check record construction
+    so target boundary admissibility has a narrower growth seam
   - host ABI plans now carry checked boundary-policy allow-lists and target
     boundary validation can flag disallowed binding policies
   - checked acceptance summaries now expose a stable ordered check list and
