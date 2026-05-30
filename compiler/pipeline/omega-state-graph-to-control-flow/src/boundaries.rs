@@ -5,8 +5,8 @@ use omega_state_graph::StateGraph;
 use crate::handles::remap_boundary_edge_span;
 
 pub(crate) fn remap_boundary_edges(state_graph: &StateGraph) -> Arena<StateBoundaryEdge> {
-    let mut boundary_edges = Arena::with_capacity(state_graph.semantics.boundary_edges.len());
-    for (_, edge) in state_graph.semantics.boundary_edges.iter() {
+    let mut boundary_edges = Arena::with_capacity(state_graph.semantics.boundaries.edges.len());
+    for (_, edge) in state_graph.semantics.boundaries.edges.iter() {
         boundary_edges.append(remap_boundary_edge(edge));
     }
     boundary_edges
