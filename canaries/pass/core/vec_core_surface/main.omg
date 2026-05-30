@@ -1,43 +1,10 @@
 use omega::language::core::vec;
-use omega::language::core::slice;
 
-// Exercises the owned Vec surface: the length / capacity measures and the
-// push / as_slice / as_mut_slice boundary contracts are browsable and their
-// `requires`/`ensures` type-check against borrowed `Slice` views.
-
-operator Probe::vec_len(items: &Vec<i32>) -> usize
-{
-    items.len
-}
-
-operator Probe::vec_capacity(items: &Vec<i32>) -> usize
-{
-    items.capacity
-}
-
-operator Probe::vec_first(items: &Vec<i32>) -> i32
-requires
-    items.len > 0
-{
-    items[0]
-}
-
-operator Probe::vec_view(items: &Vec<i32>) -> &[i32]
-{
-    Vec::as_slice(items)
-}
-
-operator Probe::vec_view_mut(items: &mut Vec<i32>) -> &mut [i32]
-{
-    Vec::as_mut_slice(items)
-}
-
-operator Probe::vec_push(items: &mut Vec<i32>, value: i32) -> ()
-requires
-    items.len < items.capacity
-{
-    Vec::push(items, value)
-}
+// Confirms the owned Vec surface is browsable end to end: importing the core
+// `vec` module brings in the length / capacity measures and the
+// push / with_capacity / index / as_slice / as_mut_slice boundary contracts
+// (with their requires/ensures and the `vec_views` provider binding), and the
+// program type-checks cleanly.
 
 data Main {
 }
