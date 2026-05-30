@@ -32,17 +32,22 @@ pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagn
 #[cfg(test)]
 mod tests {
     use super::macho_entry_text_offset;
+    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
 
     #[test]
     fn resolves_macho_entry_offset_from_final_image_entry_symbol() {
-        let mut image = FinalImage {
-            memory: omega_image::FinalImageMemory {
+        let mut image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            omega_image::FinalImageMemory {
                 text: vec![0; 16],
                 ..Default::default()
             },
-            ..FinalImage::default()
-        };
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
         let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "_start".into(),
             section: FinalImageSection::Text,

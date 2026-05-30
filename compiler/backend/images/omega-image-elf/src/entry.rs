@@ -32,17 +32,22 @@ pub(crate) fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result
 #[cfg(test)]
 mod tests {
     use super::elf_entry_address;
+    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
 
     #[test]
     fn resolves_elf_entry_address_from_final_image_entry_symbol() {
-        let mut image = FinalImage {
-            memory: omega_image::FinalImageMemory {
+        let mut image = FinalImage::with_capacity(
+            FinalImage::default().target,
+            omega_image::FinalImageMemory {
                 text: vec![0; 16],
                 ..Default::default()
             },
-            ..FinalImage::default()
-        };
+            Handle::invalid(),
+            0,
+            0,
+            0,
+        );
         let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "_start".into(),
             section: FinalImageSection::Text,
