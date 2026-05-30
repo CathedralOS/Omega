@@ -55,11 +55,39 @@ pub(super) fn append_statement_ownership_events(
                 }
             }
         }
-        // Transition target/continuation arguments transfer ownership through
-        // their borrow-call facts (resolved as `CallSite::TransitionNamed`), so
-        // their type-aware move events are emitted by
-        // `append_call_ownership_events` during call-flow construction. Emitting
-        // them here as well would double-count the transfer.
-        StatementNode::Call(_) | StatementNode::Expression(_) | StatementNode::Transition(_) => {}
+        // A transition `Named` target's continuation arguments transfer
+        // ownership through their borrow-call facts (resolved as
+        // `CallSite::TransitionNamed`), so their type-aware move events are
+        // emitted by `append_call_ownership_events` during call-flow
+        // construction. A transition `Value` target, however, is a plain value
+        // expression (`_ -> <expr>`, the state's result) for which call-flow
+        // discovery records no ownership-bearing borrow call, so an owned value
+        // moved out through it (a place read, an aggregate, or an operator-call
+        // result) would otherwise leave no ownership event. Record the move for
+        // both the primary target and the continuation `Value` targets via the
+        // type-aware recursion, which itself skips any nested state borrow calls
+        // to avoid double-counting. `Named`/`Terminal` targets are handled by the
+        // call-flow pass / produce no transfer.
+        StatementNode::Transition(transition) => {
+            let source = FlowOwnershipEventSource::Statement { statement_index };
+            for handle in [transition.target, transition.continuation] {
+                if !handle.is_valid() {
+                    continue;
+                }
+                if let omega_typed_trees::statement::TransitionTargetNode::Value(value) =
+                    program.statement_table.transition_target(handle)
+                {
+                    append_move_events_for_expression(
+                        program,
+                        ctx,
+                        state_symbol,
+                        statement_index,
+                        *value,
+                        source,
+                    );
+                }
+            }
+        }
+        StatementNode::Call(_) | StatementNode::Expression(_) => {}
     }
 }
