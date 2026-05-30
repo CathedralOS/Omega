@@ -1,10 +1,8 @@
 use omega_core::arena::Arena;
 
 use crate::{
-    ControlFlowOwnershipRoots, InvariantFact, ProofObligationFact, StateBorrowActivation,
-    StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan, StateBorrowWeakening,
-    StateBorrowWritableRoot, StateBoundaryEdge, StateContractCall, StateContractExit,
-    StateContractFactRef, StateValueFact,
+    ControlFlowBorrowRoots, ControlFlowOwnershipRoots, InvariantFact, ProofObligationFact,
+    StateBoundaryEdge, StateContractCall, StateContractExit, StateContractFactRef, StateValueFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -16,12 +14,6 @@ pub struct ControlFlowSemanticRoots {
     pub contract_exits: Arena<StateContractExit>,
     pub values: Arena<StateValueFact>,
     pub boundary_edges: Arena<StateBoundaryEdge>,
-    pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
-    pub borrow_access_segments: Arena<omega_facts::PlaceSegment>,
-    pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
-    pub borrow_calls: Arena<StateBorrowCall>,
-    pub borrow_loans: Arena<StateBorrowLoan>,
-    pub borrow_activations: Arena<StateBorrowActivation>,
-    pub borrow_weakenings: Arena<StateBorrowWeakening>,
+    pub borrow: ControlFlowBorrowRoots,
     pub ownership: ControlFlowOwnershipRoots,
 }

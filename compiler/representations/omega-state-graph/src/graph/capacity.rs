@@ -1,7 +1,10 @@
 use omega_core::arena::Arena;
 use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 
-use crate::{StateGraph, StateGraphCode, StateGraphOwnershipRoots, StateGraphSemanticRoots};
+use crate::{
+    StateGraph, StateGraphBorrowRoots, StateGraphCode, StateGraphOwnershipRoots,
+    StateGraphSemanticRoots,
+};
 
 impl StateGraph {
     pub fn with_capacity(
@@ -50,13 +53,15 @@ impl StateGraph {
                 contract_exits: Arena::with_capacity(contract_exit_capacity),
                 values: Arena::with_capacity(value_capacity),
                 boundary_edges: Arena::with_capacity(boundary_edge_capacity),
-                borrow_writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
-                borrow_access_segments: Arena::with_capacity(borrow_access_segment_capacity),
-                borrow_argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),
-                borrow_calls: Arena::with_capacity(borrow_call_capacity),
-                borrow_loans: Arena::with_capacity(borrow_loan_capacity),
-                borrow_activations: Arena::with_capacity(borrow_activation_capacity),
-                borrow_weakenings: Arena::with_capacity(borrow_weakening_capacity),
+                borrow: StateGraphBorrowRoots {
+                    writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
+                    access_segments: Arena::with_capacity(borrow_access_segment_capacity),
+                    argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),
+                    calls: Arena::with_capacity(borrow_call_capacity),
+                    loans: Arena::with_capacity(borrow_loan_capacity),
+                    activations: Arena::with_capacity(borrow_activation_capacity),
+                    weakenings: Arena::with_capacity(borrow_weakening_capacity),
+                },
                 ownership: StateGraphOwnershipRoots {
                     segments: Arena::with_capacity(ownership_segment_capacity),
                     moves: Arena::with_capacity(move_event_capacity),

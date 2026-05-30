@@ -89,7 +89,8 @@ fn argument_is_mutable_alias(
         && let Some(access) = context
             .control_flow
             .semantics
-            .borrow_argument_accesses
+            .borrow
+            .argument_accesses
             .span(call.accesses)
             .and_then(|accesses| accesses.get(index))
     {

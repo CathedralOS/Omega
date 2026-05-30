@@ -29,7 +29,7 @@ pub(crate) fn state_borrow_summary(
         return StateBorrowSummary::default();
     };
 
-    let writable_roots = state_graph.semantics.borrow_writable_roots.insert_many(
+    let writable_roots = state_graph.semantics.borrow.writable_roots.insert_many(
         program
             .facts
             .borrow

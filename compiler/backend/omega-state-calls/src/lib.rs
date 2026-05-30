@@ -96,7 +96,8 @@ impl StateCallPlanningContext {
         let state = self.control_flow.state_by_key(source_key)?;
         self.control_flow
             .semantics
-            .borrow_calls
+            .borrow
+            .calls
             .span(state.borrow.calls)?
             .iter()
             .find(|call| {

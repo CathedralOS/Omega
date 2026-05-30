@@ -191,7 +191,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
 
     for borrow_call in plan
         .semantics
-        .borrow_calls
+        .borrow
+        .calls
         .span_or_empty(state.borrow.calls)
     {
         label.push('\n');
@@ -201,7 +202,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
 
     for loan in plan
         .semantics
-        .borrow_loans
+        .borrow
+        .loans
         .span_or_empty(state.borrow.active_loans)
     {
         label.push('\n');
@@ -211,7 +213,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
 
     for activation in plan
         .semantics
-        .borrow_activations
+        .borrow
+        .activations
         .span_or_empty(state.borrow.activations)
     {
         label.push('\n');
@@ -221,7 +224,8 @@ fn state_label(plan: &ControlFlowPlan, machine: &MachineFlow, state: &StateFlow)
 
     for weakening in plan
         .semantics
-        .borrow_weakenings
+        .borrow
+        .weakenings
         .span_or_empty(state.borrow.weakenings)
     {
         label.push('\n');
@@ -287,7 +291,8 @@ fn borrow_call_label(
 ) -> String {
     let accesses = plan
         .semantics
-        .borrow_argument_accesses
+        .borrow
+        .argument_accesses
         .span_or_empty(call.accesses)
         .iter()
         .map(|access| borrow_access_label(plan, machine, state, access))
@@ -342,7 +347,7 @@ fn borrow_activation_label(
     state: &StateFlow,
     activation: &StateBorrowActivation,
 ) -> String {
-    let loan = plan.semantics.borrow_loans.get(activation.loan);
+    let loan = plan.semantics.borrow.loans.get(activation.loan);
     format!(
         "activation {} -> {}",
         borrow_event_source_label(plan, activation.source),
@@ -356,7 +361,7 @@ fn borrow_weakening_label(
     state: &StateFlow,
     weakening: &StateBorrowWeakening,
 ) -> String {
-    let loan = plan.semantics.borrow_loans.get(weakening.loan);
+    let loan = plan.semantics.borrow.loans.get(weakening.loan);
     format!(
         "weakening {} -> {} ({})",
         borrow_event_source_label(plan, weakening.source),
@@ -375,7 +380,8 @@ fn borrow_place_label(
     let mut label = symbol_name_for_state(plan, machine, state, root_symbol);
     for segment in plan
         .semantics
-        .borrow_access_segments
+        .borrow
+        .access_segments
         .span_or_empty(segments)
     {
         match segment {
