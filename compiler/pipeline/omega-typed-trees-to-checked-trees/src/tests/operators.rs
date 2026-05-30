@@ -53,11 +53,19 @@ fn records_indexed_expression_operator_spelling_resolution() {
     assert_eq!(indexed_use.spelling, OperatorSpelling::Index);
     assert_eq!(indexed_use.selected_operator_symbol, index_operator_symbol);
     assert_eq!(
+        facts.candidate_symbols(indexed_use),
+        &[index_operator_symbol]
+    );
+    assert_eq!(
         indexed_use.status,
         omega_checked_trees::CheckedOperatorResolutionStatus::Resolved
     );
     assert_eq!(ranged_use.spelling, OperatorSpelling::Range);
     assert_eq!(ranged_use.selected_operator_symbol, range_operator_symbol);
+    assert_eq!(
+        facts.candidate_symbols(ranged_use),
+        &[range_operator_symbol]
+    );
     assert_eq!(
         ranged_use.status,
         omega_checked_trees::CheckedOperatorResolutionStatus::Resolved
@@ -66,13 +74,16 @@ fn records_indexed_expression_operator_spelling_resolution() {
 
 #[test]
 fn records_ambiguous_operator_spelling_status() {
+    let first_candidate = SymbolHandle::from_arena_index(90);
+    let second_candidate = SymbolHandle::from_arena_index(91);
+
     let mut program = omega_typed_trees::TypedTrees::default();
     program.push_operator(operator_with_spelling(
-        SymbolHandle::from_arena_index(90),
+        first_candidate,
         OperatorSpelling::Index,
     ));
     program.push_operator(operator_with_spelling(
-        SymbolHandle::from_arena_index(91),
+        second_candidate,
         OperatorSpelling::Index,
     ));
 
@@ -96,6 +107,10 @@ fn records_ambiguous_operator_spelling_status() {
         omega_checked_trees::CheckedOperatorResolutionStatus::Ambiguous
     );
     assert_eq!(indexed_use.candidate_count, 2);
+    assert_eq!(
+        facts.candidate_symbols(indexed_use),
+        &[first_candidate, second_candidate]
+    );
     assert!(!indexed_use.selected_operator_symbol.is_valid());
 }
 
