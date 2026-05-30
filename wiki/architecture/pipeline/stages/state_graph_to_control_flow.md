@@ -73,6 +73,9 @@ noun preserved in a focused file:
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas. Its constructor names those noun roots explicitly, and this
   stage should use that constructor when preserving graph semantic evidence.
+  Individual fact, contract, value, boundary, borrow, and ownership roots should
+  likewise use their noun-specific root constructors instead of raw field
+  assembly.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
   contract, value, boundary, borrow, ownership, operation, transition, and effect summaries.

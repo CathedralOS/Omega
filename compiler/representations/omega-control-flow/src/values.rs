@@ -9,6 +9,12 @@ pub struct ControlFlowValueRoots {
     pub values: Arena<StateValueFact>,
 }
 
+impl ControlFlowValueRoots {
+    pub fn with_roots(values: Arena<StateValueFact>) -> Self {
+        Self { values }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum StateValueStatementRole {
     #[default]
