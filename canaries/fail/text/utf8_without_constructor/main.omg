@@ -1,0 +1,21 @@
+use omega::language::core::str;
+
+// `String::Utf8` cannot be minted by ordinary code: it has no cheap classifier
+// body and is only establishable at a validating boundary. Here `main` calls
+// `consume`, which `requires text in String::Utf8`, WITHOUT ever flowing the text
+// through `String::validate_utf8`. The membership is therefore unproven and the
+// call precondition must be rejected.
+
+data Main {
+    text: String;
+}
+
+machine Main::consume(&self, text: &String)
+requires
+    text in String::Utf8
+{
+}
+
+machine Main::main(&mut self) {
+    self.consume(&self.text);
+}
