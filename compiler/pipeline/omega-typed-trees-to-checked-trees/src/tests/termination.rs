@@ -407,3 +407,149 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
             .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
     );
 }
+
+#[test]
+fn infers_default_nat_descending_for_plain_usize_decreases() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: usize)
+    terminates {
+        decreases remaining;
+    }
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("default nat-descending inference should succeed");
+}
+
+#[test]
+fn infers_default_slice_length_for_plain_slice_decreases() {
+    let source = r#"
+    data Entry {
+        value: i32;
+    }
+
+    data Main {
+        entries: [Entry; 4];
+    }
+
+    machine Main::main(&mut self) {
+        let view: &[Entry] = self.entries.as_slice();
+        let value: usize = self.walk(view);
+    }
+
+    machine Main::walk(&mut self, entries: &[Entry])
+    terminates {
+        decreases entries;
+    }
+    -> usize
+    {
+        transition entries.len > 0 {
+            true -> self.walk(entries[1..])
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("default slice-length inference should succeed");
+}
+
+#[test]
+fn infers_default_bounded_distance_for_plain_subtraction_decreases() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.walk(4, 0);
+    }
+
+    machine Main::walk(&mut self, limit: usize, index: usize)
+    terminates {
+        decreases limit - index;
+    }
+    -> usize
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("default bounded-distance inference should succeed");
+}
+
+#[test]
+fn rejects_ambiguous_default_order_requiring_explicit_form() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) -> i32 {
+        transition {
+            _ -> self.countdown(2)
+        }
+    }
+
+    machine Main::countdown(&mut self, remaining: i32)
+    terminates {
+        decreases remaining;
+    }
+    -> i32
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> remaining
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("ambiguous default order should fail");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("ambiguous decreases clause")),
+        "expected an ambiguity diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}

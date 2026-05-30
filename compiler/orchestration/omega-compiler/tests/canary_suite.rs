@@ -3186,6 +3186,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
+    "termination/default_order_nat_countdown_compile",
+    "termination/default_order_slice_length_compile",
+    "termination/default_order_bounded_distance_compile",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -3280,6 +3283,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_parameter_mismatch",
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
+    "termination/default_order_ambiguous",
 ];
 
 #[derive(Clone, Copy)]
