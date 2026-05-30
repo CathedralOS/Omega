@@ -98,12 +98,36 @@ pub struct AcceptanceSummary {
 pub trait AcceptanceView {
     fn summary(&self) -> AcceptanceSummary;
 
+    fn check(&self, dimension: AcceptanceDimension) -> AcceptanceCheck {
+        self.summary().check(dimension)
+    }
+
     fn verdict(&self) -> AcceptanceVerdict {
         self.summary().verdict
     }
 
     fn is_accepted(&self) -> bool {
         self.summary().is_accepted()
+    }
+
+    fn is_dimension_satisfied(&self, dimension: AcceptanceDimension) -> bool {
+        self.check(dimension).is_satisfied()
+    }
+
+    fn evidence_count(&self) -> usize {
+        self.summary().evidence_count()
+    }
+
+    fn diagnostic_count(&self) -> usize {
+        self.summary().diagnostic_count()
+    }
+
+    fn rejected_check_count(&self) -> usize {
+        self.summary().rejected_check_count()
+    }
+
+    fn has_diagnostics(&self) -> bool {
+        self.summary().has_diagnostics()
     }
 }
 
@@ -175,10 +199,46 @@ impl AcceptanceSummary {
         ]
     }
 
+    pub const fn check(self, dimension: AcceptanceDimension) -> AcceptanceCheck {
+        match dimension {
+            AcceptanceDimension::Borrow => self.borrow,
+            AcceptanceDimension::Proof => self.proof,
+            AcceptanceDimension::Effects => self.effects,
+            AcceptanceDimension::Boundaries => self.boundaries,
+            AcceptanceDimension::Termination => self.termination,
+        }
+    }
+
+    pub const fn is_dimension_satisfied(self, dimension: AcceptanceDimension) -> bool {
+        self.check(dimension).is_satisfied()
+    }
+
     pub fn rejected_checks(self) -> impl Iterator<Item = AcceptanceCheck> {
         self.checks()
             .into_iter()
             .filter(|check| !check.is_satisfied())
+    }
+
+    pub fn evidence_count(self) -> usize {
+        self.checks()
+            .into_iter()
+            .map(|check| check.evidence_count)
+            .sum()
+    }
+
+    pub fn diagnostic_count(self) -> usize {
+        self.checks()
+            .into_iter()
+            .map(|check| check.diagnostic_count)
+            .sum()
+    }
+
+    pub fn rejected_check_count(self) -> usize {
+        self.rejected_checks().count()
+    }
+
+    pub fn has_diagnostics(self) -> bool {
+        self.diagnostic_count() > 0
     }
 }
 
